@@ -2,8 +2,8 @@
 """
 Code Sync DEV-side push sender (stdlib only).
 
-The DEV (behind NAT) sends HTTP requests to each CLIENT peer and
-PUSHES file changes: a full manifest reconcile on every (re)connect, then
+Each CLIENT holds an SSE connection to the DEV, which pushes file changes: a
+full manifest reconcile on every (re)connect, then
 incremental deltas. A supervisor thread (outliving individual push threads)
 owns persistent per-client state so an offline client resumes the deltas it
 missed, and a dead peer is retried with exponential backoff.
@@ -42,7 +42,7 @@ from pycore.pyutils.codesync.watcher import get_watch_manager
 # DEV side -- dial each client and push deltas                                #
 # --------------------------------------------------------------------------- #
 class PushSender:
-    """Maintains one HTTP push worker per client peer.
+    """Maintains one SSE push worker per client peer.
 
     The supervisor owns persistent per-client state that survives an individual
     push thread dying, so an offline client resumes with the deltas it missed:
@@ -206,9 +206,9 @@ class PushSender:
     def _push_to(self, peer: dict) -> None:
         host = peer.get("host")
         port = int(peer.get("port", PYCORE_HTTP_PORT))
-        client = HttpFrameClient(host, port)
-        connected = False
         client_id = peer.get("id")
+        client = HttpFrameClient(host, port, client_id)
+        connected = False
         try:
             client.connect()
             me = self.m.config.get_self()

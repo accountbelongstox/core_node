@@ -3,9 +3,7 @@
 Code Sync Manager - role-based peer mesh coordinator.
 
 Each machine has a ROLE (from the committed peer config, peer_config.py):
-  * client (default): RECEIVES code from dev-ends. Runs the file client on startup
-    (always on) plus the status mesh. Pulls the newest version of each file across
-    ALL configured dev-ends (per-file mtime).
+  * client (default): RECEIVES code from dev-ends over persistent HTTP SSE streams.
   * dev: DISTRIBUTES code to clients. Runs the status mesh on startup; file
     distribution defaults OFF but is restored from unified user settings when the
     tray/UI last enabled it (set_distributing(True) persists per machine).
@@ -47,6 +45,8 @@ from pycore.pyutils.codesync.peer_mesh import PeerMeshManager
 from pycore.pyutils.codesync.runtime_prefs import get_runtime_prefs
 from pycore.pyutils.codesync.push_receiver import PushReceiver
 from pycore.pyutils.codesync.push_sender import PushSender
+from pycore.pyutils.codesync.sse_receiver import SseReceiver
+from pycore.pyutils.codesync.sse_transport import code_sync_transport_status
 
 from pycore.pyutils.codesync.sync_settings import build_excluder
 from pycore.pyutils.codesync.sync_settings import get_sync_settings
@@ -104,9 +104,8 @@ class CodeSyncManager:
                                     light=light_client)
         self.mesh.start()
 
-        # HTTP push channel (dev sends requests to clients). The receiver is
-        # used by the HTTP controller; the sender supervisor only acts while
-        # this node is a distributing dev.
+        # SSE push channel: clients hold a stream to each configured dev. The
+        # sender supervisor only acts while this node is a distributing dev.
         # Per-CHANNEL sync phase: each remote end (the OTHER end's id) gets its own
         # row so concurrent peers no longer stomp a single global phase. A legacy
         # caller that passes no channel lands in the "_local" channel.
@@ -117,6 +116,7 @@ class CodeSyncManager:
         # sender supervisor — it neither pushes nor receives code.
         self.push_receiver = PushReceiver(self)
         self.push_sender = PushSender(self)
+        self.sse_receiver = SseReceiver(self)
         if not light_client:
             self.push_sender.start()
 
@@ -170,17 +170,13 @@ class CodeSyncManager:
         """(Re)start the file services to match the role."""
         self._stop_services()
         if role == "client":
-            # A CLIENT is PASSIVE: it never scans the LAN, never dials out to a
-            # dev-end. It exposes an HTTP controller that dev-ends call to push
-            # code to. The legacy outbound puller (CodeSyncClient: LAN scan + connect
-            # to dev) is intentionally NOT started. Skip-update is enforced at the
-            # receiver (see PushReceiver), not by stopping a puller.
+            if not self.light:
+                self.sse_receiver.start()
             if self._skip_update:
                 ColorPrint.yellow("[CodeSync Manager] Client role; updates are SKIPPED "
-                                  "(HTTP receiver will reject pushed code).")
+                                  "(SSE receiver will reject pushed code).")
             else:
-                ColorPrint.green("[CodeSync Manager] Client role: receiving via HTTP push "
-                                 "(passive server only — no LAN scan, no outbound connect).")
+                ColorPrint.green("[CodeSync Manager] Client role: receiving via SSE")
         else:  # dev
             # Mesh already runs; file distribution stays OFF until enabled.
             ColorPrint.green("[CodeSync Manager] Dev role - distribution OFF "
@@ -318,20 +314,13 @@ class CodeSyncManager:
 
     # ----- client wiring --------------------------------------------------- #
     def _sync_client_targets(self) -> None:
-        """Point the client at the configured dev-end peers (plus LAN discovery)."""
-        if self.role != "client":
-            return
-        client = get_code_sync_client()
-        for peer in self.config.dev_peers():
-            try:
-                client.add_server(
-                    peer.get("host"),
-                    int(peer.get("port", PYCORE_HTTP_PORT)),
-                )
-            except Exception as exc:
-                ColorPrint.yellow(f"[CodeSync Manager] add_server failed: {exc}")
+        """Configured DEV peers are observed by the SSE receiver supervisor."""
+        return
 
     def _stop_services(self) -> None:
+        receiver = getattr(self, "sse_receiver", None)
+        if receiver is not None:
+            receiver.stop()
         for getter in (get_code_sync_server, get_code_sync_client):
             try:
                 getter().stop()
@@ -426,7 +415,7 @@ class CodeSyncManager:
         self._broadcast()
         return {"success": True, "settings": settings}
 
-    # ----- HTTP push: phase + sync-log ring (shared by sender & receiver) -- #
+    # ----- SSE push: phase + sync-log ring (shared by sender & receiver) --- #
     def sync_target_root(self) -> Path:
         """Where a CLIENT writes pushed files (mapped under this root by dest_rel)."""
         return get_core_node_root()
@@ -566,8 +555,7 @@ class CodeSyncManager:
             if self.role == "dev" and self.distributing:
                 summary["clients"] = len(get_code_sync_server().clients)
             elif self.role == "client":
-                client = get_code_sync_client()
-                summary["servers"] = len(client.servers)
+                summary["servers"] = len(self.sse_receiver.get_status().get("servers", []))
         except Exception:
             pass
         return {
@@ -585,6 +573,7 @@ class CodeSyncManager:
             "watch_dirs": self.watch_dirs(),
             "sync_phase": self.get_sync_phase(),
             "summary": summary,
+            "transport": code_sync_transport_status(),
         }
 
     def get_peers(self) -> dict:
@@ -607,7 +596,7 @@ class CodeSyncManager:
             if self.role == "dev" and self.distributing:
                 status["server"] = get_code_sync_server().get_status()
             elif self.role == "client":
-                status["client"] = get_code_sync_client().get_status()
+                status["client"] = self.sse_receiver.get_status()
         except Exception:
             pass
         return status

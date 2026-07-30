@@ -3,7 +3,7 @@
 """
 RPC Service - FastAPI HTTP controller service for Speech (Modular Routes)
 
-Uses RpcServer HTTP controllers with PyHeartbeat and SpeechSwitch integration.
+Uses HttpServer HTTP controllers with PyHeartbeat and SpeechSwitch integration.
 Routes are organized in separate modules for better maintainability.
 
 Usage:
@@ -56,7 +56,7 @@ class RPCService:
         Initialize RPC Service
 
         Args:
-            rpc_server: RpcServerRunner instance
+            rpc_server: HttpServerRunner instance
             tts_switch: SpeechSwitch instance (optional, kept for compatibility)
             stt_switch: SpeechSwitch instance (optional, kept for compatibility)
         """
@@ -88,24 +88,24 @@ class RPCService:
         ColorPrint.green("\n[RPCService] ✅ All routes registered successfully")
         ColorPrint.blue("\nAvailable Endpoints:")
         ColorPrint.blue("  TTS:")
-        ColorPrint.blue("    - POST /api/controller/tts")
-        ColorPrint.blue("    - POST /api/controller/tts.synthesize")
+        ColorPrint.blue("    - POST /api/tts")
+        ColorPrint.blue("    - POST /api/tts/synthesize")
         ColorPrint.blue("  STT:")
-        ColorPrint.blue("    - POST /api/controller/stt")
-        ColorPrint.blue("    - POST /api/controller/stt.recognize")
+        ColorPrint.blue("    - POST /api/stt")
+        ColorPrint.blue("    - POST /api/stt/recognize")
         ColorPrint.blue("  Config:")
-        ColorPrint.blue("    - POST /api/controller/config.get")
-        ColorPrint.blue("    - POST /api/controller/config.set")
-        ColorPrint.blue("    - POST /api/controller/config.get_all")
-        ColorPrint.blue("    - POST /api/controller/config.reset")
+        ColorPrint.blue("    - POST /api/config/get")
+        ColorPrint.blue("    - POST /api/config/set")
+        ColorPrint.blue("    - POST /api/config/get_all")
+        ColorPrint.blue("    - POST /api/config/reset")
         ColorPrint.blue("  Status:")
-        ColorPrint.blue("    - POST /api/controller/status")
+        ColorPrint.blue("    - POST /api/status")
         ColorPrint.blue("  Queue:")
-        ColorPrint.blue("    - POST /api/controller/queue_stats")
-        ColorPrint.blue("    - POST /api/controller/task_status")
+        ColorPrint.blue("    - POST /api/queue_stats")
+        ColorPrint.blue("    - POST /api/task_status")
         ColorPrint.blue("  Clipboard:")
-        ColorPrint.blue("    - POST /api/controller/clipboard_get")
-        ColorPrint.blue("    - POST /api/controller/clipboard_sync")
+        ColorPrint.blue("    - POST /api/clipboard_get")
+        ColorPrint.blue("    - POST /api/clipboard_sync")
 
     def get_status(self) -> Dict[str, Any]:
         """Get RPC service status"""
@@ -140,7 +140,7 @@ def start_rpc_service(rpc_server, tts_switch=None, stt_switch=None) -> RPCServic
     Register speech routes on running RPC server
 
     Args:
-        rpc_server: RpcServerRunner instance
+        rpc_server: HttpServerRunner instance
         tts_switch: SpeechSwitch instance (optional)
         stt_switch: SpeechSwitch instance (optional)
 

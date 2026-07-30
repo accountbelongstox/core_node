@@ -4,8 +4,8 @@
 
 import { buildPycoreHttpUrl, normalizePycorePath } from './pycoreEndpoints';
 import { directPycoreHost, rewritePycoreEndpoint } from './pycoreTarget';
-import { callRpc, isHttpConnected } from './PycoreHttp';
-import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+import { requestPycoreHttp, isHttpConnected } from './PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
 function guardPycoreReachability(): void {
   // Requests fail through fetch with their concrete HTTP/network error.
@@ -24,9 +24,9 @@ async function fileToBase64(file: File): Promise<string> {
 export {
   guardPycoreReachability,
   fileToBase64,
-  callRpc,
+  requestPycoreHttp,
   isHttpConnected,
-  PYCORE_RPC_ROUTES,
+  PYCORE_HTTP_ROUTES,
   rewritePycoreEndpoint,
   directPycoreHost,
   buildPycoreHttpUrl,

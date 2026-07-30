@@ -1,7 +1,7 @@
 /**
  * PcAiBalancesView — "Account balances" section of the AI / Keys sub-view.
  *
- * Surfaces the RPC v2 AI balance response: remaining credit for the handful of
+ * Surfaces the HTTP v2 AI balance response: remaining credit for the handful of
  * providers that publish a machine-readable balance endpoint (openrouter /
  * deepseek / siliconflow / moonshot). Balances are NEVER auto-fetched on mount
  * (a balance call spends nothing but does hit the provider) — the user clicks

@@ -23,7 +23,11 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pygvar import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
-from pycore.pyutils.codesync.runtime import log as ColorPrint, start_bus_task
+from pycore.pyutils.codesync.runtime import (
+    is_shutdown_requested,
+    log as ColorPrint,
+    start_bus_task,
+)
 from pycore.pyutils.codesync.manager import get_manager
 from pycore.pyutils.codesync.panel import PANEL_HTML
 from pycore.pyutils.codesync.service_ops import (
@@ -31,6 +35,16 @@ from pycore.pyutils.codesync.service_ops import (
     _service_status,
     _run_service_op_detached,
     _service_log_commands,
+)
+from pycore.pyutils.codesync.sse_transport import (
+    SSE_ACK_PATH,
+    SSE_CONTENT_TYPE,
+    SSE_EVENT_NAME,
+    SSE_KEEP_ALIVE_SECONDS,
+    SSE_RESPONSE_HEADERS,
+    SSE_STREAM_PATH,
+    code_sync_sse_broker,
+    encode_sse_frame,
 )
 
 from urllib.parse import urlparse, parse_qs
@@ -88,6 +102,34 @@ class _Handler(BaseHTTPRequestHandler):
     def _send_html(self, html: str, status: int = 200) -> None:
         self._write_response(html.encode("utf-8"), status, "text/html; charset=utf-8")
 
+    def _stream_frames(self, client_id: str, since_frame: str) -> None:
+        cursor = str(since_frame or "").strip()
+        session = code_sync_sse_broker.connect(client_id)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", f"{SSE_CONTENT_TYPE}; charset=utf-8")
+            for name, value in SSE_RESPONSE_HEADERS.items():
+                self.send_header(name, value)
+            self.end_headers()
+            while not is_shutdown_requested():
+                code_sync_sse_broker.touch(client_id, session)
+                frame = code_sync_sse_broker.wait_next_frame(
+                    client_id,
+                    cursor,
+                    SSE_KEEP_ALIVE_SECONDS,
+                )
+                if frame is None:
+                    body = b": keep-alive\n\n"
+                else:
+                    cursor = str(frame.get("frame_id") or "")
+                    body = encode_sse_frame(SSE_EVENT_NAME, frame, cursor)
+                self.wfile.write(body)
+                self.wfile.flush()
+        except _CONN_ERRORS:
+            return
+        finally:
+            code_sync_sse_broker.disconnect(client_id, session)
+
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
 
@@ -142,6 +184,13 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json(_manager().get_peer_file_tree(pid))
             if path == "/code-sync/service/status":
                 return self._send_json(_service_status())
+            if path == SSE_STREAM_PATH:
+                q = parse_qs(urlparse(self.path).query)
+                client_id = str((q.get("client_id") or [""])[0]).strip()
+                since_frame = str((q.get("since_frame") or [""])[0]).strip()
+                if not client_id:
+                    return self._send_json({"detail": "client_id required"}, status=400)
+                return self._stream_frames(client_id, since_frame)
             return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
@@ -157,25 +206,22 @@ class _Handler(BaseHTTPRequestHandler):
     def _dispatch_post(self, path: str, body: Dict[str, Any]):
         m = _manager()
 
-        if path in (
-            "/code-sync/push",
-            "/api/controller/code_sync.push_frame",
-        ):
-            frame = str(body.get("frame") or "")
-            if not frame:
+        if path == SSE_ACK_PATH:
+            client_id = str(body.get("client_id") or "").strip()
+            frame_id = str(body.get("frame_id") or "").strip()
+            if not client_id or not frame_id:
                 return self._send_json(
-                    {"success": False, "error": "frame required", "reply": None},
+                    {"success": False, "error": "client_id and frame_id required"},
                     status=400,
                 )
-            replies = []
-            accepted = m.push_receiver.handle_text(frame, replies.append)
-            return self._send_json(
-                {
-                    "success": bool(accepted),
-                    "reply": replies[0] if replies else None,
-                }
+            accepted = code_sync_sse_broker.acknowledge(
+                client_id,
+                frame_id,
+                body.get("reply"),
             )
-        if path == "/api/controller/ui.code_sync.ping":
+            return self._send_json({"success": accepted}, status=200 if accepted else 404)
+
+        if path == "/api/ui/code_sync/ping":
             return self._send_json({"status": "ok", "service": "code-sync"})
 
         # ---- mesh / control ---------------------------------------------- #

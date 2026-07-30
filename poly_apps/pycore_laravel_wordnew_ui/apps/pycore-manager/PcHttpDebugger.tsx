@@ -1,10 +1,10 @@
 /**
- * PcHttpDebugger - a GLOBAL floating HTTP/RPC request debugger for the
+ * PcHttpDebugger - a GLOBAL floating HTTP/HTTP request debugger for the
  * pycore-manager end. Mounted ONCE in PcLayout (overlays every page, incl.
  * /pycore-manager/queue-center).
  *
  * Shows BOTH request directions in one table:
- *   - pycore  : FE -> pycore (instrumented in PycoreHttp.callRpc + PycoreApi
+ *   - pycore  : FE -> pycore (instrumented in PycoreHttp.requestPycoreHttp + PycoreApi
  *               PycoreMasterClient.request).
  *   - laravel : pycore -> Laravel (relayed from the backend 'laravel_http' HTTP
  *               event by PcLiveContext).
@@ -26,7 +26,7 @@ function readOpen(): boolean {
 }
 
 function statusColor(status: number): string {
-  if (!status) return '#f87171';        // transport error / RPC rejection
+  if (!status) return '#f87171';        // transport error / HTTP rejection
   if (status >= 500) return '#f87171';  // red
   if (status >= 400) return '#fbbf24';  // amber
   if (status >= 200 && status < 300) return '#4ade80'; // green

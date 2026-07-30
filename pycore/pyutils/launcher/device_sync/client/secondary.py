@@ -21,6 +21,7 @@ from pycore.pyutils.launcher.device_sync.core.config import get_global_config, D
 from pycore.pyutils.launcher.device_sync.core.scanner import SimpleDeviceScanner
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
+from pycore.pyutils.launcher.device_sync.sse_protocol import consume_sync_events
 
 
 class SimpleClient:
@@ -163,15 +164,25 @@ class SimpleClient:
             return False
 
     def _sync_loop(self):
-        """Auto sync loop (runs in background thread)"""
+        """Hold the PRIMARY SSE stream and sync when it emits a notification."""
         while THREAD_BUS.get_signal(self._running_signal, False):
-            if self.config.sync_enabled:
-                self.sync_now()
-
-            # Sleep interval
-            for _ in range(DEFAULT_SYNC_INTERVAL * 10):
+            if not self.config.sync_enabled:
+                time.sleep(0.5)
+                continue
+            try:
+                consume_sync_events(
+                    self.config.primary_server_ip,
+                    self.config.primary_server_port,
+                    lambda: bool(THREAD_BUS.get_signal(self._running_signal, False)),
+                    self.sync_now,
+                )
+            except urllib.error.URLError as e:
+                ColorPrint.warning(f"Sync SSE unavailable: {e}")
+            except Exception as e:
+                ColorPrint.error(f"Sync SSE error: {e}")
+            for _ in range(10):
                 if not THREAD_BUS.get_signal(self._running_signal, False):
-                    break
+                    return
                 time.sleep(0.1)
 
     def _discover_primary(self) -> bool:

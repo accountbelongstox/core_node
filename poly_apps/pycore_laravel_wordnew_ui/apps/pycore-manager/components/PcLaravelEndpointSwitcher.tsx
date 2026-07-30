@@ -4,7 +4,7 @@
  * State lives in PcLaravelEndpointContext so the global top-bar chip and the
  * Settings page share one list/current/health view. Mirrors laravel-manager's
  * ApiEndpointSwitcher UX (health dot + latency, click-to-switch, add/remove,
- * manual re-probe) but targets the pycore `laravel_api.*` RPCs.
+ * manual re-probe) but targets the pycore `laravel_api.*` HTTPs.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -136,8 +136,8 @@ const PcLaravelEndpointSwitcher: React.FC<Props> = ({ variant = 'embedded' }) =>
           </div>
 
           {fallback && (
-            // pycore RPC (:59000) offline: the list below is the read-only prepared
-            // set so the available APIs are still visible. Retry re-attempts the RPC.
+            // pycore HTTP (:59000) offline: the list below is the read-only prepared
+            // set so the available APIs are still visible. Retry re-attempts the HTTP.
             <div className="px-3 py-2 text-[11px] text-amber-600 dark:text-amber-400 bg-amber-500/10 border-b border-amber-500/20 flex items-start gap-1.5">
               <WifiOff className="w-3.5 h-3.5 shrink-0 mt-0.5" />
               <span className="flex-1 break-words">{t('endpoint.offlineHint')}</span>

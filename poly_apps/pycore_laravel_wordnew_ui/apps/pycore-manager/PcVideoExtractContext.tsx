@@ -17,7 +17,7 @@
  *  2. Survives a FULL reload — `begin(saved)` persists the minimal re-attach
  *     record (`{ taskId, output, source }`) under the `task_pycore_video-extract`
  *     namespace. On provider INIT the hook's `reattach(saved)` fetches the
- *     backend task through RPC v2 and restores it:
+ *     backend task through HTTP v2 and restores it:
  *       - still running  → restore busy + snapshot + resume polling
  *       - finished       → restore the final snapshot/output (no polling)
  *       - unknown (404)  → clears the stored id
@@ -30,9 +30,9 @@ import React, {
   createContext, useContext, useEffect, useRef, useState, useCallback,
 } from 'react';
 import {
-  pycoreApi, callRpc, subscribeHttpEvent,
+  pycoreApi, requestPycoreHttp, subscribeHttpEvent,
 } from '../../core/api-libs/pycore';
-import { PYCORE_RPC_ROUTES } from '../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 import { PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
 import type { VideoExtractMapping, VideoExtractSegment } from '../../core/api-libs/pycore';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
@@ -152,7 +152,7 @@ interface PcVideoExtractValue {
   syncingAll: boolean;
   syncProgress: VeSyncProgress | null;
   // ---- subtitle-language fill (video_extract.fill_languages) ----
-  // `filling` while a fill RPC is in flight; `fillProgress` streams the live
+  // `filling` while a fill HTTP is in flight; `fillProgress` streams the live
   // stage/done/total over the `subtitle_language_fill` event.
   filling: boolean;
   fillProgress: VeFillProgress | null;
@@ -167,7 +167,7 @@ interface PcVideoExtractValue {
 
   // ---- multi-language correspondence selection (spec §12) ----
   // The checked language CODES (>=1, includes the primary). Drives both the
-  // per-cue correspondence display (segments fetch) and the sync RPC payloads.
+  // per-cue correspondence display (segments fetch) and the sync HTTP payloads.
   corrLanguages: string[];
   setCorrLanguages: (codes: string[]) => void;
 
@@ -238,7 +238,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
       const saved = task.saved;
       const tid = saved?.taskId;
       if (!tid) return Promise.resolve(null);
-      return callRpc(PYCORE_RPC_ROUTES.videoExtractGetTask, { task_id: tid })
+      return requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractGetTask, { task_id: tid })
         .then((tr: any) => {
           if (!tr?.success || !tr.task) return null;
           if (isDone(tr.task)) {
@@ -258,7 +258,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     },
     reattach: (saved: VeStored) => {
       if (!saved?.taskId) return Promise.resolve(null);
-      return callRpc(PYCORE_RPC_ROUTES.videoExtractGetTask, { task_id: saved.taskId })
+      return requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractGetTask, { task_id: saved.taskId })
         .then((tr: any) => {
           if (!tr?.success || !tr.task) return null;
           // finished while we were away → restore the final task; mark settled so
@@ -406,7 +406,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   }), []);
 
   // ---- live subtitle-language-fill progress events --------------------- #
-  // Mirrors the `video_extract_sync` subscription above: the fill RPC streams
+  // Mirrors the `video_extract_sync` subscription above: the fill HTTP streams
   // `subtitle_language_fill` stages; 'done'/'error' clear the in-flight flag and
   // progress. The summary (filled/skipped/failed counts) is surfaced as a notice.
   useEffect(() => subscribeHttpEvent(PYCORE_EVENT_TOPICS.subtitleLanguageFill, (d: any) => {
@@ -437,7 +437,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
 
   // ---- actions ---------------------------------------------------------- #
   const preview = useCallback(async (req: VeStartReq): Promise<string> => {
-    const r: any = await callRpc(PYCORE_RPC_ROUTES.videoExtractPreview, { ...req, dry_run: true })
+    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractPreview, { ...req, dry_run: true })
       .catch((e: any) => ({ success: false, error: e?.message || 'pycore unreachable' }));
     if (!r.success) {
       const msg = `Error: ${r.error}`;
@@ -460,7 +460,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     // selected language's subtitle track inline this run (provider chain → AI),
     // not just the primary. Primary is auto-included; this is the multi-select.
     const startReq = { ...req, selected_languages: corrLangsRef.current };
-    const r: any = await callRpc(PYCORE_RPC_ROUTES.videoExtractStart, startReq)
+    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractStart, startReq)
       .catch((e: any) => ({ success: false, error: e?.message || 'request failed' }));
     setStarting(false);
     if (!r.success || !r.task_id) {
@@ -500,9 +500,9 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     if (alreadyInFlight) return;
     setSyncProgress({ stage: 'scan', done: 0, total: 0, detail: '' });
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
-    callRpc(PYCORE_RPC_ROUTES.videoExtractSyncSource, { source_path: sourcePath, languages: langs })
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractSyncSource, { source_path: sourcePath, languages: langs })
       .catch((e: any) => {
-        setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
+        setNotice(`${L.veSyncFailed}: ${e?.message || 'HTTP failed'}`);
         setSyncing((prev) => { const n = new Set(prev); n.delete(sourcePath); return n; });
         setSyncProgress(null);
       });
@@ -523,9 +523,9 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
     const payload: Record<string, unknown> = { languages: langs };
     if (paths && paths.length) payload.paths = paths;
-    await callRpc(PYCORE_RPC_ROUTES.videoExtractSyncAll, payload)
+    await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractSyncAll, payload)
       .catch((e: any) => {
-        setNotice(`${L.veSyncFailed}: ${e?.message || 'RPC failed'}`);
+        setNotice(`${L.veSyncFailed}: ${e?.message || 'HTTP failed'}`);
         setSyncing(new Set());
         setSyncProgress(null);
       });
@@ -536,7 +536,7 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
   // submit them. Guarded like the sync actions: skipped while a fill is already
   // in flight; progress + cleanup ride the `subtitle_language_fill` subscription
   // above. Generous timeout (same as sync) — OpenSubtitles fetch + AI-translate
-  // of full cue sets far exceeds callRpc's 30s default.
+  // of full cue sets far exceeds requestPycoreHttp's 30s default.
   const fillLanguages = useCallback(async (
     paths?: string[], languages?: string[], strategy: 'api_first' | 'whisper' = 'api_first',
   ): Promise<void> => {
@@ -546,9 +546,9 @@ export function PcVideoExtractProvider({ children }: { children: React.ReactNode
     const langs = (languages && languages.length) ? languages : corrLangsRef.current;
     const payload: Record<string, unknown> = { languages: langs, strategy };
     if (paths && paths.length) payload.paths = paths;
-    await callRpc(PYCORE_RPC_ROUTES.videoExtractFillLanguages, payload, 600_000)
+    await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractFillLanguages, payload, 600_000)
       .catch((e: any) => {
-        setNotice(`${L.veFillFailed}: ${e?.message || 'RPC failed'}`);
+        setNotice(`${L.veFillFailed}: ${e?.message || 'HTTP failed'}`);
         setFilling(false);
         setFillProgress(null);
       });

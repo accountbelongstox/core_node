@@ -3,8 +3,8 @@
  *
  * Every section is a card with a header row (icon, title, live count, and an
  * idempotent toggle switch where applicable) plus the existing panel component
- * as its body. One RPC v2 snapshot drives the page; control mutations also use
- * RPC v2, followed by hub.refreshHub(). Legacy ?tab= links
+ * as its body. One HTTP v2 snapshot drives the page; control mutations also use
+ * HTTP v2, followed by hub.refreshHub(). Legacy ?tab= links
  * scroll to the matching section anchor instead of switching tabs.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';

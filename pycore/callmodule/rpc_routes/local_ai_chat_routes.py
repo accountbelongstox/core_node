@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Register AI chat controllers on RPC v2."""
+"""Register AI chat controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes.route_names import LOCAL_AI_CHAT
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_gateway import generate_text
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def register_local_ai_chat_routes(server) -> None:
@@ -30,6 +29,5 @@ def register_local_ai_chat_routes(server) -> None:
             result = chat_once(provider, messages, model, source=source)
         return {"success": True, "data": result}
 
-    server.route(name=LOCAL_AI_CHAT, handler=chat_handler)
-    ColorPrint.green("[ConfigBuilder] Registered local AI chat RPC route")
+    server.post(name=LOCAL_AI_CHAT, handler=chat_handler)
 

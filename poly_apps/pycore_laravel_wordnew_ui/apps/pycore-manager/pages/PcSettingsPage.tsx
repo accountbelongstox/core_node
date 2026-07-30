@@ -6,7 +6,7 @@
  * system-settings (pycoreApi.getSystemSettings/setSystemSettings —
  * monitorClipboard, scheduledScreenshot, screenshotInterval, notebooklmAutoConvert),
  * the Laravel endpoint selection (PcLaravelEndpointSwitcher — pycore-owned
- * `laravel_api.*` RPCs), task engine tuning, and
+ * `laravel_api.*` HTTPs), task engine tuning, and
  * auto-start on boot (pycoreApi.getAutostart/setAutostart). Every backend call
  * is guarded; an inline "pycore unreachable" state is shown when the backend
  * (:59000) is offline. Local React state, pycoreApi, lucide-react and
@@ -315,7 +315,7 @@ const PcSettingsPage: React.FC = () => {
         {row(
           <Wifi className="w-5 h-5" />, 'Pycore backend',
           pcHealth.up === null
-            ? (pcHealth.reachability === 'probing' ? 'Probing RPC…' : 'Not checked yet.')
+            ? (pcHealth.reachability === 'probing' ? 'Probing HTTP…' : 'Not checked yet.')
             : pcHealth.up
               ? `Online — ping answered in ${pcHealth.responseTime}ms.`
               : 'Offline — retrying at the interval below until it answers.',
@@ -557,7 +557,7 @@ const PcSettingsPage: React.FC = () => {
             })}
           </div>
           <p className="text-[10px] text-slate-400 mt-1.5">
-            Pyservice = RPC + dashboard UI. Terminal launcher arranges terminals across the display (needs a graphical session). Both runs the launcher, then pyservice.
+            Pyservice = HTTP + dashboard UI. Terminal launcher arranges terminals across the display (needs a graphical session). Both runs the launcher, then pyservice.
             {autostart?.mechanism ? ` · mechanism: ${autostart.mechanism}` : ''}
           </p>
         </div>

@@ -28,9 +28,9 @@ import {
   ChevronDown, ChevronRight, Lock, BookMarked, Workflow,
 } from 'lucide-react';
 import {
-  pycoreApi, connectPycoreHttp, onHttpStatus, callRpc, subscribeHttpEvent,
+  pycoreApi, connectPycoreHttp, onHttpStatus, requestPycoreHttp, subscribeHttpEvent,
 } from '../../../core/api-libs/pycore';
-import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
 import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
 import type {
   VideoExtractMode, BooksAnalyzeResponse, BookTextStats, BookSourceState,
@@ -186,8 +186,8 @@ const DEFAULT_BASE = 'D:\\.tmp';
 // Cap the "run until empty" loop so a stuck backend can never spin forever.
 const MAX_LOOP_ITERATIONS = 50;
 // The auto-flow chains convert + translate + TTS + ingest — all slow; give it a
-// long ceiling so the RPC never times out before the engine finishes.
-const AUTOFLOW_RPC_TIMEOUT_MS = 600_000;   // 10 min
+// long ceiling so the HTTP never times out before the engine finishes.
+const AUTOFLOW_HTTP_TIMEOUT_MS = 600_000;   // 10 min
 
 interface BookEntry { path: string; mode: VideoExtractMode; }
 interface SyncProgress { stage: string; done: number; total: number; detail: string; }
@@ -400,7 +400,7 @@ const PcBooksPage: React.FC = () => {
       const r = await pycoreApi.booksAnalyze(path, { formats: activeFormats(), languages: selectedLangList(), preview_chars: 1200, persist: true });
       if (r && r.success) {
         setAnalyses((prev) => ({ ...prev, [path]: r }));
-        // Read lightweight totals through RPC v2 (chapter count lives in totals.chapters).
+        // Read lightweight totals through HTTP v2 (chapter count lives in totals.chapters).
         pycoreApi.booksList(path, 'chapters', 0, 1, { languages: selectedLangList() })
           .then((lr) => {
             if (lr?.totals) {
@@ -626,7 +626,7 @@ const PcBooksPage: React.FC = () => {
   }, [entries, selected, syncing, resolveSyncPaths, loadState, selectedLangList]);
 
   // --- one-click auto-flow: convert → translate → voice → submit --------- #
-  // Fires the backend `corebook.autoflow` RPC for ONE source; per-stage progress
+  // Fires the backend `corebook.autoflow` HTTP for ONE source; per-stage progress
   // streams over the `corebook_autoflow` HTTP event (wired above). One flow at a
   // time; the catch keeps it safe when the HTTP service is offline.
   const runPipeline = useCallback(async (path: string) => {
@@ -636,10 +636,10 @@ const PcBooksPage: React.FC = () => {
     setFlowPath(path);
     setFlowProgress({ stage: 'convert', done: 0, total: 0, detail: '' });
     setNotice(null);
-    const r: any = await callRpc(
-      PYCORE_RPC_ROUTES.corebookAutoflow,
+    const r: any = await requestPycoreHttp(
+      PYCORE_HTTP_ROUTES.corebookAutoflow,
       { path, languages: langs, source_type: 'book' },
-      AUTOFLOW_RPC_TIMEOUT_MS,
+      AUTOFLOW_HTTP_TIMEOUT_MS,
     ).catch((e: any) => ({ success: false, errors: [e?.message || 'failed'] }));
     const errCount = Array.isArray(r?.errors) ? r.errors.length : 0;
     setFlowResult((prev) => ({ ...prev, [path]: { success: !!r?.success, errors: errCount } }));
@@ -658,8 +658,8 @@ const PcBooksPage: React.FC = () => {
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
     const lim = Math.max(1, Math.floor(limit) || 1);
-    const r: any = await callRpc(PYCORE_RPC_ROUTES.mediaEnrich, { limit: lim })
-      .catch((e: any) => ({ error: e?.message || 'RPC failed' }));
+    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.mediaEnrich, { limit: lim })
+      .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
     if (!r || r.error || r.success === false) {
       setNotice(`${L.enrichFailed}${r?.error ? ': ' + r.error : ''}`);
       return null;
@@ -1358,7 +1358,7 @@ const PcBooksPage: React.FC = () => {
 
       {/* Sentence Audio - idempotent TTS generation for every library sentence,
           with progress persisted to localStorage (survives refresh/reopen).
-          Drives the existing `media.enrich` RPC (-> laravel_main
+          Drives the existing `media.enrich` HTTP (-> laravel_main
           SentenceEnrichmentService: fill-missing audio saved locally). */}
       <PcSentenceAudioPanel entries={entries} sourceStates={sourceStates} />
 

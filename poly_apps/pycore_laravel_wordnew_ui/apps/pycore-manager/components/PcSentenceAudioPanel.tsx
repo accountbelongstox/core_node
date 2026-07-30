@@ -40,8 +40,8 @@ import {
   Volume2, RefreshCw, Play, Square, CheckCircle2, AlertTriangle, WifiOff,
   BookOpen, Sparkles,
 } from 'lucide-react';
-import { callRpc, onHttpStatus } from '../../../core/api-libs/pycore';
-import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { requestPycoreHttp, onHttpStatus } from '../../../core/api-libs/pycore';
+import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
 import type { BookSourceState } from '../../../core/api-libs/pycore';
 import { StorageKeys, StorageManager } from '../../../core/persistence';
 
@@ -157,8 +157,8 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
   const enrichOnce = useCallback(async (limit: number): Promise<{
     processed: number; enriched: number; remaining: number; errors: string[];
   } | null> => {
-    const r: any = await callRpc(PYCORE_RPC_ROUTES.mediaEnrich, { limit })
-      .catch((e: any) => ({ error: e?.message || 'RPC failed' }));
+    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.mediaEnrich, { limit })
+      .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
     if (!r || r.error || r.success === false) {
       return null;
     }

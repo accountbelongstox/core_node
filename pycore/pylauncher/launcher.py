@@ -181,7 +181,7 @@ class ServiceLauncher:
             # Get RPC v2 server and register custom route
             rpc = launcher.get_service('rpc_v2')
             if rpc:
-                rpc.server.route('custom', handler_func)
+                rpc.server.post('custom', handler_func)
 
             # Get heartbeat system
             heartbeat = launcher.get_service('heartbeat')

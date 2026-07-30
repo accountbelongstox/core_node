@@ -14,7 +14,7 @@ EventPublisher = Callable[..., Awaitable[Dict[str, Any]]]
 DeliveryBinding = Tuple[asyncio.AbstractEventLoop, EventPublisher]
 
 
-class RpcDeliveryService:
+class HttpEventDeliveryService:
     """Publish domain events to every active RPC server event journal."""
 
     def __init__(self) -> None:
@@ -107,7 +107,7 @@ class RpcDeliveryService:
         )
 
 
-rpc_delivery_service = RpcDeliveryService()
+http_event_delivery_service = HttpEventDeliveryService()
 
 
-__all__ = ["rpc_delivery_service"]
+__all__ = ["http_event_delivery_service"]

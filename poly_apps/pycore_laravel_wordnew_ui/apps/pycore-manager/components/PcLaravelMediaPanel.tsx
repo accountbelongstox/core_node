@@ -2,13 +2,13 @@
  * PcLaravelMediaPanel — collapsible "Laravel backend data" panel (pycore end).
  *
  * Read-only counterpart check for the pycore→Laravel media sync. PRIMARY data
- * source is the pycore RPC `video_extract.backend_status`, which resolves the
+ * source is the pycore HTTP `video_extract.backend_status`, which resolves the
  * Laravel base URL exactly like the sync engine does — so the panel reports
  * against the SAME backend the sync actually targets (single source of truth
  * for "what did my sync land"). It shows the resolved base_url + reachability
  * and a per-source local↔backend comparison with a sync-state badge.
  *
- * Books and detail peeks use video_extract.backend_media_* RPC v2 routes.
+ * Books and detail peeks use video_extract.backend_media_* HTTP v2 routes.
  * Only pycore performs the selected-endpoint HTTP calls to Laravel; this UI
  * never falls back to a browser Laravel client.
  *
@@ -21,9 +21,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Database, ChevronDown, ChevronUp, RefreshCw, WifiOff, Wifi, Film, BookOpen,
 } from 'lucide-react';
-import { callRpc } from '../../../core/api-libs/pycore';
+import { requestPycoreHttp } from '../../../core/api-libs/pycore';
 import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
 import type {
   MediaSourceListItem, MediaListResponse, MediaSentence,
 } from '../../../core/api/modules/MediaQueryAPI';
@@ -136,13 +136,13 @@ const PcLaravelMediaPanel: React.FC = () => {
   const [books, setBooks] = useState<MediaListResponse | null>(null);
   const [peek, setPeek] = useState<PeekState | null>(null);
 
-  // Both reads travel UI -> pycore RPC v2 -> Laravel HTTP.
+  // Both reads travel UI -> pycore HTTP v2 -> Laravel HTTP.
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [statusResult, booksResult] = await Promise.all([
-        callRpc(PYCORE_RPC_ROUTES.videoExtractBackendStatus, {}) as Promise<BackendStatus>,
-        callRpc(PYCORE_RPC_ROUTES.videoExtractBackendMediaList, {
+        requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendStatus, {}) as Promise<BackendStatus>,
+        requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendMediaList, {
           kind: 'book', per_page: PER_PAGE,
         }) as Promise<MediaRpcEnvelope<MediaListResponse>>,
       ]);
@@ -183,7 +183,7 @@ const PcLaravelMediaPanel: React.FC = () => {
     if (peek?.key === item.source_key) { setPeek(null); return; }
     setPeek({ key: item.source_key, kind, loading: true, sentences: [], segments: 0 });
     try {
-      const res = await callRpc(PYCORE_RPC_ROUTES.videoExtractBackendMediaDetail, {
+      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendMediaDetail, {
         kind,
         source_key: item.source_key,
         grain: 'sentence',

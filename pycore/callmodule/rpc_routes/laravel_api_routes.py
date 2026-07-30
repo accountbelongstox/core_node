@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Laravel endpoint-management controllers on RPC v2."""
+"""Register Laravel endpoint-management controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.callmodule.rpc_routes.route_names import (

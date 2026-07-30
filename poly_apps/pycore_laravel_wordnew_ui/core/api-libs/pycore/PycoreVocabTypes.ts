@@ -1,11 +1,11 @@
 /**
  * Vocabulary types for the pycore-manager Vocabulary page.
  *
- * Pycore RPC v2 vocabulary routes proxy Laravel server-side, so these shapes
+ * Pycore HTTP v2 vocabulary routes proxy Laravel server-side, so these shapes
  * mirror Laravel's native responses (the
  * agent-confirmed shapes from the laravel-manager #/vocabulary page). Every
  * response carries a `success` flag; when laravel is unreachable pycore returns
- * {success:false, error} and the RPC client surfaces it (the page try/catches).
+ * {success:false, error} and the HTTP client surfaces it (the page try/catches).
  */
 
 import type { PcQueueCategory } from './QueueCenterContract';

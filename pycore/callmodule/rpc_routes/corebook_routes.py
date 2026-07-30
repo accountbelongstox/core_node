@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register the CoreBook autoflow controller on RPC v2."""
+"""Register the CoreBook autoflow controller on HTTP v2."""
 
 import os
 
@@ -79,7 +79,7 @@ def register_corebook_routes(server) -> None:
             request.get("source_type") or "book",
         )
 
-    server.route(
+    server.post(
         name=route_names.COREBOOK_AUTOFLOW,
         handler=corebook_autoflow,
         description="CoreBook one-click pipeline",

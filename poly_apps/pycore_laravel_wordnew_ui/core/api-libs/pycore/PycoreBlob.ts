@@ -2,13 +2,13 @@
  * PycoreBlob — fetch pycore binary assets over HTTP controllers as
  * data: URLs, instead of loading them as HTTP element `src` from :59000.
  *
- * Selects the concrete native RPC v2 resource controller for each path.
+ * Selects the concrete native HTTP v2 resource controller for each path.
  * Returns an empty URL while the HTTP controller is unavailable. An in-memory cache keeps a
  * given path's data URL stable across re-renders so a list of thumbnails does not
  * re-fetch on every render.
  */
-import { callRpc } from './PycoreHttp';
-import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+import { requestPycoreHttp } from './PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
 const _cache = new Map<string, string>();
 const _inflight = new Map<string, Promise<string>>();
@@ -24,28 +24,28 @@ function toPycorePath(url: string): string {
 function resourceCall(path: string): Promise<unknown> {
   const speechMatch = path.match(/^\/api\/local\/speech\/history\/file\/([^?]+)/);
   if (speechMatch) {
-    return callRpc(PYCORE_RPC_ROUTES.speechHistoryHistoryFile, {
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.speechHistoryHistoryFile, {
       audio_id: decodeURIComponent(speechMatch[1]),
     });
   }
   const imageMatch = path.match(/^\/api\/local\/ai\/image\/history\/file\/([^?]+)/);
   if (imageMatch) {
-    return callRpc(PYCORE_RPC_ROUTES.aiImageImageHistoryFile, {
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.aiImageImageHistoryFile, {
       image_id: decodeURIComponent(imageMatch[1]),
     });
   }
   if (path.startsWith('/voice-subtitle/audio')) {
     const query = new URL(path, 'http://pycore.local').searchParams;
-    return callRpc(PYCORE_RPC_ROUTES.voiceSubtitleGetAudioFile, {
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetAudioFile, {
       path: query.get('path') || '',
     });
   }
-  return callRpc(PYCORE_RPC_ROUTES.vocabularyResource, { url: path });
+  return requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyResource, { url: path });
 }
 
 /**
- * Resolve a pycore media path to a cached `data:` URL fetched over RPC v2.
- * It returns an empty string while RPC is unavailable and never falls back to
+ * Resolve a pycore media path to a cached `data:` URL fetched over HTTP v2.
+ * It returns an empty string while HTTP is unavailable and never falls back to
  * browser HTTP.
  */
 export async function fetchPycoreBlobUrl(url: string): Promise<string> {

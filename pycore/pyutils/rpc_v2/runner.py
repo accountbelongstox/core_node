@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Background uvicorn lifecycle for RpcServer."""
+"""Background uvicorn lifecycle for HttpServer."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_uvicorn
-from pycore.pyutils.rpc_v2.server import RpcServer
+from pycore.pyutils.rpc_v2.server import HttpServer
 
 
 uvicorn = get_third_package_uvicorn()
@@ -25,11 +25,11 @@ class _CancelledErrorFilter(logging.Filter):
         return not (exc_type and exc_type.__name__ == "CancelledError")
 
 
-class RpcServerRunner:
-    """Run one RpcServer in a THREAD_BUS-owned background task."""
+class HttpServerRunner:
+    """Run one HttpServer in a THREAD_BUS-owned background task."""
 
     def __init__(self, **server_options: Any) -> None:
-        self.server = RpcServer(options=server_options)
+        self.server = HttpServer(options=server_options)
         self._thread: Optional[Any] = None
         self._uvicorn_server: Optional[Any] = None
         self._cancel_filter = _CancelledErrorFilter()
@@ -41,7 +41,7 @@ class RpcServerRunner:
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
-            ColorPrint.yellow("[RpcServerRunner] Server already running")
+            ColorPrint.yellow("[HttpServerRunner] Server already running")
             return
         logging.getLogger("uvicorn.error").addFilter(self._cancel_filter)
         THREAD_BUS.clear_signal(self._start_signal)
@@ -57,7 +57,7 @@ class RpcServerRunner:
         self._uvicorn_server = uvicorn.Server(config=config)
         self._thread = start_bus_task(
             self._uvicorn_server.run,
-            thread_name="RpcServerThread",
+            thread_name="HttpServerThread",
         )
         THREAD_BUS.wait_signal(self._start_signal, timeout=5)
 
@@ -68,10 +68,13 @@ class RpcServerRunner:
         if self._thread is not None:
             self._thread.join(timeout=5)
         logging.getLogger("uvicorn.error").removeFilter(self._cancel_filter)
-        ColorPrint.blue("[RpcServerRunner] Server stopped")
+        ColorPrint.blue("[HttpServerRunner] Server stopped")
 
-    def route(self, name: str, handler: Callable, **options: Any) -> Any:
-        return self.server.route(name, handler, **options)
+    def get(self, name: str, handler: Callable, **options: Any) -> Any:
+        return self.server.get(name, handler, **options)
+
+    def post(self, name: str, handler: Callable, **options: Any) -> Any:
+        return self.server.post(name, handler, **options)
 
     def register_routes(
         self,
@@ -89,7 +92,7 @@ class RpcServerRunner:
             "host": self.host,
             "port": self.port,
             "running": bool(self._thread and self._thread.is_alive()),
-            "controllers": len(self.server.list_controllers()),
+            "routes": len(self.server.list_routes()),
         }
 
     @property
@@ -105,4 +108,4 @@ class RpcServerRunner:
         return self.server.app
 
 
-__all__ = ["RpcServerRunner"]
+__all__ = ["HttpServerRunner"]

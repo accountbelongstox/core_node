@@ -7,10 +7,10 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ScrollText, RefreshCw, AlertTriangle } from 'lucide-react';
-import { callRpc, connectPycoreHttp } from '../../../core/api-libs/pycore/PycoreHttp';
+import { requestPycoreHttp, connectPycoreHttp } from '../../../core/api-libs/pycore/PycoreHttp';
 import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
 import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_RPC_ROUTES } from '../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
 
 type LogEntry = {
   trace_id?: string;
@@ -65,7 +65,7 @@ const PcLaravelLogsPage: React.FC = () => {
   const loadSnapshot = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await callRpc(PYCORE_RPC_ROUTES.laravelLogsSnapshot, {});
+      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelLogsSnapshot, {});
       if (!mounted.current) return;
       if (res?.success && res.data) {
         setData(res.data as SnapshotData);
@@ -85,7 +85,7 @@ const PcLaravelLogsPage: React.FC = () => {
   const requestRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await callRpc(PYCORE_RPC_ROUTES.laravelLogsRefresh, {});
+      await requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelLogsRefresh, {});
       // Backend polls async; re-pull shortly so the UI catches new entries.
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(() => {

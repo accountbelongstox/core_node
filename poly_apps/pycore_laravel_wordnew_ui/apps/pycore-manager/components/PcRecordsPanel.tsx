@@ -150,7 +150,7 @@ export const PcRecordsPanel: React.FC = () => {
     if (!rec.imageId) return;
     const src = await fetchPycoreBlobUrl(pycoreApi.imageHistoryFileUrl(rec.imageId));
     if (!src) {
-      logError(LOG_SRC, 'image bytes are unavailable over RPC v2');
+      logError(LOG_SRC, 'image bytes are unavailable over HTTP v2');
       return;
     }
     setLightbox({

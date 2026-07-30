@@ -26,7 +26,7 @@ def register_stt_routes(rpc_server, service_instances: Dict[str, Any]):
     Register STT routes on RPC server
 
     Args:
-        rpc_server: ThreadedRpcServer instance
+        rpc_server: ThreadedHttpServer instance
         service_instances: Dict with service instances
     """
 
@@ -161,8 +161,8 @@ def register_stt_routes(rpc_server, service_instances: Dict[str, Any]):
         return {'success': False, 'error': 'Task timeout'}
 
     # Register routes
-    rpc_server.route('stt', handle_stt)
-    rpc_server.route('stt.recognize', handle_stt)
+    rpc_server.post('stt', handle_stt)
+    rpc_server.post('stt/recognize', handle_stt)
 
     ColorPrint.green("[STT Routes] Registered:")
     ColorPrint.blue("  - stt")

@@ -197,7 +197,7 @@ export interface VideoExtractSegmentsResponse {
   error?: string;
 }
 
-// --- Subtitle language fill (video_extract.fill_languages RPC) ----------- #
+// --- Subtitle language fill (video_extract.fill_languages HTTP) ----------- #
 // Ensures every requested language has a `<stem>.<lang>.srt` sibling track
 // (OpenSubtitles when strategy='api_first' + credentialed, else AI-translated
 // from the primary cues). Per-source outcome.  // 每个源的填充结果
@@ -208,7 +208,7 @@ export interface SubtitleFillSourceResult {
   failed: Record<string, string>;  // lang -> error
 }
 
-// The RPC returns EITHER a single-source summary (flat fields) OR a multi-path
+// The HTTP returns EITHER a single-source summary (flat fields) OR a multi-path
 // aggregate (`count` + nested `results` summaries). Both shapes are unioned via
 // optional fields so the FE can read whichever the backend sent.  // 填充响应
 export interface SubtitleFillResponse {
@@ -1432,7 +1432,7 @@ export interface TranslationQueueActionResponse {
   error?: string;
 }
 
-/** pyctl TaskManager record returned by RPC v2 ui.task_center.get_local_task_detail. */
+/** pyctl TaskManager record returned by HTTP v2 ui.task_center.get_local_task_detail. */
 export interface LocalTaskDetail {
   task_id: string;
   task_type: string;
@@ -1447,10 +1447,10 @@ export interface LocalTaskDetail {
 }
 
 /**
- * Laravel global_tasks row proxied through Pycore RPC v2.
+ * Laravel global_tasks row proxied through Pycore HTTP v2.
  *
  * Field types come from the central task model. The list-row fallback used by
- * PcTranslationQueuePage can omit detail-only fields until the RPC response
+ * PcTranslationQueuePage can omit detail-only fields until the HTTP response
  * arrives, hence the partial tail rather than a second hand-written interface.
  */
 export type PycoreGlobalTaskDetail = Pick<
@@ -1837,7 +1837,7 @@ export interface WordAudioTestResponse {
 // QueueCenterContract.ts, which reads the shared JSON contract used by Python
 // and Laravel. Raw Task Center slice types remain below.
 
-/** RPC v2 task-center aggregate; pycore owns any Laravel enrichment. */
+/** HTTP v2 task-center aggregate; pycore owns any Laravel enrichment. */
 export interface PcTaskCenterLocalCounts {
   pending?: number;
   processing?: number;
@@ -1918,7 +1918,7 @@ export interface SentenceWorkerTask {
   current_provider?: string;
 }
 
-/** RPC v2 sentence-audio status — auto-start, worker, and Laravel counts. */
+/** HTTP v2 sentence-audio status — auto-start, worker, and Laravel counts. */
 export interface SentenceAudioAutoStatus {
   auto_start: boolean;
   /** Effective worker concurrency + recommended value for the current engine. */
@@ -2171,7 +2171,7 @@ export interface DictionaryEntry {
 }
 
 // --- Recent tasks (cross-end task history: pycore + chrome) ---------------- #
-// RPC v2 ui.task_history.get_recent_tasks — a newest-first log of finished task
+// HTTP v2 ui.task_history.get_recent_tasks — a newest-first log of finished task
 // units across both ends (pycore workers + the chrome MCP host). Each record is
 // a single processed item (a word, a TTS synth, an image fetch, a translation
 // batch, …). `detail` is free-form per task_type; the common keys are typed but
@@ -2281,7 +2281,7 @@ export interface PcTaskRecentStats {
   log_path: string;
 }
 
-/** RPC v2 recent task history plus roll-up stats. */
+/** HTTP v2 recent task history plus roll-up stats. */
 export interface PcTaskRecentResponse {
   success: boolean;
   records: PcTaskRecord[];
@@ -2293,7 +2293,7 @@ export interface PcTaskRecentResponse {
   error?: string;
 }
 
-/** RPC v2 persistent terminal-task archive. */
+/** HTTP v2 persistent terminal-task archive. */
 export interface PcCompletedTaskArchiveResponse {
   success: boolean;
   records: PcTaskRecord[];
@@ -2308,7 +2308,7 @@ export interface PcCompletedTaskArchiveResponse {
   error?: string;
 }
 
-/** RPC v2 cross-end archive synchronization. */
+/** HTTP v2 cross-end archive synchronization. */
 export interface PcCompletedTaskSyncResponse {
   success: boolean;
   partial?: boolean;
@@ -2320,7 +2320,7 @@ export interface PcCompletedTaskSyncResponse {
   error?: string;
 }
 
-/** RPC v2 command to wipe history and truncate the text log. */
+/** HTTP v2 command to wipe history and truncate the text log. */
 export interface PcTaskClearResponse {
   ok: boolean;
   error?: string;

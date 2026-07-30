@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
-import { callRpc, connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
+import { requestPycoreHttp, connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
 import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 import { PYCORE_EVENT_TOPICS } from '../../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_RPC_ROUTES } from '../../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../../../core/api-libs/pycore/PycoreHttpRoutes';
 
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
@@ -17,7 +17,7 @@ const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk })
 
   const load = useCallback(async () => {
     try {
-      const res = await callRpc(PYCORE_RPC_ROUTES.operationSnapshot, {
+      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.operationSnapshot, {
         scope: 'agent_history',
         include_items: false,
       });

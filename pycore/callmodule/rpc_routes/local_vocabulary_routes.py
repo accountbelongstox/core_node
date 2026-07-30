@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""RPC routes for Vocabulary."""
+"""HTTP routes for Vocabulary."""
 
 import pycore.callmodule.rpc_routes.route_names as rn
 import pycore.pyctl.vocabulary.service as vocab

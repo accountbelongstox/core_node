@@ -1,5 +1,5 @@
 /**
- * PcQueueOverviewPanel — canonical Queue Center overview from the hub RPC v2 snapshot.
+ * PcQueueOverviewPanel — canonical Queue Center overview from the hub HTTP v2 snapshot.
  */
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';

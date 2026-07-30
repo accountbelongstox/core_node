@@ -1,12 +1,12 @@
 /**
  * Local cached-audio preview for pycore TaskManager / recent-task records.
  *
- * Playback bytes are fetched through the shared RPC v2 resource route.
+ * Playback bytes are fetched through the shared HTTP v2 resource route.
  */
 import React from 'react';
 import { PcBlobAudio } from './PcBlobMedia';
 
-/** Keep the local path opaque; PcBlobAudio transfers its bytes over RPC v2. */
+/** Keep the local path opaque; PcBlobAudio transfers its bytes over HTTP v2. */
 export function buildLocalAudioUrl(audioPath: string): string {
   return audioPath;
 }

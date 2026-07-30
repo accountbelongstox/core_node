@@ -20,18 +20,15 @@ interface HttpEventRecord {
   payload?: any;
 }
 
-interface HttpEventResponse {
+interface HttpEventState {
   instance_id?: string;
   seq?: number;
   earliest_seq?: number;
   replay_lost?: boolean;
   cursor_ahead?: boolean;
-  events?: HttpEventRecord[];
 }
 
-const DEFAULT_RPC_TIMEOUT_MS = 30_000;
-const EVENT_WAIT_SECONDS = 20;
-const EVENT_REQUEST_TIMEOUT_MS = 25_000;
+const DEFAULT_HTTP_TIMEOUT_MS = 30_000;
 const RETRY_MIN_MS = 1_000;
 const RETRY_MAX_MS = 30_000;
 const MAX_PROCESSED_EVENTS = 512;
@@ -47,20 +44,19 @@ let clientId: string | null = null;
 let connected = false;
 let started = false;
 let suspended = false;
-let eventLoopRunning = false;
-let eventAbortController: AbortController | null = null;
+let eventSource: EventSource | null = null;
+let eventReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let eventInstanceId = '';
 let eventSeq = 0;
-let eventReady = false;
 let retryDelayMs = RETRY_MIN_MS;
 let httpLogEnabled = false;
 
-class HttpControllerError extends Error {
+class PycoreHttpError extends Error {
   status: number;
 
   constructor(status: number, message: string) {
     super(message);
-    this.name = 'HttpControllerError';
+    this.name = 'PycoreHttpError';
     this.status = status;
   }
 }
@@ -110,17 +106,12 @@ function rememberEvent(eventId: string): boolean {
   return true;
 }
 
-function eventPollUrl(): string {
+function eventStreamUrl(): string {
   const query = new URLSearchParams({
     client_id: getClientId(),
     since_seq: String(eventSeq),
-    timeout_s: String(eventReady ? EVENT_WAIT_SECONDS : 0),
   });
   return `${rewritePycoreEndpoint(PycorePaths.events)}?${query.toString()}`;
-}
-
-function waitForRetry(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 async function acknowledgeEvents(seq: number): Promise<void> {
@@ -134,89 +125,90 @@ async function acknowledgeEvents(seq: number): Promise<void> {
   }
 }
 
-async function pollEvents(): Promise<void> {
-  const abortController = new AbortController();
-  const timer = setTimeout(() => abortController.abort(), EVENT_REQUEST_TIMEOUT_MS);
-  eventAbortController = abortController;
+function parseSseData<T>(event: MessageEvent): T | null {
   try {
-    const response = await fetch(eventPollUrl(), {
-      method: 'GET',
-      headers: {
-        'X-Pycore-Client-ID': getClientId(),
-        'X-Pycore-Browser-ID': getBrowserId(),
-      },
-      signal: abortController.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP event poll failed: ${response.status}`);
-    }
-    const payload = await response.json() as HttpEventResponse;
-    const nextInstanceId = String(payload.instance_id || '');
-    if (eventInstanceId && nextInstanceId && eventInstanceId !== nextInstanceId) {
-      eventInstanceId = nextInstanceId;
-      eventSeq = 0;
-      processedEvents.clear();
-      dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
-      return;
-    }
-    if (nextInstanceId) eventInstanceId = nextInstanceId;
-    if (payload.replay_lost) {
-      const earliestSeq = Number(payload.earliest_seq || 1);
-      eventSeq = Math.max(0, earliestSeq - 1);
-      dispatch(PYCORE_BROWSER_EVENTS.httpEventReplayLost, {
-        instance_id: eventInstanceId,
-        earliest_seq: earliestSeq,
-      });
-    }
-    for (const record of payload.events || []) {
-      const seq = Number(record.seq || 0);
-      const topic = String(record.topic || '');
-      const eventId = String(record.event_id || '');
-      if (seq > eventSeq) eventSeq = seq;
-      if (topic && rememberEvent(eventId)) dispatch(topic, record.payload);
-    }
-    const responseSeq = Number(payload.seq || 0);
-    if (responseSeq > eventSeq) eventSeq = responseSeq;
-    await acknowledgeEvents(eventSeq);
-    eventReady = true;
+    return JSON.parse(event.data) as T;
+  } catch (error: any) {
+    diag('warn', `invalid SSE payload: ${error?.message || String(error)}`);
+    return null;
+  }
+}
+
+function handleSseState(event: MessageEvent): void {
+  const state = parseSseData<HttpEventState>(event);
+  if (!state) return;
+  const nextInstanceId = String(state.instance_id || '');
+  if (eventInstanceId && nextInstanceId && eventInstanceId !== nextInstanceId) {
+    eventInstanceId = nextInstanceId;
+    eventSeq = 0;
+    processedEvents.clear();
+    dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
+    eventSource?.close();
+    eventSource = null;
+    scheduleEventReconnect(0);
+    return;
+  }
+  if (nextInstanceId) eventInstanceId = nextInstanceId;
+  if (!state.replay_lost) return;
+  const earliestSeq = Number(state.earliest_seq || 1);
+  eventSeq = Math.max(0, earliestSeq - 1);
+  dispatch(PYCORE_BROWSER_EVENTS.httpEventReplayLost, {
+    instance_id: eventInstanceId,
+    earliest_seq: earliestSeq,
+  });
+}
+
+function handleSseRecord(event: MessageEvent): void {
+  const record = parseSseData<HttpEventRecord>(event);
+  if (!record) return;
+  const seq = Number(record.seq || 0);
+  const topic = String(record.topic || '');
+  const eventId = String(record.event_id || '');
+  if (seq > eventSeq) eventSeq = seq;
+  if (topic && rememberEvent(eventId)) dispatch(topic, record.payload);
+  void acknowledgeEvents(eventSeq).catch((error: any) => {
+    diag('warn', error?.message || String(error));
+  });
+}
+
+function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
+  if (!started || suspended || eventReconnectTimer) return;
+  eventReconnectTimer = setTimeout(() => {
+    eventReconnectTimer = null;
+    openEventStream();
+  }, delayMs);
+}
+
+function openEventStream(): void {
+  if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
+  const source = new EventSource(eventStreamUrl());
+  eventSource = source;
+  source.addEventListener('sse.state', handleSseState as EventListener);
+  source.addEventListener('sse.event', handleSseRecord as EventListener);
+  source.onopen = () => {
     setConnected(true);
     retryDelayMs = RETRY_MIN_MS;
-  } finally {
-    clearTimeout(timer);
-    if (eventAbortController === abortController) eventAbortController = null;
-  }
+  };
+  source.onerror = () => {
+    if (eventSource === source) eventSource = null;
+    source.close();
+    setConnected(false);
+    if (!started || suspended) return;
+    const delayMs = retryDelayMs;
+    retryDelayMs = Math.min(RETRY_MAX_MS, retryDelayMs * 2);
+    scheduleEventReconnect(delayMs);
+  };
 }
 
-async function runEventLoop(): Promise<void> {
-  if (eventLoopRunning) return;
-  eventLoopRunning = true;
-  try {
-    while (started && !suspended) {
-      try {
-        await pollEvents();
-      } catch (error: any) {
-        if (suspended || !started || error?.name === 'AbortError') continue;
-        setConnected(false);
-        diag('warn', error?.message || String(error));
-        const delayMs = retryDelayMs;
-        retryDelayMs = Math.min(RETRY_MAX_MS, retryDelayMs * 2);
-        await waitForRetry(delayMs);
-      }
-    }
-  } finally {
-    eventLoopRunning = false;
-  }
-}
-
-async function httpControllerCall(method: string, params: any, timeoutMs?: number): Promise<any> {
+async function requestHttp(route: string, params: any, timeoutMs?: number): Promise<any> {
   const requestId = newRequestId();
   const waitMs = typeof timeoutMs === 'number' && timeoutMs > 0
     ? timeoutMs
-    : DEFAULT_RPC_TIMEOUT_MS;
+    : DEFAULT_HTTP_TIMEOUT_MS;
   const abortController = new AbortController();
   const timer = setTimeout(() => abortController.abort(), waitMs);
   try {
-    const response = await fetch(rewritePycoreEndpoint(PycorePaths.controller(method)), {
+    const response = await fetch(rewritePycoreEndpoint(PycorePaths.api(route)), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -238,14 +230,14 @@ async function httpControllerCall(method: string, params: any, timeoutMs?: numbe
         || payload?.message
         || (typeof payload?.error === 'string' ? payload.error : '')
         || `HTTP ${response.status}`;
-      throw new HttpControllerError(response.status, String(message));
+      throw new PycoreHttpError(response.status, String(message));
     }
     return payload;
   } catch (error: any) {
     if (error?.name === 'AbortError') {
-      throw new HttpControllerError(0, `HTTP controller timeout after ${waitMs}ms: ${method}`);
+      throw new PycoreHttpError(0, `HTTP request timeout after ${waitMs}ms: ${route}`);
     }
-    if (!(error instanceof HttpControllerError)) setConnected(false);
+    if (!(error instanceof PycoreHttpError)) setConnected(false);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -330,18 +322,18 @@ export function subscribeHttpEvent(event: string, handler: EventHandler): () => 
   return subscribe(event, handler);
 }
 
-export function callRpc(method: string, params: any = {}, timeoutMs?: number): Promise<any> {
+export function requestPycoreHttp(route: string, params: any = {}, timeoutMs?: number): Promise<any> {
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const startedAt = now();
-  const controllerPath = PycorePaths.controller(method);
-  const fullUrl = rewritePycoreEndpoint(controllerPath);
+  const routePath = PycorePaths.api(route);
+  const fullUrl = rewritePycoreEndpoint(routePath);
   const paramsSummary = summarizeHttpParams(params);
   const record = (status: number, error?: string | null) => {
     appendHttpDebug({
       direction: 'pycore',
       method: 'POST',
-      route: method,
-      path: controllerPath,
+      route,
+      path: routePath,
       fullUrl,
       paramsSummary,
       status,
@@ -349,13 +341,13 @@ export function callRpc(method: string, params: any = {}, timeoutMs?: number): P
       error: error || null,
     });
   };
-  return httpControllerCall(method, params, timeoutMs)
+  return requestHttp(route, params, timeoutMs)
     .then((result) => {
       record(200);
       return result;
     })
     .catch((error: any) => {
-      record(error instanceof HttpControllerError ? error.status : 0, error?.message || String(error));
+      record(error instanceof PycoreHttpError ? error.status : 0, error?.message || String(error));
       throw error;
     });
 }
@@ -364,20 +356,21 @@ export function connectPycoreHttp(): void {
   if (started) return;
   started = true;
   if (suspended) return;
-  diag('info', 'starting HTTP controller and event transport');
-  void runEventLoop();
+  diag('info', 'starting HTTP controller and SSE event transport');
+  openEventStream();
 }
 
 export function setPycoreActive(active: boolean): void {
   if (active === !suspended) return;
   suspended = !active;
   if (suspended) {
-    eventAbortController?.abort();
-    eventAbortController = null;
+    eventSource?.close();
+    eventSource = null;
+    if (eventReconnectTimer) clearTimeout(eventReconnectTimer);
+    eventReconnectTimer = null;
     setConnected(false);
     return;
   }
   retryDelayMs = RETRY_MIN_MS;
-  eventReady = false;
-  if (started) void runEventLoop();
+  if (started) openEventStream();
 }

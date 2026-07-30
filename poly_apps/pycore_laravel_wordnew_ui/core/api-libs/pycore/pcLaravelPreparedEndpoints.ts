@@ -36,7 +36,7 @@ export function normalizeLaravelApiUrl(url: string): string {
 }
 
 /**
- * Read-only prepared endpoint rows for the pycore-manager switcher when RPC is
+ * Read-only prepared endpoint rows for the pycore-manager switcher when HTTP is
  * down. Order: current page host (:9000), then the shared seed hosts above.
  */
 export function buildPcPreparedLaravelEndpoints(): LaravelApiEndpoint[] {

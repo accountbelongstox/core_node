@@ -8,7 +8,7 @@ import type { AgentHistoryArticleRecord } from '../../../../core/api-libs/pycore
 
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
-/** Lazy-load article audio via RPC base64 → data URL (no HTTP audio route). */
+/** Lazy-load article audio via HTTP base64 → data URL (no HTTP audio route). */
 const RecordAudio: React.FC<{ recordId: string }> = ({ recordId }) => {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);

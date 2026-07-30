@@ -7,15 +7,15 @@
  *
  *  1. Status — is the SerpApi key configured, the engine, the service URL and
  *     how many searches are in the shared history.
- *     Driven by `pycoreApi.getImageSearchStatus()` over RPC v2.
+ *     Driven by `pycoreApi.getImageSearchStatus()` over HTTP v2.
  *
  *  2. Search + AI compare (the "evaluate alongside AI" requirement) — one query
  *     feeds BOTH paths:
- *       - "Search (SerpApi)" -> the image-search RPC — a real Google-Images
+ *       - "Search (SerpApi)" -> the image-search HTTP — a real Google-Images
  *         result grid (each links back to its source page).
- *       - "AI render" -> the AI image RPC — one AI-generated image
+ *       - "AI render" -> the AI image HTTP — one AI-generated image
  *         for the same query (unified IMAGE contract), shown beside the grid.
- *       - "Search + AI" -> the comparison RPC — does both in one
+ *       - "Search + AI" -> the comparison HTTP — does both in one
  *         call and records a single combined evaluation entry.
  *     This is the SAME SerpApi capability the movie-poster pipeline now prefers
  *     as its first source, so the records also explain where a poster came from.

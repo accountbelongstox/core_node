@@ -18,22 +18,6 @@ def ping() -> Dict[str, Any]:
     return {"status": "ok", "service": "code-sync"}
 
 
-def push_frame(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """Process one Code Sync frame and return its immediate HTTP reply."""
-    frame = str(_p(params).get("frame") or "")
-    if not frame:
-        return {"success": False, "error": "frame required", "reply": None}
-    replies = []
-    accepted = get_code_sync_manager().push_receiver.handle_text(
-        frame,
-        replies.append,
-    )
-    return {
-        "success": bool(accepted),
-        "reply": replies[0] if replies else None,
-    }
-
-
 def get_status() -> Dict[str, Any]:
     return get_code_sync_manager().get_status()
 

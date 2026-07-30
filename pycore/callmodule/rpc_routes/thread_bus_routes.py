@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Thread Bus RPC Routes
+Thread Bus HTTP Routes
 
 HTTP controller bridge for THREAD_BUS events and live event subscriptions.
 
@@ -19,7 +19,6 @@ changes to connected HTTP event clients for real-time UI refresh:
 - article.published: agent-history Daily Reading publication
 """
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.callmodule.rpc_routes.route_names import THREAD_BUS_TRIGGER
@@ -46,7 +45,7 @@ def register_thread_bus_routes(server):
         THREAD_BUS.trigger_event(event_name, event_data)
         return {'success': True, 'event': event_name}
 
-    server.route(
+    server.post(
         name=THREAD_BUS_TRIGGER,
         handler=thread_bus_trigger_event,
         description='Trigger a THREAD_BUS event from the web UI',
@@ -71,8 +70,6 @@ def register_thread_bus_routes(server):
     )
     for event_name in event_names:
         server.register_thread_bus_listener(event_name)
-    # operation.changed is delivered by the durable RPC v2 outbox. Registering
+    # operation.changed is delivered by the durable HTTP v2 outbox. Registering
     # it here would duplicate every event as a legacy broadcast frame.
-
-    ColorPrint.green("[ConfigBuilder] Registered thread_bus.trigger_event + broadcast listeners")
 

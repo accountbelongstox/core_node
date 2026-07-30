@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for queue_priority — native UI path (no router.invoke)."""
+"""HTTP Routes for queue_priority — native UI path (no router.invoke)."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_QUEUE_PRIORITY_PRIORITIZE_WORD_IMAGES,
     UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO,
@@ -21,7 +20,7 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_word_images(params.get("items") or [])
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_WORD_IMAGES,
         handler=prioritize_word_images_handler,
     )
@@ -30,7 +29,7 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_sentence_audio(params.get("items") or [])
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO,
         handler=prioritize_sentence_audio_handler,
     )
@@ -39,7 +38,7 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_sentence_audio_item(str(params.get("content_id") or ""), str(params.get("language") or ""))
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_SENTENCE_AUDIO_ITEM,
         handler=prioritize_sentence_audio_item_handler,
     )
@@ -48,7 +47,7 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_word_audio_words(list(params.get("words") or []), str(params.get("language") or ""))
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_WORD_AUDIO_WORDS,
         handler=prioritize_word_audio_words_handler,
     )
@@ -57,7 +56,7 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_covers(list(params.get("ids") or []), bool(params.get("all") or False))
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_COVERS,
         handler=prioritize_covers_handler,
     )
@@ -66,11 +65,9 @@ def register_local_queue_priority_routes(server):
         params = params or {}
         return qp.prioritize_posters(params.get("items") or [])
 
-    server.route(
+    server.post(
         name=UI_QUEUE_PRIORITY_PRIORITIZE_POSTERS,
         handler=prioritize_posters_handler,
     )
-
-    ColorPrint.green("[ConfigBuilder] Registered queue_priority RPC routes")
 
 

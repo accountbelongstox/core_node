@@ -154,7 +154,7 @@ const PcVideoExtractPage: React.FC = () => {
 
   // --- multi-language correspondence selection (spec §12) ---------------- #
   // Local checkbox state mirrored into the context (which the segments fetch +
-  // sync RPCs read). The recognition language (`options.lang`) is the locked
+  // sync HTTPs read). The recognition language (`options.lang`) is the locked
   // primary: auto-checked and not removable. >=1 required to sync.
   const [selectedLangs, setSelectedLangs] = useState<Set<string>>(new Set(corrLanguages.length ? corrLanguages : ['en', 'zh']));
   // Display grain for the per-cue correspondence (cue = one source line; sentence
@@ -391,7 +391,7 @@ const PcVideoExtractPage: React.FC = () => {
   const grainLabel = (g?: string): string => (g === 'cue' ? L.veGrainCue : L.veGrainSentence);
 
   // Keep the locked primary checked whenever the recognition language changes,
-  // and mirror the checked set into the context (segments fetch + sync RPCs).
+  // and mirror the checked set into the context (segments fetch + sync HTTPs).
   useEffect(() => {
     setSelectedLangs((prev) => (prev.has(lockedLang) ? prev : new Set(prev).add(lockedLang)));
   }, [lockedLang]);

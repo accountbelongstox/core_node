@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Server, ChevronDown, RefreshCw, CircleAlert } from 'lucide-react';
 import Portal from './Portal';
-import { callRpc, subscribe } from '../../core/api-libs/pycore/PycoreHttp';
-import { PYCORE_RPC_ROUTES } from '../../core/api-libs/pycore/PycoreRpcRoutes';
+import { requestPycoreHttp, subscribe } from '../../core/api-libs/pycore/PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 
 interface LaravelLogEntry {
     id: string;
@@ -49,7 +49,7 @@ const LaravelLogPanel: React.FC = () => {
     const fetchSnapshot = async () => {
         setLoading(true);
         try {
-            const res = await callRpc(PYCORE_RPC_ROUTES.laravelLogsSnapshot, {});
+            const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelLogsSnapshot, {});
             if (res.success && res.data) {
                 setSnapshot(res.data);
             }
@@ -62,7 +62,7 @@ const LaravelLogPanel: React.FC = () => {
 
     const triggerRefresh = async () => {
         try {
-            await callRpc(PYCORE_RPC_ROUTES.laravelLogsRefresh, {});
+            await requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelLogsRefresh, {});
         } catch (err) {
             console.error('Failed to trigger Laravel logs refresh', err);
         }

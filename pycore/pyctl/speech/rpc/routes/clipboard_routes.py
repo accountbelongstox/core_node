@@ -117,8 +117,8 @@ def register_clipboard_routes(rpc_server, service_instances: Dict[str, Any] = No
             }
 
     # Register routes
-    rpc_server.route('clipboard_get', handle_clipboard_get)
-    rpc_server.route('clipboard_sync', handle_clipboard_sync)
+    rpc_server.post('clipboard_get', handle_clipboard_get)
+    rpc_server.post('clipboard_sync', handle_clipboard_sync)
 
     ColorPrint.green("[ClipboardRoutes] Registered:")
     ColorPrint.blue("  - clipboard_get")

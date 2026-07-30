@@ -17,8 +17,8 @@ import {
   RefreshCw, AlertTriangle, Database, KeyRound, Gauge, Activity, Eye, EyeOff,
   Copy, Check, HardDriveDownload, Rocket, ChevronDown, ChevronRight, ShieldCheck,
 } from 'lucide-react';
-import { connectPycoreHttp, callRpc, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_ROUTES } from './VortexPycoreProtocol';
+import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
+import { VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
 
 interface QuantInfo {
   limits?: { client_window?: { max_requests?: number; time_window?: number }; okx_note?: string };
@@ -98,7 +98,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await callRpc(VORTEX_PYCORE_ROUTES.quantInfo, {}, 10000);
+      const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.quantInfo, {}, 10000);
       if (r) setInfo(r);
       setUnreachable(false);
     } catch {
@@ -109,10 +109,10 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
   }, []);
 
   // Initial load is driven by HTTP readiness.
-  // mirroring OkxBacktestPanel — never call callRpc before the socket is OPEN.
+  // mirroring OkxBacktestPanel — never call requestPycoreHttp before the socket is OPEN.
   const loadSerSettings = useCallback(async () => {
     try {
-      const s = await callRpc(VORTEX_PYCORE_ROUTES.getSettings, {}, 8000);
+      const s = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.getSettings, {}, 8000);
       if (s) { setAutoSer(s.auto_serialize !== false); setSerSecs(Number(s.serialize_secs) || 5); }
     } catch { /* keep defaults */ }
   }, []);
@@ -128,7 +128,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
   const saveSer = useCallback(async (patch: { auto_serialize?: boolean; serialize_secs?: number }) => {
     if (patch.auto_serialize !== undefined) setAutoSer(patch.auto_serialize);
     if (patch.serialize_secs !== undefined) setSerSecs(patch.serialize_secs);
-    try { await callRpc(VORTEX_PYCORE_ROUTES.setSettings, patch, 8000); } catch { /* best-effort */ }
+    try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.setSettings, patch, 8000); } catch { /* best-effort */ }
   }, []);
 
   // OKX KEY reveal toggle: first click fetches the full api_key, subsequent toggles
@@ -138,7 +138,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
     if (revealed) { setShowKey(true); return; }
     setRevealing(true);
     try {
-      const r = await callRpc(VORTEX_PYCORE_ROUTES.revealCredentials, {}, 10000);
+      const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.revealCredentials, {}, 10000);
       if (r) { setRevealed(r); setShowKey(true); }
     } catch { /* leave masked */ }
     finally { setRevealing(false); }
@@ -156,7 +156,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
     setSerializing(true);
     setSerializeNote(null);
     try {
-      await callRpc(VORTEX_PYCORE_ROUTES.serialize, {}, 15000);
+      await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.serialize, {}, 15000);
       setSerializeNote(t.serialized);
       refresh();
     } catch {
@@ -173,7 +173,7 @@ export const OkxQuantPanel: React.FC<{ dark: boolean; lang: string }> = ({ dark,
     if (preopenList) return;
     setPreopenLoading(true);
     try {
-      const r = await callRpc(VORTEX_PYCORE_ROUTES.preopen, {}, 15000);
+      const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.preopen, {}, 15000);
       setPreopenList(Array.isArray(r?.instruments) ? r.instruments : []);
     } catch { setPreopenList([]); }
     finally { setPreopenLoading(false); }

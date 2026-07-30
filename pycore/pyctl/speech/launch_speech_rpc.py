@@ -21,15 +21,15 @@ from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import (
-    RPC_CONTROLLER_PREFIX,
-    RPC_STATUS_PATH,
+    HTTP_API_PREFIX,
+    HTTP_STATUS_PATH,
 )
 from pycore.pylauncher.launcher import launch_services, LauncherConfig, ServiceLauncher
 from pycore.pyctl.speech.rpc.rpc_service import start_rpc_service
 
 from pycore.pyutils.common.speech_config import speech_config
 from pathlib import Path
-from pycore.pyutils.rpc_v2.runner import RpcServerRunner
+from pycore.pyutils.rpc_v2.runner import HttpServerRunner
 from pycore.pylauncher.launcher import stop_services
 
 
@@ -109,7 +109,7 @@ def launch_speech_rpc_service(
     web_dir = Path(__file__).parent / 'rpc_v2' / 'web'
 
     # Step 3: Create RPC server and configure static directories BEFORE starting
-    rpc_server = RpcServerRunner(
+    rpc_server = HttpServerRunner(
         host=host,
         port=port,
         debug=debug
@@ -143,13 +143,13 @@ def launch_speech_rpc_service(
     )
 
     ColorPrint.green("=== Speech RPC Service Started ===")
-    ColorPrint.blue(f"  HTTP API: http://{host}:{port}{RPC_CONTROLLER_PREFIX}/<route>")
-    ColorPrint.blue(f"  Health: http://{host}:{port}{RPC_STATUS_PATH}")
+    ColorPrint.blue(f"  HTTP API: http://{host}:{port}{HTTP_API_PREFIX}/<route>")
+    ColorPrint.blue(f"  Health: http://{host}:{port}{HTTP_STATUS_PATH}")
     ColorPrint.blue(f"  Endpoints:")
-    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/tts")
-    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/stt")
-    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/status")
-    ColorPrint.blue(f"    - POST {RPC_CONTROLLER_PREFIX}/queue_stats")
+    ColorPrint.blue(f"    - POST {HTTP_API_PREFIX}/tts")
+    ColorPrint.blue(f"    - POST {HTTP_API_PREFIX}/stt")
+    ColorPrint.blue(f"    - POST {HTTP_API_PREFIX}/status")
+    ColorPrint.blue(f"    - POST {HTTP_API_PREFIX}/queue_stats")
 
     return instances
 

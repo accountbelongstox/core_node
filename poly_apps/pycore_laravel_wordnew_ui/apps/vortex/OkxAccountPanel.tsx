@@ -12,8 +12,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   RefreshCw, AlertTriangle, Wallet, Radio, FlaskConical, TrendingUp, TrendingDown, Receipt,
 } from 'lucide-react';
-import { connectPycoreHttp, callRpc, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_ROUTES } from './VortexPycoreProtocol';
+import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
+import { VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
 
 interface BalanceDetail { ccy: string; eq: string; availBal: string }
 interface OkxPosition { instId: string; pos: string; avgPx: string; upl: string; uplRatio?: string }
@@ -76,7 +76,7 @@ export const OkxAccountPanel: React.FC<Props> = ({ dark, lang, simCash, simPosit
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await callRpc(VORTEX_PYCORE_ROUTES.accountOverview, {}, 12000);
+      const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.accountOverview, {}, 12000);
       if (r) setAcct(r);
       setUnreachable(false);
     } catch {

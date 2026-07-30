@@ -488,7 +488,7 @@
 
     <script>
         // Configuration
-        const API_BASE = '/api/controller';
+        const API_BASE = '/api';
         let lastSyncTime = 0;
 
         class SpeechHttpClient {
@@ -523,7 +523,7 @@
             }
 
             async connect() {
-                const response = await fetch(`${this.baseUrl}/rpc/status`);
+                const response = await fetch(`${this.baseUrl}/api/status`);
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}`);
                 }
@@ -533,8 +533,13 @@
             }
 
             async call(route, params = {}) {
+                const routePath = route
+                    .replace(/^\/+/, '')
+                    .split('/')
+                    .map(segment => encodeURIComponent(segment))
+                    .join('/');
                 const response = await fetch(
-                    `${this.baseUrl}${API_BASE}/${encodeURIComponent(route)}`,
+                    `${this.baseUrl}${API_BASE}/${routePath}`,
                     {
                         method: 'POST',
                         headers: {
@@ -1154,7 +1159,7 @@
             try {
                 showResult('config-result', 'info', '<span class="loading"></span> Loading settings...');
 
-                const result = await apiCall('config.get_all', {});
+                const result = await apiCall('config/get_all', {});
 
                 if (!result.success) {
                     showResult('config-result', 'error', '❌ Failed to load settings: ' + (result.error || 'Unknown error'));
@@ -1216,7 +1221,7 @@
                 // Save each setting
                 let savedCount = 0;
                 for (const [key, value] of Object.entries(settings)) {
-                    const result = await apiCall('config.set', { key: key, value: value });
+                    const result = await apiCall('config/set', { key: key, value: value });
                     if (result.success) {
                         savedCount++;
                     } else {
@@ -1242,7 +1247,7 @@
             try {
                 showResult('config-result', 'info', '<span class="loading"></span> Resetting to defaults...');
 
-                const result = await apiCall('config.reset', {});
+                const result = await apiCall('config/reset', {});
 
                 if (result.success) {
                     showResult('config-result', 'success', '✅ Settings reset to defaults');

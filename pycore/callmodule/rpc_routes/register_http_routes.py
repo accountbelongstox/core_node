@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register every callmodule RPC v2 HTTP controller group."""
+"""Register every callmodule HTTP v2 HTTP controller group."""
 
 from pycore.callmodule.rpc_routes.code_sync_routes import register_code_sync_routes
 from pycore.callmodule.rpc_routes.corebook_routes import register_corebook_routes
@@ -51,6 +51,7 @@ from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_rou
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 HTTP_ROUTE_REGISTRARS = (
@@ -111,3 +112,6 @@ def register_http_routes(server) -> None:
     """Register all HTTP controllers and fail loudly on broken wiring."""
     for registrar in HTTP_ROUTE_REGISTRARS:
         registrar(server)
+    ColorPrint.green(
+        f"[ConfigBuilder] Registered {len(server.list_routes())} HTTP routes"
+    )

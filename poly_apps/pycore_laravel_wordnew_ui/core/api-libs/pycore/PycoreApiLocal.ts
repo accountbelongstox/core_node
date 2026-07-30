@@ -1,5 +1,5 @@
 /**
- * Local bridge / queue / translate / subtitle / vocab RPC surface for pycoreApi.
+ * Local bridge / queue / translate / subtitle / vocab HTTP surface for pycoreApi.
  */
 import type {
   LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
@@ -29,42 +29,42 @@ import type {
   VocabTtsGenerateRequest,
 } from './PycoreVocabTypes';
 import {
-  callRpc, PYCORE_RPC_ROUTES,
+  requestPycoreHttp, PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
 import { GLOBAL_TASK_LIMITS } from './QueueCenterContract';
 
 export const pycoreApiLocal = {
   // --- translation queue (Laravel pending queue, steered via pycore) ------ #
   queueTranslation: (refresh = false) =>
-    callRpc(PYCORE_RPC_ROUTES.translationQueueSnapshot, { refresh: refresh ? 1 : 0 }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueSnapshot, { refresh: refresh ? 1 : 0 }),
   setQueuePriority: (task_id: string, priority: number) =>
-    callRpc(PYCORE_RPC_ROUTES.translationQueueSetPriority, { task_id, priority }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueSetPriority, { task_id, priority }),
   stackQueue: (words: string[], language: string, target_language: string, priority?: number) =>
-    callRpc(PYCORE_RPC_ROUTES.translationQueueStack,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueStack,
       { words, language, target_language, ...(priority != null ? { priority } : {}) }),
 
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
   getLocalTaskDetail: (taskId: string) =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterGetLocalTaskDetail, { task_id: taskId }) as Promise<LocalTaskDetailResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetLocalTaskDetail, { task_id: taskId }) as Promise<LocalTaskDetailResponse>,
 
   /** Laravel global_tasks row — proxied via QueueMonitorService (UI-selected Laravel base). */
   getTranslationTaskDetail: (taskId: string) =>
-    callRpc(PYCORE_RPC_ROUTES.translationQueueGetTaskDetail, { task_id: taskId }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueGetTaskDetail, { task_id: taskId }),
 
   /** Richer Laravel bundle (task + events + phase) — task-center detail proxy. */
   getRemoteGlobalTaskDetail: (taskId: string) =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterGetRemoteTaskDetail, { task_id: taskId }) as Promise<PycoreGlobalTaskDetailResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetRemoteTaskDetail, { task_id: taskId }) as Promise<PycoreGlobalTaskDetailResponse>,
 
   // --- Pycore → Laravel queue capability control plane ------------------- #
   // Status includes the worker loop state, circuit breaker, counters and the
   // last observed Laravel-side queue counts. Config updates are partial (only
   // the provided fields change). Cycle runs one claim→process→submit pass now.
   getAssistStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.assistAssistStatus, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistStatus, {}),
   setAssistConfig: (config: AssistConfigPatch) =>
-    callRpc(PYCORE_RPC_ROUTES.assistAssistConfig, config),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistConfig, config),
   runAssistCycle: () =>
-    callRpc(PYCORE_RPC_ROUTES.assistAssistCycle, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistCycle, {}),
 
   // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
   // Newest-first log of finished task units across both ends, with roll-up
@@ -72,24 +72,24 @@ export const pycoreApiLocal = {
   // the FE also filters client-side for the chip UI. Clear wipes the ring + the
   // on-disk text log.
   getRecentTasks: (params: { limit?: number; end?: string; worker?: string; task_type?: string } = {}) =>
-    callRpc(PYCORE_RPC_ROUTES.taskHistoryGetRecentTasks, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetRecentTasks, {
       limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
       end: params.end,
       worker: params.worker,
       task_type: params.task_type,
     }) as Promise<PcTaskRecentResponse>,
   clearRecentTasks: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
   getCompletedTasks: (params: { limit?: number; offset?: number; task_type?: string } = {}) =>
-    callRpc(PYCORE_RPC_ROUTES.taskHistoryGetCompletedArchive, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetCompletedArchive, {
       limit: params.limit ?? GLOBAL_TASK_LIMITS.completed,
       offset: params.offset ?? 0,
       task_type: params.task_type,
     }) as Promise<PcCompletedTaskArchiveResponse>,
   syncCompletedTasks: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskHistorySyncCompletedArchive, {}) as Promise<PcCompletedTaskSyncResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistorySyncCompletedArchive, {}) as Promise<PcCompletedTaskSyncResponse>,
   getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
-    const response = await callRpc(PYCORE_RPC_ROUTES.taskHistoryCompletedArchiveResource, {
+    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCompletedArchiveResource, {
       cache_key: cacheKey,
     }) as { success?: boolean; mime?: string; content_base64?: string; error?: string };
     if (!response?.success || !response.content_base64) {
@@ -103,13 +103,13 @@ export const pycoreApiLocal = {
   // lib path ({error} on failure, never throws). translateAi: the SAME text
   // through the unified AI gateway so the UI can compare Google vs AI.
   getTranslateStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.translateStatus, {}) as Promise<TranslateStatus>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateStatus, {}) as Promise<TranslateStatus>,
   translate: (text: string, src = 'auto', dest = 'en', useCache = true) =>
-    callRpc(PYCORE_RPC_ROUTES.translateTranslate, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateTranslate, {
       text, src, dest, use_cache: useCache,
     }) as Promise<TranslateResponse>,
   translateAi: (text: string, src = 'auto', dest = 'en') =>
-    callRpc(PYCORE_RPC_ROUTES.translateAi, { text, src, dest }) as Promise<TranslateAiResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateAi, { text, src, dest }) as Promise<TranslateAiResponse>,
 
   // --- Image search (SerpApi Google-Images + AI comparison + history) ----- #
   // status: SerpApi key present + engine + history count. search: real Google
@@ -117,15 +117,15 @@ export const pycoreApiLocal = {
   // query (unified IMAGE contract). compare: both in one call + a combined
   // history record. Plus the search-history list/delete/clear. This is the same
   // SerpApi capability the poster pipeline now prefers as its first source.
-  getImageSearchStatus: () => callRpc(PYCORE_RPC_ROUTES.imageSearchStatus, {}),
+  getImageSearchStatus: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchStatus, {}),
   searchImages: (query: string, num = 12, country?: string, record = true) =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchSearch, { query, num, country, record }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchSearch, { query, num, country, record }),
   searchImagesAi: (query: string, size?: string, model?: string) =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchSearchAi, { query, size, model }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchSearchAi, { query, size, model }),
   compareImages: (query: string, num = 12, country?: string, size?: string, model?: string) =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchCompare, { query, num, country, size, model }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchCompare, { query, num, country, size, model }),
   getImageSearchResourceDataUrl: async (url: string): Promise<string> => {
-    const response = await callRpc(PYCORE_RPC_ROUTES.imageSearchResource, { url }) as {
+    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchResource, { url }) as {
       success?: boolean; image_base64?: string; mime?: string;
     };
     return response?.success && response.image_base64
@@ -133,11 +133,11 @@ export const pycoreApiLocal = {
       : '';
   },
   getImageSearchHistory: (limit = 50) =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchHistory, { limit }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchHistory, { limit }),
   deleteImageSearchHistory: (id: string) =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchDeleteHistory, { entry_id: id }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchDeleteHistory, { entry_id: id }),
   clearImageSearchHistory: () =>
-    callRpc(PYCORE_RPC_ROUTES.imageSearchClearHistory, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.imageSearchClearHistory, {}),
 
   // --- Subtitle search (OpenSubtitles search + download + history) -------- #
   // status: OpenSubtitles key present + authenticated state + history count.
@@ -145,32 +145,32 @@ export const pycoreApiLocal = {
   // movie/TV title (records history). download: pull one result's file (inline
   // .srt content or a saved path). Plus the search-history list/delete/clear.
   getSubtitleSearchStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchStatus, {}) as Promise<SubtitleSearchStatus>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchStatus, {}) as Promise<SubtitleSearchStatus>,
   probeSubtitleSearch: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchProbe, {}) as Promise<SubtitleSearchProbe>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchProbe, {}) as Promise<SubtitleSearchProbe>,
   // Provider fallback chain (ordered) + a live per-provider probe.
   getSubtitleProviders: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchProviders, {}) as Promise<SubtitleProvidersResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchProviders, {}) as Promise<SubtitleProvidersResponse>,
   testSubtitleProvider: (name: string) =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchProviderTest, { name }) as Promise<SubtitleProviderProbe>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchProviderTest, { name }) as Promise<SubtitleProviderProbe>,
   // Download cache: cached subtitle downloads are reused so a rate/quota-limited
   // provider file is never pulled twice. Stats are local (no network); clear wipes it.
   getSubtitleCacheStats: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchCache, {}) as Promise<SubtitleCacheStats>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchCache, {}) as Promise<SubtitleCacheStats>,
   clearSubtitleCache: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchCacheClear, {}) as Promise<SubtitleCacheClearResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchCacheClear, {}) as Promise<SubtitleCacheClearResponse>,
   searchSubtitles: (query: string, opts: SubtitleSearchOptions = {}) =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchSearch, { query, ...opts }) as Promise<SubtitleSearchResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchSearch, { query, ...opts }) as Promise<SubtitleSearchResponse>,
   downloadSubtitle: (file_id: number | string, record = true) =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchDownload, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchDownload, {
       file_id, record,
     }) as Promise<SubtitleDownloadResponse>,
   getSubtitleSearchHistory: (limit = 50) =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchHistory, { limit }) as Promise<SubtitleSearchHistoryResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchHistory, { limit }) as Promise<SubtitleSearchHistoryResponse>,
   deleteSubtitleSearchHistory: (id: string) =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchHistoryDelete, { id }) as Promise<SubtitleSearchHistoryDeleteResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchHistoryDelete, { id }) as Promise<SubtitleSearchHistoryDeleteResponse>,
   clearSubtitleSearchHistory: () =>
-    callRpc(PYCORE_RPC_ROUTES.subtitleSearchHistoryClear, {}) as Promise<SubtitleSearchHistoryClearResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.subtitleSearchHistoryClear, {}) as Promise<SubtitleSearchHistoryClearResponse>,
 
   // --- Word audio (real pronunciation lookup + TTS fallback) -------------- #
   // status: which real-pronunciation sources are wired (pycore reports 3:
@@ -180,101 +180,101 @@ export const pycoreApiLocal = {
   // audio bytes come back base64-encoded (play as a data: URI), on a clean miss
   // {success:false, provider:null, message}.
   getWordAudioStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.wordAudioStatus, {}) as Promise<WordAudioStatus>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioStatus, {}) as Promise<WordAudioStatus>,
   testWordAudio: (word: string, lang = 'en') =>
-    callRpc(PYCORE_RPC_ROUTES.wordAudioTest, { word, lang }) as Promise<WordAudioTestResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioTest, { word, lang }) as Promise<WordAudioTestResponse>,
 
   // Move a word to the front of Laravel's canonical audio queue and wake the
   // dedicated Pycore word-audio worker.
   boostWordAudioPriority: (md5: string, lang: string) =>
-    callRpc(PYCORE_RPC_ROUTES.wordAudioBoostPriority, { md5, lang }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioBoostPriority, { md5, lang }) as Promise<
       { success: boolean; laravel_updated?: boolean; error?: string }
     >,
   boostWordAudioPriorities: (items: Array<{ md5: string; lang: string }>) =>
-    callRpc(PYCORE_RPC_ROUTES.wordAudioBoostPriorityBatch, { items }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioBoostPriorityBatch, { items }) as Promise<
       { success: boolean; count: number; results?: Array<Record<string, unknown>>; error?: string }
     >,
   prioritizeWordImages: (items: Array<{ word: string; language: string }>) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizeWordImages, { items }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeWordImages, { items }) as Promise<
       { success: boolean; count?: number; error?: string }
     >,
   prioritizeSentenceAudio: (items: Array<{ text: string; language: string; content_id?: string }>) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizeSentenceAudio, { items }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeSentenceAudio, { items }) as Promise<
       { success: boolean; bumped?: number; error?: string }
     >,
   prioritizeSentenceAudioItem: (contentId: string, language: string) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizeSentenceAudioItem, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeSentenceAudioItem, {
       content_id: contentId, language,
     }) as Promise<{ success?: boolean; ok?: boolean; priority?: number; error?: string }>,
   prioritizeWordAudioWords: (words: string[], language: string) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizeWordAudioWords, { words, language }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeWordAudioWords, { words, language }) as Promise<
       { success: boolean; queued?: number; error?: string }
     >,
   prioritizeCovers: (ids: number[], all = false) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizeCovers, { ids, all }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeCovers, { ids, all }) as Promise<
       { success: boolean; reset?: number; priority?: number; error?: string }
     >,
   prioritizePosters: (items: Array<{ media_type: 'book' | 'subtitle'; id: number }>) =>
-    callRpc(PYCORE_RPC_ROUTES.queuePriorityPrioritizePosters, { items }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizePosters, { items }) as Promise<
       { success: boolean; promoted?: number; error?: string }
     >,
 
   // --- translate history (Google / AI translate usage records) ------------ #
   getTranslateHistory: (limit = 50) =>
-    callRpc(PYCORE_RPC_ROUTES.translateHistory, { limit }) as Promise<TranslateHistoryResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistory, { limit }) as Promise<TranslateHistoryResponse>,
   deleteTranslateHistory: (id: string) =>
-    callRpc(PYCORE_RPC_ROUTES.translateHistoryDelete, { id }) as Promise<TranslateHistoryDeleteResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistoryDelete, { id }) as Promise<TranslateHistoryDeleteResponse>,
   clearTranslateHistory: () =>
-    callRpc(PYCORE_RPC_ROUTES.translateHistoryClear, {}) as Promise<TranslateHistoryClearResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistoryClear, {}) as Promise<TranslateHistoryClearResponse>,
 
   // --- Agent history (local Claude/Codex/Cursor/Gemini txt store) ---------- #
-  // Native RPC v2 routes — do NOT use getJSON/postJSON → router.invoke.
+  // Native HTTP v2 routes — do NOT use getJSON/postJSON → router.invoke.
   getAgentHistoryIndex: () =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryIndex, {}) as Promise<AgentHistoryIndexResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryIndex, {}) as Promise<AgentHistoryIndexResponse>,
   getAgentHistoryPrompts: (params?: {
     tool?: string; user?: string; q?: string; lang?: string;
     tools?: string[];
     limit?: number; offset?: number; page?: number; pageSize?: number;
   }) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryPrompts, params ?? {}) as Promise<AgentHistoryPromptsResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPrompts, params ?? {}) as Promise<AgentHistoryPromptsResponse>,
   getAgentHistorySession: (id: string) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistorySessionDetail, { session_id: id, id }) as Promise<AgentHistorySessionResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistorySessionDetail, { session_id: id, id }) as Promise<AgentHistorySessionResponse>,
   refreshAgentHistory: () =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryRefresh, {}) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRefresh, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   updateAgentHistoryPrompt: (id: string, text: string) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryUpdatePrompt, { id, text }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryUpdatePrompt, { id, text }) as Promise<
       { success: boolean; data?: { id: string; text: string; edited: boolean }; error?: string | null }
     >,
   getAgentHistoryArticleConfig: () =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleConfigGet, {}) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigGet, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   saveAgentHistoryArticleConfig: (body: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleConfigPost, body) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigPost, body) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   startAgentHistoryArticlePipeline: () =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleStart, {}) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleStart, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   getAgentHistoryArticles: (limit = 50) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleList, { limit }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleList, { limit }) as Promise<
       { success: boolean; data?: { items: Record<string, unknown>[] }; error?: string | null }
     >,
   getAgentHistoryArticleLogs: () =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleLogs, {}) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleLogs, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   getAgentHistoryArticleRecords: (limit = 100) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleRecords, { limit }) as Promise<AgentHistoryArticleRecordsResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleRecords, { limit }) as Promise<AgentHistoryArticleRecordsResponse>,
   /** Probe one tool: parse its newest history source and return the latest prompt. */
   testAgentHistoryToolExtract: (tool: string) =>
-    callRpc(PYCORE_RPC_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
-  /** Fetch article audio as a data: URL via RPC (base64 + MIME). */
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
+  /** Fetch article audio as a data: URL via HTTP (base64 + MIME). */
   getAgentHistoryArticleAudioDataUrl: async (recordId: string | number): Promise<string> => {
-    const res = await callRpc(PYCORE_RPC_ROUTES.agentHistoryArticleAudio, {
+    const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleAudio, {
       record_id: String(recordId),
       id: String(recordId),
     }) as { success?: boolean; data?: { mime?: string; audio_base64?: string }; error?: string };
@@ -291,26 +291,26 @@ export const pycoreApiLocal = {
   // laravel_reachable:false
   // means the counts are zeroed but the categories + local engines still report.
   getQueueOverview: () =>
-    callRpc(PYCORE_RPC_ROUTES.queueOverviewGetQueueOverview, {}) as Promise<PcQueueOverview>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueOverviewGetQueueOverview, {}) as Promise<PcQueueOverview>,
 
   // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
   getSentenceAudioAutoStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioStatus, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioStatus, {}),
   setSentenceAudioAutoConfig: (autoStart: boolean) =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioConfig, { auto_start: autoStart }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, { auto_start: autoStart }),
   // Backend config model requires auto_start, so the current value goes along.
   setSentenceAudioConcurrency: (concurrency: number, autoStart: boolean) =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioConfig, { auto_start: autoStart, concurrency }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, { auto_start: autoStart, concurrency }),
   runSentenceAudioOnce: () =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioRunOnce, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioRunOnce, {}),
   getSentenceAudioQueue: () =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioQueueSnapshot, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioQueueSnapshot, {}),
 
   // --- Sentence-audio voice variants (per-language accent/gender specs) ----- #
-  // The UI calls pycore through RPC v2. Pycore may use Laravel HTTP internally
+  // The UI calls pycore through HTTP v2. Pycore may use Laravel HTTP internally
   // to read, replace, or remove variant specs.
   getSentenceVoiceVariants: async (lang: string): Promise<SentenceVoiceVariant[]> => {
-    const r = await callRpc(PYCORE_RPC_ROUTES.sentenceAudioVariantsIndex, { lang }) as {
+    const r = await requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsIndex, { lang }) as {
       success: boolean; specs: SentenceVoiceVariant[];
     };
     return r?.specs ?? [];
@@ -319,24 +319,24 @@ export const pycoreApiLocal = {
     lang: string,
     specs: Array<{ variant_key: string; accent: string | null; gender: string; is_primary: boolean }>,
   ) =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioVariantsStore, { lang, specs }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsStore, { lang, specs }) as Promise<
       { success: boolean; specs: SentenceVoiceVariant[] }
     >,
   deleteSentenceVoiceVariant: (lang: string, variant_key: string) =>
-    callRpc(PYCORE_RPC_ROUTES.sentenceAudioVariantsDestroy, { lang, variant_key }) as Promise<
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsDestroy, { lang, variant_key }) as Promise<
       { success: boolean }
     >,
   getQueueBumps: (limit = 30) =>
-    callRpc(PYCORE_RPC_ROUTES.queueBumpsListBumps, { limit }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueBumpsListBumps, { limit }),
 
   getTaskCapabilityChains: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskSettingsChains, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),
   saveTaskCapabilityChain: (taskType: string, priority: string[]) =>
-    callRpc(PYCORE_RPC_ROUTES.taskSettingsUpdateChain, { task_type: taskType, priority }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsUpdateChain, { task_type: taskType, priority }),
   searchTaskHistory: (params: {
     q?: string; date_from?: string; date_to?: string; task_type?: string; worker?: string; limit?: number;
   }) =>
-    callRpc(PYCORE_RPC_ROUTES.taskHistorySearchTasks, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistorySearchTasks, {
       q: params.q,
       date_from: params.date_from,
       date_to: params.date_to,
@@ -347,24 +347,24 @@ export const pycoreApiLocal = {
 
   // --- Word-dictionary TTS auto-start (Queue Center strip) ---------------- #
   getWordTtsAutoStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.wordTtsStatus, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsStatus, {}),
   setWordTtsAutoConfig: (autoStart: boolean) =>
-    callRpc(PYCORE_RPC_ROUTES.wordTtsConfig, { auto_start: autoStart }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsConfig, { auto_start: autoStart }),
   // Backend config model requires auto_start, so the current value goes along.
   setWordTtsConcurrency: (concurrency: number, autoStart: boolean) =>
-    callRpc(PYCORE_RPC_ROUTES.wordTtsConfig, { auto_start: autoStart, concurrency }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsConfig, { auto_start: autoStart, concurrency }),
   runWordTtsOnce: () =>
-    callRpc(PYCORE_RPC_ROUTES.wordTtsRunOnce, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsRunOnce, {}),
 
   // --- Heartbeat workers overview (Queue Center worker strip) ------------- #
   getHeartbeatWorkersStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.heartbeatWorkersStatus, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.heartbeatWorkersStatus, {}),
   setHeartbeatWorkerConfig: (callbackName: string, enabled: boolean) =>
-    callRpc(PYCORE_RPC_ROUTES.heartbeatWorkersConfig, { callback_name: callbackName, enabled }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.heartbeatWorkersConfig, { callback_name: callbackName, enabled }),
   getTaskCenter: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterGet, {}) as Promise<PcTaskCenterResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGet, {}) as Promise<PcTaskCenterResponse>,
   getQueueCenterSnapshot: () =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterGetQueueCenterSnapshot, {}) as Promise<QueueCenterSnapshot>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetQueueCenterSnapshot, {}) as Promise<QueueCenterSnapshot>,
   setQueueCenterControl: (
     control: QueueCenterControlName,
     enabled: boolean,
@@ -376,7 +376,7 @@ export const pycoreApiLocal = {
       timeoutMs?: number;
     },
   ): Promise<QueueCenterControlResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.taskCenterSetQueueCenterControl, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterSetQueueCenterControl, {
       control_name: control,
       enabled,
       requested_by: options?.requested_by ?? null,
@@ -384,7 +384,7 @@ export const pycoreApiLocal = {
       graceful_stop: options?.graceful_stop ?? false,
     }, options?.timeoutMs ?? 8_000) as Promise<QueueCenterControlResponse>,
   getWordAudioMediaDataUrl: async (word: string, language = 'en'): Promise<string> => {
-    const response = await callRpc(PYCORE_RPC_ROUTES.wordAudioWordAudioMedia, {
+    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioWordAudioMedia, {
       word,
       language,
     }) as { success?: boolean; media_type?: string; content_base64?: string; error?: string };
@@ -397,7 +397,7 @@ export const pycoreApiLocal = {
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).
   getCapabilitySettings: () =>
-    callRpc(PYCORE_RPC_ROUTES.capabilityStatusGetCapabilitySettings, {}) as Promise<PcCapabilitySettings>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.capabilityStatusGetCapabilitySettings, {}) as Promise<PcCapabilitySettings>,
   // Persist ONE capability's priority/options and live-apply; returns the
   // updated block. `priority` re-orders the engine chain (omitted engines are
   // appended in default order server-side, so a save can never silence it);
@@ -406,7 +406,7 @@ export const pycoreApiLocal = {
     capability: PcCapabilityKey,
     patch: { priority?: string[]; options?: PcCapabilityOptions },
   ) =>
-    callRpc(PYCORE_RPC_ROUTES.capabilityStatusPostCapabilitySettings, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.capabilityStatusPostCapabilitySettings, {
       capability, ...patch,
     }) as Promise<PcCapabilitySaveResponse>,
 
@@ -414,49 +414,49 @@ export const pycoreApiLocal = {
   // Free, offline word translation served alongside Google/AI. status reports
   // whether the data is installed (run 107_install_dictionaries.sh).
   getDictionaryStatus: () =>
-    callRpc(PYCORE_RPC_ROUTES.dictionaryDictionaryStatus, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryStatus, {}),
   getDictionaryLookup: (word: string, target = 'zh') =>
-    callRpc(PYCORE_RPC_ROUTES.dictionaryDictionaryLookup, { word, target }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryLookup, { word, target }),
 
   // --- auto-start on boot (native OS startup entry) ----------------------- #
   getAutostart: () =>
-    callRpc(PYCORE_RPC_ROUTES.controlGetAutostart, {}) as Promise<AutostartStatus>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.controlGetAutostart, {}) as Promise<AutostartStatus>,
   // target/mechanism are optional; the backend falls back to the persisted
   // preference, so a bare enable keeps the historical behavior.
   setAutostart: (enabled: boolean, target?: AutostartTarget, mechanism?: string) =>
-    callRpc(PYCORE_RPC_ROUTES.controlSetAutostart, { enabled, target, mechanism }) as Promise<AutostartStatus>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.controlSetAutostart, { enabled, target, mechanism }) as Promise<AutostartStatus>,
 
   // --- Vocabulary (pycore proxies laravel_main #/vocabulary) -------------- #
   // The laravel-manager vocabulary surface, re-exposed through pycore so the
   // pycore-manager Vocabulary page talks only to pycore (UI -> pycore ->
   // laravel). Pure passthrough: responses are laravel's native JSON shapes.
-  // Query and body payloads are sent through one native RPC v2 route.
+  // Query and body payloads are sent through one native HTTP v2 route.
   getVocabTranslationLanguages: () =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTranslationLanguages, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationLanguages, {}),
   translateVocab: (payload: VocabTranslateRequest) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTranslationTranslate, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationTranslate, payload),
   queueVocabTranslationBatch: (payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTranslationQueueBatchAdd, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationQueueBatchAdd, payload),
   generateVocabTts: (payload: VocabTtsGenerateRequest) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTtsGenerate, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsGenerate, payload),
   queueVocabTtsBatchQuery: (items: Record<string, unknown>[]) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTtsQueueBatchQuery, { items }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueBatchQuery, { items }),
   getVocabSentenceAudio: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTtsSentenceAudio, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsSentenceAudio, params),
   getVocabTtsQueueStats: () =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTtsQueueStats, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueStats, {}),
   getVocabTtsQueueItems: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabTtsQueueItems, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueItems, params),
   getVocabAssistOverview: () =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabAssistOverview, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabAssistOverview, {}),
   getVocabAssistOverviewItems: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabAssistOverviewItems, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabAssistOverviewItems, params),
   retryVocabCover: (payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabCoverRetry, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabCoverRetry, payload),
   getVocabLibraries: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabLibraries, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLibraries, params),
   getVocabResourceDataUrl: async (url: string): Promise<string> => {
-    const response = await callRpc(PYCORE_RPC_ROUTES.vocabularyResource, { url }) as {
+    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyResource, { url }) as {
       success?: boolean; content_base64?: string; mime?: string;
     };
     return response?.success && response.content_base64
@@ -464,29 +464,29 @@ export const pycoreApiLocal = {
       : '';
   },
   getVocabLibraryWords: (libraryId: number, params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabLibraryWords, { library_id: libraryId, ...params }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLibraryWords, { library_id: libraryId, ...params }),
   deleteVocabLibrary: (libraryId: number) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabDeleteLibrary, { library_id: libraryId }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDeleteLibrary, { library_id: libraryId }),
   getVocabStatistics: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabStatistics, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabStatistics, params),
   getVocabLanguageBreakdown: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabLanguageBreakdown, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLanguageBreakdown, params),
   getVocabDictionaryWords: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabDictionaryWords, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDictionaryWords, params),
   createVocabDictionaryWord: (payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabCreateDictionaryWord, payload),
-  // Updates remain RPC v2; pycore chooses the required Laravel HTTP verb.
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabCreateDictionaryWord, payload),
+  // Updates remain HTTP v2; pycore chooses the required Laravel HTTP verb.
   updateVocabDictionaryWord: (md5: string, payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabUpdateDictionaryWord, { md5, ...payload }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabUpdateDictionaryWord, { md5, ...payload }),
   deleteVocabDictionaryWord: (md5: string, params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabDeleteDictionaryWord, { md5, ...params }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDeleteDictionaryWord, { md5, ...params }),
   batchVocabDictionaryWords: (payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabBatchDictionaryWords, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabBatchDictionaryWords, payload),
   getVocabDictionarySentences: (params: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabDictionarySentences, params),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDictionarySentences, params),
   reportVocabValidity: (payload: Record<string, unknown>) =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabValidityReport, payload),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabValidityReport, payload),
   getVocabStorageSummary: () =>
-    callRpc(PYCORE_RPC_ROUTES.vocabularyVocabStorageSummary, {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabStorageSummary, {}),
 
 };

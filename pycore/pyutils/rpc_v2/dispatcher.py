@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Transport-neutral RPC route registration and invocation."""
+"""Central HTTP route registration and invocation."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ SyncInvoker = Callable[[Callable, Tuple[Any, ...]], Awaitable[Any]]
 
 
 @dataclass(frozen=True)
-class RpcRoute:
+class HttpRoute:
     name: str
     handler: Callable
     methods: FrozenSet[str]
@@ -22,12 +22,12 @@ class RpcRoute:
     timeout: Optional[float] = None
 
 
-class RpcDispatcher:
+class HttpDispatcher:
     """Own the HTTP controller route table."""
 
     def __init__(self, sync_invoker: Optional[SyncInvoker] = None) -> None:
         self.sync_invoker = sync_invoker
-        self._routes: Dict[str, RpcRoute] = {}
+        self._routes: Dict[str, HttpRoute] = {}
 
     def register(
         self,
@@ -37,7 +37,7 @@ class RpcDispatcher:
         methods: Iterable[str] = ("POST",),
         description: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> RpcRoute:
+    ) -> HttpRoute:
         normalized_name = self.normalize_name(name)
         normalized_methods = frozenset(
             str(method).strip().upper()
@@ -46,17 +46,17 @@ class RpcDispatcher:
         )
         unsupported = normalized_methods - SUPPORTED_METHODS
         if not normalized_name:
-            raise ValueError("RPC route name is required")
+            raise ValueError("HTTP route path is required")
         if not callable(handler):
-            raise TypeError(f"RPC handler is not callable: {normalized_name}")
+            raise TypeError(f"HTTP handler is not callable: {normalized_name}")
         if not normalized_methods:
-            raise ValueError(f"RPC methods are required: {normalized_name}")
+            raise ValueError(f"HTTP methods are required: {normalized_name}")
         if unsupported:
             raise ValueError(
-                f"Unsupported RPC methods for {normalized_name}: "
+                f"Unsupported HTTP methods for {normalized_name}: "
                 f"{', '.join(sorted(unsupported))}"
             )
-        route = RpcRoute(
+        route = HttpRoute(
             name=normalized_name,
             handler=handler,
             methods=normalized_methods,
@@ -66,7 +66,7 @@ class RpcDispatcher:
         self._routes[normalized_name] = route
         return route
 
-    def get(self, name: str) -> Optional[RpcRoute]:
+    def get(self, name: str) -> Optional[HttpRoute]:
         return self._routes.get(self.normalize_name(name))
 
     def list_routes(self, controller_prefix: str) -> List[Dict[str, Any]]:
@@ -84,7 +84,7 @@ class RpcDispatcher:
 
     async def dispatch(
         self,
-        route: RpcRoute,
+        route: HttpRoute,
         params: Dict[str, Any],
         request_id: str,
         context: Dict[str, Any],
@@ -131,4 +131,4 @@ class RpcDispatcher:
         return str(name or "").strip().strip("/")
 
 
-__all__ = ["RpcDispatcher", "RpcRoute"]
+__all__ = ["HttpDispatcher", "HttpRoute"]

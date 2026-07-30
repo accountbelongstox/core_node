@@ -5,7 +5,7 @@ MCP Backend Server - RPC v2 Architecture (Refactored 2025-11-19)
 
 Architecture:
 - Uses pycore.pylauncher (new refactored version)
-- Uses pycore.pyutils.rpc_v2 (RpcServer)
+- Uses pycore.pyutils.rpc_v2 (HttpServer)
 - Does NOT directly implement HTTP server
 - All business logic reused from backend/handlers
 
@@ -28,7 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
-from pycore.pyfoundations.pygvar import MCP_BACKEND_RPC_PORT, RPC_CONTROLLER_PREFIX
+from pycore.pyfoundations.pygvar import HTTP_API_PREFIX, MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
 from pycore.pyctl.mcpctl.backend.rpc_routes import register_mcp_routes
@@ -136,11 +136,11 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
 
     ColorPrint.blue(
         f"[Backend] RPC HTTP: http://localhost:{MCP_BACKEND_RPC_PORT}"
-        f"{RPC_CONTROLLER_PREFIX}/<route>"
+        f"{HTTP_API_PREFIX}/<route>"
     )
     ColorPrint.blue(
         f"[Backend] HTTP controllers: "
-        f"http://localhost:{MCP_BACKEND_RPC_PORT}/api/controllers"
+        f"http://localhost:{MCP_BACKEND_RPC_PORT}/api/routes"
     )
     ColorPrint.yellow("\n[Backend] Server running...")
     ColorPrint.yellow("Press Ctrl+C to stop\n")

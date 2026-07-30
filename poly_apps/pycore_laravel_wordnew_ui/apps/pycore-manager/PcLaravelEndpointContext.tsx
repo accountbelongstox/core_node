@@ -1,6 +1,6 @@
 /**
  * PcLaravelEndpointContext — shared Laravel API endpoint state for the
- * pycore-manager end. Single source of truth for `laravel_api.*` RPC data so
+ * pycore-manager end. Single source of truth for `laravel_api.*` HTTP data so
  * the global top-bar switcher and Settings page stay in sync.
  *
  * Recovers from a slow `laravel_api.select` by ALSO listening to a
@@ -69,7 +69,7 @@ export interface PcLaravelEndpointContextValue {
   probing: boolean;
   switching: string | null;
   error: string | null;
-  /** true when `endpoints` is the read-only prepared fallback (pycore RPC offline). */
+  /** true when `endpoints` is the read-only prepared fallback (pycore HTTP offline). */
   fallback: boolean;
   actionError: string | null;
   reload: () => Promise<boolean>;
@@ -149,7 +149,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       }
       throw new Error(r?.error || 'laravel_api.list: malformed response');
     } catch (e: any) {
-      // pycore RPC (:59000) offline: still surface the FRONTEND-known prepared
+      // pycore HTTP (:59000) offline: still surface the FRONTEND-known prepared
       // endpoints (read-only) so the switcher shows the available APIs rather than
       // an empty error box. We keep `error` set + flag `fallback` so the UI can
       // label these as prepared/offline.
@@ -157,7 +157,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
       const cachedCurrent = resolveDisplayedCurrent('', prepared);
       setEndpoints(prepared);
       setCurrent(cachedCurrent);
-      setError(e?.message || 'RPC failed');
+      setError(e?.message || 'HTTP failed');
       setFallback(true);
       return false;
     } finally {
@@ -181,7 +181,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   // Subscribe to the server-side broadcast: `laravel_api.select` emits a
   // `laravel_endpoint_changed` event AFTER the switch is persisted. The
   // UI updates from this broadcast even when the caller's promise has
-  // already timed out on the 30s RPC ceiling.
+  // already timed out on the 30s HTTP ceiling.
   useEffect(() => {
     const off = subscribeHttpEvent(PYCORE_EVENT_TOPICS.laravelEndpointChanged, (data: any) => {
       if (!data || typeof data !== 'object') return;
@@ -258,7 +258,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     setProbing(true);
     setActionError(null);
     try {
-      // The probe refresh runs server-side in the BACKGROUND now (the RPC
+      // The probe refresh runs server-side in the BACKGROUND now (the HTTP
       // returns instantly with last-known rows). Wait out the sweep budget,
       // then re-list so the spinner covers the actual refresh instead of
       // flipping back on stale data.

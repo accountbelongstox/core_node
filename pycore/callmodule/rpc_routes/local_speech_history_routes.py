@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for speech_history."""
+"""HTTP Routes for speech_history."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_SPEECH_HISTORY_HISTORY,
     UI_SPEECH_HISTORY_HISTORY_FILE,
@@ -18,26 +17,25 @@ def register_local_speech_history_routes(server):
         params = params or {}
         return hist.history(int(params.get("limit") or 50))
 
-    server.route(name=UI_SPEECH_HISTORY_HISTORY, handler=history_handler)
+    server.post(name=UI_SPEECH_HISTORY_HISTORY, handler=history_handler)
 
     def history_file_handler(params, request_id, context):
         params = params or {}
         return hist.history_file(str(params.get("audio_id") or ""))
 
-    server.route(name=UI_SPEECH_HISTORY_HISTORY_FILE, handler=history_file_handler)
+    server.post(name=UI_SPEECH_HISTORY_HISTORY_FILE, handler=history_file_handler)
 
     def history_reveal_handler(params, request_id, context):
         params = params or {}
         return hist.history_reveal(str(params.get("audio_id") or ""))
 
-    server.route(name=UI_SPEECH_HISTORY_HISTORY_REVEAL, handler=history_reveal_handler)
+    server.post(name=UI_SPEECH_HISTORY_HISTORY_REVEAL, handler=history_reveal_handler)
 
     def history_delete_handler(params, request_id, context):
         params = params or {}
         return hist.history_delete(str(params.get("audio_id") or ""))
 
-    server.route(name=UI_SPEECH_HISTORY_HISTORY_DELETE, handler=history_delete_handler)
+    server.post(name=UI_SPEECH_HISTORY_HISTORY_DELETE, handler=history_delete_handler)
 
-    server.route(name=UI_SPEECH_HISTORY_HISTORY_CLEAR, handler=hist.history_clear)
-    ColorPrint.green("[ConfigBuilder] Registered speech_history RPC routes")
+    server.post(name=UI_SPEECH_HISTORY_HISTORY_CLEAR, handler=hist.history_clear)
 

@@ -24,7 +24,7 @@ pycore.pyutils.native_ui). The `launch` alias is preserved.
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import RPC_CONTROLLER_PREFIX
+from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step2_port_url.port_allocator import get_port_range
@@ -257,7 +257,7 @@ def launch_native_app(config: NativeUIConfig) -> None:
         if config.rpc_enabled:
             rpc_url = f"http://{config.rpc_host}:{config.rpc_port}"
             ColorPrint.cyan(
-                f"  Backend:   {rpc_url}{RPC_CONTROLLER_PREFIX}/<route>  "
+                f"  Backend:   {rpc_url}{HTTP_API_PREFIX}/<route>  "
                 f"({len(config.rpc_routers)} routes)"
             )
         ColorPrint.cyan(f"  Window:    {config.window_size[0]}x{config.window_size[1]}" + (" (frameless)" if config.frameless else ""))

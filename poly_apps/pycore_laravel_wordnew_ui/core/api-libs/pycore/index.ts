@@ -3,8 +3,8 @@
  * Re-exports HTTP transport, cache helpers, and shared types.
  */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
-export { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
-export type { PycoreRpcRoute } from './PycoreRpcRoutes';
+export { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
+export type { PycoreHttpRoute } from './PycoreHttpRoutes';
 export { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from './PycoreEventTopics';
 export type { PycoreEventTopic } from './PycoreEventTopics';
 export type {
@@ -21,7 +21,7 @@ export type {
 } from './PycoreApi';
 
 export {
-  connectPycoreHttp, subscribe, subscribeHttpEvent, callRpc, onHttpStatus, onHttpDiag,
+  connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, onHttpStatus, onHttpDiag,
   isHttpConnected, getClientId, getBrowserId, setPycoreActive,
 } from './PycoreHttp';
 

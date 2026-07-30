@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for dictionary."""
+"""HTTP Routes for dictionary."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_DICTIONARY_DICTIONARY_STATUS,
     UI_DICTIONARY_DICTIONARY_LOOKUP,
@@ -18,7 +17,7 @@ def register_local_dictionary_routes(server):
 
         return _run()
 
-    server.route(name=UI_DICTIONARY_DICTIONARY_STATUS, handler=dictionary_status_handler)
+    server.post(name=UI_DICTIONARY_DICTIONARY_STATUS, handler=dictionary_status_handler)
 
     def dictionary_lookup_handler(params, request_id, context):
         params = params or {}
@@ -37,6 +36,5 @@ def register_local_dictionary_routes(server):
 
         return _run()
 
-    server.route(name=UI_DICTIONARY_DICTIONARY_LOOKUP, handler=dictionary_lookup_handler)
-    ColorPrint.green("[ConfigBuilder] Registered dictionary RPC routes")
+    server.post(name=UI_DICTIONARY_DICTIONARY_LOOKUP, handler=dictionary_lookup_handler)
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""RPC routes for voice and subtitle workflows."""
+"""HTTP routes for voice and subtitle workflows."""
 
 import pycore.callmodule.rpc_routes.route_names as rn
 import pycore.pyctl.desktop.voice_subtitle_service as vs

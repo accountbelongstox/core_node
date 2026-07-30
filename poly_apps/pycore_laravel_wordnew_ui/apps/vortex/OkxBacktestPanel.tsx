@@ -17,8 +17,8 @@ import {
   Search, X, ArrowUpDown, ArrowUp, ArrowDown, Download, CandlestickChart, Zap, Table2, LayoutGrid,
   Filter as FilterIcon, Layers, LineChart, ZoomIn,
 } from 'lucide-react';
-import { connectPycoreHttp, subscribe, callRpc, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_EVENT_TOPICS, VORTEX_PYCORE_ROUTES } from './VortexPycoreProtocol';
+import { connectPycoreHttp, subscribe, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
+import { VORTEX_PYCORE_EVENT_TOPICS, VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
 
 /**
  * Adaptive OHLC chart for a coin's candles ([ts,o,h,l,c,vol,...], oldest→newest).
@@ -581,8 +581,8 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
   const refreshCoins = useCallback(async () => {
     try {
       const [st, cs] = await Promise.all([
-        callRpc(VORTEX_PYCORE_ROUTES.status, {}, 8000),
-        callRpc(VORTEX_PYCORE_ROUTES.coins, { bar: barRef.current }, 15000),
+        requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.status, {}, 8000),
+        requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.coins, { bar: barRef.current }, 15000),
       ]);
       if (st) setStatus(st);
       const rows: CoinRow[] = Array.isArray(cs?.coins) ? cs.coins : [];
@@ -599,7 +599,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
   const quoteInit = useRef(false);
   const loadSettings = useCallback(async () => {
     try {
-      const s = await callRpc(VORTEX_PYCORE_ROUTES.getSettings, {}, 8000);
+      const s = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.getSettings, {}, 8000);
       if (s) {
         setSettings({ auto_load: !!s.auto_load, auto_backtest: !!s.auto_backtest });
         // Apply the saved quote filter ONCE (don't clobber the user's later manual picks).
@@ -611,7 +611,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
   // Persist the quote filter choice (segmented USDT/USDC/All) to pycore settings.
   const saveQuote = (q: 'usdt' | 'usdc' | 'all') => {
     setTypeFilter(quoteToType(q));
-    callRpc(VORTEX_PYCORE_ROUTES.setSettings, { display_quote: q }, 8000).catch(() => { /* best-effort */ });
+    requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.setSettings, { display_quote: q }, 8000).catch(() => { /* best-effort */ });
   };
 
   useEffect(() => {
@@ -679,33 +679,33 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
     try {
       // Phase 1a — load every coin with live prices (fast; no history). Non-fatal:
       // fill_backtest also refreshes the universe, so a hiccup here never blocks the fill.
-      try { await callRpc(VORTEX_PYCORE_ROUTES.loadUniverse, {}, 30000); setUnreachable(false); refreshCoins(); }
+      try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.loadUniverse, {}, 30000); setUnreachable(false); refreshCoins(); }
       catch { /* best-effort */ }
       setLoadingUniverse(false);
       // Phase 1b — DIFF from local fragments → chart, BEFORE any download.
       try {
-        const plan = await callRpc(VORTEX_PYCORE_ROUTES.fillPlan, { bar, hours, scope }, 20000);
+        const plan = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.fillPlan, { bar, hours, scope }, 20000);
         if (plan && !plan.error) setFillPlan(plan as FillPlan);
       } catch { /* plan is best-effort */ }
       // Phase 2: download only missing ranges with HTTP event progress.
-      await callRpc(VORTEX_PYCORE_ROUTES.fillBacktest, { bar, hours, scope }, 8000);
+      await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.fillBacktest, { bar, hours, scope }, 8000);
       setProgress({ state: 'starting', op: 'fill', phase: 'diff' });
     } catch { setUnreachable(true); }
     finally { setLoading(false); setLoadingUniverse(false); refreshCoins(); }
   };
-  const cancelFill = async () => { try { await callRpc(VORTEX_PYCORE_ROUTES.cancelFill, {}, 8000); } catch { /* ignore */ } };
+  const cancelFill = async () => { try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.cancelFill, {}, 8000); } catch { /* ignore */ } };
 
   // Persist an auto-load setting to the pycore user-data store (optimistic UI).
   const saveSetting = async (patch: Partial<typeof settings>) => {
     const next = { ...settings, ...patch };
     setSettings(next);
-    try { await callRpc(VORTEX_PYCORE_ROUTES.setSettings, patch, 8000); } catch { /* best-effort */ }
+    try { await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.setSettings, patch, 8000); } catch { /* best-effort */ }
   };
 
   const openChart = useCallback(async (inst_id: string) => {
     setSelected(inst_id); setSelCandles([]); setSelLoading(true);
     try {
-      const r = await callRpc(VORTEX_PYCORE_ROUTES.candles, { inst_id, bar: barRef.current }, 15000);
+      const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.candles, { inst_id, bar: barRef.current }, 15000);
       setSelCandles(Array.isArray(r?.candles) ? r.candles : []);
     } catch { setSelCandles([]); }
     finally { setSelLoading(false); }
@@ -797,7 +797,7 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
     let alive = true;
     (async () => {
       try {
-        const r = await callRpc(VORTEX_PYCORE_ROUTES.sparklines, { inst_ids: chartCoins.map((c) => c.inst_id), bar, points: 32 }, 20000);
+        const r = await requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.sparklines, { inst_ids: chartCoins.map((c) => c.inst_id), bar, points: 32 }, 20000);
         if (alive && r?.series) setSpark(r.series as Record<string, number[]>);
       } catch { /* leave prior series; cards show no-data */ }
     })();
@@ -846,8 +846,8 @@ export const OkxBacktestPanel: React.FC<{ dark: boolean; lang: string }> = ({ da
       try {
         // close series for the overlay + per-coin window metrics for the dashboard/detail
         const [sp, mt] = await Promise.all([
-          callRpc(VORTEX_PYCORE_ROUTES.sparklines, { inst_ids: ids, bar, points: 200, hours }, 25000),
-          callRpc(VORTEX_PYCORE_ROUTES.metrics, { inst_ids: ids, bar, hours }, 25000),
+          requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.sparklines, { inst_ids: ids, bar, points: 200, hours }, 25000),
+          requestPycoreHttp(VORTEX_PYCORE_HTTP_ROUTES.metrics, { inst_ids: ids, bar, hours }, 25000),
         ]);
         if (alive && sp?.series) setCmp(sp.series as Record<string, number[]>);
         if (alive && mt?.metrics) setCmpMetrics(mt.metrics as Record<string, CoinMetrics>);

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register user-data controllers on RPC v2."""
+"""Register user-data controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.runtime.user_data_service import user_data_service

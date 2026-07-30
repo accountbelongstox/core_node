@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC v2 routes for NotebookLM STT."""
+"""HTTP v2 routes for NotebookLM STT."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.whisper_stt.notebooklm_stt import (
     apply_notebooklm_auto_convert,
     clear_cache,
@@ -24,7 +23,7 @@ from pycore.callmodule.rpc_routes.route_names import (
 def register_notebooklm_stt_routes(server):
     """Register HTTP controllers."""
 
-    server.route(name=UI_NOTEBOOKLM_STT_GET_STATUS, handler=get_status)
+    server.post(name=UI_NOTEBOOKLM_STT_GET_STATUS, handler=get_status)
 
     def update_settings_handler(params, request_id, context):
         params = params or {}
@@ -32,9 +31,9 @@ def register_notebooklm_stt_routes(server):
         apply_notebooklm_auto_convert(enabled, bool(params.get("run_scan", enabled)))
         return {"success": True, "enabled": enabled}
 
-    server.route(name=UI_NOTEBOOKLM_STT_UPDATE_SETTINGS, handler=update_settings_handler)
+    server.post(name=UI_NOTEBOOKLM_STT_UPDATE_SETTINGS, handler=update_settings_handler)
 
-    server.route(name=UI_NOTEBOOKLM_STT_CONVERT_ALL, handler=convert_all_audio)
+    server.post(name=UI_NOTEBOOKLM_STT_CONVERT_ALL, handler=convert_all_audio)
 
     def convert_single_handler(params, request_id, context):
         params = params or {}
@@ -43,9 +42,7 @@ def register_notebooklm_stt_routes(server):
             return {"success": False, "error": "audio_file is required"}
         return convert_relative_audio(audio_file)
 
-    server.route(name=UI_NOTEBOOKLM_STT_CONVERT_SINGLE, handler=convert_single_handler)
+    server.post(name=UI_NOTEBOOKLM_STT_CONVERT_SINGLE, handler=convert_single_handler)
 
-    server.route(name=UI_NOTEBOOKLM_STT_LIST_AUDIO_FILES, handler=list_audio_files)
-    server.route(name=UI_NOTEBOOKLM_STT_CLEAR_CACHE, handler=clear_cache)
-
-    ColorPrint.green("[ConfigBuilder] Registered notebooklm_stt RPC routes")
+    server.post(name=UI_NOTEBOOKLM_STT_LIST_AUDIO_FILES, handler=list_audio_files)
+    server.post(name=UI_NOTEBOOKLM_STT_CLEAR_CACHE, handler=clear_cache)

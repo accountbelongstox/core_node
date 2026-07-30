@@ -24,7 +24,7 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
     Register queue management routes on RPC server
 
     Args:
-        rpc_server: RpcServerRunner instance
+        rpc_server: HttpServerRunner instance
         service_instances: Dict with service instances
     """
 
@@ -146,8 +146,8 @@ def register_queue_routes(rpc_server, service_instances: Dict[str, Any]):
         }
 
     # Register routes
-    rpc_server.route('queue_stats', handle_queue_stats)
-    rpc_server.route('task_status', handle_task_status)
+    rpc_server.post('queue_stats', handle_queue_stats)
+    rpc_server.post('task_status', handle_task_status)
 
     ColorPrint.green("[Queue Routes] Registered:")
     ColorPrint.blue("  - queue_stats")

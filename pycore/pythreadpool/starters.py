@@ -37,11 +37,11 @@ from pycore.pythreadpool.registry import SERVICE_STARTERS, THREAD_REGISTRY
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pygvar import (
     PYCORE_HTTP_PORT,
-    RPC_CONTROLLER_PREFIX,
+    HTTP_API_PREFIX,
 )
 
 from pycore.pyheartbeat.heartbeat import initialize_heartbeat_system
-from pycore.pyutils.rpc_v2.runner import RpcServerRunner
+from pycore.pyutils.rpc_v2.runner import HttpServerRunner
 
 
 
@@ -145,7 +145,7 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
         ColorPrint.blue(f"[rpc_v2] Will mount {len(static_mounts)} static directory(ies)")
 
 
-    instance = RpcServerRunner(
+    instance = HttpServerRunner(
         host=host,
         port=port,
         debug=debug,
@@ -178,7 +178,7 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     )
 
     ColorPrint.green(f"[rpc_v2] RPC v2 Server started on {host}:{port}")
-    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{host}:{port}{RPC_CONTROLLER_PREFIX}/<name>")
+    ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{host}:{port}{HTTP_API_PREFIX}/<path>")
     ColorPrint.blue(f"[rpc_v2] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
 
     return instance

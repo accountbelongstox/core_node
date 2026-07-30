@@ -4,9 +4,9 @@
  * All UI transports resolve paths here, then `pycoreTarget` picks the host
  * (page origin, remote preset, etc.).
  */
-import { PYCORE_RPC_PORT } from '../../../config/constants';
+import { PYCORE_HTTP_PORT } from '../../../config/constants';
 
-export const PYCORE_PORT = PYCORE_RPC_PORT;
+export const PYCORE_PORT = PYCORE_HTTP_PORT;
 
 /** Legacy `/pyapi` prefix is stripped; paths are always root-relative. */
 export function normalizePycorePath(raw: string): string {
@@ -33,7 +33,8 @@ export const PycorePaths = {
   ping: '/ping',
   events: '/api/events',
   eventsAck: '/api/events/ack',
-  controller: (name: string) => `/api/controller/${name
+  api: (route: string) => `/api/${route
+    .replace(/^\/+/, '')
     .split('/')
     .map((part) => encodeURIComponent(part))
     .join('/')}`,

@@ -25,8 +25,8 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { callRpc } from './PycoreHttp';
-import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+import { requestPycoreHttp } from './PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 import { StorageKeys, StorageManager } from '../../persistence';
 
 export type PycoreReachability =
@@ -48,7 +48,7 @@ export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
 export const PYCORE_HEALTH_DEFAULTS = {
   /** Default ALL-Offline retry interval (ms). */
   healthCheckInterval: 60_000,
-  /** ui.ping RPC probe timeout (ms). Short — long enough to survive a
+  /** ui.ping HTTP probe timeout (ms). Short — long enough to survive a
    *  cold Octane hit but not so long that a stalled bus locks the UI. */
   pingTimeoutMs: 3_000,
   /** Consecutive probe failures required before flipping to down.
@@ -102,7 +102,7 @@ export function checkPycoreNow(): Promise<boolean> {
     const start = performance.now();
     let httpOk = false;
     try {
-      await callRpc(PYCORE_RPC_ROUTES.ping, {}, PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
+      await requestPycoreHttp(PYCORE_HTTP_ROUTES.ping, {}, PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
       httpOk = true;
     } catch {
       httpOk = false;

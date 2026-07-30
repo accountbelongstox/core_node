@@ -25,7 +25,7 @@ def register_status_routes(rpc_server, service_instances: Dict[str, Any]):
     Register status routes on RPC server
 
     Args:
-        rpc_server: RpcServerRunner instance
+        rpc_server: HttpServerRunner instance
         service_instances: Dict with service instances
     """
 
@@ -80,7 +80,7 @@ def register_status_routes(rpc_server, service_instances: Dict[str, Any]):
         }
 
     # Register route
-    rpc_server.route('status', handle_status)
+    rpc_server.post('status', handle_status)
 
     ColorPrint.green("[Status Routes] Registered:")
     ColorPrint.blue("  - status")

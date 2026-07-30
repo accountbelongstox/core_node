@@ -26,7 +26,7 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
     Register TTS routes on RPC server
 
     Args:
-        rpc_server: RpcServerRunner instance
+        rpc_server: HttpServerRunner instance
         service_instances: Dict with 'tts_switch', 'stt_switch', etc.
     """
 
@@ -169,8 +169,8 @@ def register_tts_routes(rpc_server, service_instances: Dict[str, Any]):
         return {'success': False, 'error': 'Task timeout'}
 
     # Register routes
-    rpc_server.route('tts', handle_tts)
-    rpc_server.route('tts.synthesize', handle_tts)
+    rpc_server.post('tts', handle_tts)
+    rpc_server.post('tts/synthesize', handle_tts)
 
     ColorPrint.green("[TTS Routes] Registered:")
     ColorPrint.blue("  - tts")

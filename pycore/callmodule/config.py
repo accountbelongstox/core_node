@@ -160,7 +160,7 @@ def _init_rpc_routes(server):
     (one file per area, speech-routes convention). This orchestrator wires them up
     and then performs the application-level Code Sync warm-up.
 
-    Called by start_rpc_v2 with the RpcServer instance before startup.
+    Called by start_rpc_v2 with the HttpServer instance before startup.
     """
     try:
         # Register HTTP controllers by functional area.

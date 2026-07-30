@@ -7,7 +7,7 @@
  * `<cache>/pycore/codesync/runtime_prefs.json` (same backend path as the tray).
  * The peer list shows reachability + live status, fed by the backend
  * `code_sync_update` HTTP event with a 5s reconciliation poll
- * fallback against the code-sync peers RPC (PycoreApi.getPeers).
+ * fallback against the code-sync peers HTTP (PycoreApi.getPeers).
  *
  * No dependency on the original app's AppContext / LiveContext / UI — local React
  * state, PycoreApi, HTTP helpers, lucide icons and Tailwind / `.pc-glass` only.
@@ -200,7 +200,7 @@ const PcCodeSyncPage: React.FC = () => {
   const [driftTreeDirs, setDriftTreeDirs] = useState<Record<string, boolean>>({});
 
   // Continuous-poll view: snapshot + poll loop live in the global provider above
-  // the router (survive navigation; reload re-polls the peers RPC).
+  // the router (survive navigation; reload re-polls the peers HTTP).
   const mesh = usePersistentTask<MeshSnapshot>('pycore.code-sync', {
     intervalMs: 5000,
     poll: () => pycoreApi.getPeers()

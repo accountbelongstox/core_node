@@ -7,7 +7,7 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 import pycore.pyctl.tts.qwen.operation_service as qwen_operations
 from pycore.pyutils.common.operation_service import operation_service as operations
-from pycore.pyutils.rpc_v2.delivery import rpc_delivery_service
+from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, QUEUE_EVENT_NAME
 from pycore.pyutils.tts.tts_service_manager import (
@@ -39,7 +39,7 @@ def _publish_queue_event(event: Dict[str, Any]) -> None:
     job_id = str(payload.get("job_id") or "unknown")
     instance_id = str(payload.get("instance_id") or "unknown")
     event_name = str(payload.get("event") or "")
-    rpc_delivery_service.publish_topic(
+    http_event_delivery_service.publish_topic(
         BusSignals.QWEN_QUEUE_CHANGED,
         payload,
         audience="*",
@@ -55,7 +55,7 @@ def _publish_queue_event(event: Dict[str, Any]) -> None:
     topic = terminal_topics.get(event_name)
     if topic is None:
         return
-    rpc_delivery_service.publish_topic(
+    http_event_delivery_service.publish_topic(
         topic,
         payload,
         audience="*",

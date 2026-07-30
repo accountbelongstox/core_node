@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
-import { callRpc } from '../../core/api-libs/pycore/PycoreHttp';
-import { PYCORE_RPC_ROUTES } from '../../core/api-libs/pycore/PycoreRpcRoutes';
+import { requestPycoreHttp } from '../../core/api-libs/pycore/PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 
 export type OperationSnapshot = Record<string, unknown> | null;
 
@@ -17,7 +17,7 @@ export function PcOperationProvider({ children }: { children: React.ReactNode })
   const [snapshots, setSnapshots] = useState<Record<string, OperationSnapshot>>({});
 
   const loadSnapshot = useCallback(async (scope: string, operationId?: string) => {
-    const resp = await callRpc(PYCORE_RPC_ROUTES.operationSnapshot, {
+    const resp = await requestPycoreHttp(PYCORE_HTTP_ROUTES.operationSnapshot, {
       scope,
       operation_id: operationId,
     });

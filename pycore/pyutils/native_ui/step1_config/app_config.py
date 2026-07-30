@@ -228,7 +228,7 @@ class NativeUIConfig:
 
     Example:
         def init_routes(rpc_server):
-            rpc_server.route('my.route', my_handler)
+            rpc_server.post('my/route', my_handler)
 
         config = NativeUIConfig(
             rpc_init_callback=init_routes

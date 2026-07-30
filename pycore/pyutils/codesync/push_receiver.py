@@ -49,14 +49,13 @@ def _restore_exec_bit(target, content: bytes) -> None:
 # CLIENT side -- apply pushed files                                           #
 # --------------------------------------------------------------------------- #
 class PushReceiver:
-    """Stateless handler for one HTTP-delivered text frame."""
+    """Stateless handler for one SSE-delivered text frame."""
 
     def __init__(self, manager):
         self.m = manager
 
     def handle_text(self, text: str, send) -> bool:
-        """Process one frame; `send(str)` replies on the same socket. Returns False
-        to signal the connection should close."""
+        """Process one frame; `send(str)` supplies the HTTP ACK payload."""
         try:
             msg = json.loads(text)
         except Exception:

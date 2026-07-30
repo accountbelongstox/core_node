@@ -29,7 +29,7 @@ if (GLOBAL_DEBUG) {
     debugLog('[Framework] HTTP URL: ' + CONFIG.SERVER.BASE_URL, isMobile);
 }
 
-// ========== RPC Client ==========
+// ========== HTTP Client ==========
 class HttpControllerClient {
     constructor(baseUrl) {
         this.baseUrl = baseUrl.replace(/\/$/, '');
@@ -37,13 +37,18 @@ class HttpControllerClient {
     }
 
     async connect() {
-        await this.call('ui.ping', {});
+        await this.call('ui/ping', {});
         this.emit('connection');
     }
 
     async call(route, params = {}) {
+        const routePath = route
+            .replace(/^\/+/, '')
+            .split('/')
+            .map(segment => encodeURIComponent(segment))
+            .join('/');
         const response = await fetch(
-            `${this.baseUrl}/api/controller/${encodeURIComponent(route)}`,
+            `${this.baseUrl}/api/${routePath}`,
             {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -70,7 +75,7 @@ class HttpControllerClient {
     }
 }
 
-const rpcClient = new HttpControllerClient(CONFIG.SERVER.BASE_URL);
+const httpClient = new HttpControllerClient(CONFIG.SERVER.BASE_URL);
 
 // ========== State ==========
 let currentQueue = [];
@@ -115,11 +120,11 @@ async function init() {
     if (GLOBAL_DEBUG) console.log('[Framework] Server config:', CONFIG.SERVER);
 
     try {
-        debugLog('[RPC] Checking HTTP controller...', isMobile);
-        debugLog('[RPC] URL: ' + CONFIG.SERVER.BASE_URL, isMobile);
+        debugLog('[HTTP] Checking HTTP controller...', isMobile);
+        debugLog('[HTTP] URL: ' + CONFIG.SERVER.BASE_URL, isMobile);
 
-        await rpcClient.connect();
-        debugLog('[RPC] HTTP controller is reachable!', isMobile);
+        await httpClient.connect();
+        debugLog('[HTTP] HTTP controller is reachable!', isMobile);
         updateStatus(true);
 
         // Fetch initial data
@@ -143,14 +148,14 @@ async function init() {
         setupUserInteractionDetection();
     } catch (error) {
         // Always log errors (even if GLOBAL_DEBUG is false)
-        console.error('[RPC] Connection failed!');
-        console.error('[RPC] Error details:', error);
-        console.error('[RPC] Error message:', error.message);
-        if (GLOBAL_DEBUG) console.error('[RPC] Error stack:', error.stack);
+        console.error('[HTTP] Connection failed!');
+        console.error('[HTTP] Error details:', error);
+        console.error('[HTTP] Error message:', error.message);
+        if (GLOBAL_DEBUG) console.error('[HTTP] Error stack:', error.stack);
 
         // Show alert on mobile for critical errors
         if (isMobile) {
-            alert('[RPC] Connection FAILED! Error: ' + error.message);
+            alert('[HTTP] Connection FAILED! Error: ' + error.message);
         }
 
         updateStatus(false);
@@ -1263,7 +1268,7 @@ function enterSubtitleMode() {
 
     // Send RPC event to adjust window
     try {
-        rpcClient.call('thread_bus.trigger_event', {
+        httpClient.call('thread_bus/trigger_event', {
             event_name: 'voice_subtitle.subtitle_mode_enter',
             data: {
                 timestamp: new Date().toISOString()
@@ -1302,7 +1307,7 @@ function exitSubtitleMode() {
 
     // Send RPC event to restore window
     try {
-        rpcClient.call('thread_bus.trigger_event', {
+        httpClient.call('thread_bus/trigger_event', {
             event_name: 'voice_subtitle.subtitle_mode_exit',
             data: {
                 timestamp: new Date().toISOString()
@@ -2249,15 +2254,15 @@ async function loadNotebookLMStatus() {
     }
 }
 
-// ========== RPC Connection Events ==========
-rpcClient.on('connection', () => {
-    debugLog('[RPC] HTTP controller connected');
+// ========== HTTP Connection Events ==========
+httpClient.on('connection', () => {
+    debugLog('[HTTP] HTTP controller connected');
     updateStatus(true);
     fetchQueue();
 });
 
-rpcClient.on('disconnect', () => {
-    debugLog('[RPC] HTTP controller disconnected');
+httpClient.on('disconnect', () => {
+    debugLog('[HTTP] HTTP controller disconnected');
     updateStatus(false);
 });
 

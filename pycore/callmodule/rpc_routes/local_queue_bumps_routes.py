@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for queue_bumps."""
+"""HTTP Routes for queue_bumps."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import UI_QUEUE_BUMPS_LIST_BUMPS
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
 
@@ -15,6 +14,5 @@ def register_local_queue_bumps_routes(server):
         snap = queue_bump_hub.snapshot(limit=max(1, min(limit, 60)))
         return {"success": True, **snap}
 
-    server.route(name=UI_QUEUE_BUMPS_LIST_BUMPS, handler=list_bumps_handler)
-    ColorPrint.green("[ConfigBuilder] Registered queue_bumps RPC routes")
+    server.post(name=UI_QUEUE_BUMPS_LIST_BUMPS, handler=list_bumps_handler)
 

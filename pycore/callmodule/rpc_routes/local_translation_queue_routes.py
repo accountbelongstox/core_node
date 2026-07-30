@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for translation_queue."""
+"""HTTP Routes for translation_queue."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TRANSLATION_QUEUE_SNAPSHOT,
     UI_TRANSLATION_QUEUE_SET_PRIORITY,
@@ -18,13 +17,13 @@ def register_local_translation_queue_routes(server):
     def snapshot_handler(params, request_id, context):
         return queue_monitor_service.get_snapshot(bool((params or {}).get("refresh")))
 
-    server.route(name=UI_TRANSLATION_QUEUE_SNAPSHOT, handler=snapshot_handler)
+    server.post(name=UI_TRANSLATION_QUEUE_SNAPSHOT, handler=snapshot_handler)
 
     def set_priority_handler(params, request_id, context):
         params = params or {}
         return queue_monitor_service.set_priority(params.get("task_id"), params.get("priority"))
 
-    server.route(name=UI_TRANSLATION_QUEUE_SET_PRIORITY, handler=set_priority_handler)
+    server.post(name=UI_TRANSLATION_QUEUE_SET_PRIORITY, handler=set_priority_handler)
 
     def stack_handler(params, request_id, context):
         params = params or {}
@@ -42,11 +41,10 @@ def register_local_translation_queue_routes(server):
             translation_worker_service.poll_once()
         return result
 
-    server.route(name=UI_TRANSLATION_QUEUE_STACK, handler=stack_handler)
+    server.post(name=UI_TRANSLATION_QUEUE_STACK, handler=stack_handler)
 
     def get_task_detail_handler(params, request_id, context):
         params = params or {}
         return queue_monitor_service.get_task_detail(str(params.get("task_id") or ""))
 
-    server.route(name=UI_TRANSLATION_QUEUE_GET_TASK_DETAIL, handler=get_task_detail_handler)
-    ColorPrint.green("[ConfigBuilder] Registered translation_queue RPC routes")
+    server.post(name=UI_TRANSLATION_QUEUE_GET_TASK_DETAIL, handler=get_task_detail_handler)

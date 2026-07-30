@@ -1,6 +1,6 @@
 /**
  * PcSentenceVoiceVariantsPanel - per-language sentence-audio voice variant editor.
- * RPC v2 sentence-audio variant routes (pycore performs Laravel HTTP internally).
+ * HTTP v2 sentence-audio variant routes (pycore performs Laravel HTTP internally).
  *
  * Renders a table of variant specs (variant_key, accent, gender, is_primary).
  * Rows are edited locally; the Save button POSTs the full spec list for the

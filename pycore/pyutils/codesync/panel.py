@@ -98,6 +98,7 @@ PANEL_HTML = r"""<!doctype html>
       <div class="stat"><div class="k">Hostname</div><div class="v" id="s-host">-</div></div>
       <div class="stat"><div class="k">LAN IP</div><div class="v mono" id="s-ip">-</div></div>
       <div class="stat"><div class="k">Code</div><div class="v" id="s-code">-</div></div>
+      <div class="stat"><div class="k">Transport</div><div class="v" id="s-transport">-</div></div>
     </div>
     <div class="iconstrip" id="self-strip"></div>
     <div class="row" id="self-toggle" style="margin-top:12px"></div>
@@ -217,6 +218,7 @@ function renderSelf(s){
   $('#s-host').textContent = s.hostname || '-';
   $('#s-ip').textContent   = s.lan_ip || '-';
   $('#s-code').innerHTML    = codeLine(s.code || (s.summary && s.summary.code));
+  $('#s-transport').textContent = (s.transport && s.transport.label) || '-';
   $('#role-dev').className    = s.role==='dev' ? 'active' : '';
   $('#role-client').className = s.role==='client' ? 'active' : '';
   const t = $('#self-toggle');

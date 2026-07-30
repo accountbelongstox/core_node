@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register Task Center controllers on RPC v2."""
+"""Register Task Center controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.queue_center.task_center_service import (

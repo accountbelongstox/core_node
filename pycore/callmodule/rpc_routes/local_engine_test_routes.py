@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register local engine test and status controllers on RPC v2."""
+"""Register local engine test and status controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes.route_names import (
     LOCAL_AI_IMAGE_TEST,

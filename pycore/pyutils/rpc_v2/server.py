@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""HTTP-only RPC v2 controller and replayable event server."""
+"""Central HTTP API and replayable SSE server."""
 
 from __future__ import annotations
 
@@ -14,18 +14,17 @@ from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyfoundations.pygvar import (
+    HTTP_API_PREFIX,
     HTTP_BIND_HOST,
+    HTTP_EVENTS_PATH,
+    HTTP_INFO_PATH,
+    HTTP_PROTOCOL_VERSION,
+    HTTP_ROUTES_PATH,
+    HTTP_STATUS_PATH,
     PYCORE_HTTP_PORT,
-    RPC_CONTROLLER_PREFIX,
-    RPC_CONTROLLERS_PATH,
-    RPC_EVENTS_PATH,
-    RPC_INFO_PATH,
-    RPC_PROTOCOL_VERSION,
-    RPC_ROUTES_PATH,
-    RPC_STATUS_PATH,
 )
-from pycore.pyutils.rpc_v2.delivery import rpc_delivery_service
-from pycore.pyutils.rpc_v2.dispatcher import RpcDispatcher, RpcRoute
+from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+from pycore.pyutils.rpc_v2.dispatcher import HttpDispatcher, HttpRoute
 from pycore.pyutils.rpc_v2.http.event_service import HttpEventService
 
 
@@ -60,7 +59,7 @@ class _PrivateNetworkAccessMiddleware:
         await self.app(scope, receive, send_with_header)
 
 
-class RpcServer:
+class HttpServer:
     """Compose HTTP controllers and bounded replayable events."""
 
     def __init__(self, options: Optional[Dict[str, Any]] = None) -> None:
@@ -77,8 +76,8 @@ class RpcServer:
         self.stream_logs = bool(server_options.get("stream_logs", True))
         self.binding_id = f"rpc-server-{id(self)}"
         self.app = FastAPI(
-            title="Pycore RPC Server",
-            version=RPC_PROTOCOL_VERSION,
+            title="Pycore HTTP Server",
+            version=HTTP_PROTOCOL_VERSION,
             docs_url=None,
             redoc_url=None,
         )
@@ -90,12 +89,12 @@ class RpcServer:
             allow_credentials=True,
         )
         self.app.add_middleware(_PrivateNetworkAccessMiddleware)
-        self.dispatcher = RpcDispatcher(sync_invoker=self._invoke_sync_handler)
+        self.dispatcher = HttpDispatcher(sync_invoker=self._invoke_sync_handler)
         self.event_service = (
             HttpEventService(
                 self.app,
                 fastapi_module=fastapi,
-                event_path=RPC_EVENTS_PATH,
+                event_path=HTTP_EVENTS_PATH,
             )
             if self.http_events_enabled
             else None
@@ -107,7 +106,7 @@ class RpcServer:
         self._register_lifecycle()
         self._register_exception_handler()
         self._register_protocol_routes()
-        self._register_http_controller_routes()
+        self._register_http_routes()
         self._register_fastapi_routers(server_options.get("fastapi_routers", ()))
         self._register_static_mounts(server_options.get("static_mounts", ()))
 
@@ -127,7 +126,7 @@ class RpcServer:
             event_loop.set_exception_handler(self._handle_loop_exception)
             self._started = True
             if self.event_service is not None:
-                rpc_delivery_service.bind(
+                http_event_delivery_service.bind(
                     self.binding_id,
                     asyncio.get_running_loop(),
                     self.event_service.publish_event,
@@ -137,24 +136,24 @@ class RpcServer:
             if (
                 self.event_service is not None
                 and self.stream_logs
-                and rpc_delivery_service.enable_log_stream(self.binding_id)
+                and http_event_delivery_service.enable_log_stream(self.binding_id)
             ):
-                ColorPrint.register_callback(rpc_delivery_service.publish_log)
+                ColorPrint.register_callback(http_event_delivery_service.publish_log)
 
         @self.app.on_event("shutdown")
         async def stop_delivery() -> None:
             event_loop = asyncio.get_running_loop()
             event_loop.set_exception_handler(self._previous_loop_exception_handler)
-            rpc_delivery_service.unbind(self.binding_id)
+            http_event_delivery_service.unbind(self.binding_id)
             for event_name, handler in tuple(self._thread_bus_listeners.items()):
                 THREAD_BUS.unregister_event_handler(event_name, handler)
             self._started = False
             if (
                 self.event_service is not None
                 and self.stream_logs
-                and rpc_delivery_service.disable_log_stream(self.binding_id)
+                and http_event_delivery_service.disable_log_stream(self.binding_id)
             ):
-                ColorPrint.unregister_callback(rpc_delivery_service.publish_log)
+                ColorPrint.unregister_callback(http_event_delivery_service.publish_log)
 
     def _handle_loop_exception(
         self,
@@ -181,7 +180,7 @@ class RpcServer:
         async def rpc_error(request: Request, exc: Exception) -> Any:
             request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
             ColorPrint.red(
-                f"[RpcServer] {request.method} {request.url.path} failed: {exc}"
+                f"[HttpServer] {request.method} {request.url.path} failed: {exc}"
             )
             return self._error_response(
                 request_id,
@@ -192,27 +191,27 @@ class RpcServer:
             )
 
     def _register_protocol_routes(self) -> None:
-        @self.app.get(RPC_STATUS_PATH)
+        @self.app.get(HTTP_STATUS_PATH)
         async def status() -> Dict[str, Any]:
             return {
-                "is_rpc_service": True,
-                "protocol_version": RPC_PROTOCOL_VERSION,
-                "service": "RpcServer",
+                "is_http_service": True,
+                "protocol_version": HTTP_PROTOCOL_VERSION,
+                "service": "HttpServer",
                 "transport": "http",
             }
 
-        @self.app.get(RPC_INFO_PATH)
+        @self.app.get(HTTP_INFO_PATH)
         async def info() -> Dict[str, Any]:
             journal = self.event_service.events if self.event_service is not None else None
             return {
-                "service": "RpcServer",
-                "protocol_version": RPC_PROTOCOL_VERSION,
+                "service": "HttpServer",
+                "protocol_version": HTTP_PROTOCOL_VERSION,
                 "host": self.host,
                 "port": self.port,
                 "transports": {
                     "http": True,
                 },
-                "controllers": self.list_controllers(),
+                "routes": self.list_routes(),
                 "events": {
                     "enabled": journal is not None,
                     "instance_id": journal.instance_id if journal is not None else None,
@@ -220,29 +219,25 @@ class RpcServer:
                 },
             }
 
-        @self.app.get(RPC_ROUTES_PATH)
+        @self.app.get(HTTP_ROUTES_PATH)
         async def routes() -> Dict[str, Any]:
-            return {"controllers": self.list_controllers()}
+            return {"routes": self.list_routes()}
 
-    def _register_http_controller_routes(self) -> None:
-        @self.app.get(RPC_CONTROLLERS_PATH)
-        async def list_controllers() -> Dict[str, Any]:
-            return {"controllers": self.list_controllers()}
-
+    def _register_http_routes(self) -> None:
         @self.app.api_route(
-            f"{RPC_CONTROLLER_PREFIX}/{{controller_name:path}}",
+            f"{HTTP_API_PREFIX}/{{route_path:path}}",
             methods=["GET", "POST"],
         )
-        async def dispatch_controller(controller_name: str, request: Request) -> Any:
-            route = self.dispatcher.get(controller_name)
+        async def dispatch_route(route_path: str, request: Request) -> Any:
+            route = self.dispatcher.get(route_path)
             request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
             method = str(request.method or "").upper()
             if route is None:
                 return self._error_response(
                     request_id,
-                    controller_name,
-                    "controller_not_found",
-                    f"Controller not found: {controller_name}",
+                    route_path,
+                    "route_not_found",
+                    f"HTTP route not found: {route_path}",
                     404,
                 )
             if method not in route.methods:
@@ -258,14 +253,14 @@ class RpcServer:
             result = await self.dispatcher.dispatch(route, params, request_id, context)
             return self._success_response(result, request_id)
 
-    def controller(
+    def _register_route(
         self,
         name: str,
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
         methods: Iterable[str] = ("POST",),
-    ) -> RpcRoute:
+    ) -> HttpRoute:
         route = self.dispatcher.register(
             name,
             handler,
@@ -274,29 +269,15 @@ class RpcServer:
             timeout=timeout,
         )
         if self.debug:
-            ColorPrint.blue(f"[RpcServer] Registered HTTP controller: {route.name}")
+            ColorPrint.blue(f"[HttpServer] Registered HTTP route: {route.name}")
         return route
-
-    def route(
-        self,
-        name: str,
-        handler: Callable,
-        description: Optional[str] = None,
-        timeout: Optional[float] = None,
-    ) -> RpcRoute:
-        return self.controller(
-            name,
-            handler,
-            description=description,
-            timeout=timeout,
-        )
 
     def register_routes(
         self,
         routes: Iterable[RouteRegistration],
         group: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> List[RpcRoute]:
+    ) -> List[HttpRoute]:
         """Register a controller mapping without duplicating route loops."""
         registered = []
         for registration in routes:
@@ -304,7 +285,7 @@ class RpcServer:
             handler = registration[1]
             description = registration[2] if len(registration) > 2 else None
             registered.append(
-                self.route(
+                self.post(
                     name=name,
                     handler=handler,
                     description=description,
@@ -313,7 +294,7 @@ class RpcServer:
             )
         if group:
             ColorPrint.green(
-                f"[RpcServer] Registered HTTP controller group: {group}"
+                f"[HttpServer] Registered HTTP route group: {group}"
             )
         return registered
 
@@ -323,8 +304,8 @@ class RpcServer:
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> RpcRoute:
-        return self.controller(
+    ) -> HttpRoute:
+        return self._register_route(
             name,
             handler,
             description=description,
@@ -338,8 +319,8 @@ class RpcServer:
         handler: Callable,
         description: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> RpcRoute:
-        return self.controller(
+    ) -> HttpRoute:
+        return self._register_route(
             name,
             handler,
             description=description,
@@ -347,13 +328,13 @@ class RpcServer:
             methods=("POST",),
         )
 
-    def list_controllers(self) -> list[Dict[str, Any]]:
-        return self.dispatcher.list_routes(RPC_CONTROLLER_PREFIX)
+    def list_routes(self) -> list[Dict[str, Any]]:
+        return self.dispatcher.list_routes(HTTP_API_PREFIX)
 
     def add_static_dir(self, url_prefix: str, directory: str) -> None:
         path = Path(directory)
         if not path.exists():
-            ColorPrint.yellow(f"[RpcServer] Static directory does not exist: {directory}")
+            ColorPrint.yellow(f"[HttpServer] Static directory does not exist: {directory}")
             return
         mount_path = url_prefix if url_prefix.startswith("/") else f"/{url_prefix}"
         mount_name = mount_path.strip("/").replace("/", "_") or "root"
@@ -374,7 +355,7 @@ class RpcServer:
         return await self.event_service.publish_event(event_name, dict(data or {}))
 
     def broadcast_event_sync(self, event_name: str, data: Dict[str, Any]) -> None:
-        rpc_delivery_service.publish_topic(event_name, dict(data or {}))
+        http_event_delivery_service.publish_topic(event_name, dict(data or {}))
 
     def register_thread_bus_listener(self, event_name: str) -> None:
         normalized_name = str(event_name or "").strip()
@@ -387,7 +368,7 @@ class RpcServer:
                 if isinstance(event_data, dict)
                 else {"value": event_data}
             )
-            rpc_delivery_service.publish_topic(normalized_name, payload)
+            http_event_delivery_service.publish_topic(normalized_name, payload)
 
         previous = self._thread_bus_listeners.get(normalized_name)
         if previous is not None and self._started:
@@ -425,7 +406,7 @@ class RpcServer:
             return {}
         payload = json.loads(body)
         if not isinstance(payload, dict):
-            raise ValueError("RPC request body must be a JSON object")
+            raise ValueError("HTTP request body must be a JSON object")
         return payload
 
     @staticmethod
@@ -463,7 +444,7 @@ class RpcServer:
     @staticmethod
     def _error_response(
         request_id: str,
-        controller_name: str,
+        route_path: str,
         code: str,
         message: str,
         status_code: int,
@@ -472,7 +453,7 @@ class RpcServer:
             {
                 "success": False,
                 "error": {"code": code, "message": message},
-                "controller": controller_name,
+                "route": route_path,
                 "request_id": request_id,
             },
             status_code=status_code,
@@ -483,4 +464,4 @@ class RpcServer:
 
 
 
-__all__ = ["RpcServer"]
+__all__ = ["HttpServer"]

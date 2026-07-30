@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for task_settings."""
+"""HTTP Routes for task_settings."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_SETTINGS_CHAINS,
     UI_TASK_SETTINGS_UPDATE_CHAIN,
@@ -14,7 +13,7 @@ def register_local_task_settings_routes(server):
     def chains_handler(params, request_id, context):
         return {"success": True, "chains": get_chains()}
 
-    server.route(name=UI_TASK_SETTINGS_CHAINS, handler=chains_handler)
+    server.post(name=UI_TASK_SETTINGS_CHAINS, handler=chains_handler)
 
     def update_chain_handler(params, request_id, context):
         params = params or {}
@@ -24,6 +23,5 @@ def register_local_task_settings_routes(server):
             return {"success": False, **result}
         return {"success": True, **result}
 
-    server.route(name=UI_TASK_SETTINGS_UPDATE_CHAIN, handler=update_chain_handler)
-    ColorPrint.green("[ConfigBuilder] Registered task_settings RPC routes")
+    server.post(name=UI_TASK_SETTINGS_UPDATE_CHAIN, handler=update_chain_handler)
 

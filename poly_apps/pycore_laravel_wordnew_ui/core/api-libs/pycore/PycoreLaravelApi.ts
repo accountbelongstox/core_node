@@ -1,13 +1,13 @@
 /**
- * PycoreLaravelApi — typed wrappers for the pycore `laravel_api.*` rpc_v2 RPCs.
+ * PycoreLaravelApi — typed wrappers for the pycore `laravel_api.*` rpc_v2 HTTPs.
  *
  * The frontend owns the prepared endpoint catalog; the pycore backend owns its
  * persisted overrides and selected target (the same resolution
  * `video_extract.backend_status` reports). `list` synchronizes the frontend
  * catalog into the backend cache and returns the backend-priority merged view.
- * These RPCs also let the dashboard select/add/remove/probe those endpoints.
- * All calls use the shared HTTP controller transport (`callRpc`).
- * a clear "RPC unavailable" error when pycore (:59000) is offline — callers
+ * These HTTPs also let the dashboard select/add/remove/probe those endpoints.
+ * All calls use the shared HTTP controller transport (`requestPycoreHttp`).
+ * a clear "HTTP unavailable" error when pycore (:59000) is offline — callers
  * must surface that instead of rendering a broken control.
  *
  * FE/BE contract (backend implemented in pycore, in parallel):
@@ -21,8 +21,8 @@
  * `list` afterwards rather than trusting partial echoes), so contract drift on
  * those replies can never break the UI.
  */
-import { callRpc } from './PycoreHttp';
-import { PYCORE_RPC_ROUTES } from './PycoreRpcRoutes';
+import { requestPycoreHttp } from './PycoreHttp';
+import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
 /** One Laravel API endpoint as known to the pycore backend. */
 export interface LaravelApiEndpoint {
@@ -74,7 +74,7 @@ export const pycoreLaravelApi = {
    *  health rows); pass probe:false for a pure cached read that does not kick
    *  the server-side background sweep. */
   list: (opts?: LaravelApiListOptions): Promise<LaravelApiListResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.laravelApiList, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiList, {
       probe: opts?.probe ?? true,
       ...(opts?.frontendEndpoints
         ? { frontend_endpoints: Array.from(opts.frontendEndpoints) }
@@ -83,19 +83,19 @@ export const pycoreLaravelApi = {
 
   /** Add a custom Laravel base URL. */
   add: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.laravelApiAdd, { url }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiAdd, { url }),
 
   /** Remove a (custom) Laravel base URL. */
   remove: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.laravelApiRemove, { url }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiRemove, { url }),
 
   /** Switch the sync engine's target to `url`. */
   select: (url: string): Promise<LaravelApiMutateResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.laravelApiSelect, { url }),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiSelect, { url }),
 
   /** Re-probe one endpoint (`url`) or all endpoints (no arg). */
   probe: (url?: string): Promise<LaravelApiMutateResponse> =>
-    callRpc(PYCORE_RPC_ROUTES.laravelApiProbe, url ? { url } : {}),
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiProbe, url ? { url } : {}),
 };
 
 export type PycoreLaravelApi = typeof pycoreLaravelApi;

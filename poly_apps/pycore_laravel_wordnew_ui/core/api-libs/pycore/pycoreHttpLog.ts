@@ -1,9 +1,9 @@
 /**
- * pycoreHttpLog - global in-memory ring buffer of HTTP/RPC request records for
+ * pycoreHttpLog - global in-memory ring buffer of HTTP/HTTP request records for
  * the pycore-manager HTTP debugger (PcHttpDebugger). Holds BOTH directions:
  *
  *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
- *     choke points: PycoreHttp.callRpc and PycoreApi HTTP helpers.
+ *     choke points: PycoreHttp.requestPycoreHttp and PycoreApi HTTP helpers.
  *   - direction 'laravel': pycore -> Laravel requests. Relayed from the backend
  *     'laravel_http' HTTP event (LaravelHttpRecorder -> event journal) by
  *     PcLiveContext, which calls appendHttpDebug on each event.
@@ -22,13 +22,13 @@ export interface HttpDebugRecord {
   method: string;
   /** Named HTTP controller route. */
   route?: string;
-  /** Optional legacy router path carried as RPC params. */
+  /** Optional legacy router path carried as HTTP params. */
   path: string;
   /** Full URL when available (HTTP path / laravel url). */
   fullUrl?: string;
   /** Compact params/body summary (long strings + base64 truncated). */
   paramsSummary: string;
-  /** HTTP status (0 = transport error / RPC rejection). */
+  /** HTTP status (0 = transport error / HTTP rejection). */
   status: number;
   /** Round-trip duration (ms). */
   ms: number;
@@ -86,5 +86,5 @@ export function summarizeHttpParams(value: unknown): string {
 
 /** Map a native rpc_v2 route to a debugger operation label. */
 export function rpcRouteToHttpMethod(route: string): string {
-  return 'RPC';
+  return 'HTTP';
 }

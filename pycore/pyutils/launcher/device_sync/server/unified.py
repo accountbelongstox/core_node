@@ -12,18 +12,22 @@ Architecture:
 
 import json
 import socket
+import time
 import urllib.parse
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Optional
 
-from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_ROOT_DIR
+from pycore.pyutils.launcher.device_sync.core.config import (
+    DEFAULT_ROOT_DIR,
+    get_global_config,
+)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
-
-import time
-
-
+from pycore.pyutils.launcher.device_sync.sse_protocol import (
+    SYNC_EVENT_PATH,
+    serve_sync_events,
+)
 
 class UnifiedHTTPHandler(BaseHTTPRequestHandler):
     """
@@ -54,6 +58,8 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
         elif config.isPrimaryServer:
             if path == '/api/files':
                 self._handle_files_list()
+            elif path == SYNC_EVENT_PATH:
+                self._handle_sync_events()
             elif path.startswith('/api/file/'):
                 self._handle_file_download(path)
             else:
@@ -376,6 +382,15 @@ class UnifiedHTTPHandler(BaseHTTPRequestHandler):
 
         self._send_json(response)
 
+    def _handle_sync_events(self):
+        """Hold an SSE connection and notify a SECONDARY when it should sync."""
+        config = get_global_config()
+        serve_sync_events(
+            self,
+            config,
+            lambda: config.isPrimaryServer and config.server_running,
+        )
+
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - Download file (PRIMARY mode only)"""
         config = get_global_config()
@@ -514,7 +529,7 @@ class UnifiedHTTPServer:
     def __init__(self):
         """Initialize unified server"""
         self.config = get_global_config()
-        self.server: Optional[HTTPServer] = None
+        self.server: Optional[ThreadingHTTPServer] = None
         self.running = False
 
     def start(self):
@@ -532,7 +547,10 @@ class UnifiedHTTPServer:
 
         try:
             # Create HTTP server
-            self.server = HTTPServer(('0.0.0.0', self.config.http_port), UnifiedHTTPHandler)
+            self.server = ThreadingHTTPServer(
+                ('0.0.0.0', self.config.http_port),
+                UnifiedHTTPHandler,
+            )
 
             # Update network info if not set
             if not self.config.local_ip:

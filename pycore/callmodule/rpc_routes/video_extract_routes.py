@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Register video-extract synchronization controllers on RPC v2."""
+"""Register video-extract synchronization controllers on HTTP v2."""
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.desktop.subtitle_language_fill_service import fill

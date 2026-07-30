@@ -3,15 +3,14 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
-from pycore.pyutils.rpc_v2.delivery import rpc_delivery_service
+from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 from pycore.callmodule.rpc_routes import route_names
 
 
 def _publish_operation_event(topic, payload, audience, event_id):
-    rpc_delivery_service.publish_topic(
+    http_event_delivery_service.publish_topic(
         topic,
         payload,
         audience=audience,
@@ -47,7 +46,7 @@ def register_operation_routes(server):
 
         return {"success": True, "data": snapshot}
 
-    server.route(name=route_names.UI_OPERATION_SNAPSHOT, handler=snapshot_handler)
+    server.post(name=route_names.UI_OPERATION_SNAPSHOT, handler=snapshot_handler)
 
     def events_handler(params, request_id, context):
         p = _params(params)
@@ -75,7 +74,7 @@ def register_operation_routes(server):
             }
         }
 
-    server.route(name=route_names.UI_OPERATION_EVENTS, handler=events_handler)
+    server.post(name=route_names.UI_OPERATION_EVENTS, handler=events_handler)
 
     def cancel_handler(params, request_id, context):
         p = _params(params)
@@ -88,6 +87,4 @@ def register_operation_routes(server):
         operation_service.cancel_operation(op_id, reason)
         return {"success": True, "data": {"status": "cancel_requested"}}
 
-    server.route(name=route_names.UI_OPERATION_CANCEL, handler=cancel_handler)
-
-    ColorPrint.green("[ConfigBuilder] Registered operation RPC routes")
+    server.post(name=route_names.UI_OPERATION_CANCEL, handler=cancel_handler)

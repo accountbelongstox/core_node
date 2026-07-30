@@ -17,7 +17,7 @@ from pycore.pyutils.laravel.remote_cursor_store import (
     RemoteCursorStore,
     remote_cursor_store,
 )
-from pycore.pyutils.rpc_v2.delivery import rpc_delivery_service
+from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 
 class LaravelLogMirrorService:
     """
@@ -122,7 +122,7 @@ class LaravelLogMirrorService:
             "topic": BusSignals.LARAVEL_LOGS_SNAPSHOT_UPDATED,
         }
         THREAD_BUS.trigger_event(BusSignals.LARAVEL_LOGS_CHANGED, payload)
-        rpc_delivery_service.publish_topic(
+        http_event_delivery_service.publish_topic(
             BusSignals.LARAVEL_LOGS_SNAPSHOT_UPDATED,
             payload,
             audience="*",

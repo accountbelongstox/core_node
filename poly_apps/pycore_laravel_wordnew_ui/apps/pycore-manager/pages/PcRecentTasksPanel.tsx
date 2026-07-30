@@ -256,7 +256,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
   );
 };
 
-/** Cached archive audio transferred through its dedicated RPC v2 route. */
+/** Cached archive audio transferred through its dedicated HTTP v2 route. */
 const PcCompletedArchiveAudio: React.FC<{ cacheKey: string }> = ({ cacheKey }) => {
   const [source, setSource] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

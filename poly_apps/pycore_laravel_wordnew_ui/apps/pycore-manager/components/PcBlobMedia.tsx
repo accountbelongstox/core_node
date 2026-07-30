@@ -1,6 +1,6 @@
 /**
  * PcBlobMedia — image/audio bytes returned by an HTTP controller as a data URL via
- * concrete RPC v2 resource controllers instead of an HTTP element src to :59000. It remains
+ * concrete HTTP v2 resource controllers instead of an HTTP element src to :59000. It remains
  * empty until the HTTP request completes.
  */
 import React, { useEffect, useState } from 'react';

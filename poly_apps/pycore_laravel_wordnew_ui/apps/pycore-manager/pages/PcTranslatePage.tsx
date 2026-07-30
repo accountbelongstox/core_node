@@ -5,13 +5,13 @@
  *
  *  1. Status — is the FREE googletrans library importable, its version, the
  *     service URL, and the on-disk translation cache dir + entry count.
- *     Driven by `pycoreApi.getTranslateStatus()` over RPC v2.
+ *     Driven by `pycoreApi.getTranslateStatus()` over HTTP v2.
  *
  *  2. Test box (the "share data with AI" requirement) — one text input + source
  *     and target language selectors feed the SAME input to BOTH paths:
- *       - "Translate (Google)" -> free-google translation RPC,
+ *       - "Translate (Google)" -> free-google translation HTTP,
  *         showing from_cache + pronunciation when present.
- *       - "Translate (AI)" -> unified AI translation RPC,
+ *       - "Translate (AI)" -> unified AI translation HTTP,
  *         showing the model that handled it.
  *     The two results render side-by-side so the user compares Google vs AI.
  *

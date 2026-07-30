@@ -12,7 +12,7 @@
  *     TTS is the last-resort fallback. Driven by `pycoreApi.getWordAudioStatus()`.
  *
  *  2. Test — a word (default "hello") + language (default "en") feed
- *     `pycoreApi.testWordAudio()` over RPC v2, the real
+ *     `pycoreApi.testWordAudio()` over HTTP v2, the real
  *     live fetch through the existing pronunciation client. On a hit the raw
  *     audio bytes come back base64-encoded, so a Play button plays them via a
  *     `data:` URI (new Audio('data:'+mime+';base64,'+audio_base64)); a provider

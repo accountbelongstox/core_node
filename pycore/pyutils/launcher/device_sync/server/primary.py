@@ -13,12 +13,16 @@ from pathlib import Path
 from typing import Any, Optional, Dict, List
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import urllib.parse
 
 from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_ROOT_DIR
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.launcher.device_sync.core.database import get_sync_record_store
+from pycore.pyutils.launcher.device_sync.sse_protocol import (
+    SYNC_EVENT_PATH,
+    serve_sync_events,
+)
 
 import time
 
@@ -50,6 +54,8 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
             self._handle_status()
         elif path == '/api/files':
             self._handle_files_list()
+        elif path == SYNC_EVENT_PATH:
+            self._handle_sync_events()
         elif path.startswith('/api/file/'):
             self._handle_file_download(path)
         elif path == '/api/devices':
@@ -306,6 +312,15 @@ class PrimaryServerHandler(BaseHTTPRequestHandler):
 
         self._send_json(response)
 
+    def _handle_sync_events(self):
+        """Hold an SSE connection and notify a SECONDARY when it should sync."""
+        config = get_global_config()
+        serve_sync_events(
+            self,
+            config,
+            lambda: config.isPrimaryServer and config.server_running,
+        )
+
     def _handle_file_download(self, path):
         """Handle /api/file/{path} - download file"""
         config = get_global_config()
@@ -410,7 +425,7 @@ class SimplePrimaryServer:
     def __init__(self):
         """Initialize primary server"""
         self.config = get_global_config()
-        self.server: Optional[HTTPServer] = None
+        self.server: Optional[ThreadingHTTPServer] = None
         self.server_thread: Optional[Any] = None
         self.running = False
         self._running_signal = f"device_sync.primary.running.{id(self)}"
@@ -426,7 +441,10 @@ class SimplePrimaryServer:
 
         try:
             # Create HTTP server
-            self.server = HTTPServer(('0.0.0.0', self.config.http_port), PrimaryServerHandler)
+            self.server = ThreadingHTTPServer(
+                ('0.0.0.0', self.config.http_port),
+                PrimaryServerHandler,
+            )
 
             # Update network info if not set
             if not self.config.local_ip:

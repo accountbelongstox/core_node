@@ -8,6 +8,7 @@ load it directly from its file path and inject their FastAPI module.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from collections import deque
@@ -20,14 +21,26 @@ DEFAULT_EVENT_MAX = 5000
 DEFAULT_EVENT_MAX_AGE_SECONDS = 3600.0
 DEFAULT_EVENT_WAIT_SECONDS = 20.0
 MAX_EVENT_WAIT_SECONDS = 30.0
+SSE_KEEP_ALIVE_SECONDS = 15.0
 
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _sse_frame(event: str, data: Any, event_id: Optional[int] = None) -> str:
+    encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+    lines = []
+    if event_id is not None:
+        lines.append(f"id: {event_id}")
+    lines.append(f"event: {event}")
+    for line in encoded.splitlines() or [""]:
+        lines.append(f"data: {line}")
+    return "\n".join(lines) + "\n\n"
+
+
 @dataclass(frozen=True)
-class RpcEvent:
+class SseEvent:
     instance_id: str
     event_id: str
     seq: int
@@ -51,7 +64,7 @@ class RpcEvent:
         }
 
 
-class RpcEventJournal:
+class SseEventJournal:
     """Bounded event journal with per-client replay cursors and ACK state."""
 
     def __init__(
@@ -65,7 +78,7 @@ class RpcEventJournal:
         self.max_events = max(1, int(max_events))
         self.max_age_seconds = max(1.0, float(max_age_seconds))
         self.max_wait_seconds = max(0.1, float(max_wait_seconds))
-        self._events: Deque[RpcEvent] = deque()
+        self._events: Deque[SseEvent] = deque()
         self._client_acks: Dict[str, Tuple[int, float]] = {}
         self._seq = 0
         self._waiters: Set[asyncio.Future] = set()
@@ -87,7 +100,7 @@ class RpcEventJournal:
         if not normalized_topic:
             raise ValueError("Event topic is required")
         self._seq += 1
-        event = RpcEvent(
+        event = SseEvent(
             instance_id=self.instance_id,
             event_id=str(event_id or uuid.uuid4().hex),
             seq=self._seq,
@@ -211,7 +224,7 @@ class RpcEventJournal:
 
 
 class HttpEventService:
-    """Attach HTTP long-poll and ACK routes for one event journal."""
+    """Attach an HTTP SSE stream and ACK route for one event journal."""
 
     def __init__(
         self,
@@ -234,7 +247,7 @@ class HttpEventService:
             redoc_url=None,
         )
         self.event_path = "/" + str(event_path or "").strip("/")
-        self.events = RpcEventJournal(
+        self.events = SseEventJournal(
             max_events=event_max,
             max_age_seconds=event_max_age_seconds,
         )
@@ -259,20 +272,54 @@ class HttpEventService:
 
     def _attach_routes(self) -> None:
         ack_body = self.fastapi.Body(default={})
+        streaming_response_type = self.fastapi.responses.StreamingResponse
 
-        async def poll_events(
+        async def stream_events(
             client_id: str,
             since_seq: int = 0,
-            timeout_s: float = DEFAULT_EVENT_WAIT_SECONDS,
             topics: Optional[str] = None,
         ) -> Any:
-            result = await self.events.poll(
-                client_id=client_id,
-                since_seq=since_seq,
-                timeout_seconds=timeout_s,
-                topics=topics.split(",") if topics else None,
+            normalized_client_id = str(client_id or "").strip()
+            cursor = max(0, int(since_seq or 0))
+            topic_filter = topics.split(",") if topics else None
+
+            async def event_stream():
+                nonlocal cursor
+                first = True
+                while True:
+                    result = await self.events.poll(
+                        client_id=normalized_client_id,
+                        since_seq=cursor,
+                        timeout_seconds=SSE_KEEP_ALIVE_SECONDS,
+                        topics=topic_filter,
+                    )
+                    state = {
+                        "instance_id": result["instance_id"],
+                        "seq": result["seq"],
+                        "earliest_seq": result["earliest_seq"],
+                        "replay_lost": result["replay_lost"],
+                        "cursor_ahead": result["cursor_ahead"],
+                    }
+                    if first or result["replay_lost"] or result["cursor_ahead"]:
+                        yield _sse_frame("sse.state", state)
+                    events = result["events"]
+                    if events:
+                        for record in events:
+                            cursor = max(cursor, int(record.get("seq") or 0))
+                            yield _sse_frame("sse.event", record, cursor)
+                    else:
+                        yield ": keep-alive\n\n"
+                    first = False
+
+            return streaming_response_type(
+                event_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache, no-transform",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                },
             )
-            return self.json_response_type(self.json_encoder(result))
 
         async def acknowledge_events(
             payload: Dict[str, Any] = ack_body,
@@ -285,9 +332,9 @@ class HttpEventService:
 
         self.app.add_api_route(
             self.event_path,
-            poll_events,
+            stream_events,
             methods=["GET"],
-            name="rpc_event_poll",
+            name="rpc_event_stream",
         )
         self.app.add_api_route(
             f"{self.event_path}/ack",
@@ -297,4 +344,4 @@ class HttpEventService:
         )
 
 
-__all__ = ["HttpEventService", "RpcEvent", "RpcEventJournal"]
+__all__ = ["HttpEventService", "SseEvent", "SseEventJournal"]

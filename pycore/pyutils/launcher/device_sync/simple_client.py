@@ -9,8 +9,8 @@ Uses global_config for shared state.
 import os
 import time
 import json
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Optional, Dict, List
 
@@ -19,6 +19,9 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 from pycore.pyutils.launcher.device_sync.core.config import get_global_config, DEFAULT_SYNC_INTERVAL
 from pycore.pyutils.launcher.device_sync.simple_device_scanner import SimpleDeviceScanner
+from pycore.pyutils.launcher.device_sync.sse_protocol import (
+    consume_sync_events,
+)
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
@@ -132,16 +135,30 @@ class SimpleClient:
             return False
 
     def _sync_loop(self):
-        """Auto sync loop (runs in background thread)"""
+        """Hold the PRIMARY SSE stream and sync when it emits a notification."""
         while THREAD_BUS.get_signal(self._running_signal, False):
-            if self.config.sync_enabled:
-                self.sync_now()
-
-            # Sleep interval
-            for _ in range(DEFAULT_SYNC_INTERVAL * 10):
+            if not self.config.sync_enabled:
+                time.sleep(0.5)
+                continue
+            try:
+                self._consume_sync_events()
+            except urllib.error.URLError as e:
+                ColorPrint.warning(f"Sync SSE unavailable: {e}")
+            except Exception as e:
+                ColorPrint.error(f"Sync SSE error: {e}")
+            for _ in range(10):
                 if not THREAD_BUS.get_signal(self._running_signal, False):
-                    break
+                    return
                 time.sleep(0.1)
+
+    def _consume_sync_events(self):
+        """Read sync notifications from the PRIMARY SSE response."""
+        consume_sync_events(
+            self.config.primary_server_ip,
+            self.config.primary_server_port,
+            lambda: bool(THREAD_BUS.get_signal(self._running_signal, False)),
+            self.sync_now,
+        )
 
     def _discover_primary(self) -> bool:
         """

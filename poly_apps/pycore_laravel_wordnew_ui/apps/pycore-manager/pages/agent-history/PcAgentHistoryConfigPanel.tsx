@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
-import { callRpc, connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
+import { requestPycoreHttp, connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
 import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
 import { PYCORE_EVENT_TOPICS } from '../../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_RPC_ROUTES } from '../../../../core/api-libs/pycore/PycoreRpcRoutes';
+import { PYCORE_HTTP_ROUTES } from '../../../../core/api-libs/pycore/PycoreHttpRoutes';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
@@ -49,7 +49,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
 
   const loadOpStatus = useCallback(async () => {
     try {
-      const res = await callRpc(PYCORE_RPC_ROUTES.operationSnapshot, {
+      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.operationSnapshot, {
         scope: 'agent_history',
         include_items: false,
       });

@@ -1,6 +1,6 @@
 /**
  * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
- * Sessions/prompts hydrate from the flat-store RPC routes and refresh on store invalidation.
+ * Sessions/prompts hydrate from the flat-store HTTP routes and refresh on store invalidation.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';

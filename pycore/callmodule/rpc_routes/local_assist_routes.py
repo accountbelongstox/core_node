@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""RPC Routes for assist."""
+"""HTTP Routes for assist."""
 
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_ASSIST_ASSIST_CONFIG,
     UI_ASSIST_ASSIST_CYCLE,
@@ -17,9 +16,8 @@ def register_local_assist_routes(server):
         include = params.get("include_laravel", True)
         return assist.assist_status(bool(include))
 
-    server.route(name=UI_ASSIST_ASSIST_STATUS, handler=assist_status_handler)
+    server.post(name=UI_ASSIST_ASSIST_STATUS, handler=assist_status_handler)
 
-    server.route(name=UI_ASSIST_ASSIST_CONFIG, handler=assist.assist_config)
-    server.route(name=UI_ASSIST_ASSIST_CYCLE, handler=assist.assist_cycle)
-    ColorPrint.green("[ConfigBuilder] Registered assist RPC routes")
+    server.post(name=UI_ASSIST_ASSIST_CONFIG, handler=assist.assist_config)
+    server.post(name=UI_ASSIST_ASSIST_CYCLE, handler=assist.assist_cycle)
 

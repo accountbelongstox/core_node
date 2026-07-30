@@ -26,7 +26,7 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
     Register configuration management routes
 
     Args:
-        rpc_server: RpcServerRunner instance
+        rpc_server: HttpServerRunner instance
         service_instances: Dict with service instances
     """
 
@@ -176,10 +176,10 @@ def register_config_routes(rpc_server, service_instances: Dict[str, Any]):
             return {'success': False, 'error': str(e)}
 
     # Register routes
-    rpc_server.route('config.get', handle_config_get)
-    rpc_server.route('config.set', handle_config_set)
-    rpc_server.route('config.get_all', handle_config_get_all)
-    rpc_server.route('config.reset', handle_config_reset)
+    rpc_server.post('config/get', handle_config_get)
+    rpc_server.post('config/set', handle_config_set)
+    rpc_server.post('config/get_all', handle_config_get_all)
+    rpc_server.post('config/reset', handle_config_reset)
 
     ColorPrint.green("[Config Routes] Registered:")
     ColorPrint.blue("  - config.get")

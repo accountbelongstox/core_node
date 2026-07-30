@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import Optional, Any, TYPE_CHECKING
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.pygvar import RPC_CONTROLLER_PREFIX
+from pycore.pyfoundations.pygvar import HTTP_API_PREFIX
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
@@ -316,11 +316,11 @@ def _start_rpc_v2_service(
             )
             ColorPrint.blue(
                 f"  - HTTP API: http://{config.rpc_host}:{config.rpc_port}"
-                f"{RPC_CONTROLLER_PREFIX}/<route>"
+                f"{HTTP_API_PREFIX}/<route>"
             )
             ColorPrint.blue(
                 f"  - HTTP controllers: "
-                f"http://{config.rpc_host}:{config.rpc_port}/api/controllers"
+                f"http://{config.rpc_host}:{config.rpc_port}/api/routes"
             )
             if static_mounts:
                 ColorPrint.blue(f"  - Frontend: http://{config.rpc_host}:{config.rpc_port}/")

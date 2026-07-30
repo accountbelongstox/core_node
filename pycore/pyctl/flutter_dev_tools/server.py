@@ -19,7 +19,7 @@ from typing import Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
-from pycore.pyutils.rpc_v2.runner import RpcServerRunner
+from pycore.pyutils.rpc_v2.runner import HttpServerRunner
 
 fastapi = get_third_package_fastapi()
 Request = fastapi.Request
@@ -105,7 +105,7 @@ class FlutterDevToolsServer:
         self.port = port or int(self.app_config.get("server.port", 5757))
         self.debug = debug
         self.color_print = ColorPrint()
-        self.runner = RpcServerRunner(host=self.host, port=self.port, debug=self.debug)
+        self.runner = HttpServerRunner(host=self.host, port=self.port, debug=self.debug)
         self.shutdown_signal = f"flutter_dev_tools.shutdown.{id(self)}"
         THREAD_BUS.clear_signal(self.shutdown_signal)
         self.router: Optional[Router] = None

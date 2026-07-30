@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Register Books page controllers on RPC v2."""
+"""Register Books page controllers on HTTP v2."""
 
 import base64
 from typing import Any
 
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.corebook.books_service import books_service
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 
 def _response(value: Any):
@@ -103,14 +102,13 @@ def register_local_books_routes(server) -> None:
             request.get("source_type", "book"),
         ))
 
-    server.route(name=route_names.UI_BOOKS_SUPPORTED_FORMATS, handler=supported_formats)
-    server.route(name=route_names.UI_BOOKS_SCAN, handler=scan)
-    server.route(name=route_names.UI_BOOKS_ANALYZE, handler=analyze)
-    server.route(name=route_names.UI_BOOKS_STATE, handler=get_state)
-    server.route(name=route_names.UI_BOOKS_STATE_ADD, handler=state_add)
-    server.route(name=route_names.UI_BOOKS_STATE_REMOVE, handler=state_remove)
-    server.route(name=route_names.UI_BOOKS_SUBMIT, handler=submit)
-    server.route(name=route_names.UI_BOOKS_LIST, handler=list_items)
-    server.route(name=route_names.UI_BOOKS_ANALYZE_UPLOAD, handler=analyze_upload)
-    ColorPrint.green("[ConfigBuilder] Registered local books RPC routes")
+    server.post(name=route_names.UI_BOOKS_SUPPORTED_FORMATS, handler=supported_formats)
+    server.post(name=route_names.UI_BOOKS_SCAN, handler=scan)
+    server.post(name=route_names.UI_BOOKS_ANALYZE, handler=analyze)
+    server.post(name=route_names.UI_BOOKS_STATE, handler=get_state)
+    server.post(name=route_names.UI_BOOKS_STATE_ADD, handler=state_add)
+    server.post(name=route_names.UI_BOOKS_STATE_REMOVE, handler=state_remove)
+    server.post(name=route_names.UI_BOOKS_SUBMIT, handler=submit)
+    server.post(name=route_names.UI_BOOKS_LIST, handler=list_items)
+    server.post(name=route_names.UI_BOOKS_ANALYZE_UPLOAD, handler=analyze_upload)
 

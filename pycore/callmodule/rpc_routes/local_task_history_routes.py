@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-RPC Routes for task_history
+HTTP Routes for task_history
 """
 
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE,
     UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
@@ -31,9 +30,9 @@ def register_local_task_history_routes(server):
         offset = params.get("offset", 0)
         return get_completed_archive(task_type=task_type, limit=limit, offset=offset)
         
-    server.route(name=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler)
+    server.post(name=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler)
 
-    server.route(
+    server.post(
         name=UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
         handler=completed_task_archive.sync_all,
     )
@@ -42,7 +41,7 @@ def register_local_task_history_routes(server):
         cache_key = params.get("cache_key")
         return completed_archive_resource(cache_key=cache_key)
         
-    server.route(name=UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE, handler=completed_archive_resource_handler)
+    server.post(name=UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE, handler=completed_archive_resource_handler)
 
     def get_recent_tasks_handler(params, request_id, context):
         limit = params.get("limit", 200)
@@ -62,7 +61,7 @@ def register_local_task_history_routes(server):
             task_type=task_type,
         )
         
-    server.route(name=UI_TASK_HISTORY_GET_RECENT_TASKS, handler=get_recent_tasks_handler)
+    server.post(name=UI_TASK_HISTORY_GET_RECENT_TASKS, handler=get_recent_tasks_handler)
 
     def search_tasks_handler(params, request_id, context):
         q = params.get("q")
@@ -80,8 +79,6 @@ def register_local_task_history_routes(server):
             limit=limit,
         )
         
-    server.route(name=UI_TASK_HISTORY_SEARCH_TASKS, handler=search_tasks_handler)
+    server.post(name=UI_TASK_HISTORY_SEARCH_TASKS, handler=search_tasks_handler)
 
-    server.route(name=UI_TASK_HISTORY_CLEAR_RECENT_TASKS, handler=clear_recent_tasks)
-
-    ColorPrint.green("[ConfigBuilder] Registered task_history RPC routes")
+    server.post(name=UI_TASK_HISTORY_CLEAR_RECENT_TASKS, handler=clear_recent_tasks)
