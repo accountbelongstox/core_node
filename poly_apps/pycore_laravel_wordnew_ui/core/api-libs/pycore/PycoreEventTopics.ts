@@ -32,4 +32,10 @@ export const PYCORE_BROWSER_EVENTS = {
   laravelApiChanged: 'pycore:laravel-api-changed',
 } as const;
 
+export const VORTEX_PYCORE_EVENT_TOPICS = {
+  marketProgress: 'okx_market_progress',
+  marketStatus: 'okx_market_status',
+  marketUpdate: 'okx_market_update',
+} as const;
+
 export type PycoreEventTopic = typeof PYCORE_EVENT_TOPICS[keyof typeof PYCORE_EVENT_TOPICS];

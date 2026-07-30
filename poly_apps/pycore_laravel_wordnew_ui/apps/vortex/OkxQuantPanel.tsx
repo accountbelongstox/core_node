@@ -18,7 +18,7 @@ import {
   Copy, Check, HardDriveDownload, Rocket, ChevronDown, ChevronRight, ShieldCheck,
 } from 'lucide-react';
 import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
+import { VORTEX_PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 
 interface QuantInfo {
   limits?: { client_window?: { max_requests?: number; time_window?: number }; okx_note?: string };

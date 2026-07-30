@@ -13,7 +13,7 @@ import {
   RefreshCw, AlertTriangle, Wallet, Radio, FlaskConical, TrendingUp, TrendingDown, Receipt,
 } from 'lucide-react';
 import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
+import { VORTEX_PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 
 interface BalanceDetail { ccy: string; eq: string; availBal: string }
 interface OkxPosition { instId: string; pos: string; avgPx: string; upl: string; uplRatio?: string }

@@ -18,7 +18,8 @@ import {
   Filter as FilterIcon, Layers, LineChart, ZoomIn,
 } from 'lucide-react';
 import { connectPycoreHttp, subscribe, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_EVENT_TOPICS, VORTEX_PYCORE_HTTP_ROUTES } from './VortexPycoreProtocol';
+import { VORTEX_PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
+import { VORTEX_PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
 
 /**
  * Adaptive OHLC chart for a coin's candles ([ts,o,h,l,c,vol,...], oldest→newest).

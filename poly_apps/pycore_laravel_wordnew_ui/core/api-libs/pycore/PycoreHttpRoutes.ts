@@ -296,4 +296,23 @@ export const PYCORE_HTTP_ROUTES = {
   qwenOperationEvents: 'ui/qwen/operation/events',
 } as const;
 
+export const VORTEX_PYCORE_HTTP_ROUTES = {
+  accountOverview: 'okx/account_overview',
+  cancelFill: 'okx/cancel_fill',
+  candles: 'okx/candles',
+  coins: 'okx/coins',
+  fillBacktest: 'okx/fill_backtest',
+  fillPlan: 'okx/fill_plan',
+  getSettings: 'okx/get_settings',
+  loadUniverse: 'okx/load_universe',
+  metrics: 'okx/metrics',
+  preopen: 'okx/preopen',
+  quantInfo: 'okx/quant_info',
+  revealCredentials: 'okx/reveal_credentials',
+  serialize: 'okx/serialize',
+  setSettings: 'okx/set_settings',
+  sparklines: 'okx/sparklines',
+  status: 'okx/status',
+} as const;
+
 export type PycoreHttpRoute = typeof PYCORE_HTTP_ROUTES[keyof typeof PYCORE_HTTP_ROUTES];
