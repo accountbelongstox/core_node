@@ -4,6 +4,7 @@ namespace App\Services\Dashboard;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Finds the newest modification time among laravel_main source files.
@@ -14,6 +15,11 @@ use Carbon\Carbon;
 class LaravelCodeLastModifiedService
 {
     private const SCAN_TIMEOUT_SEC = 3;
+
+    /** Polled per open UI tab - cache the probe so each poll skips the shell scan. */
+    private const PROBE_CACHE_KEY = 'dashboard:code_last_modified';
+
+    private const PROBE_CACHE_TTL_SEC = 10;
 
     /** Relative roots under base_path() that hold application code. */
     private const SCAN_DIRS = [
@@ -54,6 +60,11 @@ class LaravelCodeLastModifiedService
      * }
      */
     public function probe(): array
+    {
+        return Cache::remember(self::PROBE_CACHE_KEY, self::PROBE_CACHE_TTL_SEC, fn () => $this->probeUncached());
+    }
+
+    private function probeUncached(): array
     {
         $base = base_path();
         $started = microtime(true);

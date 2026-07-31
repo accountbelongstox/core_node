@@ -58,7 +58,8 @@ class ChatGptWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const { withAudio, language } = extractAudioParams(payload);
+    const { language } = extractAudioParams(payload);
+    const withAudio = payload.with_audio !== false && payload.withAudio !== false;
 
     let toolResult: any;
     try {

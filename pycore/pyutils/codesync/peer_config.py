@@ -317,6 +317,38 @@ class PeerConfig:
             self._save_locked()
             return dict(peer)
 
+    @serialized_method
+    def reconcile_peer_identity(self, peer_id: str, remote_id: str) -> bool:
+        with self._state_scope:
+            self._ensure_loaded()
+            source = self._find_locked(str(peer_id or "").strip())
+            canonical_id = str(remote_id or "").strip()
+            if source is None or not canonical_id or source.get("id") == canonical_id:
+                return False
+            if canonical_id == self.machine_id:
+                self._data["peers"] = [
+                    peer for peer in self._data["peers"]
+                    if peer.get("id") != source.get("id")
+                ]
+            else:
+                canonical = self._find_locked(canonical_id)
+                if canonical is None:
+                    source["id"] = canonical_id
+                else:
+                    canonical.update({
+                        "name": canonical.get("name") or source.get("name"),
+                        "host": source.get("host") or canonical.get("host"),
+                        "port": int(source.get("port", canonical.get("port", self._port))),
+                        "role": canonical.get("role") or source.get("role"),
+                    })
+                    self._data["peers"] = [
+                        peer for peer in self._data["peers"]
+                        if peer.get("id") != source.get("id")
+                    ]
+            self._bump_locked()
+            self._save_locked()
+            return True
+
     # ----- replication (last-writer-wins) ---------------------------------- #
     @serialized_method
     def to_payload(self) -> Dict[str, Any]:

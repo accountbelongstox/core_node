@@ -14,14 +14,14 @@
  */
 import React, { useState } from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
-import type { AssistRequestCreateItem } from '../../../core/api/modules/ServerManagerAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { AssistRequestCreateItem } from '@/apps/laravel-manager/api';
 import { XCircle, HandHelping, Zap } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { AlertBox, Field, InlineSpinner } from '../../common';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
-import { GLOBAL_TASK_PRIORITIES } from '../../../core/api-libs/pycore/QueueCenterContract';
+import { GLOBAL_TASK_PRIORITIES } from '@/apps/laravel-manager/integrations/pycore';
 
 interface AssistRequestModalProps {
   lang: Language;

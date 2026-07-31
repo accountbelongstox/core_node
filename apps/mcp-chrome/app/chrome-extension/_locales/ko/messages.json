@@ -1,307 +1,360 @@
 {
-  "extensionName": {
-    "message": "chrome-mcp-server",
-    "description": "확장 프로그램 이름"
-  },
-  "extensionDescription": {
-    "message": "크롬 브라우저와 연동하여 브라우저 기능을 제어하는 MCP 서버입니다.",
-    "description": "확장 프로그램 설명"
-  },
-  "nativeServerConfigLabel": {
-    "message": "네이티브 서버 설정",
-    "description": "네이티브 서버 설정의 주 섹션 제목"
-  },
-  "semanticEngineLabel": {
-    "message": "시맨틱 엔진",
-    "description": "시맨틱 엔진의 주 섹션 제목"
-  },
-  "embeddingModelLabel": {
-    "message": "임베딩 모델",
-    "description": "모델 선택의 주 섹션 제목"
-  },
-  "indexDataManagementLabel": {
-    "message": "인덱스 데이터 관리",
-    "description": "데이터 관리의 주 섹션 제목"
-  },
-  "modelCacheManagementLabel": {
-    "message": "모델 캐시 관리",
-    "description": "캐시 관리의 주 섹션 제목"
-  },
-  "statusLabel": {
-    "message": "상태",
-    "description": "일반 상태 레이블"
-  },
-  "runningStatusLabel": {
-    "message": "실행 상태",
-    "description": "서버 실행 상태 레이블"
-  },
-  "connectionStatusLabel": {
-    "message": "연결 상태",
-    "description": "연결 상태 레이블"
-  },
-  "lastUpdatedLabel": {
-    "message": "마지막 업데이트:",
-    "description": "마지막 업데이트 타임스탬프 레이블"
-  },
-  "connectButton": {
-    "message": "연결",
-    "description": "연결 버튼 텍스트"
-  },
-  "disconnectButton": {
-    "message": "연결 끊기",
-    "description": "연결 끊기 버튼 텍스트"
-  },
-  "connectingStatus": {
-    "message": "연결 중...",
-    "description": "연결 상태 메시지"
-  },
-  "connectedStatus": {
-    "message": "연결됨",
-    "description": "연결된 상태 메시지"
-  },
-  "disconnectedStatus": {
-    "message": "연결 끊김",
-    "description": "연결이 끊긴 상태 메시지"
-  },
-  "detectingStatus": {
-    "message": "감지 중...",
-    "description": "감지 상태 메시지"
-  },
-  "serviceRunningStatus": {
-    "message": "서비스 실행 중 (포트: $PORT$)",
-    "description": "포트 번호와 함께 서비스 실행 중 상태",
-    "placeholders": {
-      "port": {
-        "content": "$1",
-        "example": "12306"
-      }
-    }
-  },
-  "serviceNotConnectedStatus": {
-    "message": "서비스에 연결되지 않음",
-    "description": "서비스가 연결되지 않은 상태"
-  },
-  "connectedServiceNotStartedStatus": {
-    "message": "연결됨, 서비스 시작되지 않음",
-    "description": "연결되었지만 서비스가 시작되지 않은 상태"
-  },
-  "mcpServerConfigLabel": {
-    "message": "MCP 서버 설정",
-    "description": "MCP 서버 설정 섹션 레이블"
-  },
-  "connectionPortLabel": {
-    "message": "연결 포트",
-    "description": "연결 포트 입력 레이블"
-  },
-  "refreshStatusButton": {
-    "message": "상태 새로고침",
-    "description": "상태 새로고침 버튼 툴팁"
-  },
-  "copyConfigButton": {
-    "message": "설정 복사",
-    "description": "설정 복사 버튼 텍스트"
-  },
-  "retryButton": {
-    "message": "재시도",
-    "description": "재시도 버튼 텍스트"
-  },
-  "cancelButton": {
-    "message": "취소",
-    "description": "취소 버튼 텍스트"
-  },
-  "confirmButton": {
-    "message": "확인",
-    "description": "확인 버튼 텍스트"
-  },
-  "saveButton": {
-    "message": "저장",
-    "description": "저장 버튼 텍스트"
-  },
-  "closeButton": {
-    "message": "닫기",
-    "description": "닫기 버튼 텍스트"
-  },
-  "resetButton": {
-    "message": "초기화",
-    "description": "초기화 버튼 텍스트"
-  },
-  "initializingStatus": {
-    "message": "초기화 중...",
-    "description": "초기화 진행 메시지"
-  },
-  "processingStatus": {
-    "message": "처리 중...",
-    "description": "처리 진행 메시지"
-  },
-  "loadingStatus": {
-    "message": "로드 중...",
-    "description": "로드 진행 메시지"
-  },
-  "clearingStatus": {
-    "message": "삭제 중...",
-    "description": "삭제 진행 메시지"
-  },
-  "cleaningStatus": {
-    "message": "정리 중...",
-    "description": "정리 진행 메시지"
-  },
-  "downloadingStatus": {
-    "message": "다운로드 중...",
-    "description": "다운로드 진행 메시지"
-  },
-  "semanticEngineReadyStatus": {
-    "message": "시맨틱 엔진 준비 완료",
-    "description": "시맨틱 엔진 준비 완료 상태"
-  },
-  "semanticEngineInitializingStatus": {
-    "message": "시맨틱 엔진 초기화 중...",
-    "description": "시맨틱 엔진 초기화 상태"
-  },
-  "semanticEngineInitFailedStatus": {
-    "message": "시맨틱 엔진 초기화 실패",
-    "description": "시맨틱 엔진 초기화 실패 상태"
-  },
-  "semanticEngineNotInitStatus": {
-    "message": "시맨틱 엔진이 초기화되지 않음",
-    "description": "시맨틱 엔진이 초기화되지 않은 상태"
-  },
-  "initSemanticEngineButton": {
-    "message": "시맨틱 엔진 초기화",
-    "description": "시맨틱 엔진 초기화 버튼 텍스트"
-  },
-  "reinitializeButton": {
-    "message": "재초기화",
-    "description": "재초기화 버튼 텍스트"
-  },
-  "downloadingModelStatus": {
-    "message": "모델 다운로드 중... $PROGRESS$%",
-    "description": "백분율이 포함된 모델 다운로드 진행 상태",
-    "placeholders": {
-      "progress": {
-        "content": "$1",
-        "example": "50"
-      }
-    }
-  },
-  "switchingModelStatus": {
-    "message": "모델 전환 중...",
-    "description": "모델 전환 진행 메시지"
-  },
-  "modelLoadedStatus": {
-    "message": "모델 로드 완료",
-    "description": "모델 로드 성공 상태"
-  },
-  "modelFailedStatus": {
-    "message": "모델 로드 실패",
-    "description": "모델 로드 실패 상태"
-  },
-  "lightweightModelDescription": {
-    "message": "경량 다국어 모델",
-    "description": "경량 모델 옵션 설명"
-  },
-  "betterThanSmallDescription": {
-    "message": "e5-small보다 약간 크지만 성능이 더 좋습니다",
-    "description": "중간 모델 옵션 설명"
-  },
-  "multilingualModelDescription": {
-    "message": "다국어 시맨틱 모델",
-    "description": "다국어 모델 옵션 설명"
-  },
-  "fastPerformance": {
-    "message": "빠름",
-    "description": "빠른 성능 표시"
-  },
-  "balancedPerformance": {
-    "message": "균형",
-    "description": "균형 잡힌 성능 표시"
+  "aboutTitle": {
+    "message": "정보",
+    "description": "정보 대화상자 제목"
   },
   "accuratePerformance": {
     "message": "정확",
     "description": "정확한 성능 표시"
   },
-  "networkErrorMessage": {
-    "message": "네트워크 연결 오류, 네트워크를 확인하고 다시 시도하세요",
-    "description": "네트워크 연결 오류 메시지"
-  },
-  "modelCorruptedErrorMessage": {
-    "message": "모델 파일이 손상되었거나 불완전합니다. 다운로드를 다시 시도하세요",
-    "description": "모델 손상 오류 메시지"
-  },
-  "unknownErrorMessage": {
-    "message": "알 수 없는 오류, 네트워크에서 HuggingFace에 접속할 수 있는지 확인하세요",
-    "description": "알 수 없는 오류 대체 메시지"
-  },
-  "permissionDeniedErrorMessage": {
-    "message": "권한이 거부되었습니다",
-    "description": "권한 거부 오류 메시지"
-  },
-  "timeoutErrorMessage": {
-    "message": "작업 시간 초과",
-    "description": "시간 초과 오류 메시지"
-  },
-  "indexedPagesLabel": {
-    "message": "인덱싱된 페이지",
-    "description": "인덱싱된 페이지 수 레이블"
-  },
-  "indexSizeLabel": {
-    "message": "인덱스 크기",
-    "description": "인덱스 크기 레이블"
+  "activeStatus": {
+    "message": "활성",
+    "description": "활성 상태 배지"
   },
   "activeTabsLabel": {
     "message": "활성 탭",
     "description": "활성 탭 수 레이블"
   },
-  "vectorDocumentsLabel": {
-    "message": "벡터 문서",
-    "description": "벡터 문서 수 레이블"
+  "addApiServerButton": {
+    "message": "+ API 서버 추가",
+    "description": "API 서버 추가 버튼 텍스트"
   },
-  "cacheSizeLabel": {
-    "message": "캐시 크기",
-    "description": "캐시 크기 레이블"
+  "addLabel": {
+    "message": "추가하다"
+  },
+  "advancedSettingsLabel": {
+    "message": "고급 설정",
+    "description": "고급 설정 섹션 레이블"
+  },
+  "aiWebPromptPlaceholder": {
+    "message": "라이브 탭으로 보낼 메시지를 입력하세요…"
+  },
+  "aiWebProviderHint": {
+    "message": "프롬프트 번역 및 웹 채팅 작업자가 라이브 브라우저에서 구동하는 웹 AI는 무엇입니까?"
+  },
+  "aiWebProviderTitle": {
+    "message": "AI 웹 제공업체"
+  },
+  "aiWebStatsFailed": {
+    "message": "실패한"
+  },
+  "aiWebStatsPending": {
+    "message": "보류 중"
+  },
+  "aiWebStatsTranslated": {
+    "message": "번역된"
+  },
+  "aiWebTestTitle": {
+    "message": "테스트($provider$)",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiWebWithAudioLabel": {
+    "message": "오디오 포함"
+  },
+  "alternateExpressionsLabel": {
+    "message": "Alt ×"
+  },
+  "apiAddCustomLabel": {
+    "message": "사용자 정의 엔드포인트 추가"
+  },
+  "apiAddEndpoint": {
+    "message": "엔드포인트 추가"
+  },
+  "apiAutoDetecting": {
+    "message": "자동 감지 중…"
+  },
+  "apiAutoMode": {
+    "message": "자동(가장 좋음)"
+  },
+  "apiAutoTag": {
+    "message": "자동"
+  },
+  "apiConfigurationLabel": {
+    "message": "API 구성"
+  },
+  "apiCurrentLabel": {
+    "message": "현재의:"
+  },
+  "apiCustomUrlPlaceholder": {
+    "message": "URL(예: api.example.com)을 입력하세요."
+  },
+  "apiLocalTag": {
+    "message": "현지의"
+  },
+  "apiNone": {
+    "message": "없음"
+  },
+  "apiPortPlaceholder": {
+    "message": "포트(선택 사항)"
+  },
+  "apiRemoteTag": {
+    "message": "원격"
+  },
+  "apiServerConfigLabel": {
+    "message": "API 서버 구성",
+    "description": "API 서버 구성 섹션 제목"
+  },
+  "apiTest": {
+    "message": "시험"
+  },
+  "apiTestAll": {
+    "message": "모두 테스트"
+  },
+  "apiTestFailed": {
+    "message": "API 테스트 실패"
+  },
+  "apiTesting": {
+    "message": "테스트 중…"
+  },
+  "articlePromptHint": {
+    "message": "내장된 XML과 같은 프롬프트: 언어별로 문장 정렬 및 위에서 활성화된 플래그"
+  },
+  "articleTextLabel": {
+    "message": "기사 텍스트"
+  },
+  "articleTextPlaceholder": {
+    "message": "번역하고 분석하려면 단락을 붙여넣으세요…"
+  },
+  "audioRecordingLabel": {
+    "message": "오디오 녹음",
+    "description": "오디오 녹음 패널 제목"
+  },
+  "audioSettingsSharedHint": {
+    "message": "오디오 탭과 공유됩니다."
+  },
+  "authTokenLabel": {
+    "message": "인증 토큰:",
+    "description": "인증 토큰 입력 레이블"
+  },
+  "autoConnectLabel": {
+    "message": "자동 연결"
+  },
+  "autoDownloadTestOutput": {
+    "message": "자동 다운로드 테스트 출력"
+  },
+  "autoStopSilenceLabel": {
+    "message": "무음 시 자동 정지",
+    "description": "무음 시 자동 정지 체크박스 레이블"
+  },
+  "autoTheme": {
+    "message": "자동",
+    "description": "자동 테마 옵션"
+  },
+  "backendLabel": {
+    "message": "백엔드"
+  },
+  "backendTimeoutLabel": {
+    "message": "백엔드 시간 초과(ms)"
+  },
+  "backgroundStreamingDescription": {
+    "message": "활성화하면 이 팝업이 닫혀 있어도 오디오가 계속 캡처되고 구성된 API 서버로 스트리밍됩니다.",
+    "description": "백그라운드 스트리밍 설명 텍스트"
+  },
+  "balancedPerformance": {
+    "message": "균형",
+    "description": "균형 잡힌 성능 표시"
+  },
+  "betterThanSmallDescription": {
+    "message": "e5-small보다 약간 크지만 성능이 더 좋습니다",
+    "description": "중간 모델 옵션 설명"
+  },
+  "bingAssistActiveTabs": {
+    "message": "활성 탭:"
+  },
+  "bingAssistAdd": {
+    "message": "추가하다"
+  },
+  "bingAssistBatchSize": {
+    "message": "배치 크기(작업):"
+  },
+  "bingAssistCachedAt": {
+    "message": "캐시된 위치:"
+  },
+  "bingAssistDel": {
+    "message": "델"
+  },
+  "bingAssistDuplicates": {
+    "message": "중복"
+  },
+  "bingAssistEndpointFromSettings": {
+    "message": "설정 → API에서 구성"
+  },
+  "bingAssistEndpointLabel": {
+    "message": "laravel_main 엔드포인트:"
+  },
+  "bingAssistFailed": {
+    "message": "실패한:"
+  },
+  "bingAssistInvalid": {
+    "message": "유효하지 않은:"
+  },
+  "bingAssistInvalidNoEntry": {
+    "message": "유효하지 않음(Bing 항목 없음)"
+  },
+  "bingAssistLastRun": {
+    "message": "마지막 실행:"
+  },
+  "bingAssistNewTasks": {
+    "message": "새로운 작업"
+  },
+  "bingAssistParallelTabs": {
+    "message": "병렬 Bing 탭:"
+  },
+  "bingAssistPending": {
+    "message": "보류 중:"
+  },
+  "bingAssistPlayAudio": {
+    "message": "발음 재생"
+  },
+  "bingAssistPollInterval": {
+    "message": "폴링 간격(초):"
+  },
+  "bingAssistQueueTotal": {
+    "message": "대기열 합계"
+  },
+  "bingAssistScrape": {
+    "message": "긁다"
+  },
+  "bingAssistScrapeLabel": {
+    "message": "Bing 스크랩 테스트(공백/쉼표로 구분):"
+  },
+  "bingAssistSettingsLive": {
+    "message": "설정은 실시간으로 적용되므로 서비스를 중지할 필요가 없습니다."
+  },
+  "bingAssistStatusLabel": {
+    "message": "상태:"
+  },
+  "bingAssistStopToChange": {
+    "message": "설정을 변경하려면 서비스를 중지하세요."
+  },
+  "bingAssistTargetLang": {
+    "message": "대상 언어:"
+  },
+  "bingAssistTest": {
+    "message": "시험"
+  },
+  "bingAssistTitle": {
+    "message": "Bing 번역 지원"
+  },
+  "bingAssistTranslated": {
+    "message": "번역됨:"
+  },
+  "bingAssistTranslatingLabel": {
+    "message": "번역:"
+  },
+  "bingAssistWorkerId": {
+    "message": "작업자 ID:"
+  },
+  "bingWorkerSharedHint": {
+    "message": "Bing Dictionary와 공유되고 실행 중인 작업자에 적용됩니다."
+  },
+  "bingWorkerTitle": {
+    "message": "Bing 작업 작업자"
+  },
+  "bookAutoRunHint": {
+    "message": "자동 실행 — 각 세그먼트 후에 소스가 완료될 때까지 자동으로 다음 세그먼트를 요청하고 생성합니다."
+  },
+  "bookmarksBarLabel": {
+    "message": "북마크바",
+    "description": "북마크바 폴더 이름"
+  },
+  "booksLabel": {
+    "message": "서적"
+  },
+  "browserCapabilityLabel": {
+    "message": "브라우저 기능"
+  },
+  "bytesUnit": {
+    "message": "바이트",
+    "description": "바이트 단위"
+  },
+  "cacheClearAllButton": {
+    "message": "모두 지우기"
+  },
+  "cacheClearButton": {
+    "message": "분명한"
+  },
+  "cacheDetailsLabel": {
+    "message": "캐시 정보",
+    "description": "캐시 정보 섹션 레이블"
   },
   "cacheEntriesLabel": {
     "message": "캐시 항목",
     "description": "캐시 항목 수 레이블"
   },
-  "clearAllDataButton": {
-    "message": "모든 데이터 지우기",
-    "description": "모든 데이터 지우기 버튼 텍스트"
+  "cacheLocationLabel": {
+    "message": "위치"
   },
-  "clearAllCacheButton": {
-    "message": "모든 캐시 지우기",
-    "description": "모든 캐시 지우기 버튼 텍스트"
+  "cacheReadOnlyTag": {
+    "message": "읽기 전용"
+  },
+  "cacheRefreshButton": {
+    "message": "새로 고치다"
+  },
+  "cacheSizeLabel": {
+    "message": "캐시 크기",
+    "description": "캐시 크기 레이블"
+  },
+  "cacheStorageTitle": {
+    "message": "캐시 저장"
+  },
+  "cacheUnavailableNote": {
+    "message": "이 브라우저에서는 OPFS 저장소를 사용할 수 없습니다. 의도한 캐시 디렉터리 구조를 표시합니다(읽기 전용)."
+  },
+  "cambridgePronunciationHint": {
+    "message": "영국/미국 표준 발음(케임브리지)"
+  },
+  "cancelButton": {
+    "message": "취소",
+    "description": "취소 버튼 텍스트"
+  },
+  "capabilityUpdateFailed": {
+    "message": "기능을 업데이트하지 못했습니다."
+  },
+  "chunkCountLabel": {
+    "message": "청크 수:",
+    "description": "녹음 청크 수 레이블"
+  },
+  "chunkIntervalLabel": {
+    "message": "청크 간격 (ms):",
+    "description": "청크 간격 입력 레이블"
+  },
+  "chunkedUploadOption": {
+    "message": "청크 업로드 (HTTP)",
+    "description": "청크 HTTP 업로드 옵션"
+  },
+  "claimFailed": {
+    "message": "소유권 주장 실패"
+  },
+  "claimRejected": {
+    "message": "청구가 거부됨"
   },
   "cleanExpiredCacheButton": {
     "message": "만료된 캐시 정리",
     "description": "만료된 캐시 정리 버튼 텍스트"
   },
-  "exportDataButton": {
-    "message": "데이터 내보내기",
-    "description": "데이터 내보내기 버튼 텍스트"
+  "cleaningStatus": {
+    "message": "정리 중...",
+    "description": "정리 진행 메시지"
   },
-  "importDataButton": {
-    "message": "데이터 가져오기",
-    "description": "데이터 가져오기 버튼 텍스트"
+  "clearAllCacheButton": {
+    "message": "모든 캐시 지우기",
+    "description": "모든 캐시 지우기 버튼 텍스트"
   },
-  "confirmClearDataTitle": {
-    "message": "데이터 지우기 확인",
-    "description": "데이터 지우기 확인 대화상자 제목"
+  "clearAllDataButton": {
+    "message": "모든 데이터 지우기",
+    "description": "모든 데이터 지우기 버튼 텍스트"
   },
-  "settingsTitle": {
-    "message": "설정",
-    "description": "설정 대화상자 제목"
+  "clearDataFailed": {
+    "message": "데이터를 지우지 못했습니다."
   },
-  "aboutTitle": {
-    "message": "정보",
-    "description": "정보 대화상자 제목"
-  },
-  "helpTitle": {
-    "message": "도움말",
-    "description": "도움말 대화상자 제목"
-  },
-  "clearDataWarningMessage": {
-    "message": "이 작업은 다음을 포함한 모든 인덱싱된 웹페이지 콘텐츠와 벡터 데이터를 지웁니다:",
-    "description": "데이터 지우기 경고 메시지"
+  "clearDataIrreversibleWarning": {
+    "message": "이 작업은 되돌릴 수 없습니다! 삭제 후에는 인덱스를 다시 생성하기 위해 웹페이지를 다시 방문해야 합니다.",
+    "description": "되돌릴 수 없는 작업 경고"
   },
   "clearDataList1": {
     "message": "모든 웹페이지 텍스트 콘텐츠 인덱스",
@@ -315,281 +368,158 @@
     "message": "검색 기록 및 캐시",
     "description": "데이터 지우기 목록 세 번째 항목"
   },
-  "clearDataIrreversibleWarning": {
-    "message": "이 작업은 되돌릴 수 없습니다! 삭제 후에는 인덱스를 다시 생성하기 위해 웹페이지를 다시 방문해야 합니다.",
-    "description": "되돌릴 수 없는 작업 경고"
+  "clearDataWarningMessage": {
+    "message": "이 작업은 다음을 포함한 모든 인덱싱된 웹페이지 콘텐츠와 벡터 데이터를 지웁니다:",
+    "description": "데이터 지우기 경고 메시지"
   },
-  "confirmClearButton": {
-    "message": "삭제 확인",
-    "description": "삭제 작업 확인 버튼"
+  "clearHistoryButton": {
+    "message": "기록 지우기"
   },
-  "cacheDetailsLabel": {
-    "message": "캐시 정보",
-    "description": "캐시 정보 섹션 레이블"
+  "clearLogsButton": {
+    "message": "로그 지우기"
   },
-  "noCacheDataMessage": {
-    "message": "캐시 데이터 없음",
-    "description": "사용 가능한 캐시 데이터 없음 메시지"
+  "clearingStatus": {
+    "message": "삭제 중...",
+    "description": "삭제 진행 메시지"
   },
-  "loadingCacheInfoStatus": {
-    "message": "캐시 정보를 불러오는 중...",
-    "description": "캐시 정보 로드 상태"
+  "clientSetupLabel": {
+    "message": "클라이언트 설정"
   },
-  "processingCacheStatus": {
-    "message": "캐시 처리 중...",
-    "description": "캐시 처리 상태"
-  },
-  "expiredLabel": {
-    "message": "만료됨",
-    "description": "만료된 항목 레이블"
-  },
-  "bookmarksBarLabel": {
-    "message": "북마크바",
-    "description": "북마크바 폴더 이름"
-  },
-  "newTabLabel": {
-    "message": "새 탭",
-    "description": "새 탭 레이블"
-  },
-  "currentPageLabel": {
-    "message": "현재 페이지",
-    "description": "현재 페이지 레이블"
-  },
-  "menuLabel": {
-    "message": "메뉴",
-    "description": "메뉴 접근성 레이블"
-  },
-  "navigationLabel": {
-    "message": "탐색",
-    "description": "탐색 접근성 레이블"
-  },
-  "mainContentLabel": {
-    "message": "주요 콘텐츠",
-    "description": "주요 콘텐츠 접근성 레이블"
-  },
-  "languageSelectorLabel": {
-    "message": "언어",
-    "description": "언어 선택기 레이블"
-  },
-  "themeLabel": {
-    "message": "테마",
-    "description": "테마 선택기 레이블"
-  },
-  "lightTheme": {
-    "message": "라이트",
-    "description": "라이트 테마 옵션"
-  },
-  "darkTheme": {
-    "message": "다크",
-    "description": "다크 테마 옵션"
-  },
-  "autoTheme": {
-    "message": "자동",
-    "description": "자동 테마 옵션"
-  },
-  "advancedSettingsLabel": {
-    "message": "고급 설정",
-    "description": "고급 설정 섹션 레이블"
-  },
-  "debugModeLabel": {
-    "message": "디버그 모드",
-    "description": "디버그 모드 토글 레이블"
-  },
-  "verboseLoggingLabel": {
-    "message": "상세 로깅",
-    "description": "상세 로깅 토글 레이블"
-  },
-  "successNotification": {
-    "message": "작업이 성공적으로 완료되었습니다",
-    "description": "일반 성공 알림"
-  },
-  "warningNotification": {
-    "message": "경고: 계속하기 전에 검토하세요",
-    "description": "일반 경고 알림"
-  },
-  "infoNotification": {
-    "message": "정보",
-    "description": "일반 정보 알림"
-  },
-  "configCopiedNotification": {
-    "message": "설정이 클립보드에 복사되었습니다",
-    "description": "설정 복사 성공 메시지"
-  },
-  "dataClearedNotification": {
-    "message": "데이터가 성공적으로 삭제되었습니다",
-    "description": "데이터 삭제 성공 메시지"
-  },
-  "bytesUnit": {
-    "message": "바이트",
-    "description": "바이트 단위"
-  },
-  "kilobytesUnit": {
-    "message": "KB",
-    "description": "킬로바이트 단위"
-  },
-  "megabytesUnit": {
-    "message": "MB",
-    "description": "메가바이트 단위"
-  },
-  "gigabytesUnit": {
-    "message": "GB",
-    "description": "기가바이트 단위"
-  },
-  "itemsUnit": {
-    "message": "개",
-    "description": "항목 개수 단위"
-  },
-  "pagesUnit": {
-    "message": "페이지",
-    "description": "페이지 수 단위"
-  },
-  "audioRecordingLabel": {
-    "message": "오디오 녹음",
-    "description": "오디오 녹음 패널 제목"
-  },
-  "recordingStatusLabel": {
-    "message": "녹음 상태:",
-    "description": "녹음 상태 레이블"
-  },
-  "recordingStatus": {
-    "message": "녹음 중",
-    "description": "녹음 활성 상태"
-  },
-  "idleStatus": {
-    "message": "대기",
-    "description": "녹음 대기 상태"
-  },
-  "durationLabel": {
-    "message": "재생 시간:",
-    "description": "녹음 재생 시간 레이블"
-  },
-  "chunkCountLabel": {
-    "message": "청크 수:",
-    "description": "녹음 청크 수 레이블"
-  },
-  "apiServerConfigLabel": {
-    "message": "API 서버 구성",
-    "description": "API 서버 구성 섹션 제목"
-  },
-  "serverNamePlaceholder": {
-    "message": "서버 이름",
-    "description": "서버 이름 입력 플레이스홀더"
-  },
-  "urlLabel": {
-    "message": "URL:",
-    "description": "URL 입력 레이블"
-  },
-  "urlPlaceholder": {
-    "message": "http://localhost:8080",
-    "description": "URL 입력 플레이스홀더"
-  },
-  "authTokenLabel": {
-    "message": "인증 토큰:",
-    "description": "인증 토큰 입력 레이블"
-  },
-  "optionalPlaceholder": {
-    "message": "선택 사항",
-    "description": "선택 필드 플레이스홀더"
-  },
-  "streamingModeLabel": {
-    "message": "스트리밍 모드:",
-    "description": "스트리밍 모드 선택 레이블"
-  },
-  "realtimeWebsocketOption": {
-    "message": "실시간 (WebSocket)",
-    "description": "실시간 WebSocket 스트리밍 옵션"
-  },
-  "chunkedUploadOption": {
-    "message": "청크 업로드 (HTTP)",
-    "description": "청크 HTTP 업로드 옵션"
+  "closeButton": {
+    "message": "닫기",
+    "description": "닫기 버튼 텍스트"
   },
   "completeFileUploadOption": {
     "message": "전체 파일 업로드",
     "description": "전체 파일 업로드 옵션"
   },
-  "chunkIntervalLabel": {
-    "message": "청크 간격 (ms):",
-    "description": "청크 간격 입력 레이블"
+  "configCopiedNotification": {
+    "message": "설정이 클립보드에 복사되었습니다",
+    "description": "설정 복사 성공 메시지"
   },
-  "addApiServerButton": {
-    "message": "+ API 서버 추가",
-    "description": "API 서버 추가 버튼 텍스트"
+  "confirmAndStart": {
+    "message": "확인 및 시작"
   },
-  "recordingSettingsLabel": {
-    "message": "녹음 설정",
-    "description": "녹음 설정 섹션 제목"
+  "confirmAndStartDescription": {
+    "message": "Bing 탭을 열고 크롤링을 시작하세요"
   },
-  "includeMicrophoneLabel": {
-    "message": "마이크 포함",
-    "description": "마이크 포함 체크박스 레이블"
+  "confirmAndStartReady": {
+    "message": "확인 및 시작"
   },
-  "saveLocallyLabel": {
-    "message": "로컬에 녹음 저장",
-    "description": "로컬에 녹음 저장 체크박스 레이블"
+  "confirmAndStartWithPending": {
+    "message": "확인 및 시작 · $count$ 보류 중",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "autoStopSilenceLabel": {
-    "message": "무음 시 자동 정지",
-    "description": "무음 시 자동 정지 체크박스 레이블"
+  "confirmButton": {
+    "message": "확인",
+    "description": "확인 버튼 텍스트"
   },
-  "silenceDurationLabel": {
-    "message": "무음 지속 시간 (초):",
-    "description": "무음 지속 시간 입력 레이블"
+  "confirmClearButton": {
+    "message": "삭제 확인",
+    "description": "삭제 작업 확인 버튼"
   },
-  "maxDurationLabel": {
-    "message": "최대 녹음 시간:",
-    "description": "최대 녹음 시간 선택 레이블"
+  "confirmClearDataTitle": {
+    "message": "데이터 지우기 확인",
+    "description": "데이터 지우기 확인 대화상자 제목"
   },
-  "oneMinuteOption": {
-    "message": "1분",
-    "description": "1분 지속 시간 옵션"
+  "connectButton": {
+    "message": "연결",
+    "description": "연결 버튼 텍스트"
   },
-  "fiveMinutesOption": {
-    "message": "5분",
-    "description": "5분 지속 시간 옵션"
+  "connectOnStartupHint": {
+    "message": "시작 시 연결"
   },
-  "tenMinutesOption": {
-    "message": "10분",
-    "description": "10분 지속 시간 옵션"
+  "connectedServiceNotStartedStatus": {
+    "message": "연결됨, 서비스 시작되지 않음",
+    "description": "연결되었지만 서비스가 시작되지 않은 상태"
   },
-  "thirtyMinutesOption": {
-    "message": "30분",
-    "description": "30분 지속 시간 옵션"
+  "connectedStatus": {
+    "message": "연결됨",
+    "description": "연결된 상태 메시지"
   },
-  "oneHourOption": {
-    "message": "1시간",
-    "description": "1시간 지속 시간 옵션"
+  "connectingStatus": {
+    "message": "연결 중...",
+    "description": "연결 상태 메시지"
   },
-  "noLimitOption": {
-    "message": "제한 없음",
-    "description": "제한 없음 지속 시간 옵션"
+  "connectionPortLabel": {
+    "message": "연결 포트",
+    "description": "연결 포트 입력 레이블"
   },
-  "sessionMetadataLabel": {
-    "message": "세션 메타데이터 (JSON)",
-    "description": "세션 메타데이터 섹션 제목"
+  "connectionStatusLabel": {
+    "message": "연결 상태",
+    "description": "연결 상태 레이블"
   },
-  "sessionMetadataHelper": {
-    "message": "여기에 정의된 키/값 쌍은 각 HTTP 업로드에 추가되고 WebSocket을 통해 메타데이터 페이로드로 한 번 전송됩니다.",
-    "description": "세션 메타데이터 도움말 텍스트"
+  "copyConfigButton": {
+    "message": "설정 복사",
+    "description": "설정 복사 버튼 텍스트"
   },
-  "startRecordingButton": {
-    "message": "녹음 시작",
-    "description": "녹음 시작 버튼 텍스트"
+  "currentPageLabel": {
+    "message": "현재 페이지",
+    "description": "현재 페이지 레이블"
   },
-  "stopRecordingButton": {
-    "message": "녹음 정지",
-    "description": "녹음 정지 버튼 텍스트"
+  "darkTheme": {
+    "message": "다크",
+    "description": "다크 테마 옵션"
   },
-  "enableBackgroundStreamingLabel": {
-    "message": "백그라운드 오디오 스트리밍 활성화",
-    "description": "백그라운드 오디오 스트리밍 활성화 체크박스 레이블"
+  "dataClearedNotification": {
+    "message": "데이터가 성공적으로 삭제되었습니다",
+    "description": "데이터 삭제 성공 메시지"
   },
-  "activeStatus": {
-    "message": "활성",
-    "description": "활성 상태 배지"
+  "debugModeLabel": {
+    "message": "디버그 모드",
+    "description": "디버그 모드 토글 레이블"
   },
-  "backgroundStreamingDescription": {
-    "message": "활성화하면 이 팝업이 닫혀 있어도 오디오가 계속 캡처되고 구성된 API 서버로 스트리밍됩니다.",
-    "description": "백그라운드 스트리밍 설명 텍스트"
+  "deepseekChatTitle": {
+    "message": "Deepseek 채팅"
+  },
+  "deepseekClear": {
+    "message": "분명한"
+  },
+  "deepseekEmpty": {
+    "message": "아직 메시지가 없습니다. 질문하거나 테스트를 실행하세요."
+  },
+  "deepseekHint": {
+    "message": "프롬프트는 로컬 작업 대기열을 통해 실행되고 로그인된 chat.deepseek.com 탭을 구동합니다. API 키가 필요하지 않습니다."
+  },
+  "deepseekNoResponse": {
+    "message": "(빈 응답)"
+  },
+  "deepseekPlaceholder": {
+    "message": "Deepseek에게 물어보세요…"
+  },
+  "deepseekQueueError": {
+    "message": "작업을 대기열에 추가하지 못했습니다. 백그라운드 서비스가 실행되고 있나요?"
+  },
+  "deepseekQueueRunning": {
+    "message": "달리기"
+  },
+  "deepseekQueueStopped": {
+    "message": "중지됨"
+  },
+  "deepseekSend": {
+    "message": "보내다"
+  },
+  "deepseekSending": {
+    "message": "배상…"
+  },
+  "deepseekTaskFailed": {
+    "message": "작업이 실패했습니다."
+  },
+  "deepseekTest": {
+    "message": "시험"
+  },
+  "deepseekTestOk": {
+    "message": "연결 확인 — 응답이 수신되었습니다."
+  },
+  "deepseekTestSent": {
+    "message": "테스트 프롬프트가 대기 중입니다. 응답을 기다리는 중입니다…"
+  },
+  "deepseekTesting": {
+    "message": "테스트 메시지를 보내는 중…"
   },
   "defaultServerName": {
     "message": "서버 $INDEX$",
@@ -601,6 +531,343 @@
       }
     }
   },
+  "definitionsLabel": {
+    "message": "정의"
+  },
+  "detailedLabel": {
+    "message": "상세한"
+  },
+  "detectingStatus": {
+    "message": "감지 중...",
+    "description": "감지 상태 메시지"
+  },
+  "dictionaryEmptyHint": {
+    "message": "정의를 검색하려면 단어를 입력하세요."
+  },
+  "dictionaryLookUpButton": {
+    "message": "찾다"
+  },
+  "dictionaryLookingUp": {
+    "message": "단어를 찾는 중…"
+  },
+  "dictionarySearchPlaceholder": {
+    "message": "검색할 단어를 입력하세요…"
+  },
+  "disableNamedFeature": {
+    "message": "$name$ 비활성화",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "disconnectButton": {
+    "message": "연결 끊기",
+    "description": "연결 끊기 버튼 텍스트"
+  },
+  "disconnectedStatus": {
+    "message": "연결 끊김",
+    "description": "연결이 끊긴 상태 메시지"
+  },
+  "downloadButton": {
+    "message": "다운로드"
+  },
+  "downloadingModelStatus": {
+    "message": "모델 다운로드 중... $PROGRESS$%",
+    "description": "백분율이 포함된 모델 다운로드 진행 상태",
+    "placeholders": {
+      "progress": {
+        "content": "$1",
+        "example": "50"
+      }
+    }
+  },
+  "downloadingStatus": {
+    "message": "다운로드 중...",
+    "description": "다운로드 진행 메시지"
+  },
+  "duoreaderCdnHint": {
+    "message": "CDN API 사용(빠름) — DOM 스크래핑 없이 탭 삽입 및 .pz 디코딩"
+  },
+  "duoreaderCoverSearchHint": {
+    "message": "카탈로그를 로드할 때 책 표지에 대한 Google/Bing 이미지 검색"
+  },
+  "duoreaderFetchAudioHint": {
+    "message": "Duoreader API에서 오디오 가져오기(텍스트 및 MP3를 로컬로 백업)"
+  },
+  "duoreaderForceReplaceHint": {
+    "message": "텍스트 강제 교체(챕터 다시 수집, 오디오는 멱등성 유지)"
+  },
+  "durationLabel": {
+    "message": "재생 시간:",
+    "description": "녹음 재생 시간 레이블"
+  },
+  "embeddingModelLabel": {
+    "message": "임베딩 모델",
+    "description": "모델 선택의 주 섹션 제목"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "백그라운드 오디오 스트리밍 활성화",
+    "description": "백그라운드 오디오 스트리밍 활성화 체크박스 레이블"
+  },
+  "enableNamedFeature": {
+    "message": "$name$ 활성화",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "endpointNotConfiguredHint": {
+    "message": "설정되지 않음 — 설정 → API 구성에서 구성"
+  },
+  "endpointSwitchFailed": {
+    "message": "실행 중인 API 엔드포인트를 전환하지 못했습니다."
+  },
+  "enterPromptFirst": {
+    "message": "먼저 프롬프트를 입력하세요."
+  },
+  "examplesLabel": {
+    "message": "예"
+  },
+  "expiredLabel": {
+    "message": "만료됨",
+    "description": "만료된 항목 레이블"
+  },
+  "exportDataButton": {
+    "message": "데이터 내보내기",
+    "description": "데이터 내보내기 버튼 텍스트"
+  },
+  "extAvailableStatus": {
+    "message": "사용 가능"
+  },
+  "extCollapseAll": {
+    "message": "모두 축소"
+  },
+  "extCompletedLabel": {
+    "message": "완전한"
+  },
+  "extEnabledLabel": {
+    "message": "활성화됨"
+  },
+  "extEnabledStatus": {
+    "message": "활성화됨"
+  },
+  "extExpandAll": {
+    "message": "모두 확장"
+  },
+  "extExtensionsLabel": {
+    "message": "확장"
+  },
+  "extGlobalTaskSystem": {
+    "message": "글로벌 태스크 시스템"
+  },
+  "extNoConfig": {
+    "message": "이 확장 프로그램에 대한 구성이 없습니다."
+  },
+  "extPauseButton": {
+    "message": "정지시키다"
+  },
+  "extPendingLabel": {
+    "message": "보류 중"
+  },
+  "extResumeButton": {
+    "message": "재개하다"
+  },
+  "extStartButton": {
+    "message": "시작"
+  },
+  "extStatePaused": {
+    "message": "일시중지됨"
+  },
+  "extStateRunning": {
+    "message": "달리기"
+  },
+  "extStateStopped": {
+    "message": "중지됨"
+  },
+  "extStopButton": {
+    "message": "멈추다"
+  },
+  "extTaskQueueSubtitle": {
+    "message": "로컬에서 API 요청 처리"
+  },
+  "extTaskQueueTitle": {
+    "message": "작업 대기열"
+  },
+  "extensionDescription": {
+    "message": "크롬 브라우저와 연동하여 브라우저 기능을 제어하는 MCP 서버입니다.",
+    "description": "확장 프로그램 설명"
+  },
+  "extensionName": {
+    "message": "chrome-mcp-server",
+    "description": "확장 프로그램 이름"
+  },
+  "extractedResultLabel": {
+    "message": "추출된 결과"
+  },
+  "fastPerformance": {
+    "message": "빠름",
+    "description": "빠른 성능 표시"
+  },
+  "fastTierBadge": {
+    "message": "⚡ 빠르다"
+  },
+  "fastTierLabel": {
+    "message": "빠른 계층"
+  },
+  "featureDesc_aiTranslateHub": {
+    "message": "웹 AI 제공업체를 통해 번역하고 음성 오디오를 첨부하세요."
+  },
+  "featureDesc_articleStudyGuide": {
+    "message": "정렬된 읽기, 문법, 구문 학습 가이드를 구축하세요."
+  },
+  "featureDesc_bingDictionary": {
+    "message": "정의, 번역, 발음을 찾아보세요."
+  },
+  "featureDesc_bookStudyGenerator": {
+    "message": "도서 세그먼트에서 다국어 학습 자료를 생성합니다."
+  },
+  "featureDesc_geminiImage": {
+    "message": "Gemini로 이미지를 생성하고 결과를 캡처합니다."
+  },
+  "featureDesc_notebooklm": {
+    "message": "Google NotebookLM에서 질문과 조사를 자동화하세요."
+  },
+  "featureDesc_qwenTts": {
+    "message": "Qwen3-TTS로 음성을 생성하고 다운로드하세요."
+  },
+  "featureDesc_webSearch": {
+    "message": "라이브 브라우저 탭에서 웹, 이미지, 뉴스 소스를 검색하세요."
+  },
+  "featureDesc_wordValidity": {
+    "message": "공유 웹 런타임을 사용하여 단어 유효성 분류를 테스트합니다."
+  },
+  "featureName_aiTranslateHub": {
+    "message": "번역 허브"
+  },
+  "featureName_articleStudyGuide": {
+    "message": "기사 가이드"
+  },
+  "featureName_bingDictionary": {
+    "message": "빙 사전"
+  },
+  "featureName_bookStudyGenerator": {
+    "message": "북스튜디오"
+  },
+  "featureName_geminiImage": {
+    "message": "쌍둥이자리 이미지"
+  },
+  "featureName_notebooklm": {
+    "message": "노트북LM"
+  },
+  "featureName_qwenTts": {
+    "message": "퀀 TTS"
+  },
+  "featureName_webSearch": {
+    "message": "웹 검색"
+  },
+  "featureName_wordValidity": {
+    "message": "단어 유효성"
+  },
+  "filterByTitlePlaceholder": {
+    "message": "제목으로 필터링…"
+  },
+  "fiveMinutesOption": {
+    "message": "5분",
+    "description": "5분 지속 시간 옵션"
+  },
+  "footerPort": {
+    "message": "포트 $port$",
+    "placeholders": {
+      "port": {
+        "content": "$1"
+      }
+    }
+  },
+  "forvoPronunciationHint": {
+    "message": "전 세계 원어민 오디오(Forvo)"
+  },
+  "freeDictionaryLabel": {
+    "message": "무료 사전"
+  },
+  "generatedImageAlt": {
+    "message": "생성된 이미지"
+  },
+  "generationFailed": {
+    "message": "생성 실패"
+  },
+  "generationStartFailed": {
+    "message": "생성을 시작하지 못했습니다."
+  },
+  "gigabytesUnit": {
+    "message": "GB",
+    "description": "기가바이트 단위"
+  },
+  "grammarLabel": {
+    "message": "문법"
+  },
+  "headerSubtitle": {
+    "message": "브라우저 자동화 콘솔"
+  },
+  "headerTitle": {
+    "message": "크롬 MCP"
+  },
+  "helpTitle": {
+    "message": "도움말",
+    "description": "도움말 대화상자 제목"
+  },
+  "idleStatus": {
+    "message": "대기",
+    "description": "녹음 대기 상태"
+  },
+  "imageAlt": {
+    "message": "영상"
+  },
+  "imageGenerationTimeout": {
+    "message": "이미지를 기다리는 동안 시간이 초과되었습니다."
+  },
+  "imagePromptPlaceholder": {
+    "message": "생성할 이미지를 설명합니다…"
+  },
+  "imagesMode": {
+    "message": "이미지"
+  },
+  "importDataButton": {
+    "message": "데이터 가져오기",
+    "description": "데이터 가져오기 버튼 텍스트"
+  },
+  "includeMicrophoneLabel": {
+    "message": "마이크 포함",
+    "description": "마이크 포함 체크박스 레이블"
+  },
+  "indexDataLabel": {
+    "message": "인덱스 데이터"
+  },
+  "indexDataManagementLabel": {
+    "message": "인덱스 데이터 관리",
+    "description": "데이터 관리의 주 섹션 제목"
+  },
+  "indexSizeLabel": {
+    "message": "인덱스 크기",
+    "description": "인덱스 크기 레이블"
+  },
+  "indexedPagesLabel": {
+    "message": "인덱싱된 페이지",
+    "description": "인덱싱된 페이지 수 레이블"
+  },
+  "infoNotification": {
+    "message": "정보",
+    "description": "일반 정보 알림"
+  },
+  "initSemanticEngineButton": {
+    "message": "시맨틱 엔진 초기화",
+    "description": "시맨틱 엔진 초기화 버튼 텍스트"
+  },
+  "initializingStatus": {
+    "message": "초기화 중...",
+    "description": "초기화 진행 메시지"
+  },
   "invalidJsonError": {
     "message": "세션 메타데이터 JSON이 유효하지 않습니다: $ERROR$",
     "description": "잘못된 JSON 오류 메시지",
@@ -610,6 +877,864 @@
         "example": "예상치 못한 토큰"
       }
     }
+  },
+  "invalidLabel": {
+    "message": "유효하지 않은"
+  },
+  "itemsUnit": {
+    "message": "개",
+    "description": "항목 개수 단위"
+  },
+  "kilobytesUnit": {
+    "message": "KB",
+    "description": "킬로바이트 단위"
+  },
+  "languageSelectorLabel": {
+    "message": "언어",
+    "description": "언어 선택기 레이블"
+  },
+  "languagesLabel": {
+    "message": "언어"
+  },
+  "lastUpdatedLabel": {
+    "message": "마지막 업데이트:",
+    "description": "마지막 업데이트 타임스탬프 레이블"
+  },
+  "lastVerifiedLabel": {
+    "message": "마지막 확인"
+  },
+  "learnLanguageLabel": {
+    "message": "언어를 배우세요"
+  },
+  "lightTheme": {
+    "message": "라이트",
+    "description": "라이트 테마 옵션"
+  },
+  "lightweightModelDescription": {
+    "message": "경량 다국어 모델",
+    "description": "경량 모델 옵션 설명"
+  },
+  "listenerLabel": {
+    "message": "경청자"
+  },
+  "loadBooksFailed": {
+    "message": "책을 로드하지 못했습니다."
+  },
+  "loadQueueButton": {
+    "message": "대기열 로드"
+  },
+  "loadQueueDescription": {
+    "message": "서버에서 보류 중인 단어를 가져와서 미리 봅니다."
+  },
+  "loadQueueFailed": {
+    "message": "대기열을 로드하지 못했습니다."
+  },
+  "loadSourcesFailed": {
+    "message": "소스를 로드하지 못했습니다."
+  },
+  "loadStatusFailed": {
+    "message": "상태를 로드하지 못했습니다."
+  },
+  "loadingCacheInfoStatus": {
+    "message": "캐시 정보를 불러오는 중...",
+    "description": "캐시 정보 로드 상태"
+  },
+  "loadingCatalog": {
+    "message": "카탈로그 로드 중…"
+  },
+  "loadingSegments": {
+    "message": "세그먼트 로드 중…"
+  },
+  "loadingStatus": {
+    "message": "로드 중...",
+    "description": "로드 진행 메시지"
+  },
+  "logAuto": {
+    "message": "자동"
+  },
+  "logClearAll": {
+    "message": "모두 지우기"
+  },
+  "logPause": {
+    "message": "정지시키다"
+  },
+  "logTestFail": {
+    "message": "로그를 가져오지 못했습니다."
+  },
+  "logTestOk": {
+    "message": "로그 파이프 확인 - {0}개 항목이 로드되었습니다."
+  },
+  "logTestRefresh": {
+    "message": "테스트/새로고침"
+  },
+  "logTesting": {
+    "message": "로그를 새로 고치는 중…"
+  },
+  "logsLabel": {
+    "message": "로그"
+  },
+  "lookupWordFailed": {
+    "message": "단어를 검색하지 못했습니다."
+  },
+  "mainContentLabel": {
+    "message": "주요 콘텐츠",
+    "description": "주요 콘텐츠 접근성 레이블"
+  },
+  "maxDurationLabel": {
+    "message": "최대 녹음 시간:",
+    "description": "최대 녹음 시간 선택 레이블"
+  },
+  "maximumBooksLabel": {
+    "message": "최대 도서(0 = 전체)"
+  },
+  "maximumLabel": {
+    "message": "맥스"
+  },
+  "mcpServerConfigLabel": {
+    "message": "MCP 서버 설정",
+    "description": "MCP 서버 설정 섹션 레이블"
+  },
+  "mcpToolLabel": {
+    "message": "MCP 도구"
+  },
+  "mediaCachedLabel": {
+    "message": "캐시된"
+  },
+  "mediaMissLabel": {
+    "message": "놓치다"
+  },
+  "megabytesUnit": {
+    "message": "MB",
+    "description": "메가바이트 단위"
+  },
+  "menuLabel": {
+    "message": "메뉴",
+    "description": "메뉴 접근성 레이블"
+  },
+  "modeLabel": {
+    "message": "방법"
+  },
+  "modelCacheManagementLabel": {
+    "message": "모델 캐시 관리",
+    "description": "캐시 관리의 주 섹션 제목"
+  },
+  "modelCorruptedErrorMessage": {
+    "message": "모델 파일이 손상되었거나 불완전합니다. 다운로드를 다시 시도하세요",
+    "description": "모델 손상 오류 메시지"
+  },
+  "modelFailedStatus": {
+    "message": "모델 로드 실패",
+    "description": "모델 로드 실패 상태"
+  },
+  "modelLoadedStatus": {
+    "message": "모델 로드 완료",
+    "description": "모델 로드 성공 상태"
+  },
+  "multilingualModelDescription": {
+    "message": "다국어 시맨틱 모델",
+    "description": "다국어 모델 옵션 설명"
+  },
+  "myLanguageLabel": {
+    "message": "내 언어"
+  },
+  "nativeBridgeLabel": {
+    "message": "네이티브 브리지"
+  },
+  "nativeMcpPortLabel": {
+    "message": "기본 MCP 포트"
+  },
+  "nativeServerConfigLabel": {
+    "message": "네이티브 서버 설정",
+    "description": "네이티브 서버 설정의 주 섹션 제목"
+  },
+  "navAudio": {
+    "message": "오디오"
+  },
+  "navData": {
+    "message": "데이터"
+  },
+  "navDebug": {
+    "message": "디버그"
+  },
+  "navExtensions": {
+    "message": "확장"
+  },
+  "navImport": {
+    "message": "수입"
+  },
+  "navServer": {
+    "message": "섬기는 사람"
+  },
+  "navTasks": {
+    "message": "작업"
+  },
+  "navWebAi": {
+    "message": "웹 AI"
+  },
+  "navigationLabel": {
+    "message": "탐색",
+    "description": "탐색 접근성 레이블"
+  },
+  "networkErrorMessage": {
+    "message": "네트워크 연결 오류, 네트워크를 확인하고 다시 시도하세요",
+    "description": "네트워크 연결 오류 메시지"
+  },
+  "newTabLabel": {
+    "message": "새 탭",
+    "description": "새 탭 레이블"
+  },
+  "newsMode": {
+    "message": "소식"
+  },
+  "noAnswerReturned": {
+    "message": "답변이 반환되지 않았습니다."
+  },
+  "noBackgroundResponse": {
+    "message": "확장 프로그램 백그라운드에서 응답이 없습니다. 확장 프로그램을 다시 로드하고 다시 시도하세요."
+  },
+  "noBilingualBooks": {
+    "message": "이중 언어 도서가 없습니다."
+  },
+  "noCacheDataMessage": {
+    "message": "캐시 데이터 없음",
+    "description": "사용 가능한 캐시 데이터 없음 메시지"
+  },
+  "noDictionaryEntry": {
+    "message": "이 단어에 대한 Bing 사전 항목이 없습니다."
+  },
+  "noEndpointConfigured": {
+    "message": "설정에 엔드포인트가 구성되지 않았습니다."
+  },
+  "noEventsRecorded": {
+    "message": "기록된 이벤트가 없습니다."
+  },
+  "noLimitOption": {
+    "message": "제한 없음",
+    "description": "제한 없음 지속 시간 옵션"
+  },
+  "noPendingTasksHint": {
+    "message": "대기 중인 작업이 없습니다."
+  },
+  "noPendingWordsHint": {
+    "message": "번역할 대기 중인 단어가 없습니다. 크롤링할 단어도 없습니다."
+  },
+  "noRecordableTabs": {
+    "message": "녹화 가능한 탭이 없습니다. 일반 웹페이지(http/https) 열기 — Chrome 시스템 및 확장 프로그램 페이지는 기록할 수 없습니다."
+  },
+  "noResult": {
+    "message": "결과 없음"
+  },
+  "noSourcesForFilter": {
+    "message": "이 필터에 대한 소스를 찾을 수 없습니다."
+  },
+  "notebooklmAnswerLabel": {
+    "message": "답변:"
+  },
+  "notebooklmAsk": {
+    "message": "묻다"
+  },
+  "notebooklmAsking": {
+    "message": "질문…"
+  },
+  "notebooklmDialogueHint": {
+    "message": "내장된 프롬프트: 모든 항목을 사용하여 짧은 2명의 화자 대화를 생성합니다."
+  },
+  "notebooklmDialogueLabel": {
+    "message": "대화 테스트 — 대화에 대한 단어/문장"
+  },
+  "notebooklmDialoguePlaceholder": {
+    "message": "몇 개의 단어나 문장을 붙여넣어 대화를 만들어 보세요."
+  },
+  "notebooklmHint": {
+    "message": "먼저 NotebookLM 노트북을 열고 물어보세요. 로그인이 필요합니다."
+  },
+  "notebooklmNotebookUrl": {
+    "message": "노트북 URL(선택사항):"
+  },
+  "notebooklmQuestionLabel": {
+    "message": "질문:"
+  },
+  "notebooklmQuestionPlaceholder": {
+    "message": "이 노트는 무엇에 관한 것인가요?"
+  },
+  "notebooklmRequestFailed": {
+    "message": "NotebookLM 요청이 실패했습니다."
+  },
+  "notebooklmTitle": {
+    "message": "노트북LM 자동화"
+  },
+  "offlineStatus": {
+    "message": "오프라인"
+  },
+  "oneHourOption": {
+    "message": "1시간",
+    "description": "1시간 지속 시간 옵션"
+  },
+  "oneMinuteOption": {
+    "message": "1분",
+    "description": "1분 지속 시간 옵션"
+  },
+  "onlineStatus": {
+    "message": "온라인"
+  },
+  "openNewTabForTest": {
+    "message": "각 테스트마다 새 탭 열기"
+  },
+  "openPersistentTab": {
+    "message": "영구 탭에서 열기"
+  },
+  "optionalPlaceholder": {
+    "message": "선택 사항",
+    "description": "선택 필드 플레이스홀더"
+  },
+  "otherLanguageCodePlaceholder": {
+    "message": "기타 언어 코드"
+  },
+  "otherSettingsLabel": {
+    "message": "다른"
+  },
+  "pagesUnit": {
+    "message": "페이지",
+    "description": "페이지 수 단위"
+  },
+  "patternLabel": {
+    "message": "무늬"
+  },
+  "pendingFastLabel": {
+    "message": "⚡ $count$ 빠르다",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingRetriesLabel": {
+    "message": "보류 중인 재시도: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "permissionDeniedErrorMessage": {
+    "message": "권한이 거부되었습니다",
+    "description": "권한 거부 오류 메시지"
+  },
+  "phrasesLabel": {
+    "message": "실없는 말"
+  },
+  "playPronunciation": {
+    "message": "발음 재생"
+  },
+  "playUkPronunciation": {
+    "message": "영국 발음 재생"
+  },
+  "playUsPronunciation": {
+    "message": "미국 발음 재생"
+  },
+  "primaryLanguageGeneratedHint": {
+    "message": "(기본/원어 언어는 자동으로 생성되며 회색으로 표시됩니다)"
+  },
+  "primaryNavigationLabel": {
+    "message": "기본 탐색"
+  },
+  "processingCacheStatus": {
+    "message": "캐시 처리 중...",
+    "description": "캐시 처리 상태"
+  },
+  "processingStatus": {
+    "message": "처리 중...",
+    "description": "처리 진행 메시지"
+  },
+  "processorName_bingDictionary": {
+    "message": "빙 사전"
+  },
+  "processorName_deepseek": {
+    "message": "딥시크 AI"
+  },
+  "processorName_qwenTts": {
+    "message": "Qwen3 TTS"
+  },
+  "processorName_webAiTranslate": {
+    "message": "웹-AI 번역"
+  },
+  "processorName_wordValidityWeb": {
+    "message": "단어 유효성"
+  },
+  "promptLabel": {
+    "message": "즉각적인"
+  },
+  "providerGenerationFailed": {
+    "message": "$provider$ 생성 실패",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerReplyTimeout": {
+    "message": "$provider$ 응답을 기다리는 동안 시간이 초과되었습니다.",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerStartFailed": {
+    "message": "$provider$ 시작 실패: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerTestStartFailed": {
+    "message": "$provider$ 테스트 시작 실패: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "queryLabel": {
+    "message": "질문"
+  },
+  "queueAddBingTest": {
+    "message": "Bing 테스트 작업 추가"
+  },
+  "queueAddDeepseekTest": {
+    "message": "DeepSeek 테스트 작업 추가"
+  },
+  "queueCenterTabLogs": {
+    "message": "로그"
+  },
+  "queueCenterTabQueue": {
+    "message": "대기줄"
+  },
+  "queueItemAssignedLabel": {
+    "message": "할당된:"
+  },
+  "queueItemPrioAge": {
+    "message": "이전 $priority$ · $age$s",
+    "placeholders": {
+      "priority": {
+        "content": "$1"
+      },
+      "age": {
+        "content": "$2"
+      }
+    }
+  },
+  "queueTestActions": {
+    "message": "테스트 작업:"
+  },
+  "queueTestConnection": {
+    "message": "테스트 연결"
+  },
+  "queueTestFail": {
+    "message": "대기열 연결에 실패했습니다."
+  },
+  "queueTestOk": {
+    "message": "대기열 연결됨 — 대기열에 작업 {0}개가 있습니다."
+  },
+  "queueTesting": {
+    "message": "대기열 연결 테스트 중…"
+  },
+  "qwenCustomVoice": {
+    "message": "TTS(CustomVoice)"
+  },
+  "qwenGpuWaitingHint": {
+    "message": "HuggingFace Zero GPU를 기다리는 중 — 탭을 열어두세요."
+  },
+  "qwenSettingsSharedHint": {
+    "message": "Laravel 프로덕션 작업 및 확장 테스트 패널에서 공유됩니다."
+  },
+  "qwenTextPlaceholder": {
+    "message": "Qwen3-TTS에 대한 텍스트를 입력하세요…"
+  },
+  "qwenTtsFailed": {
+    "message": "Qwen TTS 실패"
+  },
+  "qwenVoiceClone": {
+    "message": "음성 복제(기본)"
+  },
+  "qwenVoiceDesign": {
+    "message": "음성 디자인"
+  },
+  "realtimeWebsocketOption": {
+    "message": "실시간 (WebSocket)",
+    "description": "실시간 WebSocket 스트리밍 옵션"
+  },
+  "recentSearchesLabel": {
+    "message": "최근 검색"
+  },
+  "recordingGeneralError": {
+    "message": "녹음 시작 중 오류 발생: $ERROR$",
+    "description": "일반 녹음 오류 메시지",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "알 수 없는 오류"
+      }
+    }
+  },
+  "recordingSettingsLabel": {
+    "message": "녹음 설정",
+    "description": "녹음 설정 섹션 제목"
+  },
+  "recordingSettingsManagedHint": {
+    "message": "녹화 서버, 메타데이터, 스트리밍 옵션은 설정 센터에서 관리됩니다."
+  },
+  "recordingStatus": {
+    "message": "녹음 중",
+    "description": "녹음 활성 상태"
+  },
+  "recordingStatusLabel": {
+    "message": "녹음 상태:",
+    "description": "녹음 상태 레이블"
+  },
+  "recordingTargetLabel": {
+    "message": "녹화 대상(탭)"
+  },
+  "refreshCatalogButton": {
+    "message": "카탈로그 새로 고침"
+  },
+  "refreshStatusButton": {
+    "message": "상태 새로고침",
+    "description": "상태 새로고침 버튼 툴팁"
+  },
+  "reinitializeButton": {
+    "message": "재초기화",
+    "description": "재초기화 버튼 텍스트"
+  },
+  "reloadSegments": {
+    "message": "세그먼트 다시 로드"
+  },
+  "removeLanguageTitle": {
+    "message": "언어 삭제"
+  },
+  "resetButton": {
+    "message": "초기화",
+    "description": "초기화 버튼 텍스트"
+  },
+  "resetGeneralSettings": {
+    "message": "일반 설정 재설정"
+  },
+  "resetGeneralSettingsConfirm": {
+    "message": "일반 서버 및 디버그 설정을 기본값으로 재설정하시겠습니까?"
+  },
+  "resumeFailed": {
+    "message": "이력서 실패"
+  },
+  "retryButton": {
+    "message": "재시도",
+    "description": "재시도 버튼 텍스트"
+  },
+  "runningStatusLabel": {
+    "message": "실행 상태",
+    "description": "서버 실행 상태 레이블"
+  },
+  "saveButton": {
+    "message": "저장",
+    "description": "저장 버튼 텍스트"
+  },
+  "saveLocallyLabel": {
+    "message": "로컬에 녹음 저장",
+    "description": "로컬에 녹음 저장 체크박스 레이블"
+  },
+  "savedStatus": {
+    "message": "저장됨"
+  },
+  "scrapeFetchLabel": {
+    "message": "긁기/가져오기"
+  },
+  "scrapeTestFailed": {
+    "message": "스크랩 테스트 실패"
+  },
+  "searchEngineLabel": {
+    "message": "엔진"
+  },
+  "searchFailed": {
+    "message": "검색 실패"
+  },
+  "semanticEngineInitFailedStatus": {
+    "message": "시맨틱 엔진 초기화 실패",
+    "description": "시맨틱 엔진 초기화 실패 상태"
+  },
+  "semanticEngineInitializingStatus": {
+    "message": "시맨틱 엔진 초기화 중...",
+    "description": "시맨틱 엔진 초기화 상태"
+  },
+  "semanticEngineLabel": {
+    "message": "시맨틱 엔진",
+    "description": "시맨틱 엔진의 주 섹션 제목"
+  },
+  "semanticEngineNotInitStatus": {
+    "message": "시맨틱 엔진이 초기화되지 않음",
+    "description": "시맨틱 엔진이 초기화되지 않은 상태"
+  },
+  "semanticEngineReadyStatus": {
+    "message": "시맨틱 엔진 준비 완료",
+    "description": "시맨틱 엔진 준비 완료 상태"
+  },
+  "sentencePatternHint": {
+    "message": "문장 구조 라벨(예: 뿐만 아니라…뿐만 아니라)"
+  },
+  "serverNamePlaceholder": {
+    "message": "서버 이름",
+    "description": "서버 이름 입력 플레이스홀더"
+  },
+  "serviceNotConnectedStatus": {
+    "message": "서비스에 연결되지 않음",
+    "description": "서비스가 연결되지 않은 상태"
+  },
+  "serviceRunningStatus": {
+    "message": "서비스 실행 중 (포트: $PORT$)",
+    "description": "포트 번호와 함께 서비스 실행 중 상태",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "12306"
+      }
+    }
+  },
+  "sessionMetadataHelper": {
+    "message": "여기에 정의된 키/값 쌍은 각 HTTP 업로드에 추가되고 WebSocket을 통해 메타데이터 페이로드로 한 번 전송됩니다.",
+    "description": "세션 메타데이터 도움말 텍스트"
+  },
+  "sessionMetadataLabel": {
+    "message": "세션 메타데이터 (JSON)",
+    "description": "세션 메타데이터 섹션 제목"
+  },
+  "settingsTitle": {
+    "message": "설정",
+    "description": "설정 대화상자 제목"
+  },
+  "showDetailedLogsHint": {
+    "message": "자세한 로그 표시"
+  },
+  "silenceDurationLabel": {
+    "message": "무음 지속 시간 (초):",
+    "description": "무음 지속 시간 입력 레이블"
+  },
+  "solveSearchVerification": {
+    "message": "검색탭에서 인증을 해결하세요."
+  },
+  "sourceLanguageAlwaysGenerated": {
+    "message": "확장된 책의 소스 언어 — 항상 생성됨"
+  },
+  "sourceLanguageExpressionsHint": {
+    "message": "소스 언어: 대체 표현 건너뛰기(번역된 언어만 가져옴)"
+  },
+  "sourceLanguageLabel": {
+    "message": "소스 언어"
+  },
+  "sourceUrlLabel": {
+    "message": "소스 URL"
+  },
+  "startAssistButton": {
+    "message": "지원 시작"
+  },
+  "startAutomaticRebuilds": {
+    "message": "  파일 변경 시 자동으로 다시 빌드됩니다."
+  },
+  "startBannerTitle": {
+    "message": "  Chrome MCP Server - Windows"
+  },
+  "startBuildConfigIncomplete": {
+    "message": "경고: 빌드 구성이 불완전한 것 같습니다. 기본값으로 계속 진행합니다."
+  },
+  "startBuildSkipped": {
+    "message": "  빌드를 건너뛰고 기존 출력을 사용합니다."
+  },
+  "startBuildingExtension": {
+    "message": "Chrome 확장 프로그램을 빌드하는 중..."
+  },
+  "startBuildingNative": {
+    "message": "Native Server를 빌드하는 중..."
+  },
+  "startBuildingNativeLive": {
+    "message": "  mcp-chrome-bridge를 빌드하는 중(실시간 출력)..."
+  },
+  "startBuildingShared": {
+    "message": "공유 패키지를 빌드하는 중..."
+  },
+  "startBuildingSharedLive": {
+    "message": "  chrome-mcp-shared를 빌드하는 중(실시간 출력)..."
+  },
+  "startCannotRegister": {
+    "message": "  확장 프로그램 ID가 없으면 Native Host를 등록할 수 없습니다"
+  },
+  "startCheckingCmdShims": {
+    "message": "  Windows .cmd shim을 확인하는 중..."
+  },
+  "startCheckingDependencies": {
+    "message": "종속성을 확인하는 중..."
+  },
+  "startChromeDiscoveryMayFail": {
+    "message": "  Chrome이 Native Messaging Host를 찾지 못할 수 있습니다"
+  },
+  "startComplete": {
+    "message": "  빌드 및 등록 완료"
+  },
+  "startDependenciesInstalled": {
+    "message": "  OK 종속성이 이미 설치되어 있습니다"
+  },
+  "startDependencyInstallFinished": {
+    "message": "  OK 종속성 설치 단계가 완료되었습니다"
+  },
+  "startExtensionBuildFailed": {
+    "message": "  오류: $maximum$회 시도 후에도 Chrome 확장 프로그램을 빌드하지 못했습니다",
+    "placeholders": {
+      "maximum": {
+        "content": "$1"
+      }
+    }
+  },
+  "startExtensionBuilt": {
+    "message": "  OK Chrome 확장 프로그램을 빌드했습니다"
+  },
+  "startExtensionIdUncalculated": {
+    "message": "  확장 프로그램 ID를 자동으로 계산할 수 없습니다"
+  },
+  "startFailed": {
+    "message": "시작 실패"
+  },
+  "startHostMayFail": {
+    "message": "  Native Messaging Host가 올바르게 작동하지 않을 수 있습니다"
+  },
+  "startImportantPaths": {
+    "message": "[중요 경로]\n\n  1) Chrome 확장 프로그램(프런트엔드):\n     $extensionPath$\n\n  2) Native Server(백엔드):\n     $nativePath$",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      },
+      "nativePath": {
+        "content": "$2"
+      }
+    }
+  },
+  "startInstallingDependencies": {
+    "message": "종속성을 설치하는 중..."
+  },
+  "startInstallingDependenciesLive": {
+    "message": "  종속성을 설치하는 중(실시간 출력)..."
+  },
+  "startInstructions": {
+    "message": "[1단계] Chrome에 확장 프로그램 로드(최초 한 번):\n  1. Chrome에서 chrome://extensions/ 열기\n  2. 개발자 모드 사용(오른쪽 위 전환 버튼)\n  3. '압축해제된 확장 프로그램을 로드합니다' 클릭\n  4. 폴더 선택: $extensionPath$\n  참고: 이 폴더를 로드된 상태로 유지하세요. WXT 개발 서버가 같은 경로에 기록합니다.\n\n[2단계] MCP 서비스 연결:\n  1. Chrome에서 확장 프로그램 아이콘 클릭\n  2. 연결 버튼 클릭\n  3. 서비스가 http://127.0.0.1:12306 에서 시작됩니다\n\n[3단계] 동적 디버깅(구성 요소별):\n\n  팝업 (apps/chrome-extension/entrypoints/popup/):\n    - 팝업을 마우스 오른쪽 버튼으로 클릭 -> 검사 -> DevTools 열림\n    - 파일 저장 후 팝업을 다시 엽니다(WXT HMR 자동 새로고침)\n    - 또는 DevTools에서 Ctrl+R을 눌러 강제로 새로고침합니다\n\n  BACKGROUND SERVICE WORKER (entrypoints/background.ts):\n    - chrome://extensions/ 열기 -> 확장 프로그램 찾기 -> 'Service Worker' 클릭\n    - 파일 저장 후 확장 프로그램 카드의 원형 새로고침 아이콘 클릭\n    - WXT는 다시 빌드한 후 확장 프로그램을 자동으로 다시 로드합니다\n\n  CONTENT SCRIPTS (entrypoints/content.ts / inject-scripts/):\n    - 대상 페이지 열기 -> F12 -> Sources -> Content Scripts 탭\n    - 파일 저장 후 대상 페이지 새로고침(Ctrl+R)\n    - WXT는 개발 모드에서 Content Scripts를 동적으로 다시 등록합니다\n\n  모든 확장 프로그램 페이지 검사:\n    - chrome://inspect/#extensions 열기",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      }
+    }
+  },
+  "startLaunchingWatch": {
+    "message": "  WXT 개발 서버를 시작하는 중(감시 모드)..."
+  },
+  "startLocation": {
+    "message": "    위치: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestContent": {
+    "message": "  매니페스트 내용:"
+  },
+  "startManifestFileMissing": {
+    "message": "  경고: 매니페스트 파일을 찾을 수 없습니다: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestKeyMissing": {
+    "message": "  경고: manifest.json에 'key' 필드가 없습니다"
+  },
+  "startManifestKeyPresent": {
+    "message": "  OK manifest.json에 확장 프로그램 ID용 'key' 필드가 있습니다"
+  },
+  "startManifestMissing": {
+    "message": "  오류: manifest.json을 찾을 수 없습니다: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestRegistered": {
+    "message": "  OK Chrome 매니페스트를 등록했습니다"
+  },
+  "startManifestVerificationFailed": {
+    "message": "  경고: manifest.json 구조를 확인할 수 없습니다"
+  },
+  "startNativeBuilt": {
+    "message": "  OK Native Server를 빌드했습니다(결과물 있음)"
+  },
+  "startNativeMissing": {
+    "message": "  경고: Native Server 결과물을 찾을 수 없습니다: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startNextSteps": {
+    "message": "  다음 단계"
+  },
+  "startNodeMissing": {
+    "message": "  오류: Node.js를 찾을 수 없습니다"
+  },
+  "startNodeVersion": {
+    "message": "  OK Node.js: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startOneTimeComplete": {
+    "message": "  일회성 빌드가 완료되었습니다. 개발 감시기가 비활성화되었습니다."
+  },
+  "startPnpmMissing": {
+    "message": "  오류: pnpm을 찾을 수 없습니다"
+  },
+  "startPnpmVersion": {
+    "message": "  OK pnpm: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startPressStop": {
+    "message": "  중지하려면 Ctrl+C를 누르세요."
+  },
+  "startProcessingBuildConfiguration": {
+    "message": "[Python] 빌드 구성을 처리하는 중..."
+  },
+  "startPythonError": {
+    "message": "경고: Python 스크립트에서 오류가 발생했습니다(계속 진행): $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "startRebuilding": {
+    "message": "  다시 빌드하는 중(MCP_SKIP_BUILD=1로 기존 출력 사용)."
+  },
+  "startRecordingButton": {
+    "message": "녹음 시작",
+    "description": "녹음 시작 버튼 텍스트"
   },
   "startRecordingError": {
     "message": "녹음 시작 실패: $ERROR$",
@@ -621,14 +1746,611 @@
       }
     }
   },
-  "recordingGeneralError": {
-    "message": "녹음 시작 중 오류 발생: $ERROR$",
-    "description": "일반 녹음 오류 메시지",
+  "startRegisteringHost": {
+    "message": "  Native Messaging Host를 등록하는 중..."
+  },
+  "startRegisteringNative": {
+    "message": "Native Messaging Host를 등록하는 중..."
+  },
+  "startRegistrationMayRequireUpdate": {
+    "message": "  Native Host 등록 시 확장 프로그램 ID를 수동으로 업데이트해야 할 수 있습니다"
+  },
+  "startRegistrationVerification": {
+    "message": "  등록 확인:"
+  },
+  "startRegistrationWillProceed": {
+    "message": "  Native Host 등록을 계속하지만 ID를 수동으로 업데이트해야 할 수 있습니다"
+  },
+  "startRegistryExists": {
+    "message": "  OK Windows 레지스트리 키가 있습니다"
+  },
+  "startRegistryMissing": {
+    "message": "  경고: Windows 레지스트리 키를 찾을 수 없습니다: $path$",
     "placeholders": {
-      "error": {
-        "content": "$1",
-        "example": "알 수 없는 오류"
+      "path": {
+        "content": "$1"
       }
     }
+  },
+  "startRetryingBuild": {
+    "message": "  빌드를 다시 시도하는 중($attempt$/$maximum$회)...",
+    "placeholders": {
+      "attempt": {
+        "content": "$1"
+      },
+      "maximum": {
+        "content": "$2"
+      }
+    }
+  },
+  "startServiceFailed": {
+    "message": "서비스를 시작하지 못했습니다."
+  },
+  "startSetupTitle": {
+    "message": "Chrome MCP Server - Windows 설정"
+  },
+  "startSharedBuilt": {
+    "message": "  OK 공유 패키지를 빌드했습니다(결과물 있음)"
+  },
+  "startSharedMissing": {
+    "message": "  경고: 공유 빌드 결과물을 찾을 수 없습니다: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startSkipBuild": {
+    "message": "  MCP_SKIP_BUILD=1; 다시 빌드하지 않고 기존 출력을 사용합니다."
+  },
+  "startWatchDevSelected": {
+    "message": "  개발 감시 모드를 선택했습니다."
+  },
+  "startWatchOnceSelected": {
+    "message": "  일회성 빌드를 선택했습니다."
+  },
+  "startWatchPrompt": {
+    "message": "개발 감시 모드를 사용하시겠습니까? [Y/n]"
+  },
+  "stateLabel": {
+    "message": "상태"
+  },
+  "statusLabel": {
+    "message": "상태",
+    "description": "일반 상태 레이블"
+  },
+  "stopAssistButton": {
+    "message": "지원 중지"
+  },
+  "stopRecordingButton": {
+    "message": "녹음 정지",
+    "description": "녹음 정지 버튼 텍스트"
+  },
+  "stopServiceFailed": {
+    "message": "서비스를 중지하지 못했습니다."
+  },
+  "streamingModeLabel": {
+    "message": "스트리밍 모드:",
+    "description": "스트리밍 모드 선택 레이블"
+  },
+  "styleInstructionLabel": {
+    "message": "스타일 지시"
+  },
+  "submitDisabled": {
+    "message": "제출 비활성화됨"
+  },
+  "submitFailed": {
+    "message": "제출 실패"
+  },
+  "successNotification": {
+    "message": "작업이 성공적으로 완료되었습니다",
+    "description": "일반 성공 알림"
+  },
+  "switchingModelStatus": {
+    "message": "모델 전환 중...",
+    "description": "모델 전환 진행 메시지"
+  },
+  "synonymsLabel": {
+    "message": "동의어"
+  },
+  "tabIndexLabel": {
+    "message": "탭 $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "targetLanguagesLabel": {
+    "message": "대상 언어"
+  },
+  "taskCenterActiveCount": {
+    "message": "$1 활성"
+  },
+  "taskCenterActiveLabel": {
+    "message": "활동적인"
+  },
+  "taskCenterAiTranslateLabel": {
+    "message": "AI 번역"
+  },
+  "taskCenterAllLabel": {
+    "message": "모두"
+  },
+  "taskCenterAllTasks": {
+    "message": "모든 작업"
+  },
+  "taskCenterAppLabel": {
+    "message": "애플리케이션"
+  },
+  "taskCenterAttemptLabel": {
+    "message": "시도"
+  },
+  "taskCenterAttemptsLabel": {
+    "message": "시도"
+  },
+  "taskCenterBackendFailureCount": {
+    "message": "$1 실패"
+  },
+  "taskCenterBackendOffline": {
+    "message": "백엔드 오프라인"
+  },
+  "taskCenterBackendOnline": {
+    "message": "백엔드 온라인"
+  },
+  "taskCenterBumpFailed": {
+    "message": "작업을 이동하지 못했습니다."
+  },
+  "taskCenterBumpHint": {
+    "message": "이 작업을 우선순위 $1의 빠른 차선 앞으로 이동하세요."
+  },
+  "taskCenterBumpedLabel": {
+    "message": "맨 위로 이동됨"
+  },
+  "taskCenterBumpingLabel": {
+    "message": "움직이는…"
+  },
+  "taskCenterCancelReadyAction": {
+    "message": "준비 취소"
+  },
+  "taskCenterCapabilityLabel": {
+    "message": "능력"
+  },
+  "taskCenterCapability_chatgpt_hint": {
+    "message": "ChatGPT 웹 대화를 실행하고, 소리내어 읽어주는 오디오를 캡처하고, 결과를 Laravel에 다시 씁니다."
+  },
+  "taskCenterCapability_chatgpt_label": {
+    "message": "ChatGPT 긴 형식 오디오 작업 실행"
+  },
+  "taskCenterCapability_gemini_image_hint": {
+    "message": "Gemini를 사용하여 어휘 라이브러리 표지를 생성하고 이를 다시 Laravel에 씁니다."
+  },
+  "taskCenterCapability_gemini_image_label": {
+    "message": "AI 단어그룹 표지 생성"
+  },
+  "taskCenterCapability_image_hint": {
+    "message": "공유 브라우저 워커를 통해 책 표지, 미디어 포스터를 검색하고 답장합니다."
+  },
+  "taskCenterCapability_image_label": {
+    "message": "표지 및 포스터 검색"
+  },
+  "taskCenterCapability_notebooklm_hint": {
+    "message": "결과 쓰기 저장을 통해 공유 브라우저 런타임에 대한 Laravel NotebookLM 대기열"
+  },
+  "taskCenterCapability_notebooklm_label": {
+    "message": "NotebookLM 생성 작업 실행"
+  },
+  "taskCenterCapability_validity_hint": {
+    "message": "확인되지 않거나 번역되지 않은 단어를 제거하고 웹 AI 및 Bing 번역 작업자를 활성화합니다."
+  },
+  "taskCenterCapability_validity_label": {
+    "message": "단어 유효성 및 번역 작업 실행"
+  },
+  "taskCenterCategoryLoadError": {
+    "message": "카테고리 작업을 로드하지 못했습니다."
+  },
+  "taskCenterCategory_article_audio": {
+    "message": "기사 오디오"
+  },
+  "taskCenterCategory_article_tts_generation": {
+    "message": "기사 음성 생성"
+  },
+  "taskCenterCategory_audio_transcribe": {
+    "message": "오디오 전사"
+  },
+  "taskCenterCategory_chatgpt_chat": {
+    "message": "채팅GPT 대화"
+  },
+  "taskCenterCategory_dictionary_explanation": {
+    "message": "사전 설명"
+  },
+  "taskCenterCategory_dictionary_explanation_demo": {
+    "message": "사전 데모"
+  },
+  "taskCenterCategory_gemini_chat": {
+    "message": "AI 대화"
+  },
+  "taskCenterCategory_gemini_image": {
+    "message": "AI 이미지 생성"
+  },
+  "taskCenterCategory_notebooklm": {
+    "message": "노트북LM 처리"
+  },
+  "taskCenterCategory_poster": {
+    "message": "표지 및 포스터 검색"
+  },
+  "taskCenterCategory_prompt_translation": {
+    "message": "신속한 번역"
+  },
+  "taskCenterCategory_sentence_audio": {
+    "message": "문장 오디오"
+  },
+  "taskCenterCategory_stt": {
+    "message": "음성 인식"
+  },
+  "taskCenterCategory_subtitle_search": {
+    "message": "자막 검색"
+  },
+  "taskCenterCategory_word_audio": {
+    "message": "워드 오디오"
+  },
+  "taskCenterCategory_word_media": {
+    "message": "단어 이미지"
+  },
+  "taskCenterCategory_word_translation": {
+    "message": "단어 번역"
+  },
+  "taskCenterCategory_word_validity": {
+    "message": "단어 유효성"
+  },
+  "taskCenterCompletedLabel": {
+    "message": "완전한"
+  },
+  "taskCenterConnectingStream": {
+    "message": "실시간 스트림에 연결 중…"
+  },
+  "taskCenterCurrentStageLabel": {
+    "message": "단계"
+  },
+  "taskCenterCurrentTaskLabel": {
+    "message": "현재 작업"
+  },
+  "taskCenterDoneLabel": {
+    "message": "완료"
+  },
+  "taskCenterDuplicateLabel": {
+    "message": "복제하다"
+  },
+  "taskCenterElapsedLabel": {
+    "message": "경과됨"
+  },
+  "taskCenterExecutionDescription": {
+    "message": "작업 탭과 공유되며 준비가 되면 즉시 적용됩니다."
+  },
+  "taskCenterExecutionTitle": {
+    "message": "작업 실행"
+  },
+  "taskCenterFailedLabel": {
+    "message": "실패한"
+  },
+  "taskCenterHistoryLabel": {
+    "message": "역사"
+  },
+  "taskCenterInactiveLabel": {
+    "message": "비활성"
+  },
+  "taskCenterLaneLabel": {
+    "message": "레인"
+  },
+  "taskCenterLastLabel": {
+    "message": "마지막"
+  },
+  "taskCenterLeasedLabel": {
+    "message": "임대"
+  },
+  "taskCenterLiveLabel": {
+    "message": "살다"
+  },
+  "taskCenterLoadError": {
+    "message": "작업을 로드하지 못했습니다."
+  },
+  "taskCenterLoadSummary": {
+    "message": "로드된 $1 보류 중($2 브라우저에서 처리 가능)"
+  },
+  "taskCenterNewLabel": {
+    "message": "새로운"
+  },
+  "taskCenterNextPage": {
+    "message": "다음"
+  },
+  "taskCenterNoMatchingTasks": {
+    "message": "현재 필터와 일치하는 작업이 없습니다."
+  },
+  "taskCenterNoTasksFound": {
+    "message": "작업을 찾을 수 없습니다."
+  },
+  "taskCenterNotReadyStatus": {
+    "message": "준비되지 않음"
+  },
+  "taskCenterPageRange": {
+    "message": "$3 중 $1-$2"
+  },
+  "taskCenterPayloadLabel": {
+    "message": "유효 탑재량"
+  },
+  "taskCenterPendingLabel": {
+    "message": "보류 중"
+  },
+  "taskCenterPhaseLabel": {
+    "message": "단계"
+  },
+  "taskCenterPreviousPage": {
+    "message": "이전의"
+  },
+  "taskCenterProcessingLabel": {
+    "message": "처리"
+  },
+  "taskCenterProcessorDetails": {
+    "message": "프로세서 · $1/$2 활성"
+  },
+  "taskCenterProcessorsLabel": {
+    "message": "프로세서"
+  },
+  "taskCenterProductionDescription": {
+    "message": "Laravel 큐 → 공유 MCP 런타임 → 결과 쓰기 저장."
+  },
+  "taskCenterProductionTitle": {
+    "message": "생산업무"
+  },
+  "taskCenterProviderLabel": {
+    "message": "공급자"
+  },
+  "taskCenterQueueLabel": {
+    "message": "대기줄"
+  },
+  "taskCenterReadyAndStartAction": {
+    "message": "작업 준비 및 시작"
+  },
+  "taskCenterReadyControlHint": {
+    "message": "준비된 모니터 Laravel; 토글은 작업을 즉시 시작하거나 중지합니다."
+  },
+  "taskCenterReadyOnlyAction": {
+    "message": "준비가 된"
+  },
+  "taskCenterReadyOnlyHint": {
+    "message": "작업을 실행하지 않고도 Laravel을 준비하고 모니터링할 수 있습니다."
+  },
+  "taskCenterReadyRunningStatus": {
+    "message": "준비 · 실행 중"
+  },
+  "taskCenterReadyStatus": {
+    "message": "준비가 된"
+  },
+  "taskCenterReadyWithTasksHint": {
+    "message": "준비하고 선택한 모든 작업 기능을 시작하십시오."
+  },
+  "taskCenterRefresh": {
+    "message": "작업 새로 고침"
+  },
+  "taskCenterResultLabel": {
+    "message": "결과"
+  },
+  "taskCenterSearchAction": {
+    "message": "찾다"
+  },
+  "taskCenterSearchPlaceholder": {
+    "message": "작업 내용 또는 ID 검색"
+  },
+  "taskCenterSelectedCount": {
+    "message": "$1 선택됨"
+  },
+  "taskCenterShowAll": {
+    "message": "$1 모두 표시"
+  },
+  "taskCenterShowLess": {
+    "message": "간략히 보기"
+  },
+  "taskCenterSortLabel": {
+    "message": "종류"
+  },
+  "taskCenterSortNewest": {
+    "message": "최신"
+  },
+  "taskCenterSortOldest": {
+    "message": "가장 오래된"
+  },
+  "taskCenterSortPriority": {
+    "message": "우선 사항"
+  },
+  "taskCenterStartFailed": {
+    "message": "작업 센터를 시작하지 못했습니다."
+  },
+  "taskCenterStatusLabel": {
+    "message": "상태"
+  },
+  "taskCenterStatus_assigned": {
+    "message": "할당된"
+  },
+  "taskCenterStatus_cancelled": {
+    "message": "취소"
+  },
+  "taskCenterStatus_completed": {
+    "message": "완전한"
+  },
+  "taskCenterStatus_completed_demo": {
+    "message": "데모 완료"
+  },
+  "taskCenterStatus_failed": {
+    "message": "실패한"
+  },
+  "taskCenterStatus_leased": {
+    "message": "임대"
+  },
+  "taskCenterStatus_pending": {
+    "message": "보류 중"
+  },
+  "taskCenterStatus_processing": {
+    "message": "처리"
+  },
+  "taskCenterStopFailed": {
+    "message": "작업 센터를 중지하지 못했습니다."
+  },
+  "taskCenterStreamUnavailable": {
+    "message": "실시간 스트림을 사용할 수 없습니다."
+  },
+  "taskCenterTaskCount": {
+    "message": "$1 작업"
+  },
+  "taskCenterTaskTopLabel": {
+    "message": "맨 위로 이동"
+  },
+  "taskCenterTimelineLabel": {
+    "message": "타임라인"
+  },
+  "taskCenterTimeoutLabel": {
+    "message": "시간 초과"
+  },
+  "taskCenterUnifiedTitle": {
+    "message": "통합 작업 센터"
+  },
+  "taskCenterWorkerLabel": {
+    "message": "노동자"
+  },
+  "taskLabel": {
+    "message": "일"
+  },
+  "taskMediaAlt": {
+    "message": "작업 미디어"
+  },
+  "tenMinutesOption": {
+    "message": "10분",
+    "description": "10분 지속 시간 옵션"
+  },
+  "textToSynthesizeLabel": {
+    "message": "합성할 텍스트"
+  },
+  "textUploadLabel": {
+    "message": "텍스트 업로드"
+  },
+  "themeLabel": {
+    "message": "테마",
+    "description": "테마 선택기 레이블"
+  },
+  "thirtyMinutesOption": {
+    "message": "30분",
+    "description": "30분 지속 시간 옵션"
+  },
+  "timeoutErrorMessage": {
+    "message": "작업 시간 초과",
+    "description": "시간 초과 오류 메시지"
+  },
+  "toggleServiceFailed": {
+    "message": "서비스를 전환하지 못했습니다."
+  },
+  "toolboxLabel": {
+    "message": "도구 상자"
+  },
+  "totalLabel": {
+    "message": "총"
+  },
+  "typeWordPlaceholder": {
+    "message": "단어를 입력하세요…"
+  },
+  "unknownErrorMessage": {
+    "message": "알 수 없는 오류, 네트워크에서 HuggingFace에 접속할 수 있는지 확인하세요",
+    "description": "알 수 없는 오류 대체 메시지"
+  },
+  "unreachableStatus": {
+    "message": "연결할 수 없음"
+  },
+  "untranslatedQueueLabel": {
+    "message": "번역되지 않은 대기열"
+  },
+  "urlLabel": {
+    "message": "URL:",
+    "description": "URL 입력 레이블"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL 입력 플레이스홀더"
+  },
+  "useButton": {
+    "message": "사용"
+  },
+  "useDarkTheme": {
+    "message": "어두운 테마 사용"
+  },
+  "useLightTheme": {
+    "message": "밝은 테마 사용"
+  },
+  "validLabel": {
+    "message": "유효한"
+  },
+  "validityAiProviderHint": {
+    "message": "단어 유효성 검사가 구동하는 웹 AI(유효성 및 번역을 한 번에 수행)"
+  },
+  "validityAiProviderTitle": {
+    "message": "유효성 AI 제공자"
+  },
+  "validityTestFailed": {
+    "message": "유효성 테스트 실패"
+  },
+  "validityWordLanguageHint": {
+    "message": "기본적으로 영어 단어만 처리됩니다. 대신 백로그를 처리하려면 다른 언어를 선택하세요."
+  },
+  "validityWordLanguageTitle": {
+    "message": "유효성 단어 언어"
+  },
+  "validityWordsLabel": {
+    "message": "단어(쉼표 또는 줄바꿈으로 구분)"
+  },
+  "vectorDocumentsLabel": {
+    "message": "벡터 문서",
+    "description": "벡터 문서 수 레이블"
+  },
+  "vectorStoreLabel": {
+    "message": "벡터 스토어"
+  },
+  "verboseLoggingLabel": {
+    "message": "상세 로깅",
+    "description": "상세 로깅 토글 레이블"
+  },
+  "voiceDescriptionLabel": {
+    "message": "음성설명"
+  },
+  "waitForCaptchaHint": {
+    "message": "CAPTCHA 대기 - 해결되거나 시간 초과될 때까지 폴링"
+  },
+  "waitTimeoutSecondsLabel": {
+    "message": "대기 시간 초과(초)"
+  },
+  "warningNotification": {
+    "message": "경고: 계속하기 전에 검토하세요",
+    "description": "일반 경고 알림"
+  },
+  "webDefinitionsLabel": {
+    "message": "웹 정의"
+  },
+  "webMode": {
+    "message": "편물"
+  },
+  "webSearchPlaceholder": {
+    "message": "텍스트 또는 이미지 검색…"
+  },
+  "wordsLabel": {
+    "message": "단어"
+  },
+  "workerActionFailed": {
+    "message": "$action$ 작업자에 실패했습니다.",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerOptionsManagedHint": {
+    "message": "작업자 옵션은 설정 센터에서 관리됩니다."
+  },
+  "youglishPronunciationHint": {
+    "message": "실시간 상황 영상 발음 (YouGlish)"
   }
 }

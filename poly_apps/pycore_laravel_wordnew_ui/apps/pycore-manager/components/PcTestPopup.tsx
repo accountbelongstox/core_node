@@ -25,12 +25,12 @@ import {
   PYCORE_HTTP_ROUTES,
   pycoreApi,
   usePcEngineLoadStatus,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { PcBlobAudio } from './PcBlobMedia';
 import type {
   TtsTestResponse, SttTestResponse, OcrTestResponse, AiChatResponse,
   EngineLoadStatusEntry,
-} from '../../../core/api-libs/pycore/pycoreTypes';
+} from '@/apps/pycore-manager/api';
 import {
   getTestEngineProfile, getTestFormFields,
   type PcTestFormField, type PcTestEngineProfile,

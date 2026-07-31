@@ -8,7 +8,7 @@ import {
   AudioLines, ChevronUp, ChevronDown, Save, Loader2, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import { ElementTheme } from '../../WfNewTypes';
-import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '../../../../core/api-libs/pycore';
+import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/wordnew/integrations/pycore';
 
 /** Fallback try-order ONLY when the GET fails (mirrors pycore
  *  tts_orchestrator._DEFAULT_PRIORITY: gptsovits-first). */

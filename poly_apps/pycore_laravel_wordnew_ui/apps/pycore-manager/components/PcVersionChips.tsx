@@ -13,9 +13,9 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { GitCommitHorizontal } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { PcVersionInfo } from '../../../core/api-libs/pycore';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
+import type { PcVersionInfo } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { relativeAgo, absoluteTime } from '../utils/pcFormat';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
@@ -58,7 +58,11 @@ const PcVersionChips: React.FC = () => {
     };
   }, [refreshVersion]);
 
-  useTopicDrivenRefresh([PYCORE_EVENT_TOPICS.operationChanged], refreshVersion, { fallbackMs: 60_000 });
+  useTopicDrivenRefresh(
+    [PYCORE_EVENT_TOPICS.operationChanged],
+    refreshVersion,
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },
+  );
 
   const chip = (label: string, unix: number, file: string, ok: boolean, reason: string | null) => {
     const has = ok && unix > 0;

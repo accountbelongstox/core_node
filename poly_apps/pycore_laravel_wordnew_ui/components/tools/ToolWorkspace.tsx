@@ -1,11 +1,11 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Settings, Cloud, Zap, AlertCircle, Save } from "lucide-react";
 import BentoCard from '../BentoCard';
 import { ToolItem, ToolConnectionConfig } from '../../types';
 import { DEFAULT_API_CONFIGS } from '../../constants';
 import { apiClient } from '../../services/api';
 import { getDefaultBaseURL } from '../../config/constants';
-import { getSharedBaseURL } from '../../core/api/base/BaseAPI';
+import { getSharedBaseURL } from '@/apps/laravel-manager/api';
 
 interface ToolWorkspaceProps {
   tool: ToolItem;

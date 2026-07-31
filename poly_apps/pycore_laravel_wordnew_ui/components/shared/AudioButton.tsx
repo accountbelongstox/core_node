@@ -1,6 +1,6 @@
 import React from 'react';
 import { Volume2 } from 'lucide-react';
-import { absUrl } from '../../core/utils/absUrl';
+import { absUrl } from '../../apps/laravel-manager/utils/absUrl';
 
 /** Small play-on-click button for a Laravel-relative (or absolute) audio url. */
 const AudioButton: React.FC<{ url?: string }> = ({ url }) => {

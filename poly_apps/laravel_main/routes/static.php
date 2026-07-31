@@ -65,7 +65,7 @@ Route::get('/static/app_qy_v1/post_videos/{path}', function (\Illuminate\Http\Re
     return app(StaticFileController::class)->serveLaravelStatic($request, 'app_qy_v1/post_videos/' . $path);
 })->where('path', '.*')->name('static.appqyv1.post_videos');
 
-// Agent-history / worker article audio (e.g. /static/app_qy_v1/audio/agent_history/en/{id}.mp3)
+// Daily-reading worker audio (e.g. /static/app_qy_v1/audio/daily/en/{id}.mp3)
 // is written under PathMapper::getAppQyV1AudioBaseDir() == getLaravelStaticDir('app_qy_v1/audio')
 // (the laravel_db static tree), NOT the external wwwroot static path the generic
 // catch-all below serves — without this dedicated route every article audio URL

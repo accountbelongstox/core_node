@@ -3,8 +3,8 @@
     <aside class="feature-sidebar">
       <div class="feature-sidebar__heading">
         <div>
-          <p class="ui-eyebrow">Toolbox</p>
-          <h2 class="ui-title">Extensions</h2>
+          <p class="ui-eyebrow">{{ getMessage('toolboxLabel') }}</p>
+          <h2 class="ui-title">{{ getMessage('navExtensions') }}</h2>
         </div>
         <span class="ui-badge">{{ enabledExtensionsCount }}/{{ extensions.length }}</span>
       </div>
@@ -19,8 +19,8 @@
         >
           <span class="feature-icon" :data-accent="extension.accent">{{ extension.icon }}</span>
           <span class="feature-list__copy">
-            <strong>{{ extension.name }}</strong>
-            <small>{{ extension.enabled ? 'Enabled' : 'Available' }}</small>
+            <strong>{{ localizedName(extension.id) }}</strong>
+            <small>{{ extension.enabled ? getMessage('extEnabledStatus') : getMessage('extAvailableStatus') }}</small>
           </span>
           <span class="status-dot" :class="extension.enabled ? 'status-dot--success' : ''" />
         </button>
@@ -34,16 +34,16 @@
             {{ activeExtension.icon }}
           </span>
           <div>
-            <p class="ui-eyebrow">Browser capability</p>
-            <h2 class="ui-title">{{ activeExtension.name }}</h2>
-            <p class="ui-description">{{ activeExtension.description }}</p>
+            <p class="ui-eyebrow">{{ getMessage('browserCapabilityLabel') }}</p>
+            <h2 class="ui-title">{{ localizedName(activeExtension.id) }}</h2>
+            <p class="ui-description">{{ localizedDesc(activeExtension.id) }}</p>
           </div>
         </div>
 
         <button
           class="ui-switch"
           :class="{ 'ui-switch--active': activeExtension.enabled }"
-          :aria-label="`${activeExtension.enabled ? 'Disable' : 'Enable'} ${activeExtension.name}`"
+          :aria-label="getMessage(activeExtension.enabled ? 'disableNamedFeature' : 'enableNamedFeature', [localizedName(activeExtension.id)])"
           :aria-pressed="activeExtension.enabled"
           @click="toggleExtension(activeExtension.id)"
         >
@@ -66,8 +66,9 @@
 import { computed, onMounted, type Component } from 'vue';
 import { getMessage } from '@/utils/i18n';
 import { useExtensionConfig } from '@/composables/useExtensionConfig';
-import { usePersistedRef } from '@/composables/usePersistedRef';
+import { getLocalizedFeature } from '@/common/feature-registry';
 import type { FeatureId } from '@/common/feature-registry';
+import { usePersistedRef } from '@/composables/usePersistedRef';
 import BingDictionary from './extensions/BingDictionary.vue';
 import NotebookLMPanel from './extensions/NotebookLMPanel.vue';
 import GeminiImage from './extensions/GeminiImage.vue';
@@ -91,6 +92,8 @@ const FEATURE_COMPONENTS: Record<FeatureId, Component> = {
 };
 
 const { extensions, enabledExtensionsCount, toggleExtension, initialize } = useExtensionConfig();
+const localizedName = (id: FeatureId): string => getLocalizedFeature(id, getMessage).name;
+const localizedDesc = (id: FeatureId): string => getLocalizedFeature(id, getMessage).description;
 const activeExtId = usePersistedRef<FeatureId>('activeExtId', 'bing-dictionary');
 const activeExtension = computed(
   () => extensions.value.find((feature) => feature.id === activeExtId.value) ?? extensions.value[0],

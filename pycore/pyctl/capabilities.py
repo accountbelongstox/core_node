@@ -17,6 +17,7 @@ import importlib.util
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
 from pycore.pyfoundations.system_paths import (
     APP_CACHE_DIR,
@@ -317,7 +318,7 @@ def pycore_constants() -> List[Dict[str, Any]]:
          "note": "GPU/CPU max model tiers (pycore/tts_install_assets/tts_model_tiers.py)"},
         {"key": "ai_dispatch_order", "value": "free → balance → paid",
          "note": "Unified AI gateway smart-dispatch tier order"},
-        {"key": "rpc_port", "value": "59000",
+        {"key": "rpc_port", "value": str(PYCORE_HTTP_PORT),
          "note": "Default pycore backend (RPC v2 / HTTP API) port"},
         {"key": "ui_port", "value": "13054",
          "note": "Default dashboard UI dev-server port (PySide6 webview target)"},

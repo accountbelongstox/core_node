@@ -1,307 +1,360 @@
 {
-  "extensionName": {
-    "message": "chrome-mcp-server",
-    "description": "擴充功能名稱"
-  },
-  "extensionDescription": {
-    "message": "使用您自己的 Chrome 瀏覽器暴露瀏覽器功能",
-    "description": "擴充功能描述"
-  },
-  "nativeServerConfigLabel": {
-    "message": "原生伺服器設定",
-    "description": "本機伺服器設定的主要區段標題"
-  },
-  "semanticEngineLabel": {
-    "message": "語意引擎",
-    "description": "語意引擎的主要區段標題"
-  },
-  "embeddingModelLabel": {
-    "message": "Embedding 模型",
-    "description": "模型選擇的主要區段標題"
-  },
-  "indexDataManagementLabel": {
-    "message": "索引資料管理",
-    "description": "資料管理主要區段標題"
-  },
-  "modelCacheManagementLabel": {
-    "message": "模型快取管理",
-    "description": "快取管理主要區段標題"
-  },
-  "statusLabel": {
-    "message": "狀態",
-    "description": "通用狀態標籤"
-  },
-  "runningStatusLabel": {
-    "message": "執行狀態",
-    "description": "伺服器執行狀態標籤"
-  },
-  "connectionStatusLabel": {
-    "message": "連線狀態",
-    "description": "連線狀態標籤"
-  },
-  "lastUpdatedLabel": {
-    "message": "最後更新：",
-    "description": "最後更新時間戳標籤"
-  },
-  "connectButton": {
-    "message": "連線",
-    "description": "連線按鈕文字"
-  },
-  "disconnectButton": {
-    "message": "中斷連線",
-    "description": "中斷連線按鈕文字"
-  },
-  "connectingStatus": {
-    "message": "連線中...",
-    "description": "連線狀態訊息"
-  },
-  "connectedStatus": {
-    "message": "已連線",
-    "description": "已連線狀態訊息"
-  },
-  "disconnectedStatus": {
-    "message": "已中斷",
-    "description": "已中斷狀態訊息"
-  },
-  "detectingStatus": {
-    "message": "偵測中...",
-    "description": "偵測狀態訊息"
-  },
-  "serviceRunningStatus": {
-    "message": "服務執行中 (連結埠: $PORT$)",
-    "description": "含連結埠號的服務執行狀態",
-    "placeholders": {
-      "port": {
-        "content": "$1",
-        "example": "12306"
-      }
-    }
-  },
-  "serviceNotConnectedStatus": {
-    "message": "服務未連線",
-    "description": "服務未連線狀態"
-  },
-  "connectedServiceNotStartedStatus": {
-    "message": "已連線，服務未啟動",
-    "description": "已連線但服務未啟動狀態"
-  },
-  "mcpServerConfigLabel": {
-    "message": "MCP 伺服器設定",
-    "description": "MCP 伺服器設定區段標籤"
-  },
-  "connectionPortLabel": {
-    "message": "連結埠",
-    "description": "連結埠輸入標籤"
-  },
-  "refreshStatusButton": {
-    "message": "重新整理狀態",
-    "description": "重新整理狀態按鈕提示"
-  },
-  "copyConfigButton": {
-    "message": "複製設定",
-    "description": "複製設定按鈕文字"
-  },
-  "retryButton": {
-    "message": "重試",
-    "description": "重試按鈕文字"
-  },
-  "cancelButton": {
-    "message": "取消",
-    "description": "取消按鈕文字"
-  },
-  "confirmButton": {
-    "message": "確認",
-    "description": "確認按鈕文字"
-  },
-  "saveButton": {
-    "message": "儲存",
-    "description": "儲存按鈕文字"
-  },
-  "closeButton": {
-    "message": "關閉",
-    "description": "關閉按鈕文字"
-  },
-  "resetButton": {
-    "message": "重設",
-    "description": "重設按鈕文字"
-  },
-  "initializingStatus": {
-    "message": "初始化中...",
-    "description": "初始化進度訊息"
-  },
-  "processingStatus": {
-    "message": "處理中...",
-    "description": "處理進度訊息"
-  },
-  "loadingStatus": {
-    "message": "載入中...",
-    "description": "載入進度訊息"
-  },
-  "clearingStatus": {
-    "message": "清除中...",
-    "description": "清除進度訊息"
-  },
-  "cleaningStatus": {
-    "message": "清理中...",
-    "description": "清理進度訊息"
-  },
-  "downloadingStatus": {
-    "message": "下載中...",
-    "description": "下載進度訊息"
-  },
-  "semanticEngineReadyStatus": {
-    "message": "語意引擎已就緒",
-    "description": "語意引擎就緒狀態"
-  },
-  "semanticEngineInitializingStatus": {
-    "message": "語意引擎初始化中...",
-    "description": "語意引擎初始化狀態"
-  },
-  "semanticEngineInitFailedStatus": {
-    "message": "語意引擎初始化失敗",
-    "description": "語意引擎初始化失敗狀態"
-  },
-  "semanticEngineNotInitStatus": {
-    "message": "語意引擎未初始化",
-    "description": "語意引擎未初始化狀態"
-  },
-  "initSemanticEngineButton": {
-    "message": "初始化語意引擎",
-    "description": "初始化語意引擎按鈕文字"
-  },
-  "reinitializeButton": {
-    "message": "重新初始化",
-    "description": "重新初始化按鈕文字"
-  },
-  "downloadingModelStatus": {
-    "message": "正在下載模型... $PROGRESS$%",
-    "description": "含百分比的模型下載進度",
-    "placeholders": {
-      "progress": {
-        "content": "$1",
-        "example": "50"
-      }
-    }
-  },
-  "switchingModelStatus": {
-    "message": "正在切換模型...",
-    "description": "模型切換進度訊息"
-  },
-  "modelLoadedStatus": {
-    "message": "模型已載入",
-    "description": "模型成功載入狀態"
-  },
-  "modelFailedStatus": {
-    "message": "模型載入失敗",
-    "description": "模型載入失敗狀態"
-  },
-  "lightweightModelDescription": {
-    "message": "輕量級多語言模型",
-    "description": "輕量級模型選項描述"
-  },
-  "betterThanSmallDescription": {
-    "message": "比 e5-small 稍大，但效果更佳",
-    "description": "中等模型選項描述"
-  },
-  "multilingualModelDescription": {
-    "message": "多語言語意模型",
-    "description": "多語言模型選項描述"
-  },
-  "fastPerformance": {
-    "message": "快速",
-    "description": "快速效能指標"
-  },
-  "balancedPerformance": {
-    "message": "平衡",
-    "description": "平衡效能指標"
+  "aboutTitle": {
+    "message": "關於",
+    "description": "關於對話框標題"
   },
   "accuratePerformance": {
     "message": "精確",
     "description": "精確效能指標"
   },
-  "networkErrorMessage": {
-    "message": "網路連線錯誤，請檢查網路後再試一次",
-    "description": "網路連線錯誤訊息"
-  },
-  "modelCorruptedErrorMessage": {
-    "message": "模型檔案毀損或不完整，請重新下載",
-    "description": "模型毀損錯誤訊息"
-  },
-  "unknownErrorMessage": {
-    "message": "未知錯誤，請檢查您的網路是否可存取 HuggingFace",
-    "description": "未知錯誤回退訊息"
-  },
-  "permissionDeniedErrorMessage": {
-    "message": "權限被拒絕",
-    "description": "權限被拒絕錯誤訊息"
-  },
-  "timeoutErrorMessage": {
-    "message": "操作逾時",
-    "description": "逾時錯誤訊息"
-  },
-  "indexedPagesLabel": {
-    "message": "已索引頁面",
-    "description": "已索引頁面數量標籤"
-  },
-  "indexSizeLabel": {
-    "message": "索引大小",
-    "description": "索引大小標籤"
+  "activeStatus": {
+    "message": "活動中",
+    "description": "活動狀態徽章"
   },
   "activeTabsLabel": {
     "message": "作用中分頁",
     "description": "作用中分頁數量標籤"
   },
-  "vectorDocumentsLabel": {
-    "message": "向量文件",
-    "description": "向量文件數量標籤"
+  "addApiServerButton": {
+    "message": "+ 新增 API 伺服器",
+    "description": "新增 API 伺服器按鈕文字"
   },
-  "cacheSizeLabel": {
-    "message": "快取大小",
-    "description": "快取大小標籤"
+  "addLabel": {
+    "message": "添加"
+  },
+  "advancedSettingsLabel": {
+    "message": "進階設定",
+    "description": "進階設定區段標籤"
+  },
+  "aiWebPromptPlaceholder": {
+    "message": "輸入要發送到當前標籤頁的提示詞…"
+  },
+  "aiWebProviderHint": {
+    "message": "選擇提示詞翻譯和網頁聊天工作器在當前瀏覽器中使用的網頁 AI。"
+  },
+  "aiWebProviderTitle": {
+    "message": "網頁 AI 提供方"
+  },
+  "aiWebStatsFailed": {
+    "message": "失敗"
+  },
+  "aiWebStatsPending": {
+    "message": "待處理"
+  },
+  "aiWebStatsTranslated": {
+    "message": "已翻譯"
+  },
+  "aiWebTestTitle": {
+    "message": "測試（$provider$）",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiWebWithAudioLabel": {
+    "message": "包含音頻"
+  },
+  "alternateExpressionsLabel": {
+    "message": "替代表達 ×"
+  },
+  "apiAddCustomLabel": {
+    "message": "添加自定義端點"
+  },
+  "apiAddEndpoint": {
+    "message": "添加端點"
+  },
+  "apiAutoDetecting": {
+    "message": "自動檢測中…"
+  },
+  "apiAutoMode": {
+    "message": "自動（擇優）"
+  },
+  "apiAutoTag": {
+    "message": "自動"
+  },
+  "apiConfigurationLabel": {
+    "message": "API 配置"
+  },
+  "apiCurrentLabel": {
+    "message": "當前："
+  },
+  "apiCustomUrlPlaceholder": {
+    "message": "輸入 URL（例如 api.example.com）"
+  },
+  "apiLocalTag": {
+    "message": "本地"
+  },
+  "apiNone": {
+    "message": "無"
+  },
+  "apiPortPlaceholder": {
+    "message": "端口（可選）"
+  },
+  "apiRemoteTag": {
+    "message": "遠程"
+  },
+  "apiServerConfigLabel": {
+    "message": "API 伺服器設定",
+    "description": "API 伺服器設定部分標題"
+  },
+  "apiTest": {
+    "message": "測試"
+  },
+  "apiTestAll": {
+    "message": "全部測試"
+  },
+  "apiTestFailed": {
+    "message": "API 測試失敗"
+  },
+  "apiTesting": {
+    "message": "測試中…"
+  },
+  "articlePromptHint": {
+    "message": "內置類 XML 提示詞：按語言進行句子對齊並應用上方啟用的選項"
+  },
+  "articleTextLabel": {
+    "message": "文章文本"
+  },
+  "articleTextPlaceholder": {
+    "message": "粘貼要翻譯和分析的段落…"
+  },
+  "audioRecordingLabel": {
+    "message": "音訊錄製",
+    "description": "音訊錄製面板標題"
+  },
+  "audioSettingsSharedHint": {
+    "message": "與音頻標籤頁共用。"
+  },
+  "authTokenLabel": {
+    "message": "認證權杖：",
+    "description": "認證權杖輸入標籤"
+  },
+  "autoConnectLabel": {
+    "message": "自動連接"
+  },
+  "autoDownloadTestOutput": {
+    "message": "自動下載測試輸出"
+  },
+  "autoStopSilenceLabel": {
+    "message": "靜音時自動停止",
+    "description": "靜音時自動停止核取方塊標籤"
+  },
+  "autoTheme": {
+    "message": "自動",
+    "description": "自動主題選項"
+  },
+  "backendLabel": {
+    "message": "後端"
+  },
+  "backendTimeoutLabel": {
+    "message": "後端超時（毫秒）"
+  },
+  "backgroundStreamingDescription": {
+    "message": "啟用後，即使關閉此彈出視窗，音訊也會持續擷取並串流傳輸到設定的 API 伺服器。",
+    "description": "背景串流描述文字"
+  },
+  "balancedPerformance": {
+    "message": "平衡",
+    "description": "平衡效能指標"
+  },
+  "betterThanSmallDescription": {
+    "message": "比 e5-small 稍大，但效果更佳",
+    "description": "中等模型選項描述"
+  },
+  "bingAssistActiveTabs": {
+    "message": "活動標籤頁："
+  },
+  "bingAssistAdd": {
+    "message": "添加"
+  },
+  "bingAssistBatchSize": {
+    "message": "批大小（任務數）："
+  },
+  "bingAssistCachedAt": {
+    "message": "緩存位置："
+  },
+  "bingAssistDel": {
+    "message": "刪除"
+  },
+  "bingAssistDuplicates": {
+    "message": "重複"
+  },
+  "bingAssistEndpointFromSettings": {
+    "message": "在“設置 → API”中配置"
+  },
+  "bingAssistEndpointLabel": {
+    "message": "laravel_main 端點："
+  },
+  "bingAssistFailed": {
+    "message": "失敗："
+  },
+  "bingAssistInvalid": {
+    "message": "無效："
+  },
+  "bingAssistInvalidNoEntry": {
+    "message": "無效（Bing 無詞條）"
+  },
+  "bingAssistLastRun": {
+    "message": "上次運行："
+  },
+  "bingAssistNewTasks": {
+    "message": "新任務"
+  },
+  "bingAssistParallelTabs": {
+    "message": "並行 Bing 標籤頁："
+  },
+  "bingAssistPending": {
+    "message": "待處理："
+  },
+  "bingAssistPlayAudio": {
+    "message": "播放發音"
+  },
+  "bingAssistPollInterval": {
+    "message": "輪詢間隔（秒）："
+  },
+  "bingAssistQueueTotal": {
+    "message": "隊列總數"
+  },
+  "bingAssistScrape": {
+    "message": "抓取"
+  },
+  "bingAssistScrapeLabel": {
+    "message": "Bing 抓取測試（空格/逗號分隔）："
+  },
+  "bingAssistSettingsLive": {
+    "message": "設置實時生效，無需停止服務。"
+  },
+  "bingAssistStatusLabel": {
+    "message": "狀態："
+  },
+  "bingAssistStopToChange": {
+    "message": "停止服務後才能修改設置。"
+  },
+  "bingAssistTargetLang": {
+    "message": "目標語言："
+  },
+  "bingAssistTest": {
+    "message": "測試"
+  },
+  "bingAssistTitle": {
+    "message": "Bing 翻譯協助"
+  },
+  "bingAssistTranslated": {
+    "message": "已翻譯："
+  },
+  "bingAssistTranslatingLabel": {
+    "message": "正在翻譯："
+  },
+  "bingAssistWorkerId": {
+    "message": "工作器 ID："
+  },
+  "bingWorkerSharedHint": {
+    "message": "與 Bing 詞典共用，並應用於正在運行的工作器。"
+  },
+  "bingWorkerTitle": {
+    "message": "Bing 任務工作器"
+  },
+  "bookAutoRunHint": {
+    "message": "自動運行——每完成一個片段後自動領取並生成下一個，直到源內容完成"
+  },
+  "bookmarksBarLabel": {
+    "message": "書籤列",
+    "description": "書籤列資料夾名稱"
+  },
+  "booksLabel": {
+    "message": "書籍"
+  },
+  "browserCapabilityLabel": {
+    "message": "瀏覽器能力"
+  },
+  "bytesUnit": {
+    "message": "bytes",
+    "description": "位元組單位"
+  },
+  "cacheClearAllButton": {
+    "message": "全部清除"
+  },
+  "cacheClearButton": {
+    "message": "清除"
+  },
+  "cacheDetailsLabel": {
+    "message": "快取詳細資訊",
+    "description": "快取詳細資訊區段標籤"
   },
   "cacheEntriesLabel": {
     "message": "快取項目",
     "description": "快取項目數量標籤"
   },
-  "clearAllDataButton": {
-    "message": "清除所有資料",
-    "description": "清除所有資料按鈕文字"
+  "cacheLocationLabel": {
+    "message": "位置"
   },
-  "clearAllCacheButton": {
-    "message": "清除所有快取",
-    "description": "清除所有快取按鈕文字"
+  "cacheReadOnlyTag": {
+    "message": "只讀"
+  },
+  "cacheRefreshButton": {
+    "message": "刷新"
+  },
+  "cacheSizeLabel": {
+    "message": "快取大小",
+    "description": "快取大小標籤"
+  },
+  "cacheStorageTitle": {
+    "message": "緩存存儲"
+  },
+  "cacheUnavailableNote": {
+    "message": "此瀏覽器不支持 OPFS 存儲。以下為預期的緩存目錄結構（只讀）。"
+  },
+  "cambridgePronunciationHint": {
+    "message": "標準英式/美式發音（Cambridge）"
+  },
+  "cancelButton": {
+    "message": "取消",
+    "description": "取消按鈕文字"
+  },
+  "capabilityUpdateFailed": {
+    "message": "更新能力失敗"
+  },
+  "chunkCountLabel": {
+    "message": "區塊計數：",
+    "description": "錄製區塊計數標籤"
+  },
+  "chunkIntervalLabel": {
+    "message": "區塊間隔（毫秒）：",
+    "description": "區塊間隔輸入標籤"
+  },
+  "chunkedUploadOption": {
+    "message": "分塊上傳 (HTTP)",
+    "description": "分塊 HTTP 上傳選項"
+  },
+  "claimFailed": {
+    "message": "領取失敗"
+  },
+  "claimRejected": {
+    "message": "領取請求被拒絕"
   },
   "cleanExpiredCacheButton": {
     "message": "清理過期快取",
     "description": "清理過期快取按鈕文字"
   },
-  "exportDataButton": {
-    "message": "匯出資料",
-    "description": "匯出資料按鈕文字"
+  "cleaningStatus": {
+    "message": "清理中...",
+    "description": "清理進度訊息"
   },
-  "importDataButton": {
-    "message": "匯入資料",
-    "description": "匯入資料按鈕文字"
+  "clearAllCacheButton": {
+    "message": "清除所有快取",
+    "description": "清除所有快取按鈕文字"
   },
-  "confirmClearDataTitle": {
-    "message": "確認清除資料",
-    "description": "清除資料確認對話框標題"
+  "clearAllDataButton": {
+    "message": "清除所有資料",
+    "description": "清除所有資料按鈕文字"
   },
-  "settingsTitle": {
-    "message": "設定",
-    "description": "設定對話框標題"
+  "clearDataFailed": {
+    "message": "清除數據失敗"
   },
-  "aboutTitle": {
-    "message": "關於",
-    "description": "關於對話框標題"
-  },
-  "helpTitle": {
-    "message": "說明",
-    "description": "說明對話框標題"
-  },
-  "clearDataWarningMessage": {
-    "message": "此操作將清除所有已索引的網頁內容與向量資料，包括：",
-    "description": "清除資料警告訊息"
+  "clearDataIrreversibleWarning": {
+    "message": "此操作無法復原！清除後需重新瀏覽網頁以重建索引。",
+    "description": "不可逆操作警告"
   },
   "clearDataList1": {
     "message": "所有網頁的文字內容索引",
@@ -315,281 +368,158 @@
     "message": "搜尋歷史與快取",
     "description": "清除資料列表第三項"
   },
-  "clearDataIrreversibleWarning": {
-    "message": "此操作無法復原！清除後需重新瀏覽網頁以重建索引。",
-    "description": "不可逆操作警告"
+  "clearDataWarningMessage": {
+    "message": "此操作將清除所有已索引的網頁內容與向量資料，包括：",
+    "description": "清除資料警告訊息"
   },
-  "confirmClearButton": {
-    "message": "確認清除",
-    "description": "確認清除操作按鈕"
+  "clearHistoryButton": {
+    "message": "清除歷史記錄"
   },
-  "cacheDetailsLabel": {
-    "message": "快取詳細資訊",
-    "description": "快取詳細資訊區段標籤"
+  "clearLogsButton": {
+    "message": "清除日誌"
   },
-  "noCacheDataMessage": {
-    "message": "尚無快取資料",
-    "description": "無可用快取資料訊息"
+  "clearingStatus": {
+    "message": "清除中...",
+    "description": "清除進度訊息"
   },
-  "loadingCacheInfoStatus": {
-    "message": "正在載入快取資訊...",
-    "description": "載入快取資訊狀態"
+  "clientSetupLabel": {
+    "message": "客戶端設置"
   },
-  "processingCacheStatus": {
-    "message": "正在處理快取...",
-    "description": "處理快取狀態"
-  },
-  "expiredLabel": {
-    "message": "已過期",
-    "description": "過期項目標籤"
-  },
-  "bookmarksBarLabel": {
-    "message": "書籤列",
-    "description": "書籤列資料夾名稱"
-  },
-  "newTabLabel": {
-    "message": "新分頁",
-    "description": "新分頁標籤"
-  },
-  "currentPageLabel": {
-    "message": "目前頁面",
-    "description": "目前頁面標籤"
-  },
-  "menuLabel": {
-    "message": "功能表",
-    "description": "功能表無障礙標籤"
-  },
-  "navigationLabel": {
-    "message": "導覽",
-    "description": "導覽無障礙標籤"
-  },
-  "mainContentLabel": {
-    "message": "主要內容",
-    "description": "主要內容無障礙標籤"
-  },
-  "languageSelectorLabel": {
-    "message": "語言",
-    "description": "語言選擇器標籤"
-  },
-  "themeLabel": {
-    "message": "主題",
-    "description": "主題選擇器標籤"
-  },
-  "lightTheme": {
-    "message": "淺色",
-    "description": "淺色主題選項"
-  },
-  "darkTheme": {
-    "message": "深色",
-    "description": "深色主題選項"
-  },
-  "autoTheme": {
-    "message": "自動",
-    "description": "自動主題選項"
-  },
-  "advancedSettingsLabel": {
-    "message": "進階設定",
-    "description": "進階設定區段標籤"
-  },
-  "debugModeLabel": {
-    "message": "偵錯模式",
-    "description": "偵錯模式切換標籤"
-  },
-  "verboseLoggingLabel": {
-    "message": "詳細日誌",
-    "description": "詳細日誌切換標籤"
-  },
-  "successNotification": {
-    "message": "操作已成功完成",
-    "description": "通用成功通知"
-  },
-  "warningNotification": {
-    "message": "警告：請在繼續前檢查",
-    "description": "通用警告通知"
-  },
-  "infoNotification": {
-    "message": "資訊",
-    "description": "通用資訊通知"
-  },
-  "configCopiedNotification": {
-    "message": "設定已複製到剪貼簿",
-    "description": "設定複製成功訊息"
-  },
-  "dataClearedNotification": {
-    "message": "資料清除成功",
-    "description": "資料清除成功訊息"
-  },
-  "bytesUnit": {
-    "message": "bytes",
-    "description": "位元組單位"
-  },
-  "kilobytesUnit": {
-    "message": "KB",
-    "description": "千位元組單位"
-  },
-  "megabytesUnit": {
-    "message": "MB",
-    "description": "百萬位元組單位"
-  },
-  "gigabytesUnit": {
-    "message": "GB",
-    "description": "十億位元組單位"
-  },
-  "itemsUnit": {
-    "message": "項目",
-    "description": "項目計數單位"
-  },
-  "pagesUnit": {
-    "message": "頁面",
-    "description": "頁面計數單位"
-  },
-  "audioRecordingLabel": {
-    "message": "音訊錄製",
-    "description": "音訊錄製面板標題"
-  },
-  "recordingStatusLabel": {
-    "message": "錄製狀態：",
-    "description": "錄製狀態標籤"
-  },
-  "recordingStatus": {
-    "message": "錄製中",
-    "description": "錄製活動狀態"
-  },
-  "idleStatus": {
-    "message": "閒置",
-    "description": "錄製閒置狀態"
-  },
-  "durationLabel": {
-    "message": "時長：",
-    "description": "錄製時長標籤"
-  },
-  "chunkCountLabel": {
-    "message": "區塊計數：",
-    "description": "錄製區塊計數標籤"
-  },
-  "apiServerConfigLabel": {
-    "message": "API 伺服器設定",
-    "description": "API 伺服器設定部分標題"
-  },
-  "serverNamePlaceholder": {
-    "message": "伺服器名稱",
-    "description": "伺服器名稱輸入佔位符"
-  },
-  "urlLabel": {
-    "message": "URL：",
-    "description": "URL 輸入標籤"
-  },
-  "urlPlaceholder": {
-    "message": "http://localhost:8080",
-    "description": "URL 輸入佔位符"
-  },
-  "authTokenLabel": {
-    "message": "認證權杖：",
-    "description": "認證權杖輸入標籤"
-  },
-  "optionalPlaceholder": {
-    "message": "選填",
-    "description": "選填欄位佔位符"
-  },
-  "streamingModeLabel": {
-    "message": "串流模式：",
-    "description": "串流模式選擇標籤"
-  },
-  "realtimeWebsocketOption": {
-    "message": "即時 (WebSocket)",
-    "description": "即時 WebSocket 串流選項"
-  },
-  "chunkedUploadOption": {
-    "message": "分塊上傳 (HTTP)",
-    "description": "分塊 HTTP 上傳選項"
+  "closeButton": {
+    "message": "關閉",
+    "description": "關閉按鈕文字"
   },
   "completeFileUploadOption": {
     "message": "完整檔案上傳",
     "description": "完整檔案上傳選項"
   },
-  "chunkIntervalLabel": {
-    "message": "區塊間隔（毫秒）：",
-    "description": "區塊間隔輸入標籤"
+  "configCopiedNotification": {
+    "message": "設定已複製到剪貼簿",
+    "description": "設定複製成功訊息"
   },
-  "addApiServerButton": {
-    "message": "+ 新增 API 伺服器",
-    "description": "新增 API 伺服器按鈕文字"
+  "confirmAndStart": {
+    "message": "確認並啟動"
   },
-  "recordingSettingsLabel": {
-    "message": "錄製設定",
-    "description": "錄製設定部分標題"
+  "confirmAndStartDescription": {
+    "message": "打開 Bing 標籤頁並開始抓取"
   },
-  "includeMicrophoneLabel": {
-    "message": "包含麥克風",
-    "description": "包含麥克風核取方塊標籤"
+  "confirmAndStartReady": {
+    "message": "確認並開始"
   },
-  "saveLocallyLabel": {
-    "message": "本地儲存錄製",
-    "description": "本地儲存錄製核取方塊標籤"
+  "confirmAndStartWithPending": {
+    "message": "確認並開始 · 待處理 $count$ 個",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "autoStopSilenceLabel": {
-    "message": "靜音時自動停止",
-    "description": "靜音時自動停止核取方塊標籤"
+  "confirmButton": {
+    "message": "確認",
+    "description": "確認按鈕文字"
   },
-  "silenceDurationLabel": {
-    "message": "靜音時長（秒）：",
-    "description": "靜音時長輸入標籤"
+  "confirmClearButton": {
+    "message": "確認清除",
+    "description": "確認清除操作按鈕"
   },
-  "maxDurationLabel": {
-    "message": "最大錄製時長：",
-    "description": "最大錄製時長選擇標籤"
+  "confirmClearDataTitle": {
+    "message": "確認清除資料",
+    "description": "清除資料確認對話框標題"
   },
-  "oneMinuteOption": {
-    "message": "1 分鐘",
-    "description": "1 分鐘時長選項"
+  "connectButton": {
+    "message": "連線",
+    "description": "連線按鈕文字"
   },
-  "fiveMinutesOption": {
-    "message": "5 分鐘",
-    "description": "5 分鐘時長選項"
+  "connectOnStartupHint": {
+    "message": "啟動時連接"
   },
-  "tenMinutesOption": {
-    "message": "10 分鐘",
-    "description": "10 分鐘時長選項"
+  "connectedServiceNotStartedStatus": {
+    "message": "已連線，服務未啟動",
+    "description": "已連線但服務未啟動狀態"
   },
-  "thirtyMinutesOption": {
-    "message": "30 分鐘",
-    "description": "30 分鐘時長選項"
+  "connectedStatus": {
+    "message": "已連線",
+    "description": "已連線狀態訊息"
   },
-  "oneHourOption": {
-    "message": "1 小時",
-    "description": "1 小時時長選項"
+  "connectingStatus": {
+    "message": "連線中...",
+    "description": "連線狀態訊息"
   },
-  "noLimitOption": {
-    "message": "無限制",
-    "description": "無限制時長選項"
+  "connectionPortLabel": {
+    "message": "連結埠",
+    "description": "連結埠輸入標籤"
   },
-  "sessionMetadataLabel": {
-    "message": "工作階段後設資料（JSON）",
-    "description": "工作階段後設資料部分標題"
+  "connectionStatusLabel": {
+    "message": "連線狀態",
+    "description": "連線狀態標籤"
   },
-  "sessionMetadataHelper": {
-    "message": "此處定義的鍵/值對將附加到每次 HTTP 上傳，並透過 WebSocket 作為後設資料載荷傳送一次。",
-    "description": "工作階段後設資料說明文字"
+  "copyConfigButton": {
+    "message": "複製設定",
+    "description": "複製設定按鈕文字"
   },
-  "startRecordingButton": {
-    "message": "開始錄製",
-    "description": "開始錄製按鈕文字"
+  "currentPageLabel": {
+    "message": "目前頁面",
+    "description": "目前頁面標籤"
   },
-  "stopRecordingButton": {
-    "message": "停止錄製",
-    "description": "停止錄製按鈕文字"
+  "darkTheme": {
+    "message": "深色",
+    "description": "深色主題選項"
   },
-  "enableBackgroundStreamingLabel": {
-    "message": "啟用背景音訊串流",
-    "description": "啟用背景音訊串流核取方塊標籤"
+  "dataClearedNotification": {
+    "message": "資料清除成功",
+    "description": "資料清除成功訊息"
   },
-  "activeStatus": {
-    "message": "活動中",
-    "description": "活動狀態徽章"
+  "debugModeLabel": {
+    "message": "偵錯模式",
+    "description": "偵錯模式切換標籤"
   },
-  "backgroundStreamingDescription": {
-    "message": "啟用後，即使關閉此彈出視窗，音訊也會持續擷取並串流傳輸到設定的 API 伺服器。",
-    "description": "背景串流描述文字"
+  "deepseekChatTitle": {
+    "message": "Deepseek 對話"
+  },
+  "deepseekClear": {
+    "message": "清空"
+  },
+  "deepseekEmpty": {
+    "message": "暫無消息。提問或點擊測試。"
+  },
+  "deepseekHint": {
+    "message": "提示詞通過本地任務隊列運行，並驅動已登錄的 chat.deepseek.com 標籤頁，無需 API 密鑰。"
+  },
+  "deepseekNoResponse": {
+    "message": "（空響應）"
+  },
+  "deepseekPlaceholder": {
+    "message": "向 Deepseek 提問……"
+  },
+  "deepseekQueueError": {
+    "message": "任務入隊失敗。後臺服務是否在運行？"
+  },
+  "deepseekQueueRunning": {
+    "message": "運行中"
+  },
+  "deepseekQueueStopped": {
+    "message": "已停止"
+  },
+  "deepseekSend": {
+    "message": "發送"
+  },
+  "deepseekSending": {
+    "message": "發送中……"
+  },
+  "deepseekTaskFailed": {
+    "message": "任務失敗。"
+  },
+  "deepseekTest": {
+    "message": "測試"
+  },
+  "deepseekTestOk": {
+    "message": "連接正常 —— 已收到響應。"
+  },
+  "deepseekTestSent": {
+    "message": "測試提示已入隊，等待響應……"
+  },
+  "deepseekTesting": {
+    "message": "正在發送測試提示……"
   },
   "defaultServerName": {
     "message": "伺服器 $INDEX$",
@@ -601,6 +531,343 @@
       }
     }
   },
+  "definitionsLabel": {
+    "message": "釋義"
+  },
+  "detailedLabel": {
+    "message": "詳細解釋"
+  },
+  "detectingStatus": {
+    "message": "偵測中...",
+    "description": "偵測狀態訊息"
+  },
+  "dictionaryEmptyHint": {
+    "message": "輸入單詞以開始查詢釋義"
+  },
+  "dictionaryLookUpButton": {
+    "message": "查詢"
+  },
+  "dictionaryLookingUp": {
+    "message": "正在查詢單詞…"
+  },
+  "dictionarySearchPlaceholder": {
+    "message": "輸入要查詢的單詞…"
+  },
+  "disableNamedFeature": {
+    "message": "禁用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "disconnectButton": {
+    "message": "中斷連線",
+    "description": "中斷連線按鈕文字"
+  },
+  "disconnectedStatus": {
+    "message": "已中斷",
+    "description": "已中斷狀態訊息"
+  },
+  "downloadButton": {
+    "message": "下載"
+  },
+  "downloadingModelStatus": {
+    "message": "正在下載模型... $PROGRESS$%",
+    "description": "含百分比的模型下載進度",
+    "placeholders": {
+      "progress": {
+        "content": "$1",
+        "example": "50"
+      }
+    }
+  },
+  "downloadingStatus": {
+    "message": "下載中...",
+    "description": "下載進度訊息"
+  },
+  "duoreaderCdnHint": {
+    "message": "使用 CDN API（更快）——注入標籤頁並解碼 .pz，跳過 DOM 抓取"
+  },
+  "duoreaderCoverSearchHint": {
+    "message": "加載目錄時通過 Google/Bing 圖片搜索書籍封面"
+  },
+  "duoreaderFetchAudioHint": {
+    "message": "從 Duoreader API 獲取音頻（在本地備份文本和 MP3）"
+  },
+  "duoreaderForceReplaceHint": {
+    "message": "強制替換文本上傳（重新攝取章節；音頻保持冪等）"
+  },
+  "durationLabel": {
+    "message": "時長：",
+    "description": "錄製時長標籤"
+  },
+  "embeddingModelLabel": {
+    "message": "Embedding 模型",
+    "description": "模型選擇的主要區段標題"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "啟用背景音訊串流",
+    "description": "啟用背景音訊串流核取方塊標籤"
+  },
+  "enableNamedFeature": {
+    "message": "啟用 $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "endpointNotConfiguredHint": {
+    "message": "未設置 — 請在「設置 → API 配置」中配置"
+  },
+  "endpointSwitchFailed": {
+    "message": "切換正在使用的 API 接入點失敗"
+  },
+  "enterPromptFirst": {
+    "message": "請先輸入提示詞"
+  },
+  "examplesLabel": {
+    "message": "例句"
+  },
+  "expiredLabel": {
+    "message": "已過期",
+    "description": "過期項目標籤"
+  },
+  "exportDataButton": {
+    "message": "匯出資料",
+    "description": "匯出資料按鈕文字"
+  },
+  "extAvailableStatus": {
+    "message": "可用"
+  },
+  "extCollapseAll": {
+    "message": "全部收起"
+  },
+  "extCompletedLabel": {
+    "message": "已完成"
+  },
+  "extEnabledLabel": {
+    "message": "已啟用"
+  },
+  "extEnabledStatus": {
+    "message": "已啟用"
+  },
+  "extExpandAll": {
+    "message": "全部展開"
+  },
+  "extExtensionsLabel": {
+    "message": "擴展"
+  },
+  "extGlobalTaskSystem": {
+    "message": "全局任務系統"
+  },
+  "extNoConfig": {
+    "message": "此擴展沒有配置項。"
+  },
+  "extPauseButton": {
+    "message": "暫停"
+  },
+  "extPendingLabel": {
+    "message": "待處理"
+  },
+  "extResumeButton": {
+    "message": "恢復"
+  },
+  "extStartButton": {
+    "message": "啟動"
+  },
+  "extStatePaused": {
+    "message": "已暫停"
+  },
+  "extStateRunning": {
+    "message": "運行中"
+  },
+  "extStateStopped": {
+    "message": "已停止"
+  },
+  "extStopButton": {
+    "message": "停止"
+  },
+  "extTaskQueueSubtitle": {
+    "message": "在本地處理 API 請求"
+  },
+  "extTaskQueueTitle": {
+    "message": "任務隊列"
+  },
+  "extensionDescription": {
+    "message": "使用您自己的 Chrome 瀏覽器暴露瀏覽器功能",
+    "description": "擴充功能描述"
+  },
+  "extensionName": {
+    "message": "chrome-mcp-server",
+    "description": "擴充功能名稱"
+  },
+  "extractedResultLabel": {
+    "message": "提取結果"
+  },
+  "fastPerformance": {
+    "message": "快速",
+    "description": "快速效能指標"
+  },
+  "fastTierBadge": {
+    "message": "⚡ 快速"
+  },
+  "fastTierLabel": {
+    "message": "快速通道"
+  },
+  "featureDesc_aiTranslateHub": {
+    "message": "使用 Web AI 提供商翻譯並附加語音音頻。"
+  },
+  "featureDesc_articleStudyGuide": {
+    "message": "構建對齊的閱讀、語法和短語學習指南。"
+  },
+  "featureDesc_bingDictionary": {
+    "message": "查看釋義、翻譯和發音。"
+  },
+  "featureDesc_bookStudyGenerator": {
+    "message": "從書籍段落生成多語言學習材料。"
+  },
+  "featureDesc_geminiImage": {
+    "message": "使用 Gemini 生成圖像並捕獲結果。"
+  },
+  "featureDesc_notebooklm": {
+    "message": "在 Google NotebookLM 中自動提問與研究。"
+  },
+  "featureDesc_qwenTts": {
+    "message": "使用 Qwen3-TTS 生成並下載語音。"
+  },
+  "featureDesc_webSearch": {
+    "message": "在瀏覽器標籤頁中搜索網頁、圖片和新聞。"
+  },
+  "featureDesc_wordValidity": {
+    "message": "使用共享 Web 運行時測試單詞有效性分類。"
+  },
+  "featureName_aiTranslateHub": {
+    "message": "翻譯中心"
+  },
+  "featureName_articleStudyGuide": {
+    "message": "文章學習"
+  },
+  "featureName_bingDictionary": {
+    "message": "Bing 詞典"
+  },
+  "featureName_bookStudyGenerator": {
+    "message": "書籍工坊"
+  },
+  "featureName_geminiImage": {
+    "message": "Gemini 圖像"
+  },
+  "featureName_notebooklm": {
+    "message": "NotebookLM"
+  },
+  "featureName_qwenTts": {
+    "message": "Qwen TTS"
+  },
+  "featureName_webSearch": {
+    "message": "網頁搜索"
+  },
+  "featureName_wordValidity": {
+    "message": "單詞驗證"
+  },
+  "filterByTitlePlaceholder": {
+    "message": "按標題篩選…"
+  },
+  "fiveMinutesOption": {
+    "message": "5 分鐘",
+    "description": "5 分鐘時長選項"
+  },
+  "footerPort": {
+    "message": "端口 $port$",
+    "placeholders": {
+      "port": {
+        "content": "$1"
+      }
+    }
+  },
+  "forvoPronunciationHint": {
+    "message": "世界各地母語者音頻（Forvo）"
+  },
+  "freeDictionaryLabel": {
+    "message": "免費詞典"
+  },
+  "generatedImageAlt": {
+    "message": "生成的圖片"
+  },
+  "generationFailed": {
+    "message": "生成失敗"
+  },
+  "generationStartFailed": {
+    "message": "啟動生成失敗"
+  },
+  "gigabytesUnit": {
+    "message": "GB",
+    "description": "十億位元組單位"
+  },
+  "grammarLabel": {
+    "message": "語法"
+  },
+  "headerSubtitle": {
+    "message": "瀏覽器自動化控制台"
+  },
+  "headerTitle": {
+    "message": "Chrome MCP"
+  },
+  "helpTitle": {
+    "message": "說明",
+    "description": "說明對話框標題"
+  },
+  "idleStatus": {
+    "message": "閒置",
+    "description": "錄製閒置狀態"
+  },
+  "imageAlt": {
+    "message": "圖片"
+  },
+  "imageGenerationTimeout": {
+    "message": "等待圖片超時"
+  },
+  "imagePromptPlaceholder": {
+    "message": "描述要生成的圖片…"
+  },
+  "imagesMode": {
+    "message": "圖片"
+  },
+  "importDataButton": {
+    "message": "匯入資料",
+    "description": "匯入資料按鈕文字"
+  },
+  "includeMicrophoneLabel": {
+    "message": "包含麥克風",
+    "description": "包含麥克風核取方塊標籤"
+  },
+  "indexDataLabel": {
+    "message": "索引數據"
+  },
+  "indexDataManagementLabel": {
+    "message": "索引資料管理",
+    "description": "資料管理主要區段標題"
+  },
+  "indexSizeLabel": {
+    "message": "索引大小",
+    "description": "索引大小標籤"
+  },
+  "indexedPagesLabel": {
+    "message": "已索引頁面",
+    "description": "已索引頁面數量標籤"
+  },
+  "infoNotification": {
+    "message": "資訊",
+    "description": "通用資訊通知"
+  },
+  "initSemanticEngineButton": {
+    "message": "初始化語意引擎",
+    "description": "初始化語意引擎按鈕文字"
+  },
+  "initializingStatus": {
+    "message": "初始化中...",
+    "description": "初始化進度訊息"
+  },
   "invalidJsonError": {
     "message": "工作階段後設資料 JSON 無效：$ERROR$",
     "description": "無效 JSON 錯誤訊息",
@@ -610,6 +877,864 @@
         "example": "意外的標記"
       }
     }
+  },
+  "invalidLabel": {
+    "message": "無效"
+  },
+  "itemsUnit": {
+    "message": "項目",
+    "description": "項目計數單位"
+  },
+  "kilobytesUnit": {
+    "message": "KB",
+    "description": "千位元組單位"
+  },
+  "languageSelectorLabel": {
+    "message": "語言",
+    "description": "語言選擇器標籤"
+  },
+  "languagesLabel": {
+    "message": "語言"
+  },
+  "lastUpdatedLabel": {
+    "message": "最後更新：",
+    "description": "最後更新時間戳標籤"
+  },
+  "lastVerifiedLabel": {
+    "message": "上次驗證"
+  },
+  "learnLanguageLabel": {
+    "message": "學習語言"
+  },
+  "lightTheme": {
+    "message": "淺色",
+    "description": "淺色主題選項"
+  },
+  "lightweightModelDescription": {
+    "message": "輕量級多語言模型",
+    "description": "輕量級模型選項描述"
+  },
+  "listenerLabel": {
+    "message": "監聽器"
+  },
+  "loadBooksFailed": {
+    "message": "加載書籍失敗"
+  },
+  "loadQueueButton": {
+    "message": "加載隊列"
+  },
+  "loadQueueDescription": {
+    "message": "從服務器拉取待處理單詞並預覽"
+  },
+  "loadQueueFailed": {
+    "message": "加載隊列失敗"
+  },
+  "loadSourcesFailed": {
+    "message": "加載來源失敗"
+  },
+  "loadStatusFailed": {
+    "message": "加載狀態失敗"
+  },
+  "loadingCacheInfoStatus": {
+    "message": "正在載入快取資訊...",
+    "description": "載入快取資訊狀態"
+  },
+  "loadingCatalog": {
+    "message": "正在加載目錄…"
+  },
+  "loadingSegments": {
+    "message": "正在加載片段…"
+  },
+  "loadingStatus": {
+    "message": "載入中...",
+    "description": "載入進度訊息"
+  },
+  "logAuto": {
+    "message": "自動"
+  },
+  "logClearAll": {
+    "message": "全部清除"
+  },
+  "logPause": {
+    "message": "暫停"
+  },
+  "logTestFail": {
+    "message": "獲取日誌失敗。"
+  },
+  "logTestOk": {
+    "message": "日誌通道正常 —— 已加載 {0} 條記錄。"
+  },
+  "logTestRefresh": {
+    "message": "測試 / 刷新"
+  },
+  "logTesting": {
+    "message": "正在刷新日誌……"
+  },
+  "logsLabel": {
+    "message": "日誌"
+  },
+  "lookupWordFailed": {
+    "message": "查詢單詞失敗"
+  },
+  "mainContentLabel": {
+    "message": "主要內容",
+    "description": "主要內容無障礙標籤"
+  },
+  "maxDurationLabel": {
+    "message": "最大錄製時長：",
+    "description": "最大錄製時長選擇標籤"
+  },
+  "maximumBooksLabel": {
+    "message": "最大書籍數（0 = 全部）"
+  },
+  "maximumLabel": {
+    "message": "最大數量"
+  },
+  "mcpServerConfigLabel": {
+    "message": "MCP 伺服器設定",
+    "description": "MCP 伺服器設定區段標籤"
+  },
+  "mcpToolLabel": {
+    "message": "MCP 工具"
+  },
+  "mediaCachedLabel": {
+    "message": "已緩存"
+  },
+  "mediaMissLabel": {
+    "message": "未緩存"
+  },
+  "megabytesUnit": {
+    "message": "MB",
+    "description": "百萬位元組單位"
+  },
+  "menuLabel": {
+    "message": "功能表",
+    "description": "功能表無障礙標籤"
+  },
+  "modeLabel": {
+    "message": "模式"
+  },
+  "modelCacheManagementLabel": {
+    "message": "模型快取管理",
+    "description": "快取管理主要區段標題"
+  },
+  "modelCorruptedErrorMessage": {
+    "message": "模型檔案毀損或不完整，請重新下載",
+    "description": "模型毀損錯誤訊息"
+  },
+  "modelFailedStatus": {
+    "message": "模型載入失敗",
+    "description": "模型載入失敗狀態"
+  },
+  "modelLoadedStatus": {
+    "message": "模型已載入",
+    "description": "模型成功載入狀態"
+  },
+  "multilingualModelDescription": {
+    "message": "多語言語意模型",
+    "description": "多語言模型選項描述"
+  },
+  "myLanguageLabel": {
+    "message": "我的語言"
+  },
+  "nativeBridgeLabel": {
+    "message": "原生橋接"
+  },
+  "nativeMcpPortLabel": {
+    "message": "原生 MCP 端口"
+  },
+  "nativeServerConfigLabel": {
+    "message": "原生伺服器設定",
+    "description": "本機伺服器設定的主要區段標題"
+  },
+  "navAudio": {
+    "message": "音頻"
+  },
+  "navData": {
+    "message": "數據"
+  },
+  "navDebug": {
+    "message": "調試"
+  },
+  "navExtensions": {
+    "message": "擴展功能"
+  },
+  "navImport": {
+    "message": "導入"
+  },
+  "navServer": {
+    "message": "服務器"
+  },
+  "navTasks": {
+    "message": "任務"
+  },
+  "navWebAi": {
+    "message": "網頁 AI"
+  },
+  "navigationLabel": {
+    "message": "導覽",
+    "description": "導覽無障礙標籤"
+  },
+  "networkErrorMessage": {
+    "message": "網路連線錯誤，請檢查網路後再試一次",
+    "description": "網路連線錯誤訊息"
+  },
+  "newTabLabel": {
+    "message": "新分頁",
+    "description": "新分頁標籤"
+  },
+  "newsMode": {
+    "message": "新聞"
+  },
+  "noAnswerReturned": {
+    "message": "未返回答案"
+  },
+  "noBackgroundResponse": {
+    "message": "擴展後臺未響應——請重新加載擴展後重試"
+  },
+  "noBilingualBooks": {
+    "message": "未找到雙語書籍。"
+  },
+  "noCacheDataMessage": {
+    "message": "尚無快取資料",
+    "description": "無可用快取資料訊息"
+  },
+  "noDictionaryEntry": {
+    "message": "Bing 詞典中沒有該單詞的詞條"
+  },
+  "noEndpointConfigured": {
+    "message": "設置中未配置接入點"
+  },
+  "noEventsRecorded": {
+    "message": "尚無事件記錄。"
+  },
+  "noLimitOption": {
+    "message": "無限制",
+    "description": "無限制時長選項"
+  },
+  "noPendingTasksHint": {
+    "message": "沒有待處理的任務。"
+  },
+  "noPendingWordsHint": {
+    "message": "沒有待翻譯的詞條，無需抓取。"
+  },
+  "noRecordableTabs": {
+    "message": "沒有可錄製的標籤頁。請打開普通網頁（http/https）——Chrome 系統頁和擴展頁無法錄製。"
+  },
+  "noResult": {
+    "message": "沒有結果"
+  },
+  "noSourcesForFilter": {
+    "message": "沒有符合此篩選條件的來源。"
+  },
+  "notebooklmAnswerLabel": {
+    "message": "答案："
+  },
+  "notebooklmAsk": {
+    "message": "提問"
+  },
+  "notebooklmAsking": {
+    "message": "提問中…"
+  },
+  "notebooklmDialogueHint": {
+    "message": "內置提示詞：使用每個項目生成簡短的雙人對話"
+  },
+  "notebooklmDialogueLabel": {
+    "message": "對話測試——將單詞或句子轉換為對話"
+  },
+  "notebooklmDialoguePlaceholder": {
+    "message": "粘貼一些單詞或句子以編寫對話…"
+  },
+  "notebooklmHint": {
+    "message": "請先打開一個 NotebookLM 筆記本再提問，需要登錄。"
+  },
+  "notebooklmNotebookUrl": {
+    "message": "筆記本 URL（可選）："
+  },
+  "notebooklmQuestionLabel": {
+    "message": "問題："
+  },
+  "notebooklmQuestionPlaceholder": {
+    "message": "這個筆記本講了什麼？"
+  },
+  "notebooklmRequestFailed": {
+    "message": "NotebookLM 請求失敗"
+  },
+  "notebooklmTitle": {
+    "message": "NotebookLM 自動化"
+  },
+  "offlineStatus": {
+    "message": "離線"
+  },
+  "oneHourOption": {
+    "message": "1 小時",
+    "description": "1 小時時長選項"
+  },
+  "oneMinuteOption": {
+    "message": "1 分鐘",
+    "description": "1 分鐘時長選項"
+  },
+  "onlineStatus": {
+    "message": "在線"
+  },
+  "openNewTabForTest": {
+    "message": "每次測試打開新標籤頁"
+  },
+  "openPersistentTab": {
+    "message": "在常駐標籤頁中打開"
+  },
+  "optionalPlaceholder": {
+    "message": "選填",
+    "description": "選填欄位佔位符"
+  },
+  "otherLanguageCodePlaceholder": {
+    "message": "其他語言代碼"
+  },
+  "otherSettingsLabel": {
+    "message": "其他"
+  },
+  "pagesUnit": {
+    "message": "頁面",
+    "description": "頁面計數單位"
+  },
+  "patternLabel": {
+    "message": "句型"
+  },
+  "pendingFastLabel": {
+    "message": "⚡ $count$ 快速",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingRetriesLabel": {
+    "message": "等待重試：$count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "permissionDeniedErrorMessage": {
+    "message": "權限被拒絕",
+    "description": "權限被拒絕錯誤訊息"
+  },
+  "phrasesLabel": {
+    "message": "短語"
+  },
+  "playPronunciation": {
+    "message": "播放發音"
+  },
+  "playUkPronunciation": {
+    "message": "播放英式發音"
+  },
+  "playUsPronunciation": {
+    "message": "播放美式發音"
+  },
+  "primaryLanguageGeneratedHint": {
+    "message": "（主語言/源語言會自動生成並以灰色顯示）"
+  },
+  "primaryNavigationLabel": {
+    "message": "主導航"
+  },
+  "processingCacheStatus": {
+    "message": "正在處理快取...",
+    "description": "處理快取狀態"
+  },
+  "processingStatus": {
+    "message": "處理中...",
+    "description": "處理進度訊息"
+  },
+  "processorName_bingDictionary": {
+    "message": "Bing 詞典"
+  },
+  "processorName_deepseek": {
+    "message": "DeepSeek AI"
+  },
+  "processorName_qwenTts": {
+    "message": "Qwen3 TTS"
+  },
+  "processorName_webAiTranslate": {
+    "message": "Web-AI 翻譯"
+  },
+  "processorName_wordValidityWeb": {
+    "message": "單詞驗證"
+  },
+  "promptLabel": {
+    "message": "提示詞"
+  },
+  "providerGenerationFailed": {
+    "message": "$provider$ 生成失敗",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerReplyTimeout": {
+    "message": "等待 $provider$ 回覆超時",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerStartFailed": {
+    "message": "啟動 $provider$ 失敗：$error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerTestStartFailed": {
+    "message": "啟動 $provider$ 測試失敗：$error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "queryLabel": {
+    "message": "查詢"
+  },
+  "queueAddBingTest": {
+    "message": "添加 Bing 測試任務"
+  },
+  "queueAddDeepseekTest": {
+    "message": "添加 DeepSeek 測試任務"
+  },
+  "queueCenterTabLogs": {
+    "message": "日誌"
+  },
+  "queueCenterTabQueue": {
+    "message": "隊列"
+  },
+  "queueItemAssignedLabel": {
+    "message": "分配給："
+  },
+  "queueItemPrioAge": {
+    "message": "優先級 $priority$ · $age$ 秒",
+    "placeholders": {
+      "priority": {
+        "content": "$1"
+      },
+      "age": {
+        "content": "$2"
+      }
+    }
+  },
+  "queueTestActions": {
+    "message": "測試操作："
+  },
+  "queueTestConnection": {
+    "message": "測試連接"
+  },
+  "queueTestFail": {
+    "message": "隊列連接失敗。"
+  },
+  "queueTestOk": {
+    "message": "隊列已連接 —— 隊列中有 {0} 個任務。"
+  },
+  "queueTesting": {
+    "message": "正在測試隊列連接……"
+  },
+  "qwenCustomVoice": {
+    "message": "TTS（自定義音色）"
+  },
+  "qwenGpuWaitingHint": {
+    "message": "正在等待 HuggingFace Zero GPU——請保持標籤頁打開。"
+  },
+  "qwenSettingsSharedHint": {
+    "message": "由 Laravel 生產任務和擴展測試面板共用。"
+  },
+  "qwenTextPlaceholder": {
+    "message": "輸入用於 Qwen3-TTS 的文本…"
+  },
+  "qwenTtsFailed": {
+    "message": "Qwen TTS 失敗"
+  },
+  "qwenVoiceClone": {
+    "message": "音色克隆（基礎）"
+  },
+  "qwenVoiceDesign": {
+    "message": "音色設計"
+  },
+  "realtimeWebsocketOption": {
+    "message": "即時 (WebSocket)",
+    "description": "即時 WebSocket 串流選項"
+  },
+  "recentSearchesLabel": {
+    "message": "最近搜索"
+  },
+  "recordingGeneralError": {
+    "message": "啟動錄製時發生錯誤：$ERROR$",
+    "description": "一般錄製錯誤訊息",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "未知錯誤"
+      }
+    }
+  },
+  "recordingSettingsLabel": {
+    "message": "錄製設定",
+    "description": "錄製設定部分標題"
+  },
+  "recordingSettingsManagedHint": {
+    "message": "錄音服務器、元數據和流式選項在設置中心管理。"
+  },
+  "recordingStatus": {
+    "message": "錄製中",
+    "description": "錄製活動狀態"
+  },
+  "recordingStatusLabel": {
+    "message": "錄製狀態：",
+    "description": "錄製狀態標籤"
+  },
+  "recordingTargetLabel": {
+    "message": "錄製目標（標籤頁）"
+  },
+  "refreshCatalogButton": {
+    "message": "刷新目錄"
+  },
+  "refreshStatusButton": {
+    "message": "重新整理狀態",
+    "description": "重新整理狀態按鈕提示"
+  },
+  "reinitializeButton": {
+    "message": "重新初始化",
+    "description": "重新初始化按鈕文字"
+  },
+  "reloadSegments": {
+    "message": "重新加載片段"
+  },
+  "removeLanguageTitle": {
+    "message": "移除語言"
+  },
+  "resetButton": {
+    "message": "重設",
+    "description": "重設按鈕文字"
+  },
+  "resetGeneralSettings": {
+    "message": "重置常規設置"
+  },
+  "resetGeneralSettingsConfirm": {
+    "message": "將常規服務器和調試設置恢復為默認值？"
+  },
+  "resumeFailed": {
+    "message": "繼續執行失敗"
+  },
+  "retryButton": {
+    "message": "重試",
+    "description": "重試按鈕文字"
+  },
+  "runningStatusLabel": {
+    "message": "執行狀態",
+    "description": "伺服器執行狀態標籤"
+  },
+  "saveButton": {
+    "message": "儲存",
+    "description": "儲存按鈕文字"
+  },
+  "saveLocallyLabel": {
+    "message": "本地儲存錄製",
+    "description": "本地儲存錄製核取方塊標籤"
+  },
+  "savedStatus": {
+    "message": "已保存"
+  },
+  "scrapeFetchLabel": {
+    "message": "抓取/獲取"
+  },
+  "scrapeTestFailed": {
+    "message": "抓取測試失敗"
+  },
+  "searchEngineLabel": {
+    "message": "搜索引擎"
+  },
+  "searchFailed": {
+    "message": "搜索失敗"
+  },
+  "semanticEngineInitFailedStatus": {
+    "message": "語意引擎初始化失敗",
+    "description": "語意引擎初始化失敗狀態"
+  },
+  "semanticEngineInitializingStatus": {
+    "message": "語意引擎初始化中...",
+    "description": "語意引擎初始化狀態"
+  },
+  "semanticEngineLabel": {
+    "message": "語意引擎",
+    "description": "語意引擎的主要區段標題"
+  },
+  "semanticEngineNotInitStatus": {
+    "message": "語意引擎未初始化",
+    "description": "語意引擎未初始化狀態"
+  },
+  "semanticEngineReadyStatus": {
+    "message": "語意引擎已就緒",
+    "description": "語意引擎就緒狀態"
+  },
+  "sentencePatternHint": {
+    "message": "句子結構標籤，例如：不僅……而且……"
+  },
+  "serverNamePlaceholder": {
+    "message": "伺服器名稱",
+    "description": "伺服器名稱輸入佔位符"
+  },
+  "serviceNotConnectedStatus": {
+    "message": "服務未連線",
+    "description": "服務未連線狀態"
+  },
+  "serviceRunningStatus": {
+    "message": "服務執行中 (連結埠: $PORT$)",
+    "description": "含連結埠號的服務執行狀態",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "12306"
+      }
+    }
+  },
+  "sessionMetadataHelper": {
+    "message": "此處定義的鍵/值對將附加到每次 HTTP 上傳，並透過 WebSocket 作為後設資料載荷傳送一次。",
+    "description": "工作階段後設資料說明文字"
+  },
+  "sessionMetadataLabel": {
+    "message": "工作階段後設資料（JSON）",
+    "description": "工作階段後設資料部分標題"
+  },
+  "settingsTitle": {
+    "message": "設定",
+    "description": "設定對話框標題"
+  },
+  "showDetailedLogsHint": {
+    "message": "顯示詳細日誌"
+  },
+  "silenceDurationLabel": {
+    "message": "靜音時長（秒）：",
+    "description": "靜音時長輸入標籤"
+  },
+  "solveSearchVerification": {
+    "message": "請在搜索標籤頁中完成驗證。"
+  },
+  "sourceLanguageAlwaysGenerated": {
+    "message": "擴展書籍的源語言——始終生成"
+  },
+  "sourceLanguageExpressionsHint": {
+    "message": "源語言：跳過替代表達（僅為翻譯語言生成）"
+  },
+  "sourceLanguageLabel": {
+    "message": "源語言"
+  },
+  "sourceUrlLabel": {
+    "message": "源網址"
+  },
+  "startAssistButton": {
+    "message": "開啟協助"
+  },
+  "startAutomaticRebuilds": {
+    "message": "  檔案變更會觸發自動重新建置。"
+  },
+  "startBannerTitle": {
+    "message": "  Chrome MCP 伺服器 - Windows"
+  },
+  "startBuildConfigIncomplete": {
+    "message": "警告：建置設定可能不完整；將使用預設值繼續執行。"
+  },
+  "startBuildSkipped": {
+    "message": "  已略過建置，使用現有輸出。"
+  },
+  "startBuildingExtension": {
+    "message": "正在建置 Chrome 擴充功能..."
+  },
+  "startBuildingNative": {
+    "message": "正在建置原生伺服器..."
+  },
+  "startBuildingNativeLive": {
+    "message": "  正在建置 mcp-chrome-bridge（即時輸出）..."
+  },
+  "startBuildingShared": {
+    "message": "正在建置共用套件..."
+  },
+  "startBuildingSharedLive": {
+    "message": "  正在建置 chrome-mcp-shared（即時輸出）..."
+  },
+  "startCannotRegister": {
+    "message": "  沒有擴充功能 ID，無法註冊原生主機"
+  },
+  "startCheckingCmdShims": {
+    "message": "  正在檢查 Windows .cmd 命令墊片..."
+  },
+  "startCheckingDependencies": {
+    "message": "正在檢查相依套件..."
+  },
+  "startChromeDiscoveryMayFail": {
+    "message": "  Chrome 可能無法找到原生訊息主機"
+  },
+  "startComplete": {
+    "message": "  建置和註冊已完成"
+  },
+  "startDependenciesInstalled": {
+    "message": "  正常 相依套件已安裝"
+  },
+  "startDependencyInstallFinished": {
+    "message": "  正常 相依套件安裝步驟已完成"
+  },
+  "startExtensionBuildFailed": {
+    "message": "  錯誤：重試 $maximum$ 次後仍無法建置 Chrome 擴充功能",
+    "placeholders": {
+      "maximum": {
+        "content": "$1"
+      }
+    }
+  },
+  "startExtensionBuilt": {
+    "message": "  正常 Chrome 擴充功能建置成功"
+  },
+  "startExtensionIdUncalculated": {
+    "message": "  無法自動計算擴充功能 ID"
+  },
+  "startFailed": {
+    "message": "啟動失敗"
+  },
+  "startHostMayFail": {
+    "message": "  原生訊息主機可能無法正常運作"
+  },
+  "startImportantPaths": {
+    "message": "[重要路徑]\n\n  1) Chrome 擴充功能（前端）：\n     $extensionPath$\n\n  2) 原生伺服器（後端）：\n     $nativePath$",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      },
+      "nativePath": {
+        "content": "$2"
+      }
+    }
+  },
+  "startInstallingDependencies": {
+    "message": "正在安裝相依套件..."
+  },
+  "startInstallingDependenciesLive": {
+    "message": "  正在安裝相依套件（即時輸出）..."
+  },
+  "startInstructions": {
+    "message": "[步驟 1] 在 Chrome 中載入擴充功能（僅需一次）：\n  1. 在 Chrome 中開啟 chrome://extensions/\n  2. 啟用開發人員模式（右上角開關）\n  3. 按一下「載入未封裝項目」\n  4. 選擇資料夾：$extensionPath$\n  注意：請保持載入此資料夾；WXT 開發伺服器會寫入相同路徑。\n\n[步驟 2] 連線 MCP 服務：\n  1. 在 Chrome 中按一下擴充功能圖示\n  2. 按一下「連線」按鈕\n  3. 服務將在 http://127.0.0.1:12306 啟動\n\n[步驟 3] 動態偵錯（依元件）：\n\n  彈出式視窗 (apps/chrome-extension/entrypoints/popup/)：\n    - 以滑鼠右鍵按一下彈出式視窗 -> 檢查 -> 開啟 DevTools\n    - 儲存檔案後重新開啟彈出式視窗（WXT HMR 會自動重新載入）\n    - 或在 DevTools 中按 Ctrl+R 強制重新整理\n\n  背景 SERVICE WORKER (entrypoints/background.ts)：\n    - 開啟 chrome://extensions/ -> 找到擴充功能 -> 按一下「Service Worker」\n    - 儲存檔案後，按一下擴充功能卡片上的圓形重新整理圖示\n    - WXT 會在重新建置後自動重新載入擴充功能\n\n  CONTENT SCRIPTS (entrypoints/content.ts / inject-scripts/)：\n    - 開啟目標頁面 -> F12 -> Sources -> Content Scripts 分頁\n    - 儲存檔案後重新整理目標頁面（Ctrl+R）\n    - WXT 會在開發模式中動態重新註冊 Content Scripts\n\n  檢查所有擴充功能頁面：\n    - 開啟 chrome://inspect/#extensions",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      }
+    }
+  },
+  "startLaunchingWatch": {
+    "message": "  正在啟動 WXT 開發伺服器（監看模式）..."
+  },
+  "startLocation": {
+    "message": "    位置：$path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestContent": {
+    "message": "  資訊清單內容："
+  },
+  "startManifestFileMissing": {
+    "message": "  警告：在 $path$ 找不到資訊清單檔案",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestKeyMissing": {
+    "message": "  警告：manifest.json 不含「key」欄位"
+  },
+  "startManifestKeyPresent": {
+    "message": "  正常 manifest.json 含有用於擴充功能 ID 的「key」欄位"
+  },
+  "startManifestMissing": {
+    "message": "  錯誤：在 $path$ 找不到 manifest.json",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestRegistered": {
+    "message": "  正常 Chrome 資訊清單已註冊"
+  },
+  "startManifestVerificationFailed": {
+    "message": "  警告：無法驗證 manifest.json 結構"
+  },
+  "startNativeBuilt": {
+    "message": "  正常 原生伺服器已建置（成品存在）"
+  },
+  "startNativeMissing": {
+    "message": "  警告：在 $path$ 找不到原生伺服器成品",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startNextSteps": {
+    "message": "  後續步驟"
+  },
+  "startNodeMissing": {
+    "message": "  錯誤：找不到 Node.js"
+  },
+  "startNodeVersion": {
+    "message": "  正常 Node.js：$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startOneTimeComplete": {
+    "message": "  單次建置已完成；開發監看器已停用。"
+  },
+  "startPnpmMissing": {
+    "message": "  錯誤：找不到 pnpm"
+  },
+  "startPnpmVersion": {
+    "message": "  正常 pnpm：v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startPressStop": {
+    "message": "  按 Ctrl+C 停止。"
+  },
+  "startProcessingBuildConfiguration": {
+    "message": "[Python] 正在處理建置設定..."
+  },
+  "startPythonError": {
+    "message": "警告：Python 指令碼發生錯誤（繼續執行）：$error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "startRebuilding": {
+    "message": "  正在重新建置（設定 MCP_SKIP_BUILD=1 可使用現有輸出）。"
+  },
+  "startRecordingButton": {
+    "message": "開始錄製",
+    "description": "開始錄製按鈕文字"
   },
   "startRecordingError": {
     "message": "啟動錄製失敗：$ERROR$",
@@ -621,14 +1746,611 @@
       }
     }
   },
-  "recordingGeneralError": {
-    "message": "啟動錄製時發生錯誤：$ERROR$",
-    "description": "一般錄製錯誤訊息",
+  "startRegisteringHost": {
+    "message": "  正在註冊原生訊息主機..."
+  },
+  "startRegisteringNative": {
+    "message": "正在註冊原生訊息主機..."
+  },
+  "startRegistrationMayRequireUpdate": {
+    "message": "  註冊原生主機時可能需要手動更新擴充功能 ID"
+  },
+  "startRegistrationVerification": {
+    "message": "  註冊驗證："
+  },
+  "startRegistrationWillProceed": {
+    "message": "  將繼續註冊原生主機，但可能需要手動更新 ID"
+  },
+  "startRegistryExists": {
+    "message": "  正常 Windows 登錄機碼存在"
+  },
+  "startRegistryMissing": {
+    "message": "  警告：在 $path$ 找不到 Windows 登錄機碼",
     "placeholders": {
-      "error": {
-        "content": "$1",
-        "example": "未知錯誤"
+      "path": {
+        "content": "$1"
       }
     }
+  },
+  "startRetryingBuild": {
+    "message": "  正在重試建置（第 $attempt$/$maximum$ 次）...",
+    "placeholders": {
+      "attempt": {
+        "content": "$1"
+      },
+      "maximum": {
+        "content": "$2"
+      }
+    }
+  },
+  "startServiceFailed": {
+    "message": "啟動服務失敗"
+  },
+  "startSetupTitle": {
+    "message": "Chrome MCP 伺服器 - Windows 設定"
+  },
+  "startSharedBuilt": {
+    "message": "  正常 共用套件已建置（成品存在）"
+  },
+  "startSharedMissing": {
+    "message": "  警告：在 $path$ 找不到共用建置成品",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startSkipBuild": {
+    "message": "  MCP_SKIP_BUILD=1；略過重新建置並使用現有輸出。"
+  },
+  "startWatchDevSelected": {
+    "message": "  已選擇開發監看模式。"
+  },
+  "startWatchOnceSelected": {
+    "message": "  已選擇單次建置。"
+  },
+  "startWatchPrompt": {
+    "message": "是否啟用開發監看模式？[Y/n]"
+  },
+  "stateLabel": {
+    "message": "狀態"
+  },
+  "statusLabel": {
+    "message": "狀態",
+    "description": "通用狀態標籤"
+  },
+  "stopAssistButton": {
+    "message": "停止協助"
+  },
+  "stopRecordingButton": {
+    "message": "停止錄製",
+    "description": "停止錄製按鈕文字"
+  },
+  "stopServiceFailed": {
+    "message": "停止服務失敗"
+  },
+  "streamingModeLabel": {
+    "message": "串流模式：",
+    "description": "串流模式選擇標籤"
+  },
+  "styleInstructionLabel": {
+    "message": "風格指令"
+  },
+  "submitDisabled": {
+    "message": "提交已禁用"
+  },
+  "submitFailed": {
+    "message": "提交失敗"
+  },
+  "successNotification": {
+    "message": "操作已成功完成",
+    "description": "通用成功通知"
+  },
+  "switchingModelStatus": {
+    "message": "正在切換模型...",
+    "description": "模型切換進度訊息"
+  },
+  "synonymsLabel": {
+    "message": "同義詞"
+  },
+  "tabIndexLabel": {
+    "message": "標籤頁 $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "targetLanguagesLabel": {
+    "message": "目標語言"
+  },
+  "taskCenterActiveCount": {
+    "message": "$1 項活動"
+  },
+  "taskCenterActiveLabel": {
+    "message": "活動"
+  },
+  "taskCenterAiTranslateLabel": {
+    "message": "AI 翻譯"
+  },
+  "taskCenterAllLabel": {
+    "message": "全部"
+  },
+  "taskCenterAllTasks": {
+    "message": "全部任務"
+  },
+  "taskCenterAppLabel": {
+    "message": "應用"
+  },
+  "taskCenterAttemptLabel": {
+    "message": "第"
+  },
+  "taskCenterAttemptsLabel": {
+    "message": "嘗試次數"
+  },
+  "taskCenterBackendFailureCount": {
+    "message": "$1 次失敗"
+  },
+  "taskCenterBackendOffline": {
+    "message": "後端離線"
+  },
+  "taskCenterBackendOnline": {
+    "message": "後端在線"
+  },
+  "taskCenterBumpFailed": {
+    "message": "任務移動失敗"
+  },
+  "taskCenterBumpHint": {
+    "message": "以優先級 $1 將任務移到快速通道頂部"
+  },
+  "taskCenterBumpedLabel": {
+    "message": "已移到頂部"
+  },
+  "taskCenterBumpingLabel": {
+    "message": "正在移動…"
+  },
+  "taskCenterCancelReadyAction": {
+    "message": "取消就緒"
+  },
+  "taskCenterCapabilityLabel": {
+    "message": "能力"
+  },
+  "taskCenterCapability_chatgpt_hint": {
+    "message": "執行 ChatGPT 網頁對話，提取朗讀音頻並將結果回寫 Laravel"
+  },
+  "taskCenterCapability_chatgpt_label": {
+    "message": "執行 ChatGPT 長語音任務"
+  },
+  "taskCenterCapability_gemini_image_hint": {
+    "message": "使用 Gemini 生成詞庫單詞組封面並回寫 Laravel"
+  },
+  "taskCenterCapability_gemini_image_label": {
+    "message": "AI 單詞組封面生成"
+  },
+  "taskCenterCapability_image_hint": {
+    "message": "通過共享瀏覽器處理器搜索並回寫圖書封面和媒體海報"
+  },
+  "taskCenterCapability_image_label": {
+    "message": "搜索封面與海報"
+  },
+  "taskCenterCapability_notebooklm_hint": {
+    "message": "將 Laravel NotebookLM 隊列交給共享瀏覽器運行時處理並回寫結果"
+  },
+  "taskCenterCapability_notebooklm_label": {
+    "message": "執行 NotebookLM 生成任務"
+  },
+  "taskCenterCapability_validity_hint": {
+    "message": "處理未檢查或未翻譯的單詞，並啟用網頁 AI 與 Bing 翻譯處理器"
+  },
+  "taskCenterCapability_validity_label": {
+    "message": "執行單詞有效性與翻譯任務"
+  },
+  "taskCenterCategoryLoadError": {
+    "message": "無法加載分類任務"
+  },
+  "taskCenterCategory_article_audio": {
+    "message": "待文章語音"
+  },
+  "taskCenterCategory_article_tts_generation": {
+    "message": "待文章音頻生成"
+  },
+  "taskCenterCategory_audio_transcribe": {
+    "message": "待音頻轉寫"
+  },
+  "taskCenterCategory_chatgpt_chat": {
+    "message": "待 ChatGPT 對話"
+  },
+  "taskCenterCategory_dictionary_explanation": {
+    "message": "待詞典釋義"
+  },
+  "taskCenterCategory_dictionary_explanation_demo": {
+    "message": "待演示詞典釋義"
+  },
+  "taskCenterCategory_gemini_chat": {
+    "message": "待 AI 對話"
+  },
+  "taskCenterCategory_gemini_image": {
+    "message": "待 AI 生圖"
+  },
+  "taskCenterCategory_notebooklm": {
+    "message": "待 NotebookLM 處理"
+  },
+  "taskCenterCategory_poster": {
+    "message": "待搜索封面與海報"
+  },
+  "taskCenterCategory_prompt_translation": {
+    "message": "待提示詞翻譯"
+  },
+  "taskCenterCategory_sentence_audio": {
+    "message": "待句子音頻"
+  },
+  "taskCenterCategory_stt": {
+    "message": "待語音識別"
+  },
+  "taskCenterCategory_subtitle_search": {
+    "message": "待字幕搜索"
+  },
+  "taskCenterCategory_word_audio": {
+    "message": "待生成語音"
+  },
+  "taskCenterCategory_word_media": {
+    "message": "待搜索單詞圖片"
+  },
+  "taskCenterCategory_word_translation": {
+    "message": "待翻譯任務"
+  },
+  "taskCenterCategory_word_validity": {
+    "message": "待有效檢測"
+  },
+  "taskCenterCompletedLabel": {
+    "message": "已完成"
+  },
+  "taskCenterConnectingStream": {
+    "message": "正在連接實時流…"
+  },
+  "taskCenterCurrentStageLabel": {
+    "message": "處理階段"
+  },
+  "taskCenterCurrentTaskLabel": {
+    "message": "當前任務"
+  },
+  "taskCenterDoneLabel": {
+    "message": "完成"
+  },
+  "taskCenterDuplicateLabel": {
+    "message": "重複"
+  },
+  "taskCenterElapsedLabel": {
+    "message": "已用時間"
+  },
+  "taskCenterExecutionDescription": {
+    "message": "與任務頁共享，就緒時立即應用。"
+  },
+  "taskCenterExecutionTitle": {
+    "message": "任務執行"
+  },
+  "taskCenterFailedLabel": {
+    "message": "失敗"
+  },
+  "taskCenterHistoryLabel": {
+    "message": "歷史任務"
+  },
+  "taskCenterInactiveLabel": {
+    "message": "未活動"
+  },
+  "taskCenterLaneLabel": {
+    "message": "通道"
+  },
+  "taskCenterLastLabel": {
+    "message": "最近"
+  },
+  "taskCenterLeasedLabel": {
+    "message": "已租用"
+  },
+  "taskCenterLiveLabel": {
+    "message": "活動任務"
+  },
+  "taskCenterLoadError": {
+    "message": "無法加載任務"
+  },
+  "taskCenterLoadSummary": {
+    "message": "已加載 $1 個待處理任務，其中 $2 個可由瀏覽器處理"
+  },
+  "taskCenterNewLabel": {
+    "message": "新增"
+  },
+  "taskCenterNextPage": {
+    "message": "下一頁"
+  },
+  "taskCenterNoMatchingTasks": {
+    "message": "沒有符合當前篩選條件的任務"
+  },
+  "taskCenterNoTasksFound": {
+    "message": "未找到任務"
+  },
+  "taskCenterNotReadyStatus": {
+    "message": "未就緒"
+  },
+  "taskCenterPageRange": {
+    "message": "$1-$2，共 $3 項"
+  },
+  "taskCenterPayloadLabel": {
+    "message": "任務數據"
+  },
+  "taskCenterPendingLabel": {
+    "message": "待處理"
+  },
+  "taskCenterPhaseLabel": {
+    "message": "階段"
+  },
+  "taskCenterPreviousPage": {
+    "message": "上一頁"
+  },
+  "taskCenterProcessingLabel": {
+    "message": "處理中"
+  },
+  "taskCenterProcessorDetails": {
+    "message": "處理器 · $1/$2 活動"
+  },
+  "taskCenterProcessorsLabel": {
+    "message": "處理器"
+  },
+  "taskCenterProductionDescription": {
+    "message": "Laravel 隊列 → MCP 共享運行時 → 結果回寫。"
+  },
+  "taskCenterProductionTitle": {
+    "message": "生產任務"
+  },
+  "taskCenterProviderLabel": {
+    "message": "提供方"
+  },
+  "taskCenterQueueLabel": {
+    "message": "隊列"
+  },
+  "taskCenterReadyAndStartAction": {
+    "message": "就緒並開始任務"
+  },
+  "taskCenterReadyControlHint": {
+    "message": "就緒後持續監控 Laravel；開關會立即啟停對應任務。"
+  },
+  "taskCenterReadyOnlyAction": {
+    "message": "就緒"
+  },
+  "taskCenterReadyOnlyHint": {
+    "message": "僅進入就緒狀態並監控 Laravel，不執行任務。"
+  },
+  "taskCenterReadyRunningStatus": {
+    "message": "已就緒 · 執行中"
+  },
+  "taskCenterReadyStatus": {
+    "message": "已就緒"
+  },
+  "taskCenterReadyWithTasksHint": {
+    "message": "進入就緒狀態並啟動全部已選任務能力。"
+  },
+  "taskCenterRefresh": {
+    "message": "刷新任務"
+  },
+  "taskCenterResultLabel": {
+    "message": "結果"
+  },
+  "taskCenterSearchAction": {
+    "message": "搜索"
+  },
+  "taskCenterSearchPlaceholder": {
+    "message": "搜索任務內容或 ID"
+  },
+  "taskCenterSelectedCount": {
+    "message": "已選擇 $1 項"
+  },
+  "taskCenterShowAll": {
+    "message": "展開全部 $1 項"
+  },
+  "taskCenterShowLess": {
+    "message": "收起"
+  },
+  "taskCenterSortLabel": {
+    "message": "排序"
+  },
+  "taskCenterSortNewest": {
+    "message": "最新"
+  },
+  "taskCenterSortOldest": {
+    "message": "最早"
+  },
+  "taskCenterSortPriority": {
+    "message": "優先級"
+  },
+  "taskCenterStartFailed": {
+    "message": "啟動任務中心失敗"
+  },
+  "taskCenterStatusLabel": {
+    "message": "狀態"
+  },
+  "taskCenterStatus_assigned": {
+    "message": "已分配"
+  },
+  "taskCenterStatus_cancelled": {
+    "message": "已取消"
+  },
+  "taskCenterStatus_completed": {
+    "message": "已完成"
+  },
+  "taskCenterStatus_completed_demo": {
+    "message": "演示完成"
+  },
+  "taskCenterStatus_failed": {
+    "message": "失敗"
+  },
+  "taskCenterStatus_leased": {
+    "message": "已租用"
+  },
+  "taskCenterStatus_pending": {
+    "message": "待處理"
+  },
+  "taskCenterStatus_processing": {
+    "message": "處理中"
+  },
+  "taskCenterStopFailed": {
+    "message": "停止任務中心失敗"
+  },
+  "taskCenterStreamUnavailable": {
+    "message": "實時流不可用"
+  },
+  "taskCenterTaskCount": {
+    "message": "$1 個任務"
+  },
+  "taskCenterTaskTopLabel": {
+    "message": "移到頂部"
+  },
+  "taskCenterTimelineLabel": {
+    "message": "時間線"
+  },
+  "taskCenterTimeoutLabel": {
+    "message": "剩餘超時"
+  },
+  "taskCenterUnifiedTitle": {
+    "message": "統一任務中心"
+  },
+  "taskCenterWorkerLabel": {
+    "message": "工作器"
+  },
+  "taskLabel": {
+    "message": "任務"
+  },
+  "taskMediaAlt": {
+    "message": "任務媒體"
+  },
+  "tenMinutesOption": {
+    "message": "10 分鐘",
+    "description": "10 分鐘時長選項"
+  },
+  "textToSynthesizeLabel": {
+    "message": "要合成的文本"
+  },
+  "textUploadLabel": {
+    "message": "文本上傳"
+  },
+  "themeLabel": {
+    "message": "主題",
+    "description": "主題選擇器標籤"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 分鐘",
+    "description": "30 分鐘時長選項"
+  },
+  "timeoutErrorMessage": {
+    "message": "操作逾時",
+    "description": "逾時錯誤訊息"
+  },
+  "toggleServiceFailed": {
+    "message": "切換服務狀態失敗"
+  },
+  "toolboxLabel": {
+    "message": "工具箱"
+  },
+  "totalLabel": {
+    "message": "總計"
+  },
+  "typeWordPlaceholder": {
+    "message": "輸入單詞…"
+  },
+  "unknownErrorMessage": {
+    "message": "未知錯誤，請檢查您的網路是否可存取 HuggingFace",
+    "description": "未知錯誤回退訊息"
+  },
+  "unreachableStatus": {
+    "message": "無法訪問"
+  },
+  "untranslatedQueueLabel": {
+    "message": "未翻譯隊列"
+  },
+  "urlLabel": {
+    "message": "URL：",
+    "description": "URL 輸入標籤"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL 輸入佔位符"
+  },
+  "useButton": {
+    "message": "使用"
+  },
+  "useDarkTheme": {
+    "message": "使用深色主題"
+  },
+  "useLightTheme": {
+    "message": "使用淺色主題"
+  },
+  "validLabel": {
+    "message": "有效"
+  },
+  "validityAiProviderHint": {
+    "message": "選擇單次完成單詞有效性檢查和翻譯的網頁 AI。"
+  },
+  "validityAiProviderTitle": {
+    "message": "有效性檢查 AI 提供方"
+  },
+  "validityTestFailed": {
+    "message": "有效性測試失敗"
+  },
+  "validityWordLanguageHint": {
+    "message": "默認只處理英語單詞；可選擇其他語言來處理其積壓任務。"
+  },
+  "validityWordLanguageTitle": {
+    "message": "有效性檢查單詞語言"
+  },
+  "validityWordsLabel": {
+    "message": "單詞（以逗號或換行分隔）"
+  },
+  "vectorDocumentsLabel": {
+    "message": "向量文件",
+    "description": "向量文件數量標籤"
+  },
+  "vectorStoreLabel": {
+    "message": "向量存儲"
+  },
+  "verboseLoggingLabel": {
+    "message": "詳細日誌",
+    "description": "詳細日誌切換標籤"
+  },
+  "voiceDescriptionLabel": {
+    "message": "音色描述"
+  },
+  "waitForCaptchaHint": {
+    "message": "等待驗證碼——持續輪詢，直至解決或超時"
+  },
+  "waitTimeoutSecondsLabel": {
+    "message": "等待超時（秒）"
+  },
+  "warningNotification": {
+    "message": "警告：請在繼續前檢查",
+    "description": "通用警告通知"
+  },
+  "webDefinitionsLabel": {
+    "message": "網絡釋義"
+  },
+  "webMode": {
+    "message": "網頁"
+  },
+  "webSearchPlaceholder": {
+    "message": "搜索文本或圖片…"
+  },
+  "wordsLabel": {
+    "message": "單詞"
+  },
+  "workerActionFailed": {
+    "message": "工作器執行 $action$ 失敗",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerOptionsManagedHint": {
+    "message": "工作器選項在設置中心管理。"
+  },
+  "youglishPronunciationHint": {
+    "message": "真實語境視頻發音（YouGlish）"
   }
 }

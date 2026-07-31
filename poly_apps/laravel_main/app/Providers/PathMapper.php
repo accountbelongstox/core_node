@@ -90,7 +90,7 @@ class PathMapper
             'postgresql' => $basePath . $separator . 'wwwroot' . $separator . 'postgresql',
             'nginx' => $isWindows ? 'nginx.exe' : self::findActualPath('/etc/nginx'),
             'php' => $isWindows ? 'php.exe' : self::findActualPath('/etc/php'),
-            'logs' => $isWindows ? ($basePath . $separator . 'wwwroot' . $separator . 'laravel_db' . $separator . 'logs') : self::findLaravelLogPath($basePath),
+            'logs' => self::findLaravelLogPath($basePath),
             // Native ext4 loop-mount target for the PostgreSQL D-drive image (WSL
             // persistence). Mirrors gvar_common.sh + system_paths.py "pg_mount":
             // a native Linux path (off drvfs) so pg gets a postgres-owned, 0700
@@ -540,24 +540,16 @@ class PathMapper
 
     /**
      * Find Laravel log path
-     * Maps to laravel_data_dir/log (laravel_db/log)
+     * Maps to laravel_data_dir/logs (laravel_db/logs)
      */
     private static function findLaravelLogPath(string $basePath): string
     {
         // Use proper path separator based on OS
         $separator = self::isWindows() ? '\\' : '/';
         $laravelDataDir = rtrim($basePath, '/\\') . $separator . 'wwwroot' . $separator . 'laravel_db';
-        $logPath = $laravelDataDir . $separator . 'log';
-        
-        // If log directory doesn't exist, try to create it
-        if (!is_dir($logPath)) {
-            // Try to create parent directory first
-            if (!is_dir($laravelDataDir)) {
-                @mkdir($laravelDataDir, 0755, true);
-            }
-            // Create log directory
-            @mkdir($logPath, 0755, true);
-        }
+        $logPath = $laravelDataDir . $separator . 'logs';
+
+        self::ensureDirectory($logPath);
         
         // If still doesn't exist, fallback (Windows: temp dir, Linux: /var/log)
         if (!is_dir($logPath)) {
@@ -1793,4 +1785,3 @@ class PathMapper
         return null;
     }
 }
-

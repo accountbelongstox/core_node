@@ -1,5 +1,5 @@
 /**
- * pycoreTarget — which pycore node the WHOLE pycore-manager talks to.
+ * pycoreTarget — shared selection of the active Pycore service node.
  *
  * All transports connect DIRECTLY to `<host>:59000` (see pycoreEndpoints.ts).
  *

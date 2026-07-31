@@ -4,11 +4,11 @@ import {
   Type, Hash, AlignLeft, Languages, Eye, EyeOff, Sparkles,
   Lock, BookMarked,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   BookTextStats, BookUploadFile, BookTotals, BookListKind,
   BookChapter, BookSlot,
-} from '../../core/api/modules/BooksAPI';
+} from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../core/i18n/supportedLearningLanguages';
 import { commonClasses } from '../../styles/theme';
 import { useToast } from '../admin';

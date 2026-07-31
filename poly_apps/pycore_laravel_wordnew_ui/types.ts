@@ -31,10 +31,10 @@ export enum ViewType {
   DEV_HISTORY = 'dev_history',
   INVITE_CODE_MANAGER = 'invite_codes',
   /** Database Viewer was merged into DATABASE_MANAGER (Tables tab); the old
-   *  #/db-viewer slug deep-links there via core/routing/viewRoute.ts. */
+   *  #/db-viewer slug deep-links there via the Laravel Manager router. */
   DATABASE_MANAGER = 'db_manager',
   /** Movies & Books was merged into the Media hub (MEDIA_BROWSER); kept only as a
-   *  legacy deep-link alias (#/movies-books) — see core/routing/viewRoute.ts. */
+   *  legacy deep-link alias (#/movies-books) — see the Laravel Manager router. */
   MOVIES_BOOKS = 'movies_books'
 }
 

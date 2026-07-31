@@ -9,12 +9,12 @@ import {
   VocabularyTask,
   VocabularyWord
 } from '../../types';
-// Note: This component now uses the new centralized api from core/api
-import { api } from '../../core/api';
+// Laravel Manager uses its application-owned API boundary.
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { mediaUrl } from '../../config/constants';
 import { commonClasses } from '../../styles/theme';
-import { extractArrayFromResponse } from '../../utils/arrayUtils';
+import { ensureArray } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import WordsManagerPanel from '../vocabulary/WordsManagerPanel';
@@ -26,12 +26,13 @@ import TtsPlayerPanel from '../vocabulary/tabs/TtsPlayerPanel';
 import LearningTasksPanel from '../vocabulary/tabs/LearningTasksPanel';
 import StatisticsTab from '../vocabulary/tabs/StatisticsTab';
 import LibrariesTab from '../vocabulary/tabs/LibrariesTab';
+import ArticleManagerTab from '../vocabulary/tabs/ArticleManagerTab';
 import { type PaginatedListColumn, type PaginatedListFetcher } from '../vocabulary/PaginatedListModal';
 import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
 import QueueItemDetailPanel from '../vocabulary/QueueItemDetailPanel';
 import { buildAssistQueueColumns, buildTtsQueueColumns } from '../vocabulary/queueDrillColumns';
-import type { AssistOverviewResponse } from '../../core/api/modules/BooksAPI';
+import type { AssistOverviewResponse } from '@/apps/laravel-manager/api';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
@@ -49,10 +50,11 @@ const VocabularyLearning: React.FC = () => {
   // Active sub-tab — persisted so returning to the page restores the last view.
   const [activeTab, setActiveTab] = useState<VocabTab>(() => {
     try {
-      const saved = localStorage.getItem(VOCAB_TAB_KEY) as VocabTab | null;
+      const saved = localStorage.getItem(VOCAB_TAB_KEY);
       // Statistics was merged into Words — redirect any persisted 'statistics'.
       if (saved === 'statistics') return 'words';
-      if (saved && VOCAB_TABS.some((t) => t.key === saved)) return saved;
+      if (saved === 'daily-reading') return 'articles';
+      if (saved && VOCAB_TABS.some((t) => t.key === saved)) return saved as VocabTab;
     } catch { /* ignore */ }
     return 'translate';
   });
@@ -264,7 +266,7 @@ const VocabularyLearning: React.FC = () => {
         { code: 'es', name: 'Spanish', native_name: 'Español' }
       ];
 
-      const languageData = extractArrayFromResponse(response, defaultLanguages);
+      const languageData = ensureArray(response.data, defaultLanguages);
 
       setLanguages(languageData);
     } catch (error) {
@@ -1134,6 +1136,9 @@ const VocabularyLearning: React.FC = () => {
           t={t}
         />
       )}
+
+      {/* ===================== ARTICLES TAB ===================== */}
+      {activeTab === 'articles' && <ArticleManagerTab />}
 
       {/* ===================== WORDS TAB ===================== */}
       {activeTab === 'words' && (

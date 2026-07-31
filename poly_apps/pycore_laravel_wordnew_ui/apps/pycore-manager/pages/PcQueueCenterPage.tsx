@@ -13,7 +13,11 @@ import { useTranslation } from 'react-i18next';
 import {
   ListOrdered, RefreshCw, TimerReset, AlertTriangle, SlidersHorizontal,
 } from 'lucide-react';
-import { getPycoreHealth, PYCORE_HEALTH_EVENT } from '../../../core/api-libs/pycore';
+import {
+  getPycoreHealth,
+  PYCORE_HEALTH_EVENT,
+  PYCORE_HTTP_DEFAULTS,
+} from '@/apps/pycore-manager/api';
 import PcTranslationQueuePanel from './PcTranslationQueuePage';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
@@ -29,7 +33,7 @@ import {
   type QcSection,
   type QcSectionScope,
   type QueueSectionLifecycle,
-  QC_DRAWER_KEY, QC_AUTO_REFRESH_MS,
+  QC_DRAWER_KEY,
   QC_SECTION_DEFS, isQcSection, qcSectionAnchor,
 } from '../utils/pcQueueCenterTypes';
 import { StorageManager } from '../../../core/persistence';
@@ -282,7 +286,7 @@ const QueueCenterBody: React.FC = () => {
               ? 'bg-emerald-500/15 text-emerald-500 ring-1 ring-inset ring-emerald-500/30'
               : 'pc-glass text-slate-500 hover:bg-slate-200/40 dark:hover:bg-white/5'
               }`}
-            title={auto ? t('queueCenter.autoOnTitle', { sec: QC_AUTO_REFRESH_MS / 1000 }) : t('queueCenter.autoOffTitle')}>
+            title={auto ? t('queueCenter.autoOnTitle', { sec: PYCORE_HTTP_DEFAULTS.fallbackPollMs / 1000 }) : t('queueCenter.autoOffTitle')}>
             <TimerReset className="w-3.5 h-3.5" />
             {t('queueCenter.auto')} {auto ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
           </button>

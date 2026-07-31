@@ -10,9 +10,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { XCircle, Loader2, Info } from 'lucide-react';
 import Portal from '../../../components/shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { LocalTaskDetail, PycoreGlobalTaskDetail, QueueItem } from '../../../core/api-libs/pycore/pycoreTypes';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { LocalTaskDetail, PycoreGlobalTaskDetail, QueueItem } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { extractTaskContentSummary, mergeTaskContentSources } from '../utils/pcTaskContent';
 import { PcBlobAudio } from './PcBlobMedia';
 import {

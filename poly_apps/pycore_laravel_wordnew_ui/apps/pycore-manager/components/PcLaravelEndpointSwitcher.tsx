@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Server, Check, RefreshCw, ChevronDown, ChevronUp, Plus, X, WifiOff,
 } from 'lucide-react';
-import type { LaravelApiEndpoint } from '../../../core/api-libs/pycore';
+import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const dotCls = (ep?: LaravelApiEndpoint | null): string => {

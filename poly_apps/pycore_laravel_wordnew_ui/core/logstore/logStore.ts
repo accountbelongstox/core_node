@@ -1,5 +1,5 @@
 /**
- * Global in-memory log store for the laravel-manager end.
+ * Shared in-memory log store for application-owned log panels.
  *
  * Framework-free pub/sub ring buffer: BaseAPI (every HTTP operation) and
  * feature code (e.g. DB Manager backup/restore) append entries; the

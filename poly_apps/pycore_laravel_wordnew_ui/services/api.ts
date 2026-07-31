@@ -5,7 +5,8 @@ import { MockService } from "./mockData";
 /**
  * MOCK tool-execution client (demo flows only).
  *
- * This is NOT the real API layer — real requests go through `core/api` (the
+ * This is NOT the real API layer — real requests go through the Laravel Manager
+ * application API boundary (the
  * `api` singleton), which follows the live shared base URL managed by
  * ApiManager. This client backs the demo tools (WordCounter, AgeCalculator,
  * PasswordGenerator, HexToRgb, UniversalTool, ToolWorkspace): every action is

@@ -2,31 +2,31 @@
   <section class="settings-card">
     <div class="settings-card__header">
       <div>
-        <h4>Bing task worker</h4>
-        <p>Shared with Bing Dictionary and applied to a running worker.</p>
+        <h4>{{ getMessage('bingWorkerTitle') }}</h4>
+        <p>{{ getMessage('bingWorkerSharedHint') }}</p>
       </div>
-      <span class="endpoint" :title="apiBaseUrl">{{ apiBaseUrl || 'No API endpoint' }}</span>
+      <span class="endpoint" :title="apiBaseUrl">{{ apiBaseUrl || getMessage('apiNone') }}</span>
     </div>
 
     <div class="settings-grid">
       <label>
-        <span>Poll interval (seconds)</span>
+        <span>{{ getMessage('bingAssistPollInterval') }}</span>
         <input v-model.number="config.fetchInterval" type="number" min="1" max="3600" @change="save" />
       </label>
       <label>
-        <span>Batch size</span>
+        <span>{{ getMessage('bingAssistBatchSize') }}</span>
         <input v-model.number="config.batchSize" type="number" min="1" max="50" @change="save" />
       </label>
       <label>
-        <span>Parallel tabs</span>
+        <span>{{ getMessage('bingAssistParallelTabs') }}</span>
         <input v-model.number="config.tabCount" type="number" min="1" max="8" @change="save" />
       </label>
       <label>
-        <span>Source language</span>
+        <span>{{ getMessage('sourceLanguageLabel') }}</span>
         <input v-model.trim="config.sourceLanguage" type="text" placeholder="en" @change="save" />
       </label>
       <label>
-        <span>Target language</span>
+        <span>{{ getMessage('bingAssistTargetLang') }}</span>
         <input v-model.trim="config.targetLanguage" type="text" placeholder="zh" @change="save" />
       </label>
     </div>
@@ -40,6 +40,7 @@ import { BING_DICT_MSG } from '@/common/message-types';
 import { localStorage } from '@/services/ExtensionStorage';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import type { ClientConfig } from '../composables/useBingDictionaryClient';
+import { getMessage } from '@/utils/i18n';
 
 const { apiBaseUrl } = useApiEndpoint();
 const config = ref<ClientConfig>({

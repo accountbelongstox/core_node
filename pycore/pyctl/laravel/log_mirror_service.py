@@ -12,12 +12,20 @@ from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.identity import (
+    CORE_NODE_PROTOCOL_HEADER,
+    CORE_NODE_PROTOCOL_VERSION,
+    LARAVEL_SERVICE_HEADER,
+    LARAVEL_SERVICE_ID,
+)
 from pycore.pyutils.laravel.remote_cursor_store import (
     RemoteCursor,
     RemoteCursorStore,
     remote_cursor_store,
 )
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
+
+_LARAVEL_LOG_TIMEOUT_SECONDS = 5
 
 class LaravelLogMirrorService:
     """
@@ -73,9 +81,17 @@ class LaravelLogMirrorService:
             # The internal route is /api/internal/pycore/logs/latest
             url = f"{base_url}/api/internal/pycore/logs/latest"
             
-            resp = laravel_client.get(url, params=params, timeout=10)
+            resp = laravel_client.get(
+                url,
+                params=params,
+                timeout=_LARAVEL_LOG_TIMEOUT_SECONDS,
+            )
             
-            if resp.status_code == 200:
+            recognized = (
+                resp.headers.get(LARAVEL_SERVICE_HEADER) == LARAVEL_SERVICE_ID
+                and resp.headers.get(CORE_NODE_PROTOCOL_HEADER) == CORE_NODE_PROTOCOL_VERSION
+            )
+            if resp.status_code == 200 and recognized:
                 data = resp.json()
                 if data.get("success"):
                     # Update cursor
@@ -104,6 +120,9 @@ class LaravelLogMirrorService:
                 else:
                     cursor_obj.snapshot_json["stale"] = True
                     cursor_obj.error_json = {"error": data.get("error", "Unknown API error")}
+            elif resp.status_code == 200:
+                cursor_obj.snapshot_json["stale"] = True
+                cursor_obj.error_json = {"error": "Unrecognized Laravel log response"}
             else:
                 cursor_obj.snapshot_json["stale"] = True
                 cursor_obj.error_json = {"error": f"HTTP {resp.status_code}", "body": resp.text[:200]}

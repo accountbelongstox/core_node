@@ -8,8 +8,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Languages, RefreshCcw, ChevronDown, ChevronRight, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { TranslationHistoryItem } from '../../core/api/modules/AppQyV1';
+import { api } from '@/apps/laravel-manager/api';
+import type { TranslationHistoryItem } from '@/apps/laravel-manager/api';
 
 type StatusFilter = '' | 'completed' | 'failed';
 const PAGE = 25;

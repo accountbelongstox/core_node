@@ -1,8 +1,9 @@
 import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { postJSON } from '../api/WfNewApiTransport';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 export interface WordNewSentenceWordRow {
   word: string;

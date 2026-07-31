@@ -7,6 +7,7 @@ import { usePersistedRef } from '@/composables/usePersistedRef';
 import { useQwenTtsSettings } from './useQwenTtsSettings';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { getMessage } from '@/utils/i18n';
 import {
   DEFAULT_QWEN_TTS_TEXT,
   QWEN_TTS_SETTING_KEYS,
@@ -70,17 +71,17 @@ export function useQwenTts() {
         },
       });
       if (!res) {
-        error.value = 'No response from extension background — reload the extension and retry';
+        error.value = getMessage('noBackgroundResponse');
         return;
       }
       result.value = res?.result || null;
       if (!res?.success || !result.value?.ok) {
-        error.value = res?.error || result.value?.error || result.value?.message || 'Qwen TTS failed';
+        error.value = res?.error || result.value?.error || result.value?.message || getMessage('qwenTtsFailed');
       } else {
         logger.info(LOG, `Generated ${result.value.downloadFilename || 'audio'} in ${result.value.elapsedMs}ms`);
       }
     } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : 'Qwen TTS failed';
+      error.value = e instanceof Error ? e.message : getMessage('qwenTtsFailed');
       logger.error(LOG, error.value, e);
     } finally {
       loading.value = false;

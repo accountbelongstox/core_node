@@ -10,6 +10,7 @@ import { ref, onUnmounted, watch } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import { formatTimestamp } from '@/utils/time-helpers';
 import { TASK_CENTER_MSG } from '@/utils/task-center-types';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
@@ -104,7 +105,7 @@ export function useAiTranslateHub() {
 
   const toggleWorker = async () => {
     if (!currentEndpoint.value) {
-      error.value = 'No endpoint configured in Settings';
+      error.value = getMessage('noEndpointConfigured');
       return;
     }
 
@@ -127,10 +128,10 @@ export function useAiTranslateHub() {
           startStatsPolling();
         }
       } else {
-        error.value = resp?.error || `Failed to ${action} worker`;
+        error.value = resp?.error || getMessage('workerActionFailed', [action]);
       }
     } catch (err: any) {
-      error.value = err?.message || `Failed to ${action} worker`;
+      error.value = err?.message || getMessage('workerActionFailed', [action]);
     }
   };
 
@@ -195,7 +196,7 @@ export function useAiTranslateHub() {
         dictionaryError.value = 'No results found';
       }
     } catch (err: any) {
-      dictionaryError.value = err?.message || 'Network error';
+      dictionaryError.value = err?.message || getMessage('networkErrorMessage');
     } finally {
       dictionaryLoading.value = false;
     }
@@ -259,11 +260,11 @@ export function useAiTranslateHub() {
         connectionStatus.value = { state: 'ok', message: 'Connected' };
         prepared.value = true;
       } else {
-        queueOverview.value.error = resp?.error || 'Failed to load status';
+        queueOverview.value.error = resp?.error || getMessage('loadStatusFailed');
         connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
       }
     } catch (err: any) {
-      queueOverview.value.error = err?.message || 'Failed to load status';
+      queueOverview.value.error = err?.message || getMessage('loadStatusFailed');
       connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
     } finally {
       queueOverview.value.loading = false;

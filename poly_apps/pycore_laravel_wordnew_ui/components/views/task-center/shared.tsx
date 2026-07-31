@@ -17,7 +17,7 @@ import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { StatusBadge as CommonStatusBadge } from '../../common/StatusBadge';
 import { StatCard as CommonStatCard } from '../../common/StatCard';
-import type { TaskCenterQueueRole } from '../../../core/api/modules/ServerManagerAPI';
+import type { TaskCenterQueueRole } from '@/apps/laravel-manager/api';
 import {
   GLOBAL_TASK_CAPABILITIES,
   GLOBAL_TASK_CAPABILITIES_BY_ROLE,
@@ -26,7 +26,7 @@ import {
   GLOBAL_TASK_STATUSES,
   GLOBAL_TASK_STATUSES_BY_ROLE,
   GLOBAL_TASK_TYPE_CATALOG,
-} from '../../../core/api-libs/pycore/QueueCenterContract';
+} from '@/apps/laravel-manager/integrations/pycore';
 
 // ==================== Status vocabularies ====================
 
@@ -357,7 +357,7 @@ import type {
   GlobalTaskStats,
   GlobalWorkerInfo,
   GlobalWorkerStats,
-} from '../../../core/api/modules/ServerManagerAPI';
+} from '@/apps/laravel-manager/api';
 
 export interface GlobalTasksSnapshot {
   stats: GlobalTaskStats | null;

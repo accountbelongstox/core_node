@@ -21,12 +21,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Database, ChevronDown, ChevronUp, RefreshCw, WifiOff, Wifi, Film, BookOpen,
 } from 'lucide-react';
-import { requestPycoreHttp } from '../../../core/api-libs/pycore';
-import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
+import { requestPycoreHttp } from '@/apps/pycore-manager/api';
+import { PYCORE_BROWSER_EVENTS } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import type {
   MediaSourceListItem, MediaListResponse, MediaSentence,
-} from '../../../core/api/modules/MediaQueryAPI';
+} from '@/apps/laravel-manager/api';
 
 // i18n labels (single source; pycore-manager pages use literals, no `t` object).
 const L = {

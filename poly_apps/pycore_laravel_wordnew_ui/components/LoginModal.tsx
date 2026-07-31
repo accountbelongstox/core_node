@@ -4,8 +4,8 @@ import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, U
 import { useTranslation } from 'react-i18next';
 import { Language } from '../types';
 import { useUser } from '../hooks/useUser';
-import { api } from '../core/api';
-import { InviteCode } from '../core/api/modules/InviteCodeAPI';
+import { api } from '@/apps/laravel-manager/api';
+import { InviteCode } from '@/apps/laravel-manager/api';
 import Portal from './shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '../styles/overlay';
 

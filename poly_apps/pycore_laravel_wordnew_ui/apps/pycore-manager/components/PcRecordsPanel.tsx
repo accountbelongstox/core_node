@@ -16,17 +16,16 @@ import {
   Activity, Loader2, RefreshCw, Trash2, Play, Pause, FolderOpen,
   MessageSquare, Eye, Image as ImageIcon, AudioLines, Mic, ScanText,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { AiUsageRecord, ImageHistoryEntry, SpeechRecord } from '../../../core/api-libs/pycore';
-import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
+import type { AiUsageRecord, ImageHistoryEntry, SpeechRecord } from '@/apps/pycore-manager/api';
+import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { PcBlobImage } from './PcBlobMedia';
 import { PcImageLightbox } from './PcAiShared';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 
 const LOG_SRC = 'pc-records';
-const FALLBACK_POLL_MS = 60_000;
 
 type UnifiedKind = 'text' | 'vision' | 'probe' | 'image' | 'tts' | 'stt';
 
@@ -114,7 +113,11 @@ export const PcRecordsPanel: React.FC = () => {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
-  useTopicDrivenRefresh([PYCORE_EVENT_TOPICS.operationChanged], () => load(), { fallbackMs: FALLBACK_POLL_MS });
+  useTopicDrivenRefresh(
+    [PYCORE_EVENT_TOPICS.operationChanged],
+    () => load(),
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },
+  );
 
   const togglePlay = useCallback((rec: UnifiedRecord) => {
     if (!rec.audioId) return;

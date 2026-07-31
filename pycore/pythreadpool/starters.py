@@ -259,7 +259,7 @@ def start_ui(config: Dict[str, Any]) -> Any:
     app_id = config.get('app_id', 'pycore_ui')
     app_user_model_id = config.get('app_user_model_id')  # Optional custom AppUserModelID
     window_size = config.get('window_size', (1000, 180))
-    webview_url = config.get('webview_url', 'http://localhost:59000')
+    webview_url = config.get('webview_url', f'http://localhost:{PYCORE_HTTP_PORT}')
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
     # When the embedded web draws its own (simulated) title bar, disable the Qt

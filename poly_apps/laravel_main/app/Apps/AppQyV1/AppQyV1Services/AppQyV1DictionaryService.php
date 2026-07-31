@@ -12,6 +12,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1DictionaryService
@@ -373,6 +374,17 @@ class AppQyV1DictionaryService
      * @return array Array of language codes with data ['en', 'ja', 'vi', 'lo']
      */
     public static function scanAvailableLanguages(): array
+    {
+        // Called by several Octane timer tasks every 30-60s; language tables
+        // rarely appear/empty out, so cache the multi-table count scan.
+        return Cache::remember(
+            'appqyv1:available_languages',
+            now()->addMinutes(5),
+            fn () => self::scanAvailableLanguagesUncached()
+        );
+    }
+
+    private static function scanAvailableLanguagesUncached(): array
     {
         $wordTables = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getAllWordTables();
         $availableLanguages = [];

@@ -1,6 +1,6 @@
 <template>
   <div class="gt-panel">
-    <label class="gt-label">Provider</label>
+    <label class="gt-label">{{ getMessage('taskCenterProviderLabel') }}</label>
     <div class="gt-provider-row">
       <button
         v-for="p in PROVIDER_ORDER"
@@ -12,7 +12,7 @@
       >{{ PROVIDER_LABELS[p] }}</button>
     </div>
 
-    <label class="gt-label">Languages</label>
+    <label class="gt-label">{{ getMessage('languagesLabel') }}</label>
     <div class="gt-langs">
       <div v-for="lang in languages" :key="lang.code" class="gt-lang-card">
         <div class="gt-lang-head">
@@ -20,17 +20,17 @@
           <button
             v-if="languages.length > 1"
             class="gt-lang-remove"
-            title="Remove language"
+            :title="getMessage('removeLanguageTitle')"
             @click="removeLanguage(lang.code)"
           >×</button>
         </div>
         <div class="gt-toggle-row">
           <button class="gt-toggle" :class="{ active: lang.phonetics }" @click="lang.phonetics = !lang.phonetics">IPA</button>
-          <button class="gt-toggle" :class="{ active: lang.sentencePattern }" @click="lang.sentencePattern = !lang.sentencePattern" title="Sentence structure label, e.g. &quot;not only...but also&quot;">Pattern</button>
-          <button class="gt-toggle" :class="{ active: lang.shortPhrases }" @click="lang.shortPhrases = !lang.shortPhrases">Phrases</button>
-          <button class="gt-toggle" :class="{ active: lang.words }" @click="lang.words = !lang.words">Words</button>
-          <button class="gt-toggle" :class="{ active: lang.grammarPoints }" @click="lang.grammarPoints = !lang.grammarPoints">Grammar</button>
-          <button class="gt-toggle" :class="{ active: lang.expressions }" @click="lang.expressions = !lang.expressions">Alt ×</button>
+          <button class="gt-toggle" :class="{ active: lang.sentencePattern }" @click="lang.sentencePattern = !lang.sentencePattern" :title="getMessage('sentencePatternHint')">{{ getMessage('patternLabel') }}</button>
+          <button class="gt-toggle" :class="{ active: lang.shortPhrases }" @click="lang.shortPhrases = !lang.shortPhrases">{{ getMessage('phrasesLabel') }}</button>
+          <button class="gt-toggle" :class="{ active: lang.words }" @click="lang.words = !lang.words">{{ getMessage('wordsLabel') }}</button>
+          <button class="gt-toggle" :class="{ active: lang.grammarPoints }" @click="lang.grammarPoints = !lang.grammarPoints">{{ getMessage('grammarLabel') }}</button>
+          <button class="gt-toggle" :class="{ active: lang.expressions }" @click="lang.expressions = !lang.expressions">{{ getMessage('alternateExpressionsLabel') }}</button>
           <input
             v-if="lang.expressions"
             type="number"
@@ -44,7 +44,7 @@
     </div>
 
     <div v-if="addableLanguages.length" class="gt-add-row">
-      <span class="gt-add-label">Add:</span>
+      <span class="gt-add-label">{{ getMessage('addLabel') }}:</span>
       <button
         v-for="code in addableLanguages"
         :key="code"
@@ -55,20 +55,20 @@
 
     <label class="gt-global-row">
       <input type="checkbox" v-model="sourceLanguageSkipExpressions" />
-      <span>Source language: skip alternate expressions (only translated languages get them)</span>
+      <span>{{ getMessage('sourceLanguageExpressionsHint') }}</span>
     </label>
 
-    <label class="gt-label">Article text</label>
+    <label class="gt-label">{{ getMessage('articleTextLabel') }}</label>
     <textarea
       v-model="article"
       class="gt-textarea"
       rows="5"
-      placeholder="Paste a paragraph to translate & analyze…"
+      :placeholder="getMessage('articleTextPlaceholder')"
       :disabled="testing"
     ></textarea>
 
     <div class="gt-controls">
-      <span class="gt-hint">Built-in XML-like prompt: sentence alignment + the flags enabled above, per language</span>
+      <span class="gt-hint">{{ getMessage('articlePromptHint') }}</span>
       <button class="gt-test" :disabled="testing || !article.trim()" @click="runTest">
         <span class="gt-dot" :class="{ busy: testing }"></span>
         {{ testing ? (phase || 'Working…') : 'Test' }}
@@ -78,7 +78,7 @@
     <div v-if="error" class="gt-error">⚠ {{ error }}</div>
 
     <div v-if="result" class="gt-result">
-      <div class="gt-result-label">Extracted result</div>
+      <div class="gt-result-label">{{ getMessage('extractedResultLabel') }}</div>
       <div class="gt-result-text">{{ result }}</div>
     </div>
   </div>
@@ -88,6 +88,7 @@
 import { computed } from 'vue';
 import { useArticleStudyGuide, PROVIDER_ORDER, PROVIDER_LABELS } from '../../composables/useArticleStudyGuide';
 import { GEMINI_TRANSLATE_LANGUAGE_CATALOG, makeGeminiTranslateLangOption } from '../../composables/promptPresets';
+import { getMessage } from '@/utils/i18n';
 
 const { provider, article, languages, sourceLanguageSkipExpressions, testing, phase, error, result, runTest } =
   useArticleStudyGuide();

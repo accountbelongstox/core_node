@@ -16,7 +16,7 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Wrench, Wand2, ImageOff, RotateCcw, RefreshCw, ChevronDown } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import Portal from '../shared/Portal';
 import { OVERLAY_Z } from '../../styles/overlay';
 import { ConfirmModal, useToast } from '../admin';

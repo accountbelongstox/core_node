@@ -189,6 +189,17 @@ class AppQyV1AssistController extends Controller
             unset($result['error']);
         }
 
+        if ($httpStatus >= 200 && $httpStatus < 300) {
+            Log::info('[Assist] media upload accepted', [
+                'type' => $type,
+                'media_type' => $request->input('media_type'),
+                'id' => $id,
+                'status' => $result['status'] ?? null,
+                'already_done' => (bool) ($result['already_done'] ?? false),
+                'provider' => $request->input('provider'),
+            ]);
+        }
+
         return response()->json($result, $httpStatus);
     }
 
@@ -519,7 +530,8 @@ class AppQyV1AssistController extends Controller
     {
         $validated = Validator::make($request->all(), [
             'category' => 'required|string|in:' . implode(',', \App\Support\QueueCenterContract::categoryKeys()),
-            'status' => 'nullable|string|in:pending,processing,completed,failed,leased',
+            'status' => 'nullable|string|in:all,pending,processing,completed,failed,leased',
+            'q' => 'nullable|string|max:120',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:500',
         ]);
@@ -535,14 +547,29 @@ class AppQyV1AssistController extends Controller
         $start = isset($data['start']) ? (int) $data['start'] : 0;
         $limit = isset($data['limit']) ? (int) $data['limit'] : 50;
         $status = isset($data['status']) ? (string) $data['status'] : null;
+        $search = isset($data['q']) ? trim((string) $data['q']) : '';
 
         try {
-            $result = $this->assist->categoryItems((string) $data['category'], $status, $start, $limit);
+            $result = $this->assist->categoryItems((string) $data['category'], $status, $start, $limit, $search);
         } catch (\Throwable $e) {
-            Log::error('[Assist] overview/items failed', ['error' => $e->getMessage()]);
+            Log::error('[Assist] overview/items failed', [
+                'category' => $data['category'] ?? null,
+                'status' => $status,
+                'start' => $start,
+                'limit' => $limit,
+                'search' => $search,
+                'exception' => get_class($e),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
             return response()->json([
                 'success' => false,
                 'error' => 'Internal error listing category items',
+                'details' => [
+                    'category' => $data['category'] ?? null,
+                    'exception' => get_class($e),
+                    'message' => mb_substr($e->getMessage(), 0, 500),
+                ],
             ], 500);
         }
 

@@ -5,15 +5,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
-import { connectPycoreHttp } from '../../../core/api-libs/pycore/PycoreHttp';
-import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { connectPycoreHttp } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type {
   AgentHistoryIndex,
   AgentHistoryPrompt,
   AgentHistorySessionDetail,
-} from '../../../core/api-libs/pycore/pycoreTypes';
+} from '@/apps/pycore-manager/api';
 import { PAGE_SIZE, toolLabel } from '../../../components/views/dev-history/shared';
 import SessionRow from '../../../components/views/dev-history/SessionRow';
 import SessionDetailView from '../../../components/views/dev-history/SessionDetailView';

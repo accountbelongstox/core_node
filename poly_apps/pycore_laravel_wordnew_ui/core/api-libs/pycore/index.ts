@@ -1,10 +1,17 @@
 /**
- * PycoreApi library barrel — the pycore-manager end's self-contained API surface.
- * Re-exports HTTP transport, cache helpers, and shared types.
+ * Shared Pycore runtime primitives. Applications must consume these through
+ * their own app-local adapter instead of importing this implementation path.
  */
 export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
 export { PYCORE_HTTP_ROUTES, VORTEX_PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
+export { PycoreHttpError, PycoreMasterClient, pycoreMasterClient } from './PycoreClient';
+export { PycoreEventBus, pycoreEventBus } from './PycoreEventBus';
+export type {
+  PycoreEventHandler,
+  PycoreSubscribeOptions,
+  Unsubscribe,
+} from './PycoreEventBus';
 export {
   PYCORE_HTTP_PORT,
   PYCORE_HTTP_PATHS,
@@ -34,6 +41,7 @@ export type {
 
 export {
   connectPycoreHttp, subscribe, subscribeHttpEvent, requestPycoreHttp, requestPycoreStatus, onHttpStatus, onHttpDiag,
+  reportHttpDiag,
   isHttpConnected, getClientId, getBrowserId, setPycoreActive,
 } from './PycoreHttp';
 
@@ -61,42 +69,12 @@ export type {
 } from './PycoreLaravelApi';
 
 export {
-  LARAVEL_API_PORT, PC_LARAVEL_PREPARED_HOSTS,
-  normalizeLaravelApiUrl, buildPcPreparedLaravelEndpoints,
-  buildPcPreparedLaravelEndpointUrls,
-} from './pcLaravelPreparedEndpoints';
-
-export {
-  loadSettings, saveSettings,
-  loadQueueCache, saveQueueCache, queueCacheAgeMs,
-} from './PycoreCache';
-
-export {
   PYCORE_HEALTH_EVENT, PYCORE_HEALTH_DEFAULTS,
   getPycoreHealth, checkPycoreNow, recheckPycoreNow,
   getPycoreRecheckIntervalMs, setPycoreRecheckIntervalMs,
   syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
 } from './PycoreHealth';
 export type { PycoreHealthState } from './PycoreHealth';
-
-export {
-  PYCORE_CAPABILITY_EVENT,
-  getPycoreCapabilityState,
-  subscribePycoreCapability,
-  refreshPycoreCapabilities,
-  startPycoreCapabilityPoll,
-  stopPycoreCapabilityPoll,
-  usePycoreCapability,
-} from './PycoreCapabilityStore';
-export type { PycoreCapabilityState, CapabilityKey, PycoreCapabilityHook } from './PycoreCapabilityStore';
-
-export {
-  PYCORE_ENGINE_LOAD_EVENT,
-  getPycoreEngineLoadState,
-  subscribePycoreEngineLoad,
-  usePcEngineLoadStatus,
-} from './PycoreEngineLoadStore';
-export type { PycoreEngineLoadState, PycoreEngineLoadHook } from './PycoreEngineLoadStore';
 
 export * from './pycoreTypes';
 export * from './QueueCenterContract';

@@ -7,10 +7,6 @@ import { directPycoreHost, rewritePycoreEndpoint } from './pycoreTarget';
 import { requestPycoreHttp, requestPycoreStatus, isHttpConnected } from './PycoreHttp';
 import { PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 
-function guardPycoreReachability(): void {
-  // Requests fail through fetch with their concrete HTTP/network error.
-}
-
 async function fileToBase64(file: File): Promise<string> {
   const buffer = new Uint8Array(await file.arrayBuffer());
   const chunkSize = 0x8000;
@@ -22,7 +18,6 @@ async function fileToBase64(file: File): Promise<string> {
 }
 
 export {
-  guardPycoreReachability,
   fileToBase64,
   requestPycoreHttp,
   requestPycoreStatus,

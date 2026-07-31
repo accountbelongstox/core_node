@@ -2,7 +2,7 @@
  * PcPycoreTargetSwitcher - header control to point the WHOLE pycore-manager at a
  * chosen pycore node and manage that client.
  *
- * Three target modes (state + persistence in core/api-libs/pycore/pycoreTarget):
+ * Three target modes owned by the Pycore Manager API boundary:
  *   - Current URL (origin, DEFAULT): direct to <page-host>:59000 (no proxy).
  *   - Local (this machine): same as Current URL - <page-host>:59000 direct.
  *   - Remote: an explicit host/IP on :59000 (e.g. 127.0.0.1 when the browser is
@@ -18,8 +18,8 @@ import {
   getPycoreTarget, getPycoreTargetRecent, getPycoreTargetPresets, normalizePycoreHost, setPycoreTarget,
   localPycoreHost, isPycoreSecureContext, pnaBlockedReason,
   pycoreLocalConnectionHint,
-} from '../../../core/api-libs/pycore/pycoreTarget';
-import { PYCORE_HTTP_PORT } from '../../../core/api-libs/pycore/PycoreNetwork';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_PORT } from '@/apps/pycore-manager/api';
 
 interface Props {
   variant?: 'header' | 'block';

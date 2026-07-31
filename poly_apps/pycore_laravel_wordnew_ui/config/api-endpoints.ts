@@ -4,7 +4,8 @@
  */
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../core/api-libs/base/endpointIdentity';
-import { StorageKeys, StorageManager } from '../core/persistence';
+import { StorageManager } from '../core/persistence';
+import { LaravelManagerStorageKeys as StorageKeys } from '../apps/laravel-manager/persistence/LaravelManagerStorageKeys';
 
 export { CURRENT_URL_TYPE, isCurrentUrlId } from '../core/api-libs/base/endpointIdentity';
 

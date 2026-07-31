@@ -382,6 +382,9 @@ class TaskManagerService
                     && $topFast->capability !== '') {
                     $onlineCaps = [];
                     foreach (Worker::online()->get() as $onlineWorker) {
+                        if (!$onlineWorker->canProcess(GlobalTask::executionType('remote_fast'))) {
+                            continue;
+                        }
                         foreach ($onlineWorker->capabilityList() as $cap) {
                             $onlineCaps[$cap] = true;
                         }

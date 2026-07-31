@@ -13,8 +13,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Boxes, RefreshCcw, ImageIcon, Volume2, Languages, AlertTriangle, RotateCcw,
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { AssistPendingSnapshot } from '../../core/api/modules/AppQyV1';
+import { api } from '@/apps/laravel-manager/api';
+import type { AssistPendingSnapshot } from '@/apps/laravel-manager/api';
 
 const POLL_MS = 10000;
 

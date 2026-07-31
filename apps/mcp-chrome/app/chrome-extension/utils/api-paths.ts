@@ -56,6 +56,7 @@ export const ASSIST_PATHS = {
   SUBMIT: `${ASSIST_PREFIX}/submit`,
   RELEASE: `${ASSIST_PREFIX}/release`,
   OVERVIEW: `${ASSIST_PREFIX}/overview`,
+  OVERVIEW_ITEMS: `${ASSIST_PREFIX}/overview/items`,
 } as const;
 
 // ─────────────────────── Media ingest plane (/api/app_qy_v1/media/*) ───────────────────────

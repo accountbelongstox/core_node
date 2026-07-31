@@ -7,7 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Volume2, RefreshCcw, CheckCircle2, XCircle, Clock, AlertTriangle,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 
 interface TtsLog {
   id: number | string;

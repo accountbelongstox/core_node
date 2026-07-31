@@ -60,6 +60,8 @@ class UnifiedAuthService
                 'name' => $credentials['name'] ?? null,
                 'nickname' => $nickname,
                 'password' => Hash::make($credentials['password']),
+                'rolelevel' => $credentials['rolelevel'] ?? 0,
+                'rolename' => $credentials['rolename'] ?? 'user',
                 'created_at' => now(),
                 'updated_at' => now(),
             ];

@@ -11,8 +11,9 @@ import React, {
 import {
   normalizeQueueCenterSections,
   pycoreApi,
+  PYCORE_HTTP_DEFAULTS,
   QUEUE_CENTER_SCHEMA_VERSION,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import type {
   AssistStatus,
   HeartbeatWorkersStatus,
@@ -27,15 +28,14 @@ import type {
   TranslationQueueResponse,
   TtsStatus,
   WordTtsAutoStatus,
-} from '../../../core/api-libs/pycore';
-import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { QcSectionContracts } from '../utils/pcQueueCenterTypes';
 import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 import { StorageManager } from '../../../core/persistence';
 
-const HUB_FALLBACK_POLL_MS = 30_000;
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
 
 export type QueueCenterHubLifecycle = 'idle' | 'loading' | 'ready' | 'stale' | 'degraded' | 'error';
@@ -217,7 +217,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       if (!mounted.current || currentRequest !== requestId.current) return;
       const failures = consecutiveFailuresRef.current + 1;
       consecutiveFailuresRef.current = failures;
-      offlineRetryAtRef.current = Date.now() + Math.min(30_000, 2 ** Math.min(10, failures) * 1_000);
+      offlineRetryAtRef.current = Date.now() + Math.min(
+        PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
+        2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
+          * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
+      );
       setHub((previous) => ({
         ...previous,
         pycoreReachable: false,
@@ -233,7 +237,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   useTopicDrivenRefresh(
     [PYCORE_EVENT_TOPICS.operationChanged, PYCORE_EVENT_TOPICS.qwenQueueChanged],
     () => { void poll(true); },
-    { fallbackMs: autoRefresh ? HUB_FALLBACK_POLL_MS : 0, enabled: autoRefresh },
+    { fallbackMs: autoRefresh ? PYCORE_HTTP_DEFAULTS.fallbackPollMs : 0, enabled: autoRefresh },
   );
 
   const refreshHub = useCallback(async () => { await poll(false); }, [poll]);

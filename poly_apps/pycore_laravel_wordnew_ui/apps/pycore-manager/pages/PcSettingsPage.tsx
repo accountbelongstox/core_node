@@ -21,10 +21,10 @@ import {
   pycoreApi,
   PYCORE_HEALTH_EVENT, getPycoreHealth, recheckPycoreNow,
   getPycoreRecheckIntervalMs, setPycoreRecheckIntervalMs,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import type {
   AutostartStatus, AutostartTarget, PycoreHealthState, TtsSettings,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import PcLaravelEndpointSwitcher from '../components/PcLaravelEndpointSwitcher';
 
 interface SystemSettings {

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, LogIn, UserPlus, Loader2 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';

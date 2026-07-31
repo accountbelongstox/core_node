@@ -22,12 +22,12 @@ import {
   BrainCircuit, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle, Timer, KeyRound,
   Snowflake, Activity, Gauge, Eye, ImageIcon, Send, Radio, Server, Clock,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
 import type {
   AiProvider, AiRateStatus, AiGatewayProvider, AiGatewayRecord, AiChatResult,
-} from '../../core/api/modules/AiManagementAPI';
+} from '@/apps/laravel-manager/api';
 import AiUsagePanel from '../ai-tools/AiUsagePanel';
 import AiKeysPanel from '../ai-tools/AiKeysPanel';
 

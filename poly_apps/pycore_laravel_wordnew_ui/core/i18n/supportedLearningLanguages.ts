@@ -1,23 +1,14 @@
 /**
  * Shared learning-language catalog for every UI end.
  *
- * Source of truth on the FRONTEND, kept ALIGNED with the Laravel backend's
- * `/system/supported-languages` endpoint (AppQyV1SupportedLanguagesController →
- * AppQyV1LanguageConfigService::getTTSLanguages). Same field shape and the same
- * language CODES + names/native names as the backend, so a code chosen here is
- * always one the backend recognizes.
- *
- * Used in two places:
- *   1. WordNew's auth mock serves this list verbatim for /system/supported-languages
- *      when WORDNEW_AUTH_USE_MOCK is on (so the register UI works fully offline).
- *   2. WordNewAuthLoginPage uses it as the fallback option set when the live endpoint
- *      returns nothing.
+ * Frontend fallback aligned with the shared backend supported-language contract.
+ * Every application receives the same language codes and display fields.
  *
  * NOTE: the live backend returns its FULL Edge-TTS catalog (~85 languages); this
  * is a curated subset of the most-studied languages, enough to build/iterate the
  * register UI offline. Every entry below matches a real backend entry — when you
  * add one, copy code/name/native_name/voice_id/icon from
- * AppQyV1LanguageConfigService so mock and real never drift.
+ * the backend catalog so offline and live behavior do not drift.
  */
 
 export interface SupportedLearningLanguage {

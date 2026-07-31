@@ -1,37 +1,37 @@
 <template>
   <div class="ws-panel">
-    <p class="ws-meta">Last verified: {{ lastVerified }} · MCP tool: <code>chrome_web_search</code></p>
+    <p class="ws-meta">{{ getMessage('lastVerifiedLabel') }}: {{ lastVerified }} · {{ getMessage('mcpToolLabel') }}: <code>chrome_web_search</code></p>
 
     <label class="ws-field">
-      <span>Query</span>
-      <input v-model="query" type="text" :disabled="loading" placeholder="Search text or images…" />
+      <span>{{ getMessage('queryLabel') }}</span>
+      <input v-model="query" type="text" :disabled="loading" :placeholder="getMessage('webSearchPlaceholder')" />
     </label>
 
     <div class="ws-row">
       <label class="ws-field">
-        <span>Engine</span>
+        <span>{{ getMessage('searchEngineLabel') }}</span>
         <select v-model="engine" :disabled="loading">
           <option value="google">Google</option>
           <option value="bing">Bing</option>
         </select>
       </label>
       <label class="ws-field">
-        <span>Mode</span>
+        <span>{{ getMessage('modeLabel') }}</span>
         <select v-model="mode" :disabled="loading">
-          <option value="web">Web</option>
-          <option value="images">Images</option>
-          <option value="news">News</option>
+          <option value="web">{{ getMessage('webMode') }}</option>
+          <option value="images">{{ getMessage('imagesMode') }}</option>
+          <option value="news">{{ getMessage('newsMode') }}</option>
         </select>
       </label>
       <label class="ws-field narrow">
-        <span>Max</span>
+        <span>{{ getMessage('maximumLabel') }}</span>
         <input v-model.number="maxResults" type="number" min="1" max="30" :disabled="loading" />
       </label>
     </div>
 
     <label class="ws-check">
       <input v-model="waitForVerification" type="checkbox" :disabled="loading" />
-      <span>Wait for CAPTCHA — poll until solved or timeout</span>
+      <span>{{ getMessage('waitForCaptchaHint') }}</span>
     </label>
 
     <div class="ws-actions">
@@ -43,7 +43,7 @@
     <div v-if="progress.running || progress.status === 'verification_required'" class="ws-status warn">
       <strong>{{ progress.phase }}</strong>
       <span>{{ progress.detail }}</span>
-      <span v-if="progress.status === 'verification_required'">Solve verification in the search tab.</span>
+      <span v-if="progress.status === 'verification_required'">{{ getMessage('solveSearchVerification') }}</span>
     </div>
 
     <div v-if="error" class="ws-status fail">{{ error }}</div>
@@ -63,7 +63,7 @@
           target="_blank"
           rel="noopener"
         >
-          <img :src="img.thumbnailUrl || img.imageUrl" :alt="img.title || 'image'" loading="lazy" />
+          <img :src="img.thumbnailUrl || img.imageUrl" :alt="img.title || getMessage('imageAlt')" loading="lazy" />
           <span>{{ img.title || img.imageUrl }}</span>
         </a>
       </div>
@@ -80,6 +80,7 @@
 
 <script lang="ts" setup>
 import { useWebSearch } from '@/entrypoints/popup/composables/useWebSearch';
+import { getMessage } from '@/utils/i18n';
 
 const {
   query,

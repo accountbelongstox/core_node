@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search, ArrowUpDown } from 'lucide-react';
 import { Modal } from '../../admin';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type { Language, StaticResourceFileList } from '../../../types';
 import { LoadingBlock, AlertBox } from '../../common';
 

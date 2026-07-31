@@ -2,8 +2,8 @@
 
 namespace App\Services\Logs;
 
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\File;
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 
 class LaravelLogTailService
 {
@@ -19,18 +19,32 @@ class LaravelLogTailService
     public function getLatestLogs(?string $fileId = null, ?int $offset = null, int $limit = 200, int $maxBytes = 262144): array
     {
         $logPath = $this->resolveLogPath($fileId);
+        $fileSize = false;
+        $mtime = false;
+        $actualFileId = $fileId ?? 'laravel';
         
-        if (!File::exists($logPath)) {
+        if (!FileSystemManager::exists($logPath)) {
+            return [
+                'success' => true,
+                'source_updated_at' => null,
+                'next_cursor' => ['file_id' => $actualFileId, 'offset' => 0],
+                'entries' => [],
+                'truncated' => false,
+                'has_more' => false,
+            ];
+        }
+
+        $fileSize = FileSystemManager::filesize($logPath);
+        $mtime = FileSystemManager::filemtime($logPath);
+        if ($fileSize === false || $mtime === false) {
             return [
                 'success' => false,
-                'error' => 'Log file not found',
+                'error' => 'Log file metadata is unavailable',
                 'file_id' => $fileId,
             ];
         }
 
-        $fileSize = filesize($logPath);
-        $mtime = filemtime($logPath);
-        $actualFileId = $fileId ?? $this->getFileIdFromPath($logPath);
+        $actualFileId = $this->getFileIdFromPath($logPath);
 
         // If offset is provided and valid, read forward from offset
         if ($offset !== null && $offset >= 0 && $offset <= $fileSize) {
@@ -43,25 +57,44 @@ class LaravelLogTailService
 
     private function resolveLogPath(?string $fileId): string
     {
-        $logDir = storage_path('logs');
+        $logDir = PathMapper::mapWebPath('logs');
+        $separator = DIRECTORY_SEPARATOR;
+        $safeFileId = '';
+        $path = '';
+        $defaultPath = '';
+        $fileNames = [];
+        $files = [];
         
         if ($fileId) {
             // Sanitize fileId to prevent directory traversal
             $safeFileId = preg_replace('/[^a-zA-Z0-9\-_]/', '', $fileId);
-            $path = $logDir . '/' . $safeFileId . '.log';
-            if (File::exists($path)) {
+            $path = rtrim($logDir, '/\\') . $separator . $safeFileId . '.log';
+            if (FileSystemManager::exists($path)) {
                 return $path;
             }
         }
 
         // Default to laravel.log if daily rotation is not used or fileId not found
-        $defaultPath = $logDir . '/laravel.log';
-        if (File::exists($defaultPath)) {
+        $defaultPath = rtrim($logDir, '/\\') . $separator . 'laravel.log';
+        if (FileSystemManager::exists($defaultPath)) {
             return $defaultPath;
         }
 
         // If daily rotation is used, find the latest laravel-*.log
-        $files = File::glob($logDir . '/laravel-*.log');
+        $fileNames = FileSystemManager::scandir($logDir);
+        if (is_array($fileNames)) {
+            foreach ($fileNames as $fileName) {
+                if (!str_starts_with($fileName, 'laravel-') || !str_ends_with($fileName, '.log')) {
+                    continue;
+                }
+
+                $path = rtrim($logDir, '/\\') . $separator . $fileName;
+                if (FileSystemManager::isFile($path)) {
+                    $files[] = $path;
+                }
+            }
+        }
+
         if (!empty($files)) {
             rsort($files); // Sort descending to get the latest date
             return $files[0];
@@ -77,6 +110,11 @@ class LaravelLogTailService
 
     private function readForward(string $path, string $fileId, int $offset, int $fileSize, int $mtime, int $limit): array
     {
+        $buffer = '';
+        $newOffset = $fileSize;
+        $entries = [];
+        $truncated = false;
+
         if ($offset === $fileSize) {
             return [
                 'success' => true,
@@ -88,23 +126,14 @@ class LaravelLogTailService
             ];
         }
 
-        $fp = fopen($path, 'r');
-        if (!$fp) {
+        $buffer = FileSystemManager::readFileSegment($path, $offset);
+        if ($buffer === false) {
             return ['success' => false, 'error' => 'Could not open log file'];
         }
-
-        fseek($fp, $offset);
-        $buffer = '';
-        while (!feof($fp)) {
-            $buffer .= fread($fp, 8192);
-        }
-        $newOffset = ftell($fp);
-        fclose($fp);
 
         $entries = $this->parseLogBuffer($buffer);
         
         // If we got more than limit, we truncate (though forward reading usually means we want all new)
-        $truncated = false;
         if (count($entries) > $limit) {
             $entries = array_slice($entries, 0, $limit);
             $truncated = true;
@@ -125,17 +154,16 @@ class LaravelLogTailService
 
     private function readBackward(string $path, string $fileId, int $fileSize, int $mtime, int $limit, int $maxBytes): array
     {
-        $fp = fopen($path, 'r');
-        if (!$fp) {
-            return ['success' => false, 'error' => 'Could not open log file'];
-        }
-
         $readBytes = min($maxBytes, $fileSize);
         $startOffset = $fileSize - $readBytes;
-        
-        fseek($fp, $startOffset);
-        $buffer = fread($fp, $readBytes);
-        fclose($fp);
+        $buffer = FileSystemManager::readFileSegment($path, $startOffset, $readBytes);
+        $firstNewline = false;
+        $entries = [];
+        $truncated = false;
+
+        if ($buffer === false) {
+            return ['success' => false, 'error' => 'Could not open log file'];
+        }
 
         // If we didn't read from the very beginning, discard the first partial line
         if ($startOffset > 0) {
@@ -148,7 +176,6 @@ class LaravelLogTailService
         $entries = $this->parseLogBuffer($buffer);
         
         // We want the LATEST entries, so we take from the end
-        $truncated = false;
         if (count($entries) > $limit) {
             $entries = array_slice($entries, -$limit);
             $truncated = true;

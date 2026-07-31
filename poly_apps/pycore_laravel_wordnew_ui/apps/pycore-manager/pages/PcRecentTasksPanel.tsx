@@ -7,8 +7,8 @@ import {
   History, Loader2, AlertTriangle, RefreshCw, ChevronDown, ChevronRight,
   CheckCircle2, XCircle, MinusCircle, Database, Download,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { PcTaskRecord } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { PcTaskRecord } from '@/apps/pycore-manager/api';
 import { extractAudioPath, PcTaskAudioPreview } from '../components/PcTaskAudioPreview';
 import { PcTaskSynthInfo } from '../components/PcTaskSynthInfo';
 import { mergeTaskResultSources } from '../utils/pcTaskResult';

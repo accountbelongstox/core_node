@@ -15,10 +15,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ImagePlus, RefreshCcw, Sparkles, AlertTriangle, Timer, Download,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
-import type { AiProvider, AiImageResult } from '../../core/api/modules/AiManagementAPI';
+import type { AiProvider, AiImageResult } from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AiBentoCard, AiToolAlert } from './ui';

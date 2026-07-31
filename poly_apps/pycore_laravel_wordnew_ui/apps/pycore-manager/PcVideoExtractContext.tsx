@@ -31,13 +31,14 @@ import React, {
 } from 'react';
 import {
   pycoreApi, requestPycoreHttp, subscribeHttpEvent,
-} from '../../core/api-libs/pycore';
-import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
-import { PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
-import type { VideoExtractMapping, VideoExtractSegment } from '../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import type { VideoExtractMapping, VideoExtractSegment } from '@/apps/pycore-manager/api';
 import { usePersistentTask } from '../../core/tasks/usePersistentTask';
 import { useTopicDrivenRefresh } from './hooks/useTopicDrivenRefresh';
-import { StorageKeys, StorageManager } from '../../core/persistence';
+import { StorageManager } from '../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 
 const TASK_KEY = 'pycore.video-extract';
 // sentinel entry in `syncing` while a sync-ALL is in flight (not a real path,

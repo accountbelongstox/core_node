@@ -1,5 +1,5 @@
 import { mediaUrl } from '../../../config/constants';
-import type { ReaderSentence } from '../../../core/api/modules/MediaQueryAPI';
+import type { ReaderSentence } from '@/apps/laravel-manager/api';
 
 /**
  * Shared helpers for the book/document reader (MediaReaderModal).

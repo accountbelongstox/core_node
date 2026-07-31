@@ -1,6 +1,6 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useToolModel } from '../../hooks';
-import { ToolDefinition } from '../../core/types';
+import { ToolDefinition } from '@/apps/laravel-manager/types';
 import ToolWrapper from './ToolWrapper';
 import HistoryList from './HistoryList';
 import FormBuilder from './FormBuilder';

@@ -6,7 +6,7 @@
  * These hooks provide backward compatibility for smooth migration to UnifiedAppContext
  */
 
-import { useUnifiedApp } from '../core/contexts/useUnifiedApp';
+import { useUnifiedApp } from '@/apps/laravel-manager/context/useUnifiedApp';
 
 /**
  * useAppState - compatible with the legacy AppStateContext

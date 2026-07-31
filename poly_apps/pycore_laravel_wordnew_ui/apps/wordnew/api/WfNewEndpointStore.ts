@@ -9,7 +9,8 @@
  * load (see WfNewEndpointKind). The concrete endpoint is resolved from the type
  * by WfNewEndpointManager.getEndpointById at runtime.
  */
-import { PersistedStore, StorageManager, StorageKeys } from '../../../core/persistence';
+import { PersistedStore, StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { CURRENT_URL_TYPE } from '../../../core/api-libs/base/endpointIdentity';
 import type { WfNewEndpoint } from './WfNewApiTypes';
 

@@ -15,7 +15,7 @@
           v-model="question"
           type="text"
           class="nblm-input"
-          placeholder="What is this notebook about?"
+        :placeholder="t('notebooklmQuestionPlaceholder')"
           @keyup.enter="onAsk"
         />
         <button class="nblm-button" @click="onAsk" :disabled="asking || !question.trim()">
@@ -35,16 +35,16 @@
     <div class="nblm-divider" />
 
     <div class="nblm-form">
-      <label class="nblm-label">Dialogue test — words/sentences → dialogue</label>
+      <label class="nblm-label">{{ t('notebooklmDialogueLabel') }}</label>
       <textarea
         v-model="dialogueInput"
         class="nblm-textarea"
         rows="3"
-        placeholder="Paste a few words or sentences to weave into a dialogue…"
+        :placeholder="t('notebooklmDialoguePlaceholder')"
         :disabled="dialogueAsking"
       ></textarea>
       <div class="nblm-row">
-        <span class="nblm-row-hint">Built-in prompt: generates a short two-speaker dialogue using every item</span>
+        <span class="nblm-row-hint">{{ t('notebooklmDialogueHint') }}</span>
         <button
           class="nblm-button"
           @click="onDialogueTest"
@@ -57,7 +57,7 @@
       <div v-if="dialogueError" class="nblm-error">⚠ {{ dialogueError }}</div>
 
       <div v-if="dialogueAnswer" class="nblm-answer">
-        <div class="nblm-answer-label">Extracted result</div>
+        <div class="nblm-answer-label">{{ t('extractedResultLabel') }}</div>
         <div class="nblm-answer-text">{{ dialogueAnswer }}</div>
       </div>
     </div>
@@ -97,12 +97,12 @@ const onAsk = async () => {
     if (response && response.success) {
       const r = response.result || {};
       answer.value = r.answer || '';
-      if (!answer.value) error.value = r.error || 'No answer returned';
+      if (!answer.value) error.value = r.error || t('noAnswerReturned');
     } else {
-      error.value = (response && response.error) || 'NotebookLM request failed';
+      error.value = (response && response.error) || t('notebooklmRequestFailed');
     }
   } catch (err: any) {
-    error.value = err?.message || 'NotebookLM request failed';
+    error.value = err?.message || t('notebooklmRequestFailed');
   } finally {
     asking.value = false;
   }

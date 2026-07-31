@@ -7,6 +7,7 @@ import { ref, onUnmounted, watch } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import { formatTimestamp } from '@/utils/time-helpers';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { BING_DICT_MSG } from '@/common/message-types';
@@ -163,11 +164,11 @@ export function useBingDictionaryClient() {
         const pending = queueOverview.value.summary?.pending ?? 0;
         connectionStatus.value = { state: 'ok', message: `Connected · ${pending} pending` };
       } else {
-        queueOverview.value.error = (resp && resp.message) || 'Failed to load queue';
+        queueOverview.value.error = (resp && resp.message) || getMessage('loadQueueFailed');
         connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
       }
     } catch (err: any) {
-      queueOverview.value.error = err?.message || 'Failed to load queue';
+      queueOverview.value.error = err?.message || getMessage('loadQueueFailed');
       connectionStatus.value = { state: 'fail', message: queueOverview.value.error };
     } finally {
       queueOverview.value.loading = false;
@@ -290,15 +291,15 @@ export function useBingDictionaryClient() {
         mode: 'worker',
       });
       if (response && response.ok) {
-        connectionStatus.value = { state: 'ok', message: response.message || 'Connected' };
+        connectionStatus.value = { state: 'ok', message: response.message || getMessage('connectedStatus') };
       } else {
         connectionStatus.value = {
           state: 'fail',
-          message: (response && response.message) || 'Unreachable',
+          message: (response && response.message) || getMessage('unreachableStatus'),
         };
       }
     } catch (err: any) {
-      connectionStatus.value = { state: 'fail', message: err?.message || 'Unreachable' };
+      connectionStatus.value = { state: 'fail', message: err?.message || getMessage('unreachableStatus') };
     }
   };
 
@@ -327,10 +328,10 @@ export function useBingDictionaryClient() {
         // Persist to the dictionary cache so results survive popup close/reopen.
         await writeJson('dictionary', SCRAPE_CACHE_KEY, testResults.value);
       } else {
-        error.value = (response && response.error) || 'Scrape test failed';
+        error.value = (response && response.error) || getMessage('scrapeTestFailed');
       }
     } catch (err: any) {
-      error.value = err?.message || 'Scrape test failed';
+      error.value = err?.message || getMessage('scrapeTestFailed');
     } finally {
       testing.value = false;
     }
@@ -398,7 +399,7 @@ export function useBingDictionaryClient() {
           prepared.value = false;
           await loadClientServiceState();
         } else {
-          error.value = resp?.error || 'Failed to stop service';
+          error.value = resp?.error || getMessage('stopServiceFailed');
         }
         return;
       }
@@ -420,11 +421,11 @@ export function useBingDictionaryClient() {
         prepared.value = false;
         await loadClientServiceState();
       } else {
-        error.value = resp?.error || 'Failed to start service';
+        error.value = resp?.error || getMessage('startServiceFailed');
       }
     } catch (err: any) {
       logger.error(LOG, 'Service toggle error', err);
-      error.value = err.message || 'Failed to toggle service';
+      error.value = err.message || getMessage('toggleServiceFailed');
     }
   };
 

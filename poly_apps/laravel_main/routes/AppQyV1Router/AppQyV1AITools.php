@@ -11,6 +11,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1WordImageQueueCont
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleManagementCtl;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1AIStatusController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TaskEnqueueController;
 use App\Providers\PathMapper;
@@ -44,6 +45,11 @@ Route::prefix('app_qy_v1')->group(function () {
 });
 
 Route::prefix('app_qy_v1/ai_tools')->group(function () {
+    Route::get('/articles', [AppQyV1ArticleManagementCtl::class, 'index']);
+    Route::delete('/articles/{articleId}', [AppQyV1ArticleManagementCtl::class, 'destroy'])
+        ->middleware('dashboard.auth');
+    Route::post('/articles/batch-delete', [AppQyV1ArticleManagementCtl::class, 'destroyMany'])
+        ->middleware('dashboard.auth');
     
     Route::prefix('translation')->group(function () {
         Route::get('/languages', [AppQyV1TranslationController::class, 'getLanguages']);

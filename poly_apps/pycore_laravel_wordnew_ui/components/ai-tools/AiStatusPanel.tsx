@@ -6,10 +6,10 @@ import {
   Activity, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle,
   Timer, KeyRound, BrainCircuit, Send, ArrowRight,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   AiProviderStatus, AiStatusResponse, AiTestResult,
-} from '../../core/api/modules/AiStatusAPI';
+} from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolAlert } from './ui';

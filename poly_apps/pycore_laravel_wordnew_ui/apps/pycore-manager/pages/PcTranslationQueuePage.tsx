@@ -7,12 +7,12 @@ import {
   ListOrdered, RefreshCcw, AlertTriangle, CheckCircle2, WifiOff, Wifi, Radio,
   Clock, Languages, ChevronUp, ChevronsUp, ChevronDown, Flame, Zap, User,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '@/apps/pycore-manager/api';
 import {
   GLOBAL_TASK_STATUSES_BY_ROLE,
   GLOBAL_TASK_TYPE_BY_KEY,
-} from '../../../core/api-libs/pycore/QueueCenterContract';
+} from '@/apps/pycore-manager/api';
 import { PcGlobalTaskDetailModal } from '../components/PcTaskDetailModal';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { usePycoreTaskCenterState } from '../hooks/TaskCenterState';

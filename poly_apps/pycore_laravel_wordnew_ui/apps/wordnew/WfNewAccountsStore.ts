@@ -4,7 +4,8 @@
  * keys `wf_account_<email>` with ONE consolidated key holding a map of
  * lowercased-email → profile, accessed via getAccount/setAccount.
  */
-import { PersistedStore, StorageManager, StorageKeys } from '../../core/persistence';
+import { PersistedStore, StorageManager } from '../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from './persistence/WordNewStorageKeys';
 
 export interface WfNewAccountProfile {
   nickname: string;

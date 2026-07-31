@@ -2,7 +2,7 @@
  * PcLiveContext — bridges the pycore HTTP event bus into React for the
  * pycore-manager end. Mirrors desktop-manager/src/state/LiveContext.tsx.
  *
- * Connects via core/api-libs/pycore on mount and exposes:
+ * Connects through the Pycore Manager API boundary on mount and exposes:
  *   - logs:        rolling buffer of backend `pycore_log` lines (cap 1000)
  *   - httpConnected: live HTTP event connection status
  *   - clearLogs(): empty the buffer
@@ -17,10 +17,10 @@ import React, {
 } from 'react';
 import {
   connectPycoreHttp, onHttpStatus, onHttpDiag,
-} from '../../core/api-libs/pycore';
-import { appendHttpDebug } from '../../core/api-libs/pycore/pycoreHttpLog';
-import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
+} from '@/apps/pycore-manager/api';
+import { appendHttpDebug } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 
 const LOG_CAP = 1000;
 

@@ -27,6 +27,7 @@ import { usePersistedRef } from '@/composables/usePersistedRef';
 import { apiManager } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import { sendWithWake } from '@/utils/sendWithWake';
 import {
   PROVIDER_MESSAGE_TYPE,
@@ -190,7 +191,7 @@ export function useBookStudyGenerator() {
       }
       const json = await res.json();
       if (json && json.success === false) {
-        sourcesError.value = json.error || 'Failed to load sources';
+        sourcesError.value = json.error || getMessage('loadSourcesFailed');
         return;
       }
       sources.value = Array.isArray(json?.items) ? (json.items as StudySource[]) : [];
@@ -198,7 +199,7 @@ export function useBookStudyGenerator() {
       page.value = typeof json?.page === 'number' ? json.page : targetPage;
       if (typeof json?.per_page === 'number') perPage.value = json.per_page;
     } catch (e: any) {
-      sourcesError.value = e?.message || 'Failed to load sources';
+      sourcesError.value = e?.message || getMessage('loadSourcesFailed');
     } finally {
       loadingSources.value = false;
     }
@@ -239,7 +240,7 @@ export function useBookStudyGenerator() {
       if (json && json.success === false) {
         statusBySource.value = {
           ...statusBySource.value,
-          [k]: { ...prev, loading: false, error: json.error || 'Failed to load status' },
+          [k]: { ...prev, loading: false, error: json.error || getMessage('loadStatusFailed') },
         };
         return null;
       }
@@ -254,7 +255,7 @@ export function useBookStudyGenerator() {
     } catch (e: any) {
       statusBySource.value = {
         ...statusBySource.value,
-        [k]: { ...prev, loading: false, error: e?.message || 'Failed to load status' },
+        [k]: { ...prev, loading: false, error: e?.message || getMessage('loadStatusFailed') },
       };
       return null;
     }
@@ -315,11 +316,11 @@ export function useBookStudyGenerator() {
       });
       if (!res.ok) return { ok: false, error: `Claim failed (${res.status})` };
       const json = await res.json();
-      if (json && json.success === false) return { ok: false, error: json.error || 'Claim rejected' };
+      if (json && json.success === false) return { ok: false, error: json.error || getMessage('claimRejected') };
       const items = Array.isArray(json?.items) ? json.items : [];
       return { ok: true, item: items[0] };
     } catch (e: any) {
-      return { ok: false, error: e?.message || 'Claim failed' };
+      return { ok: false, error: e?.message || getMessage('claimFailed') };
     }
   };
 
@@ -370,11 +371,11 @@ export function useBookStudyGenerator() {
       });
       const json = await res.json().catch(() => null);
       if (!res.ok) return { ok: false, error: json?.error || `Submit failed (${res.status})` };
-      if (json && json.success === false) return { ok: false, error: json.error || 'Submit disabled' };
+      if (json && json.success === false) return { ok: false, error: json.error || getMessage('submitDisabled') };
       if (json && json.ok) return { ok: true, applied: json.applied };
       return { ok: false, error: json?.status ? `Submit rejected (${json.status})` : 'Submit rejected' };
     } catch (e: any) {
-      return { ok: false, error: e?.message || 'Submit failed' };
+      return { ok: false, error: e?.message || getMessage('submitFailed') };
     }
   };
 
@@ -432,7 +433,7 @@ export function useBookStudyGenerator() {
     try {
       answer = await pollProviderJob(job);
     } catch (e: any) {
-      const msg = e?.message || 'generation failed';
+      const msg = e?.message || getMessage('generationFailed');
       if (msg === 'superseded') {
         return 'gen_failed';
       }
@@ -469,7 +470,7 @@ export function useBookStudyGenerator() {
     phase.value = 'Submitting results…';
     const submitRes = await submitSegment(job, parsed, ctx);
     if (!submitRes.ok) {
-      const msg = submitRes.error || 'Submit failed';
+      const msg = submitRes.error || getMessage('submitFailed');
       error.value = msg;
       await releaseSegment(job.sourceType, job.sourceKey, job.segmentIndex, msg);
       clearJob(job.jobId);
@@ -500,7 +501,7 @@ export function useBookStudyGenerator() {
     phase.value = 'Claiming a segment…';
     const claim = await claimNext(sourceType, sourceKey, langs);
     if (!claim.ok) {
-      error.value = claim.error || 'Claim failed';
+      error.value = claim.error || getMessage('claimFailed');
       return { job: null };
     }
     if (!claim.item) return { job: null, noPending: true };
@@ -530,7 +531,7 @@ export function useBookStudyGenerator() {
         PROVIDER_LABELS[jobProvider],
       );
     } catch (e: any) {
-      const msg = `Failed to start ${PROVIDER_LABELS[jobProvider]}: ${e?.message || 'unknown error'}`;
+      const msg = getMessage('providerStartFailed', [PROVIDER_LABELS[jobProvider], e?.message || getMessage('unknownErrorMessage')]);
       error.value = msg;
       await releaseSegment(sourceType, sourceKey, item.segment_index, msg);
       CLAIM_CONTEXTS.delete(ctxKey(sourceType, sourceKey, item.segment_index));

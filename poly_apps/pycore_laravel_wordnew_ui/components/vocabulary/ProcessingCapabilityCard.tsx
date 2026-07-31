@@ -3,8 +3,8 @@ import {
   Server, Cpu, Activity, Zap, Film, FileText, RefreshCw,
   CheckCircle2, AlertTriangle, HardDrive,
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { ProcessingCapability, ProcessingRecommendation } from '../../core/api/modules/BooksAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { ProcessingCapability, ProcessingRecommendation } from '@/apps/laravel-manager/api';
 
 /**
  * ProcessingCapabilityCard — shows THIS Laravel host's load + hardware (CPU,

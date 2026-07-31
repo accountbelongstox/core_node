@@ -9,7 +9,7 @@
  * overridable in the endpoint switcher UI) and is read fresh on every tick.
  */
 import { apiManager } from './ApiManager';
-import { api } from '../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { OfflineRecheckScheduler } from '../core/health/OfflineRecheckScheduler';
 
 /**

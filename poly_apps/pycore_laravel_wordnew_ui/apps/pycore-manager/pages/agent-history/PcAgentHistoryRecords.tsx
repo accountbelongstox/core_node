@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Disc3 } from 'lucide-react';
-import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
-import { connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
-import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../../../core/api-libs/pycore/PycoreEventTopics';
-import type { AgentHistoryArticleRecord } from '../../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { connectPycoreHttp } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import type { AgentHistoryArticleRecord } from '@/apps/pycore-manager/api';
 
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 

@@ -446,7 +446,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                     title,
                     count: 0,
                     countUnit: 'sentences',
-                    category: 'agent_history',
+                    category: 'daily',
                   });
                 }}
                 onPlayArticle={(articleId) => {

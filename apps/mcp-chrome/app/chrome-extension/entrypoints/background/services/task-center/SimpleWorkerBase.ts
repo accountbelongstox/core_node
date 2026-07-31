@@ -88,6 +88,7 @@ const POLL_BACKOFF_SLOW_MS = 8000;
 // jittered so multiple workers don't stampede the endpoint in lockstep.
 const FAST_REPOLL_BASE_MS = 400;
 const FAST_REPOLL_JITTER_MS = 300;
+const REGISTRATION_RETRY_MS = 3000;
 
 export abstract class SimpleWorkerBase {
   protected workerClient: WorkerApiClient | null = null;
@@ -98,6 +99,8 @@ export abstract class SimpleWorkerBase {
   private heartbeatId: ReturnType<typeof setInterval> | null = null;
   // Coalesce fast re-polls: at most one scheduled burst in flight.
   private fastRepollTimer: ReturnType<typeof setTimeout> | null = null;
+  private registrationRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private registrationPending = false;
   // Re-entrancy guard: only one cycle() may run at a time. A fast re-poll that
   // fires while a long-poll cycle is in flight would clobber shared dispatch
   // state (terminalPosted/currentTaskId) and drive the single chat tab with two
@@ -239,16 +242,19 @@ export abstract class SimpleWorkerBase {
       batchSize: config.batchSize ?? TASK_LIMITS.worker_pull_default,
     };
 
-    this.workerClient = new WorkerApiClient(this.config.apiUrl);
-    await this.register();
-
     this.isRunning = true;
-    this.startHeartbeat();
-    this.startPollLoop();
-
-    logger.info(this.workerLabel, 'Worker started', {
-      capabilities: this.normalizeCapabilities(this.capabilities),
-    });
+    this.workerClient = new WorkerApiClient(this.config.apiUrl);
+    try {
+      await this.register();
+      this.activateRegisteredWorker();
+    } catch (error) {
+      if (!this.isTransientRegistrationError(error)) {
+        this.isRunning = false;
+        throw error;
+      }
+      logger.warn(this.workerLabel, 'Worker registration deferred; automatic recovery is active', error);
+      this.scheduleRegistrationRetry();
+    }
   }
 
   stop(): void {
@@ -262,6 +268,10 @@ export abstract class SimpleWorkerBase {
       clearTimeout(this.fastRepollTimer);
       this.fastRepollTimer = null;
     }
+    if (this.registrationRetryTimer) {
+      clearTimeout(this.registrationRetryTimer);
+      this.registrationRetryTimer = null;
+    }
     // Do not clear pollLoopActive/cycleInFlight here. A browser task may still
     // be unwinding after Stop; clearing its mutex would let a rapid off/on
     // toggle launch a second task against the same tab. If Start arrives before
@@ -271,6 +281,47 @@ export abstract class SimpleWorkerBase {
     this.needsFastRepoll = false;
     this.stats.isOnline = false;
     logger.info(this.workerLabel, 'Worker stopped');
+  }
+
+  private activateRegisteredWorker(): void {
+    if (!this.isRunning) return;
+    this.startHeartbeat();
+    this.startPollLoop();
+    logger.info(this.workerLabel, 'Worker started', {
+      capabilities: this.normalizeCapabilities(this.capabilities),
+    });
+  }
+
+  private isTransientRegistrationError(error: unknown): boolean {
+    if (error instanceof ApiError) {
+      return error.statusCode === 408 || (error.statusCode ?? 0) >= 500;
+    }
+    return error instanceof TypeError;
+  }
+
+  private scheduleRegistrationRetry(): void {
+    if (!this.isRunning || this.registrationRetryTimer || this.registrationPending) return;
+    this.registrationRetryTimer = setTimeout(async () => {
+      this.registrationRetryTimer = null;
+      if (!this.isRunning) return;
+      this.registrationPending = true;
+      try {
+        await this.register();
+        this.activateRegisteredWorker();
+      } catch (error) {
+        if (!this.isTransientRegistrationError(error)) {
+          this.isRunning = false;
+          logger.error(this.workerLabel, 'Worker registration rejected', error);
+          return;
+        }
+        logger.warn(this.workerLabel, 'Worker registration retry failed', error);
+      } finally {
+        this.registrationPending = false;
+      }
+      if (this.isRunning && !this.stats.isOnline) {
+        this.scheduleRegistrationRetry();
+      }
+    }, REGISTRATION_RETRY_MS);
   }
 
   getStatus(): { isRunning: boolean; stats: SimpleWorkerStats } {
@@ -403,10 +454,14 @@ export abstract class SimpleWorkerBase {
 
   private startHeartbeat(): void {
     if (!this.workerClient || !this.config) return;
+    if (this.heartbeatId) return;
     const beat = async () => {
       if (!this.isRunning || !this.workerClient) return;
       try {
-        const resp = await this.workerClient.heartbeat();
+        const resp = await this.workerClient.heartbeat(
+          undefined,
+          this.normalizeCapabilities(this.capabilities),
+        );
         this.stats.isOnline = true;
         this.noteBackendSuccess();
         if (resp.success && resp.data) {
@@ -448,6 +503,9 @@ export abstract class SimpleWorkerBase {
           : (this.config?.pollWait ?? TASK_LIMITS.long_poll_seconds);
         this.needsFastRepoll = false;
         await this.cycle(wait);
+        if (wait === 0 && this.config?.pollWait === 0) {
+          await this.delay(POLL_BACKOFF_FAST_MS);
+        }
       } catch (error) {
         if (this.isExpectedTimeout(error)) {
           // Expected long-poll timeout: the server just didn't hand us work in

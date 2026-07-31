@@ -165,7 +165,7 @@ class Worker extends Model
      */
     public function scopeOnline($query)
     {
-        return $query->where('status', self::STATUS_ONLINE)
+        return $query->whereIn('status', [self::STATUS_ONLINE, self::STATUS_BUSY])
             ->where('last_heartbeat_at', '>=', now()->subSeconds(self::HEARTBEAT_TIMEOUT));
     }
 

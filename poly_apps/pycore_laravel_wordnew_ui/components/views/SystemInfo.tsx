@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { LaravelSystemInfo as SystemInfoType, AsyncState } from '../../types';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';
 import { Server, Code, Database, Zap, List, RefreshCw, CheckCircle, XCircle, Cpu, HardDrive, Clock } from 'lucide-react';

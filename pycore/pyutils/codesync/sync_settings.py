@@ -78,6 +78,9 @@ PRESET_EXCLUDED_DIRS: List[str] = [
     "zig-out", ".zig-cache",                             # Zig
     ".terraform", ".serverless", ".pulumi",              # IaC
     ".history", ".fleet",                                # IDE local history
+    # Backup, copied, legacy, and debug-only trees present in this repository.
+    "backup", "backups", "backup_before_pyside6", "backup_pyside6",
+    "ddk_old", "old_travel", "scripts(Copy)", "images - Copy", "debug-assets",
     ".data", ".ai_state", "temp", "tmp", "logs",
 ]
 
@@ -230,6 +233,7 @@ class _GitIgnore:
 class Excluder:
     def __init__(self, root: Path, settings: Dict[str, Any]):
         self.root = Path(root)
+        self._resolved_root = self.root.resolve()
         self._dirs = set(settings.get("excluded_dirs") or [])
         self._files = set(settings.get("excluded_files") or [])
         # Lowercased so extension matching is case-insensitive (MODEL.PTH == .pth).
@@ -239,7 +243,7 @@ class Excluder:
 
     def _rel(self, path) -> str:
         try:
-            return Path(path).resolve().relative_to(self.root.resolve()).as_posix()
+            return Path(path).resolve().relative_to(self._resolved_root).as_posix()
         except Exception:
             return Path(path).name
 

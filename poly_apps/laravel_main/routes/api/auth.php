@@ -37,6 +37,7 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::put('/user/profile', [UserProfileController::class, 'updateProfile']);
         Route::post('/user/profile', [UserProfileController::class, 'updateProfile']);
         Route::post('/user/change-password', [UserProfileController::class, 'changePassword']);
+        Route::post('/user/redeem-super-code', [\App\Http\Controllers\InviteCodeController::class, 'redeemSuperCode']);
         
         // Common user preferences routes
         Route::get('/user/preferences', [UserProfileController::class, 'getPreferences']);

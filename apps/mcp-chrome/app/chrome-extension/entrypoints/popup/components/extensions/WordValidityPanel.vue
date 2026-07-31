@@ -5,7 +5,7 @@
     </p>
 
     <label>
-      <span>Words (comma or newline separated)</span>
+      <span>{{ getMessage('validityWordsLabel') }}</span>
       <textarea v-model="input" rows="5" placeholder="example&#10;asdfgh&#10;browser" />
     </label>
 
@@ -16,8 +16,8 @@
     <div v-if="error" class="wv-error">{{ error }}</div>
     <div v-if="result" class="wv-result">
       <strong>{{ result.provider }}</strong>
-      <span>Valid: {{ result.valid.map((item) => item.word).join(', ') || '—' }}</span>
-      <span>Invalid: {{ result.invalid.map((item) => item.word).join(', ') || '—' }}</span>
+      <span>{{ getMessage('validLabel') }}: {{ result.valid.map((item) => item.word).join(', ') || '—' }}</span>
+      <span>{{ getMessage('invalidLabel') }}: {{ result.invalid.map((item) => item.word).join(', ') || '—' }}</span>
     </div>
   </div>
 </template>
@@ -27,6 +27,7 @@ import { computed, ref } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { sendWithWake } from '@/utils/sendWithWake';
 import { VALIDITY_RUNNER_MSG } from '@/utils/task-center-types';
+import { getMessage } from '@/utils/i18n';
 
 interface ValidityTestResult {
   provider: string;
@@ -59,12 +60,12 @@ const runTest = async () => {
       'Word Validity UI',
     );
     if (!response?.success || !response.result) {
-      error.value = response?.error || 'Validity test failed';
+      error.value = response?.error || getMessage('validityTestFailed');
       return;
     }
     result.value = response.result as ValidityTestResult;
   } catch (reason: unknown) {
-    error.value = reason instanceof Error ? reason.message : 'Validity test failed';
+    error.value = reason instanceof Error ? reason.message : getMessage('validityTestFailed');
   } finally {
     running.value = false;
   }

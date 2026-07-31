@@ -3,13 +3,13 @@ import { List, type RowComponentProps } from 'react-window';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../../BentoCard';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   MediaSourceListItem,
   MediaSegment,
   MediaSentence,
   MediaGrain,
-} from '../../../core/api/modules/MediaQueryAPI';
+} from '@/apps/laravel-manager/api';
 import { useTranslation } from 'react-i18next';
 import {
   Loader2,

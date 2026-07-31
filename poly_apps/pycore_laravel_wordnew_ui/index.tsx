@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import './core/i18n';
+import './apps/laravel-manager/i18n';
 import './themes/index.css';
 import ShellApp from './shell/ShellApp';
 import StandaloneApp from './shell/StandaloneApp';

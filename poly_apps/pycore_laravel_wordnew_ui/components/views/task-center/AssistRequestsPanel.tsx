@@ -12,8 +12,8 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
-import type { AssistRequestItem } from '../../../core/api/modules/ServerManagerAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { AssistRequestItem } from '@/apps/laravel-manager/api';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
 import {
   RefreshCw,

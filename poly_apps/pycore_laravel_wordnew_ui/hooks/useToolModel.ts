@@ -1,6 +1,6 @@
-﻿import { useState, useEffect, useCallback } from 'react';
-import { ToolModel } from '../core/models';
-import { ToolDefinition, ToolHistoryItem } from '../core/types';
+import { useState, useEffect, useCallback } from 'react';
+import { ToolModel } from '@/apps/laravel-manager/models';
+import { ToolDefinition, ToolHistoryItem } from '@/apps/laravel-manager/types';
 
 /**
  * React Hook for ToolModel

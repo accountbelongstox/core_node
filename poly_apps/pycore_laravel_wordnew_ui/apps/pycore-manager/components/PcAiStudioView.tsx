@@ -21,9 +21,9 @@ import {
   Image as ImageIcon, MessageSquare, Send, RefreshCcw, Trash2, AlertTriangle,
   Download, RotateCcw, Wand2, Sparkles, User, Bot, Eraser,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
-import type { AiProvider, ImageHistoryEntry } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
+import type { AiProvider, ImageHistoryEntry } from '@/apps/pycore-manager/api';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import { PcImageLightbox } from './PcAiShared';
 import { PcBlobImage } from './PcBlobMedia';

@@ -15,7 +15,7 @@ import { commonClasses } from '../../../styles/theme';
 import type {
   TaskCenterOverview,
   TaskCenterSchedulerTask,
-} from '../../../core/api/modules/ServerManagerAPI';
+} from '@/apps/laravel-manager/api';
 import {
   Timer,
   Database,

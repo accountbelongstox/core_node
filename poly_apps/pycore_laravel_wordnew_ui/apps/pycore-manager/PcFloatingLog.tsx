@@ -14,7 +14,8 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Terminal, Wifi, WifiOff, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { usePcLive, type PcLogLine } from './PcLiveContext';
-import { StorageKeys, StorageManager } from '../../core/persistence';
+import { StorageManager } from '../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 
 function readOpen(): boolean {
   return StorageManager.getRaw(StorageKeys.PYCORE_LOG_OPEN) === '1';

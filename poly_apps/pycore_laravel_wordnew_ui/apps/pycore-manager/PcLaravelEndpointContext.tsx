@@ -16,10 +16,11 @@ import {
   buildPcPreparedLaravelEndpoints, buildPcPreparedLaravelEndpointUrls,
   normalizeLaravelApiUrl,
   subscribeHttpEvent,
-} from '../../core/api-libs/pycore';
-import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
-import type { LaravelApiEndpoint } from '../../core/api-libs/pycore';
-import { StorageKeys, StorageManager } from '../../core/persistence';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
+import { StorageManager } from '../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 
 /**
  * The backend-selected endpoint is authoritative. The frontend keeps a local

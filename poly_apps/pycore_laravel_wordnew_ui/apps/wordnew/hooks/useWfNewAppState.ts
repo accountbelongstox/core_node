@@ -24,7 +24,8 @@ import {
 } from '../cache/WfNewContentCache';
 import type { WfNewCachedKind } from '../cache/WfNewContentCache';
 import { useWfNewContentHandlers } from './useWfNewContentHandlers';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 /** Every navigable page/tab in the wordnew shell (drives the history stack). */
 export type WordNewTab =

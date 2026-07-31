@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';

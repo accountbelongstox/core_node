@@ -16,8 +16,9 @@ export function useUserRole(): UserRoleInfo {
   const { user } = useUser();
 
   return useMemo(() => {
-    const roleLevel = user?.rolelevel ?? 0;
-    const roleName = user?.rolename ?? 'user';
+    const rawUser = user as (typeof user & { role_level?: number | string | null; role_name?: string | null }) | null;
+    const roleLevel = Number(rawUser?.rolelevel ?? rawUser?.role_level ?? 0);
+    const roleName = rawUser?.rolename ?? rawUser?.role_name ?? 'user';
 
     const isSuperAdmin = roleLevel >= 100;
     const isAdmin = roleLevel >= 10;
@@ -33,5 +34,5 @@ export function useUserRole(): UserRoleInfo {
       canManageUsers: isSuperAdmin,
       canManageSystem: isAdmin
     };
-  }, [user?.rolelevel, user?.rolename]);
+  }, [user]);
 }

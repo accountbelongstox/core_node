@@ -12,8 +12,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2, Power, PowerOff } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { TtsEngine, TtsSettings } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { TtsEngine, TtsSettings } from '@/apps/pycore-manager/api';
 
 // Fallback class-C (isolated HTTP server) engine names for backends that omit the
 // `server_engine` flag. Mirrors the dev-spec §1 class-C set so melotts/gptsovits/qwen3tts

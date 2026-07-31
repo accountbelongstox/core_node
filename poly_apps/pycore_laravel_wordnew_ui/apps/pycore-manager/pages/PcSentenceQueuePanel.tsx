@@ -9,13 +9,14 @@ import {
   MessageSquareText, RefreshCw, AlertTriangle, Zap, Loader2, Play, ChevronDown, ChevronUp, Cpu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi, ttsConcurrencyAnnotation } from '../../../core/api-libs/pycore';
-import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi, ttsConcurrencyAnnotation } from '@/apps/pycore-manager/api';
+import type { SentenceAudioQueueSnapshot, SentenceWorkerTask, TtsStatus } from '@/apps/pycore-manager/api';
 
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { usePycoreTaskCenterState } from '../hooks/TaskCenterState';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import PcSentenceVoiceVariantsPanel from '../components/PcSentenceVoiceVariantsPanel';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
 

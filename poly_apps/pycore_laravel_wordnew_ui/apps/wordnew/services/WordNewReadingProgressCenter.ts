@@ -4,7 +4,8 @@
  * id) persisted via WordNewStorage (READING_PROGRESS key), updates broadcast
  * via wordNewEventBus('reading-progress-updated'). */
 
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { wordNewEventBus } from './WordNewEventBus';
 
 export interface WordNewReadingProgress {

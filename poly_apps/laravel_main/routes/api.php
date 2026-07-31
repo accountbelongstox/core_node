@@ -355,6 +355,6 @@ Route::get('debug/test', function () {
 // Internal Pycore Log Mirror Route
 use App\Http\Controllers\Internal\PycoreLogController;
 
-Route::prefix('internal/pycore')->middleware('local.only')->group(function () {
+Route::prefix('internal/pycore')->middleware('pycore.client')->group(function () {
     Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
 });

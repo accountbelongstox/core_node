@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../core/api';
-import { InviteCode, CreateInviteCodeRequest } from '../../core/api/modules/InviteCodeAPI';
+import { api } from '@/apps/laravel-manager/api';
+import { InviteCode, CreateInviteCodeRequest } from '@/apps/laravel-manager/api';
 import { useUserRole } from '../../hooks/useUserRole';
 import { Plus, Key, AlertCircle, CheckCircle, XCircle, Users, Calendar, Trash2 } from 'lucide-react';
 import Portal from '../shared/Portal';

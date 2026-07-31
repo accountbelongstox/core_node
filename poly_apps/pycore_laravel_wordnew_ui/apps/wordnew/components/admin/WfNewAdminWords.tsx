@@ -31,7 +31,8 @@ import type {
 } from '../../api';
 import { formatBytes } from '../../../../core/utils/formatBytes';
 import { WfNewAdminWordEditor } from './WfNewAdminWordEditor';
-import { StorageKeys, StorageManager } from '../../../../core/persistence';
+import { StorageManager } from '../../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
 // --- shared language persistence (same key as the libraries panel) ----------- #
 

@@ -14,8 +14,8 @@ import {
   X, Save, Volume2, Image as ImageIcon, CheckCircle2, XCircle, Plus,
   Loader2, AlertTriangle, RefreshCw,
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { DictionaryWordRow } from '../../core/api/modules/BooksAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { DictionaryWordRow } from '@/apps/laravel-manager/api';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_BACKDROP, OVERLAY_Z } from '../../styles/overlay';
 import { useToast } from '../admin';

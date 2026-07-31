@@ -13,7 +13,7 @@
         </div>
         <div class="tdm-headbadges">
           <span v-if="isFast" class="tdm-badge tdm-badge-fast">⚡ FAST</span>
-          <span v-if="aiTranslate" class="tdm-badge tdm-badge-ai">✨ AI Translate</span>
+          <span v-if="aiTranslate" class="tdm-badge tdm-badge-ai">✨ {{ getMessage('taskCenterAiTranslateLabel') }}</span>
           <!-- Jump-to-task-top: only for the privileged categories
                (translate/audio/image) and only while the task is still live. -->
           <button
@@ -21,64 +21,64 @@
             class="tdm-badge tdm-badge-bump"
             :disabled="bumping"
             @click="bumpToTop"
-            :title="`Bump this task to the front of the fast lane (priority ${PRIORITY_FAST})`"
+            :title="getMessage('taskCenterBumpHint', [String(PRIORITY_FAST)])"
           >
             {{ bumpLabel }}
           </button>
-          <button class="tdm-close" @click="close" aria-label="Close">✕</button>
+          <button class="tdm-close" @click="close" :aria-label="getMessage('closeButton')">✕</button>
         </div>
       </header>
 
       <div class="tdm-body">
-        <div v-if="!bundle && !loadError" class="tdm-loading">Connecting to live stream…</div>
+        <div v-if="!bundle && !loadError" class="tdm-loading">{{ getMessage('taskCenterConnectingStream') }}</div>
         <div v-if="loadError" class="tdm-error">{{ loadError }}</div>
 
         <template v-if="bundle">
           <!-- Status / phase chips -->
           <div class="tdm-chips">
             <span class="tdm-chip" :style="{ '--dot': dotColor() }">
-              <span class="tdm-dot" /> {{ task.status }}
+              <span class="tdm-dot" /> {{ localizedStatus }}
             </span>
-            <span class="tdm-chip">Phase: {{ phase.phase || '—' }}</span>
-            <span class="tdm-chip">Priority: {{ task.priority }}</span>
-            <span class="tdm-chip">Lane: {{ task.execution_type }}</span>
+            <span class="tdm-chip">{{ getMessage('taskCenterPhaseLabel') }}: {{ phase.phase || '—' }}</span>
+            <span class="tdm-chip">{{ getMessage('taskCenterSortPriority') }}: {{ task.priority }}</span>
+            <span class="tdm-chip">{{ getMessage('taskCenterLaneLabel') }}: {{ task.execution_type }}</span>
           </div>
 
           <!-- Core fields -->
           <dl class="tdm-fields">
-            <div class="tdm-field"><dt>Capability</dt><dd>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterCapabilityLabel') }}</dt><dd>
               {{ capLabel }}<span v-if="aiTranslate"> ✨</span>
             </dd></div>
-            <div class="tdm-field"><dt>App</dt><dd>{{ task.app_name }}</dd></div>
-            <div class="tdm-field"><dt>Worker</dt><dd>{{ task.assigned_to || phase.worker_id || '—' }}</dd></div>
-            <div class="tdm-field"><dt>Attempts</dt><dd>{{ meta.total_attempts }} / {{ meta.max_retries }}</dd></div>
-            <div class="tdm-field"><dt>Elapsed</dt><dd>{{ fmtSeconds(phase.elapsed_seconds) }}</dd></div>
-            <div class="tdm-field"><dt>Timeout in</dt><dd>{{ fmtSeconds(meta.estimated_timeout_in_seconds) }}</dd></div>
-            <div v-if="providerValue" class="tdm-field"><dt>Provider</dt><dd>{{ providerValue }}</dd></div>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterAppLabel') }}</dt><dd>{{ task.app_name }}</dd></div>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterWorkerLabel') }}</dt><dd>{{ task.assigned_to || phase.worker_id || '—' }}</dd></div>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterAttemptsLabel') }}</dt><dd>{{ meta.total_attempts }} / {{ meta.max_retries }}</dd></div>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterElapsedLabel') }}</dt><dd>{{ fmtSeconds(phase.elapsed_seconds) }}</dd></div>
+            <div class="tdm-field"><dt>{{ getMessage('taskCenterTimeoutLabel') }}</dt><dd>{{ fmtSeconds(meta.estimated_timeout_in_seconds) }}</dd></div>
+            <div v-if="providerValue" class="tdm-field"><dt>{{ getMessage('taskCenterProviderLabel') }}</dt><dd>{{ providerValue }}</dd></div>
           </dl>
 
           <!-- Resolved media preview (early-out guard prevents re-resolution). -->
           <div v-if="mediaUrl" class="tdm-media">
-            <img v-if="mediaIsImage" :src="mediaUrl" alt="task media" />
+            <img v-if="mediaIsImage" :src="mediaUrl" :alt="getMessage('taskMediaAlt')" />
             <audio v-else-if="mediaIsAudio" :src="mediaUrl" controls />
           </div>
 
           <!-- Payload -->
           <details class="tdm-section" open>
-            <summary>Payload</summary>
+            <summary>{{ getMessage('taskCenterPayloadLabel') }}</summary>
             <pre class="tdm-pre">{{ pretty(task.payload) }}</pre>
           </details>
 
           <!-- Result / error -->
           <details v-if="task.result" class="tdm-section">
-            <summary>Result</summary>
+            <summary>{{ getMessage('taskCenterResultLabel') }}</summary>
             <pre class="tdm-pre">{{ pretty(task.result) }}</pre>
           </details>
           <div v-if="task.error" class="tdm-errbox">{{ task.error }}</div>
 
           <!-- Incremental, de-duped event timeline -->
           <div class="tdm-timeline">
-            <div class="tdm-timeline-head">Timeline</div>
+            <div class="tdm-timeline-head">{{ getMessage('taskCenterTimelineLabel') }}</div>
             <ul>
               <li v-for="ev in timeline" :key="ev.id" class="tdm-event">
                 <span class="tdm-edot" :style="{ background: eventColor(ev.event) }" />
@@ -89,7 +89,7 @@
                   </div>
                   <div class="tdm-eventmeta">
                     <span v-if="ev.worker_id">{{ ev.worker_id }}</span>
-                    <span v-if="ev.attempt != null">attempt {{ ev.attempt }}</span>
+                    <span v-if="ev.attempt != null">{{ getMessage('taskCenterAttemptLabel') }} {{ ev.attempt }}</span>
                   </div>
                 </div>
               </li>
@@ -112,6 +112,7 @@ import {
 import { getApiBase } from '@/services/ApiManager';
 import { taskPath } from '@/utils/api-paths';
 import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
+import { getMessage } from '@/utils/i18n';
 import {
   FAST_PROMOTABLE_TASK_TYPES,
   TASK_EVENT_BY_ROLE,
@@ -151,8 +152,19 @@ const meta = computed(() =>
 );
 
 const procIcon = computed(() => taskIcon(task.value.task_type, props.processorType));
-const typeLabel = computed(() => taskTypeLabel(task.value.task_type, props.processorType));
+const typeLabel = computed(() => {
+  const taskType = String(task.value.task_type || '');
+  const key = `taskCenterCategory_${taskType}`;
+  const localized = getMessage(key);
+  return localized === key ? taskTypeLabel(taskType, props.processorType) : localized;
+});
 const capLabel = computed(() => capabilityLabel(task.value.capability));
+const localizedStatus = computed(() => {
+  const status = String(task.value.status || '');
+  const key = `taskCenterStatus_${status.toLowerCase().replace(/[^a-z0-9_]/g, '_')}`;
+  const localized = getMessage(key);
+  return localized === key ? status : localized;
+});
 const aiTranslate = computed(() => metaIsAiTranslate(task.value.capability));
 const isFast = computed(() =>
   isFastTier({
@@ -183,7 +195,11 @@ const canBump = computed(
     !isFast.value,
 );
 
-const bumpLabel = computed(() => (bumped.value ? '✓ Bumped' : bumping.value ? 'Bumping…' : '⏫ Task-top'));
+const bumpLabel = computed(() => (bumped.value
+  ? `✓ ${getMessage('taskCenterBumpedLabel')}`
+  : bumping.value
+    ? getMessage('taskCenterBumpingLabel')
+    : `⏫ ${getMessage('taskCenterTaskTopLabel')}`));
 
 const bumpToTop = async (): Promise<void> => {
   if (bumping.value || bumped.value) return;
@@ -196,10 +212,10 @@ const bumpToTop = async (): Promise<void> => {
       // Pull the fresh snapshot so priority / fast badge reflect the bump.
       refetch();
     } else {
-      loadError.value = resp.message || 'Bump failed';
+      loadError.value = resp.message || getMessage('taskCenterBumpFailed');
     }
   } catch (e: any) {
-    loadError.value = e?.message || 'Bump failed';
+    loadError.value = e?.message || getMessage('taskCenterBumpFailed');
   } finally {
     bumping.value = false;
   }
@@ -321,7 +337,7 @@ const openStream = (): void => {
       if (done && !userClosed) refetch();
     },
     onError: (err) => {
-      loadError.value = bundle.value ? '' : 'Live stream unavailable';
+      loadError.value = bundle.value ? '' : getMessage('taskCenterStreamUnavailable');
       console.warn('[TaskDetailModal] stream error', err);
     },
   });

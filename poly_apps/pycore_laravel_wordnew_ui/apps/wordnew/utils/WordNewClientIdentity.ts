@@ -10,7 +10,8 @@
  * sessionStorage for the tab session only.
  */
 import FingerprintJS from '@fingerprintjs/fingerprintjs';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 let identityPromise: Promise<string> | null = null;
 

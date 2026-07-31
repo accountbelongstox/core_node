@@ -17,10 +17,10 @@ import {
   KeyRound, RefreshCcw, AlertTriangle, Save, Trash2, Eye, EyeOff,
   ShieldCheck, Image as ImageIcon, Link2, CheckCircle2, CircleDashed,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
-import type { AiKeysProvider, AiKeySlot } from '../../core/api/modules/AiManagementAPI';
+import type { AiKeysProvider, AiKeySlot } from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AiBentoCard, AiToolAlert } from './ui';

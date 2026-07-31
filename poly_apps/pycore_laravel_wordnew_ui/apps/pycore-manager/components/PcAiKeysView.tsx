@@ -15,8 +15,8 @@ import {
   KeyRound, RefreshCcw, AlertTriangle, CheckCircle2, MinusCircle, Snowflake,
   Plus, Trash2, ShieldCheck, Image as ImageIcon, Layers, Lock,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { AiKeyProvider, AiKeySlot } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { AiKeyProvider, AiKeySlot } from '@/apps/pycore-manager/api';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 import PcAiBalancesView from './PcAiBalancesView';
 

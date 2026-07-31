@@ -1,6 +1,6 @@
 import React from 'react';
 import { User as UserIcon } from 'lucide-react';
-import type { DevHistorySessionSummary } from '../../../core/api/modules/DevHistoryAPI';
+import type { DevHistorySessionSummary } from '@/apps/laravel-manager/api';
 import { toolLabel, toolPill } from './shared';
 
 interface SessionRowProps {

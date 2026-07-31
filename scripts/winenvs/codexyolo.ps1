@@ -36,9 +36,16 @@ $mcpChromeNativeArtifactPath = $null
 $mcpChromeExtensionManifestPath = $null
 $mcpChromeRegisterScriptPath = $null
 $mcpChromeEnsureWinBinScriptPath = $null
+$mcpChromeSupervisorScriptPath = $null
 $mcpChromeNeedsDependencies = $false
 $mcpChromeNeedsBuild = $false
 $mcpChromeUrl = "http://127.0.0.1:12306/mcp"
+$mcpChromePort = 12306
+$mcpChromePortReady = $false
+$mcpChromePortWasReady = $false
+$mcpChromePortWaitCount = 0
+$mcpChromePython = $null
+$mcpChromeSupervisorArgs = @()
 $previousLocation = $null
 $upgradeChoice = $null
 $pnpmCommand = $null
@@ -75,9 +82,11 @@ $mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "bui
 $mcpChromeExtensionManifestPath = Join-Path $mcpChromeExtensionManifestPath "manifest.json"
 $mcpChromeRegisterScriptPath = Join-Path $mcpChromePath "scripts"
 $mcpChromeEnsureWinBinScriptPath = Join-Path $mcpChromeRegisterScriptPath "ensure_win_bin.ps1"
+$mcpChromeSupervisorScriptPath = Join-Path $mcpChromeRegisterScriptPath "service_supervisor.py"
 $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-local-dev.cjs"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
+$mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -138,6 +147,35 @@ try {
 
 & $codexCommand.Source mcp add chrome --url $mcpChromeUrl
 Write-Host "[INFO] Chrome MCP registered in Codex." -ForegroundColor Green
+
+$mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+$mcpChromePortWasReady = $mcpChromePortReady
+if ($mcpChromeNeedsBuild -or -not $mcpChromePortWasReady) {
+    $mcpChromeSupervisorArgs = @(
+        $mcpChromeSupervisorScriptPath,
+        "--project-root", $mcpChromePath,
+        "--watch-mode", "dev",
+        "--recover-on-start"
+    )
+} else {
+    $mcpChromeSupervisorArgs = @(
+        $mcpChromeSupervisorScriptPath,
+        "--project-root", $mcpChromePath,
+        "--watch-mode", "dev"
+    )
+}
+Write-Host "[INFO] Starting Chrome MCP development service..." -ForegroundColor Cyan
+Start-Process -FilePath $mcpChromePython -ArgumentList $mcpChromeSupervisorArgs -WindowStyle Hidden
+while (-not $mcpChromePortReady -and $mcpChromePortWaitCount -lt 60) {
+    Start-Sleep -Milliseconds 500
+    $mcpChromePortReady = $null -ne (Get-NetTCPConnection -LocalPort $mcpChromePort -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1)
+    $mcpChromePortWaitCount = $mcpChromePortWaitCount + 1
+}
+if ($mcpChromePortReady) {
+    Write-Host "[INFO] Chrome MCP is listening on 127.0.0.1:$mcpChromePort." -ForegroundColor Green
+} else {
+    Write-Host "[WARN] Chrome MCP did not become ready; reload the unpacked extension once." -ForegroundColor Yellow
+}
 
 $codexArgs = @(
     "--yolo",

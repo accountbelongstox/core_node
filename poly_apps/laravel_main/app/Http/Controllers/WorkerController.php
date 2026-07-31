@@ -95,9 +95,12 @@ class WorkerController extends Controller
     {
         $validated = $request->validate([
             'worker_id' => 'required|string',
+            'capabilities' => 'nullable|array',
+            'capabilities.*' => ['string', Rule::in(GlobalTask::capabilities())],
         ]);
 
-        $success = $this->workerManager->heartbeat($validated['worker_id']);
+        $capabilities = $validated['capabilities'] ?? null;
+        $success = $this->workerManager->heartbeat($validated['worker_id'], $capabilities);
 
         if (!$success) {
             return $this->notFound('Worker not found');

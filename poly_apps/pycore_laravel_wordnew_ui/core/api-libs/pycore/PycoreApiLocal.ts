@@ -426,11 +426,8 @@ export const pycoreApiLocal = {
   setAutostart: (enabled: boolean, target?: AutostartTarget, mechanism?: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.controlSetAutostart, { enabled, target, mechanism }) as Promise<AutostartStatus>,
 
-  // --- Vocabulary (pycore proxies laravel_main #/vocabulary) -------------- #
-  // The laravel-manager vocabulary surface, re-exposed through pycore so the
-  // pycore-manager Vocabulary page talks only to pycore (UI -> pycore ->
-  // laravel). Pure passthrough: responses are laravel's native JSON shapes.
-  // Query and body payloads are sent through one native HTTP API route.
+  // --- Vocabulary service proxy ------------------------------------------- #
+  // Pure passthrough for the shared backend vocabulary contract.
   getVocabTranslationLanguages: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationLanguages, {}),
   translateVocab: (payload: VocabTranslateRequest) =>

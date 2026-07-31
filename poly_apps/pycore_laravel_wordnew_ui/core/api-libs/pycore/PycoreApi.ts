@@ -1,5 +1,5 @@
 /**
- * PycoreApi — pycore service API client for the dashboard's pycore-manager end.
+ * PycoreApi — shared Pycore service API client.
  *
  * Talks to the selected pycore target through shared HTTP controllers.
  * Binary assets are returned as data URLs.
@@ -16,7 +16,7 @@ import type {
 import {
   requestPycoreHttp, requestPycoreStatus, PYCORE_HTTP_ROUTES,
   directPycoreHost, buildPycoreHttpUrl,
-  fileToBase64, guardPycoreReachability,
+  fileToBase64,
 } from './PycoreApiTransport';
 import {
   mapQueueSnapshot,
@@ -215,7 +215,6 @@ export const pycoreApi = {
     files: File[],
     opts: { language?: string; languages?: string[]; preview_chars?: number; persist?: boolean; source_type?: string } = {},
   ): Promise<BooksAnalyzeResponse> => {
-    guardPycoreReachability();
     const b64Files = await Promise.all(
       files.map(async (f) => ({ name: f.name, data_b64: await fileToBase64(f) })),
     );

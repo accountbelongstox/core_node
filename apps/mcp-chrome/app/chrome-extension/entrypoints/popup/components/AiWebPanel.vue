@@ -26,7 +26,7 @@
       </div>
 
       <div class="flex items-center gap-1.5 mb-2">
-        <span class="text-[8px] text-slate-500 uppercase font-bold">Backend</span>
+        <span class="text-[8px] text-slate-500 uppercase font-bold">{{ getMessage('backendLabel') }}</span>
         <input
           v-model="apiUrl"
           placeholder="http://localhost:9000"
@@ -58,7 +58,7 @@
       <textarea
         v-model="prompt"
         rows="2"
-        placeholder="Type a prompt to send to the live tab…"
+        :placeholder="getMessage('aiWebPromptPlaceholder')"
         class="w-full bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-slate-200 resize-none mb-1.5"
       ></textarea>
       <div class="flex items-center gap-2 mb-1.5">

@@ -1,9 +1,9 @@
 /**
- * Vocabulary types for the pycore-manager Vocabulary page.
+ * Shared vocabulary service contracts exposed by Pycore.
  *
  * Pycore HTTP API vocabulary routes proxy Laravel server-side, so these shapes
  * mirror Laravel's native responses (the
- * agent-confirmed shapes from the laravel-manager #/vocabulary page). Every
+ * backend-confirmed response shapes. Every
  * response carries a `success` flag; when laravel is unreachable pycore returns
  * {success:false, error} and the HTTP client surfaces it (the page try/catches).
  */

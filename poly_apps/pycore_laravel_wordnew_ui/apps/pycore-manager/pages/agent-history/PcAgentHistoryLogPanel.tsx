@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
-import { requestPycoreHttp, connectPycoreHttp } from '../../../../core/api-libs/pycore/PycoreHttp';
-import { pycoreEventBus } from '../../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_HTTP_ROUTES } from '../../../../core/api-libs/pycore/PycoreHttpRoutes';
+import { requestPycoreHttp, connectPycoreHttp } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 
 const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 

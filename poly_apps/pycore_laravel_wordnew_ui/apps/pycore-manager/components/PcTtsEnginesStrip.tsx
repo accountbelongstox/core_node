@@ -5,10 +5,10 @@
  */
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, AudioLines, RefreshCw } from 'lucide-react';
-import { ttsEngineUiState, ttsConcurrencyAnnotation } from '../../../core/api-libs/pycore';
-import type { TtsStatus } from '../../../core/api-libs/pycore';
-import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { ttsEngineUiState, ttsConcurrencyAnnotation } from '@/apps/pycore-manager/api';
+import type { TtsStatus } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 export const PcTtsEnginesStrip: React.FC = () => {

@@ -12,10 +12,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Images, RefreshCcw, Trash2, AlertTriangle, X, Wand2, Clock, Timer,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
-import type { AiImageHistoryEntry } from '../../core/api/modules/AiManagementAPI';
+import type { AiImageHistoryEntry } from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AiBentoCard, AiToolAlert } from './ui';

@@ -314,20 +314,16 @@ export class Server {
       }
 
       log('INFO', `Setting up SSE stream for session: ${sessionId}`);
-      reply.raw.setHeader('Content-Type', 'text/event-stream');
-      reply.raw.setHeader('Cache-Control', 'no-cache');
-      reply.raw.setHeader('Connection', 'keep-alive');
-      reply.raw.flushHeaders(); // Ensure headers are sent immediately
+      // The MCP SDK owns the raw response, including the SSE headers. Fastify
+      // must be hijacked before handing it over; otherwise it finalizes the
+      // reply after the SDK has already opened the stream and Node throws
+      // ERR_HTTP_HEADERS_SENT, disconnecting every MCP client immediately.
+      reply.hijack();
 
       try {
         log('INFO', `Starting SSE stream handling for session: ${sessionId}`);
-        // transport.handleRequest will take over the response stream
+        // transport.handleRequest takes over the hijacked response stream.
         await transport.handleRequest(request.raw, reply.raw);
-        if (!reply.sent) {
-          // If transport didn't send anything (unlikely for SSE initial handshake)
-          log('INFO', `Hijacking reply for session: ${sessionId}`);
-          reply.hijack(); // Prevent Fastify from automatically sending response
-        }
         log('INFO', `SSE stream established for session: ${sessionId}`);
       } catch (error) {
         log('ERROR', `Error in SSE stream for session: ${sessionId}`, { error });

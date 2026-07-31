@@ -29,9 +29,9 @@ import {
   Image as ImageIcon, Loader2, ListChecks,
   AudioLines, Languages as LanguagesIcon, BarChart3,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { mediaUrl } from '../../config/constants';
-import type { DictionaryWordRow, DictionaryWordFilter } from '../../core/api/modules/BooksAPI';
+import type { DictionaryWordRow, DictionaryWordFilter } from '@/apps/laravel-manager/api';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
 import WordDetailModal from './WordDetailModal';

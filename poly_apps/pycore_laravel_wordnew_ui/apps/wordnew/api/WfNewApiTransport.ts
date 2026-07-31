@@ -11,23 +11,36 @@ import {
   requestVariant,
 } from '../cache/WfNewServerMirror';
 import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
+import { coordinateRequest } from '../../../core/network/RequestCoordinator';
+import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 
 // --- auth token ------------------------------------------------------------ #
 
-/** localStorage key for the persisted Sanctum Bearer token. */
+/** Read the canonical Sanctum token shared by every Pycore API transport. */
 export function loadToken(): string | null {
-  return StorageManager.get<string | null>(StorageKeys.WORDNEW_AUTH_TOKEN, null);
+  const sharedToken = getAuthToken();
+  if (sharedToken) return sharedToken;
+  const legacyToken = StorageManager.get<string | null>(StorageKeys.WORDNEW_AUTH_TOKEN, null);
+  if (!legacyToken) return null;
+  StorageManager.remove(StorageKeys.WORDNEW_AUTH_TOKEN);
+  return setAuthToken(legacyToken);
 }
 
 export let authToken: string | null = loadToken();
 
+/** Pull a token written by the Core API service into the WordNew transport. */
+export function syncPersistedToken(): void {
+  const stored = loadToken();
+  if (stored !== authToken) setToken(stored);
+}
+
 export function setToken(token: string | null): void {
-  authToken = token;
+  if (token !== authToken) authenticatedReadDeniedUntil.clear();
+  authToken = setAuthToken(token);
   // A fresh, real token re-arms the one-shot expiry notifier for the new session.
   if (token) expiredNotified = false;
-  if (token) StorageManager.set(StorageKeys.WORDNEW_AUTH_TOKEN, token);
-  else StorageManager.remove(StorageKeys.WORDNEW_AUTH_TOKEN);
 }
 
 /** Backend success/error bodies can carry repeated UTF-8 BOMs — strip them all. */
@@ -55,6 +68,12 @@ export const authExpiredSubs = new Set<() => void>();
  * not one per request. Re-armed by setToken() on the next successful login.
  */
 export let expiredNotified = false;
+
+/** In-flight protected reads are shared so concurrent views issue one request. */
+const authenticatedReadFlights = new Map<string, Promise<unknown>>();
+/** Permission failures are suppressed briefly instead of being requested in a loop. */
+const authenticatedReadDeniedUntil = new Map<string, number>();
+const AUTH_PERMISSION_COOLDOWN_MS = 30 * 1000;
 
 export function notifyAuthExpired(): void {
   for (const cb of authExpiredSubs) {
@@ -121,6 +140,17 @@ const queuedTransport = new WfNewQueuedTransport();
 async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> {
   await wfNewEndpoints.whenReady();
   const requestToken = authenticated ? authToken : null;
+  const flightKey = authenticated && requestToken ? `${requestToken}:${path}` : null;
+  if (flightKey) {
+    const deniedUntil = authenticatedReadDeniedUntil.get(path) ?? 0;
+    if (deniedUntil > Date.now()) {
+      const denied = new Error(`Permission denied for ${path}`) as Error & { status: number };
+      denied.status = 403;
+      throw denied;
+    }
+    const active = authenticatedReadFlights.get(flightKey) as Promise<T> | undefined;
+    if (active) return active;
+  }
   const fetchRemote = async (): Promise<T> => {
     const headers = requestToken
       ? { Accept: 'application/json', Authorization: `Bearer ${requestToken}` }
@@ -131,13 +161,27 @@ async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> 
     });
     if (!res.ok) {
       if (authenticated) handleMaybe401(res.status, requestToken);
+      if (authenticated && (res.status === 401 || res.status === 403)) {
+        authenticatedReadDeniedUntil.set(path, Date.now() + AUTH_PERMISSION_COOLDOWN_MS);
+      }
       throw new Error(`HTTP ${res.status} for ${path}`);
     }
     const rawText = stripBom(await res.text());
     const parsed = rawText ? JSON.parse(rawText) : null;
     return unwrapEnvelope(parsed) as T;
   };
-  return queryServerResource(path, requestToken, fetchRemote);
+  const operation = coordinateRequest(
+    `wordnew-get:${requestToken || 'anonymous'}:${wfNewEndpoints.buildUrl(path)}`,
+    () => queryServerResource(path, requestToken, fetchRemote),
+    5000,
+  );
+  if (!flightKey) return operation;
+  authenticatedReadFlights.set(flightKey, operation);
+  try {
+    return await operation;
+  } finally {
+    authenticatedReadFlights.delete(flightKey);
+  }
 }
 
 /** GET a public endpoint without leaking or invalidating the current Bearer token. */
@@ -153,6 +197,7 @@ export async function getJSON<T>(path: string): Promise<T> {
  * "never hit protected APIs while logged out" rule in exactly one place.
  */
 export async function authedGetJSON<T>(path: string, fallback: T): Promise<T> {
+  syncPersistedToken();
   if (!authToken) return fallback;
   return requestJSON<T>(path, true);
 }

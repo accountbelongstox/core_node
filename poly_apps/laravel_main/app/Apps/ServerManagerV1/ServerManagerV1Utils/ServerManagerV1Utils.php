@@ -196,7 +196,7 @@ class ServerManagerV1Utils
         $timeout = $timeout ?? ServerManagerV1Constants::MAX_EXECUTION_TIME;
         
         // Log command execution attempt
-        Log::info('ServerManagerV1: Executing command', [
+        Log::debug('ServerManagerV1: Executing command', [
             'command' => $command,
             'arguments' => $arguments,
             'timeout' => $timeout
@@ -286,14 +286,23 @@ class ServerManagerV1Utils
             'timeout_reached' => $timeoutReached
         ];
         
-        // Log execution result
-        Log::info('ServerManagerV1: Command execution completed', [
-            'command' => $command,
-            'success' => $result['success'],
-            'exit_code' => $exitCode,
-            'execution_time' => $executionTime,
-            'memory_usage' => $memoryUsage
-        ]);
+        // Log execution result (failures stay visible, successes are debug-level)
+        if ($result['success']) {
+            Log::debug('ServerManagerV1: Command execution completed', [
+                'command' => $command,
+                'success' => $result['success'],
+                'exit_code' => $exitCode,
+                'execution_time' => $executionTime,
+                'memory_usage' => $memoryUsage
+            ]);
+        } else {
+            Log::warning('ServerManagerV1: Command execution failed', [
+                'command' => $command,
+                'exit_code' => $exitCode,
+                'timeout_reached' => $timeoutReached,
+                'error' => mb_substr($error, 0, 500)
+            ]);
+        }
         
         return $result;
     }

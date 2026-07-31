@@ -5,18 +5,20 @@ import {
   Languages,
   BookOpen,
   ListChecks,
-  Search
+  Search,
+  Newspaper
 } from 'lucide-react';
 
 export { SUBTAB_MOTION } from '../../core/ui/motion';
 
 /** Sub-tab keys for the page. Active tab persists in localStorage. */
-export type VocabTab = 'translate' | 'words' | 'libraries' | 'statistics' | 'queue';
+export type VocabTab = 'translate' | 'words' | 'libraries' | 'articles' | 'statistics' | 'queue';
 export const VOCAB_TAB_KEY = 'vocab_active_tab';
 export const VOCAB_TABS: { key: VocabTab; label: string; Icon: React.FC<any> }[] = [
   { key: 'translate', label: 'Translate', Icon: Languages },
   { key: 'words', label: 'Words', Icon: Search },
   { key: 'libraries', label: 'Libraries', Icon: BookOpen },
+  { key: 'articles', label: 'Articles', Icon: Newspaper },
   // 'statistics' merged into the Words tab (WordsManagerPanel shows the strip);
   // the tab is retired but the type/legacy block stay for back-compat.
   { key: 'queue', label: 'TTS Queue', Icon: ListChecks },

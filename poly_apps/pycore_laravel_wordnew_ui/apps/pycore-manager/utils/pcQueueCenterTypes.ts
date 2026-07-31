@@ -3,7 +3,7 @@
  * the section body panels).
  *
  * All UI traffic uses HTTP API. The canonical structure and runtime defaults are
- * in core/api-libs/pycore/QueueCenterContract.ts, backed by
+ * in the Pycore Manager API boundary, backed by
  * config/queue_center_contract.json.
  */
 import type React from 'react';
@@ -14,8 +14,8 @@ import type {
   QueueCenterSectionLifecycle,
   QueueCenterControlMetrics,
   QueueCenterWorkerMetrics,
-} from '../../../core/api-libs/pycore/pycoreTypes';
-import { StorageKeys } from '../../../core/persistence';
+} from '@/apps/pycore-manager/api';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 /** Single-page section keys. Legacy ?tab= values map 1:1 onto these anchors. */
 export type QcSection = 'overview' | 'translation' | 'wordAudio' | 'sentence' | 'recent';
@@ -37,9 +37,6 @@ export interface QueueCenterPanelProps {
 
 export const QC_AUTO_KEY = StorageKeys.PYCORE_QUEUE_CENTER_AUTO;
 export const QC_DRAWER_KEY = StorageKeys.PYCORE_QUEUE_CENTER_DRAWER;
-export const QC_AUTO_REFRESH_MS = 5000;
-export const QC_ASSIST_POLL_MS = 15000;
-export const QC_TTS_POLL_MS = 8000;
 
 /** DOM anchor id for a section (legacy ?tab= links scroll here). */
 export const qcSectionAnchor = (key: QcSection): string => `qc-section-${key}`;

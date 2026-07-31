@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, ChevronDown, X, Loader2, AlertCircle, Clock, Copy, Check } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../types';
 import { parseFeatureString, generateExampleParams, extractPathPlaceholders } from '../../utils/apiInfoParser';
 import { logInfo, logError } from '../../core/logstore/logStore';

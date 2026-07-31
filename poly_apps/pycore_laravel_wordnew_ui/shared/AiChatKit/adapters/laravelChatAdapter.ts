@@ -3,7 +3,7 @@
  *
  * Placeholder: the Laravel app_qy_v1 chat endpoint is wired in a later phase
  * (P4). Until then this surfaces a clear message rather than failing silently.
- * The laravel API library (core/api-libs/laravel) provides the transport.
+ * The Laravel Manager application boundary provides the transport.
  */
 import { AiChatAdapter } from '../../../shell/shellTypes';
 

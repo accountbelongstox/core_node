@@ -29,13 +29,13 @@ import {
 } from 'lucide-react';
 import {
   pycoreApi, connectPycoreHttp, onHttpStatus, requestPycoreHttp, subscribeHttpEvent,
-} from '../../../core/api-libs/pycore';
-import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type {
   VideoExtractMode, BooksAnalyzeResponse, BookTextStats, BookSourceState,
   BookChapter, BookSlot,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 import { PcCoreBookPanel } from './PcCoreBookPage';
 import PcSentenceAudioPanel from '../components/PcSentenceAudioPanel';

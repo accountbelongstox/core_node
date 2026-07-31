@@ -23,7 +23,7 @@ import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCar
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 
 interface WfNewHomeContentProps {
   content: WfNewHomeContentData;

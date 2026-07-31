@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../BentoCard';
 import { FileNode, Language, StaticFileContent } from '../../types';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';
 import { InlineSpinner, LoadingBlock, EmptyState, AlertBox } from '../common';

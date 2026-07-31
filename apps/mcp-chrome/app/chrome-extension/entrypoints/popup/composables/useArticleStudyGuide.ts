@@ -18,6 +18,7 @@
 import { ref, watch } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import { sendWithWake } from '@/utils/sendWithWake';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import {
@@ -98,21 +99,21 @@ export function useArticleStudyGuide() {
         const res = s?.result;
         if (!res) continue;
         if (res.status === 'done') {
-          result.value = res.answer || '(no answer)';
+          result.value = res.answer || getMessage('noAnswerReturned');
           finishJob(jobId);
           return;
         }
         if (res.status === 'failed' || res.status === 'unknown') {
-          error.value = res.error || `${PROVIDER_LABELS[jobProvider]} generation failed`;
+          error.value = res.error || getMessage('providerGenerationFailed', [PROVIDER_LABELS[jobProvider]]);
           finishJob(jobId);
           return;
         }
         // still generating -> keep polling
       }
-      error.value = `Timed out waiting for the ${PROVIDER_LABELS[jobProvider]} reply`;
+      error.value = getMessage('providerReplyTimeout', [PROVIDER_LABELS[jobProvider]]);
       finishJob(jobId);
     } catch (e: any) {
-      error.value = e?.message || `${PROVIDER_LABELS[jobProvider]} generation failed`;
+      error.value = e?.message || getMessage('providerGenerationFailed', [PROVIDER_LABELS[jobProvider]]);
       logger.error(LOG, 'poll failed', e);
       finishJob(jobId);
     }
@@ -150,7 +151,7 @@ export function useArticleStudyGuide() {
           (startResp === undefined
             ? 'no response from the background service worker (it may have been asleep or restarted — try again)'
             : `unexpected response: ${JSON.stringify(startResp)}`);
-        error.value = `Failed to start ${PROVIDER_LABELS[jobProvider]} test: ${detail}`;
+        error.value = getMessage('providerTestStartFailed', [PROVIDER_LABELS[jobProvider], detail]);
         logger.error(LOG, 'start rejected', detail);
         testing.value = false;
         phase.value = '';
@@ -160,8 +161,8 @@ export function useArticleStudyGuide() {
       activeJob.value = { jobId, provider: jobProvider };
       await pollJob(jobId, jobProvider);
     } catch (e: any) {
-      const detail = e?.message || (e ? String(e) : 'unknown error');
-      error.value = `Failed to start ${PROVIDER_LABELS[jobProvider]} test: ${detail}`;
+      const detail = e?.message || (e ? String(e) : getMessage('unknownErrorMessage'));
+      error.value = getMessage('providerTestStartFailed', [PROVIDER_LABELS[jobProvider], detail]);
       logger.error(LOG, 'start threw', e);
       testing.value = false;
       phase.value = '';

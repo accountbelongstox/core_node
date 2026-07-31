@@ -39,7 +39,7 @@ import { buildWordCell } from '../utils/WordNewLibraryWordCell';
 import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNewLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 
 type LibraryView = 'dash' | 'table';
 

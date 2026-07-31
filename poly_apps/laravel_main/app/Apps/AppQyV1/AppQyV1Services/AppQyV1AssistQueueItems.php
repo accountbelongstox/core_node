@@ -26,13 +26,20 @@ trait AppQyV1AssistQueueItems
      * Paginated drill-down rows for one assist/overview category.
      *
      * GET /api/app_qy_v1/assist/overview/items
-     *   ?category=word_audio&status=pending|processing|completed|failed|leased&start=0&limit=50
+     *   ?category=word_audio&status=all|pending|processing|completed|failed|leased&start=0&limit=50
      *
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    public function categoryItems(string $category, ?string $status, int $start, int $limit): array
+    public function categoryItems(
+        string $category,
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search = ''
+    ): array
     {
         $category = strtolower(trim($category));
+        $search = trim($search);
         if (!in_array($category, QueueCenterContract::categoryKeys(), true)) {
             return [
                 'category' => $category,
@@ -48,7 +55,25 @@ trait AppQyV1AssistQueueItems
         $start = max(0, $start);
 
         if ($category === 'word_audio') {
-            return $this->categoryItemsFromWordAudio($status, $start, $limit);
+            return $this->categoryItemsFromWordAudio($status, $start, $limit, $search);
+        }
+        if ($category === 'sentence_audio') {
+            return $this->categoryItemsFromSentenceAudio($status, $start, $limit, $search);
+        }
+        if ($category === 'cover') {
+            return $this->categoryItemsFromCovers($status, $start, $limit, $search);
+        }
+        if ($category === 'gemini_image') {
+            return $this->categoryItemsFromGeminiImages($status, $start, $limit, $search);
+        }
+        if ($category === 'poster') {
+            return $this->categoryItemsFromPosters($status, $start, $limit, $search);
+        }
+        if ($category === 'subtitle_lang') {
+            return $this->categoryItemsFromAssistRequests('subtitle', 'add_language', $status, $start, $limit, $search);
+        }
+        if ($category === 'book_lang') {
+            return $this->categoryItemsFromAssistRequests('book', 'add_language', $status, $start, $limit, $search);
         }
 
         $globalTaskType = QueueCenterContract::globalTaskTypeForCategory($category);
@@ -58,24 +83,9 @@ trait AppQyV1AssistQueueItems
                 $globalTaskType,
                 $status,
                 $start,
-                $limit
+                $limit,
+                $search
             );
-        }
-
-        if ($category === 'sentence_audio') {
-            return $this->categoryItemsFromSentenceAudio($status, $start, $limit);
-        }
-        if ($category === 'cover') {
-            return $this->categoryItemsFromCovers($status, $start, $limit);
-        }
-        if ($category === 'poster') {
-            return $this->categoryItemsFromPosters($status, $start, $limit);
-        }
-        if ($category === 'subtitle_lang') {
-            return $this->categoryItemsFromAssistRequests('subtitle', 'add_language', $status, $start, $limit);
-        }
-        if ($category === 'book_lang') {
-            return $this->categoryItemsFromAssistRequests('book', 'add_language', $status, $start, $limit);
         }
 
         return [
@@ -96,7 +106,8 @@ trait AppQyV1AssistQueueItems
         string $taskType,
         ?string $status,
         int $start,
-        int $limit
+        int $limit,
+        string $search
     ): array {
         $query = GlobalTask::query()
             ->where('app_name', 'AppQyV1')
@@ -111,7 +122,9 @@ trait AppQyV1AssistQueueItems
         }
 
         if ($status !== null && $status !== '') {
-            if ($status === 'leased') {
+            if ($status === 'all') {
+                // No status predicate: the category modal paginates its full history.
+            } elseif ($status === 'leased') {
                 $query->where('status', GlobalTask::status('assigned'))
                     ->whereNotNull('assigned_to');
             } else {
@@ -122,6 +135,15 @@ trait AppQyV1AssistQueueItems
             }
         }
 
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $query->where(function ($builder) use ($like) {
+                $builder->where('task_id', 'like', $like)
+                    ->orWhere('assigned_to', 'like', $like)
+                    ->orWhere('payload', 'like', $like);
+            });
+        }
+
         $total = (int) (clone $query)->count();
 
         $rows = $query
@@ -130,7 +152,7 @@ trait AppQyV1AssistQueueItems
             ->offset($start)
             ->limit($limit)
             ->get([
-                'id', 'task_type', 'status', 'priority', 'payload',
+                'id', 'task_id', 'task_type', 'status', 'priority', 'payload',
                 'assigned_to', 'retry_count', 'created_at', 'updated_at',
             ]);
 
@@ -140,6 +162,7 @@ trait AppQyV1AssistQueueItems
             $content = $this->extractPayloadContent($payload);
             $items[] = [
                 'id' => (int) $row->id,
+                'task_id' => (string) $row->task_id,
                 'category' => $category,
                 'task_type' => (string) $row->task_type,
                 'status' => $status === 'leased' ? 'leased' : (string) $row->status,
@@ -169,9 +192,14 @@ trait AppQyV1AssistQueueItems
      *
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    private function categoryItemsFromWordAudio(?string $status, int $start, int $limit): array
+    private function categoryItemsFromWordAudio(
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
     {
-        return $this->categoryItemsFromDictionaryTts('word_audio', $status, $start, $limit);
+        return $this->categoryItemsFromDictionaryTts('word_audio', $status, $start, $limit, $search);
     }
 
     /**
@@ -180,12 +208,19 @@ trait AppQyV1AssistQueueItems
      *
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    private function categoryItemsFromDictionaryTts(string $category, ?string $status, int $start, int $limit): array
+    private function categoryItemsFromDictionaryTts(
+        string $category,
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
     {
         $conn = \Illuminate\Support\Facades\DB::connection(
             AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1)
         );
         $allRows = [];
+        $total = 0;
 
         foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
             $table = AppQyV1TableMaps::getDictionaryTableName($lang);
@@ -194,7 +229,9 @@ trait AppQyV1AssistQueueItems
             }
 
             $query = $conn->table($table);
-            if ($status === 'leased') {
+            if ($status === 'all' || $status === null || $status === '') {
+                // No status predicate: include the full dictionary task history.
+            } elseif ($status === 'leased') {
                 $query->where('has_audio', false)
                     ->whereNotNull('tts_locked_by');
                 AppQyV1DictionaryTTSCoordinator::applyLiveLockPredicate($query);
@@ -222,10 +259,17 @@ trait AppQyV1AssistQueueItems
                     ->where('tts_attempts', '<', AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS);
             }
 
+            if ($search !== '') {
+                $query->where('content', 'like', '%' . $search . '%');
+            }
+
+            $total += (int) (clone $query)->count();
+
             $rows = $query
                 ->orderByDesc('tts_priority')
                 ->orderByDesc('tts_requested_at')
                 ->orderByDesc('id')
+                ->limit($start + $limit)
                 ->get([
                     'id', 'content', 'md5', 'has_audio', 'tts_status', 'tts_priority',
                     'tts_locked_by', 'tts_locked_at', 'tts_attempts', 'tts_files',
@@ -267,7 +311,6 @@ trait AppQyV1AssistQueueItems
             return ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
         });
 
-        $total = count($allRows);
         $items = array_slice($allRows, $start, $limit);
 
         return [
@@ -342,9 +385,15 @@ trait AppQyV1AssistQueueItems
     /**
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    private function categoryItemsFromSentenceAudio(?string $status, int $start, int $limit): array
+    private function categoryItemsFromSentenceAudio(
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
     {
         $allRows = [];
+        $total = 0;
         foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
             try {
                 $model = \App\Models\LangSentence::for($lang);
@@ -352,9 +401,11 @@ trait AppQyV1AssistQueueItems
                     continue;
                 }
                 $query = \App\Models\LangSentence::onLang($lang);
-                if ($status === 'leased') {
+                if ($status === 'all' || $status === null || $status === '') {
+                    // No status predicate: include every sentence task.
+                } elseif ($status === 'leased') {
                     $query->where('has_audio', false)->whereNotNull('tts_locked_by');
-                } elseif ($status === 'pending' || $status === null || $status === '') {
+                } elseif ($status === 'pending') {
                     $query->where('has_audio', false)->whereNull('tts_locked_by');
                 } elseif ($status === 'processing') {
                     $query->where('has_audio', false)->whereNotNull('tts_locked_by');
@@ -365,9 +416,14 @@ trait AppQyV1AssistQueueItems
                 } else {
                     continue;
                 }
+                if ($search !== '') {
+                    $query->where('text', 'like', '%' . $search . '%');
+                }
+                $total += (int) (clone $query)->count();
                 $rows = $query
                     ->orderByDesc('tts_priority')
                     ->orderByDesc('occurrence_count')
+                    ->limit($start + $limit)
                     ->get(['content_id', 'text', 'language', 'tts_status', 'tts_priority', 'tts_locked_by', 'tts_locked_at', 'has_audio']);
                 foreach ($rows as $row) {
                     $lockedBy = $row->tts_locked_by ?? null;
@@ -402,7 +458,6 @@ trait AppQyV1AssistQueueItems
             return ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
         });
 
-        $total = count($allRows);
         $items = array_slice($allRows, $start, $limit);
 
         return [
@@ -418,7 +473,12 @@ trait AppQyV1AssistQueueItems
     /**
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    private function categoryItemsFromCovers(?string $status, int $start, int $limit): array
+    private function categoryItemsFromCovers(
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
     {
         $query = AppQyV1VocabularyLibraryModel::query()->whereNotNull('cover_filename');
         if ($status === 'pending') {
@@ -432,6 +492,10 @@ trait AppQyV1AssistQueueItems
             $query->where('cover_status', 'ready');
         } elseif ($status === 'failed') {
             $query->where('cover_status', 'failed');
+        }
+
+        if ($search !== '') {
+            $query->where('name', 'like', '%' . $search . '%');
         }
 
         $total = (int) (clone $query)->count();
@@ -470,9 +534,59 @@ trait AppQyV1AssistQueueItems
     }
 
     /**
+     * Gemini image work combines vocabulary-library cover generation with any
+     * explicitly enqueued gemini_image global tasks. Both are activated by the
+     * same Chrome capability and shown as one operator-facing queue.
+     *
      * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
      */
-    private function categoryItemsFromPosters(?string $status, int $start, int $limit): array
+    private function categoryItemsFromGeminiImages(
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
+    {
+        $window = $start + $limit;
+        $covers = $this->categoryItemsFromCovers($status, 0, $window, $search);
+        $tasks = $this->categoryItemsFromGlobalTasks(
+            'gemini_image',
+            'gemini_image',
+            $status,
+            0,
+            $window,
+            $search
+        );
+        $items = array_merge($covers['items'], $tasks['items']);
+
+        usort($items, static function ($a, $b) {
+            return ($b['priority'] ?? 0) <=> ($a['priority'] ?? 0);
+        });
+
+        foreach ($items as &$item) {
+            $item['category'] = 'gemini_image';
+        }
+        unset($item);
+
+        return [
+            'category' => 'gemini_image',
+            'status' => $status,
+            'total' => (int) $covers['total'] + (int) $tasks['total'],
+            'start' => $start,
+            'limit' => $limit,
+            'items' => array_slice($items, $start, $limit),
+        ];
+    }
+
+    /**
+     * @return array{category:string,status:?string,total:int,start:int,limit:int,items:array<int,array<string,mixed>>}
+     */
+    private function categoryItemsFromPosters(
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array
     {
         if (!self::posterColumnsReady()) {
             return [
@@ -486,6 +600,7 @@ trait AppQyV1AssistQueueItems
         }
 
         $allRows = [];
+        $total = 0;
         foreach ([['book', Book::class], ['subtitle', Subtitle::class]] as [$mediaType, $modelClass]) {
             $query = $modelClass::query();
             if ($status === 'pending') {
@@ -498,9 +613,18 @@ trait AppQyV1AssistQueueItems
             } elseif ($status === 'completed') {
                 $query->where('poster_status', 'ready');
             }
+            if ($search !== '') {
+                $like = '%' . $search . '%';
+                $query->where(function ($builder) use ($like) {
+                    $builder->where('title', 'like', $like)
+                        ->orWhere('original_name', 'like', $like);
+                });
+            }
+            $total += (int) (clone $query)->count();
             $rows = $query
                 ->orderByRaw('poster_fetched_at IS NULL DESC')
                 ->orderBy('poster_fetched_at')
+                ->limit($start + $limit)
                 ->get(['id', 'title', 'original_name', 'poster_status', 'assist_claimed_by', 'assist_claimed_at']);
             foreach ($rows as $row) {
                 $title = trim((string) $row->getAttribute('title'));
@@ -524,7 +648,6 @@ trait AppQyV1AssistQueueItems
             }
         }
 
-        $total = count($allRows);
         $items = array_slice($allRows, $start, $limit);
 
         return [
@@ -545,7 +668,8 @@ trait AppQyV1AssistQueueItems
         string $requestType,
         ?string $status,
         int $start,
-        int $limit
+        int $limit,
+        string $search
     ): array
     {
         $category = $recordType === 'subtitle' ? 'subtitle_lang' : 'book_lang';
@@ -581,6 +705,15 @@ trait AppQyV1AssistQueueItems
                     $query->where('status', $mapped);
                 }
             }
+        }
+
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $query->where(function ($builder) use ($like) {
+                $builder->where('record_id', 'like', $like)
+                    ->orWhere('language', 'like', $like)
+                    ->orWhere('claimed_by', 'like', $like);
+            });
         }
 
         $total = (int) (clone $query)->count();

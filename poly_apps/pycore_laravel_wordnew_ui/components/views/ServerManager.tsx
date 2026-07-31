@@ -31,7 +31,7 @@ import {
   StaticResourcesSummary,
   ViewType
 } from '../../types';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { getDefaultBaseURL } from '../../config/constants';
 import { useAppState } from '../../contexts/AppStateContext';

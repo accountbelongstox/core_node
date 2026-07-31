@@ -11,7 +11,7 @@ import { PcLayout } from './PcLayout';
 import { PcProviders } from './PcProviders';
 import {
   checkPycoreNow, syncPycoreOfflineRecheckLoop, stopPycoreOfflineRecheckLoop,
-} from '../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { registerPcLocales } from './pc-locales';
 import { PcLanguageSync } from './PcLanguageSync';
 

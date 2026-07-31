@@ -21,7 +21,8 @@ import { wfNewApi, type Word } from '../../api';
 import { wordNewProgressCenter, wordNewRecitationCenter } from '../../services';
 import type { WordNewGroupProgressBlob } from '../../api';
 import { expandProgressEntry } from '../../api';
-import { StorageKeys, StorageManager } from '../../../../core/persistence';
+import { StorageManager } from '../../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
 /** One word's local study record (compact keys, JSON-persisted). */
 interface WordRecord {

@@ -20,18 +20,18 @@
     >
       <!-- Panel header -->
       <div class="flex items-center justify-between px-2.5 py-1.5 border-b" style="border-color: var(--border)">
-        <span class="text-[9px] font-bold uppercase tracking-tight" style="color: var(--text-muted)">API Endpoint</span>
+        <span class="text-[9px] font-bold uppercase tracking-tight" style="color: var(--text-muted)">{{ getMessage('apiConfigurationLabel') }}</span>
         <div class="flex items-center gap-1.5">
           <span v-if="isAutoDetecting" class="text-[8px] text-amber-400 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            Detecting…
+            {{ getMessage('apiAutoDetecting') }}
           </span>
           <button
             class="ep-btn px-1.5 py-0.5 rounded text-[8px] font-bold disabled:opacity-50"
             :disabled="isRefreshing"
             @click="refreshEndpoints"
           >
-            {{ isRefreshing ? 'Testing…' : 'Test All' }}
+            {{ getMessage(isRefreshing ? 'apiTesting' : 'apiTestAll') }}
           </button>
         </div>
       </div>
@@ -43,7 +43,7 @@
         @click="selectAuto"
       >
         <span class="w-2 h-2 rounded-full shrink-0 bg-indigo-500" />
-        <span class="text-[10px] font-medium flex-1" style="color: var(--text)">Auto (best available)</span>
+        <span class="text-[10px] font-medium flex-1" style="color: var(--text)">{{ getMessage('apiAutoMode') }}</span>
         <span v-if="autoMode" class="text-[9px] text-indigo-400 shrink-0">✓</span>
       </button>
 
@@ -73,7 +73,7 @@
                 :disabled="testingId === ep.id"
                 @click.stop="testEndpoint(ep)"
               >
-                {{ testingId === ep.id ? '…' : 'Test' }}
+                {{ testingId === ep.id ? '…' : getMessage('apiTest') }}
               </button>
             </div>
           </div>
@@ -83,7 +83,7 @@
             </span>
             <span
               :class="['ml-auto px-1 rounded text-[7px] font-bold shrink-0', ep.isLocal ? 'bg-emerald-500/15 text-emerald-400' : 'bg-sky-500/15 text-sky-400']"
-            >{{ ep.isLocal ? 'local' : 'remote' }}</span>
+            >{{ getMessage(ep.isLocal ? 'apiLocalTag' : 'apiRemoteTag') }}</span>
           </div>
         </div>
       </div>
@@ -96,14 +96,14 @@
           style="color: var(--text-muted)"
           @click="showCustomForm = !showCustomForm"
         >
-          <span>Add Custom</span>
+          <span>{{ getMessage('apiAddCustomLabel') }}</span>
           <span style="color: var(--text-faint)">{{ showCustomForm ? '−' : '+' }}</span>
         </button>
         <div v-if="showCustomForm" class="flex flex-col gap-1 mt-1.5">
           <input
             v-model="customUrl"
             type="text"
-            placeholder="host or IP"
+            :placeholder="getMessage('apiCustomUrlPlaceholder')"
             class="ep-input w-full px-2 py-1 border rounded text-[10px]"
           />
           <div class="flex gap-1">
@@ -114,7 +114,7 @@
             <input
               v-model.number="customPort"
               type="number"
-              placeholder="port"
+              :placeholder="getMessage('apiPortPlaceholder')"
               class="ep-input flex-1 min-w-0 px-2 py-1 border rounded text-[10px]"
             />
           </div>
@@ -123,7 +123,7 @@
             :disabled="!customUrl"
             @click="addCustomEndpoint"
           >
-            Add Endpoint
+            {{ getMessage('apiAddEndpoint') }}
           </button>
         </div>
       </div>
@@ -136,6 +136,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager } from '@/services/ApiManager';
 import type { ApiEndpoint, EndpointStatus } from '@/services/ApiManager';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { getMessage } from '@/utils/i18n';
 
 const BASE_INTERVAL_MS = 15000;
 const MAX_INTERVAL_MS = 60000;
@@ -167,14 +168,14 @@ const sortedEndpoints = computed(() =>
 
 const currentEndpointUrl = computed(() => {
   const ep = currentEndpoint.value;
-  if (!ep) return 'None';
+  if (!ep) return getMessage('apiNone');
   const port = ep.port ? `:${ep.port}` : '';
   return `${ep.protocol}://${ep.url}${port}`;
 });
 
 const triggerLabel = computed(() => {
   const ep = currentEndpoint.value;
-  if (!ep) return 'None';
+  if (!ep) return getMessage('apiNone');
   const port = ep.port ? `:${ep.port}` : '';
   return `${ep.url}${port}`;
 });

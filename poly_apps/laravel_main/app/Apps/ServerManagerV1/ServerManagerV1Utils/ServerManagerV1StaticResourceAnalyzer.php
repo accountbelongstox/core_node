@@ -3,6 +3,7 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use App\Providers\PathMapper;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Scans laravel_db/static for file counts and sizes (audio, video, images, etc.).
@@ -10,6 +11,11 @@ use App\Providers\PathMapper;
 class ServerManagerV1StaticResourceAnalyzer
 {
     private const SCAN_FILE_LIMIT = 100000;
+
+    /** The full analyze() scan shells out to `du` per directory - cache the summary. */
+    private const SUMMARY_CACHE_KEY = 'servermanager:static_resources_summary';
+
+    private const SUMMARY_CACHE_TTL_SEC = 30;
 
     private const TYPE_EXTENSIONS = [
         'audio' => ['mp3', 'wav', 'ogg', 'flac', 'm4a', 'aac', 'wma'],
@@ -30,6 +36,15 @@ class ServerManagerV1StaticResourceAnalyzer
     ];
 
     public function analyze(): array
+    {
+        return Cache::remember(self::SUMMARY_CACHE_KEY, self::SUMMARY_CACHE_TTL_SEC, function () {
+            $summary = $this->analyzeUncached();
+            $summary['generated_at'] = now()->toIso8601String();
+            return $summary;
+        });
+    }
+
+    private function analyzeUncached(): array
     {
         $basePath = PathMapper::getStaticPath();
         $dataDir = PathMapper::mapWebPath('laravel_data_dir');
@@ -60,15 +75,15 @@ class ServerManagerV1StaticResourceAnalyzer
         $bySubdir = [];
         foreach (self::KNOWN_SUBDIRS as $relative => $label) {
             $full = $basePath . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+            $exists = is_dir($full);
+            $sizeBytes = $exists ? $this->directorySizeBytes($full) : 0;
             $bySubdir[] = [
                 'path' => $relative,
                 'label' => $label,
-                'exists' => is_dir($full),
-                'files' => is_dir($full) ? $this->countFilesUnder($full) : 0,
-                'size_bytes' => is_dir($full) ? $this->directorySizeBytes($full) : 0,
-                'size_human' => ServerManagerV1Utils::formatFileSize(
-                    is_dir($full) ? $this->directorySizeBytes($full) : 0
-                ),
+                'exists' => $exists,
+                'files' => $exists ? $this->countFilesUnder($full) : 0,
+                'size_bytes' => $sizeBytes,
+                'size_human' => ServerManagerV1Utils::formatFileSize($sizeBytes),
             ];
         }
 

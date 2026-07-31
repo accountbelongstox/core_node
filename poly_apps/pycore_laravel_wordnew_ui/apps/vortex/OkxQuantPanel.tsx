@@ -17,8 +17,8 @@ import {
   RefreshCw, AlertTriangle, Database, KeyRound, Gauge, Activity, Eye, EyeOff,
   Copy, Check, HardDriveDownload, Rocket, ChevronDown, ChevronRight, ShieldCheck,
 } from 'lucide-react';
-import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
+import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '@/apps/vortex/api';
+import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 
 interface QuantInfo {
   limits?: { client_window?: { max_requests?: number; time_window?: number }; okx_note?: string };

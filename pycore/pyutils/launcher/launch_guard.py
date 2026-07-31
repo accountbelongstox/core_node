@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.network_constants import HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
@@ -24,7 +25,6 @@ from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 
 
 _PYCORE_MODULE_MARKER = 'pycore_module_caller'
-_RPC_PORT = 59000
 _SOCKET_TIMEOUT_SEC = 0.05
 _PYTHON_PROC_NAMES = frozenset({
     'python.exe', 'pythonw.exe', 'python3', 'python',
@@ -216,7 +216,7 @@ def compute_terminal_deficit(grid_columns: int, grid_rows: int, open_count: Opti
 
 def is_pycore_module_running() -> bool:
     """True when a pycore_module_caller singleton instance is already alive."""
-    if _is_tcp_port_open('127.0.0.1', _RPC_PORT):
+    if _is_tcp_port_open(HTTP_LOOPBACK_HOST, PYCORE_HTTP_PORT):
         return True
     return _pycore_module_process_running()
 

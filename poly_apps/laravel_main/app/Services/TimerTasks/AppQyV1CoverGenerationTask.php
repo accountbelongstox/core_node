@@ -32,11 +32,12 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
     // workers and the dashboard see the exact pending/retry rules.
     public const BATCH_SIZE = 3;
     public const MAX_RETRIES = 3;
-    public const RETRY_DELAY_MINUTES = 5;
+    // Failed cover claims are immediately eligible for another pull.
+    public const RETRY_DELAY_MINUTES = 0;
 
-    // Cooldown before a failed row is recycled back to pending (gives the FE
-    // a window to surface the error / offer retry before auto-recovery).
-    private const FAILED_COOLDOWN_MINUTES = 10;
+    // Failed rows at the retry limit are recycled immediately so the queue
+    // never leaves work stranded in a terminal failed bucket.
+    private const FAILED_COOLDOWN_MINUTES = 0;
 
     private const INTERVAL_SECONDS = 5;
 

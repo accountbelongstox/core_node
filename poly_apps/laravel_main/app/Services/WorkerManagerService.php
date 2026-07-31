@@ -66,7 +66,7 @@ class WorkerManagerService
      * @param string $workerId Worker ID
      * @return bool Success
      */
-    public function heartbeat(string $workerId): bool
+    public function heartbeat(string $workerId, ?array $capabilities = null): bool
     {
         $worker = Worker::where('worker_id', $workerId)->first();
 
@@ -75,6 +75,9 @@ class WorkerManagerService
             return false;
         }
 
+        if ($capabilities !== null) {
+            $worker->capabilities = array_values(array_filter($capabilities, 'is_string'));
+        }
         $worker->heartbeat();
 
         Log::debug('Worker heartbeat', [

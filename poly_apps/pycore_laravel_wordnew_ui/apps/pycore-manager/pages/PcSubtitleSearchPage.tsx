@@ -29,12 +29,12 @@ import {
   Search, Download, Trash2, History, FileX, Activity, ShieldCheck,
   ListOrdered, Play, Loader2, Database,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   SubtitleSearchStatus, SubtitleSearchProbe, SubtitleResult,
   SubtitleSearchHistoryEntry, SubtitleProvider, SubtitleProviderProbe,
   SubtitleCacheStats,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {

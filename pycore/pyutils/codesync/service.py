@@ -7,6 +7,7 @@ import base64
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyutils.codesync.manager import get_code_sync_manager
 
 
@@ -90,7 +91,7 @@ def add_peer(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return get_code_sync_manager().add_peer(
         name,
         host,
-        int(req.get("port") or 59000),
+        int(req.get("port") or PYCORE_HTTP_PORT),
         str(req.get("role") or "client"),
     )
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, CircleAlert } from 'lucide-react';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { LoadingBlock, EmptyState, AlertBox } from '../../common';
 import type { PaginatedListColumn } from '../PaginatedListModal';
 

@@ -56,7 +56,7 @@ import {
 // Transport core + word mappers extracted (see WfNewApiTransport / WfNewApiMappers).
 import {
   getJSON, authedGetJSON, postJSON, postMultipart, deleteJSON,
-  setToken, authToken, authExpiredSubs, unwrapEnvelope, toAuthResult,
+  setToken, authToken, syncPersistedToken, authExpiredSubs, unwrapEnvelope, toAuthResult,
 } from './WfNewApiTransport';
 import {
   toWord, toGroup, decorate, asArray, logContentFallback, toAbsoluteUrl,
@@ -69,6 +69,7 @@ import {
 export const wfNewApiHttp: WfNewApi = {
   // ---- Session ----
   isAuthenticated(): boolean {
+    syncPersistedToken();
     return !!authToken;
   },
 

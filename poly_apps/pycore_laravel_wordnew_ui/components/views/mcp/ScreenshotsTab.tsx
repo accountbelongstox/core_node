@@ -5,7 +5,7 @@ import {
   Calendar, Search, X, Eye, Download, Copy
 } from 'lucide-react';
 import { Language, AsyncState, Screenshot } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox, EmptyState, FileDropzone } from '../../common';

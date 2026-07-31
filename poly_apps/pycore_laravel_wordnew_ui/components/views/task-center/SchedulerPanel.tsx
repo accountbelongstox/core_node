@@ -13,10 +13,10 @@
  */
 import React, { useState, useMemo } from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   TaskCenterQueueRole,
-} from '../../../core/api/modules/ServerManagerAPI';
+} from '@/apps/laravel-manager/api';
 import { useTaskCenterState } from './TaskCenterState';
 import {
   Activity,

@@ -87,3 +87,23 @@ export type FeatureConfig = FeatureDefinition & FeatureState;
 export const FEATURE_BY_ID = Object.fromEntries(
   FEATURE_DEFINITIONS.map((feature) => [feature.id, feature]),
 ) as Record<FeatureId, FeatureDefinition>;
+
+const FEATURE_I18N_KEYS: Record<FeatureId, { name: string; description: string }> = {
+  'bing-dictionary': { name: 'featureName_bingDictionary', description: 'featureDesc_bingDictionary' },
+  notebooklm: { name: 'featureName_notebooklm', description: 'featureDesc_notebooklm' },
+  'gemini-image': { name: 'featureName_geminiImage', description: 'featureDesc_geminiImage' },
+  'article-study-guide': { name: 'featureName_articleStudyGuide', description: 'featureDesc_articleStudyGuide' },
+  'book-study-generator': { name: 'featureName_bookStudyGenerator', description: 'featureDesc_bookStudyGenerator' },
+  'ai-translate-hub': { name: 'featureName_aiTranslateHub', description: 'featureDesc_aiTranslateHub' },
+  'web-search': { name: 'featureName_webSearch', description: 'featureDesc_webSearch' },
+  'qwen-tts': { name: 'featureName_qwenTts', description: 'featureDesc_qwenTts' },
+  'word-validity': { name: 'featureName_wordValidity', description: 'featureDesc_wordValidity' },
+};
+
+export function getLocalizedFeature(id: FeatureId, getMessage: (key: string) => string): { name: string; description: string } {
+  const keys = FEATURE_I18N_KEYS[id];
+  return {
+    name: getMessage(keys.name),
+    description: getMessage(keys.description),
+  };
+}

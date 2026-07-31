@@ -6,7 +6,7 @@
 import React from 'react';
 import { CheckCircle2, MinusCircle, Loader2, AlertCircle } from 'lucide-react';
 import { humanBytes as formatHumanBytes } from '../../utils/pcFormat';
-import { StorageKeys } from '../../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 
 /** The sub-tabs (mirrors the laravel-manager #/vocabulary page). */
 export const VOCAB_TABS = [

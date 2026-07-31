@@ -27,15 +27,21 @@ class AppQyV1PosterPriorityService
     private function promoteModel(string $modelClass, array $ids): int
     {
         $uniqueIds = array_values(array_unique(array_map('intval', $ids)));
+        $model = new $modelClass();
+        $updates = [
+            'poster_status' => 'pending',
+            'poster_fetched_at' => null,
+            'assist_claimed_by' => null,
+            'assist_claimed_at' => null,
+        ];
+
         if (empty($uniqueIds)) {
             return 0;
         }
-        return $modelClass::query()->whereIn('id', $uniqueIds)->update([
-            'poster_status' => 'pending',
-            'poster_fetched_at' => null,
-            'poster_mcp_submitted_at' => null,
-            'assist_claimed_by' => null,
-            'assist_claimed_at' => null,
-        ]);
+        if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), 'poster_mcp_submitted_at')) {
+            $updates['poster_mcp_submitted_at'] = null;
+        }
+
+        return $modelClass::query()->whereIn('id', $uniqueIds)->update($updates);
     }
 }

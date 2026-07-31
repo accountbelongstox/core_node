@@ -12,8 +12,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   RefreshCw, AlertTriangle, Wallet, Radio, FlaskConical, TrendingUp, TrendingDown, Receipt,
 } from 'lucide-react';
-import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '../../core/api-libs/pycore';
-import { VORTEX_PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
+import { connectPycoreHttp, requestPycoreHttp, onHttpStatus } from '@/apps/vortex/api';
+import { VORTEX_PYCORE_HTTP_ROUTES } from '@/apps/vortex/api';
 
 interface BalanceDetail { ccy: string; eq: string; availBal: string }
 interface OkxPosition { instId: string; pos: string; avgPx: string; upl: string; uplRatio?: string }

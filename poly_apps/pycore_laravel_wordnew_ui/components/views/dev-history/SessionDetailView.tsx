@@ -1,6 +1,6 @@
 import React from 'react';
 import { User as UserIcon } from 'lucide-react';
-import type { DevHistorySessionDetail } from '../../../core/api/modules/DevHistoryAPI';
+import type { DevHistorySessionDetail } from '@/apps/laravel-manager/api';
 import { toolLabel, toolPill } from './shared';
 import TurnView from './TurnView';
 

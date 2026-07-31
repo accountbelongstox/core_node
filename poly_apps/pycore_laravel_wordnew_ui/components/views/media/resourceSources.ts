@@ -19,8 +19,8 @@
  * shape normalization lives here so those four components stay clean.
  */
 import { FileNode, ResourceSourceId } from '../../../types';
-import { APIResponse } from '../../../core/types';
-import { api } from '../../../core/api';
+import { APIResponse } from '@/apps/laravel-manager/types';
+import { api } from '@/apps/laravel-manager/api';
 
 /** Uniform file-content shape consumed by FileViewer regardless of backend. */
 export interface ResourceFileContent {

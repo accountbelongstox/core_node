@@ -16,8 +16,8 @@
  */
 import React, { useState, useEffect } from 'react';
 import { Language } from '../../types';
-import { api } from '../../core/api';
-import type { TaskCenterOverview } from '../../core/api/modules/ServerManagerAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { TaskCenterOverview } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { TaskCenterProvider, useTaskCenterState } from './task-center/TaskCenterState';
 import {

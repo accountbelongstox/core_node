@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { PcTaskRecord, PycoreGlobalTaskDetail } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { PcTaskRecord, PycoreGlobalTaskDetail } from '@/apps/pycore-manager/api';
 import { TypedEventEmitter } from '../../../core/events/TypedEventEmitter';
 import {
     GLOBAL_TASK_HISTORY_BUCKETS,
     GLOBAL_TASK_LIMITS,
     normalizeGlobalTaskHistoryType,
-} from '../../../core/api-libs/pycore/QueueCenterContract';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+} from '@/apps/pycore-manager/api';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 export type CanonicalCompletedTaskType = (typeof GLOBAL_TASK_HISTORY_BUCKETS)[number];
 export type CompletedTaskType = 'all' | CanonicalCompletedTaskType;

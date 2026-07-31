@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { formatTime } from './mbShared';
 import type { MediaSourceListItem } from './mbShared';
 import {

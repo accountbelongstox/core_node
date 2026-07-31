@@ -7,9 +7,9 @@
  */
 import { useEffect, useRef } from 'react';
 import { useShell } from '../../shell/ShellContext';
-import { pycoreApi } from '../../core/api-libs/pycore';
-import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 
 function pickLang(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw.trim()) return null;

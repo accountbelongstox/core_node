@@ -28,7 +28,7 @@ import {
   X, RefreshCw, Volume2, VolumeX, ChevronDown, ChevronUp, ChevronRight,
   Maximize2, Minimize2, AlertTriangle, Image as ImageIcon, Languages,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { logError, logInfo } from '../../core/logstore/logStore';
 
 const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');

@@ -1,6 +1,6 @@
 <template>
   <div v-if="history.length > 0 && !currentResult" class="history-section">
-    <h5 class="section-title">Recent Searches</h5>
+    <h5 class="section-title">{{ getMessage('recentSearchesLabel') }}</h5>
     <div class="history-list">
       <div
         v-for="(item, index) in history"
@@ -15,12 +15,13 @@
   </div>
 
   <div v-if="!currentResult && !isLoading && history.length === 0" class="empty-state">
-    <p>Enter a word to start looking up definitions</p>
+    <p>{{ getMessage('dictionaryEmptyHint') }}</p>
   </div>
 </template>
 
 <script lang="ts" setup>
 import type { HistoryItem, WordResult } from '../../../composables/useBingDictionary';
+import { getMessage } from '@/utils/i18n';
 
 interface Props {
   history: HistoryItem[];

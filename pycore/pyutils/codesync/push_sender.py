@@ -47,7 +47,7 @@ class PushSender:
 
     The supervisor owns persistent per-client state that survives an individual
     push thread dying, so an offline client resumes with the deltas it missed:
-      * _client_sent[client_id] -> last_sent snapshot {dest_rel: (mtime, hash, abspath)}
+      * _client_sent[client_id] -> last_sent shared watcher snapshot
       * _client_seen[client_id] -> True once we have ever connected to it
       * _peer_retry[peer_id]    -> {"attempt": int, "next_retry_at": float}
     """
@@ -60,7 +60,6 @@ class PushSender:
         self._client_seen = {}    # client_id -> bool
         self._peer_retry = {}     # peer_id -> retry state
         self._connected_peers = set()
-        self._index_wait_logged = False  # one-shot "waiting for first scan" log
         self._running_signal = f"codesync.push_sender.running.{uuid.uuid4().hex}"
         init_serialized_owner(self, "codesync.push_sender.state", "CodeSyncPushState")
         THREAD_BUS.signal(self._running_signal, False)
@@ -96,33 +95,17 @@ class PushSender:
         while THREAD_BUS.get_signal(self._running_signal, False) and not is_shutdown_requested():
             try:
                 if self.m.is_distributing():
-                    # Start the file index scanning AS SOON AS we are distributing -
-                    # before any client connects.
                     wm = get_watch_manager()
                     try:
                         wm.start()
                     except Exception:
                         pass
-                    # GATE on the initial scan: do NOT connect/push until the index is
-                    # ready. Connecting during the first scan of a large tree would
-                    # build an empty manifest, hit the abort guard, and churn the
-                    # clients (the "link dropped mid-sync (index empty)" loop). Waiting
-                    # here makes that race structurally impossible.
-                    if not wm.ready():
-                        if not self._index_wait_logged:
-                            ColorPrint.blue("[HttpPush] waiting for the initial file-index "
-                                            "scan to finish before connecting to clients…")
-                            self._index_wait_logged = True
-                    else:
-                        if self._index_wait_logged:
-                            ColorPrint.green("[HttpPush] file index ready; connecting to clients.")
-                            self._index_wait_logged = False
+                    if self.m.mesh.wait_ready(timeout=3.0):
                         self_id = self.m.config.machine_id
                         now = time.time()
-                        for peer in self.m.config.list_peers():
+                        for peer in self.m.mesh.client_targets():
                             if peer.get("role") != "client" or peer.get("id") == self_id:
                                 continue
-                            pid = peer.get("id")
                             self._ensure_peer_worker(peer, now)
             except Exception as exc:
                 ColorPrint.yellow(f"[HttpPush] supervisor error: {exc}")
@@ -167,8 +150,8 @@ class PushSender:
         self.m.log_sync(
             "connection",
             "",
-            "HTTP SSE connection failed",
-            details=info["error"],
+            "SSE unavailable",
+            details=info["summary"],
             peer=info["name"],
             direction="push",
         )
@@ -194,7 +177,24 @@ class PushSender:
             "name": name,
             "attempt": min(attempt + 1, 16),
             "error": str(exc),
+            "summary": self._friendly_connection_error(exc, min(attempt + 1, 16), delay),
         }
+
+    @staticmethod
+    def _friendly_connection_error(exc, attempt: int, delay: float) -> str:
+        message = str(exc or "")
+        lowered = message.lower()
+        if "10060" in lowered or "timed out" in lowered or "timeout" in lowered:
+            label = "Connection timed out"
+        elif "10061" in lowered or "refused" in lowered:
+            label = "Connection refused"
+        elif "reset" in lowered or "10054" in lowered:
+            label = "Connection reset"
+        elif "closed" in lowered:
+            label = "Connection closed"
+        else:
+            label = "Connection failed"
+        return f"{label}; retry in {int(delay)}s; attempt {int(attempt)}"
 
     @serialized_method
     def _note_success(self, peer: dict) -> None:
@@ -256,6 +256,7 @@ class PushSender:
             # advertised it (older clients omit caps -> plain base64, unchanged).
             caps = wj.get("caps") or {}
             gzip_ok = bool(caps.get("gzip"))
+            manifest_gzip_ok = bool(caps.get("manifest_gzip"))
             completion_ok = bool(caps.get("full_sync_complete"))
             connected = True
             self._set_peer_connected(peer.get("id"), True)
@@ -266,6 +267,14 @@ class PushSender:
 
             client_name = peer.get("name") or host
             pid = peer.get("id")
+            self.m.set_sync_phase("scanning", 0, channel=pid,
+                                  name=client_name, direction="push")
+            while not wm.wait_ready(timeout=5.0):
+                if (not THREAD_BUS.get_signal(self._running_signal, False)
+                        or not self.m.is_distributing()
+                        or is_shutdown_requested()):
+                    return
+                client.ping()
             # FULL SYNC on EVERY (re)connect (first connect or after any drop): send
             # the full file manifest, let the client reconcile (fetch what differs;
             # it KEEPS everything else - update-only, no deletes), and rebuild the
@@ -281,6 +290,7 @@ class PushSender:
                 client_name,
                 pid,
                 gzip_ok,
+                manifest_gzip_ok,
                 completion_ok,
             )
             self._store_client_state(client_id, last)
@@ -318,17 +328,17 @@ class PushSender:
     # ----- wire transform: read + normalize + compress + encode AHEAD ------- #
     @staticmethod
     def _entry_size(item) -> float:
-        """On-disk size of a (dest, (mtime, hash, abspath)) item; unreadable -> inf
+        """On-disk size of a shared watcher item; unreadable -> inf
         (sorts last). Used to push SMALL files first so source code converges before
         large binary assets hog a slow link."""
         try:
-            return os.path.getsize(item[1][2])
+            return float(item[1][3]) if len(item[1]) > 3 else os.path.getsize(item[1][2])
         except Exception:
             return float("inf")
 
     @staticmethod
     def _prepare_entry(item, gzip_ok: bool):
-        """Turn one (dest, (mtime, hash, abspath)) into its wire entry: read the
+        """Turn one shared watcher item into its wire entry: read the
         file, canonicalize text to LF (so the bytes match the watcher hash), gzip
         it when that actually shrinks it, and base64 the result. Returns
         (dest, entry|None, fhash, fsize); entry is None if the file can't be read.
@@ -337,7 +347,7 @@ class PushSender:
         while text/code/config collapse 3-5x BEFORE base64 - the real win for a
         large tree over a slow link."""
         dest, meta = item
-        mtime, fhash, abspath = meta
+        mtime, fhash, abspath = meta[:3]
         try:
             content = normalize_eol(Path(abspath).read_bytes())
         except Exception:
@@ -476,7 +486,8 @@ class PushSender:
         return sent
 
     def _full_sync(self, client, wm, client_id: str, client_name: str, pid: str,
-                   gzip_ok: bool = False, completion_ok: bool = False) -> dict:
+                   gzip_ok: bool = False, manifest_gzip_ok: bool = False,
+                   completion_ok: bool = False) -> dict:
         """Full reconcile on (re)connect: send the manifest {rel: hash} of every
         synced file; the client diffs it against its real files and replies with the
         subset it NEEDs (missing or content-differs). Push exactly those in
@@ -484,7 +495,8 @@ class PushSender:
         longer lists are kept. Returns the dev's full snapshot, the incremental
         baseline. Only meaningful differences cross the wire, so a reconnect is cheap
         when little changed; convergence is additive (update-only)."""
-        snap = wm.snapshot()  # {dest: (mtime, hash, abspath)}
+        started_at = time.monotonic()
+        snap = wm.snapshot()
         # Guard against sending an empty manifest. An empty snapshot here almost
         # always means the watcher's first scan of a large tree has not finished yet
         # (NOT "the dev has zero files"). A current (update-only) client keeps its
@@ -513,8 +525,15 @@ class PushSender:
 
         self.m.set_sync_phase("scanning", len(manifest), channel=channel,
                               name=client_name, direction="push")
-        client.send_text(json.dumps({"type": "manifest", "dev_id": dev_id,
-                                 "dev_name": dev_name, "files": manifest}))
+        manifest_json = json.dumps(manifest, separators=(",", ":")).encode("utf-8")
+        manifest_frame = {"type": "manifest", "dev_id": dev_id, "dev_name": dev_name}
+        if manifest_gzip_ok:
+            manifest_frame["files_gzip"] = base64.b64encode(
+                gzip.compress(manifest_json, compresslevel=GZIP_LEVEL)
+            ).decode("ascii")
+        else:
+            manifest_frame["files"] = manifest
+        client.send_text(json.dumps(manifest_frame, separators=(",", ":")))
         reply = client.recv_text()
         if not reply:
             raise ConnectionError("no manifest reply")
@@ -569,7 +588,8 @@ class PushSender:
             details=(f"{len(manifest)} compared, {len(need)} differed, "
                      f"{result_counts['written']} written, "
                      f"{result_counts['skipped']} skipped, "
-                     f"{result_counts['error']} error(s)"),
+                     f"{result_counts['error']} error(s); "
+                     f"{time.monotonic() - started_at:.1f}s"),
             peer=peer_label,
             direction="push",
         )

@@ -175,9 +175,16 @@
     "chrome_capability_switches": {
       "image": {
         "storage_key": "tkCapImage",
-        "label": "执行图片与封面任务",
-        "hint": "Book/library covers and word images via Google/Bing, plus Gemini image tasks",
-        "processors": ["remote_gemini", "media_image"],
+        "label": "Cover and poster search",
+        "hint": "Search and write back book covers and media posters through the shared browser worker",
+        "processors": ["media_image"],
+        "uses_validity_runner": false
+      },
+      "gemini_image": {
+        "storage_key": "tkCapGeminiImage",
+        "label": "AI word-group cover generation",
+        "hint": "Generate vocabulary-library covers with Gemini and write them back to Laravel",
+        "processors": ["remote_gemini"],
         "uses_validity_runner": false
       },
       "validity": {
@@ -192,6 +199,13 @@
         "label": "执行 NotebookLM 生成任务",
         "hint": "Laravel NotebookLM queue to shared browser runtime with result write-back",
         "processors": ["remote_notebooklm"],
+        "uses_validity_runner": false
+      },
+      "chatgpt": {
+        "storage_key": "tkCapChatgpt",
+        "label": "执行 ChatGPT 长语音任务",
+        "hint": "ChatGPT web conversations with read-aloud audio capture and Laravel write-back",
+        "processors": ["chatgpt_web"],
         "uses_validity_runner": false
       }
     },
@@ -501,7 +515,7 @@
       "key": "cover",
       "label": "Vocabulary Cover",
       "laravel_task_type": null,
-      "summary_task_type": "poster",
+      "summary_task_type": "gemini_image",
       "capability": "image",
       "primary_handler": "chrome"
     },
@@ -534,6 +548,14 @@
       "label": "Gemini Chat",
       "laravel_task_type": "gemini_chat",
       "summary_task_type": "gemini_chat",
+      "capability": null,
+      "primary_handler": "chrome"
+    },
+    {
+      "key": "chatgpt_chat",
+      "label": "ChatGPT Long-form Audio",
+      "laravel_task_type": "chatgpt_chat",
+      "summary_task_type": "chatgpt_chat",
       "capability": null,
       "primary_handler": "chrome"
     }

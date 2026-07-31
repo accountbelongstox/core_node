@@ -58,19 +58,10 @@ class LoginController extends Controller
     public function logout(Request $request)
     {
         if ($request->user()) {
-            if ($request->wantsJson()) {
-                // Only attempt to delete the token if it's not a transient token
-                $currentToken = $request->user()->currentAccessToken();
-                if ($currentToken && !($currentToken instanceof \Laravel\Sanctum\TransientToken)) {
-                    $currentToken->delete();
-                }
-                return response()->json([
-                    'message' => 'Successfully logged out'
-                ],200);
+            $currentToken = $request->user()->currentAccessToken();
+            if ($currentToken && !($currentToken instanceof \Laravel\Sanctum\TransientToken)) {
+                $currentToken->delete();
             }
-
-            $request->session()->invalidate();
-            $request->session()->regenerateToken();
         }
 
         return response()->json([

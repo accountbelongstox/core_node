@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { pycoreApi } from '../../../../core/api-libs/pycore/PycoreApi';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import { TOOL_LABELS } from '../../../../components/views/dev-history/shared';
 
 /** Checkbox order mirrors pycore agent_history_pipeline.config.SUPPORTED_TOOLS. */

@@ -6,7 +6,8 @@
  * Mirrors the daily-set pattern of WfNewStudyProgress (dailyDate + daily).
  */
 
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 interface DailyShape {
   /** local calendar day (YYYY-MM-DD) the counter belongs to. */

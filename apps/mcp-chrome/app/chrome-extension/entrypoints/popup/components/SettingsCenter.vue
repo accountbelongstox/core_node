@@ -3,25 +3,25 @@
     <div class="grid grid-cols-2 gap-2">
       <!-- Server Settings -->
       <div class="tk-card rounded-lg p-2.5 overflow-hidden border">
-        <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">Server</h4>
+        <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">{{ getMessage('navServer') }}</h4>
         <div class="flex justify-between items-center mb-2">
           <div>
-            <label class="block text-[10px]" style="color: var(--text)">Auto Connect</label>
-            <span class="block text-[8px]" style="color: var(--text-faint)">Connect on startup</span>
+            <label class="block text-[10px]" style="color: var(--text)">{{ getMessage('autoConnectLabel') }}</label>
+            <span class="block text-[8px]" style="color: var(--text-faint)">{{ getMessage('connectOnStartupHint') }}</span>
           </div>
           <button @click="toggleAutoConnect" :class="['w-7 h-4 rounded-full relative transition-colors', appStore.settings.value.autoConnectServer ? 'bg-purple-600' : 'bg-slate-600']">
             <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', appStore.settings.value.autoConnectServer ? 'left-3.5' : 'left-0.5']" />
           </button>
         </div>
         <div class="mb-2">
-          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">Native MCP Port</label>
+          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">{{ getMessage('nativeMcpPortLabel') }}</label>
           <input type="number" :value="appStore.settings.value.serverPort" @input="updateServerPort"
             class="tk-input w-full px-2 py-1 border rounded text-[10px]" min="1024" max="65535" />
         </div>
         <div class="flex items-center gap-1.5 px-2 py-1.5 rounded-md" :class="appStore.serverStatus.value.isRunning ? 'bg-emerald-500/10 border border-emerald-500/30' : 'bg-rose-500/10 border border-rose-500/30'">
           <span class="w-2 h-2 rounded-full" :class="appStore.serverStatus.value.isRunning ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'" />
           <span class="text-[10px] font-medium" :class="appStore.serverStatus.value.isRunning ? 'text-emerald-400' : 'text-rose-400'">
-            {{ appStore.serverStatus.value.isRunning ? 'Connected' : 'Disconnected' }}
+            {{ getMessage(appStore.serverStatus.value.isRunning ? 'connectedStatus' : 'disconnectedStatus') }}
           </span>
           <span v-if="appStore.serverStatus.value.port" class="text-[9px] font-mono" style="color: var(--text-faint)">:{{ appStore.serverStatus.value.port }}</span>
         </div>
@@ -29,24 +29,24 @@
 
       <!-- Other Settings -->
       <div class="tk-card rounded-lg p-2.5 overflow-hidden border">
-        <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">Other</h4>
+        <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">{{ getMessage('otherSettingsLabel') }}</h4>
         <div class="flex justify-between items-center mb-2">
           <div>
-            <label class="block text-[10px]" style="color: var(--text)">Debug Mode</label>
-            <span class="block text-[8px]" style="color: var(--text-faint)">Show detailed logs</span>
+            <label class="block text-[10px]" style="color: var(--text)">{{ getMessage('debugModeLabel') }}</label>
+            <span class="block text-[8px]" style="color: var(--text-faint)">{{ getMessage('showDetailedLogsHint') }}</span>
           </div>
           <button @click="toggleDebugMode" :class="['w-7 h-4 rounded-full relative transition-colors', appStore.settings.value.debugMode ? 'bg-purple-600' : 'bg-slate-600']">
             <div :class="['absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all', appStore.settings.value.debugMode ? 'left-3.5' : 'left-0.5']" />
           </button>
         </div>
         <div class="mb-2">
-          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">Backend Timeout (ms)</label>
+          <label class="block text-[9px] mb-1" style="color: var(--text-muted)">{{ getMessage('backendTimeoutLabel') }}</label>
           <input type="number" :value="backendTimeoutMs" @input="updateBackendTimeout"
             class="tk-input w-full px-2 py-1 border rounded text-[10px]" min="1000" max="3600000" step="1000" />
-          <span class="block text-[8px] mt-1" style="color: var(--text-faint)">Pending retries: {{ outboxPending }}</span>
+          <span class="block text-[8px] mt-1" style="color: var(--text-faint)">{{ getMessage('pendingRetriesLabel', [String(outboxPending)]) }}</span>
         </div>
         <button class="w-full px-2 py-1.5 bg-rose-900/20 border border-rose-900/40 text-rose-400 rounded text-[9px] font-bold transition-all hover:bg-rose-900/30" @click="handleReset">
-          Reset General Settings
+          {{ getMessage('resetGeneralSettings') }}
         </button>
       </div>
     </div>
@@ -101,6 +101,7 @@ import {
   MAX_BACKEND_TIMEOUT_MS,
 } from '@/utils/backend-timeout';
 import { SUBMIT_OUTBOX_MSG } from '@/utils/task-center-types';
+import { getMessage } from '@/utils/i18n';
 
 const appStore = useAppStore();
 
@@ -160,7 +161,7 @@ const toggleDebugMode = () => {
 };
 
 const handleReset = () => {
-  if (confirm('Reset the general server and debug settings to their defaults?')) {
+  if (confirm(getMessage('resetGeneralSettingsConfirm'))) {
     appStore.resetSettings();
   }
 };

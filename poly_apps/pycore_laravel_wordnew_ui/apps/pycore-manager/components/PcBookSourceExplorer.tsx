@@ -10,11 +10,11 @@ import {
   X, RefreshCw, Type, AlignLeft, BookMarked, Languages, Volume2,
   Search, ArrowUpDown, ChevronLeft, ChevronRight, Hash,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   BooksAnalyzeResponse, BookTextStats, BookChapter, BookSlot, CoreBookSummary,
   CoreBookCompletenessLang,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 
 const L = {

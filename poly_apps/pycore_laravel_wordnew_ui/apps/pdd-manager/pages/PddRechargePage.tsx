@@ -5,8 +5,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { api } from '../../../core/api';
-import type { PddRecharge, PddRechargeStatus } from '../../../core/api/modules/PddAdminAPI';
+import { api } from '@/apps/pdd-manager/api';
+import type { PddRecharge, PddRechargeStatus } from '@/apps/pdd-manager/api';
 
 const STATUSES: (PddRechargeStatus | '')[] = ['', 'pending', 'paid', 'failed', 'refunded'];
 

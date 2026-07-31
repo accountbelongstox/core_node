@@ -1,5 +1,3 @@
-import { subscribe as httpSubscribe, dispatchEvent as httpDispatch } from './PycoreHttp';
-
 export type PycoreEventHandler<T = any> = (payload: T) => void;
 
 export type Unsubscribe = () => void;
@@ -11,7 +9,9 @@ export interface PycoreSubscribeOptions {
   once?: boolean;
 }
 
-class PycoreEventBusClass {
+export class PycoreEventBus {
+  private readonly handlers = new Map<string, Set<PycoreEventHandler>>();
+
   subscribe<T = any>(
     event: string,
     handler: PycoreEventHandler<T>,
@@ -24,14 +24,7 @@ class PycoreEventBusClass {
 
     const wrapped: PycoreEventHandler<T> = (payload: T) => {
       if (unsubscribed) return;
-      try {
-        handler(payload);
-      } catch (err) {
-        // PycoreHttp.ts already isolates per-handler exceptions, but keep this
-        // wrapper for any future transport/dispatch changes.
-        // eslint-disable-next-line no-console
-        console.error(`[pycore-eventbus] handler for "${event}" failed`, err);
-      }
+      handler(payload);
 
       if (opts.once) {
         unsubscribed = true;
@@ -39,7 +32,17 @@ class PycoreEventBusClass {
       }
     };
 
-    off = httpSubscribe(event, wrapped);
+    let handlers = this.handlers.get(event);
+    if (!handlers) {
+      handlers = new Set<PycoreEventHandler>();
+      this.handlers.set(event, handlers);
+    }
+    handlers.add(wrapped as PycoreEventHandler);
+    off = () => {
+      const current = this.handlers.get(event);
+      current?.delete(wrapped as PycoreEventHandler);
+      if (current?.size === 0) this.handlers.delete(event);
+    };
 
     if (opts.signal) {
       const onAbort = () => {
@@ -56,8 +59,16 @@ class PycoreEventBusClass {
   }
 
   dispatch<T = any>(event: string, payload: T): void {
-    httpDispatch(event, payload);
+    const handlers = this.handlers.get(event);
+    if (!handlers) return;
+    handlers.forEach((handler) => {
+      try {
+        handler(payload);
+      } catch (error) {
+        console.error(`[pycore-eventbus] handler for "${event}" failed`, error);
+      }
+    });
   }
 }
 
-export const pycoreEventBus = new PycoreEventBusClass();
+export const pycoreEventBus = new PycoreEventBus();

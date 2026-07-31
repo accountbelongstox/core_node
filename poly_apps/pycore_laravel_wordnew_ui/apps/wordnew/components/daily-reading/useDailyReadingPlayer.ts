@@ -6,7 +6,8 @@ import {
   markSentenceWordsPlayed,
   type WordNewSentenceWordRow,
 } from '../../services/WordNewSentenceWordTable';
-import { StorageKeys, StorageManager } from '../../../../core/persistence';
+import { StorageManager } from '../../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
 export type DailyReadingPlaybackMode = 'sequential' | 'repeat-all' | 'repeat-one' | 'shuffle';
 export type DailyReadingWordMode = 'off' | 'new' | 'all';

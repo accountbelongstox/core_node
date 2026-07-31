@@ -37,6 +37,7 @@ from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
+from pycore.pyutils.laravel.identity import build_pycore_identity_headers
 
 _FALLBACK_BASE = "http://127.0.0.1:9000"
 _PARAM_SUMMARY_MAX = 240
@@ -180,6 +181,8 @@ class LaravelClient:
         summary = _summarize_params(params, data, json, files)
         if timeout is None:
             timeout = _DEFAULT_TIMEOUT
+        request_headers = build_pycore_identity_headers()
+        request_headers.update(dict(headers or {}))
         started = time.perf_counter()
         status = 0
         session = get_third_package_requests().Session()
@@ -187,7 +190,7 @@ class LaravelClient:
             resp = session.request(
                 method, url,
                 params=params, data=data, json=json, files=files,
-                headers=headers, timeout=timeout, stream=stream,
+                headers=request_headers, timeout=timeout, stream=stream,
                 allow_redirects=allow_redirects, **kwargs,
             )
             if stream:

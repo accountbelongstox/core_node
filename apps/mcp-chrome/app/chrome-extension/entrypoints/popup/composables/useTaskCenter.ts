@@ -8,6 +8,7 @@ import { ref, onUnmounted, watch } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import { formatTimestamp } from '@/utils/time-helpers';
 import type { CapabilityKey } from '@/utils/task-capabilities';
 import { taskPath } from '@/utils/api-paths';
@@ -325,11 +326,11 @@ export function useTaskCenter() {
         startStatsPolling();
       } else {
         logger.error(LOG, 'Failed to start', response?.error);
-        error.value = response?.error || 'Failed to start Task Center';
+        error.value = response?.error || getMessage('taskCenterStartFailed');
       }
     } catch (err: any) {
       logger.error(LOG, 'Start error', err);
-      error.value = err.message || 'Failed to start Task Center';
+      error.value = err.message || getMessage('taskCenterStartFailed');
     }
   };
 
@@ -356,12 +357,12 @@ export function useTaskCenter() {
         return true;
       } else {
         logger.error(LOG, 'Failed to set capability', response?.error);
-        error.value = response?.error || 'Failed to update capability';
+        error.value = response?.error || getMessage('capabilityUpdateFailed');
         return false;
       }
     } catch (err: any) {
       logger.error(LOG, 'Set capability error', err);
-      error.value = err.message || 'Failed to update capability';
+      error.value = err.message || getMessage('capabilityUpdateFailed');
       return false;
     }
   };
@@ -382,11 +383,11 @@ export function useTaskCenter() {
         stopStatsPolling();
       } else {
         logger.error(LOG, 'Failed to stop', response?.error);
-        error.value = response?.error || 'Failed to stop Task Center';
+        error.value = response?.error || getMessage('taskCenterStopFailed');
       }
     } catch (err: any) {
       logger.error(LOG, 'Stop error', err);
-      error.value = err.message || 'Failed to stop Task Center';
+      error.value = err.message || getMessage('taskCenterStopFailed');
     }
   };
 
@@ -406,12 +407,12 @@ export function useTaskCenter() {
         },
       });
       if (!response?.success) {
-        error.value = response?.error || 'Failed to switch the running API endpoint';
+        error.value = response?.error || getMessage('endpointSwitchFailed');
         logger.error(LOG, 'Endpoint reconfiguration failed', response?.error);
       }
       await loadState();
     } catch (err: any) {
-      error.value = err?.message || 'Failed to switch the running API endpoint';
+      error.value = err?.message || getMessage('endpointSwitchFailed');
       logger.error(LOG, 'Endpoint reconfiguration error', err);
       await loadState();
     }

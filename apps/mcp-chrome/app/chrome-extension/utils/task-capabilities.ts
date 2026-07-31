@@ -21,8 +21,8 @@ export interface CapabilityDef {
   key: CapabilityKey;
   /** chrome.storage key persisting this switch across popup blur/close. */
   storageKey: string;
-  zhLabel: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   /** TaskCenter processorTypes this capability enables. */
   processors: string[];
   /** True when this capability also drives the client-side validity runner. */
@@ -34,8 +34,8 @@ export const CAPABILITIES: CapabilityDef[] = Object.entries(
 ).map(([key, definition]) => ({
   key: key as CapabilityKey,
   storageKey: definition.storage_key,
-  zhLabel: definition.label,
-  hint: definition.hint,
+  labelKey: `taskCenterCapability_${key}_label`,
+  hintKey: `taskCenterCapability_${key}_hint`,
   processors: [...definition.processors],
   usesValidityRunner: definition.uses_validity_runner,
 }));

@@ -14,9 +14,10 @@ import {
   CURRENT_URL_TYPE,
 } from '../config/api-endpoints';
 import { clampRecheckInterval } from '../core/health/OfflineRecheckScheduler';
-import { setSharedBaseURL } from '../core/api/base/BaseAPI';
-import { pycoreLaravelApi } from '../core/api-libs/pycore/PycoreLaravelApi';
-import { StorageKeys, StorageManager } from '../core/persistence';
+import { setSharedBaseURL } from '@/apps/laravel-manager/api';
+import { pycoreLaravelApi } from '../apps/laravel-manager/integrations/pycore';
+import { StorageManager } from '../core/persistence';
+import { LaravelManagerStorageKeys as StorageKeys } from '../apps/laravel-manager/persistence/LaravelManagerStorageKeys';
 
 /** Fired whenever a full health pass settles (startup, interval retry, manual re-detect). */
 export const API_HEALTH_EVENT = 'api-health-initialized';
@@ -55,13 +56,10 @@ class ApiManager {
    *
    * Behaviour (corrected requirement — detection is AUTOMATIC at startup,
    * never click-triggered):
-   *  1. STORED-FIRST detection (the realized contract for all ends): probe
-   *     ONLY the stored last-used endpoint first — if it answers, use it and
-   *     probe nothing else. Only when it is dead probe ALL endpoints in
-   *     parallel and fail over to the highest-weight healthy one. The healthy
-   *     path is never polled; the ONLY timer is the all-Offline retry loop
-   *     (services/ApiHealthRecheck.ts), which re-enters the same pass at the
-   *     configurable healthCheckInterval until something comes online.
+   *  1. A manually selected endpoint is locked until the user changes or
+   *     resets it. Health checks update its status but never clear the pin or
+   *     switch away. Without a manual pin, stored-first automatic detection
+   *     probes the last-used endpoint and fails over when it is unavailable.
    *  2. Select the active endpoint by precedence:
    *       a. A stored endpoint (api_user_modified first, then
    *          api_current_endpoint / api_auto_detected) that is in the healthy
@@ -72,10 +70,8 @@ class ApiManager {
    *  3. Principle "以能使用的为准": if the stored endpoint is dead, the
    *     auto-selected healthy endpoint is written back to
    *     api_current_endpoint / api_auto_detected so the next load prefers the
-   *     now-known-good one. api_user_modified is never REASSIGNED by
-   *     auto-detection (only the manual switcher sets it) — but a pin whose
-   *     endpoint the sweep proved dead is CLEARED (self-recovery; see
-   *     applyAvailabilityFailover).
+   *     now-known-good one. api_user_modified is only changed by explicit
+   *     user selection or reset.
    *
    * Single-flight + StrictMode-safe: concurrent/duplicate callers reuse the
    * same in-flight Promise (`recheckPromise`), so the stored-first pass runs
@@ -179,6 +175,15 @@ class ApiManager {
     const healthyIds = new Set(
       results.filter(r => r.isHealthy).map(r => r.endpoint.id)
     );
+    const userEndpointId = this.getUserModifiedEndpoint();
+    const userEndpoint = userEndpointId ? getEndpointById(userEndpointId) : undefined;
+
+    // A manual selection is a lock, not a preference. Its availability only
+    // changes the status badge; automatic detection must never replace it.
+    if (userEndpoint) {
+      this.currentEndpoint = userEndpoint;
+      return this.currentEndpoint;
+    }
 
     // Synchronously-chosen endpoint is healthy — nothing to fail over.
     if (this.currentEndpoint && healthyIds.has(this.currentEndpoint.id)) {
@@ -186,29 +191,8 @@ class ApiManager {
     }
 
     // Same precedence as init: a stored endpoint that is healthy wins.
-    const userEndpointId = this.getUserModifiedEndpoint();
     const storedEndpointId =
       this.getStoredCurrentEndpoint() ?? this.getAutoDetectedEndpoint();
-
-    if (userEndpointId && this.isStoredIdHealthy(userEndpointId, healthyIds)) {
-      const endpoint = getEndpointById(userEndpointId);
-      if (endpoint) {
-        this.currentEndpoint = endpoint;
-        return this.currentEndpoint;
-      }
-    }
-
-    // SELF-RECOVERY: a user-pinned endpoint that the full sweep just proved
-    // dead must not keep pinning every future load (it made each reload start
-    // on the dead endpoint and hang until the background pass corrected it).
-    // Clear the pin — switchEndpoint() only ever creates pins after a
-    // successful probe, so a dead pin means the endpoint truly went down.
-    if (userEndpointId && !this.isStoredIdHealthy(userEndpointId, healthyIds)) {
-      this.clearUserModifiedEndpoint();
-      console.warn(
-        `[ApiManager] User-pinned endpoint '${userEndpointId}' is unreachable — pin cleared, failing over.`
-      );
-    }
 
     if (storedEndpointId && this.isStoredIdHealthy(storedEndpointId, healthyIds)) {
       const endpoint = getEndpointById(storedEndpointId);
@@ -219,8 +203,7 @@ class ApiManager {
     }
 
     // First healthy endpoint in priority order — write back so the next load
-    // prefers it. (A dead user pin was already cleared above; a healthy one
-    // was honored above.)
+    // prefers it when automatic selection is active.
     const firstHealthy = endpoints.find(e => healthyIds.has(e.id));
     if (firstHealthy) {
       this.currentEndpoint = firstHealthy;
@@ -239,12 +222,10 @@ class ApiManager {
    * retry and the manual "Re-detect" button all land here; single-flight so
    * concurrent callers share one pass):
    *
-   *  1. Probe ONLY the stored last-used endpoint (api_user_modified →
-   *     api_current_endpoint → api_auto_detected → in-memory current). If it
-   *     answers, keep it — nothing else is probed (one request total).
-   *  2. Otherwise probe ALL endpoints in parallel and auto-switch to the
-   *     highest-weight healthy one (applyAvailabilityFailover; write-back to
-   *     api_auto_detected/api_current_endpoint, api_user_modified untouched).
+   *  1. When api_user_modified resolves, probe only that endpoint and keep it
+   *     selected regardless of availability.
+   *  2. Without a manual lock, probe the stored automatic endpoint first. If
+   *     it fails, probe all endpoints and select the highest-weight healthy one.
    *  3. If nothing is healthy resolve false — the caller keeps the all-Offline
    *     interval retry loop ticking.
    *
@@ -257,9 +238,17 @@ class ApiManager {
 
     this.recheckPromise = (async () => {
       try {
+        const userEndpointId = this.getUserModifiedEndpoint();
+        const userEndpoint = userEndpointId ? getEndpointById(userEndpointId) : undefined;
+
+        if (userEndpoint) {
+          const result = await this.checkEndpoint(userEndpoint, { timeout });
+          this.currentEndpoint = userEndpoint;
+          return result.isHealthy;
+        }
+
         // Stage 1: stored last-used endpoint only.
         const preferredId =
-          this.getUserModifiedEndpoint() ??
           this.getStoredCurrentEndpoint() ??
           this.getAutoDetectedEndpoint();
         const preferred =

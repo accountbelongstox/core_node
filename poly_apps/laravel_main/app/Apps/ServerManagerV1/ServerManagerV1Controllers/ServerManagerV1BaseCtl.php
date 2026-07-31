@@ -52,7 +52,7 @@ class ServerManagerV1BaseCtl extends Controller
      */
     protected function logRequest(Request $request, string $action): void
     {
-        Log::info('ServerManagerV1 API Request', [
+        Log::debug('ServerManagerV1 API Request', [
             'action' => $action,
             'ip' => $request->ip(),
             'user_agent' => $request->userAgent(),

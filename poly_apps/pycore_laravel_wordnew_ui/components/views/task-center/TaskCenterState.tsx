@@ -1,11 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
     TaskCenterOverview,
     GlobalTaskItem,
     GlobalWorkerInfo,
     AssistRequestItem,
-} from '../../../core/api/modules/ServerManagerAPI';
+} from '@/apps/laravel-manager/api';
 import type { GlobalTasksSnapshot } from './shared';
 
 export interface TaskCenterState {

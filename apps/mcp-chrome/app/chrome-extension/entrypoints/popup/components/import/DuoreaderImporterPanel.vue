@@ -1,49 +1,49 @@
 <template>
   <div class="dr-panel">
     <div class="dr-endpoint">
-      <span class="dr-label">API Endpoint</span>
+      <span class="dr-label">{{ getMessage('apiConfigurationLabel') }}</span>
       <code class="dr-url">{{ apiBaseUrl || '(resolving…)' }}</code>
     </div>
 
     <div class="dr-row">
       <label class="dr-field">
-        <span>My language</span>
+        <span>{{ getMessage('myLanguageLabel') }}</span>
         <select v-model="myLang" :disabled="progress.running">
           <option value="zh">zh</option>
           <option value="en">en</option>
         </select>
       </label>
       <label class="dr-field">
-        <span>Learn language</span>
+        <span>{{ getMessage('learnLanguageLabel') }}</span>
         <select v-model="learnLang" :disabled="progress.running">
           <option value="en">en</option>
           <option value="zh">zh</option>
         </select>
       </label>
       <label class="dr-field">
-        <span>Max books (0=all)</span>
+        <span>{{ getMessage('maximumBooksLabel') }}</span>
         <input v-model.number="maxBooks" type="number" min="0" :disabled="progress.running" />
       </label>
     </div>
 
     <label class="dr-check">
       <input v-model="enableAudio" type="checkbox" :disabled="progress.running" />
-      <span>Fetch audio from Duoreader API (backup text+mp3 locally)</span>
+      <span>{{ getMessage('duoreaderFetchAudioHint') }}</span>
     </label>
 
     <label class="dr-check">
       <input v-model="useCdnApi" type="checkbox" :disabled="progress.running" />
-      <span>Use CDN API (fast) — tab inject + .pz decode, skip DOM scrape</span>
+      <span>{{ getMessage('duoreaderCdnHint') }}</span>
     </label>
 
     <label class="dr-check">
       <input v-model="enrichCoversFromSearch" type="checkbox" :disabled="loadingBooks || progress.running" />
-      <span>Search Google/Bing images for book covers when loading catalog</span>
+      <span>{{ getMessage('duoreaderCoverSearchHint') }}</span>
     </label>
 
     <label class="dr-check">
       <input v-model="forceReplaceUpload" type="checkbox" :disabled="progress.running" />
-      <span>Force replace text upload (re-ingest chapters; audio stays idempotent)</span>
+      <span>{{ getMessage('duoreaderForceReplaceHint') }}</span>
     </label>
 
     <div class="dr-actions">
@@ -68,7 +68,7 @@
       >
         Stop
       </button>
-      <button class="dr-btn" :disabled="loadingBooks || progress.running" @click="loadBooks({ enrichCovers: true })">Refresh Catalog</button>
+      <button class="dr-btn" :disabled="loadingBooks || progress.running" @click="loadBooks({ enrichCovers: true })">{{ getMessage('refreshCatalogButton') }}</button>
       <button class="dr-btn accent" :disabled="testingApi || progress.running" @click="testApi">
         {{ testingApi ? 'Testing API…' : 'Test API' }}
       </button>
@@ -101,7 +101,7 @@
 
     <div class="dr-progress-block">
       <div class="dr-progress-head">
-        <span>Scrape / fetch</span>
+        <span>{{ getMessage('scrapeFetchLabel') }}</span>
         <span>{{ progress.chaptersScraped || 0 }}/{{ progress.chaptersTotal || '—' }} ch</span>
       </div>
       <div class="dr-bar"><div class="dr-fill scrape" :style="{ width: progress.scrapePct + '%' }" /></div>
@@ -109,7 +109,7 @@
 
     <div class="dr-progress-block">
       <div class="dr-progress-head">
-        <span>Text upload</span>
+        <span>{{ getMessage('textUploadLabel') }}</span>
         <span>
           ch {{ progress.chaptersDone || 0 }}/{{ progress.chaptersTotal || '—' }}
           · {{ progress.slotsIngested }} slots
@@ -135,7 +135,7 @@
 
     <div class="dr-progress-block dr-books-row">
       <div class="dr-progress-head">
-        <span>Books</span>
+        <span>{{ getMessage('booksLabel') }}</span>
         <span>{{ progress.booksDone }}/{{ progress.booksTotal || books.length || '—' }}</span>
       </div>
     </div>
@@ -146,8 +146,8 @@
     </div>
 
     <div class="dr-list">
-      <div v-if="loadingBooks" class="dr-empty">Loading catalog…</div>
-      <div v-else-if="!books.length" class="dr-empty">No bilingual books found.</div>
+      <div v-if="loadingBooks" class="dr-empty">{{ getMessage('loadingCatalog') }}</div>
+      <div v-else-if="!books.length" class="dr-empty">{{ getMessage('noBilingualBooks') }}</div>
       <div v-for="book in books" :key="book.id" class="dr-book">
         <div class="dr-book-row">
           <DuoreaderCoverRotator
@@ -170,6 +170,7 @@ import { computed } from 'vue';
 import { useDuoreaderImporter } from '@/entrypoints/popup/composables/useDuoreaderImporter';
 import DuoreaderCoverRotator from './DuoreaderCoverRotator.vue';
 import type { DuoreaderImportStep } from '@/utils/duoreader-importer-core';
+import { getMessage } from '@/utils/i18n';
 
 const STEP_LABELS: Record<DuoreaderImportStep, string> = {
   idle: '',

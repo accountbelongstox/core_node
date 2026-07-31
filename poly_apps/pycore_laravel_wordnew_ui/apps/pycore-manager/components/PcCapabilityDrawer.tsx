@@ -13,8 +13,8 @@ import {
   SlidersHorizontal, RefreshCw, X, Loader2, AlertTriangle, Save, ChevronUp, ChevronDown,
   Mic, AudioLines, Languages,
 } from 'lucide-react';
-import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '../../../core/api-libs/pycore';
-import type { PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '../../../core/api-libs/pycore';
+import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/pycore-manager/api';
+import type { PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
 
 type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image'>;
 

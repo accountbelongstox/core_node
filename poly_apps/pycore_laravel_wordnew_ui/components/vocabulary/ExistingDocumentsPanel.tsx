@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { FileText, Search, RefreshCw, ChevronLeft, ChevronRight, LogIn } from 'lucide-react';
-import { api } from '../../core/api';
-import type { MediaDocumentListItem } from '../../core/api/modules/MediaQueryAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { MediaDocumentListItem } from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../core/i18n/supportedLearningLanguages';
 import { commonClasses } from '../../styles/theme';
 import { LoadingBlock, EmptyState } from '../common';

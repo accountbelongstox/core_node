@@ -28,6 +28,8 @@ export interface CapResourceQuery<T> {
   fetchRemote: () => Promise<T>;
   ttlMs?: number;
   refresh?: CapResourceRefreshMode;
+  /** Return false when a cached/static response is incomplete and must be re-fetched. */
+  isUsable?: (payload: T) => boolean;
 }
 
 export interface CapResourcePutOptions {
@@ -311,7 +313,9 @@ export class CapResourcePackage {
     const operation = (async (): Promise<T> => {
       try {
         const value = await query.fetchRemote();
-        await this.put(query.key, value, { scope, ttlMs: query.ttlMs });
+        if (!query.isUsable || query.isUsable(value)) {
+          await this.put(query.key, value, { scope, ttlMs: query.ttlMs });
+        }
         return value;
       } finally {
         this.inFlight.delete(operationId);
@@ -326,6 +330,13 @@ export class CapResourcePackage {
     const local = await this.get<T>(query.key, scope);
     const refreshMode = query.refresh ?? 'stale';
     if (!local) return this.refresh(query, scope);
+
+    // Never treat an incomplete static-resource response as a valid cache hit.
+    // The caller receives a fresh remote response, while only a complete value
+    // is persisted by refresh().
+    if (query.isUsable && !query.isUsable(local.payload)) {
+      return this.refresh(query, scope);
+    }
 
     this.consume(local.payload);
     const stale = local.expiresAt <= Date.now();

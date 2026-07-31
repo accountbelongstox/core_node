@@ -7,6 +7,7 @@ import { ref } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { BING_DICT_MSG } from '@/common/message-types';
+import { getMessage } from '@/utils/i18n';
 
 export interface Translation {
   type: string;
@@ -92,12 +93,12 @@ export function useBingDictionary() {
       });
 
       if (!response || !response.success) {
-        throw new Error((response && response.error) || 'Failed to lookup word');
+        throw new Error((response && response.error) || getMessage('lookupWordFailed'));
       }
 
       const r = (response.results || [])[0];
       if (!r || !r.ok) {
-        throw new Error(r?.invalid ? 'No Bing dictionary entry for this word' : r?.error || 'No result');
+        throw new Error(r?.invalid ? getMessage('noDictionaryEntry') : r?.error || getMessage('noResult'));
       }
 
       currentResult.value = {
@@ -124,7 +125,7 @@ export function useBingDictionary() {
         searchQuery.value = '';
       }
     } catch (err: any) {
-      error.value = err.message || 'Failed to lookup word';
+      error.value = err.message || getMessage('lookupWordFailed');
       console.error('[Bing Dictionary] Lookup failed:', err);
     } finally {
       isLoading.value = false;

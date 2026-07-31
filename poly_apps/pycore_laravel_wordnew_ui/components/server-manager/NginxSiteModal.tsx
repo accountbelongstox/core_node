@@ -3,7 +3,7 @@ import { X, Save } from 'lucide-react';
 import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '../../types';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import { AlertBox, Field } from '../common';

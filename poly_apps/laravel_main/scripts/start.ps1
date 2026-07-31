@@ -99,6 +99,9 @@ $PwshServiceExe = $null
 $ServiceArgs = $null
 $ServiceRegistered = $false
 $npxCmd = $null
+$InstallationAccessCodeFile = Join-Path $LaravelDir "app\Support\InstallationAccessCode.php"
+$GeneratedAccessCode = $null
+$AccessCodeWriteError = $null
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -120,12 +123,44 @@ $LaravelRuntimeDirs = @(
 # Shared NSSM service registration helper (idempotent install-or-update + restart).
 . $NssmServiceManagerScript
 
+function New-InstallationAccessCode {
+    $segments = @(
+        ([Guid]::NewGuid().ToString("N").Substring(0, 4)).ToUpperInvariant(),
+        ([Guid]::NewGuid().ToString("N").Substring(0, 4)).ToUpperInvariant(),
+        ([Guid]::NewGuid().ToString("N").Substring(0, 4)).ToUpperInvariant(),
+        ([Guid]::NewGuid().ToString("N").Substring(0, 4)).ToUpperInvariant()
+    )
+    return "NEXU-$($segments -join '-')"
+}
+
+function Write-InstallationAccessCode {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath,
+        [Parameter(Mandatory = $true)][string]$AccessCode
+    )
+    $directoryPath = Split-Path -Parent $FilePath
+    if (-not (Test-Path -LiteralPath $directoryPath)) {
+        New-Item -ItemType Directory -Force -Path $directoryPath | Out-Null
+    }
+    $phpSource = "<?php`r`n`r`nnamespace App\Support;`r`n`r`nfinal class InstallationAccessCode`r`n{`r`n    public static function value(): string`r`n    {`r`n        return '$AccessCode';`r`n    }`r`n}`r`n"
+    [System.IO.File]::WriteAllText($FilePath, $phpSource, [System.Text.UTF8Encoding]::new($false))
+}
+
 Write-Host "Initial directory (invocation): $($OriginalDirectory.Path)" -ForegroundColor DarkGray
 Write-Host "Working directory (Laravel root): $LaravelDir" -ForegroundColor DarkGray
 Write-Host ""
 
 try {
     Set-Location -Path $LaravelDir
+
+    $GeneratedAccessCode = New-InstallationAccessCode
+    try {
+        Write-InstallationAccessCode -FilePath $InstallationAccessCodeFile -AccessCode $GeneratedAccessCode
+        Write-Host "Installation access value refreshed." -ForegroundColor Green
+    } catch {
+        $AccessCodeWriteError = $_.Exception.Message
+        Write-Host "WARNING: Installation access value could not be refreshed: $AccessCodeWriteError" -ForegroundColor Yellow
+    }
 
     # --- Toolchain: php + composer (idempotent auto-install via the canonical DevInstaller step) ---
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
@@ -546,4 +581,6 @@ finally {
     Set-Location -Path $OriginalDirectory
     Write-Host ""
     Write-Host "Restored to initial directory: $($OriginalDirectory.Path)" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "Installation access value: $GeneratedAccessCode" -ForegroundColor Yellow
 }

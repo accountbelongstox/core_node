@@ -26,15 +26,17 @@ import {
 } from 'lucide-react';
 import {
   pycoreApi, mapQueueSnapshot, connectPycoreHttp, loadQueueCache, saveQueueCache,
-} from '../../../core/api-libs/pycore';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import type { QueueItem } from '../../../core/api-libs/pycore';
-import { usePycoreCapability } from '../../../core/api-libs/pycore';
-import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
-import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
+  PYCORE_HTTP_DEFAULTS,
+} from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import type { QueueItem } from '@/apps/pycore-manager/api';
+import { usePycoreCapability } from '@/apps/pycore-manager/api';
+import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PcPipelineStatusPanels } from '../components/PcPipelineStatusPanels';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 const CATEGORY_CLS: Record<string, string> = {
   Voice: 'bg-blue-500/15 text-blue-500',
@@ -157,7 +159,11 @@ const PcVoiceSubtitlePage: React.FC = () => {
 
   useEffect(() => { fetchQueue(); fetchMonitors(); }, [fetchQueue, fetchMonitors]);
 
-  useTopicDrivenRefresh([PYCORE_EVENT_TOPICS.voiceSubtitleQueueUpdate], fetchMonitors, { fallbackMs: 60_000 });
+  useTopicDrivenRefresh(
+    [PYCORE_EVENT_TOPICS.voiceSubtitleQueueUpdate],
+    fetchMonitors,
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.slowFallbackPollMs },
+  );
 
   // Live updates: full snapshot on every queue mutation + per-item playback tick.
   useEffect(() => {

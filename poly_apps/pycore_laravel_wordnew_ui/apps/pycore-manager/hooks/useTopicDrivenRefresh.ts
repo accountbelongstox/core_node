@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_BROWSER_EVENTS } from '@/apps/pycore-manager/api';
 
 type Options = {
   fallbackMs?: number;

@@ -19,13 +19,13 @@ import {
   Languages, Lock, Wand2,
 } from 'lucide-react';
 import {
-  pycoreApi, connectPycoreHttp, onHttpStatus,
-} from '../../../core/api-libs/pycore';
+  pycoreApi, connectPycoreHttp, onHttpStatus, PYCORE_HTTP_DEFAULTS,
+} from '@/apps/pycore-manager/api';
 import type {
   VideoExtractEntry, VideoExtractMode, VideoExtractOptions, WhisperLanguage,
   SystemResources, VideoExtractOpenKind,
-} from '../../../core/api-libs/pycore';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+} from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 import { usePcVideoExtract } from '../PcVideoExtractContext';
 import type { SegWithFull, VeFlowStep } from '../PcVideoExtractContext';
@@ -285,7 +285,7 @@ const PcVideoExtractPage: React.FC = () => {
   useTopicDrivenRefresh(
     [PYCORE_EVENT_TOPICS.videoExtractSync, PYCORE_EVENT_TOPICS.operationChanged],
     refreshResources,
-    { fallbackMs: 30_000 },
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
   );
 
   // Reset the click-to-highlight selection whenever the current file (and thus

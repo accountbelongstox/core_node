@@ -32,11 +32,11 @@ import {
   ScanSearch, RefreshCw, CheckCircle2, MinusCircle, WifiOff, Sparkles,
   Search, Bot, Trash2, ExternalLink, History, ImageOff, Layers,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   ImageSearchStatus, ImageSearchResult, AiImageResponse,
   ImageSearchHistoryEntry,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {

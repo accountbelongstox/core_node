@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { User as UserIcon, Copy, Check, Pencil, Save, X } from 'lucide-react';
-import { api } from '../../../core/api';
-import { absUrl } from '../../../core/utils/absUrl';
-import type { DevHistoryPrompt } from '../../../core/api/modules/DevHistoryAPI';
+import { api } from '@/apps/laravel-manager/api';
+import { absUrl } from '../../../apps/laravel-manager/utils/absUrl';
+import type { DevHistoryPrompt } from '@/apps/laravel-manager/api';
 import { toolLabel, toolPill } from './shared';
 
 interface PromptItemProps {

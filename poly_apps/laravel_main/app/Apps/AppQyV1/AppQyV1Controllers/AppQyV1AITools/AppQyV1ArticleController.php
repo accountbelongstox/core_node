@@ -29,9 +29,8 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use App\Providers\PathMapper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingDocumentService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use Illuminate\Support\Facades\Log;
 
@@ -45,14 +44,18 @@ class AppQyV1ArticleController
 
     protected MediaIngestService $ingestService;
 
+    protected AppQyV1DailyReadingService $dailyReadingService;
+
     public function __construct(
         TaskManagerService $taskManager,
         BookTextStatsService $stats,
-        MediaIngestService $ingestService
+        MediaIngestService $ingestService,
+        AppQyV1DailyReadingService $dailyReadingService
     ) {
         $this->taskManager = $taskManager;
         $this->stats = $stats;
         $this->ingestService = $ingestService;
+        $this->dailyReadingService = $dailyReadingService;
     }
 
     /**
@@ -670,7 +673,7 @@ class AppQyV1ArticleController
         // the English version. Never fall back to the Chinese title here.
         $titleEn = trim((string) ($request->input('title_en') ?: $request->input('title') ?: ''));
         if ($titleEn === '') {
-            $titleEn = 'Agent history article';
+            $titleEn = 'Daily reading article';
         }
 
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
@@ -683,8 +686,8 @@ class AppQyV1ArticleController
                 'title' => $titleEn,
                 'content' => $articleText,
                 'language' => $language,
-                'article_type' => 'agent_history',
-                'source' => $request->input('source', 'agent_history'),
+                'article_type' => 'daily',
+                'source' => 'daily',
                 'word_count' => $parsedResult['total_words'],
                 'unique_word_count' => $parsedResult['unique_words'],
                 'sentence_count' => $parsedResult['total_sentences'],
@@ -713,7 +716,7 @@ class AppQyV1ArticleController
             $audioUrl = null;
             $audioB64 = $request->input('audio_base64');
             if (is_string($audioB64) && $audioB64 !== '') {
-                $audioUrl = $this->storeWorkerArticleAudio($articleId, $language, $audioB64);
+                $audioUrl = $this->dailyReadingService->storeAudio($articleId, $language, $audioB64);
                 if ($audioUrl !== null) {
                     $meta = is_array($article->metadata) ? $article->metadata : [];
                     $meta['audio_url'] = $audioUrl;
@@ -734,7 +737,7 @@ class AppQyV1ArticleController
             // as the /learning/upload document feature) categorized as daily
             // reading; metadata.document_id links back. Best-effort — a failure
             // here is logged inside the service and never breaks article creation.
-            $documentId = (new AppQyV1DailyReadingDocumentService())->createForWorkerArticle(
+            $documentId = $this->dailyReadingService->createDocument(
                 $article,
                 $articleText,
                 $request->input('reference_cn'),
@@ -767,7 +770,7 @@ class AppQyV1ArticleController
     }
 
     /**
-     * Recent agent-history articles for wordnew / pycore polling.
+     * Recent daily-reading articles for wordnew / pycore polling.
      *
      * GET /api/app_qy_v1/ai_tools/article/worker/recent
      */
@@ -781,57 +784,12 @@ class AppQyV1ArticleController
             $limit = 100;
         }
 
-        $rows = AppQyV1Article::query()
-            ->where('source', 'agent_history')
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get(['article_id', 'title', 'language', 'word_count', 'content', 'metadata', 'reading_date', 'created_at']);
+        $data = $this->dailyReadingService->list($limit, 0);
 
-        $items = [];
-        foreach ($rows as $row) {
-            $meta = is_array($row->metadata) ? $row->metadata : [];
-            $items[] = [
-                'article_id' => $row->article_id,
-                'source_key' => $row->article_id,
-                'title' => $row->title,
-                'title_en' => $meta['title_en'] ?? $row->title,
-                'title_cn' => $meta['title_cn'] ?? null,
-                'article_en' => $row->content,
-                'reference_cn' => $meta['reference_cn'] ?? null,
-                'language' => $row->language,
-                'word_count' => (int) $row->word_count,
-                'audio_url' => $meta['audio_url'] ?? null,
-                'document_id' => $meta['document_id'] ?? null,
-                'reading_date' => $row->reading_date,
-                'created_at' => $row->created_at ? $row->created_at->toIso8601String() : null,
-            ];
-        }
-
-        return $this->success(['items' => $items], 'Recent agent-history articles');
-    }
-
-    private function storeWorkerArticleAudio(string $articleId, string $language, string $audioB64): ?string
-    {
-        $binary = base64_decode($audioB64, true);
-        if ($binary === false || $binary === '') {
-            return null;
-        }
-        if (strlen($binary) < 128) {
-            return null;
-        }
-
-        $safeId = preg_replace('/[^A-Za-z0-9._-]/', '_', $articleId) ?: 'article';
-        $dir = PathMapper::getAppQyV1AudioBaseDir('agent_history/' . $language);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        $filename = $safeId . '.mp3';
-        $path = rtrim($dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
-        if (@file_put_contents($path, $binary) === false) {
-            return null;
-        }
-
-        return '/static/app_qy_v1/audio/agent_history/' . rawurlencode($language) . '/' . rawurlencode($filename);
+        return $this->success([
+            'items' => $data['items'],
+            'total' => $data['total'],
+        ], 'Recent daily-reading articles');
     }
 
     /**

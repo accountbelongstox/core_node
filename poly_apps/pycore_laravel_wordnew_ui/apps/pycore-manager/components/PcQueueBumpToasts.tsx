@@ -5,7 +5,7 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Zap, X } from 'lucide-react';
-import type { QueueBumpEvent } from '../../../core/api-libs/pycore/pycoreTypes';
+import type { QueueBumpEvent } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 const DISMISS_MS = 12000;

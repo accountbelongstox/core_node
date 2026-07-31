@@ -28,7 +28,7 @@
 
 import { ViewType } from '../types';
 import type { Language } from '../types';
-import i18n from '../core/i18n';
+import i18n from '../apps/laravel-manager/i18n';
 
 /** All view types that require the user to be logged in. No prompt, no content until authenticated. */
 export const REQUIRE_LOGIN_VIEWS: ViewType[] = [

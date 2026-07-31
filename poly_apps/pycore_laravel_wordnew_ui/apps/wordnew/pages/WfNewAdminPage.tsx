@@ -28,7 +28,8 @@ import { WfNewAdminWords } from '../components/admin/WfNewAdminWords';
 import { WfNewAdminLibraries } from '../components/admin/WfNewAdminLibraries';
 import { WfNewAdminQueues } from '../components/admin/WfNewAdminQueues';
 import { WfNewAdminTranslate } from '../components/admin/WfNewAdminTranslate';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 type WfNewAdminTab = 'overview' | 'words' | 'libraries' | 'queues' | 'translate';
 

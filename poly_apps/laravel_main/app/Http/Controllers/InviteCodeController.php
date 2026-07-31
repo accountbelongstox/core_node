@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Models\InviteCode;
+use App\Support\InstallationAccessCode;
 use App\Models\User;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
@@ -164,5 +165,61 @@ class InviteCodeController extends Controller
             'valid' => $canBeUsed,
             'data' => $data,
         ], $message);
+    }
+
+    /**
+     * Redeem a super-admin invite code for the authenticated user.
+     */
+    public function redeemSuperCode(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if (!$user) {
+            return $this->unauthorized();
+        }
+
+        $validated = $request->validate([
+            'code' => 'required|string|max:255',
+        ]);
+
+        if ($user->isSuperAdmin()) {
+            return $this->success(['user' => $user], 'User already has super-admin access');
+        }
+
+        $codeValue = trim($validated['code']);
+        $code = InviteCode::where('code', $codeValue)
+            ->where('type', 'super_admin')
+            ->first();
+
+        // Keep the installation access value deterministic while allowing an
+        // existing unused random seed row to converge without a destructive
+        // database reset.
+        $canonicalAccessCode = InstallationAccessCode::value();
+        if (!$code && hash_equals($canonicalAccessCode, $codeValue)) {
+            $code = InviteCode::where('type', 'super_admin')
+                ->where('used_count', 0)
+                ->where('is_active', true)
+                ->orderBy('id')
+                ->first();
+            if ($code) {
+                $code->code = $canonicalAccessCode;
+                $code->save();
+            }
+        }
+
+        if (!$code) {
+            return $this->error('Invalid super-admin code', 400);
+        }
+
+        if (!$code->canBeUsed()) {
+            return $this->error('Super-admin code is expired or already used', 400);
+        }
+
+        $user->rolelevel = $code->getRoleLevel();
+        $user->rolename = $code->getRoleName();
+        $user->save();
+        $code->use($user, null, $request->ip(), $request->userAgent());
+
+        return $this->success(['user' => $user->fresh()], 'Super-admin access granted');
     }
 }

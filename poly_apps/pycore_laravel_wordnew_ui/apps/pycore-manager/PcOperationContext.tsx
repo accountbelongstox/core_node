@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
-import { pycoreEventBus } from '../../core/api-libs/pycore/PycoreEventBus';
-import { requestPycoreHttp } from '../../core/api-libs/pycore/PycoreHttp';
-import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { requestPycoreHttp } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 
 export type OperationSnapshot = Record<string, unknown> | null;
 

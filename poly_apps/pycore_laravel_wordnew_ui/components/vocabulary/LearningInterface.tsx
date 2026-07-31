@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle, RefreshCw, Star, Volume2, ArrowLeft, ArrowRight, TrendingUp } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 
 interface LearningInterfaceProps {

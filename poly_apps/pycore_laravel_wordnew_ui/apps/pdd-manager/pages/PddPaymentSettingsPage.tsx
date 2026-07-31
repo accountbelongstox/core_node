@@ -7,10 +7,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, CreditCard, Package as PackageIcon, Loader2, CheckCircle2, XCircle } from 'lucide-react';
-import { api } from '../../../core/api';
+import { api } from '@/apps/pdd-manager/api';
 import type {
   PddPaymentSettingsPublic, PddPaymentSettingsSave, PddPackage,
-} from '../../../core/api/modules/PddAdminAPI';
+} from '@/apps/pdd-manager/api';
 
 const inputCls = 'w-full px-3 py-2 rounded-lg text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/30';
 const labelCls = 'block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1';

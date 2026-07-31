@@ -11,10 +11,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   MessageSquare, RefreshCcw, Send, AlertTriangle, Timer,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
-import type { AiProvider, AiChatResult } from '../../core/api/modules/AiManagementAPI';
+import type { AiProvider, AiChatResult } from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AiBentoCard, AiToolAlert } from './ui';

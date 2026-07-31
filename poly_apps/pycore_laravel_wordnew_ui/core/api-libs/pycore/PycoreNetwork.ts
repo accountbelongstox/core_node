@@ -15,6 +15,7 @@ export const PYCORE_HTTP_PATHS = {
 } as const;
 
 export const PYCORE_HTTP_HEADER_NAMES = {
+  accept: 'Accept',
   contentType: 'Content-Type',
   requestId: 'X-Request-ID',
   clientId: 'X-Pycore-Client-ID',
@@ -22,9 +23,13 @@ export const PYCORE_HTTP_HEADER_NAMES = {
 } as const;
 
 export const PYCORE_HTTP_DEFAULTS = {
-  requestTimeoutMs: 30_000,
   reconnectMinMs: 1_000,
   reconnectMaxMs: 30_000,
+  fallbackPollMs: 30_000,
+  slowFallbackPollMs: 60_000,
+  capabilityPollMs: 20_000,
+  engineLoadPollMs: 1_500,
+  maxBackoffExponent: 10,
   maxProcessedEvents: 512,
 } as const;
 
@@ -35,7 +40,11 @@ export const PYCORE_HEALTH_DEFAULTS = {
   probeRetryMs: 750,
 } as const;
 
+export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
+
 export const PYCORE_BROWSER_EVENTS = {
+  capabilityChanged: 'pycore-capability-changed',
+  engineLoadChanged: 'pycore-engine-load-changed',
   httpEventReplayLost: 'http_event_replay_lost',
   httpEventServerRestarted: 'http_event_server_restarted',
   laravelApiChanged: 'pycore:laravel-api-changed',

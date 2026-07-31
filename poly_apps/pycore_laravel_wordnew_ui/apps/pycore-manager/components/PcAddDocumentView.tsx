@@ -27,8 +27,8 @@ import {
   FileText, UploadCloud, RefreshCw, Languages, Lock, Library,
   Type, Hash, AlignLeft, Eye, EyeOff, Trash2, BookOpen,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { BookTextStats, BookFileAnalysis } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { BookTextStats, BookFileAnalysis } from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 
 const L = {

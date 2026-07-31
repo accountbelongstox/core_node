@@ -1,6 +1,6 @@
 import React from 'react';
 import { Clock, Trash2, Copy, CheckCircle, XCircle } from 'lucide-react';
-import { ToolHistoryItem } from '../../core/types';
+import { ToolHistoryItem } from '@/apps/laravel-manager/types';
 import { commonClasses } from '../../styles/theme';
 import { AiBentoCard } from '../ai-tools/ui';
 

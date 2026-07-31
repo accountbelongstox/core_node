@@ -7,8 +7,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, CalendarClock, Loader2 } from 'lucide-react';
-import { api } from '../../../core/api';
-import type { PddUserAdmin } from '../../../core/api/modules/PddAdminAPI';
+import { api } from '@/apps/pdd-manager/api';
+import type { PddUserAdmin } from '@/apps/pdd-manager/api';
 
 const WINDOWS = [3, 7, 14, 30];
 

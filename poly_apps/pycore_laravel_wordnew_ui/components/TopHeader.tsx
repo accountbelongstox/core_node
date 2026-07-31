@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { ApiEndpointSwitcher } from './ApiEndpointSwitcher';
 import { useAppState } from '../contexts/AppStateContext';
-import { api } from '../core/api';
+import { api } from '@/apps/laravel-manager/api';
 
-const CODE_UPDATE_POLL_MS = 10000;
+const CODE_UPDATE_POLL_MS = 60000;
 const RELATIVE_TICK_MS = 1000;
 
 interface TopHeaderProps {

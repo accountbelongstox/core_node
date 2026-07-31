@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 
 const FLUSH_DELAY_MS = 250;
 const VISIBLE_PRIORITY = 200;

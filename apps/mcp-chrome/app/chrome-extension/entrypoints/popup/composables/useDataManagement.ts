@@ -85,7 +85,7 @@ export function useDataManagement() {
       const response = await chrome.runtime.sendMessage({
         type: BACKGROUND_MESSAGE_TYPES.CLEAR_ALL_DATA,
       });
-      if (!response?.success) throw new Error(response?.error || 'Failed to clear data');
+      if (!response?.success) throw new Error(response?.error || getMessage('clearDataFailed'));
       clearDataProgress.value = getMessage('dataClearedNotification');
       await refreshStorageStats();
       window.setTimeout(() => {

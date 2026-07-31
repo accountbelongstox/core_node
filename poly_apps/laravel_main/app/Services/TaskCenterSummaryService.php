@@ -169,7 +169,11 @@ final class TaskCenterSummaryService
     private function assistCategoryCounts(): array
     {
         try {
-            $snapshot = $this->assistService->overviewSnapshot();
+            // The task-center card and its drill-down must observe the same
+            // queue state. Do not use the Assist overview cache here: the
+            // detail endpoint reads live rows and a stale aggregate produces
+            // "Pending N" followed by an empty list.
+            $snapshot = $this->assistService->overviewSnapshot(true);
         } catch (\Throwable) {
             return [];
         }

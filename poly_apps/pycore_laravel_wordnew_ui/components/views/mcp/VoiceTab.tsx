@@ -4,7 +4,7 @@ import {
   Plus, RefreshCw, Trash2, Check, XCircle, Edit2
 } from 'lucide-react';
 import { Language, AsyncState, VoiceQueueItem } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox, EmptyState, StatusBadge } from '../../common';

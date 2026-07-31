@@ -9,10 +9,10 @@ import { useTranslation } from 'react-i18next';
 import {
   Search, RefreshCw, X, Power, Coins, BadgeCheck, ChevronLeft, ChevronRight, Loader2,
 } from 'lucide-react';
-import { api } from '../../../core/api';
+import { api } from '@/apps/pdd-manager/api';
 import type {
   PddUserAdmin, PddUserDetail, PddSetMembershipPayload,
-} from '../../../core/api/modules/PddAdminAPI';
+} from '@/apps/pdd-manager/api';
 
 const PER_PAGE = 20;
 

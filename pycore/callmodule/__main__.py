@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pycore.pylauncher.platform.windows_startup_manager import launch_windows_tray
 from pycore.pycore_module_caller import main as launch_service
+from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
 
 
@@ -33,14 +34,14 @@ def main():
     parser = argparse.ArgumentParser(description="Pycore Module Caller FastAPI Service")
     parser.add_argument(
         '--host',
-        default='0.0.0.0',
-        help='Host to bind to (default: 0.0.0.0 for all interfaces, use 127.0.0.1 for local only)'
+        default=HTTP_BIND_HOST,
+        help=f'Host to bind to (default: {HTTP_BIND_HOST} for all interfaces, use 127.0.0.1 for local only)'
     )
     parser.add_argument(
         '--port',
         type=int,
-        default=59000,
-        help='Port to bind to (default: 59000)'
+        default=PYCORE_HTTP_PORT,
+        help=f'Port to bind to (default: {PYCORE_HTTP_PORT})'
     )
     parser.add_argument(
         '--debug',

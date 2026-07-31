@@ -21,7 +21,16 @@ mcp_chrome_shared_artifact_path=""
 mcp_chrome_native_artifact_path=""
 mcp_chrome_extension_manifest_path=""
 mcp_chrome_register_script_path=""
+mcp_chrome_supervisor_script_path=""
+mcp_chrome_dev_log_path=""
+mcp_chrome_linux_common_dir=""
+mcp_chrome_gvar_common_path=""
+mcp_chrome_venv_python_common_path=""
+mcp_chrome_python_path=""
 mcp_chrome_url="http://127.0.0.1:12306/mcp"
+mcp_chrome_port="12306"
+mcp_chrome_port_ready=0
+mcp_chrome_port_wait_count=0
 mcp_chrome_needs_build=0
 model="gpt-5.6-sol"
 reasoning_effort="high"
@@ -36,6 +45,14 @@ mcp_chrome_shared_artifact_path="$mcp_chrome_path/packages/shared/dist/index.js"
 mcp_chrome_native_artifact_path="$mcp_chrome_path/app/native-server/dist/index.js"
 mcp_chrome_extension_manifest_path="$mcp_chrome_path/.output/build_extension/manifest.json"
 mcp_chrome_register_script_path="$mcp_chrome_path/scripts/register-local-dev.cjs"
+mcp_chrome_supervisor_script_path="$mcp_chrome_path/scripts/service_supervisor.py"
+mcp_chrome_dev_log_path="/tmp/mcp-chrome-codexyolo.log"
+mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
+mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
+mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
+source "$mcp_chrome_gvar_common_path"
+source "$mcp_chrome_venv_python_common_path"
+mcp_chrome_python_path="$VENV_PYTHON3"
 
 codex_args=(
     --yolo
@@ -110,6 +127,25 @@ fi
 
 codex mcp add chrome --url "$mcp_chrome_url"
 echo "[INFO] Chrome MCP registered in Codex."
+
+echo "[INFO] Ensuring the singleton Chrome MCP supervisor is running..."
+if [ "$mcp_chrome_needs_build" -eq 1 ] || [ "$mcp_chrome_port_ready" -eq 0 ]; then
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev --recover-on-start >"$mcp_chrome_dev_log_path" 2>&1 &
+else
+    "$mcp_chrome_python_path" "$mcp_chrome_supervisor_script_path" --project-root "$mcp_chrome_path" --watch-mode dev >"$mcp_chrome_dev_log_path" 2>&1 &
+fi
+while [ "$mcp_chrome_port_ready" -eq 0 ] && [ "$mcp_chrome_port_wait_count" -lt 60 ]; do
+    sleep 0.5
+    if (echo >"/dev/tcp/127.0.0.1/$mcp_chrome_port") >/dev/null 2>&1; then
+        mcp_chrome_port_ready=1
+    fi
+    mcp_chrome_port_wait_count=$((mcp_chrome_port_wait_count + 1))
+done
+if [ "$mcp_chrome_port_ready" -eq 1 ]; then
+    echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
+else
+    echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
+fi
 
 echo "[INFO] Model: $model ($reasoning_effort)"
 echo "[INFO] YOLO: ON; live search: ON; hook trust bypass: ON"

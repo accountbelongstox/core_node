@@ -453,7 +453,7 @@ def register_runtime_workers() -> None:
     heartbeat.register_callback(
         name="laravel_log_mirror",
         callback=laravel_log_mirror_service.poll_once,
-        interval=5,
+        interval=15,
         enabled=True,
     )
 

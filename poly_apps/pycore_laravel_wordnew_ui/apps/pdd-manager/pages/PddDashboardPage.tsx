@@ -9,8 +9,8 @@ import {
   Users, UserCheck, CalendarClock, DollarSign, TrendingUp, ShoppingBag,
   RefreshCw, AlertTriangle, type LucideIcon,
 } from 'lucide-react';
-import { api } from '../../../core/api';
-import type { PddStats, PddUserAdmin } from '../../../core/api/modules/PddAdminAPI';
+import { api } from '@/apps/pdd-manager/api';
+import type { PddStats, PddUserAdmin } from '@/apps/pdd-manager/api';
 
 interface StatCard {
   key: keyof PddStats;

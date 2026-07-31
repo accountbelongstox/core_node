@@ -8,7 +8,7 @@
  */
 import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import i18n from '../core/i18n';
+import i18n from '../apps/laravel-manager/i18n';
 import { setPycoreActive } from '../core/api-libs/pycore/PycoreHttp';
 import { EndId, ThemeId, END_THEME, END_USES_PYCORE, ShellContextValue } from './shellTypes';
 import { StorageKeys, StorageManager } from '../core/persistence';

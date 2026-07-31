@@ -8,7 +8,8 @@ import type {
   WfNewPost, WfNewPostComment, WfNewLive, WfNewLiveMsg, Word,
 } from './WfNewApiTypes';
 import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './types/readerSettings';
-import { StorageKeys, StorageManager, type StorageKey } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys, type WordNewStorageKey as StorageKey } from '../persistence/WordNewStorageKeys';
 import { MOCK_VOCABULARY_MAP, MOCK_WALKMAN_WORDS } from '../WfNewMockDb';
 
 export const delay = <T>(value: T, ms = 180): Promise<T> =>

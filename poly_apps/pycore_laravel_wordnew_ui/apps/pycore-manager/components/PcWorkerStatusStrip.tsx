@@ -10,8 +10,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Cpu, RefreshCw, Loader2, AlertTriangle, Power, Check,
 } from 'lucide-react';
-import { getPycoreHealth } from '../../../core/api-libs/pycore';
-import type { HeartbeatCallbackRow } from '../../../core/api-libs/pycore';
+import { getPycoreHealth } from '@/apps/pycore-manager/api';
+import type { HeartbeatCallbackRow } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
 const PcWorkerStatusStrip: React.FC<{ refreshTick?: number }> = () => {

@@ -144,6 +144,38 @@ class FileSystemManager
         return file_get_contents($mappedPath);
     }
 
+    public static function readFileSegment(string $path, int $offset = 0, ?int $length = null): string|false
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $handle = null;
+        $content = false;
+
+        if (!file_exists($mappedPath) || !is_readable($mappedPath)) {
+            return false;
+        }
+
+        if (self::$autoFixPermissions) {
+            self::fixPermissions($mappedPath);
+        }
+
+        $handle = fopen($mappedPath, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        if ($offset > 0 && fseek($handle, $offset) !== 0) {
+            fclose($handle);
+            return false;
+        }
+
+        $content = $length === null
+            ? stream_get_contents($handle)
+            : stream_get_contents($handle, $length);
+        fclose($handle);
+
+        return $content;
+    }
+
     public static function copy(string $source, string $destination): bool
     {
         $mappedSource = self::mapExternalPath($source);

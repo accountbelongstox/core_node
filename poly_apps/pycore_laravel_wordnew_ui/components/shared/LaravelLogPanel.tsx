@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Server, ChevronDown, RefreshCw, CircleAlert } from 'lucide-react';
 import Portal from './Portal';
-import { requestPycoreHttp, subscribe } from '../../core/api-libs/pycore/PycoreHttp';
-import { PYCORE_HTTP_ROUTES } from '../../core/api-libs/pycore/PycoreHttpRoutes';
+import { PYCORE_HTTP_ROUTES, requestPycoreHttp, subscribe } from '@/apps/laravel-manager/integrations/pycore';
 
 interface LaravelLogEntry {
     id: string;

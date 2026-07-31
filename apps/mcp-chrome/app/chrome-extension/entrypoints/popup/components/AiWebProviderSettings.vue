@@ -1,10 +1,10 @@
 <template>
   <div class="tk-card rounded-lg p-2.5 overflow-hidden border">
     <h4 class="text-[9px] font-bold uppercase tracking-tight mb-1.5" style="color: var(--text-muted)">
-      AI Web Provider
+      {{ getMessage('aiWebProviderTitle') }}
     </h4>
     <p class="text-[8px] mb-2" style="color: var(--text-faint)">
-      Which web AI the prompt-translate / web-chat workers drive in your live browser.
+      {{ getMessage('aiWebProviderHint') }}
     </p>
     <div class="flex gap-1.5">
       <button
@@ -21,14 +21,14 @@
         {{ opt.label }}
       </button>
     </div>
-    <p v-if="saved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
+    <p v-if="saved" class="text-[8px] mt-1.5 text-emerald-400">{{ getMessage('savedStatus') }}</p>
 
     <!-- Word-validity task: which web AI classifies words (DeepSeek default). -->
     <h4 class="text-[9px] font-bold uppercase tracking-tight mt-3 mb-1.5" style="color: var(--text-muted)">
-      Validity AI Provider
+      {{ getMessage('validityAiProviderTitle') }}
     </h4>
     <p class="text-[8px] mb-2" style="color: var(--text-faint)">
-      Which web AI the word-validity check drives (validity + translation in one pass).
+      {{ getMessage('validityAiProviderHint') }}
     </p>
     <div class="flex gap-1.5">
       <button
@@ -45,14 +45,14 @@
         {{ opt.label }}
       </button>
     </div>
-    <p v-if="validitySaved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
+    <p v-if="validitySaved" class="text-[8px] mt-1.5 text-emerald-400">{{ getMessage('savedStatus') }}</p>
 
     <!-- Word-validity task: which word language to drain (EN only by default). -->
     <h4 class="text-[9px] font-bold uppercase tracking-tight mt-3 mb-1.5" style="color: var(--text-muted)">
-      Validity Word Language
+      {{ getMessage('validityWordLanguageTitle') }}
     </h4>
     <p class="text-[8px] mb-2" style="color: var(--text-faint)">
-      Only EN words are processed by default; pick another language to drain its backlog instead.
+      {{ getMessage('validityWordLanguageHint') }}
     </p>
     <div class="flex gap-1.5 flex-wrap">
       <button
@@ -74,15 +74,15 @@
         v-model.trim="customValidityLanguage"
         class="flex-1 min-w-0 px-2 py-1.5 rounded text-[9px] border bg-transparent"
         maxlength="12"
-        placeholder="Other language code"
+        :placeholder="getMessage('otherLanguageCodePlaceholder')"
         @keyup.enter="selectCustomLanguage"
       />
       <button
         class="px-2 py-1.5 rounded text-[9px] font-bold border text-slate-300"
         @click="selectCustomLanguage"
-      >Use</button>
+      >{{ getMessage('useButton') }}</button>
     </div>
-    <p v-if="languageSaved" class="text-[8px] mt-1.5 text-emerald-400">Saved</p>
+    <p v-if="languageSaved" class="text-[8px] mt-1.5 text-emerald-400">{{ getMessage('savedStatus') }}</p>
   </div>
 </template>
 
@@ -97,6 +97,7 @@ import {
   setValidityLanguage,
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
+import { getMessage } from '@/utils/i18n';
 
 type SelectableProvider = Extract<AiWebProvider, 'chatgpt' | 'gemini'>;
 

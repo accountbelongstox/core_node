@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ImagePlus, HardDrive, Calendar, Clock, Wand2, Copy, Download, RefreshCw, Trash2 } from 'lucide-react';
 import { Language, AsyncState, PlaceholderResponse, PlaceholderGenerateRequest } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { Field, InlineSpinner, EmptyState } from '../../common';

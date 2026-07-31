@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApiResource } from '../../hooks/useApiResource';
-import type { APIResponse } from '../../core/types';
-import type { MediaListResponse } from '../../core/api/modules/MediaQueryAPI';
+import type { APIResponse } from '@/apps/laravel-manager/types';
+import type { MediaListResponse } from '@/apps/laravel-manager/api';
 
 /**
  * useExistingMediaList — shared page/search/language state machine behind

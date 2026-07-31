@@ -45,6 +45,7 @@ from pycore.pyutils.laravel.endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyutils.common.endpoint_scoped_cache import EndpointScopedCache
 
 # --- laravel_main paths (proxied 1:1) -------------------------------------- #
 _L_TRANSLATION_LANGUAGES = "/api/app_qy_v1/ai_tools/translation/languages"
@@ -74,6 +75,15 @@ _L_STORAGE_SUMMARY = "/api/servermanager/v1/system/static-resources"
 # the proxy wait instead of surfacing a read-timeout on every poll (mirrors the
 # word-audio batch timeout).
 _VOCAB_TIMEOUT = 600
+
+# Laravel shells out to `du` per directory for the storage summary surface, so
+# keep a short pycore-side cache in front of the proxy (laravel caches too).
+_STORAGE_SUMMARY_CACHE_TTL_S = 30.0
+_STORAGE_SUMMARY_CACHE_STALE_MAX_S = 300.0
+_STORAGE_SUMMARY_CACHE = EndpointScopedCache(
+    ttl_s=_STORAGE_SUMMARY_CACHE_TTL_S,
+    stale_max_s=_STORAGE_SUMMARY_CACHE_STALE_MAX_S,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -324,5 +334,17 @@ def vocab_storage_summary():
     """GET -> static resources summary (audio/image/video counts + sizes).
 
     Proxies the servermanager surface on the SAME laravel base, so the
-    vocabulary page's storage header stays UI -> pycore -> laravel."""
-    return _proxy("GET", _L_STORAGE_SUMMARY)
+    vocabulary page's storage header stays UI -> pycore -> laravel. Laravel
+    shells out to `du` per directory for this surface, so a short TTL cache
+    sits in front of the proxy; failures fall back to stale data when present."""
+    base = _laravel_base()
+    if not base:
+        return {"success": False, "error": "laravel endpoint not configured"}
+    fresh = _STORAGE_SUMMARY_CACHE.get_fresh(base)
+    if fresh is not None:
+        return fresh
+    result = _proxy("GET", _L_STORAGE_SUMMARY)
+    if isinstance(result, dict) and result.get("success"):
+        return _STORAGE_SUMMARY_CACHE.store(base, result)
+    stale = _STORAGE_SUMMARY_CACHE.get_stale(base)
+    return stale if stale is not None else result

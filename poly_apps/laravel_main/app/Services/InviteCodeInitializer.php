@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use App\Models\InviteCode;
+use App\Support\InstallationAccessCode;
 
 class InviteCodeInitializer
 {
@@ -83,7 +84,7 @@ class InviteCodeInitializer
             $existingCodes = $dbConnection->table('invite_codes')->count();
             if ($existingCodes === 0) {
                 $adminCode = 'ADMIN_' . strtoupper(Str::random(20));
-                $superCode = 'SUPER_' . strtoupper(Str::random(20));
+                $elevatedAccessCode = InstallationAccessCode::value();
 
                 $dbConnection->table('invite_codes')->insert([
                     [
@@ -98,7 +99,7 @@ class InviteCodeInitializer
                         'updated_at' => now(),
                     ],
                     [
-                        'code' => $superCode,
+                        'code' => $elevatedAccessCode,
                         'type' => 'super_admin',
                         'max_uses' => 1,
                         'used_count' => 0,
@@ -113,12 +114,12 @@ class InviteCodeInitializer
                 $results['default_codes'] = 'created';
                 $results['codes'] = [
                     'admin' => $adminCode,
-                    'super_admin' => $superCode
+                    'super_admin' => $elevatedAccessCode
                 ];
 
                 Log::info('[InviteCodeInitializer] Default invite codes created', [
                     'admin_code' => $adminCode,
-                    'super_code' => $superCode
+                    'elevated_access_code' => $elevatedAccessCode
                 ]);
             } else {
                 $results['default_codes'] = 'exists';

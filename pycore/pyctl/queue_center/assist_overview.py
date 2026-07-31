@@ -18,9 +18,9 @@ from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
 
 _ASSIST_OVERVIEW_PATH = "/api/app_qy_v1/assist/overview"
-_ASSIST_OVERVIEW_TTL = 4.0
+_ASSIST_OVERVIEW_TTL = 30.0
 _ASSIST_OVERVIEW_STALE_MAX_S = 300.0
-_ASSIST_OVERVIEW_TIMEOUT = 8.0
+_ASSIST_OVERVIEW_TIMEOUT = 5.0
 _ASSIST_OVERVIEW_CACHE = EndpointScopedCache(
     ttl_s=_ASSIST_OVERVIEW_TTL,
     stale_max_s=_ASSIST_OVERVIEW_STALE_MAX_S,

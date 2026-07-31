@@ -13,10 +13,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Film, RefreshCcw, CheckCircle2, MinusCircle, AlertTriangle, ImageIcon, Send,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   PosterStatusData, PosterStatusCounts, PosterFetchResult,
-} from '../../core/api/modules/AppQyV1';
+} from '@/apps/laravel-manager/api';
 import ToolWrapper from '../universal/ToolWrapper';
 import { commonClasses } from '../../styles/theme';
 import { AI_BODY, AI_GRID_2, AiBentoCard, AiToolAlert } from './ui';

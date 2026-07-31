@@ -1,11 +1,11 @@
 import { getDefaultBaseURL } from '../../../config/constants';
-import { getSharedBaseURL } from '../../../core/api/base/BaseAPI';
+import { getSharedBaseURL } from '@/apps/laravel-manager/api';
 import type {
   MediaSourceListItem,
   MediaSegment,
   MediaSentence,
   MediaGrain,
-} from '../../../core/api/modules/MediaQueryAPI';
+} from '@/apps/laravel-manager/api';
 import type { FileNode } from '../../../types';
 
 /** Resolve a possibly-relative media/clip/audio URL against the live API base. */

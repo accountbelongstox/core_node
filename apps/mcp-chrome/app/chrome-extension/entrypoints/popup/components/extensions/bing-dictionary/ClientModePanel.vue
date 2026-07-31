@@ -10,12 +10,12 @@
           :disabled="!currentEndpoint || !!(queueOverview && queueOverview.loading)"
         >
           <span class="toggle-dot"></span>
-          <template v-if="queueOverview && queueOverview.loading">Loading…</template>
-          <template v-else-if="clientService.isRunning">Stop</template>
+          <template v-if="queueOverview && queueOverview.loading">{{ t('loadingStatus') }}</template>
+          <template v-else-if="clientService.isRunning">{{ t('extStopButton') }}</template>
           <template v-else-if="prepared">Confirm &amp; Start{{
             queueOverview && queueOverview.summary ? ' · ' + queueOverview.summary.pending + ' pending' : ''
           }}</template>
-          <template v-else>Load queue</template>
+          <template v-else>{{ t('loadQueueButton') }}</template>
         </button>
       </div>
 
@@ -32,7 +32,7 @@
               : 'idle',
           ]"
         ></span>
-        <span class="be-label">Backend</span>
+        <span class="be-label">{{ t('backendLabel') }}</span>
         <span class="be-url" :title="currentEndpoint">
           {{ currentEndpoint || 'not set — configure in Settings → API Configuration' }}
         </span>
@@ -48,16 +48,16 @@
         <div class="ba-step" :class="{ active: stepIndex === 0, done: stepIndex >= 1 }">
           <span class="ba-step-dot">1</span>
           <div class="ba-step-meta">
-            <span class="ba-step-name">Load queue</span>
-            <span class="ba-step-desc">Pull pending words from the server &amp; preview</span>
+            <span class="ba-step-name">{{ t('loadQueueButton') }}</span>
+            <span class="ba-step-desc">{{ t('loadQueueDescription') }}</span>
           </div>
         </div>
         <span class="ba-step-line" :class="{ done: stepIndex >= 1 }"></span>
         <div class="ba-step" :class="{ active: stepIndex === 1 }">
           <span class="ba-step-dot">2</span>
           <div class="ba-step-meta">
-            <span class="ba-step-name">Confirm &amp; Start</span>
-            <span class="ba-step-desc">Open Bing tabs &amp; begin crawling</span>
+            <span class="ba-step-name">{{ t('confirmAndStart') }}</span>
+            <span class="ba-step-desc">{{ t('confirmAndStartDescription') }}</span>
           </div>
         </div>
       </div>
@@ -74,21 +74,21 @@
            (paginated, each row expandable). Loaded on Start; refresh anytime. -->
       <div v-if="queueOverview" class="queue-overview">
         <div class="qo-head">
-          <span class="qo-title">Untranslated queue</span>
+          <span class="qo-title">{{ t('untranslatedQueueLabel') }}</span>
           <button
             class="qo-refresh"
             @click="onRefreshQueue"
             :disabled="queueOverview.loading"
-            title="Refresh"
+            :title="t('refreshStatusButton')"
           >{{ queueOverview.loading ? '…' : '↻' }}</button>
         </div>
         <div v-if="queueOverview.error" class="qo-error">⚠ {{ queueOverview.error }}</div>
         <div v-if="queueOverview.summary" class="qo-summary">
-          <span class="qo-chip pending">pending <b>{{ queueOverview.summary.pending }}</b></span>
-          <span class="qo-chip proc">processing <b>{{ queueOverview.summary.processing }}</b></span>
-          <span class="qo-chip done">completed <b>{{ queueOverview.summary.completed }}</b></span>
-          <span class="qo-chip fail">failed <b>{{ queueOverview.summary.failed }}</b></span>
-          <span class="qo-chip total">total <b>{{ queueOverview.summary.total }}</b></span>
+          <span class="qo-chip pending">{{ t('taskCenterPendingLabel') }} <b>{{ queueOverview.summary.pending }}</b></span>
+          <span class="qo-chip proc">{{ t('taskCenterProcessingLabel') }} <b>{{ queueOverview.summary.processing }}</b></span>
+          <span class="qo-chip done">{{ t('taskCenterCompletedLabel') }} <b>{{ queueOverview.summary.completed }}</b></span>
+          <span class="qo-chip fail">{{ t('taskCenterFailedLabel') }} <b>{{ queueOverview.summary.failed }}</b></span>
+          <span class="qo-chip total">{{ t('totalLabel') }} <b>{{ queueOverview.summary.total }}</b></span>
         </div>
         <div v-if="queuePageItems.length" class="qo-list">
           <details v-for="(item, i) in queuePageItems" :key="item.task_id || i" class="qo-item">
@@ -99,7 +99,7 @@
               <span class="qo-count">{{ item.word_count }}w</span>
             </summary>
             <div class="qo-item-body">
-              <div>task: <code>{{ item.task_id }}</code></div>
+              <div>{{ t('taskLabel') }}: <code>{{ item.task_id }}</code></div>
               <div>{{ item.language }} → {{ item.target_language }} · prio {{ item.priority }} · {{ item.age_seconds }}s</div>
               <div v-if="item.assigned_to">assigned: {{ item.assigned_to }}</div>
               <div class="qo-allwords">{{ (item.words || []).join(', ') }}</div>
@@ -110,9 +110,9 @@
           No pending tasks.
         </div>
         <div v-if="queueTotalPages > 1" class="qo-pager">
-          <button @click="onSetQueuePage(queueOverview.page - 1)" :disabled="queueOverview.page <= 1">Prev</button>
+          <button @click="onSetQueuePage(queueOverview.page - 1)" :disabled="queueOverview.page <= 1">{{ t('taskCenterPreviousPage') }}</button>
           <span>{{ queueOverview.page }} / {{ queueTotalPages }}</span>
-          <button @click="onSetQueuePage(queueOverview.page + 1)" :disabled="queueOverview.page >= queueTotalPages">Next</button>
+          <button @click="onSetQueuePage(queueOverview.page + 1)" :disabled="queueOverview.page >= queueTotalPages">{{ t('taskCenterNextPage') }}</button>
         </div>
       </div>
 
@@ -221,7 +221,7 @@
           <span class="ta-tab">Tab {{ i + 1 }}</span>
           <span class="ta-word">
             <template v-if="slot.word">{{ t('bingAssistTranslatingLabel') }} <strong>{{ slot.word }}</strong></template>
-            <template v-else>idle</template>
+            <template v-else>{{ t('idleStatus') }}</template>
           </span>
         </div>
       </div>
@@ -273,7 +273,7 @@
         </div>
       </div>
 
-      <p class="config-hint">Worker options are managed in Settings Center.</p>
+      <p class="config-hint">{{ t('workerOptionsManagedHint') }}</p>
     </div>
   </div>
 </template>

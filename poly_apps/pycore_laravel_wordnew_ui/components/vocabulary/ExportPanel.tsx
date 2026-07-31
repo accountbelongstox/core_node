@@ -9,8 +9,8 @@ import {
   Settings,
   Filter
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { VocabExportFormat, VocabExportOptions } from '../../core/api/modules/AppQyV1';
+import { api } from '@/apps/laravel-manager/api';
+import type { VocabExportFormat, VocabExportOptions } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';

@@ -12,7 +12,7 @@
  */
 import React, { useState } from 'react';
 import { RefreshCw, Tv, AppWindow, Rocket, AlertTriangle } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 
 const SCRIPTS: { value: string; label: string }[] = [
   { value: 'Sync code layout', label: 'Sync code layout every 30m' },

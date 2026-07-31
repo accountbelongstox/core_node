@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { itToolsModel } from '../../core/models';
+import { itToolsModel } from '@/apps/laravel-manager/models';
 import { useToolOperation } from '../../hooks';
 import { useToast } from '../admin';
 import { ToolContainer, TextAreaInput, CodeDisplay } from '../common';

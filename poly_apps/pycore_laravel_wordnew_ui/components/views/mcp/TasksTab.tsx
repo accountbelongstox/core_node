@@ -3,7 +3,7 @@ import {
   Plus, RefreshCw, HardDrive, Search, X, ListTodo, Edit2, Eye, Trash2
 } from 'lucide-react';
 import { Language, AsyncState, TaskCategory, DispatchTask } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox, EmptyState, Field, StatusBadge } from '../../common';

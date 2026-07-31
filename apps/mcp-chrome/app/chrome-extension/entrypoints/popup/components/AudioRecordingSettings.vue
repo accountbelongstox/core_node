@@ -3,7 +3,7 @@
     <div class="settings-card__header">
       <div>
         <h4>{{ getMessage('recordingSettingsLabel') }}</h4>
-        <p>Shared with the Audio tab.</p>
+        <p>{{ getMessage('audioSettingsSharedHint') }}</p>
       </div>
     </div>
 

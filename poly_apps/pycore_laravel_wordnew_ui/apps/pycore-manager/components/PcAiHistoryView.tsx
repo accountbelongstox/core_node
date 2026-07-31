@@ -19,11 +19,11 @@ import {
   Trash2, RefreshCcw, AlertTriangle,
 } from 'lucide-react';
 import { PcBlobImage } from './PcBlobMedia';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   ImageHistoryEntry, ImageSearchHistoryEntry, SubtitleSearchHistoryEntry,
   TranslateHistoryEntry,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
 
 type HistKind = 'aiImage' | 'imageSearch' | 'subtitleSearch' | 'translate';

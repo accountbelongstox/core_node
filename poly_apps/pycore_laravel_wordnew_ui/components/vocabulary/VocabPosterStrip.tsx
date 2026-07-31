@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { RefreshCw, AlertTriangle, Clapperboard, Image as ImageIcon } from 'lucide-react';
-import { api } from '../../core/api';
-import type { PosterStatusData, PosterStatusCounts } from '../../core/api/modules/AppQyV1';
+import { api } from '@/apps/laravel-manager/api';
+import type { PosterStatusData, PosterStatusCounts } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';

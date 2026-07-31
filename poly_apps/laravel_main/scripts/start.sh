@@ -76,6 +76,9 @@ ENV_DRIVER_OVERRIDE=""
 WIN_SCRIPT_PATH=""
 WIN_DRIVE=""
 WIN_REST=""
+INSTALLATION_ACCESS_CODE_FILE="${LARAVEL_DIR}/app/Support/InstallationAccessCode.php"
+GENERATED_ACCESS_CODE=""
+ACCESS_CODE_WRITE_ERROR=""
 
 # Background systemd service options (idempotent registration via debian_service_manager).
 # AS_SERVICE: yes|no|empty(ask). LARAVEL_SERVICE_RUN=1 marks the in-service run so it
@@ -107,9 +110,36 @@ for ARG in "$@"; do
 done
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
-trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR"' EXIT
+trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR" && echo "" && echo "Installation access value: ${GENERATED_ACCESS_CODE}"' EXIT
 
 # --- Functions ---
+
+new_installation_access_code() {
+    local segment_one segment_two segment_three segment_four
+    segment_one="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+    segment_two="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+    segment_three="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+    segment_four="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
+    printf 'NEXU-%s-%s-%s-%s' "$segment_one" "$segment_two" "$segment_three" "$segment_four"
+}
+
+write_installation_access_code() {
+    local access_code="$1"
+    mkdir -p "$(dirname "$INSTALLATION_ACCESS_CODE_FILE")"
+    cat > "$INSTALLATION_ACCESS_CODE_FILE" <<PHP
+<?php
+
+namespace App\Support;
+
+final class InstallationAccessCode
+{
+    public static function value(): string
+    {
+        return '${access_code}';
+    }
+}
+PHP
+}
 
 # Resolve php into PHP_BIN: PATH -> known bin locations.
 resolve_php() {
@@ -391,6 +421,14 @@ echo ""
 cd "$LARAVEL_DIR" || exit 1
 
 # --- Ensure php (auto-install via init-ensure script if missing) ---
+GENERATED_ACCESS_CODE="$(new_installation_access_code)"
+if write_installation_access_code "$GENERATED_ACCESS_CODE"; then
+    echo "Installation access value refreshed."
+else
+    ACCESS_CODE_WRITE_ERROR="unable to write ${INSTALLATION_ACCESS_CODE_FILE}"
+    echo "WARNING: ${ACCESS_CODE_WRITE_ERROR}" >&2
+fi
+
 if ! resolve_php; then
     echo "php not found. Invoking init-ensure installer:"
     echo "  $PHP_ENSURE_SCRIPT"

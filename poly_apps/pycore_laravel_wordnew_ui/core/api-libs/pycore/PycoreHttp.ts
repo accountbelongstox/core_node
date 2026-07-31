@@ -5,16 +5,14 @@
 import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
-import { StorageKeys, StorageManager } from '../../persistence';
+import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
+import { pycoreEventBus, type PycoreEventHandler } from './PycoreEventBus';
 import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_DEFAULTS,
-  PYCORE_HTTP_HEADER_NAMES,
-  PYCORE_HTTP_JSON_CONTENT_TYPE,
   PYCORE_SSE_EVENTS,
 } from './PycoreNetwork';
 
-type EventHandler = (data: any) => void;
 type StatusHandler = (connected: boolean) => void;
 type DiagHandler = (line: { level: string; message: string }) => void;
 
@@ -34,15 +32,13 @@ interface HttpEventState {
   cursor_ahead?: boolean;
 }
 
-const eventHandlers = new Map<string, Set<EventHandler>>();
 const statusHandlers = new Set<StatusHandler>();
 const diagHandlers = new Set<DiagHandler>();
 const processedEvents = new Set<string>();
 
-let browserId: string | null = null;
-let tabId: string | null = null;
-let clientId: string | null = null;
 let connected = false;
+let httpReachable = false;
+let sseConnected = false;
 let started = false;
 let suspended = false;
 let eventSource: EventSource | null = null;
@@ -52,25 +48,6 @@ let eventSeq = 0;
 let retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
 
-class PycoreHttpError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'PycoreHttpError';
-    this.status = status;
-  }
-}
-
-function mintId(prefix: string): string {
-  return `${prefix}-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
-}
-
-function newRequestId(): string {
-  try { return crypto.randomUUID(); } catch { /* older webviews */ }
-  return mintId('req');
-}
-
 function diag(level: string, message: string): void {
   diagHandlers.forEach((handler) => handler({ level, message }));
   if (!httpLogEnabled && level === 'info') return;
@@ -78,23 +55,17 @@ function diag(level: string, message: string): void {
   logger(`[pycore-http] ${message}`);
 }
 
-function setConnected(value: boolean): void {
+function updateConnectionState(): void {
+  const value = !suspended && (httpReachable || sseConnected);
   if (connected === value) return;
   connected = value;
   statusHandlers.forEach((handler) => handler(value));
 }
 
-function dispatch(event: string, data: any): void {
-  const handlers = eventHandlers.get(event);
-  if (!handlers) return;
-  handlers.forEach((handler) => {
-    try {
-      handler(data);
-    } catch (error) {
-      console.error(`[pycore-http] handler for "${event}" failed`, error);
-    }
-  });
-}
+pycoreMasterClient.onReachability((reachable) => {
+  httpReachable = reachable;
+  updateConnectionState();
+});
 
 function rememberEvent(eventId: string): boolean {
   if (!eventId) return true;
@@ -116,14 +87,12 @@ function eventStreamUrl(): string {
 }
 
 async function acknowledgeEvents(seq: number): Promise<void> {
-  const response = await fetch(rewritePycoreEndpoint(PycorePaths.eventsAck), {
-    method: 'POST',
-    headers: { [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE },
-    body: JSON.stringify({ client_id: getClientId(), seq }),
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP event ACK failed: ${response.status}`);
-  }
+  await pycoreMasterClient.postJson(
+    PycorePaths.eventsAck,
+    { client_id: getClientId(), seq },
+    undefined,
+    'events/ack',
+  );
 }
 
 function parseSseData<T>(event: MessageEvent): T | null {
@@ -143,7 +112,7 @@ function handleSseState(event: MessageEvent): void {
     eventInstanceId = nextInstanceId;
     eventSeq = 0;
     processedEvents.clear();
-    dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
+    pycoreEventBus.dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
     eventSource?.close();
     eventSource = null;
     scheduleEventReconnect(0);
@@ -153,7 +122,7 @@ function handleSseState(event: MessageEvent): void {
   if (!state.replay_lost) return;
   const earliestSeq = Number(state.earliest_seq || 1);
   eventSeq = Math.max(0, earliestSeq - 1);
-  dispatch(PYCORE_BROWSER_EVENTS.httpEventReplayLost, {
+  pycoreEventBus.dispatch(PYCORE_BROWSER_EVENTS.httpEventReplayLost, {
     instance_id: eventInstanceId,
     earliest_seq: earliestSeq,
   });
@@ -166,7 +135,7 @@ function handleSseRecord(event: MessageEvent): void {
   const topic = String(record.topic || '');
   const eventId = String(record.event_id || '');
   if (seq > eventSeq) eventSeq = seq;
-  if (topic && rememberEvent(eventId)) dispatch(topic, record.payload);
+  if (topic && rememberEvent(eventId)) pycoreEventBus.dispatch(topic, record.payload);
   void acknowledgeEvents(eventSeq).catch((error: any) => {
     diag('warn', error?.message || String(error));
   });
@@ -187,13 +156,15 @@ function openEventStream(): void {
   source.addEventListener(PYCORE_SSE_EVENTS.state, handleSseState as EventListener);
   source.addEventListener(PYCORE_SSE_EVENTS.event, handleSseRecord as EventListener);
   source.onopen = () => {
-    setConnected(true);
+    sseConnected = true;
+    updateConnectionState();
     retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
   };
   source.onerror = () => {
     if (eventSource === source) eventSource = null;
     source.close();
-    setConnected(false);
+    sseConnected = false;
+    updateConnectionState();
     if (!started || suspended) return;
     const delayMs = retryDelayMs;
     retryDelayMs = Math.min(PYCORE_HTTP_DEFAULTS.reconnectMaxMs, retryDelayMs * 2);
@@ -208,48 +179,9 @@ async function requestHttp(
   path: string = PycorePaths.api(route),
   method: 'GET' | 'POST' = 'POST',
 ): Promise<any> {
-  const requestId = newRequestId();
-  const waitMs = typeof timeoutMs === 'number' && timeoutMs > 0
-    ? timeoutMs
-    : PYCORE_HTTP_DEFAULTS.requestTimeoutMs;
-  const abortController = new AbortController();
-  const timer = setTimeout(() => abortController.abort(), waitMs);
-  try {
-    const requestOptions: RequestInit = {
-      method,
-      headers: {
-        [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-        [PYCORE_HTTP_HEADER_NAMES.requestId]: requestId,
-        [PYCORE_HTTP_HEADER_NAMES.clientId]: getClientId(),
-        [PYCORE_HTTP_HEADER_NAMES.browserId]: getBrowserId(),
-      },
-      signal: abortController.signal,
-    };
-    if (method === 'POST') requestOptions.body = JSON.stringify(params ?? {});
-    const response = await fetch(rewritePycoreEndpoint(path), requestOptions);
-    const responseText = await response.text();
-    let payload: any = null;
-    if (responseText) {
-      try { payload = JSON.parse(responseText); } catch { payload = responseText; }
-    }
-    setConnected(true);
-    if (!response.ok) {
-      const message = payload?.error?.message
-        || payload?.message
-        || (typeof payload?.error === 'string' ? payload.error : '')
-        || `HTTP ${response.status}`;
-      throw new PycoreHttpError(response.status, String(message));
-    }
-    return payload;
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
-      throw new PycoreHttpError(0, `HTTP request timeout after ${waitMs}ms: ${route}`);
-    }
-    if (!(error instanceof PycoreHttpError)) setConnected(false);
-    throw error;
-  } finally {
-    clearTimeout(timer);
-  }
+  return method === 'GET'
+    ? pycoreMasterClient.getJson(path, timeoutMs, route)
+    : pycoreMasterClient.postJson(path, params, timeoutMs, route);
 }
 
 export function onHttpDiag(handler: DiagHandler): () => void {
@@ -257,33 +189,16 @@ export function onHttpDiag(handler: DiagHandler): () => void {
   return () => { diagHandlers.delete(handler); };
 }
 
-export function getBrowserId(): string {
-  if (browserId) return browserId;
-  const stored = StorageManager.getRaw(StorageKeys.PYCORE_HTTP_BROWSER_ID);
-  if (stored) {
-    browserId = stored;
-    return browserId;
-  }
-  browserId = mintId('browser');
-  StorageManager.setRaw(StorageKeys.PYCORE_HTTP_BROWSER_ID, browserId);
-  return browserId;
+export function reportHttpDiag(level: string, message: string): void {
+  diag(level, message);
 }
 
-function getTabId(): string {
-  if (tabId) return tabId;
-  const stored = StorageManager.getSessionRaw(StorageKeys.PYCORE_HTTP_TAB_ID);
-  if (stored) {
-    tabId = stored;
-    return tabId;
-  }
-  tabId = mintId('tab');
-  StorageManager.setSessionRaw(StorageKeys.PYCORE_HTTP_TAB_ID, tabId);
-  return tabId;
+export function getBrowserId(): string {
+  return pycoreMasterClient.getBrowserId();
 }
 
 export function getClientId(): string {
-  if (!clientId) clientId = `${getBrowserId()}:${getTabId()}`;
-  return clientId;
+  return pycoreMasterClient.getClientId();
 }
 
 export function isPycoreSuspended(): boolean {
@@ -308,25 +223,15 @@ export function onHttpStatus(handler: StatusHandler): () => void {
   return () => { statusHandlers.delete(handler); };
 }
 
-export function subscribe(event: string, handler: EventHandler): () => void {
-  let handlers = eventHandlers.get(event);
-  if (!handlers) {
-    handlers = new Set<EventHandler>();
-    eventHandlers.set(event, handlers);
-  }
-  handlers.add(handler);
-  return () => {
-    const current = eventHandlers.get(event);
-    current?.delete(handler);
-    if (current && current.size === 0) eventHandlers.delete(event);
-  };
+export function subscribe(event: string, handler: PycoreEventHandler): () => void {
+  return pycoreEventBus.subscribe(event, handler);
 }
 
 export function dispatchEvent(event: string, data: any): void {
-  dispatch(event, data);
+  pycoreEventBus.dispatch(event, data);
 }
 
-export function subscribeHttpEvent(event: string, handler: EventHandler): () => void {
+export function subscribeHttpEvent(event: string, handler: PycoreEventHandler): () => void {
   return subscribe(event, handler);
 }
 
@@ -378,9 +283,10 @@ export function setPycoreActive(active: boolean): void {
   if (suspended) {
     eventSource?.close();
     eventSource = null;
+    sseConnected = false;
     if (eventReconnectTimer) clearTimeout(eventReconnectTimer);
     eventReconnectTimer = null;
-    setConnected(false);
+    updateConnectionState();
     return;
   }
   retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;

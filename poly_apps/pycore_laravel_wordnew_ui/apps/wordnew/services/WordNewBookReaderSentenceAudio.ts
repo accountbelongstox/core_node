@@ -6,7 +6,7 @@
  * with dozens of cells cannot open hundreds of parallel connections to :9000.
  */
 import { wfNewApi } from '../api';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 import { absUrl } from '../api/WfNewApiMappers';
 
 const MAX_ACTIVE_POLLERS = 4;

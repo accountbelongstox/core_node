@@ -4,13 +4,13 @@
        onto every other tab. -->
   <section class="panel-stack">
     <div class="metric-grid">
-      <article class="metric-card"><span>Indexed pages</span><strong>{{ storageStats.indexedPages }}</strong></article>
-      <article class="metric-card"><span>Index size</span><strong>{{ formattedIndexSize }}</strong></article>
-      <article class="metric-card"><span>Active tabs</span><strong>{{ storageStats.totalTabs }}</strong></article>
+      <article class="metric-card"><span>{{ getMessage('indexedPagesLabel') }}</span><strong>{{ storageStats.indexedPages }}</strong></article>
+      <article class="metric-card"><span>{{ getMessage('indexSizeLabel') }}</span><strong>{{ formattedIndexSize }}</strong></article>
+      <article class="metric-card"><span>{{ getMessage('activeTabsLabel') }}</span><strong>{{ storageStats.totalTabs }}</strong></article>
     </div>
     <div class="panel-grid">
       <article class="ui-card">
-        <div class="ui-card__heading"><div><p class="ui-eyebrow">Vector store</p><h3>Index data</h3></div></div>
+        <div class="ui-card__heading"><div><p class="ui-eyebrow">{{ getMessage('vectorStoreLabel') }}</p><h3>{{ getMessage('indexDataLabel') }}</h3></div></div>
         <ProgressIndicator v-if="isClearingData && clearDataProgress" :visible="true" :text="clearDataProgress" :show-spinner="true" />
         <button class="ui-button ui-button--danger ui-button--block" :disabled="isClearingData" @click="showClearConfirmation = true">
           {{ isClearingData ? getMessage('clearingStatus') : getMessage('clearAllDataButton') }}

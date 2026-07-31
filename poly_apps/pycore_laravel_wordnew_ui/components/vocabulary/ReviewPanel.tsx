@@ -10,8 +10,8 @@ import {
   RotateCcw,
   Lock
 } from 'lucide-react';
-import { api } from '../../core/api';
-import type { ReviewQueueWord } from '../../core/api/modules/AppQyV1';
+import { api } from '@/apps/laravel-manager/api';
+import type { ReviewQueueWord } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';

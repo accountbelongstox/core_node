@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../types';
 import {
   Folder,

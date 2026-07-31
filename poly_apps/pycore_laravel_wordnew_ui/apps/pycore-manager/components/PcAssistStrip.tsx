@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle, Check, Handshake, Loader2, Play, Power, RefreshCw, WifiOff,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { AssistCapabilities, AssistStatus } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { AssistCapabilities, AssistStatus } from '@/apps/pycore-manager/api';
 import {
   laravelEndpointMismatch, laravelLiveSyncOffline, useQueueCenterHub, workerEndpointMismatch,
 } from '../hooks/useQueueCenterHub';

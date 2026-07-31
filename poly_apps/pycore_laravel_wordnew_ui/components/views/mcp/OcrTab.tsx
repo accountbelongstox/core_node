@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Play, Wand2, Image, Copy, Eye } from 'lucide-react';
 import { Language, AsyncState } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, InlineSpinner, AlertBox, Field, EmptyState } from '../../common';

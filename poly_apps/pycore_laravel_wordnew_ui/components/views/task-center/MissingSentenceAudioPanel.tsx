@@ -5,9 +5,9 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { SentenceAudioAutoStatus } from '../../../core/api-libs/pycore';
+import { api } from '@/apps/laravel-manager/api';
+import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
+import type { SentenceAudioAutoStatus } from '@/apps/laravel-manager/integrations/pycore';
 import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw, Power, Check, ExternalLink } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { EmptyState, InlineSpinner } from '../../common';

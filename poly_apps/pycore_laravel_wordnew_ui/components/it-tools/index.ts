@@ -8,7 +8,7 @@
  * - Base64 Converter
  * - And more...
  *
- * Note: All IT Tools components now use centralized ITToolsModel from core/models
+ * All IT Tools components use the Laravel Manager model boundary.
  * for consistent API calls and state management
  */
 

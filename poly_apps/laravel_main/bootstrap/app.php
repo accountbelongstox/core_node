@@ -17,6 +17,7 @@ use App\Http\Middleware\CustomAuthenticate;
 use App\Http\Middleware\GoLatency;
 use App\Http\Middleware\LocalAccessOnly;
 use App\Http\Middleware\LocalDebugOrSanctum;
+use App\Http\Middleware\PycoreClientOnly;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -90,6 +91,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'custom.authenticate' => CustomAuthenticate::class,
             'local.only' => LocalAccessOnly::class,
             'dashboard.auth' => LocalDebugOrSanctum::class,
+            'pycore.client' => PycoreClientOnly::class,
         ]);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);

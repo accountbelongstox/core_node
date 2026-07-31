@@ -28,7 +28,11 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pylauncher.launcher import LauncherConfig, ServiceLauncher
-from pycore.pyfoundations.network_constants import HTTP_API_PREFIX
+from pycore.pyfoundations.network_constants import (
+    HTTP_API_PREFIX,
+    HTTP_BIND_HOST,
+    HTTP_ROUTES_PATH,
+)
 from pycore.pyfoundations.pygvar import MCP_BACKEND_RPC_PORT
 from pycore.pyctl.mcpctl.backend.config import BACKEND_INFO_TEMPLATE
 from pycore.pyctl.mcpctl.backend.handlers.context import set_handler_context
@@ -61,7 +65,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
             'heartbeat': {},  # Always enabled by default
             'rpc_v2': {
                 'port': MCP_BACKEND_RPC_PORT,
-                'host': '0.0.0.0',
+                'host': HTTP_BIND_HOST,
                 'debug': True
             }
         }
@@ -141,7 +145,7 @@ def start_mcp_backend(shutdown_existing: bool = True) -> bool:
     )
     ColorPrint.blue(
         f"[Backend] HTTP controllers: "
-        f"http://localhost:{MCP_BACKEND_RPC_PORT}/api/routes"
+        f"http://localhost:{MCP_BACKEND_RPC_PORT}{HTTP_ROUTES_PATH}"
     )
     ColorPrint.yellow("\n[Backend] Server running...")
     ColorPrint.yellow("Press Ctrl+C to stop\n")

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Chrome MCP Server Startup Script (Linux/macOS)
-# Entry script - only responsible for calling Python and executing commands
-# No business logic here
+# Shell owns build/watch orchestration; Python is called after builds to recover
+# the MCP connection.
 
 set -e
 
@@ -13,10 +13,18 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 DARK_GRAY='\033[0;90m'
 NC='\033[0m' # No Color
+MCP_WATCH_CHOICE="${MCP_CHROME_WATCH_MODE:-}"
+MCP_WATCH_MODE="dev"
+MCP_DEV_PID=""
+MCP_SUPERVISOR_EXIT="0"
 
 # Get project root directory - use MCP prefix to avoid conflicts
 MCP_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 MCP_PROJECT_ROOT="$( cd "$MCP_SCRIPT_DIR/.." && pwd )"
+MCP_CORE_NODE_ROOT="$(cd "$MCP_PROJECT_ROOT/../.." && pwd)"
+MCP_LINUX_COMMON_DIR="$MCP_CORE_NODE_ROOT/scripts/shells/linux/common"
+MCP_GVAR_COMMON="$MCP_LINUX_COMMON_DIR/gvar_common.sh"
+MCP_VENV_PYTHON_COMMON="$MCP_LINUX_COMMON_DIR/venv_python_common.sh"
 
 # WXT imports config/queue_center_contract.json from the repository root
 # directly. Do not copy the task contract here; wxt.config.ts explicitly allows
@@ -24,19 +32,19 @@ MCP_PROJECT_ROOT="$( cd "$MCP_SCRIPT_DIR/.." && pwd )"
 # Import variable management library and key definitions
 source "$MCP_SCRIPT_DIR/var_keys.sh"
 source "$MCP_SCRIPT_DIR/var_manager.sh"
+source "$MCP_GVAR_COMMON"
+source "$MCP_VENV_PYTHON_COMMON"
+MCP_PYTHON_EXE="$VENV_PYTHON3"
 
 # Source get_real_user.sh for permission management (only if running as root)
-MCP_COMMON_LIB_DIR="/www/programing/core_node/scripts/shells/linux/common"
+MCP_COMMON_LIB_DIR="$MCP_LINUX_COMMON_DIR"
 if [ "$(id -u)" -eq 0 ] && [ -f "$MCP_COMMON_LIB_DIR/get_real_user.sh" ]; then
     source "$MCP_COMMON_LIB_DIR/get_real_user.sh" 2>/dev/null || true
 fi
 
-# --- Dev-watch mode (invoked by the ncore-mcp-chrome systemd service, or by
-#     `start.sh --dev`). Skips build/register and runs only the WXT dev watch,
-#     so the service stays always-on for dynamic debugging. INVOCATION_ID is
-#     set by systemd for every service start, so the auto-created unit (whose
-#     ExecStart is `bash start.sh`) lands here without any extra flag. --- #
-if [ "${1:-}" = "--dev" ] || [ -n "$INVOCATION_ID" ]; then
+# The system service starts the shell-owned watcher and lets Python only monitor
+# build artifacts and wake the native MCP connection.
+if [ -n "$INVOCATION_ID" ]; then
     # Under systemd PATH is minimal; source nvm and extend PATH so pnpm resolves.
     for MCP_DEV_NVM in "$HOME/.nvm" "/usr/local/nvm" "/opt/nvm"; do
         if [ -s "$MCP_DEV_NVM/nvm.sh" ]; then
@@ -47,22 +55,37 @@ if [ "${1:-}" = "--dev" ] || [ -n "$INVOCATION_ID" ]; then
     done
     export PATH="$HOME/.local/share/pnpm:$HOME/.local/bin:/usr/local/bin:/usr/bin:$PATH"
     if ! command -v pnpm >/dev/null 2>&1; then
-        echo "[start.sh --dev] pnpm not found in PATH" >&2
+        echo "[start.sh] pnpm not found in PATH" >&2
         exit 127
     fi
-    MCP_DEV_EXT_DIR="$MCP_PROJECT_ROOT/app/chrome-extension"
-    if [ ! -d "$MCP_DEV_EXT_DIR" ]; then
-        echo "[start.sh --dev] chrome-extension dir not found: $MCP_DEV_EXT_DIR" >&2
-        exit 1
-    fi
-    cd "$MCP_DEV_EXT_DIR" || { echo "[start.sh --dev] cannot cd to $MCP_DEV_EXT_DIR" >&2; exit 1; }
-    echo "[start.sh --dev] starting WXT dev watch in $MCP_DEV_EXT_DIR"
-    exec pnpm run dev
+    echo "[start.sh] starting shell-owned MCP Chrome watcher"
+    pnpm run dev &
+    MCP_DEV_PID=$!
+    trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start
+    MCP_SUPERVISOR_EXIT=$?
+    kill "$MCP_DEV_PID" 2>/dev/null || true
+    exit "$MCP_SUPERVISOR_EXIT"
 fi
 
 echo -e "\n${CYAN}========================================${NC}"
 echo -e "${CYAN}  Chrome MCP Server - Linux/macOS${NC}"
 echo -e "${CYAN}========================================\n${NC}"
+
+if [ -z "$MCP_WATCH_CHOICE" ]; then
+    read -rp "Enable development watch mode? [Y/n] " MCP_WATCH_CHOICE || MCP_WATCH_CHOICE=""
+fi
+case "$MCP_WATCH_CHOICE" in
+    n|N|no|NO|No|once|ONCE|Once)
+        MCP_WATCH_MODE="once"
+        echo -e "${YELLOW}  One-time build selected.${NC}"
+        ;;
+    *)
+        MCP_WATCH_MODE="dev"
+        echo -e "${GREEN}  Development watch mode selected.${NC}"
+        ;;
+esac
+echo ""
 
 # Change to project root
 cd "$MCP_PROJECT_ROOT"
@@ -273,14 +296,8 @@ echo ""
 MCP_PYTHON_SCRIPT="$MCP_SCRIPT_DIR/build_orchestrator.py"
 
 # Check if Python is installed
-if ! command -v python3 &> /dev/null; then
-    echo -e "${RED}ERROR: Python 3 is not installed or not in PATH${NC}"
-    echo -e "${YELLOW}Please install Python 3.7+ from https://www.python.org/${NC}"
-    exit 1
-fi
-
 # Run Python script
-if ! python3 "$MCP_PYTHON_SCRIPT"; then
+if ! "$MCP_PYTHON_EXE" "$MCP_PYTHON_SCRIPT"; then
     mcp_error=$(mcp_get_var "$VAR_KEY_ERROR" || echo "Unknown error")
     echo ""
     echo -e "${RED}ERROR: Python processing failed: $mcp_error${NC}"
@@ -548,8 +565,7 @@ echo ""
 # ======================================
 # Reuse the repo service manager (debian_service_manager.sh) to create the
 # ncore-mcp-chrome unit. The unit's ExecStart is `bash start.sh`; under systemd
-# INVOCATION_ID is set, so start.sh enters its dev-watch mode above (WXT HMR).
-MCP_CORE_NODE_ROOT="$(cd "$MCP_PROJECT_ROOT/../.." && pwd)"
+# INVOCATION_ID is set, so start.sh enters its singleton supervisor mode above.
 MCP_DEB_SVC_MGR="$MCP_CORE_NODE_ROOT/scripts/shells/linux/common/debian_service_manager.sh"
 MCP_SERVICE_NAME="ncore-mcp-chrome"
 MCP_SVC_SUDO=""
@@ -597,3 +613,17 @@ if systemctl cat "${MCP_SERVICE_NAME}.service" >/dev/null 2>&1; then
     echo ""
 fi
 echo ""
+
+if [ "$MCP_WATCH_MODE" = "dev" ]; then
+    echo -e "${CYAN}[Watch] Starting shell-owned development compilation...${NC}"
+    pnpm run dev &
+    MCP_DEV_PID=$!
+    trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
+fi
+
+"$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground
+MCP_SUPERVISOR_EXIT=$?
+if [ -n "$MCP_DEV_PID" ]; then
+    kill "$MCP_DEV_PID" 2>/dev/null || true
+fi
+exit "$MCP_SUPERVISOR_EXIT"

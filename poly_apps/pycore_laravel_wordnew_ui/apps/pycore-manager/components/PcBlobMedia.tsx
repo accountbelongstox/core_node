@@ -4,7 +4,7 @@
  * empty until the HTTP request completes.
  */
 import React, { useEffect, useState } from 'react';
-import { fetchPycoreBlobUrl } from '../../../core/api-libs/pycore/PycoreBlob';
+import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
 
 /** Resolve a pycore media path to an HTTP-fetched data URL. */
 export function usePycoreBlobUrl(url: string | null | undefined): string | undefined {

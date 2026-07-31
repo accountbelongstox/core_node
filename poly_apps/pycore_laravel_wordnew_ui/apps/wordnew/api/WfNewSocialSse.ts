@@ -2,7 +2,7 @@
  * WfNewSocialSse — dependency-free EventSource client for the wordnew SOCIAL
  * realtime stream (SOCIAL_FEATURE_SPECIFICATION.md §3 "SSE").
  *
- * Modeled on core/api-libs/pycore/PycoreSse.ts: a single auto-reconnecting
+ * Uses WordNew's own single auto-reconnecting SSE transport:
  * EventSource, `?cursor=` resume from the last seen `_id`, ping keep-alive, and a
  * tiny `subscribe(event, handler)` bus. It is SEPARATE from the request/response
  * impls (WfNewApiHttp / WfNewApiMock) — it only delivers push events; all reads

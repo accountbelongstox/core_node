@@ -1,6 +1,6 @@
 /**
  * MasterApiClient — the ONE master HTTP base client for the dashboard's three
- * end API libs (core/api-libs/laravel, core/api-libs/pycore,
+ * application-owned API libraries and shared service clients,
  * app-specific transport adapters). Each end inherits and opts in via subclass hooks.
  *
  * Canonical designs this mirrors for HTTP:
@@ -114,7 +114,7 @@ type QueueEntryFailedCb = (info: QueueEntryFailedInfo) => void;
 export interface MasterApiClientConfig {
   /**
    * Per-end namespaced localStorage key for the persistent write queue
-   * (e.g. 'wordnew_api_queue'). The queue is DISABLED when omitted/null — the
+   * The queue is disabled when omitted/null; the
    * client is then a pure pass-through transport (laravel/pycore default).
    */
   queueStorageKey?: string | null;

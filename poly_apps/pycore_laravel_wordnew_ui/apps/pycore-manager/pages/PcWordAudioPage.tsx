@@ -28,8 +28,8 @@ import {
   Volume2, RefreshCw, CheckCircle2, MinusCircle, WifiOff, Languages,
   Type, Play, Loader2, KeyRound, AudioLines, Info,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { WordAudioStatus, WordAudioTestResponse } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { WordAudioStatus, WordAudioTestResponse } from '@/apps/pycore-manager/api';
 
 // i18n labels (single source; the pages use literals, not a `t` object).
 const L = {

@@ -20,10 +20,10 @@ import {
   AudioLines, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle, KeyRound,
   Play, Volume2, Sparkles,
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '../../core/logstore/logStore';
-import type { WordAudioStatus, WordAudioTestResult } from '../../core/api/modules/WordAudioAPI';
+import type { WordAudioStatus, WordAudioTestResult } from '@/apps/laravel-manager/api';
 
 /** Shared glass-card surface used across the laravel-manager views. */
 const CARD = 'rounded-2xl ring-1 ring-slate-200/60 dark:ring-white/5 bg-white/70 dark:bg-white/[0.025] backdrop-blur-md shadow-sm';

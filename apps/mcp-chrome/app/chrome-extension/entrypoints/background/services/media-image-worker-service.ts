@@ -4,7 +4,7 @@
  * Fulfils:
  *   - GlobalTask `poster` on dedicated `remote_poster` lane
  *   - GlobalTask `word_media` on the fast lane (capability image)
- *   - Laravel assist pool items `cover` + `poster` via /assist/claim + /assist/submit
+ *   - Laravel assist pool `poster` items via /assist/claim + /assist/submit
  *
  * Replaces pycore TMDB/OMDB + AI cover generation (delegated to mcp-chrome).
  */
@@ -44,6 +44,9 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     postersSubmitted: 0,
     assistFailed: 0,
     lastAssistRun: null as number | null,
+    lastAssistError: null as string | null,
+    currentAssistItem: null as string | null,
+    currentAssistStage: 'idle',
   };
 
   protected get processorKey(): string {
@@ -71,8 +74,13 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   async start(config: SimpleWorkerConfig): Promise<void> {
-    await super.start(config);
+    await super.start({ ...config, pollWait: 0 });
     this.startAssistLoop();
+    logger.info(LOG, 'Assist polling activated', {
+      apiUrl: config.apiUrl,
+      types: ['poster'],
+      intervalMs: ASSIST_POLL_MS,
+    });
   }
 
   stop(): void {
@@ -111,24 +119,62 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     if (!this.config?.apiUrl || this.assistBusy) return;
     this.assistBusy = true;
     this.assistStats.lastAssistRun = Date.now();
+    this.assistStats.lastAssistError = null;
+    this.assistStats.currentAssistStage = 'claiming';
+    this.stats.lastRun = this.assistStats.lastAssistRun;
+    logger.debug(LOG, 'Assist claim cycle started', {
+      apiUrl: this.config.apiUrl,
+      types: ['poster'],
+      limit: 3,
+    });
     try {
       const items = await claimAssistItems(
         this.config.apiUrl,
-        ['cover', 'poster'],
+        ['poster'],
         ASSIST_CLAIMER,
         3,
       );
-      if (!items.length) return;
-      logger.info(LOG, `Assist claimed ${items.length} item(s)`);
+      this.noteBackendSuccess();
+      if (!items.length) {
+        logger.debug(LOG, 'Assist claim returned no work');
+        return;
+      }
+      logger.info(LOG, `Assist claimed ${items.length} item(s)`, {
+        items: items.map((item) => ({
+          type: item.type,
+          mediaType: item.media_type || null,
+          id: item.id,
+          title: String(item.payload?.title || item.payload?.name || ''),
+        })),
+      });
       for (const item of items) {
         if (!this.getStatus().isRunning) break;
-        await this.processAssistItem(item);
+        const itemKey = `${item.type}:${item.media_type || 'library'}:${item.id}`;
+        this.assistStats.currentAssistItem = itemKey;
+        this.assistStats.currentAssistStage = 'processing';
+        this.stats.currentTaskId = `assist:${itemKey}`;
+        try {
+          await this.processAssistItem(item);
+        } finally {
+          this.assistStats.currentAssistItem = null;
+          this.assistStats.currentAssistStage = 'idle';
+          this.stats.currentTaskId = null;
+        }
         await this.delay(1200);
       }
     } catch (error: any) {
-      logger.warn(LOG, `Assist cycle failed: ${error?.message || String(error)}`);
+      const message = error?.message || String(error);
+      this.noteBackendFailure(error);
+      this.assistStats.lastAssistError = message;
+      this.assistStats.currentAssistStage = 'failed';
+      logger.error(LOG, `Assist cycle failed: ${message}`, {
+        apiUrl: this.config.apiUrl,
+      });
     } finally {
       this.assistBusy = false;
+      if (!this.assistStats.currentAssistItem && this.assistStats.currentAssistStage !== 'failed') {
+        this.assistStats.currentAssistStage = 'idle';
+      }
     }
   }
 
@@ -137,6 +183,10 @@ class MediaImageWorkerService extends SimpleWorkerBase {
     const baseUrl = this.config.apiUrl;
     const started = Date.now();
     const payload = item.payload || {};
+    logger.info(LOG, `Processing assist ${item.type}#${item.id}`, {
+      mediaType: item.media_type || null,
+      title: String(payload.title || payload.name || ''),
+    });
 
     if (item.type === 'cover') {
       const name = String(payload.name || '').trim();
@@ -151,17 +201,27 @@ class MediaImageWorkerService extends SimpleWorkerBase {
       let provider = 'gemini';
       let model: string | undefined = 'gemini-web';
       if (prompt) {
+        this.assistStats.currentAssistStage = 'gemini_generation';
+        logger.debug(LOG, `Generating library cover#${item.id} with Gemini`, {
+          name,
+          promptLength: prompt.length,
+        });
         const generated = await generateViaGemini(prompt);
         if (generated) {
           imageBase64 = generated.imageBase64;
           mime = generated.mime;
+          logger.info(LOG, `Gemini generated library cover#${item.id}`, { mime });
         }
       }
       if (!imageBase64) {
         const query = buildVocabCoverQuery(name, prompt);
+        this.assistStats.currentAssistStage = 'image_search';
+        logger.info(LOG, `Searching fallback image for library cover#${item.id}`, { query });
         const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
         if (!image) {
           this.assistStats.assistFailed += 1;
+          this.stats.failed += 1;
+          logger.warn(LOG, `No image found for library cover#${item.id}`, { query });
           await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: no cover image found');
           return;
         }
@@ -169,20 +229,33 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         mime = image.mime;
         provider = image.provider;
         model = image.engine;
+        logger.info(LOG, `Fallback image resolved for library cover#${item.id}`, {
+          provider,
+          model,
+          sourceUrl: image.sourceUrl,
+        });
       }
       if (!imageBase64 || !looksLikeImageBase64(imageBase64)) {
         // Bad bytes (SVG/HTML error page/…) would be rejected server-side as
         // 'invalid' forever — release the claim instead of poisoning the outbox.
         this.assistStats.assistFailed += 1;
+        this.stats.failed += 1;
+        logger.warn(LOG, `Image validation failed for library cover#${item.id}`, { provider, mime });
         await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: cover image failed magic validation');
         return;
       }
       const extras = { mime, provider, model, latencyMs: Date.now() - started };
+      this.assistStats.currentAssistStage = 'submitting';
+      logger.debug(LOG, `Submitting library cover#${item.id}`, extras);
       const result = await submitAssistCover(baseUrl, item.id, imageBase64, ASSIST_CLAIMER, extras);
       await this.finalizeAssistSubmit(result, {
         onOk: () => {
           this.assistStats.coversSubmitted += 1;
-          logger.info(LOG, `Assist cover#${item.id} submitted${result.already_done ? ' (already done)' : ''}`);
+          this.stats.translated += 1;
+          this.assistStats.currentAssistStage = 'completed';
+          logger.info(LOG, `Backend accepted library cover#${item.id}${result.already_done ? ' (already done)' : ''}`, {
+            status: result.status,
+          });
         },
         release: () => releaseAssistItem(baseUrl, 'cover', item.id,
           `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`),
@@ -198,9 +271,13 @@ class MediaImageWorkerService extends SimpleWorkerBase {
       const year = yearRaw == null || yearRaw === '' ? null : Number(yearRaw);
       const kind = mediaType === 'book' ? 'book' : 'movie';
       const query = buildPosterQuery(title, Number.isFinite(year) ? year : null, kind);
+      this.assistStats.currentAssistStage = 'image_search';
+      logger.info(LOG, `Searching image for ${mediaType} poster#${item.id}`, { title, query });
       const image = await resolvePosterImageFromSearch(query, { waitForVerification: false });
       if (!image) {
         this.assistStats.assistFailed += 1;
+        this.stats.failed += 1;
+        logger.warn(LOG, `No image found for ${mediaType} poster#${item.id}`, { title, query });
         await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: no poster image found', {
           media_type: mediaType,
         });
@@ -209,6 +286,12 @@ class MediaImageWorkerService extends SimpleWorkerBase {
       if (!looksLikeImageBase64(image.imageBase64)) {
         // Same terminal-bytes guard as the cover path (see above).
         this.assistStats.assistFailed += 1;
+        this.stats.failed += 1;
+        logger.warn(LOG, `Image validation failed for ${mediaType} poster#${item.id}`, {
+          provider: image.provider,
+          mime: image.mime,
+          sourceUrl: image.sourceUrl,
+        });
         await releaseAssistItem(baseUrl, 'poster', item.id, 'mcp-chrome: poster image failed magic validation', {
           media_type: mediaType,
         });
@@ -220,11 +303,18 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         sourceId: image.sourceUrl.slice(0, 512),
         latencyMs: Date.now() - started,
       };
+      this.assistStats.currentAssistStage = 'submitting';
+      logger.debug(LOG, `Submitting ${mediaType} poster#${item.id}`, extras);
       const result = await submitAssistPoster(baseUrl, mediaType, item.id, image.imageBase64, ASSIST_CLAIMER, extras);
       await this.finalizeAssistSubmit(result, {
         onOk: () => {
           this.assistStats.postersSubmitted += 1;
-          logger.info(LOG, `Assist poster#${item.id} (${mediaType}) submitted${result.already_done ? ' (already done)' : ''}`);
+          this.stats.translated += 1;
+          this.assistStats.currentAssistStage = 'completed';
+          logger.info(LOG, `Backend accepted ${mediaType} poster#${item.id}${result.already_done ? ' (already done)' : ''}`, {
+            status: result.status,
+            provider: image.provider,
+          });
         },
         release: () => releaseAssistItem(baseUrl, 'poster', item.id,
           `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`, { media_type: mediaType }),
@@ -255,11 +345,17 @@ class MediaImageWorkerService extends SimpleWorkerBase {
       return;
     }
     this.assistStats.assistFailed += 1;
+    this.stats.failed += 1;
     if (result.status === 'invalid' || result.status === 'not_found') {
+      logger.warn(LOG, `Assist submit rejected as ${result.status}`, { error: result.error || null });
       await actions.release();
       return;
     }
     if (!this.config?.apiUrl) return;
+    logger.warn(LOG, 'Assist submit deferred to the durable outbox', {
+      status: result.status || null,
+      error: result.error || null,
+    });
     await submitOutbox.enqueue({
       kind: 'assist_submit',
       baseUrl: this.config.apiUrl,

@@ -24,7 +24,7 @@
 
     <!-- Search + clear -->
     <div class="dictionary-toolbar">
-      <button class="icon-button" @click="handleClearHistory" title="Clear history">[CLEAR]</button>
+      <button class="icon-button" @click="handleClearHistory" :title="getMessage('clearHistoryButton')">[CLEAR]</button>
     </div>
 
     <!-- Search Box -->
@@ -64,6 +64,7 @@ import SearchBox from './bing-dictionary/SearchBox.vue';
 import WordResult from './bing-dictionary/WordResult.vue';
 import HistoryList from './bing-dictionary/HistoryList.vue';
 import './bing-dictionary/base-styles.css';
+import { getMessage } from '@/utils/i18n';
 
 // Dictionary composable
 const {

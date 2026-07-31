@@ -8,8 +8,8 @@ import {
   Activity, ScanText, Eye, Cpu, AudioLines, Loader2, RefreshCw, AlertTriangle,
   Languages, Mic, Play,
 } from 'lucide-react';
-import { usePycoreCapability, ttsEngineUiState, usePcEngineLoadStatus } from '../../../core/api-libs/pycore';
-import type { EngineLoadStatusEntry } from '../../../core/api-libs/pycore/pycoreTypes';
+import { usePycoreCapability, ttsEngineUiState, usePcEngineLoadStatus } from '@/apps/pycore-manager/api';
+import type { EngineLoadStatusEntry } from '@/apps/pycore-manager/api';
 import { PcTtsServerControls } from './PcTtsServerControls';
 import { usePcTestPopup } from './PcTestPopupContext';
 import type { PcTestKind, PcTestPopupState } from './PcTestPopup';

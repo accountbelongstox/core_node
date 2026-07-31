@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApiConfig } from '../../contexts/ApiConfigContext';
 import { useAppState } from '../../contexts/AppStateContext';
 import { Language } from '../../types';
@@ -8,8 +8,8 @@ import { commonClasses } from '../../styles/theme';
 import { InlineSpinner, LoadingBlock, AlertBox, Field } from '../common';
 import { useUser } from '../../hooks/useUser';
 import { useUserRole } from '../../hooks/useUserRole';
-import { api } from '../../core/api';
-import { ServerConfig, EnvironmentInfo } from '../../core/api/modules/SystemConfigAPI';
+import { api } from '@/apps/laravel-manager/api';
+import { ServerConfig, EnvironmentInfo } from '@/apps/laravel-manager/api';
 import { getOriginUrl } from '../../config/constants';
 import { apiManager, HealthCheckResult } from '../../services/ApiManager';
 import { recheckApiEndpointsNow } from '../../services/ApiHealthRecheck';
@@ -26,10 +26,10 @@ type SettingsTab = 'server' | 'user' | 'api' | 'other';
 const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const { lang, theme, setLang, setTheme } = useAppState();
   const { config, updateConfig, resetConfig } = useApiConfig();
-  const { user } = useUser();
+  const { user, refreshState } = useUser();
   const { isAdmin, isSuperAdmin, roleLevel, roleName } = useUserRole();
 
-  const [activeTab, setActiveTab] = useState<SettingsTab>('api');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('user');
   
   // API Configuration State
   const [baseUrl, setBaseUrl] = useState(config.baseUrl);
@@ -141,6 +141,9 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [userProfileForm, setUserProfileForm] = useState<any>({});
   const [userPrefsForm, setUserPrefsForm] = useState<any>({});
   const [userSaveStatus, setUserSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [superCode, setSuperCode] = useState('');
+  const [superCodeStatus, setSuperCodeStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [superCodeMessage, setSuperCodeMessage] = useState('');
   
   // Password Change State
   const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -190,10 +193,10 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
   // Load user profile when user tab is active
   useEffect(() => {
-    if (activeTab === 'user' && user && !userProfile) {
+    if (activeTab === 'user' && !userProfile && !userProfileLoading && !userProfileError) {
       loadUserProfile();
     }
-  }, [activeTab, user]);
+  }, [activeTab, userProfile, userProfileLoading, userProfileError]);
 
   const loadServerConfig = async () => {
     if (!isAdmin) return;
@@ -225,8 +228,6 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   };
 
   const loadUserProfile = async () => {
-    if (!user) return;
-    
     setUserProfileLoading(true);
     setUserProfileError(null);
     
@@ -322,6 +323,28 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
     }
   };
 
+  const handleRedeemSuperCode = async () => {
+    const code = superCode.trim();
+    if (!code || superCodeStatus === 'submitting') return;
+
+    setSuperCodeStatus('submitting');
+    setSuperCodeMessage('');
+    try {
+      const response = await api.inviteCode.redeemSuperCode(code);
+      if (!response.success) {
+        throw new Error(response.error || response.message || 'Unable to redeem super-admin code');
+      }
+      setSuperCodeStatus('success');
+      setSuperCodeMessage(response.message || 'Super-admin access granted');
+      setSuperCode('');
+      await loadUserProfile();
+      await refreshState();
+    } catch (error: any) {
+      setSuperCodeStatus('error');
+      setSuperCodeMessage(error?.message || 'Unable to redeem super-admin code');
+    }
+  };
+
   const handleSave = () => {
     try {
       const hostname = baseUrl.trim().replace(/^https?:\/\//, '').replace(/:\d+$/, '');
@@ -395,7 +418,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
   const tabs: Array<{ id: SettingsTab; label: string; icon: React.ReactNode; requiresAuth?: boolean; requiresAdmin?: boolean }> = [
     { id: 'api', label: 'API Configuration', icon: <Globe className="w-4 h-4" /> },
-    { id: 'user', label: 'User Settings', icon: <User className="w-4 h-4" />, requiresAuth: true },
+    { id: 'user', label: 'User Settings', icon: <User className="w-4 h-4" /> },
     { id: 'server', label: 'Server Settings', icon: <Server className="w-4 h-4" />, requiresAuth: true, requiresAdmin: true },
     { id: 'other', label: 'Other Settings', icon: <SettingsIcon className="w-4 h-4" /> },
   ];
@@ -1129,7 +1152,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
 
         {activeTab === 'user' && (
           <div className="space-y-6">
-            {!user ? (
+            {!user && !userProfile && !userProfileLoading ? (
               <div className={`${commonClasses.card} p-6 text-center`}>
                 <User className="w-12 h-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
@@ -1244,6 +1267,63 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                       </Field>
                     </div>
                   </div>
+                </div>
+
+                <div className={`${commonClasses.card} p-6`}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Shield className="w-5 h-5 text-indigo-500" />
+                    <h2 className="text-lg font-semibold">Account Information</h2>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {[
+                      ['User ID', userProfile.id],
+                      ['Username', userProfile.username],
+                      ['Email', userProfile.email],
+                      ['Role', userProfile.rolename ?? (userProfile as any).role_name],
+                      ['Role Level', userProfile.rolelevel ?? (userProfile as any).role_level],
+                      ['Active', userProfile.is_active ? 'Yes' : 'No'],
+                      ['Created', userProfile.created_at],
+                      ['Updated', userProfile.updated_at],
+                      ['Avatar', userProfile.avatar],
+                      ['Avatar URL', userProfile.avatar_url],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-3">
+                        <div className="text-slate-500 dark:text-slate-400">{label}</div>
+                        <div className="mt-1 break-all text-slate-900 dark:text-white">{value || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={`${commonClasses.card} p-6`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Key className="w-5 h-5 text-amber-500" />
+                    <h2 className="text-lg font-semibold">Super-Admin Access</h2>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    Enter a valid super-admin code to upgrade this account. The code is verified and consumed by the server.
+                  </p>
+                  <div className="flex gap-3">
+                    <input
+                      type="password"
+                      value={superCode}
+                      onChange={(e) => setSuperCode(e.target.value)}
+                      placeholder="Super-admin code"
+                      className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                    />
+                    <button
+                      onClick={handleRedeemSuperCode}
+                      disabled={!superCode.trim() || superCodeStatus === 'submitting'}
+                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium"
+                    >
+                      {superCodeStatus === 'submitting' ? 'Checking...' : 'Upgrade Access'}
+                    </button>
+                  </div>
+                  {superCodeMessage && (
+                    <div className={`mt-3 text-sm ${superCodeStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                      {superCodeMessage}
+                    </div>
+                  )}
                 </div>
 
                 {/* User Preferences */}

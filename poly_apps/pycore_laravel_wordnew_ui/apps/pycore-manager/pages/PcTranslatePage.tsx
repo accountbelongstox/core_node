@@ -24,10 +24,10 @@ import {
   Languages, RefreshCw, CheckCircle2, MinusCircle, WifiOff, Sparkles,
   Database, ArrowRightLeft, Bot,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   TranslateStatus, TranslateResponse, TranslateAiResponse,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import PcDictionaryPanel from '../components/PcDictionaryPanel';
 
 // i18n labels (single source; the pages use literals, not a `t` object).

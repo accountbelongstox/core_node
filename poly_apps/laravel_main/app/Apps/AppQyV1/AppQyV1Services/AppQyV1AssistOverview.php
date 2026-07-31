@@ -6,11 +6,13 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Models\Book;
 use App\Models\Subtitle;
 use App\Support\QueueCenterContract;
+use Illuminate\Support\Facades\Cache;
 
 trait AppQyV1AssistOverview
 {
     public const OVERVIEW_SNAPSHOT_KEY = 'appqyv1:assist:overview_snapshot:v2';
     public const OVERVIEW_TTL = 30;
+    public const OVERVIEW_STALE_TTL = 300;
 
     /**
      * Laravel supplies metrics; config/queue_center_contract.json supplies all
@@ -19,6 +21,7 @@ trait AppQyV1AssistOverview
      */
     public function overviewSnapshot(bool $fresh = false): array
     {
+        $cache = Cache::store('file');
         $build = function (): array {
             $cover = $this->coverCounts();
             $poster = $this->posterCounts();
@@ -54,6 +57,7 @@ trait AppQyV1AssistOverview
                 'notebooklm' => $this->notebookLmCounts(),
                 'gemini_image' => $this->geminiImageCounts(),
                 'gemini_chat' => $this->geminiChatCounts(),
+                'chatgpt_chat' => $this->chatGptCounts(),
             ];
             $generatedAt = now()->toIso8601String();
 
@@ -68,14 +72,12 @@ trait AppQyV1AssistOverview
         };
 
         if ($fresh) {
-            $snapshot = $build();
-            \Illuminate\Support\Facades\Cache::put(self::OVERVIEW_SNAPSHOT_KEY, $snapshot, self::OVERVIEW_TTL);
-            return $snapshot;
+            $cache->forget(self::OVERVIEW_SNAPSHOT_KEY);
         }
 
-        return \Illuminate\Support\Facades\Cache::remember(
+        return $cache->flexible(
             self::OVERVIEW_SNAPSHOT_KEY,
-            self::OVERVIEW_TTL,
+            [self::OVERVIEW_TTL, self::OVERVIEW_STALE_TTL],
             $build
         );
     }
@@ -134,9 +136,11 @@ trait AppQyV1AssistOverview
 
     public const PENDING_SNAPSHOT_KEY = 'appqyv1:assist:pending_snapshot';
     public const PENDING_SNAPSHOT_TTL = 30;
+    public const PENDING_SNAPSHOT_STALE_TTL = 300;
 
     public function pendingSnapshot(bool $fresh = false): array
     {
+        $cache = Cache::store('file');
         $build = function (): array {
             return [
                 'generated_at' => now()->toIso8601String(),
@@ -150,14 +154,12 @@ trait AppQyV1AssistOverview
         };
 
         if ($fresh) {
-            $snapshot = $build();
-            \Illuminate\Support\Facades\Cache::put(self::PENDING_SNAPSHOT_KEY, $snapshot, self::PENDING_SNAPSHOT_TTL);
-            return $snapshot;
+            $cache->forget(self::PENDING_SNAPSHOT_KEY);
         }
 
-        return \Illuminate\Support\Facades\Cache::remember(
+        return $cache->flexible(
             self::PENDING_SNAPSHOT_KEY,
-            self::PENDING_SNAPSHOT_TTL,
+            [self::PENDING_SNAPSHOT_TTL, self::PENDING_SNAPSHOT_STALE_TTL],
             $build
         );
     }

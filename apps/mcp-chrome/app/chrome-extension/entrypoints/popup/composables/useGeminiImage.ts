@@ -7,6 +7,7 @@ import { ref } from 'vue';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
+import { getMessage } from '@/utils/i18n';
 
 const LOG = 'Gemini Client';
 
@@ -47,7 +48,7 @@ export function useGeminiImage() {
   const generate = async () => {
     const p = prompt.value.trim();
     if (!p) {
-      error.value = 'Enter a prompt first';
+      error.value = getMessage('enterPromptFirst');
       return;
     }
     generating.value = true;
@@ -61,7 +62,7 @@ export function useGeminiImage() {
       );
       const jobId = startResp?.result?.jobId;
       if (!startResp?.success || !jobId) {
-        error.value = startResp?.result?.error || startResp?.error || 'Failed to start generation';
+        error.value = startResp?.result?.error || startResp?.error || getMessage('generationStartFailed');
         generating.value = false;
         phase.value = '';
         return;
@@ -82,18 +83,18 @@ export function useGeminiImage() {
           return;
         }
         if (res.status === 'failed' || res.status === 'unknown') {
-          error.value = res.error || 'Generation failed';
+          error.value = res.error || getMessage('generationFailed');
           phase.value = '';
           generating.value = false;
           return;
         }
         // still generating → keep polling
       }
-      error.value = 'Timed out waiting for the image';
+      error.value = getMessage('imageGenerationTimeout');
       phase.value = '';
       generating.value = false;
     } catch (e: any) {
-      error.value = e?.message || 'Generation failed';
+      error.value = e?.message || getMessage('generationFailed');
       logger.error(LOG, 'generate failed', e);
       phase.value = '';
       generating.value = false;

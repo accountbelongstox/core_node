@@ -4,8 +4,8 @@
 import React, { useCallback, useState } from 'react';
 import { Search, RefreshCw, Loader2, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import { GLOBAL_TASK_LIMITS } from '../../../core/api-libs/pycore/QueueCenterContract';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { GLOBAL_TASK_LIMITS } from '@/apps/pycore-manager/api';
 
 const PcTaskLogPage: React.FC = () => {
   const { t } = useTranslation('pc');

@@ -7,7 +7,7 @@ import {
   LayoutGrid, Loader2, AlertTriangle, Wifi, WifiOff, Globe, Cpu, Chrome,
   ChevronDown, ChevronRight, Users,
 } from 'lucide-react';
-import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '../../../core/api-libs/pycore';
+import type { PcQueueOverview, PcQueueCategory, PcQueueWorker, PcQueueHandler } from '@/apps/pycore-manager/api';
 import type { QueueCenterPanelProps } from '../utils/pcQueueCenterTypes';
 import { useQueueCenterHub, laravelLiveSyncOffline, laravelEndpointMismatch, workerEndpointMismatch } from '../hooks/useQueueCenterHub';
 

@@ -9,7 +9,7 @@ import type { ElementTheme } from '../../WfNewTypes';
 import { fetchDailyReadings, type DailyReadingRow } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
 import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOverlay';
-import { connectPycoreHttp, PYCORE_EVENT_TOPICS, subscribe } from '../../../../core/api-libs/pycore';
+import { connectPycoreHttp, PYCORE_EVENT_TOPICS, subscribe } from '@/apps/wordnew/integrations/pycore';
 
 interface Props {
   theme: ElementTheme;

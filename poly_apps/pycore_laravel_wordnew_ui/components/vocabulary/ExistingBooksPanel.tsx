@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Search, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
-import { api } from '../../core/api';
-import type { MediaSourceListItem } from '../../core/api/modules/MediaQueryAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { MediaSourceListItem } from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../core/i18n/supportedLearningLanguages';
 import { mediaUrl } from '../../config/constants';
 import { commonClasses } from '../../styles/theme';

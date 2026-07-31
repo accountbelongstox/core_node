@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, Search, Filter, Star, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useLoadingError } from '../../hooks';
 import { commonClasses } from '../../styles/theme';
 

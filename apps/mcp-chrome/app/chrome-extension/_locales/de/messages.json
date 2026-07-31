@@ -1,307 +1,360 @@
 {
-  "extensionName": {
-    "message": "chrome-mcp-server",
-    "description": "Erweiterungsname"
-  },
-  "extensionDescription": {
-    "message": "Stellt Browser-Funktionen mit Ihrem eigenen Chrome zur Verfügung",
-    "description": "Erweiterungsbeschreibung"
-  },
-  "nativeServerConfigLabel": {
-    "message": "Native Server-Konfiguration",
-    "description": "Hauptabschnittstitel für Native Server-Einstellungen"
-  },
-  "semanticEngineLabel": {
-    "message": "Semantische Engine",
-    "description": "Hauptabschnittstitel für semantische Engine"
-  },
-  "embeddingModelLabel": {
-    "message": "Embedding-Modell",
-    "description": "Hauptabschnittstitel für Modellauswahl"
-  },
-  "indexDataManagementLabel": {
-    "message": "Index-Datenverwaltung",
-    "description": "Hauptabschnittstitel für Datenverwaltung"
-  },
-  "modelCacheManagementLabel": {
-    "message": "Modell-Cache-Verwaltung",
-    "description": "Hauptabschnittstitel für Cache-Verwaltung"
-  },
-  "statusLabel": {
-    "message": "Status",
-    "description": "Allgemeines Statuslabel"
-  },
-  "runningStatusLabel": {
-    "message": "Betriebsstatus",
-    "description": "Server-Betriebsstatuslabel"
-  },
-  "connectionStatusLabel": {
-    "message": "Verbindungsstatus",
-    "description": "Verbindungsstatuslabel"
-  },
-  "lastUpdatedLabel": {
-    "message": "Zuletzt aktualisiert:",
-    "description": "Zeitstempel der letzten Aktualisierung"
-  },
-  "connectButton": {
-    "message": "Verbinden",
-    "description": "Verbinden-Schaltflächentext"
-  },
-  "disconnectButton": {
-    "message": "Trennen",
-    "description": "Trennen-Schaltflächentext"
-  },
-  "connectingStatus": {
-    "message": "Verbindung wird hergestellt...",
-    "description": "Verbindungsstatusmeldung"
-  },
-  "connectedStatus": {
-    "message": "Verbunden",
-    "description": "Verbunden-Statusmeldung"
-  },
-  "disconnectedStatus": {
-    "message": "Getrennt",
-    "description": "Getrennt-Statusmeldung"
-  },
-  "detectingStatus": {
-    "message": "Erkennung läuft...",
-    "description": "Erkennungsstatusmeldung"
-  },
-  "serviceRunningStatus": {
-    "message": "Service läuft (Port: $PORT$)",
-    "description": "Service läuft mit Portnummer",
-    "placeholders": {
-      "port": {
-        "content": "$1",
-        "example": "12306"
-      }
-    }
-  },
-  "serviceNotConnectedStatus": {
-    "message": "Service nicht verbunden",
-    "description": "Service nicht verbunden Status"
-  },
-  "connectedServiceNotStartedStatus": {
-    "message": "Verbunden, Service nicht gestartet",
-    "description": "Verbunden aber Service nicht gestartet Status"
-  },
-  "mcpServerConfigLabel": {
-    "message": "MCP Server-Konfiguration",
-    "description": "MCP Server-Konfigurationsabschnittslabel"
-  },
-  "connectionPortLabel": {
-    "message": "Verbindungsport",
-    "description": "Verbindungsport-Eingabelabel"
-  },
-  "refreshStatusButton": {
-    "message": "Status aktualisieren",
-    "description": "Status aktualisieren Schaltflächen-Tooltip"
-  },
-  "copyConfigButton": {
-    "message": "Konfiguration kopieren",
-    "description": "Konfiguration kopieren Schaltflächentext"
-  },
-  "retryButton": {
-    "message": "Wiederholen",
-    "description": "Wiederholen-Schaltflächentext"
-  },
-  "cancelButton": {
-    "message": "Abbrechen",
-    "description": "Abbrechen-Schaltflächentext"
-  },
-  "confirmButton": {
-    "message": "Bestätigen",
-    "description": "Bestätigen-Schaltflächentext"
-  },
-  "saveButton": {
-    "message": "Speichern",
-    "description": "Speichern-Schaltflächentext"
-  },
-  "closeButton": {
-    "message": "Schließen",
-    "description": "Schließen-Schaltflächentext"
-  },
-  "resetButton": {
-    "message": "Zurücksetzen",
-    "description": "Zurücksetzen-Schaltflächentext"
-  },
-  "initializingStatus": {
-    "message": "Initialisierung...",
-    "description": "Initialisierung-Fortschrittsmeldung"
-  },
-  "processingStatus": {
-    "message": "Verarbeitung...",
-    "description": "Verarbeitung-Fortschrittsmeldung"
-  },
-  "loadingStatus": {
-    "message": "Wird geladen...",
-    "description": "Ladefortschrittsmeldung"
-  },
-  "clearingStatus": {
-    "message": "Wird geleert...",
-    "description": "Leerungsfortschrittsmeldung"
-  },
-  "cleaningStatus": {
-    "message": "Wird bereinigt...",
-    "description": "Bereinigungsfortschrittsmeldung"
-  },
-  "downloadingStatus": {
-    "message": "Wird heruntergeladen...",
-    "description": "Download-Fortschrittsmeldung"
-  },
-  "semanticEngineReadyStatus": {
-    "message": "Semantische Engine bereit",
-    "description": "Semantische Engine bereit Status"
-  },
-  "semanticEngineInitializingStatus": {
-    "message": "Semantische Engine wird initialisiert...",
-    "description": "Semantische Engine Initialisierungsstatus"
-  },
-  "semanticEngineInitFailedStatus": {
-    "message": "Initialisierung der semantischen Engine fehlgeschlagen",
-    "description": "Semantische Engine Initialisierung fehlgeschlagen Status"
-  },
-  "semanticEngineNotInitStatus": {
-    "message": "Semantische Engine nicht initialisiert",
-    "description": "Semantische Engine nicht initialisiert Status"
-  },
-  "initSemanticEngineButton": {
-    "message": "Semantische Engine initialisieren",
-    "description": "Semantische Engine initialisieren Schaltflächentext"
-  },
-  "reinitializeButton": {
-    "message": "Neu initialisieren",
-    "description": "Neu initialisieren Schaltflächentext"
-  },
-  "downloadingModelStatus": {
-    "message": "Modell wird heruntergeladen... $PROGRESS$%",
-    "description": "Modell-Download-Fortschritt mit Prozentsatz",
-    "placeholders": {
-      "progress": {
-        "content": "$1",
-        "example": "50"
-      }
-    }
-  },
-  "switchingModelStatus": {
-    "message": "Modell wird gewechselt...",
-    "description": "Modellwechsel-Fortschrittsmeldung"
-  },
-  "modelLoadedStatus": {
-    "message": "Modell geladen",
-    "description": "Modell erfolgreich geladen Status"
-  },
-  "modelFailedStatus": {
-    "message": "Modell konnte nicht geladen werden",
-    "description": "Modell-Ladefehler Status"
-  },
-  "lightweightModelDescription": {
-    "message": "Leichtgewichtiges mehrsprachiges Modell",
-    "description": "Beschreibung für leichtgewichtige Modelloption"
-  },
-  "betterThanSmallDescription": {
-    "message": "Etwas größer als e5-small, aber bessere Leistung",
-    "description": "Beschreibung für mittlere Modelloption"
-  },
-  "multilingualModelDescription": {
-    "message": "Mehrsprachiges semantisches Modell",
-    "description": "Beschreibung für mehrsprachige Modelloption"
-  },
-  "fastPerformance": {
-    "message": "Schnell",
-    "description": "Schnelle Leistungsanzeige"
-  },
-  "balancedPerformance": {
-    "message": "Ausgewogen",
-    "description": "Ausgewogene Leistungsanzeige"
+  "aboutTitle": {
+    "message": "Über",
+    "description": "Über Dialogtitel"
   },
   "accuratePerformance": {
     "message": "Genau",
     "description": "Genaue Leistungsanzeige"
   },
-  "networkErrorMessage": {
-    "message": "Netzwerkverbindungsfehler, bitte Netzwerk prüfen und erneut versuchen",
-    "description": "Netzwerkverbindungsfehlermeldung"
-  },
-  "modelCorruptedErrorMessage": {
-    "message": "Modelldatei beschädigt oder unvollständig, bitte Download wiederholen",
-    "description": "Modell-Beschädigungsfehlermeldung"
-  },
-  "unknownErrorMessage": {
-    "message": "Unbekannter Fehler, bitte prüfen Sie, ob Ihr Netzwerk auf HuggingFace zugreifen kann",
-    "description": "Unbekannte Fehler-Rückfallmeldung"
-  },
-  "permissionDeniedErrorMessage": {
-    "message": "Zugriff verweigert",
-    "description": "Zugriff verweigert Fehlermeldung"
-  },
-  "timeoutErrorMessage": {
-    "message": "Zeitüberschreitung",
-    "description": "Zeitüberschreitungsfehlermeldung"
-  },
-  "indexedPagesLabel": {
-    "message": "Indizierte Seiten",
-    "description": "Anzahl indizierter Seiten Label"
-  },
-  "indexSizeLabel": {
-    "message": "Indexgröße",
-    "description": "Indexgröße Label"
+  "activeStatus": {
+    "message": "AKTIV",
+    "description": "Aktiv-Status-Badge"
   },
   "activeTabsLabel": {
     "message": "Aktive Tabs",
     "description": "Anzahl aktiver Tabs Label"
   },
-  "vectorDocumentsLabel": {
-    "message": "Vektordokumente",
-    "description": "Anzahl Vektordokumente Label"
+  "addApiServerButton": {
+    "message": "+ API-Server hinzufügen",
+    "description": "API-Server hinzufügen-Button-Text"
   },
-  "cacheSizeLabel": {
-    "message": "Cache-Größe",
-    "description": "Cache-Größe Label"
+  "addLabel": {
+    "message": "Hinzufügen"
+  },
+  "advancedSettingsLabel": {
+    "message": "Erweiterte Einstellungen",
+    "description": "Erweiterte Einstellungen Abschnittslabel"
+  },
+  "aiWebPromptPlaceholder": {
+    "message": "Geben Sie eine Eingabeaufforderung ein, die an die Registerkarte „Live“ gesendet werden soll …"
+  },
+  "aiWebProviderHint": {
+    "message": "Welche Web-KI die Prompt-Übersetzungs- und Web-Chat-Mitarbeiter in Ihrem Live-Browser steuern."
+  },
+  "aiWebProviderTitle": {
+    "message": "KI-Webanbieter"
+  },
+  "aiWebStatsFailed": {
+    "message": "fehlgeschlagen"
+  },
+  "aiWebStatsPending": {
+    "message": "ausstehend"
+  },
+  "aiWebStatsTranslated": {
+    "message": "übersetzt"
+  },
+  "aiWebTestTitle": {
+    "message": "Test ($provider$)",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiWebWithAudioLabel": {
+    "message": "mit Audio"
+  },
+  "alternateExpressionsLabel": {
+    "message": "Alt ×"
+  },
+  "apiAddCustomLabel": {
+    "message": "Benutzerdefinierten Endpunkt hinzufügen"
+  },
+  "apiAddEndpoint": {
+    "message": "Endpunkt hinzufügen"
+  },
+  "apiAutoDetecting": {
+    "message": "automatische Erkennung…"
+  },
+  "apiAutoMode": {
+    "message": "Automatisch (am besten verfügbar)"
+  },
+  "apiAutoTag": {
+    "message": "AUTO"
+  },
+  "apiConfigurationLabel": {
+    "message": "API-Konfiguration"
+  },
+  "apiCurrentLabel": {
+    "message": "Aktuell:"
+  },
+  "apiCustomUrlPlaceholder": {
+    "message": "Geben Sie eine URL ein (z. B. api.example.com)."
+  },
+  "apiLocalTag": {
+    "message": "LOKAL"
+  },
+  "apiNone": {
+    "message": "Keiner"
+  },
+  "apiPortPlaceholder": {
+    "message": "Port (optional)"
+  },
+  "apiRemoteTag": {
+    "message": "FERNBEDIENUNG"
+  },
+  "apiServerConfigLabel": {
+    "message": "API-Server-Konfiguration",
+    "description": "API-Server-Konfiguration-Abschnittstitel"
+  },
+  "apiTest": {
+    "message": "Prüfen"
+  },
+  "apiTestAll": {
+    "message": "Alle testen"
+  },
+  "apiTestFailed": {
+    "message": "Der API-Test ist fehlgeschlagen"
+  },
+  "apiTesting": {
+    "message": "Testen…"
+  },
+  "articlePromptHint": {
+    "message": "Integrierte XML-ähnliche Eingabeaufforderung: Satzausrichtung und die oben aktivierten Flags pro Sprache"
+  },
+  "articleTextLabel": {
+    "message": "Artikeltext"
+  },
+  "articleTextPlaceholder": {
+    "message": "Fügen Sie einen Absatz zum Übersetzen und Analysieren ein ..."
+  },
+  "audioRecordingLabel": {
+    "message": "Audioaufnahme",
+    "description": "Audioaufnahme-Panel-Titel"
+  },
+  "audioSettingsSharedHint": {
+    "message": "Mit der Registerkarte „Audio“ geteilt."
+  },
+  "authTokenLabel": {
+    "message": "Authentifizierungstoken:",
+    "description": "Authentifizierungstoken-Eingabe-Label"
+  },
+  "autoConnectLabel": {
+    "message": "Automatische Verbindung"
+  },
+  "autoDownloadTestOutput": {
+    "message": "Testausgabe automatisch herunterladen"
+  },
+  "autoStopSilenceLabel": {
+    "message": "Auto-Stopp bei Stille",
+    "description": "Auto-Stopp bei Stille-Checkbox-Label"
+  },
+  "autoTheme": {
+    "message": "Automatisch",
+    "description": "Automatisches Design Option"
+  },
+  "backendLabel": {
+    "message": "Backend"
+  },
+  "backendTimeoutLabel": {
+    "message": "Backend-Timeout (ms)"
+  },
+  "backgroundStreamingDescription": {
+    "message": "Wenn aktiviert, wird Audio kontinuierlich erfasst und an konfigurierte API-Server gestreamt, auch wenn dieses Popup geschlossen ist.",
+    "description": "Hintergrund-Streaming-Beschreibungstext"
+  },
+  "balancedPerformance": {
+    "message": "Ausgewogen",
+    "description": "Ausgewogene Leistungsanzeige"
+  },
+  "betterThanSmallDescription": {
+    "message": "Etwas größer als e5-small, aber bessere Leistung",
+    "description": "Beschreibung für mittlere Modelloption"
+  },
+  "bingAssistActiveTabs": {
+    "message": "Aktive Registerkarten:"
+  },
+  "bingAssistAdd": {
+    "message": "Hinzufügen"
+  },
+  "bingAssistBatchSize": {
+    "message": "Chargengröße (Aufgaben):"
+  },
+  "bingAssistCachedAt": {
+    "message": "Gespeichert unter:"
+  },
+  "bingAssistDel": {
+    "message": "Del"
+  },
+  "bingAssistDuplicates": {
+    "message": "Duplikate"
+  },
+  "bingAssistEndpointFromSettings": {
+    "message": "Konfiguriert in Einstellungen → API"
+  },
+  "bingAssistEndpointLabel": {
+    "message": "laravel_main Endpunkt:"
+  },
+  "bingAssistFailed": {
+    "message": "Fehlgeschlagen:"
+  },
+  "bingAssistInvalid": {
+    "message": "Ungültig:"
+  },
+  "bingAssistInvalidNoEntry": {
+    "message": "ungültig (kein Bing-Eintrag)"
+  },
+  "bingAssistLastRun": {
+    "message": "Letzter Lauf:"
+  },
+  "bingAssistNewTasks": {
+    "message": "Neue Aufgaben"
+  },
+  "bingAssistParallelTabs": {
+    "message": "Parallele Bing-Tabs:"
+  },
+  "bingAssistPending": {
+    "message": "Ausstehend:"
+  },
+  "bingAssistPlayAudio": {
+    "message": "Spielen Sie die Aussprache"
+  },
+  "bingAssistPollInterval": {
+    "message": "Abfrageintervall (Sekunden):"
+  },
+  "bingAssistQueueTotal": {
+    "message": "Warteschlangensumme"
+  },
+  "bingAssistScrape": {
+    "message": "Kratzen"
+  },
+  "bingAssistScrapeLabel": {
+    "message": "Bing-Scrape-Test (Leerzeichen/Komma getrennt):"
+  },
+  "bingAssistSettingsLive": {
+    "message": "Die Einstellungen werden live übernommen – der Dienst muss nicht beendet werden."
+  },
+  "bingAssistStatusLabel": {
+    "message": "Status:"
+  },
+  "bingAssistStopToChange": {
+    "message": "Stoppen Sie den Dienst, um Einstellungen zu ändern."
+  },
+  "bingAssistTargetLang": {
+    "message": "Zielsprache:"
+  },
+  "bingAssistTest": {
+    "message": "Prüfen"
+  },
+  "bingAssistTitle": {
+    "message": "Bing-Übersetzungsassistent"
+  },
+  "bingAssistTranslated": {
+    "message": "Übersetzt:"
+  },
+  "bingAssistTranslatingLabel": {
+    "message": "Übersetzen:"
+  },
+  "bingAssistWorkerId": {
+    "message": "Arbeiter-ID:"
+  },
+  "bingWorkerSharedHint": {
+    "message": "Mit Bing Dictionary geteilt und auf einen laufenden Worker angewendet."
+  },
+  "bingWorkerTitle": {
+    "message": "Bing-Aufgabenarbeiter"
+  },
+  "bookAutoRunHint": {
+    "message": "Automatische Ausführung – Nach jedem Segment wird automatisch das nächste beansprucht und generiert, bis die Quelle vollständig ist"
+  },
+  "bookmarksBarLabel": {
+    "message": "Lesezeichenleiste",
+    "description": "Lesezeichenleiste Ordnername"
+  },
+  "booksLabel": {
+    "message": "Bücher"
+  },
+  "browserCapabilityLabel": {
+    "message": "Browserfähigkeit"
+  },
+  "bytesUnit": {
+    "message": "Bytes",
+    "description": "Bytes Einheit"
+  },
+  "cacheClearAllButton": {
+    "message": "Alles löschen"
+  },
+  "cacheClearButton": {
+    "message": "Klar"
+  },
+  "cacheDetailsLabel": {
+    "message": "Cache-Details",
+    "description": "Cache-Details Abschnittslabel"
   },
   "cacheEntriesLabel": {
     "message": "Cache-Einträge",
     "description": "Anzahl Cache-Einträge Label"
   },
-  "clearAllDataButton": {
-    "message": "Alle Daten löschen",
-    "description": "Alle Daten löschen Schaltflächentext"
+  "cacheLocationLabel": {
+    "message": "Standort"
   },
-  "clearAllCacheButton": {
-    "message": "Gesamten Cache löschen",
-    "description": "Gesamten Cache löschen Schaltflächentext"
+  "cacheReadOnlyTag": {
+    "message": "schreibgeschützt"
+  },
+  "cacheRefreshButton": {
+    "message": "Aktualisieren"
+  },
+  "cacheSizeLabel": {
+    "message": "Cache-Größe",
+    "description": "Cache-Größe Label"
+  },
+  "cacheStorageTitle": {
+    "message": "Cache-Speicher"
+  },
+  "cacheUnavailableNote": {
+    "message": "OPFS-Speicher ist in diesem Browser nicht verfügbar. Zeigt die beabsichtigte Cache-Verzeichnisstruktur an (schreibgeschützt)."
+  },
+  "cambridgePronunciationHint": {
+    "message": "Standard-UK/US-Aussprache (Cambridge)"
+  },
+  "cancelButton": {
+    "message": "Abbrechen",
+    "description": "Abbrechen-Schaltflächentext"
+  },
+  "capabilityUpdateFailed": {
+    "message": "Die Fähigkeit konnte nicht aktualisiert werden"
+  },
+  "chunkCountLabel": {
+    "message": "Chunk-Anzahl:",
+    "description": "Aufnahme-Chunk-Anzahl-Label"
+  },
+  "chunkIntervalLabel": {
+    "message": "Chunk-Intervall (ms):",
+    "description": "Chunk-Intervall-Eingabe-Label"
+  },
+  "chunkedUploadOption": {
+    "message": "Chunked Upload (HTTP)",
+    "description": "Chunked-HTTP-Upload-Option"
+  },
+  "claimFailed": {
+    "message": "Anspruch gescheitert"
+  },
+  "claimRejected": {
+    "message": "Anspruch abgelehnt"
   },
   "cleanExpiredCacheButton": {
     "message": "Abgelaufenen Cache bereinigen",
     "description": "Abgelaufenen Cache bereinigen Schaltflächentext"
   },
-  "exportDataButton": {
-    "message": "Daten exportieren",
-    "description": "Daten exportieren Schaltflächentext"
+  "cleaningStatus": {
+    "message": "Wird bereinigt...",
+    "description": "Bereinigungsfortschrittsmeldung"
   },
-  "importDataButton": {
-    "message": "Daten importieren",
-    "description": "Daten importieren Schaltflächentext"
+  "clearAllCacheButton": {
+    "message": "Gesamten Cache löschen",
+    "description": "Gesamten Cache löschen Schaltflächentext"
   },
-  "confirmClearDataTitle": {
-    "message": "Datenlöschung bestätigen",
-    "description": "Datenlöschung bestätigen Dialogtitel"
+  "clearAllDataButton": {
+    "message": "Alle Daten löschen",
+    "description": "Alle Daten löschen Schaltflächentext"
   },
-  "settingsTitle": {
-    "message": "Einstellungen",
-    "description": "Einstellungen Dialogtitel"
+  "clearDataFailed": {
+    "message": "Daten konnten nicht gelöscht werden"
   },
-  "aboutTitle": {
-    "message": "Über",
-    "description": "Über Dialogtitel"
-  },
-  "helpTitle": {
-    "message": "Hilfe",
-    "description": "Hilfe Dialogtitel"
-  },
-  "clearDataWarningMessage": {
-    "message": "Diese Aktion löscht alle indizierten Webseiteninhalte und Vektordaten, einschließlich:",
-    "description": "Datenlöschung Warnmeldung"
+  "clearDataIrreversibleWarning": {
+    "message": "Diese Aktion ist unwiderruflich! Nach dem Löschen müssen Sie Webseiten erneut durchsuchen, um den Index neu aufzubauen.",
+    "description": "Unwiderrufliche Aktion Warnung"
   },
   "clearDataList1": {
     "message": "Alle Webseitentextinhaltsindizes",
@@ -315,281 +368,158 @@
     "message": "Suchverlauf und Cache",
     "description": "Dritter Punkt in Datenlöschungsliste"
   },
-  "clearDataIrreversibleWarning": {
-    "message": "Diese Aktion ist unwiderruflich! Nach dem Löschen müssen Sie Webseiten erneut durchsuchen, um den Index neu aufzubauen.",
-    "description": "Unwiderrufliche Aktion Warnung"
+  "clearDataWarningMessage": {
+    "message": "Diese Aktion löscht alle indizierten Webseiteninhalte und Vektordaten, einschließlich:",
+    "description": "Datenlöschung Warnmeldung"
   },
-  "confirmClearButton": {
-    "message": "Löschung bestätigen",
-    "description": "Löschung bestätigen Aktionsschaltfläche"
+  "clearHistoryButton": {
+    "message": "Klare Geschichte"
   },
-  "cacheDetailsLabel": {
-    "message": "Cache-Details",
-    "description": "Cache-Details Abschnittslabel"
+  "clearLogsButton": {
+    "message": "Protokolle löschen"
   },
-  "noCacheDataMessage": {
-    "message": "Keine Cache-Daten vorhanden",
-    "description": "Keine Cache-Daten verfügbar Meldung"
+  "clearingStatus": {
+    "message": "Wird geleert...",
+    "description": "Leerungsfortschrittsmeldung"
   },
-  "loadingCacheInfoStatus": {
-    "message": "Cache-Informationen werden geladen...",
-    "description": "Cache-Informationen laden Status"
+  "clientSetupLabel": {
+    "message": "Client-Setup"
   },
-  "processingCacheStatus": {
-    "message": "Cache wird verarbeitet...",
-    "description": "Cache verarbeiten Status"
-  },
-  "expiredLabel": {
-    "message": "Abgelaufen",
-    "description": "Abgelaufenes Element Label"
-  },
-  "bookmarksBarLabel": {
-    "message": "Lesezeichenleiste",
-    "description": "Lesezeichenleiste Ordnername"
-  },
-  "newTabLabel": {
-    "message": "Neuer Tab",
-    "description": "Neuer Tab Label"
-  },
-  "currentPageLabel": {
-    "message": "Aktuelle Seite",
-    "description": "Aktuelle Seite Label"
-  },
-  "menuLabel": {
-    "message": "Menü",
-    "description": "Menü Barrierefreiheitslabel"
-  },
-  "navigationLabel": {
-    "message": "Navigation",
-    "description": "Navigation Barrierefreiheitslabel"
-  },
-  "mainContentLabel": {
-    "message": "Hauptinhalt",
-    "description": "Hauptinhalt Barrierefreiheitslabel"
-  },
-  "languageSelectorLabel": {
-    "message": "Sprache",
-    "description": "Sprachauswahl Label"
-  },
-  "themeLabel": {
-    "message": "Design",
-    "description": "Design-Auswahl Label"
-  },
-  "lightTheme": {
-    "message": "Hell",
-    "description": "Helles Design Option"
-  },
-  "darkTheme": {
-    "message": "Dunkel",
-    "description": "Dunkles Design Option"
-  },
-  "autoTheme": {
-    "message": "Automatisch",
-    "description": "Automatisches Design Option"
-  },
-  "advancedSettingsLabel": {
-    "message": "Erweiterte Einstellungen",
-    "description": "Erweiterte Einstellungen Abschnittslabel"
-  },
-  "debugModeLabel": {
-    "message": "Debug-Modus",
-    "description": "Debug-Modus Umschalter Label"
-  },
-  "verboseLoggingLabel": {
-    "message": "Ausführliche Protokollierung",
-    "description": "Ausführliche Protokollierung Umschalter Label"
-  },
-  "successNotification": {
-    "message": "Vorgang erfolgreich abgeschlossen",
-    "description": "Allgemeine Erfolgsmeldung"
-  },
-  "warningNotification": {
-    "message": "Warnung: Bitte prüfen Sie vor dem Fortfahren",
-    "description": "Allgemeine Warnmeldung"
-  },
-  "infoNotification": {
-    "message": "Information",
-    "description": "Allgemeine Informationsmeldung"
-  },
-  "configCopiedNotification": {
-    "message": "Konfiguration in Zwischenablage kopiert",
-    "description": "Konfiguration kopiert Erfolgsmeldung"
-  },
-  "dataClearedNotification": {
-    "message": "Daten erfolgreich gelöscht",
-    "description": "Daten gelöscht Erfolgsmeldung"
-  },
-  "bytesUnit": {
-    "message": "Bytes",
-    "description": "Bytes Einheit"
-  },
-  "kilobytesUnit": {
-    "message": "KB",
-    "description": "Kilobytes Einheit"
-  },
-  "megabytesUnit": {
-    "message": "MB",
-    "description": "Megabytes Einheit"
-  },
-  "gigabytesUnit": {
-    "message": "GB",
-    "description": "Gigabytes Einheit"
-  },
-  "itemsUnit": {
-    "message": "Elemente",
-    "description": "Elemente Zähleinheit"
-  },
-  "pagesUnit": {
-    "message": "Seiten",
-    "description": "Seiten Zähleinheit"
-  },
-  "audioRecordingLabel": {
-    "message": "Audioaufnahme",
-    "description": "Audioaufnahme-Panel-Titel"
-  },
-  "recordingStatusLabel": {
-    "message": "Aufnahmestatus:",
-    "description": "Aufnahmestatus-Label"
-  },
-  "recordingStatus": {
-    "message": "Aufnahme läuft",
-    "description": "Aktiver Aufnahmestatus"
-  },
-  "idleStatus": {
-    "message": "Inaktiv",
-    "description": "Inaktiver Aufnahmestatus"
-  },
-  "durationLabel": {
-    "message": "Dauer:",
-    "description": "Aufnahmedauer-Label"
-  },
-  "chunkCountLabel": {
-    "message": "Chunk-Anzahl:",
-    "description": "Aufnahme-Chunk-Anzahl-Label"
-  },
-  "apiServerConfigLabel": {
-    "message": "API-Server-Konfiguration",
-    "description": "API-Server-Konfiguration-Abschnittstitel"
-  },
-  "serverNamePlaceholder": {
-    "message": "Servername",
-    "description": "Servername-Eingabe-Platzhalter"
-  },
-  "urlLabel": {
-    "message": "URL:",
-    "description": "URL-Eingabe-Label"
-  },
-  "urlPlaceholder": {
-    "message": "http://localhost:8080",
-    "description": "URL-Eingabe-Platzhalter"
-  },
-  "authTokenLabel": {
-    "message": "Authentifizierungstoken:",
-    "description": "Authentifizierungstoken-Eingabe-Label"
-  },
-  "optionalPlaceholder": {
-    "message": "Optional",
-    "description": "Optionales Feld-Platzhalter"
-  },
-  "streamingModeLabel": {
-    "message": "Streaming-Modus:",
-    "description": "Streaming-Modus-Auswahl-Label"
-  },
-  "realtimeWebsocketOption": {
-    "message": "Echtzeit (WebSocket)",
-    "description": "Echtzeit-WebSocket-Streaming-Option"
-  },
-  "chunkedUploadOption": {
-    "message": "Chunked Upload (HTTP)",
-    "description": "Chunked-HTTP-Upload-Option"
+  "closeButton": {
+    "message": "Schließen",
+    "description": "Schließen-Schaltflächentext"
   },
   "completeFileUploadOption": {
     "message": "Kompletter Datei-Upload",
     "description": "Kompletter-Datei-Upload-Option"
   },
-  "chunkIntervalLabel": {
-    "message": "Chunk-Intervall (ms):",
-    "description": "Chunk-Intervall-Eingabe-Label"
+  "configCopiedNotification": {
+    "message": "Konfiguration in Zwischenablage kopiert",
+    "description": "Konfiguration kopiert Erfolgsmeldung"
   },
-  "addApiServerButton": {
-    "message": "+ API-Server hinzufügen",
-    "description": "API-Server hinzufügen-Button-Text"
+  "confirmAndStart": {
+    "message": "Bestätigen und starten"
   },
-  "recordingSettingsLabel": {
-    "message": "Aufnahmeeinstellungen",
-    "description": "Aufnahmeeinstellungen-Abschnittstitel"
+  "confirmAndStartDescription": {
+    "message": "Öffnen Sie Bing-Tabs und beginnen Sie mit dem Crawlen"
   },
-  "includeMicrophoneLabel": {
-    "message": "Mikrofon einbeziehen",
-    "description": "Mikrofon einbeziehen-Checkbox-Label"
+  "confirmAndStartReady": {
+    "message": "Bestätigen und starten"
   },
-  "saveLocallyLabel": {
-    "message": "Aufnahme lokal speichern",
-    "description": "Aufnahme lokal speichern-Checkbox-Label"
+  "confirmAndStartWithPending": {
+    "message": "Bestätigen und starten · $count$ ausstehend",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "autoStopSilenceLabel": {
-    "message": "Auto-Stopp bei Stille",
-    "description": "Auto-Stopp bei Stille-Checkbox-Label"
+  "confirmButton": {
+    "message": "Bestätigen",
+    "description": "Bestätigen-Schaltflächentext"
   },
-  "silenceDurationLabel": {
-    "message": "Stilledauer (Sekunden):",
-    "description": "Stilledauer-Eingabe-Label"
+  "confirmClearButton": {
+    "message": "Löschung bestätigen",
+    "description": "Löschung bestätigen Aktionsschaltfläche"
   },
-  "maxDurationLabel": {
-    "message": "Maximale Aufnahmedauer:",
-    "description": "Maximale Aufnahmedauer-Auswahl-Label"
+  "confirmClearDataTitle": {
+    "message": "Datenlöschung bestätigen",
+    "description": "Datenlöschung bestätigen Dialogtitel"
   },
-  "oneMinuteOption": {
-    "message": "1 Minute",
-    "description": "1 Minute Dauer-Option"
+  "connectButton": {
+    "message": "Verbinden",
+    "description": "Verbinden-Schaltflächentext"
   },
-  "fiveMinutesOption": {
-    "message": "5 Minuten",
-    "description": "5 Minuten Dauer-Option"
+  "connectOnStartupHint": {
+    "message": "Beim Start verbinden"
   },
-  "tenMinutesOption": {
-    "message": "10 Minuten",
-    "description": "10 Minuten Dauer-Option"
+  "connectedServiceNotStartedStatus": {
+    "message": "Verbunden, Service nicht gestartet",
+    "description": "Verbunden aber Service nicht gestartet Status"
   },
-  "thirtyMinutesOption": {
-    "message": "30 Minuten",
-    "description": "30 Minuten Dauer-Option"
+  "connectedStatus": {
+    "message": "Verbunden",
+    "description": "Verbunden-Statusmeldung"
   },
-  "oneHourOption": {
-    "message": "1 Stunde",
-    "description": "1 Stunde Dauer-Option"
+  "connectingStatus": {
+    "message": "Verbindung wird hergestellt...",
+    "description": "Verbindungsstatusmeldung"
   },
-  "noLimitOption": {
-    "message": "Keine Begrenzung",
-    "description": "Keine Begrenzung Dauer-Option"
+  "connectionPortLabel": {
+    "message": "Verbindungsport",
+    "description": "Verbindungsport-Eingabelabel"
   },
-  "sessionMetadataLabel": {
-    "message": "Sitzungsmetadaten (JSON)",
-    "description": "Sitzungsmetadaten-Abschnittstitel"
+  "connectionStatusLabel": {
+    "message": "Verbindungsstatus",
+    "description": "Verbindungsstatuslabel"
   },
-  "sessionMetadataHelper": {
-    "message": "Hier definierte Schlüssel/Wert-Paare werden zu jedem HTTP-Upload hinzugefügt und einmal über WebSocket als Metadaten-Payload gesendet.",
-    "description": "Sitzungsmetadaten-Hilfetext"
+  "copyConfigButton": {
+    "message": "Konfiguration kopieren",
+    "description": "Konfiguration kopieren Schaltflächentext"
   },
-  "startRecordingButton": {
-    "message": "Aufnahme starten",
-    "description": "Aufnahme starten-Button-Text"
+  "currentPageLabel": {
+    "message": "Aktuelle Seite",
+    "description": "Aktuelle Seite Label"
   },
-  "stopRecordingButton": {
-    "message": "Aufnahme stoppen",
-    "description": "Aufnahme stoppen-Button-Text"
+  "darkTheme": {
+    "message": "Dunkel",
+    "description": "Dunkles Design Option"
   },
-  "enableBackgroundStreamingLabel": {
-    "message": "Hintergrund-Audio-Streaming aktivieren",
-    "description": "Hintergrund-Audio-Streaming aktivieren-Checkbox-Label"
+  "dataClearedNotification": {
+    "message": "Daten erfolgreich gelöscht",
+    "description": "Daten gelöscht Erfolgsmeldung"
   },
-  "activeStatus": {
-    "message": "AKTIV",
-    "description": "Aktiv-Status-Badge"
+  "debugModeLabel": {
+    "message": "Debug-Modus",
+    "description": "Debug-Modus Umschalter Label"
   },
-  "backgroundStreamingDescription": {
-    "message": "Wenn aktiviert, wird Audio kontinuierlich erfasst und an konfigurierte API-Server gestreamt, auch wenn dieses Popup geschlossen ist.",
-    "description": "Hintergrund-Streaming-Beschreibungstext"
+  "deepseekChatTitle": {
+    "message": "Deepseek-Chat"
+  },
+  "deepseekClear": {
+    "message": "Klar"
+  },
+  "deepseekEmpty": {
+    "message": "Noch keine Nachrichten. Fragen Sie etwas oder führen Sie den Test durch."
+  },
+  "deepseekHint": {
+    "message": "Eingabeaufforderungen durchlaufen die lokale Aufgabenwarteschlange und steuern die Registerkarte chat.deepseek.com für angemeldete Benutzer. Kein API-Schlüssel erforderlich."
+  },
+  "deepseekNoResponse": {
+    "message": "(leere Antwort)"
+  },
+  "deepseekPlaceholder": {
+    "message": "Fragen Sie Deepseek…"
+  },
+  "deepseekQueueError": {
+    "message": "Die Aufgabe konnte nicht in die Warteschlange gestellt werden. Läuft der Hintergrunddienst?"
+  },
+  "deepseekQueueRunning": {
+    "message": "LÄUFT"
+  },
+  "deepseekQueueStopped": {
+    "message": "GESTOPPT"
+  },
+  "deepseekSend": {
+    "message": "Schicken"
+  },
+  "deepseekSending": {
+    "message": "Senden…"
+  },
+  "deepseekTaskFailed": {
+    "message": "Aufgabe fehlgeschlagen."
+  },
+  "deepseekTest": {
+    "message": "Prüfen"
+  },
+  "deepseekTestOk": {
+    "message": "Verbindung OK – Antwort erhalten."
+  },
+  "deepseekTestSent": {
+    "message": "Testaufforderung in der Warteschlange, wartet auf Antwort …"
+  },
+  "deepseekTesting": {
+    "message": "Testaufforderung wird gesendet…"
   },
   "defaultServerName": {
     "message": "Server $INDEX$",
@@ -601,6 +531,343 @@
       }
     }
   },
+  "definitionsLabel": {
+    "message": "Definitionen"
+  },
+  "detailedLabel": {
+    "message": "Ausführlich"
+  },
+  "detectingStatus": {
+    "message": "Erkennung läuft...",
+    "description": "Erkennungsstatusmeldung"
+  },
+  "dictionaryEmptyHint": {
+    "message": "Geben Sie ein Wort ein, um nach Definitionen zu suchen"
+  },
+  "dictionaryLookUpButton": {
+    "message": "Nachschlagen"
+  },
+  "dictionaryLookingUp": {
+    "message": "Wort nachschlagen..."
+  },
+  "dictionarySearchPlaceholder": {
+    "message": "Geben Sie ein Wort ein, um nachzuschlagen …"
+  },
+  "disableNamedFeature": {
+    "message": "Deaktivieren Sie $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "disconnectButton": {
+    "message": "Trennen",
+    "description": "Trennen-Schaltflächentext"
+  },
+  "disconnectedStatus": {
+    "message": "Getrennt",
+    "description": "Getrennt-Statusmeldung"
+  },
+  "downloadButton": {
+    "message": "Herunterladen"
+  },
+  "downloadingModelStatus": {
+    "message": "Modell wird heruntergeladen... $PROGRESS$%",
+    "description": "Modell-Download-Fortschritt mit Prozentsatz",
+    "placeholders": {
+      "progress": {
+        "content": "$1",
+        "example": "50"
+      }
+    }
+  },
+  "downloadingStatus": {
+    "message": "Wird heruntergeladen...",
+    "description": "Download-Fortschrittsmeldung"
+  },
+  "duoreaderCdnHint": {
+    "message": "Verwenden Sie die CDN-API (schnell) – Tab-Injection und .pz-Dekodierung, ohne DOM-Scraping"
+  },
+  "duoreaderCoverSearchHint": {
+    "message": "Durchsuchen Sie Google/Bing Images nach Buchcovern, wenn Sie den Katalog laden"
+  },
+  "duoreaderFetchAudioHint": {
+    "message": "Audio von der Duoreader-API abrufen (Text und MP3 lokal sichern)"
+  },
+  "duoreaderForceReplaceHint": {
+    "message": "Text-Upload zum Ersetzen erzwingen (Kapitel erneut aufnehmen; Audio bleibt idempotent)"
+  },
+  "durationLabel": {
+    "message": "Dauer:",
+    "description": "Aufnahmedauer-Label"
+  },
+  "embeddingModelLabel": {
+    "message": "Embedding-Modell",
+    "description": "Hauptabschnittstitel für Modellauswahl"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "Hintergrund-Audio-Streaming aktivieren",
+    "description": "Hintergrund-Audio-Streaming aktivieren-Checkbox-Label"
+  },
+  "enableNamedFeature": {
+    "message": "$name$ aktivieren",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "endpointNotConfiguredHint": {
+    "message": "Nicht festgelegt – konfigurieren Sie es unter Einstellungen → API-Konfiguration"
+  },
+  "endpointSwitchFailed": {
+    "message": "Der laufende API-Endpunkt konnte nicht gewechselt werden"
+  },
+  "enterPromptFirst": {
+    "message": "Geben Sie zunächst eine Eingabeaufforderung ein"
+  },
+  "examplesLabel": {
+    "message": "Beispiele"
+  },
+  "expiredLabel": {
+    "message": "Abgelaufen",
+    "description": "Abgelaufenes Element Label"
+  },
+  "exportDataButton": {
+    "message": "Daten exportieren",
+    "description": "Daten exportieren Schaltflächentext"
+  },
+  "extAvailableStatus": {
+    "message": "Verfügbar"
+  },
+  "extCollapseAll": {
+    "message": "Alles reduzieren"
+  },
+  "extCompletedLabel": {
+    "message": "vollendet"
+  },
+  "extEnabledLabel": {
+    "message": "ermöglicht"
+  },
+  "extEnabledStatus": {
+    "message": "Ermöglicht"
+  },
+  "extExpandAll": {
+    "message": "Alles erweitern"
+  },
+  "extExtensionsLabel": {
+    "message": "Erweiterungen"
+  },
+  "extGlobalTaskSystem": {
+    "message": "Globales Aufgabensystem"
+  },
+  "extNoConfig": {
+    "message": "Keine Konfiguration für diese Erweiterung."
+  },
+  "extPauseButton": {
+    "message": "Pause"
+  },
+  "extPendingLabel": {
+    "message": "ausstehend"
+  },
+  "extResumeButton": {
+    "message": "Wieder aufnehmen"
+  },
+  "extStartButton": {
+    "message": "Start"
+  },
+  "extStatePaused": {
+    "message": "Angehalten"
+  },
+  "extStateRunning": {
+    "message": "Läuft"
+  },
+  "extStateStopped": {
+    "message": "Angehalten"
+  },
+  "extStopButton": {
+    "message": "Stoppen"
+  },
+  "extTaskQueueSubtitle": {
+    "message": "Verarbeiten Sie API-Anfragen lokal"
+  },
+  "extTaskQueueTitle": {
+    "message": "Aufgabenwarteschlange"
+  },
+  "extensionDescription": {
+    "message": "Stellt Browser-Funktionen mit Ihrem eigenen Chrome zur Verfügung",
+    "description": "Erweiterungsbeschreibung"
+  },
+  "extensionName": {
+    "message": "chrome-mcp-server",
+    "description": "Erweiterungsname"
+  },
+  "extractedResultLabel": {
+    "message": "Extrahiertes Ergebnis"
+  },
+  "fastPerformance": {
+    "message": "Schnell",
+    "description": "Schnelle Leistungsanzeige"
+  },
+  "fastTierBadge": {
+    "message": "⚡ SCHNELL"
+  },
+  "fastTierLabel": {
+    "message": "Schnelle Stufe"
+  },
+  "featureDesc_aiTranslateHub": {
+    "message": "Übersetzen Sie mit Web-KI-Anbietern und fügen Sie Sprachaudio hinzu."
+  },
+  "featureDesc_articleStudyGuide": {
+    "message": "Erstellen Sie abgestimmte Lese-, Grammatik- und Phrasenlernhandbücher."
+  },
+  "featureDesc_bingDictionary": {
+    "message": "Suchen Sie nach Definitionen, Übersetzungen und Aussprache."
+  },
+  "featureDesc_bookStudyGenerator": {
+    "message": "Generieren Sie mehrsprachiges Lernmaterial aus Buchsegmenten."
+  },
+  "featureDesc_geminiImage": {
+    "message": "Generieren Sie Bilder mit Gemini und erfassen Sie das Ergebnis."
+  },
+  "featureDesc_notebooklm": {
+    "message": "Automatisieren Sie Fragen und Recherchen in Google NotebookLM."
+  },
+  "featureDesc_qwenTts": {
+    "message": "Generieren und laden Sie Sprache mit Qwen3-TTS herunter."
+  },
+  "featureDesc_webSearch": {
+    "message": "Durchsuchen Sie Web-, Bild- und Nachrichtenquellen in Live-Browser-Registerkarten."
+  },
+  "featureDesc_wordValidity": {
+    "message": "Testen Sie die Klassifizierung der Wortgültigkeit mit der gemeinsam genutzten Web-Laufzeitumgebung."
+  },
+  "featureName_aiTranslateHub": {
+    "message": "Hub übersetzen"
+  },
+  "featureName_articleStudyGuide": {
+    "message": "Artikelführer"
+  },
+  "featureName_bingDictionary": {
+    "message": "Bing-Wörterbuch"
+  },
+  "featureName_bookStudyGenerator": {
+    "message": "Buchstudio"
+  },
+  "featureName_geminiImage": {
+    "message": "Zwillingsbild"
+  },
+  "featureName_notebooklm": {
+    "message": "NotebookLM"
+  },
+  "featureName_qwenTts": {
+    "message": "Qwen TTS"
+  },
+  "featureName_webSearch": {
+    "message": "Websuche"
+  },
+  "featureName_wordValidity": {
+    "message": "Wortgültigkeit"
+  },
+  "filterByTitlePlaceholder": {
+    "message": "Nach Titel filtern…"
+  },
+  "fiveMinutesOption": {
+    "message": "5 Minuten",
+    "description": "5 Minuten Dauer-Option"
+  },
+  "footerPort": {
+    "message": "Port $port$",
+    "placeholders": {
+      "port": {
+        "content": "$1"
+      }
+    }
+  },
+  "forvoPronunciationHint": {
+    "message": "Muttersprachler-Audio aus aller Welt (Forvo)"
+  },
+  "freeDictionaryLabel": {
+    "message": "Kostenloses Wörterbuch"
+  },
+  "generatedImageAlt": {
+    "message": "Generiertes Bild"
+  },
+  "generationFailed": {
+    "message": "Die Generierung ist fehlgeschlagen"
+  },
+  "generationStartFailed": {
+    "message": "Generierung konnte nicht gestartet werden"
+  },
+  "gigabytesUnit": {
+    "message": "GB",
+    "description": "Gigabytes Einheit"
+  },
+  "grammarLabel": {
+    "message": "Grammatik"
+  },
+  "headerSubtitle": {
+    "message": "Browser-Automatisierungskonsole"
+  },
+  "headerTitle": {
+    "message": "Chrome MCP"
+  },
+  "helpTitle": {
+    "message": "Hilfe",
+    "description": "Hilfe Dialogtitel"
+  },
+  "idleStatus": {
+    "message": "Inaktiv",
+    "description": "Inaktiver Aufnahmestatus"
+  },
+  "imageAlt": {
+    "message": "Bild"
+  },
+  "imageGenerationTimeout": {
+    "message": "Zeitüberschreitung beim Warten auf das Bild"
+  },
+  "imagePromptPlaceholder": {
+    "message": "Beschreiben Sie das zu erzeugende Bild ..."
+  },
+  "imagesMode": {
+    "message": "Bilder"
+  },
+  "importDataButton": {
+    "message": "Daten importieren",
+    "description": "Daten importieren Schaltflächentext"
+  },
+  "includeMicrophoneLabel": {
+    "message": "Mikrofon einbeziehen",
+    "description": "Mikrofon einbeziehen-Checkbox-Label"
+  },
+  "indexDataLabel": {
+    "message": "Indexdaten"
+  },
+  "indexDataManagementLabel": {
+    "message": "Index-Datenverwaltung",
+    "description": "Hauptabschnittstitel für Datenverwaltung"
+  },
+  "indexSizeLabel": {
+    "message": "Indexgröße",
+    "description": "Indexgröße Label"
+  },
+  "indexedPagesLabel": {
+    "message": "Indizierte Seiten",
+    "description": "Anzahl indizierter Seiten Label"
+  },
+  "infoNotification": {
+    "message": "Information",
+    "description": "Allgemeine Informationsmeldung"
+  },
+  "initSemanticEngineButton": {
+    "message": "Semantische Engine initialisieren",
+    "description": "Semantische Engine initialisieren Schaltflächentext"
+  },
+  "initializingStatus": {
+    "message": "Initialisierung...",
+    "description": "Initialisierung-Fortschrittsmeldung"
+  },
   "invalidJsonError": {
     "message": "Sitzungsmetadaten-JSON ungültig: $ERROR$",
     "description": "Ungültiger JSON-Fehler-Nachricht",
@@ -610,6 +877,864 @@
         "example": "Unerwartetes Token"
       }
     }
+  },
+  "invalidLabel": {
+    "message": "Ungültig"
+  },
+  "itemsUnit": {
+    "message": "Elemente",
+    "description": "Elemente Zähleinheit"
+  },
+  "kilobytesUnit": {
+    "message": "KB",
+    "description": "Kilobytes Einheit"
+  },
+  "languageSelectorLabel": {
+    "message": "Sprache",
+    "description": "Sprachauswahl Label"
+  },
+  "languagesLabel": {
+    "message": "Sprachen"
+  },
+  "lastUpdatedLabel": {
+    "message": "Zuletzt aktualisiert:",
+    "description": "Zeitstempel der letzten Aktualisierung"
+  },
+  "lastVerifiedLabel": {
+    "message": "Zuletzt überprüft"
+  },
+  "learnLanguageLabel": {
+    "message": "Sprache lernen"
+  },
+  "lightTheme": {
+    "message": "Hell",
+    "description": "Helles Design Option"
+  },
+  "lightweightModelDescription": {
+    "message": "Leichtgewichtiges mehrsprachiges Modell",
+    "description": "Beschreibung für leichtgewichtige Modelloption"
+  },
+  "listenerLabel": {
+    "message": "Hörer"
+  },
+  "loadBooksFailed": {
+    "message": "Bücher konnten nicht geladen werden"
+  },
+  "loadQueueButton": {
+    "message": "Warteschlange laden"
+  },
+  "loadQueueDescription": {
+    "message": "Ausstehende Wörter vom Server abrufen und in der Vorschau anzeigen"
+  },
+  "loadQueueFailed": {
+    "message": "Die Warteschlange konnte nicht geladen werden"
+  },
+  "loadSourcesFailed": {
+    "message": "Die Quellen konnten nicht geladen werden"
+  },
+  "loadStatusFailed": {
+    "message": "Status konnte nicht geladen werden"
+  },
+  "loadingCacheInfoStatus": {
+    "message": "Cache-Informationen werden geladen...",
+    "description": "Cache-Informationen laden Status"
+  },
+  "loadingCatalog": {
+    "message": "Katalog wird geladen…"
+  },
+  "loadingSegments": {
+    "message": "Segmente werden geladen…"
+  },
+  "loadingStatus": {
+    "message": "Wird geladen...",
+    "description": "Ladefortschrittsmeldung"
+  },
+  "logAuto": {
+    "message": "Auto"
+  },
+  "logClearAll": {
+    "message": "Alles löschen"
+  },
+  "logPause": {
+    "message": "Pause"
+  },
+  "logTestFail": {
+    "message": "Protokolle konnten nicht abgerufen werden."
+  },
+  "logTestOk": {
+    "message": "Protokollpipeline OK – {0} Einträge geladen."
+  },
+  "logTestRefresh": {
+    "message": "Testen/Aktualisieren"
+  },
+  "logTesting": {
+    "message": "Aktualisierte Protokolle…"
+  },
+  "logsLabel": {
+    "message": "Protokolle"
+  },
+  "lookupWordFailed": {
+    "message": "Wort konnte nicht nachgeschlagen werden"
+  },
+  "mainContentLabel": {
+    "message": "Hauptinhalt",
+    "description": "Hauptinhalt Barrierefreiheitslabel"
+  },
+  "maxDurationLabel": {
+    "message": "Maximale Aufnahmedauer:",
+    "description": "Maximale Aufnahmedauer-Auswahl-Label"
+  },
+  "maximumBooksLabel": {
+    "message": "Max. Bücher (0 = alle)"
+  },
+  "maximumLabel": {
+    "message": "Max"
+  },
+  "mcpServerConfigLabel": {
+    "message": "MCP Server-Konfiguration",
+    "description": "MCP Server-Konfigurationsabschnittslabel"
+  },
+  "mcpToolLabel": {
+    "message": "MCP-Tool"
+  },
+  "mediaCachedLabel": {
+    "message": "zwischengespeichert"
+  },
+  "mediaMissLabel": {
+    "message": "vermissen"
+  },
+  "megabytesUnit": {
+    "message": "MB",
+    "description": "Megabytes Einheit"
+  },
+  "menuLabel": {
+    "message": "Menü",
+    "description": "Menü Barrierefreiheitslabel"
+  },
+  "modeLabel": {
+    "message": "Modus"
+  },
+  "modelCacheManagementLabel": {
+    "message": "Modell-Cache-Verwaltung",
+    "description": "Hauptabschnittstitel für Cache-Verwaltung"
+  },
+  "modelCorruptedErrorMessage": {
+    "message": "Modelldatei beschädigt oder unvollständig, bitte Download wiederholen",
+    "description": "Modell-Beschädigungsfehlermeldung"
+  },
+  "modelFailedStatus": {
+    "message": "Modell konnte nicht geladen werden",
+    "description": "Modell-Ladefehler Status"
+  },
+  "modelLoadedStatus": {
+    "message": "Modell geladen",
+    "description": "Modell erfolgreich geladen Status"
+  },
+  "multilingualModelDescription": {
+    "message": "Mehrsprachiges semantisches Modell",
+    "description": "Beschreibung für mehrsprachige Modelloption"
+  },
+  "myLanguageLabel": {
+    "message": "Meine Sprache"
+  },
+  "nativeBridgeLabel": {
+    "message": "Einheimische Brücke"
+  },
+  "nativeMcpPortLabel": {
+    "message": "Nativer MCP-Port"
+  },
+  "nativeServerConfigLabel": {
+    "message": "Native Server-Konfiguration",
+    "description": "Hauptabschnittstitel für Native Server-Einstellungen"
+  },
+  "navAudio": {
+    "message": "Audio"
+  },
+  "navData": {
+    "message": "Daten"
+  },
+  "navDebug": {
+    "message": "Debuggen"
+  },
+  "navExtensions": {
+    "message": "Erweiterungen"
+  },
+  "navImport": {
+    "message": "Import"
+  },
+  "navServer": {
+    "message": "Server"
+  },
+  "navTasks": {
+    "message": "Aufgaben"
+  },
+  "navWebAi": {
+    "message": "Web-KI"
+  },
+  "navigationLabel": {
+    "message": "Navigation",
+    "description": "Navigation Barrierefreiheitslabel"
+  },
+  "networkErrorMessage": {
+    "message": "Netzwerkverbindungsfehler, bitte Netzwerk prüfen und erneut versuchen",
+    "description": "Netzwerkverbindungsfehlermeldung"
+  },
+  "newTabLabel": {
+    "message": "Neuer Tab",
+    "description": "Neuer Tab Label"
+  },
+  "newsMode": {
+    "message": "Nachricht"
+  },
+  "noAnswerReturned": {
+    "message": "Es wurde keine Antwort zurückgegeben"
+  },
+  "noBackgroundResponse": {
+    "message": "Keine Antwort vom Erweiterungshintergrund – laden Sie die Erweiterung neu und versuchen Sie es erneut"
+  },
+  "noBilingualBooks": {
+    "message": "Keine zweisprachigen Bücher gefunden."
+  },
+  "noCacheDataMessage": {
+    "message": "Keine Cache-Daten vorhanden",
+    "description": "Keine Cache-Daten verfügbar Meldung"
+  },
+  "noDictionaryEntry": {
+    "message": "Für dieses Wort gibt es keinen Bing-Wörterbucheintrag"
+  },
+  "noEndpointConfigured": {
+    "message": "In den Einstellungen ist kein Endpunkt konfiguriert"
+  },
+  "noEventsRecorded": {
+    "message": "Keine Ereignisse aufgezeichnet."
+  },
+  "noLimitOption": {
+    "message": "Keine Begrenzung",
+    "description": "Keine Begrenzung Dauer-Option"
+  },
+  "noPendingTasksHint": {
+    "message": "Keine ausstehenden Aufgaben."
+  },
+  "noPendingWordsHint": {
+    "message": "Keine ausstehenden Wörter zum Übersetzen – nichts zum Durchsuchen."
+  },
+  "noRecordableTabs": {
+    "message": "Keine beschreibbare Registerkarte. Öffnen Sie eine normale Webseite (http/https) – Chrome-System- und Erweiterungsseiten können nicht aufgezeichnet werden."
+  },
+  "noResult": {
+    "message": "Kein Ergebnis"
+  },
+  "noSourcesForFilter": {
+    "message": "Für diesen Filter wurden keine Quellen gefunden."
+  },
+  "notebooklmAnswerLabel": {
+    "message": "Antwort:"
+  },
+  "notebooklmAsk": {
+    "message": "Fragen"
+  },
+  "notebooklmAsking": {
+    "message": "Fragen…"
+  },
+  "notebooklmDialogueHint": {
+    "message": "Integrierte Eingabeaufforderung: Erzeugt für jedes Element einen kurzen Dialog mit zwei Sprechern"
+  },
+  "notebooklmDialogueLabel": {
+    "message": "Dialogtest – Wörter/Sätze zum Dialog"
+  },
+  "notebooklmDialoguePlaceholder": {
+    "message": "Fügen Sie ein paar Wörter oder Sätze ein, um sie in einen Dialog zu verweben ..."
+  },
+  "notebooklmHint": {
+    "message": "Öffnen Sie zuerst ein NotebookLM-Notizbuch und fragen Sie dann. Erfordert eine Anmeldung."
+  },
+  "notebooklmNotebookUrl": {
+    "message": "Notebook-URL (optional):"
+  },
+  "notebooklmQuestionLabel": {
+    "message": "Frage:"
+  },
+  "notebooklmQuestionPlaceholder": {
+    "message": "Worum geht es in diesem Notizbuch?"
+  },
+  "notebooklmRequestFailed": {
+    "message": "Die NotebookLM-Anfrage ist fehlgeschlagen"
+  },
+  "notebooklmTitle": {
+    "message": "NotebookLM-Automatisierung"
+  },
+  "offlineStatus": {
+    "message": "Offline"
+  },
+  "oneHourOption": {
+    "message": "1 Stunde",
+    "description": "1 Stunde Dauer-Option"
+  },
+  "oneMinuteOption": {
+    "message": "1 Minute",
+    "description": "1 Minute Dauer-Option"
+  },
+  "onlineStatus": {
+    "message": "Online"
+  },
+  "openNewTabForTest": {
+    "message": "Öffnen Sie für jeden Test eine neue Registerkarte"
+  },
+  "openPersistentTab": {
+    "message": "In einer dauerhaften Registerkarte öffnen"
+  },
+  "optionalPlaceholder": {
+    "message": "Optional",
+    "description": "Optionales Feld-Platzhalter"
+  },
+  "otherLanguageCodePlaceholder": {
+    "message": "Anderer Sprachcode"
+  },
+  "otherSettingsLabel": {
+    "message": "Andere"
+  },
+  "pagesUnit": {
+    "message": "Seiten",
+    "description": "Seiten Zähleinheit"
+  },
+  "patternLabel": {
+    "message": "Muster"
+  },
+  "pendingFastLabel": {
+    "message": "⚡ $count$ schnell",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingRetriesLabel": {
+    "message": "Ausstehende Wiederholungsversuche: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "permissionDeniedErrorMessage": {
+    "message": "Zugriff verweigert",
+    "description": "Zugriff verweigert Fehlermeldung"
+  },
+  "phrasesLabel": {
+    "message": "Phrasen"
+  },
+  "playPronunciation": {
+    "message": "Spielen Sie die Aussprache"
+  },
+  "playUkPronunciation": {
+    "message": "Spielen Sie die britische Aussprache"
+  },
+  "playUsPronunciation": {
+    "message": "Spielen Sie die US-Aussprache"
+  },
+  "primaryLanguageGeneratedHint": {
+    "message": "(Die Primär-/Ausgangssprache wird automatisch generiert und ausgegraut angezeigt)"
+  },
+  "primaryNavigationLabel": {
+    "message": "Primäre Navigation"
+  },
+  "processingCacheStatus": {
+    "message": "Cache wird verarbeitet...",
+    "description": "Cache verarbeiten Status"
+  },
+  "processingStatus": {
+    "message": "Verarbeitung...",
+    "description": "Verarbeitung-Fortschrittsmeldung"
+  },
+  "processorName_bingDictionary": {
+    "message": "Bing-Wörterbuch"
+  },
+  "processorName_deepseek": {
+    "message": "DeepSeek KI"
+  },
+  "processorName_qwenTts": {
+    "message": "Qwen3 TTS"
+  },
+  "processorName_webAiTranslate": {
+    "message": "Web-AI-Übersetzung"
+  },
+  "processorName_wordValidityWeb": {
+    "message": "Wortgültigkeit"
+  },
+  "promptLabel": {
+    "message": "Prompt"
+  },
+  "providerGenerationFailed": {
+    "message": "Die Generierung von $provider$ ist fehlgeschlagen",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerReplyTimeout": {
+    "message": "Zeitüberschreitung beim Warten auf die $provider$-Antwort",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerStartFailed": {
+    "message": "Fehler beim Starten von $provider$: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerTestStartFailed": {
+    "message": "$provider$-Test konnte nicht gestartet werden: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "queryLabel": {
+    "message": "Abfrage"
+  },
+  "queueAddBingTest": {
+    "message": "Bing-Testaufgabe hinzufügen"
+  },
+  "queueAddDeepseekTest": {
+    "message": "Fügen Sie eine DeepSeek-Testaufgabe hinzu"
+  },
+  "queueCenterTabLogs": {
+    "message": "Protokolle"
+  },
+  "queueCenterTabQueue": {
+    "message": "Warteschlange"
+  },
+  "queueItemAssignedLabel": {
+    "message": "Zugewiesen:"
+  },
+  "queueItemPrioAge": {
+    "message": "vor $priority$ · $age$s",
+    "placeholders": {
+      "priority": {
+        "content": "$1"
+      },
+      "age": {
+        "content": "$2"
+      }
+    }
+  },
+  "queueTestActions": {
+    "message": "Testaktionen:"
+  },
+  "queueTestConnection": {
+    "message": "Testverbindung"
+  },
+  "queueTestFail": {
+    "message": "Die Warteschlangenverbindung ist fehlgeschlagen."
+  },
+  "queueTestOk": {
+    "message": "Warteschlange verbunden – {0} Aufgabe(n) in der Warteschlange."
+  },
+  "queueTesting": {
+    "message": "Warteschlangenverbindung wird getestet…"
+  },
+  "qwenCustomVoice": {
+    "message": "TTS (CustomVoice)"
+  },
+  "qwenGpuWaitingHint": {
+    "message": "Warten auf die HuggingFace Zero GPU – lassen Sie die Registerkarte geöffnet."
+  },
+  "qwenSettingsSharedHint": {
+    "message": "Geteilt von Laravel-Produktionsaufgaben und dem Extension-Testpanel."
+  },
+  "qwenTextPlaceholder": {
+    "message": "Geben Sie Text für Qwen3-TTS ein…"
+  },
+  "qwenTtsFailed": {
+    "message": "Qwen TTS ist fehlgeschlagen"
+  },
+  "qwenVoiceClone": {
+    "message": "Sprachklon (Basis)"
+  },
+  "qwenVoiceDesign": {
+    "message": "Sprachdesign"
+  },
+  "realtimeWebsocketOption": {
+    "message": "Echtzeit (WebSocket)",
+    "description": "Echtzeit-WebSocket-Streaming-Option"
+  },
+  "recentSearchesLabel": {
+    "message": "Aktuelle Suchanfragen"
+  },
+  "recordingGeneralError": {
+    "message": "Fehler beim Starten der Aufnahme: $ERROR$",
+    "description": "Allgemeine Aufnahme-Fehlermeldung",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Unbekannter Fehler"
+      }
+    }
+  },
+  "recordingSettingsLabel": {
+    "message": "Aufnahmeeinstellungen",
+    "description": "Aufnahmeeinstellungen-Abschnittstitel"
+  },
+  "recordingSettingsManagedHint": {
+    "message": "Aufnahmeserver, Metadaten und Streaming-Optionen werden im Einstellungscenter verwaltet."
+  },
+  "recordingStatus": {
+    "message": "Aufnahme läuft",
+    "description": "Aktiver Aufnahmestatus"
+  },
+  "recordingStatusLabel": {
+    "message": "Aufnahmestatus:",
+    "description": "Aufnahmestatus-Label"
+  },
+  "recordingTargetLabel": {
+    "message": "Aufnahmeziel (Registerkarte)"
+  },
+  "refreshCatalogButton": {
+    "message": "Katalog aktualisieren"
+  },
+  "refreshStatusButton": {
+    "message": "Status aktualisieren",
+    "description": "Status aktualisieren Schaltflächen-Tooltip"
+  },
+  "reinitializeButton": {
+    "message": "Neu initialisieren",
+    "description": "Neu initialisieren Schaltflächentext"
+  },
+  "reloadSegments": {
+    "message": "Segmente neu laden"
+  },
+  "removeLanguageTitle": {
+    "message": "Sprache entfernen"
+  },
+  "resetButton": {
+    "message": "Zurücksetzen",
+    "description": "Zurücksetzen-Schaltflächentext"
+  },
+  "resetGeneralSettings": {
+    "message": "Allgemeine Einstellungen zurücksetzen"
+  },
+  "resetGeneralSettingsConfirm": {
+    "message": "Die allgemeinen Server- und Debug-Einstellungen auf ihre Standardwerte zurücksetzen?"
+  },
+  "resumeFailed": {
+    "message": "Lebenslauf fehlgeschlagen"
+  },
+  "retryButton": {
+    "message": "Wiederholen",
+    "description": "Wiederholen-Schaltflächentext"
+  },
+  "runningStatusLabel": {
+    "message": "Betriebsstatus",
+    "description": "Server-Betriebsstatuslabel"
+  },
+  "saveButton": {
+    "message": "Speichern",
+    "description": "Speichern-Schaltflächentext"
+  },
+  "saveLocallyLabel": {
+    "message": "Aufnahme lokal speichern",
+    "description": "Aufnahme lokal speichern-Checkbox-Label"
+  },
+  "savedStatus": {
+    "message": "Gespeichert"
+  },
+  "scrapeFetchLabel": {
+    "message": "Schaben/holen"
+  },
+  "scrapeTestFailed": {
+    "message": "Der Kratztest ist fehlgeschlagen"
+  },
+  "searchEngineLabel": {
+    "message": "Motor"
+  },
+  "searchFailed": {
+    "message": "Die Suche ist fehlgeschlagen"
+  },
+  "semanticEngineInitFailedStatus": {
+    "message": "Initialisierung der semantischen Engine fehlgeschlagen",
+    "description": "Semantische Engine Initialisierung fehlgeschlagen Status"
+  },
+  "semanticEngineInitializingStatus": {
+    "message": "Semantische Engine wird initialisiert...",
+    "description": "Semantische Engine Initialisierungsstatus"
+  },
+  "semanticEngineLabel": {
+    "message": "Semantische Engine",
+    "description": "Hauptabschnittstitel für semantische Engine"
+  },
+  "semanticEngineNotInitStatus": {
+    "message": "Semantische Engine nicht initialisiert",
+    "description": "Semantische Engine nicht initialisiert Status"
+  },
+  "semanticEngineReadyStatus": {
+    "message": "Semantische Engine bereit",
+    "description": "Semantische Engine bereit Status"
+  },
+  "sentencePatternHint": {
+    "message": "Satzstrukturbezeichnung, zum Beispiel: nicht nur…sondern auch"
+  },
+  "serverNamePlaceholder": {
+    "message": "Servername",
+    "description": "Servername-Eingabe-Platzhalter"
+  },
+  "serviceNotConnectedStatus": {
+    "message": "Service nicht verbunden",
+    "description": "Service nicht verbunden Status"
+  },
+  "serviceRunningStatus": {
+    "message": "Service läuft (Port: $PORT$)",
+    "description": "Service läuft mit Portnummer",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "12306"
+      }
+    }
+  },
+  "sessionMetadataHelper": {
+    "message": "Hier definierte Schlüssel/Wert-Paare werden zu jedem HTTP-Upload hinzugefügt und einmal über WebSocket als Metadaten-Payload gesendet.",
+    "description": "Sitzungsmetadaten-Hilfetext"
+  },
+  "sessionMetadataLabel": {
+    "message": "Sitzungsmetadaten (JSON)",
+    "description": "Sitzungsmetadaten-Abschnittstitel"
+  },
+  "settingsTitle": {
+    "message": "Einstellungen",
+    "description": "Einstellungen Dialogtitel"
+  },
+  "showDetailedLogsHint": {
+    "message": "Detaillierte Protokolle anzeigen"
+  },
+  "silenceDurationLabel": {
+    "message": "Stilledauer (Sekunden):",
+    "description": "Stilledauer-Eingabe-Label"
+  },
+  "solveSearchVerification": {
+    "message": "Lösen Sie die Überprüfung auf der Registerkarte „Suchen“."
+  },
+  "sourceLanguageAlwaysGenerated": {
+    "message": "Quellsprache des erweiterten Buchs – immer generiert"
+  },
+  "sourceLanguageExpressionsHint": {
+    "message": "Ausgangssprache: Alternativausdrücke überspringen (nur übersetzte Sprachen erhalten sie)"
+  },
+  "sourceLanguageLabel": {
+    "message": "Ausgangssprache"
+  },
+  "sourceUrlLabel": {
+    "message": "Quell-URL"
+  },
+  "startAssistButton": {
+    "message": "Starthilfe"
+  },
+  "startAutomaticRebuilds": {
+    "message": "  Dateiänderungen lösen automatische Builds aus."
+  },
+  "startBannerTitle": {
+    "message": "  Chrome MCP Server - Windows"
+  },
+  "startBuildConfigIncomplete": {
+    "message": "WARNUNG: Die Build-Konfiguration scheint unvollständig zu sein; Standardwerte werden verwendet."
+  },
+  "startBuildSkipped": {
+    "message": "  Build übersprungen; vorhandene Ausgabe wird verwendet."
+  },
+  "startBuildingExtension": {
+    "message": "Chrome-Erweiterung wird erstellt..."
+  },
+  "startBuildingNative": {
+    "message": "Native Server wird erstellt..."
+  },
+  "startBuildingNativeLive": {
+    "message": "  mcp-chrome-bridge wird erstellt (Live-Ausgabe)..."
+  },
+  "startBuildingShared": {
+    "message": "Gemeinsames Paket wird erstellt..."
+  },
+  "startBuildingSharedLive": {
+    "message": "  chrome-mcp-shared wird erstellt (Live-Ausgabe)..."
+  },
+  "startCannotRegister": {
+    "message": "  Der Native Host kann ohne Erweiterungs-ID nicht registriert werden"
+  },
+  "startCheckingCmdShims": {
+    "message": "  Windows-.cmd-Shims werden geprüft..."
+  },
+  "startCheckingDependencies": {
+    "message": "Abhängigkeiten werden geprüft..."
+  },
+  "startChromeDiscoveryMayFail": {
+    "message": "  Chrome kann den Native-Messaging-Host möglicherweise nicht finden"
+  },
+  "startComplete": {
+    "message": "  BUILD UND REGISTRIERUNG ABGESCHLOSSEN"
+  },
+  "startDependenciesInstalled": {
+    "message": "  OK Abhängigkeiten sind bereits installiert"
+  },
+  "startDependencyInstallFinished": {
+    "message": "  OK Installation der Abhängigkeiten abgeschlossen"
+  },
+  "startExtensionBuildFailed": {
+    "message": "  FEHLER: Chrome-Erweiterung konnte nach $maximum$ Versuchen nicht erstellt werden",
+    "placeholders": {
+      "maximum": {
+        "content": "$1"
+      }
+    }
+  },
+  "startExtensionBuilt": {
+    "message": "  OK Chrome-Erweiterung erfolgreich erstellt"
+  },
+  "startExtensionIdUncalculated": {
+    "message": "  Erweiterungs-ID kann nicht automatisch berechnet werden"
+  },
+  "startFailed": {
+    "message": "Start fehlgeschlagen"
+  },
+  "startHostMayFail": {
+    "message": "  Der Native-Messaging-Host funktioniert möglicherweise nicht ordnungsgemäß"
+  },
+  "startImportantPaths": {
+    "message": "[WICHTIGE PFADE]\n\n  1) Chrome-Erweiterung (Frontend):\n     $extensionPath$\n\n  2) Native Server (Backend):\n     $nativePath$",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      },
+      "nativePath": {
+        "content": "$2"
+      }
+    }
+  },
+  "startInstallingDependencies": {
+    "message": "Abhängigkeiten werden installiert..."
+  },
+  "startInstallingDependenciesLive": {
+    "message": "  Abhängigkeiten werden installiert (Live-Ausgabe)..."
+  },
+  "startInstructions": {
+    "message": "[SCHRITT 1] Erweiterung einmalig in Chrome laden:\n  1. Chrome öffnen: chrome://extensions/\n  2. Entwicklermodus aktivieren (Schalter oben rechts)\n  3. Auf 'Entpackte Erweiterung laden' klicken\n  4. Ordner auswählen: $extensionPath$\n  Hinweis: Diesen Ordner geladen lassen; der WXT-Entwicklungsserver schreibt in denselben Pfad.\n\n[SCHRITT 2] MCP-Dienst verbinden:\n  1. In Chrome auf das Erweiterungssymbol klicken\n  2. Auf die Schaltfläche Verbinden klicken\n  3. Der Dienst startet unter http://127.0.0.1:12306\n\n[SCHRITT 3] Dynamisches Debugging (nach Komponente):\n\n  POPUP (apps/chrome-extension/entrypoints/popup/):\n    - Rechtsklick auf das Popup -> Untersuchen -> DevTools wird geöffnet\n    - Nach dem Speichern einer Datei das Popup erneut öffnen (WXT HMR lädt automatisch neu)\n    - Oder in DevTools Ctrl+R drücken, um eine Aktualisierung zu erzwingen\n\n  BACKGROUND SERVICE WORKER (entrypoints/background.ts):\n    - chrome://extensions/ öffnen -> Erweiterung suchen -> auf 'Service Worker' klicken\n    - Nach dem Speichern einer Datei auf das runde Aktualisierungssymbol der Erweiterung klicken\n    - WXT lädt die Erweiterung nach einem Build automatisch neu\n\n  CONTENT SCRIPTS (entrypoints/content.ts / inject-scripts/):\n    - Zielseite öffnen -> F12 -> Sources -> Registerkarte Content Scripts\n    - Nach dem Speichern einer Datei die Zielseite aktualisieren (Ctrl+R)\n    - WXT registriert Content Scripts im Entwicklungsmodus dynamisch neu\n\n  ALLE ERWEITERUNGSSEITEN UNTERSUCHEN:\n    - chrome://inspect/#extensions öffnen",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      }
+    }
+  },
+  "startLaunchingWatch": {
+    "message": "  WXT-Entwicklungsserver wird gestartet (Überwachungsmodus)..."
+  },
+  "startLocation": {
+    "message": "    Speicherort: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestContent": {
+    "message": "  Manifest-Inhalt:"
+  },
+  "startManifestFileMissing": {
+    "message": "  WARNUNG: Manifest-Datei nicht gefunden unter $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestKeyMissing": {
+    "message": "  WARNUNG: manifest.json enthält kein 'key'-Feld"
+  },
+  "startManifestKeyPresent": {
+    "message": "  OK manifest.json enthält das für die Erweiterungs-ID verwendete 'key'-Feld"
+  },
+  "startManifestMissing": {
+    "message": "  FEHLER: manifest.json nicht gefunden unter $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestRegistered": {
+    "message": "  OK Chrome-Manifest registriert"
+  },
+  "startManifestVerificationFailed": {
+    "message": "  WARNUNG: Die Struktur von manifest.json konnte nicht geprüft werden"
+  },
+  "startNativeBuilt": {
+    "message": "  OK Native Server erstellt (Artefakt vorhanden)"
+  },
+  "startNativeMissing": {
+    "message": "  WARNUNG: Native-Server-Artefakt nicht gefunden unter $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startNextSteps": {
+    "message": "  NÄCHSTE SCHRITTE"
+  },
+  "startNodeMissing": {
+    "message": "  FEHLER: Node.js nicht gefunden"
+  },
+  "startNodeVersion": {
+    "message": "  OK Node.js: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startOneTimeComplete": {
+    "message": "  Einmaliger Build abgeschlossen; Entwicklungs-Watcher sind deaktiviert."
+  },
+  "startPnpmMissing": {
+    "message": "  FEHLER: pnpm nicht gefunden"
+  },
+  "startPnpmVersion": {
+    "message": "  OK pnpm: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startPressStop": {
+    "message": "  Zum Beenden Ctrl+C drücken."
+  },
+  "startProcessingBuildConfiguration": {
+    "message": "[Python] Build-Konfiguration wird verarbeitet..."
+  },
+  "startPythonError": {
+    "message": "WARNUNG: Python-Skript hat einen Fehler ausgelöst (Fortsetzung): $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "startRebuilding": {
+    "message": "  Neuer Build (MCP_SKIP_BUILD=1 verwendet die vorhandene Ausgabe)."
+  },
+  "startRecordingButton": {
+    "message": "Aufnahme starten",
+    "description": "Aufnahme starten-Button-Text"
   },
   "startRecordingError": {
     "message": "Aufnahme konnte nicht gestartet werden: $ERROR$",
@@ -621,14 +1746,611 @@
       }
     }
   },
-  "recordingGeneralError": {
-    "message": "Fehler beim Starten der Aufnahme: $ERROR$",
-    "description": "Allgemeine Aufnahme-Fehlermeldung",
+  "startRegisteringHost": {
+    "message": "  Native-Messaging-Host wird registriert..."
+  },
+  "startRegisteringNative": {
+    "message": "Native-Messaging-Host wird registriert..."
+  },
+  "startRegistrationMayRequireUpdate": {
+    "message": "  Die Native-Host-Registrierung erfordert möglicherweise eine manuelle Aktualisierung der Erweiterungs-ID"
+  },
+  "startRegistrationVerification": {
+    "message": "  Überprüfung der Registrierung:"
+  },
+  "startRegistrationWillProceed": {
+    "message": "  Die Native-Host-Registrierung wird fortgesetzt, erfordert aber möglicherweise eine manuelle ID-Aktualisierung"
+  },
+  "startRegistryExists": {
+    "message": "  OK Windows-Registrierungsschlüssel vorhanden"
+  },
+  "startRegistryMissing": {
+    "message": "  WARNUNG: Windows-Registrierungsschlüssel nicht gefunden unter $path$",
     "placeholders": {
-      "error": {
-        "content": "$1",
-        "example": "Unbekannter Fehler"
+      "path": {
+        "content": "$1"
       }
     }
+  },
+  "startRetryingBuild": {
+    "message": "  Build wird erneut versucht (Versuch $attempt$/$maximum$)...",
+    "placeholders": {
+      "attempt": {
+        "content": "$1"
+      },
+      "maximum": {
+        "content": "$2"
+      }
+    }
+  },
+  "startServiceFailed": {
+    "message": "Der Dienst konnte nicht gestartet werden"
+  },
+  "startSetupTitle": {
+    "message": "Chrome MCP Server - Windows-Einrichtung"
+  },
+  "startSharedBuilt": {
+    "message": "  OK Gemeinsames Paket erstellt (Artefakt vorhanden)"
+  },
+  "startSharedMissing": {
+    "message": "  WARNUNG: Gemeinsames Build-Artefakt nicht gefunden unter $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startSkipBuild": {
+    "message": "  MCP_SKIP_BUILD=1; Build wird übersprungen und vorhandene Ausgabe verwendet."
+  },
+  "startWatchDevSelected": {
+    "message": "  Entwicklungs-Überwachungsmodus ausgewählt."
+  },
+  "startWatchOnceSelected": {
+    "message": "  Einmaliger Build ausgewählt."
+  },
+  "startWatchPrompt": {
+    "message": "Entwicklungs-Überwachungsmodus aktivieren? [J/n]"
+  },
+  "stateLabel": {
+    "message": "Zustand"
+  },
+  "statusLabel": {
+    "message": "Status",
+    "description": "Allgemeines Statuslabel"
+  },
+  "stopAssistButton": {
+    "message": "Stopp-Unterstützung"
+  },
+  "stopRecordingButton": {
+    "message": "Aufnahme stoppen",
+    "description": "Aufnahme stoppen-Button-Text"
+  },
+  "stopServiceFailed": {
+    "message": "Der Dienst konnte nicht beendet werden"
+  },
+  "streamingModeLabel": {
+    "message": "Streaming-Modus:",
+    "description": "Streaming-Modus-Auswahl-Label"
+  },
+  "styleInstructionLabel": {
+    "message": "Stilanleitung"
+  },
+  "submitDisabled": {
+    "message": "Senden deaktiviert"
+  },
+  "submitFailed": {
+    "message": "Senden fehlgeschlagen"
+  },
+  "successNotification": {
+    "message": "Vorgang erfolgreich abgeschlossen",
+    "description": "Allgemeine Erfolgsmeldung"
+  },
+  "switchingModelStatus": {
+    "message": "Modell wird gewechselt...",
+    "description": "Modellwechsel-Fortschrittsmeldung"
+  },
+  "synonymsLabel": {
+    "message": "Synonyme"
+  },
+  "tabIndexLabel": {
+    "message": "Registerkarte $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "targetLanguagesLabel": {
+    "message": "Zielsprachen"
+  },
+  "taskCenterActiveCount": {
+    "message": "$1 aktiv"
+  },
+  "taskCenterActiveLabel": {
+    "message": "Aktiv"
+  },
+  "taskCenterAiTranslateLabel": {
+    "message": "KI-Übersetzung"
+  },
+  "taskCenterAllLabel": {
+    "message": "Alle"
+  },
+  "taskCenterAllTasks": {
+    "message": "Alle Aufgaben"
+  },
+  "taskCenterAppLabel": {
+    "message": "Anwendung"
+  },
+  "taskCenterAttemptLabel": {
+    "message": "versuchen"
+  },
+  "taskCenterAttemptsLabel": {
+    "message": "Versuche"
+  },
+  "taskCenterBackendFailureCount": {
+    "message": "$1 Fehler"
+  },
+  "taskCenterBackendOffline": {
+    "message": "Backend offline"
+  },
+  "taskCenterBackendOnline": {
+    "message": "Backend online"
+  },
+  "taskCenterBumpFailed": {
+    "message": "Aufgabe konnte nicht verschoben werden"
+  },
+  "taskCenterBumpHint": {
+    "message": "Verschieben Sie diese Aufgabe mit der Priorität $1 an die Spitze der Überholspur."
+  },
+  "taskCenterBumpedLabel": {
+    "message": "Nach oben verschoben"
+  },
+  "taskCenterBumpingLabel": {
+    "message": "Umzug…"
+  },
+  "taskCenterCancelReadyAction": {
+    "message": "Bereitschaft abbrechen"
+  },
+  "taskCenterCapabilityLabel": {
+    "message": "Fähigkeit"
+  },
+  "taskCenterCapability_chatgpt_hint": {
+    "message": "Führt ChatGPT-Webkonversationen durch, erfasst vorgelesene Audiodaten und schreibt das Ergebnis zurück in Laravel"
+  },
+  "taskCenterCapability_chatgpt_label": {
+    "message": "Führen Sie ChatGPT-Langform-Audioaufgaben aus"
+  },
+  "taskCenterCapability_gemini_image_hint": {
+    "message": "Erstellt mit Gemini Umschläge für Vokabelbibliotheken und schreibt sie zurück an Laravel"
+  },
+  "taskCenterCapability_gemini_image_label": {
+    "message": "Generierung von KI-Wortgruppen-Covern"
+  },
+  "taskCenterCapability_image_hint": {
+    "message": "Durchsucht und schreibt Buchumschläge und Medienplakate über den gemeinsamen Browser-Worker"
+  },
+  "taskCenterCapability_image_label": {
+    "message": "Cover- und Postersuche"
+  },
+  "taskCenterCapability_notebooklm_hint": {
+    "message": "Laravel NotebookLM-Warteschlange in die gemeinsame Browser-Laufzeit mit Zurückschreiben der Ergebnisse"
+  },
+  "taskCenterCapability_notebooklm_label": {
+    "message": "Führen Sie NotebookLM-Generierungsaufgaben aus"
+  },
+  "taskCenterCapability_validity_hint": {
+    "message": "Entleert ungeprüfte oder nicht übersetzte Wörter und aktiviert die Web-KI und Bing-Übersetzungsarbeiter"
+  },
+  "taskCenterCapability_validity_label": {
+    "message": "Führen Sie Wortgültigkeits- und Übersetzungsaufgaben aus"
+  },
+  "taskCenterCategoryLoadError": {
+    "message": "Kategorieaufgaben konnten nicht geladen werden"
+  },
+  "taskCenterCategory_article_audio": {
+    "message": "Artikel-Audio"
+  },
+  "taskCenterCategory_article_tts_generation": {
+    "message": "Generierung von Artikelreden"
+  },
+  "taskCenterCategory_audio_transcribe": {
+    "message": "Audiotranskription"
+  },
+  "taskCenterCategory_chatgpt_chat": {
+    "message": "ChatGPT-Gespräch"
+  },
+  "taskCenterCategory_dictionary_explanation": {
+    "message": "Wörterbucherklärung"
+  },
+  "taskCenterCategory_dictionary_explanation_demo": {
+    "message": "Wörterbuch-Demo"
+  },
+  "taskCenterCategory_gemini_chat": {
+    "message": "KI-Gespräch"
+  },
+  "taskCenterCategory_gemini_image": {
+    "message": "KI-Bilderzeugung"
+  },
+  "taskCenterCategory_notebooklm": {
+    "message": "NotebookLM-Verarbeitung"
+  },
+  "taskCenterCategory_poster": {
+    "message": "Cover- und Postersuche"
+  },
+  "taskCenterCategory_prompt_translation": {
+    "message": "Prompte Übersetzung"
+  },
+  "taskCenterCategory_sentence_audio": {
+    "message": "Satz-Audio"
+  },
+  "taskCenterCategory_stt": {
+    "message": "Spracherkennung"
+  },
+  "taskCenterCategory_subtitle_search": {
+    "message": "Untertitelsuche"
+  },
+  "taskCenterCategory_word_audio": {
+    "message": "Word-Audio"
+  },
+  "taskCenterCategory_word_media": {
+    "message": "Wortbilder"
+  },
+  "taskCenterCategory_word_translation": {
+    "message": "Wortübersetzung"
+  },
+  "taskCenterCategory_word_validity": {
+    "message": "Wortgültigkeit"
+  },
+  "taskCenterCompletedLabel": {
+    "message": "Vollendet"
+  },
+  "taskCenterConnectingStream": {
+    "message": "Verbindung zum Livestream herstellen…"
+  },
+  "taskCenterCurrentStageLabel": {
+    "message": "Bühne"
+  },
+  "taskCenterCurrentTaskLabel": {
+    "message": "Aktuelle Aufgabe"
+  },
+  "taskCenterDoneLabel": {
+    "message": "Erledigt"
+  },
+  "taskCenterDuplicateLabel": {
+    "message": "Duplikat"
+  },
+  "taskCenterElapsedLabel": {
+    "message": "Vergangen"
+  },
+  "taskCenterExecutionDescription": {
+    "message": "Mit der Registerkarte „Aufgabe“ geteilt und sofort angewendet, wenn Sie bereit sind."
+  },
+  "taskCenterExecutionTitle": {
+    "message": "Aufgabenausführung"
+  },
+  "taskCenterFailedLabel": {
+    "message": "Fehlgeschlagen"
+  },
+  "taskCenterHistoryLabel": {
+    "message": "Geschichte"
+  },
+  "taskCenterInactiveLabel": {
+    "message": "Inaktiv"
+  },
+  "taskCenterLaneLabel": {
+    "message": "Fahrbahn"
+  },
+  "taskCenterLastLabel": {
+    "message": "Zuletzt"
+  },
+  "taskCenterLeasedLabel": {
+    "message": "Vermietet"
+  },
+  "taskCenterLiveLabel": {
+    "message": "Live"
+  },
+  "taskCenterLoadError": {
+    "message": "Aufgaben konnten nicht geladen werden"
+  },
+  "taskCenterLoadSummary": {
+    "message": "Geladen $1 ausstehend ($2 vom Browser verarbeitbar)"
+  },
+  "taskCenterNewLabel": {
+    "message": "Neu"
+  },
+  "taskCenterNextPage": {
+    "message": "Nächste"
+  },
+  "taskCenterNoMatchingTasks": {
+    "message": "Keine Aufgabe entspricht den aktuellen Filtern"
+  },
+  "taskCenterNoTasksFound": {
+    "message": "Keine Aufgaben gefunden"
+  },
+  "taskCenterNotReadyStatus": {
+    "message": "NICHT BEREIT"
+  },
+  "taskCenterPageRange": {
+    "message": "$1-$2 von $3"
+  },
+  "taskCenterPayloadLabel": {
+    "message": "Nutzlast"
+  },
+  "taskCenterPendingLabel": {
+    "message": "Ausstehend"
+  },
+  "taskCenterPhaseLabel": {
+    "message": "Phase"
+  },
+  "taskCenterPreviousPage": {
+    "message": "Vorherige"
+  },
+  "taskCenterProcessingLabel": {
+    "message": "Verarbeitung"
+  },
+  "taskCenterProcessorDetails": {
+    "message": "Prozessoren · $1/$2 aktiv"
+  },
+  "taskCenterProcessorsLabel": {
+    "message": "Prozessoren"
+  },
+  "taskCenterProductionDescription": {
+    "message": "Laravel-Warteschlange → gemeinsam genutzte MCP-Laufzeit → Ergebnis zurückschreiben."
+  },
+  "taskCenterProductionTitle": {
+    "message": "Produktionsaufgaben"
+  },
+  "taskCenterProviderLabel": {
+    "message": "Anbieter"
+  },
+  "taskCenterQueueLabel": {
+    "message": "Warteschlange"
+  },
+  "taskCenterReadyAndStartAction": {
+    "message": "Bereiten Sie die Aufgaben vor und starten Sie sie"
+  },
+  "taskCenterReadyControlHint": {
+    "message": "Bereit überwacht Laravel; schaltet ihre Aufgaben sofort ein oder stoppt sie."
+  },
+  "taskCenterReadyOnlyAction": {
+    "message": "Bereit"
+  },
+  "taskCenterReadyOnlyHint": {
+    "message": "Seien Sie bereit und überwachen Sie Laravel, ohne Aufgaben auszuführen."
+  },
+  "taskCenterReadyRunningStatus": {
+    "message": "BEREIT · LÄUFT"
+  },
+  "taskCenterReadyStatus": {
+    "message": "BEREIT"
+  },
+  "taskCenterReadyWithTasksHint": {
+    "message": "Machen Sie sich bereit und starten Sie jede ausgewählte Aufgabenfunktion."
+  },
+  "taskCenterRefresh": {
+    "message": "Aufgaben aktualisieren"
+  },
+  "taskCenterResultLabel": {
+    "message": "Ergebnis"
+  },
+  "taskCenterSearchAction": {
+    "message": "Suchen"
+  },
+  "taskCenterSearchPlaceholder": {
+    "message": "Suchen Sie nach Aufgabeninhalt oder ID"
+  },
+  "taskCenterSelectedCount": {
+    "message": "$1 ausgewählt"
+  },
+  "taskCenterShowAll": {
+    "message": "Alle anzeigen $1"
+  },
+  "taskCenterShowLess": {
+    "message": "Weniger anzeigen"
+  },
+  "taskCenterSortLabel": {
+    "message": "Sortieren"
+  },
+  "taskCenterSortNewest": {
+    "message": "Neueste"
+  },
+  "taskCenterSortOldest": {
+    "message": "Älteste"
+  },
+  "taskCenterSortPriority": {
+    "message": "Priorität"
+  },
+  "taskCenterStartFailed": {
+    "message": "Failed to start Task Center"
+  },
+  "taskCenterStatusLabel": {
+    "message": "Status"
+  },
+  "taskCenterStatus_assigned": {
+    "message": "Zugewiesen"
+  },
+  "taskCenterStatus_cancelled": {
+    "message": "Abgesagt"
+  },
+  "taskCenterStatus_completed": {
+    "message": "Vollendet"
+  },
+  "taskCenterStatus_completed_demo": {
+    "message": "Demo abgeschlossen"
+  },
+  "taskCenterStatus_failed": {
+    "message": "Fehlgeschlagen"
+  },
+  "taskCenterStatus_leased": {
+    "message": "Vermietet"
+  },
+  "taskCenterStatus_pending": {
+    "message": "Ausstehend"
+  },
+  "taskCenterStatus_processing": {
+    "message": "Verarbeitung"
+  },
+  "taskCenterStopFailed": {
+    "message": "Task Center konnte nicht gestoppt werden"
+  },
+  "taskCenterStreamUnavailable": {
+    "message": "Livestream nicht verfügbar"
+  },
+  "taskCenterTaskCount": {
+    "message": "$1 Aufgaben"
+  },
+  "taskCenterTaskTopLabel": {
+    "message": "Nach oben verschieben"
+  },
+  "taskCenterTimelineLabel": {
+    "message": "Zeitleiste"
+  },
+  "taskCenterTimeoutLabel": {
+    "message": "Auszeit in"
+  },
+  "taskCenterUnifiedTitle": {
+    "message": "Einheitliches Taskcenter"
+  },
+  "taskCenterWorkerLabel": {
+    "message": "Arbeitnehmer"
+  },
+  "taskLabel": {
+    "message": "Aufgabe"
+  },
+  "taskMediaAlt": {
+    "message": "Aufgabenmedien"
+  },
+  "tenMinutesOption": {
+    "message": "10 Minuten",
+    "description": "10 Minuten Dauer-Option"
+  },
+  "textToSynthesizeLabel": {
+    "message": "Text zum Synthetisieren"
+  },
+  "textUploadLabel": {
+    "message": "Text-Upload"
+  },
+  "themeLabel": {
+    "message": "Design",
+    "description": "Design-Auswahl Label"
+  },
+  "thirtyMinutesOption": {
+    "message": "30 Minuten",
+    "description": "30 Minuten Dauer-Option"
+  },
+  "timeoutErrorMessage": {
+    "message": "Zeitüberschreitung",
+    "description": "Zeitüberschreitungsfehlermeldung"
+  },
+  "toggleServiceFailed": {
+    "message": "Der Dienst konnte nicht umgeschaltet werden"
+  },
+  "toolboxLabel": {
+    "message": "Werkzeugkasten"
+  },
+  "totalLabel": {
+    "message": "Gesamt"
+  },
+  "typeWordPlaceholder": {
+    "message": "Geben Sie ein Wort ein ..."
+  },
+  "unknownErrorMessage": {
+    "message": "Unbekannter Fehler, bitte prüfen Sie, ob Ihr Netzwerk auf HuggingFace zugreifen kann",
+    "description": "Unbekannte Fehler-Rückfallmeldung"
+  },
+  "unreachableStatus": {
+    "message": "Unerreichbar"
+  },
+  "untranslatedQueueLabel": {
+    "message": "Nicht übersetzte Warteschlange"
+  },
+  "urlLabel": {
+    "message": "URL:",
+    "description": "URL-Eingabe-Label"
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080",
+    "description": "URL-Eingabe-Platzhalter"
+  },
+  "useButton": {
+    "message": "Verwenden"
+  },
+  "useDarkTheme": {
+    "message": "Verwenden Sie ein dunkles Thema"
+  },
+  "useLightTheme": {
+    "message": "Verwenden Sie ein helles Thema"
+  },
+  "validLabel": {
+    "message": "Gültig"
+  },
+  "validityAiProviderHint": {
+    "message": "Welche Web-KI die Wortgültigkeitsprüfung steuert (Gültigkeit und Übersetzung in einem Durchgang)."
+  },
+  "validityAiProviderTitle": {
+    "message": "Gültigkeits-KI-Anbieter"
+  },
+  "validityTestFailed": {
+    "message": "Gültigkeitstest fehlgeschlagen"
+  },
+  "validityWordLanguageHint": {
+    "message": "Standardmäßig werden nur englische Wörter verarbeitet; Wählen Sie stattdessen eine andere Sprache aus, um den Rückstand zu verarbeiten."
+  },
+  "validityWordLanguageTitle": {
+    "message": "Gültigkeitswortsprache"
+  },
+  "validityWordsLabel": {
+    "message": "Wörter (durch Komma oder Zeilenumbruch getrennt)"
+  },
+  "vectorDocumentsLabel": {
+    "message": "Vektordokumente",
+    "description": "Anzahl Vektordokumente Label"
+  },
+  "vectorStoreLabel": {
+    "message": "Vektorspeicher"
+  },
+  "verboseLoggingLabel": {
+    "message": "Ausführliche Protokollierung",
+    "description": "Ausführliche Protokollierung Umschalter Label"
+  },
+  "voiceDescriptionLabel": {
+    "message": "Sprachbeschreibung"
+  },
+  "waitForCaptchaHint": {
+    "message": "Warten Sie auf CAPTCHA – Umfrage bis zur Lösung oder Zeitüberschreitung"
+  },
+  "waitTimeoutSecondsLabel": {
+    "message": "Wartezeitüberschreitung (Sek.)"
+  },
+  "warningNotification": {
+    "message": "Warnung: Bitte prüfen Sie vor dem Fortfahren",
+    "description": "Allgemeine Warnmeldung"
+  },
+  "webDefinitionsLabel": {
+    "message": "Webdefinitionen"
+  },
+  "webMode": {
+    "message": "Web"
+  },
+  "webSearchPlaceholder": {
+    "message": "Suchen Sie nach Text oder Bildern…"
+  },
+  "wordsLabel": {
+    "message": "Worte"
+  },
+  "workerActionFailed": {
+    "message": "Fehler beim $action$-Worker",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerOptionsManagedHint": {
+    "message": "Worker-Optionen werden im Einstellungscenter verwaltet."
+  },
+  "youglishPronunciationHint": {
+    "message": "Videoaussprache im realen Kontext (YouGlish)"
   }
 }

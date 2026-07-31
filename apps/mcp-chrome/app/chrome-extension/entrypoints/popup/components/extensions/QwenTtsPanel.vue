@@ -7,8 +7,8 @@
     </p>
 
     <label class="qt-field">
-      <span>Text to Synthesize</span>
-      <textarea v-model="text" rows="3" :disabled="loading" placeholder="Enter text for Qwen3-TTS…" />
+      <span>{{ getMessage('textToSynthesizeLabel') }}</span>
+      <textarea v-model="text" rows="3" :disabled="loading" :placeholder="getMessage('qwenTextPlaceholder')" />
     </label>
 
 
@@ -28,7 +28,7 @@
     <div v-if="progress.running" class="qt-status warn">
       <strong>{{ progress.phase }}</strong>
       <span>{{ progress.detail }}</span>
-      <span>Waiting for HuggingFace Zero GPU — keep the tab open.</span>
+      <span>{{ getMessage('qwenGpuWaitingHint') }}</span>
     </div>
 
     <div v-if="error" class="qt-status fail">{{ error }}</div>
@@ -61,6 +61,7 @@ import { computed } from 'vue';
 import { useQwenTts } from '@/entrypoints/popup/composables/useQwenTts';
 import { bytesToBase64 } from '@/utils/binary';
 import { QWEN_TTS_SPACE_URL } from '@/utils/qwen-tts-core';
+import { getMessage } from '@/utils/i18n';
 
 const spaceUrl = QWEN_TTS_SPACE_URL;
 

@@ -1,4 +1,4 @@
-﻿import { ToolDefinition } from '../core/types';
+import { ToolDefinition } from '@/apps/laravel-manager/types';
 
 /**
  * Extended IT Tools Configuration

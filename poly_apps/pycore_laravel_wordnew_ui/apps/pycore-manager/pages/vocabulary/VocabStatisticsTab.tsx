@@ -4,7 +4,7 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Database, Languages, BookOpen, Volume2 } from 'lucide-react';
-import { pycoreApi } from '../../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, humanInt, humanBytes, vp, toArray } from './vocabShared';
 
 const L = {

@@ -51,7 +51,7 @@
         </button>
       </div>
 
-      <p class="text-[9px] text-slate-500">Recording servers, metadata, and streaming options are managed in Settings Center.</p>
+      <p class="text-[9px] text-slate-500">{{ getMessage('recordingSettingsManagedHint') }}</p>
   </div>
 </template>
 
@@ -167,7 +167,7 @@ const startRecording = async () => {
       startDurationTimer();
     } else {
       console.error('Failed to start recording:', response?.error);
-      alert(getMessage('startRecordingError', [response?.error || 'Unknown error']));
+      alert(getMessage('startRecordingError', [response?.error || getMessage('unknownErrorMessage')]));
     }
   } catch (error) {
     console.error('Error starting recording:', error);

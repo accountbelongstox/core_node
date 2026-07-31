@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import {
   DbConnectionInfo,
   DbStatus,
@@ -11,7 +11,7 @@ import {
   DbAccountCreateResult,
   ExportFormat,
   ImportMode
-} from '../../core/api/modules/DatabaseManagerAPI';
+} from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import { Modal } from '../admin/Modal';
 import { useToast } from '../admin';

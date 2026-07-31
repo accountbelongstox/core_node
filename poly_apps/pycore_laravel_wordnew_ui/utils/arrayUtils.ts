@@ -23,7 +23,7 @@ export function ensureArray<T>(value: any, fallback: T[] = []): T[] {
     if (Array.isArray(value.languages)) return value.languages;
   }
 
-  console.warn('[ensureArray] Value is not an array, using fallback:', value);
+  console.info('[ensureArray] Value is not an array, using fallback:', value);
   return fallback;
 }
 

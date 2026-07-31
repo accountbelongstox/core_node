@@ -1,8 +1,7 @@
 /**
  * OfflineRecheckScheduler — shared "all endpoints Offline → retry on an
- * interval" loop used by all three ends (laravel-manager / pycore-manager /
- * wordnew). This is what makes each end's configured `healthCheckInterval`
- * actually take effect.
+ * interval" loop used by application-owned endpoint managers. This makes each
+ * configured `healthCheckInterval` take effect.
  *
  * Contract:
  *  - The loop runs ONLY while the end's backend is fully offline. As soon as a
@@ -11,10 +10,8 @@
  *    preserved for the healthy path).
  *  - The interval is read fresh from the driver before every tick, so a value
  *    configured in the end's UI takes effect from the next tick, no restart.
- *  - Path-prefix gating: each end owns one scheduler and starts/stops it from
- *    its root component's mount/unmount (/laravel-manager → App.tsx,
- *    /pycore-manager → PcApp, /wordnew → WordNewApp), so only the active end
- *    re-probes its endpoints.
+ *  - Each application owns one scheduler and starts/stops it from its root
+ *    lifecycle, so only the active application re-probes its endpoints.
  */
 export interface OfflineRecheckDriver {
   /** One full re-probe; resolve true when at least one endpoint is healthy. */

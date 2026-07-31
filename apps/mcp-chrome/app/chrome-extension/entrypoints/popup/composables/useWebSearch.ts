@@ -6,6 +6,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { getMessage } from '@/utils/i18n';
 import {
   WEB_SEARCH_LAST_VERIFIED,
   type WebSearchEngine,
@@ -66,11 +67,11 @@ export function useWebSearch() {
       });
       result.value = res?.result || null;
       if (!res?.success && result.value?.status !== 'verification_required') {
-        error.value = res?.error || result.value?.message || 'Search failed';
+        error.value = res?.error || result.value?.message || getMessage('searchFailed');
       }
       logger.info(LOG, `Search ${result.value?.status} · ${result.value?.imageResults?.length || 0} images`);
     } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : 'Search failed';
+      error.value = e instanceof Error ? e.message : getMessage('searchFailed');
       logger.error(LOG, error.value, e);
     } finally {
       loading.value = false;

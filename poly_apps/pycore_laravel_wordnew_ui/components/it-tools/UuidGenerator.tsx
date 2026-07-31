@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { itToolsModel } from '../../core/models';
+import { itToolsModel } from '@/apps/laravel-manager/models';
 import { useToolOperation, useClipboard } from '../../hooks';
 import { ToolContainer, CodeDisplay, CopyAllButton } from '../common';
 import { RefreshCw } from 'lucide-react';

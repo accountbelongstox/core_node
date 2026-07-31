@@ -13,7 +13,7 @@ import {
   Star,
   Code
 } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 import BentoCard from '../BentoCard';
 

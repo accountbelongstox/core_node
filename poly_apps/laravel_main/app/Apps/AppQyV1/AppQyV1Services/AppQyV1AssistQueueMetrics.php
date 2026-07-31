@@ -223,6 +223,27 @@ trait AppQyV1AssistQueueMetrics
     }
 
     /**
+     * chatgpt_chat (chrome Task Center lane, remote_chatgpt) global_tasks
+     * counts. Completed tasks retain the answer and uploaded read-aloud path in
+     * the canonical task result while the media ingest endpoint owns the file.
+     *
+     * @return array{pending:int,processing:int,leased:int,total:int,
+     *               sample:array<int,array<string,mixed>>}
+     */
+    public function chatGptCounts(): array
+    {
+        $task = $this->globalTaskStatusCounts('chatgpt_chat');
+
+        return [
+            'pending' => $task['pending'],
+            'processing' => $task['processing'],
+            'leased' => $task['leased'],
+            'total' => $task['total'],
+            'sample' => $this->wordTaskSample('chatgpt_chat'),
+        ];
+    }
+
+    /**
      * Grouped status counts for one AppQyV1 global_tasks task_type. One grouped
      * query; pending/processing/total in the shared assist-status shape.
      *

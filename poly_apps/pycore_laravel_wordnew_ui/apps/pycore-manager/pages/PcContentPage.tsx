@@ -32,7 +32,8 @@ import {
 import PcBooksPage from './PcBooksPage';
 import PcVideoExtractPage from './PcVideoExtractPage';
 import PcAddDocumentView from '../components/PcAddDocumentView';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 type ContentTab = 'subtitles' | 'books' | 'document';
 

@@ -60,8 +60,14 @@ export async function claimAssistItems(
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ types, limit, claimer }),
   });
-  if (!res.ok) return [];
   const data = await res.json().catch(() => ({}));
+  const detail = data?.error || data?.message || res.statusText || 'unknown error';
+  if (!res.ok) {
+    throw new Error(`Assist claim failed (HTTP ${res.status}): ${detail}`);
+  }
+  if (data?.success === false) {
+    throw new Error(`Assist claim rejected: ${detail}`);
+  }
   return Array.isArray(data?.items) ? data.items : [];
 }
 

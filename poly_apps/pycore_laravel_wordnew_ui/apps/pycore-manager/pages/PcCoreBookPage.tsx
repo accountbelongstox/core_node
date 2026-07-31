@@ -24,11 +24,11 @@ import {
   BookMarked, RefreshCw, Plus, Trash2, Languages, Volume2, UploadCloud,
   WifiOff, Sparkles, Loader2, CheckCircle2, AlertTriangle, FileText, Layers,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
 import type {
   CoreBookSummary, CoreBookMissing, CoreBookCompletenessLang,
   CoreBookEnrichResponse, CoreBookSubmitResponse,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 
 // i18n labels (single source; the pages use literals, not a `t` object).

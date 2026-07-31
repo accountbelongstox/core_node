@@ -14,8 +14,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   BookOpen, Search, Loader2, AlertTriangle, Star, Sparkles, Volume2,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { DictionaryStatus, DictionaryEntry } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { DictionaryStatus, DictionaryEntry } from '@/apps/pycore-manager/api';
 
 const D = {
   title: 'Offline Dictionary',                                          // 离线词典

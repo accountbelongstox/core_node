@@ -1,11 +1,11 @@
 <template>
   <div class="gemini-image">
-    <label class="gi-label">Prompt</label>
+    <label class="gi-label">{{ getMessage('promptLabel') }}</label>
     <textarea
       v-model="prompt"
       class="gi-textarea"
       rows="3"
-      placeholder="Describe the image to generate…"
+      :placeholder="getMessage('imagePromptPlaceholder')"
       :disabled="generating"
     ></textarea>
 
@@ -29,18 +29,18 @@
 
     <!-- Result -->
     <div v-if="result && result.dataUrl" class="gi-result">
-      <img :src="result.dataUrl" class="gi-img" alt="Generated image" />
+      <img :src="result.dataUrl" class="gi-img" :alt="getMessage('generatedImageAlt')" />
       <div class="gi-meta">
         <span class="gi-chip">{{ result.mime || 'image' }}</span>
         <span v-if="result.width" class="gi-chip">{{ result.width }}×{{ result.height }}</span>
         <span class="gi-chip">{{ Math.round((result.dataUrl.length * 3) / 4 / 1024) }} KB</span>
       </div>
       <div class="gi-actions">
-        <button class="gi-btn" @click="download">Download</button>
+        <button class="gi-btn" @click="download">{{ getMessage('downloadButton') }}</button>
         <button class="gi-btn ghost" @click="copyDataUrl">{{ copied ? 'Copied!' : 'Copy base64' }}</button>
       </div>
       <details class="gi-src">
-        <summary>Source URL</summary>
+        <summary>{{ getMessage('sourceUrlLabel') }}</summary>
         <code>{{ result.src || '—' }}</code>
       </details>
     </div>
@@ -50,6 +50,7 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { useGeminiImage } from '../../composables/useGeminiImage';
+import { getMessage } from '@/utils/i18n';
 
 const { prompt, generating, phase, error, result, openInNewTab, generate, download } = useGeminiImage();
 

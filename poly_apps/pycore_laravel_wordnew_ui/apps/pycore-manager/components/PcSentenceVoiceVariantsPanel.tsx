@@ -10,8 +10,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AudioLines, RefreshCw, AlertTriangle, Loader2, Plus, Trash2, Save,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { SentenceVoiceVariant } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { SentenceVoiceVariant } from '@/apps/pycore-manager/api';
 
 const LANG_OPTIONS = ['en', 'zh', 'ja', 'ko'];
 

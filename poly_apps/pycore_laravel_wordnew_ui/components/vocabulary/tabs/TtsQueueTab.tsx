@@ -3,7 +3,7 @@ import { RefreshCw, ListChecks, Eye } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, EmptyState } from '../../common';
 import VocabAssistQueuesPanel from '../VocabAssistQueuesPanel';
-import type { AssistOverviewResponse } from '../../../core/api/modules/BooksAPI';
+import type { AssistOverviewResponse } from '@/apps/laravel-manager/api';
 
 type TtsQueueDrillParams = {
   status?: 'pending' | 'processing' | 'completed' | 'failed';

@@ -13,7 +13,7 @@ import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
 import { commonClasses } from '../../styles/theme';
-import { appQyV1Model } from '../../core/models';
+import { appQyV1Model } from '@/apps/laravel-manager/models';
 import {
   AI_BODY,
   AI_GRID_2,

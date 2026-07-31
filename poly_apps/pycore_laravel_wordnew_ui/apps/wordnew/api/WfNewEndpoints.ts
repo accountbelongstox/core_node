@@ -294,6 +294,12 @@ class WfNewEndpointManager {
         this.current = preferred;
         return true;
       }
+      // An explicit user selection is sticky. Keep the selected endpoint and
+      // let the offline scheduler retry it instead of silently switching APIs.
+      if (userId !== null) {
+        this.current = preferred;
+        return false;
+      }
     }
 
     // Stage 2 — full parallel sweep + availability-first failover.

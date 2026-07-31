@@ -451,8 +451,12 @@
     "message": "Recording Status:",
     "description": "Recording status label"
   },
-  "recordingTargetLabel": { "message": "Recording Target (tab)" },
-  "noRecordableTabs": { "message": "No recordable tab. Open a normal web page (http/https) — Chrome system and extension pages can't be recorded." },
+  "recordingTargetLabel": {
+    "message": "Recording Target (tab)"
+  },
+  "noRecordableTabs": {
+    "message": "No recordable tab. Open a normal web page (http/https) — Chrome system and extension pages can't be recorded."
+  },
   "recordingStatus": {
     "message": "Recording",
     "description": "Recording active status"
@@ -633,111 +637,1736 @@
       }
     }
   },
-  "bingAssistTitle": { "message": "Bing Translation Assist" },
-  "bingAssistEndpointLabel": { "message": "laravel_main Endpoint:" },
-  "bingAssistEndpointFromSettings": { "message": "Configured in Settings → API" },
-  "bingAssistTest": { "message": "Test" },
-  "bingAssistAdd": { "message": "Add" },
-  "bingAssistDel": { "message": "Del" },
-  "bingAssistPollInterval": { "message": "Poll Interval (seconds):" },
-  "bingAssistBatchSize": { "message": "Batch Size (tasks):" },
-  "bingAssistParallelTabs": { "message": "Parallel Bing Tabs:" },
-  "bingAssistTargetLang": { "message": "Target Language:" },
-  "bingAssistStopToChange": { "message": "Stop the service to change settings." },
-  "bingAssistSettingsLive": { "message": "Settings apply live — no need to stop the service." },
-  "bingAssistScrapeLabel": { "message": "Bing scrape test (space/comma separated):" },
-  "bingAssistScrape": { "message": "Scrape" },
-  "bingAssistTranslatingLabel": { "message": "Translating:" },
-  "bingAssistQueueTotal": { "message": "Queue Total" },
-  "bingAssistNewTasks": { "message": "New Tasks" },
-  "bingAssistDuplicates": { "message": "Duplicates" },
-  "bingAssistPending": { "message": "Pending:" },
-  "bingAssistTranslated": { "message": "Translated:" },
-  "bingAssistFailed": { "message": "Failed:" },
-  "bingAssistInvalid": { "message": "Invalid:" },
-  "bingAssistActiveTabs": { "message": "Active Tabs:" },
-  "bingAssistLastRun": { "message": "Last Run:" },
-  "bingAssistWorkerId": { "message": "Worker ID:" },
-  "bingAssistStatusLabel": { "message": "Status:" },
-  "bingAssistInvalidNoEntry": { "message": "invalid (no Bing entry)" },
-  "bingAssistPlayAudio": { "message": "Play pronunciation" },
-  "bingAssistCachedAt": { "message": "Cached at:" },
-  "apiConfigurationLabel": { "message": "API Configuration" },
-  "apiAutoDetecting": { "message": "auto-detecting…" },
-  "apiTestAll": { "message": "Test All" },
-  "apiTesting": { "message": "Testing…" },
-  "apiTest": { "message": "Test" },
-  "apiCurrentLabel": { "message": "Current:" },
-  "apiAutoMode": { "message": "Auto (best available)" },
-  "apiAutoTag": { "message": "AUTO" },
-  "apiNone": { "message": "None" },
-  "apiLocalTag": { "message": "LOCAL" },
-  "apiRemoteTag": { "message": "REMOTE" },
-  "apiAddCustomLabel": { "message": "Add Custom Endpoint" },
-  "apiCustomUrlPlaceholder": { "message": "Enter URL (e.g., api.example.com)" },
-  "apiPortPlaceholder": { "message": "Port (optional)" },
-  "apiAddEndpoint": { "message": "Add Endpoint" },
-  "extGlobalTaskSystem": { "message": "Global Task System" },
-  "extStateRunning": { "message": "Running" },
-  "extStatePaused": { "message": "Paused" },
-  "extStateStopped": { "message": "Stopped" },
-  "extStartButton": { "message": "Start" },
-  "extPauseButton": { "message": "Pause" },
-  "extResumeButton": { "message": "Resume" },
-  "extStopButton": { "message": "Stop" },
-  "extEnabledLabel": { "message": "enabled" },
-  "extCompletedLabel": { "message": "completed" },
-  "extPendingLabel": { "message": "pending" },
-  "extExtensionsLabel": { "message": "Extensions" },
-  "extExpandAll": { "message": "Expand All" },
-  "extCollapseAll": { "message": "Collapse All" },
-  "extNoConfig": { "message": "No configuration for this extension." },
-  "deepseekChatTitle": { "message": "Deepseek Chat" },
-  "deepseekQueueRunning": { "message": "RUNNING" },
-  "deepseekQueueStopped": { "message": "STOPPED" },
-  "deepseekTest": { "message": "Test" },
-  "deepseekClear": { "message": "Clear" },
-  "deepseekHint": { "message": "Prompts run through the local task queue and drive the signed-in chat.deepseek.com tab. No API key required." },
-  "deepseekEmpty": { "message": "No messages yet. Ask something or run Test." },
-  "deepseekPlaceholder": { "message": "Ask Deepseek…" },
-  "deepseekSend": { "message": "Send" },
-  "deepseekSending": { "message": "Sending…" },
-  "deepseekTesting": { "message": "Sending test prompt…" },
-  "deepseekTestSent": { "message": "Test prompt queued, waiting for response…" },
-  "deepseekTestOk": { "message": "Connection OK — response received." },
-  "deepseekQueueError": { "message": "Failed to enqueue task. Is the background service running?" },
-  "deepseekNoResponse": { "message": "(empty response)" },
-  "deepseekTaskFailed": { "message": "Task failed." },
-  "queueTestActions": { "message": "Test Actions:" },
-  "queueTestConnection": { "message": "Test connection" },
-  "queueAddBingTest": { "message": "Add Bing Test Task" },
-  "queueAddDeepseekTest": { "message": "Add DeepSeek Test Task" },
-  "queueTesting": { "message": "Testing queue connection…" },
-  "queueTestOk": { "message": "Queue connected — {0} task(s) in queue." },
-  "queueTestFail": { "message": "Queue connection failed." },
-  "logTestRefresh": { "message": "Test / Refresh" },
-  "logClearAll": { "message": "Clear All" },
-  "logPause": { "message": "Pause" },
-  "logAuto": { "message": "Auto" },
-  "logTesting": { "message": "Refreshing logs…" },
-  "logTestOk": { "message": "Log pipe OK — {0} entries loaded." },
-  "logTestFail": { "message": "Failed to fetch logs." },
-  "extTaskQueueTitle": { "message": "Task Queue" },
-  "extTaskQueueSubtitle": { "message": "Process API requests locally" },
-  "queueCenterTabQueue": { "message": "Queue" },
-  "queueCenterTabLogs": { "message": "Logs" },
-  "cacheStorageTitle": { "message": "Cache Storage" },
-  "cacheLocationLabel": { "message": "Location" },
-  "cacheRefreshButton": { "message": "Refresh" },
-  "cacheClearButton": { "message": "Clear" },
-  "cacheClearAllButton": { "message": "Clear All" },
-  "cacheUnavailableNote": { "message": "OPFS storage is unavailable in this browser. Showing the intended cache directory structure (read-only)." },
-  "cacheReadOnlyTag": { "message": "read-only" },
-  "notebooklmTitle": { "message": "NotebookLM Automation" },
-  "notebooklmQuestionLabel": { "message": "Question:" },
-  "notebooklmAsk": { "message": "Ask" },
-  "notebooklmNotebookUrl": { "message": "Notebook URL (optional):" },
-  "notebooklmAnswerLabel": { "message": "Answer:" },
-  "notebooklmHint": { "message": "Open a NotebookLM notebook first, then ask. Requires sign-in." },
-  "notebooklmAsking": { "message": "Asking…" }
+  "bingAssistTitle": {
+    "message": "Bing Translation Assist"
+  },
+  "bingAssistEndpointLabel": {
+    "message": "laravel_main Endpoint:"
+  },
+  "bingAssistEndpointFromSettings": {
+    "message": "Configured in Settings → API"
+  },
+  "bingAssistTest": {
+    "message": "Test"
+  },
+  "bingAssistAdd": {
+    "message": "Add"
+  },
+  "bingAssistDel": {
+    "message": "Del"
+  },
+  "bingAssistPollInterval": {
+    "message": "Poll Interval (seconds):"
+  },
+  "bingAssistBatchSize": {
+    "message": "Batch Size (tasks):"
+  },
+  "bingAssistParallelTabs": {
+    "message": "Parallel Bing Tabs:"
+  },
+  "bingAssistTargetLang": {
+    "message": "Target Language:"
+  },
+  "bingAssistStopToChange": {
+    "message": "Stop the service to change settings."
+  },
+  "bingAssistSettingsLive": {
+    "message": "Settings apply live — no need to stop the service."
+  },
+  "bingAssistScrapeLabel": {
+    "message": "Bing scrape test (space/comma separated):"
+  },
+  "bingAssistScrape": {
+    "message": "Scrape"
+  },
+  "bingAssistTranslatingLabel": {
+    "message": "Translating:"
+  },
+  "bingAssistQueueTotal": {
+    "message": "Queue Total"
+  },
+  "bingAssistNewTasks": {
+    "message": "New Tasks"
+  },
+  "bingAssistDuplicates": {
+    "message": "Duplicates"
+  },
+  "bingAssistPending": {
+    "message": "Pending:"
+  },
+  "bingAssistTranslated": {
+    "message": "Translated:"
+  },
+  "bingAssistFailed": {
+    "message": "Failed:"
+  },
+  "bingAssistInvalid": {
+    "message": "Invalid:"
+  },
+  "bingAssistActiveTabs": {
+    "message": "Active Tabs:"
+  },
+  "bingAssistLastRun": {
+    "message": "Last Run:"
+  },
+  "bingAssistWorkerId": {
+    "message": "Worker ID:"
+  },
+  "bingAssistStatusLabel": {
+    "message": "Status:"
+  },
+  "bingAssistInvalidNoEntry": {
+    "message": "invalid (no Bing entry)"
+  },
+  "bingAssistPlayAudio": {
+    "message": "Play pronunciation"
+  },
+  "bingAssistCachedAt": {
+    "message": "Cached at:"
+  },
+  "apiConfigurationLabel": {
+    "message": "API Configuration"
+  },
+  "apiAutoDetecting": {
+    "message": "auto-detecting…"
+  },
+  "apiTestAll": {
+    "message": "Test All"
+  },
+  "apiTesting": {
+    "message": "Testing…"
+  },
+  "apiTest": {
+    "message": "Test"
+  },
+  "apiCurrentLabel": {
+    "message": "Current:"
+  },
+  "apiAutoMode": {
+    "message": "Auto (best available)"
+  },
+  "apiAutoTag": {
+    "message": "AUTO"
+  },
+  "apiNone": {
+    "message": "None"
+  },
+  "apiLocalTag": {
+    "message": "LOCAL"
+  },
+  "apiRemoteTag": {
+    "message": "REMOTE"
+  },
+  "apiAddCustomLabel": {
+    "message": "Add Custom Endpoint"
+  },
+  "apiCustomUrlPlaceholder": {
+    "message": "Enter URL (e.g., api.example.com)"
+  },
+  "apiPortPlaceholder": {
+    "message": "Port (optional)"
+  },
+  "apiAddEndpoint": {
+    "message": "Add Endpoint"
+  },
+  "extGlobalTaskSystem": {
+    "message": "Global Task System"
+  },
+  "extStateRunning": {
+    "message": "Running"
+  },
+  "extStatePaused": {
+    "message": "Paused"
+  },
+  "extStateStopped": {
+    "message": "Stopped"
+  },
+  "extStartButton": {
+    "message": "Start"
+  },
+  "extPauseButton": {
+    "message": "Pause"
+  },
+  "extResumeButton": {
+    "message": "Resume"
+  },
+  "extStopButton": {
+    "message": "Stop"
+  },
+  "extEnabledLabel": {
+    "message": "enabled"
+  },
+  "extCompletedLabel": {
+    "message": "completed"
+  },
+  "extPendingLabel": {
+    "message": "pending"
+  },
+  "extExtensionsLabel": {
+    "message": "Extensions"
+  },
+  "extExpandAll": {
+    "message": "Expand All"
+  },
+  "extCollapseAll": {
+    "message": "Collapse All"
+  },
+  "extNoConfig": {
+    "message": "No configuration for this extension."
+  },
+  "deepseekChatTitle": {
+    "message": "Deepseek Chat"
+  },
+  "deepseekQueueRunning": {
+    "message": "RUNNING"
+  },
+  "deepseekQueueStopped": {
+    "message": "STOPPED"
+  },
+  "deepseekTest": {
+    "message": "Test"
+  },
+  "deepseekClear": {
+    "message": "Clear"
+  },
+  "deepseekHint": {
+    "message": "Prompts run through the local task queue and drive the signed-in chat.deepseek.com tab. No API key required."
+  },
+  "deepseekEmpty": {
+    "message": "No messages yet. Ask something or run Test."
+  },
+  "deepseekPlaceholder": {
+    "message": "Ask Deepseek…"
+  },
+  "deepseekSend": {
+    "message": "Send"
+  },
+  "deepseekSending": {
+    "message": "Sending…"
+  },
+  "deepseekTesting": {
+    "message": "Sending test prompt…"
+  },
+  "deepseekTestSent": {
+    "message": "Test prompt queued, waiting for response…"
+  },
+  "deepseekTestOk": {
+    "message": "Connection OK — response received."
+  },
+  "deepseekQueueError": {
+    "message": "Failed to enqueue task. Is the background service running?"
+  },
+  "deepseekNoResponse": {
+    "message": "(empty response)"
+  },
+  "deepseekTaskFailed": {
+    "message": "Task failed."
+  },
+  "queueTestActions": {
+    "message": "Test Actions:"
+  },
+  "queueTestConnection": {
+    "message": "Test connection"
+  },
+  "queueAddBingTest": {
+    "message": "Add Bing Test Task"
+  },
+  "queueAddDeepseekTest": {
+    "message": "Add DeepSeek Test Task"
+  },
+  "queueTesting": {
+    "message": "Testing queue connection…"
+  },
+  "queueTestOk": {
+    "message": "Queue connected — {0} task(s) in queue."
+  },
+  "queueTestFail": {
+    "message": "Queue connection failed."
+  },
+  "logTestRefresh": {
+    "message": "Test / Refresh"
+  },
+  "logClearAll": {
+    "message": "Clear All"
+  },
+  "logPause": {
+    "message": "Pause"
+  },
+  "logAuto": {
+    "message": "Auto"
+  },
+  "logTesting": {
+    "message": "Refreshing logs…"
+  },
+  "logTestOk": {
+    "message": "Log pipe OK — {0} entries loaded."
+  },
+  "logTestFail": {
+    "message": "Failed to fetch logs."
+  },
+  "extTaskQueueTitle": {
+    "message": "Task Queue"
+  },
+  "extTaskQueueSubtitle": {
+    "message": "Process API requests locally"
+  },
+  "queueCenterTabQueue": {
+    "message": "Queue"
+  },
+  "queueCenterTabLogs": {
+    "message": "Logs"
+  },
+  "cacheStorageTitle": {
+    "message": "Cache Storage"
+  },
+  "cacheLocationLabel": {
+    "message": "Location"
+  },
+  "cacheRefreshButton": {
+    "message": "Refresh"
+  },
+  "cacheClearButton": {
+    "message": "Clear"
+  },
+  "cacheClearAllButton": {
+    "message": "Clear All"
+  },
+  "cacheUnavailableNote": {
+    "message": "OPFS storage is unavailable in this browser. Showing the intended cache directory structure (read-only)."
+  },
+  "cacheReadOnlyTag": {
+    "message": "read-only"
+  },
+  "notebooklmTitle": {
+    "message": "NotebookLM Automation"
+  },
+  "notebooklmQuestionLabel": {
+    "message": "Question:"
+  },
+  "notebooklmAsk": {
+    "message": "Ask"
+  },
+  "notebooklmNotebookUrl": {
+    "message": "Notebook URL (optional):"
+  },
+  "notebooklmAnswerLabel": {
+    "message": "Answer:"
+  },
+  "notebooklmHint": {
+    "message": "Open a NotebookLM notebook first, then ask. Requires sign-in."
+  },
+  "notebooklmAsking": {
+    "message": "Asking…"
+  },
+  "taskCenterExecutionTitle": {
+    "message": "Task execution"
+  },
+  "taskCenterExecutionDescription": {
+    "message": "Shared with the Task tab and applied immediately while ready."
+  },
+  "taskCenterProductionTitle": {
+    "message": "Production tasks"
+  },
+  "taskCenterProductionDescription": {
+    "message": "Laravel queue → shared MCP runtime → result write-back."
+  },
+  "taskCenterSelectedCount": {
+    "message": "$1 selected"
+  },
+  "taskCenterActiveCount": {
+    "message": "$1 active"
+  },
+  "taskCenterReadyControlHint": {
+    "message": "Ready monitors Laravel; toggles immediately start or stop their tasks."
+  },
+  "taskCenterReadyWithTasksHint": {
+    "message": "Become ready and start every selected task capability."
+  },
+  "taskCenterReadyOnlyHint": {
+    "message": "Become ready and monitor Laravel without executing tasks."
+  },
+  "taskCenterReadyOnlyAction": {
+    "message": "Ready"
+  },
+  "taskCenterReadyAndStartAction": {
+    "message": "Ready and start tasks"
+  },
+  "taskCenterCancelReadyAction": {
+    "message": "Cancel readiness"
+  },
+  "taskCenterNotReadyStatus": {
+    "message": "NOT READY"
+  },
+  "taskCenterReadyStatus": {
+    "message": "READY"
+  },
+  "taskCenterReadyRunningStatus": {
+    "message": "READY · RUNNING"
+  },
+  "taskCenterBackendOnline": {
+    "message": "Backend online"
+  },
+  "taskCenterBackendOffline": {
+    "message": "Backend offline"
+  },
+  "taskCenterBackendFailureCount": {
+    "message": "$1 failures"
+  },
+  "taskCenterProcessorsLabel": {
+    "message": "Processors"
+  },
+  "taskCenterPendingLabel": {
+    "message": "Pending"
+  },
+  "taskCenterProcessingLabel": {
+    "message": "Processing"
+  },
+  "taskCenterCompletedLabel": {
+    "message": "Completed"
+  },
+  "taskCenterFailedLabel": {
+    "message": "Failed"
+  },
+  "taskCenterLeasedLabel": {
+    "message": "Leased"
+  },
+  "taskCenterProcessorDetails": {
+    "message": "Processors · $1/$2 active"
+  },
+  "taskCenterQueueLabel": {
+    "message": "Queue"
+  },
+  "taskCenterNewLabel": {
+    "message": "New"
+  },
+  "taskCenterDuplicateLabel": {
+    "message": "Duplicate"
+  },
+  "taskCenterDoneLabel": {
+    "message": "Done"
+  },
+  "taskCenterLastLabel": {
+    "message": "Last"
+  },
+  "taskCenterActiveLabel": {
+    "message": "Active"
+  },
+  "taskCenterInactiveLabel": {
+    "message": "Inactive"
+  },
+  "taskCenterUnifiedTitle": {
+    "message": "Unified Task Center"
+  },
+  "taskCenterRefresh": {
+    "message": "Refresh tasks"
+  },
+  "taskCenterSortLabel": {
+    "message": "Sort"
+  },
+  "taskCenterSortNewest": {
+    "message": "Newest"
+  },
+  "taskCenterSortOldest": {
+    "message": "Oldest"
+  },
+  "taskCenterSortPriority": {
+    "message": "Priority"
+  },
+  "taskCenterStatusLabel": {
+    "message": "Status"
+  },
+  "taskCenterAllLabel": {
+    "message": "All"
+  },
+  "taskCenterLiveLabel": {
+    "message": "Live"
+  },
+  "taskCenterHistoryLabel": {
+    "message": "History"
+  },
+  "taskCenterShowLess": {
+    "message": "Show less"
+  },
+  "taskCenterShowAll": {
+    "message": "Show all $1"
+  },
+  "taskCenterNoMatchingTasks": {
+    "message": "No tasks match the current filters"
+  },
+  "taskCenterTaskCount": {
+    "message": "$1 tasks"
+  },
+  "taskCenterSearchPlaceholder": {
+    "message": "Search task content or ID"
+  },
+  "taskCenterAllTasks": {
+    "message": "All tasks"
+  },
+  "taskCenterSearchAction": {
+    "message": "Search"
+  },
+  "taskCenterNoTasksFound": {
+    "message": "No tasks found"
+  },
+  "taskCenterPreviousPage": {
+    "message": "Previous"
+  },
+  "taskCenterNextPage": {
+    "message": "Next"
+  },
+  "taskCenterPageRange": {
+    "message": "$1-$2 of $3"
+  },
+  "taskCenterCategoryLoadError": {
+    "message": "Failed to load category tasks"
+  },
+  "taskCenterLoadError": {
+    "message": "Failed to load tasks"
+  },
+  "taskCenterLoadSummary": {
+    "message": "Loaded $1 pending ($2 browser-processable)"
+  },
+  "taskCenterCapability_image_label": {
+    "message": "Cover and poster search"
+  },
+  "taskCenterCapability_image_hint": {
+    "message": "Searches and writes back book covers and media posters through the shared browser worker"
+  },
+  "taskCenterCapability_gemini_image_label": {
+    "message": "AI word-group cover generation"
+  },
+  "taskCenterCapability_gemini_image_hint": {
+    "message": "Generates vocabulary-library covers with Gemini and writes them back to Laravel"
+  },
+  "taskCenterCapability_validity_label": {
+    "message": "Execute word validity and translation tasks"
+  },
+  "taskCenterCapability_validity_hint": {
+    "message": "Drains unchecked or untranslated words and enables the web AI and Bing translation workers"
+  },
+  "taskCenterCapability_notebooklm_label": {
+    "message": "Execute NotebookLM generation tasks"
+  },
+  "taskCenterCapability_notebooklm_hint": {
+    "message": "Laravel NotebookLM queue to the shared browser runtime with result write-back"
+  },
+  "taskCenterCapability_chatgpt_label": {
+    "message": "Execute ChatGPT long-form audio tasks"
+  },
+  "taskCenterCapability_chatgpt_hint": {
+    "message": "Runs ChatGPT web conversations, captures read-aloud audio, and writes the result back to Laravel"
+  },
+  "taskCenterCurrentTaskLabel": {
+    "message": "Current task"
+  },
+  "taskCenterCurrentStageLabel": {
+    "message": "Stage"
+  },
+  "taskCenterCategory_word_translation": {
+    "message": "Word translation"
+  },
+  "taskCenterCategory_dictionary_explanation": {
+    "message": "Dictionary explanation"
+  },
+  "taskCenterCategory_dictionary_explanation_demo": {
+    "message": "Dictionary demo"
+  },
+  "taskCenterCategory_prompt_translation": {
+    "message": "Prompt translation"
+  },
+  "taskCenterCategory_word_media": {
+    "message": "Word images"
+  },
+  "taskCenterCategory_word_audio": {
+    "message": "Word audio"
+  },
+  "taskCenterCategory_article_audio": {
+    "message": "Article audio"
+  },
+  "taskCenterCategory_article_tts_generation": {
+    "message": "Article speech generation"
+  },
+  "taskCenterCategory_sentence_audio": {
+    "message": "Sentence audio"
+  },
+  "taskCenterCategory_subtitle_search": {
+    "message": "Subtitle search"
+  },
+  "taskCenterCategory_poster": {
+    "message": "Cover and poster search"
+  },
+  "taskCenterCategory_notebooklm": {
+    "message": "NotebookLM processing"
+  },
+  "taskCenterCategory_gemini_image": {
+    "message": "AI image generation"
+  },
+  "taskCenterCategory_gemini_chat": {
+    "message": "AI conversation"
+  },
+  "taskCenterCategory_chatgpt_chat": {
+    "message": "ChatGPT conversation"
+  },
+  "taskCenterCategory_word_validity": {
+    "message": "Word validity"
+  },
+  "taskCenterCategory_stt": {
+    "message": "Speech recognition"
+  },
+  "taskCenterCategory_audio_transcribe": {
+    "message": "Audio transcription"
+  },
+  "taskCenterStatus_pending": {
+    "message": "Pending"
+  },
+  "taskCenterStatus_assigned": {
+    "message": "Assigned"
+  },
+  "taskCenterStatus_processing": {
+    "message": "Processing"
+  },
+  "taskCenterStatus_completed": {
+    "message": "Completed"
+  },
+  "taskCenterStatus_completed_demo": {
+    "message": "Demo completed"
+  },
+  "taskCenterStatus_failed": {
+    "message": "Failed"
+  },
+  "taskCenterStatus_cancelled": {
+    "message": "Cancelled"
+  },
+  "taskCenterStatus_leased": {
+    "message": "Leased"
+  },
+  "taskCenterAiTranslateLabel": {
+    "message": "AI translation"
+  },
+  "taskCenterBumpHint": {
+    "message": "Move this task to the front of the fast lane at priority $1"
+  },
+  "taskCenterConnectingStream": {
+    "message": "Connecting to live stream…"
+  },
+  "taskCenterPhaseLabel": {
+    "message": "Phase"
+  },
+  "taskCenterLaneLabel": {
+    "message": "Lane"
+  },
+  "taskCenterCapabilityLabel": {
+    "message": "Capability"
+  },
+  "taskCenterAppLabel": {
+    "message": "Application"
+  },
+  "taskCenterWorkerLabel": {
+    "message": "Worker"
+  },
+  "taskCenterAttemptsLabel": {
+    "message": "Attempts"
+  },
+  "taskCenterElapsedLabel": {
+    "message": "Elapsed"
+  },
+  "taskCenterTimeoutLabel": {
+    "message": "Timeout in"
+  },
+  "taskCenterProviderLabel": {
+    "message": "Provider"
+  },
+  "taskCenterPayloadLabel": {
+    "message": "Payload"
+  },
+  "taskCenterResultLabel": {
+    "message": "Result"
+  },
+  "taskCenterTimelineLabel": {
+    "message": "Timeline"
+  },
+  "taskCenterAttemptLabel": {
+    "message": "attempt"
+  },
+  "taskCenterBumpedLabel": {
+    "message": "Moved to top"
+  },
+  "taskCenterBumpingLabel": {
+    "message": "Moving…"
+  },
+  "taskCenterTaskTopLabel": {
+    "message": "Move to top"
+  },
+  "taskCenterBumpFailed": {
+    "message": "Failed to move task"
+  },
+  "taskCenterStreamUnavailable": {
+    "message": "Live stream unavailable"
+  },
+  "startBannerTitle": {
+    "message": "  Chrome MCP Server - Windows"
+  },
+  "startWatchPrompt": {
+    "message": "Enable development watch mode? [Y/n]"
+  },
+  "startWatchOnceSelected": {
+    "message": "  One-time build selected."
+  },
+  "startWatchDevSelected": {
+    "message": "  Development watch mode selected."
+  },
+  "startProcessingBuildConfiguration": {
+    "message": "[Python] Processing build configuration..."
+  },
+  "startPythonError": {
+    "message": "WARNING: Python script raised an error (continuing): $error$",
+    "description": "Warning shown when the build orchestrator raises an error but startup continues.",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Process terminated unexpectedly"
+      }
+    }
+  },
+  "startBuildConfigIncomplete": {
+    "message": "WARNING: Build configuration looks incomplete; continuing with defaults."
+  },
+  "startSetupTitle": {
+    "message": "Chrome MCP Server - Windows Setup"
+  },
+  "startCheckingDependencies": {
+    "message": "Checking dependencies..."
+  },
+  "startInstallingDependencies": {
+    "message": "Installing dependencies..."
+  },
+  "startBuildingShared": {
+    "message": "Building shared package..."
+  },
+  "startBuildingNative": {
+    "message": "Building Native Server..."
+  },
+  "startBuildingExtension": {
+    "message": "Building Chrome Extension..."
+  },
+  "startRegisteringNative": {
+    "message": "Registering Native Messaging Host..."
+  },
+  "startNodeVersion": {
+    "message": "  OK Node.js: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "v22.0.0"
+      }
+    }
+  },
+  "startNodeMissing": {
+    "message": "  ERROR: Node.js not found"
+  },
+  "startPnpmVersion": {
+    "message": "  OK pnpm: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1",
+        "example": "10.0.0"
+      }
+    }
+  },
+  "startPnpmMissing": {
+    "message": "  ERROR: pnpm not found"
+  },
+  "startInstallingDependenciesLive": {
+    "message": "  Installing dependencies (live output)..."
+  },
+  "startDependencyInstallFinished": {
+    "message": "  OK Dependency install step finished"
+  },
+  "startDependenciesInstalled": {
+    "message": "  OK Dependencies already installed"
+  },
+  "startCheckingCmdShims": {
+    "message": "  Checking Windows .cmd shims..."
+  },
+  "startSkipBuild": {
+    "message": "  MCP_SKIP_BUILD=1; skipping rebuild and reusing existing output."
+  },
+  "startRebuilding": {
+    "message": "  Rebuilding (set MCP_SKIP_BUILD=1 to reuse existing output)."
+  },
+  "startBuildingSharedLive": {
+    "message": "  Building chrome-mcp-shared (live output)..."
+  },
+  "startSharedBuilt": {
+    "message": "  OK Shared package built (artifact present)"
+  },
+  "startSharedMissing": {
+    "message": "  WARNING: Shared build artifact not found at $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:\\project\\packages\\shared\\dist"
+      }
+    }
+  },
+  "startBuildingNativeLive": {
+    "message": "  Building mcp-chrome-bridge (live output)..."
+  },
+  "startNativeBuilt": {
+    "message": "  OK Native Server built (artifact present)"
+  },
+  "startNativeMissing": {
+    "message": "  WARNING: Native Server artifact not found at $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:\\project\\app\\native-server\\dist"
+      }
+    }
+  },
+  "startRetryingBuild": {
+    "message": "  Retrying build (attempt $attempt$/$maximum$)...",
+    "placeholders": {
+      "attempt": {
+        "content": "$1",
+        "example": "2"
+      },
+      "maximum": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "startExtensionBuilt": {
+    "message": "  OK Chrome Extension built successfully"
+  },
+  "startManifestKeyMissing": {
+    "message": "  WARNING: manifest.json does not contain the 'key' field"
+  },
+  "startExtensionIdUncalculated": {
+    "message": "  Extension ID cannot be calculated automatically"
+  },
+  "startRegistrationMayRequireUpdate": {
+    "message": "  Native host registration may require a manual extension ID update"
+  },
+  "startManifestKeyPresent": {
+    "message": "  OK manifest.json contains the 'key' field used for the extension ID"
+  },
+  "startManifestVerificationFailed": {
+    "message": "  WARNING: Could not verify the manifest.json structure"
+  },
+  "startExtensionBuildFailed": {
+    "message": "  ERROR: Failed to build Chrome Extension after $maximum$ attempts",
+    "placeholders": {
+      "maximum": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "startBuildSkipped": {
+    "message": "  Build skipped; using existing output."
+  },
+  "startManifestMissing": {
+    "message": "  ERROR: manifest.json not found at $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:\\project\\.output\\build_extension\\manifest.json"
+      }
+    }
+  },
+  "startCannotRegister": {
+    "message": "  Cannot register the native host without an extension ID"
+  },
+  "startRegistrationWillProceed": {
+    "message": "  Native host registration will continue but may require a manual ID update"
+  },
+  "startRegisteringHost": {
+    "message": "  Registering native messaging host..."
+  },
+  "startRegistrationVerification": {
+    "message": "  Registration verification:"
+  },
+  "startManifestRegistered": {
+    "message": "  OK Chrome manifest registered"
+  },
+  "startLocation": {
+    "message": "    Location: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:\\Users\\user\\manifest.json"
+      }
+    }
+  },
+  "startManifestContent": {
+    "message": "  Manifest content:"
+  },
+  "startManifestFileMissing": {
+    "message": "  WARNING: Manifest file not found at $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "C:\\Users\\user\\manifest.json"
+      }
+    }
+  },
+  "startHostMayFail": {
+    "message": "  Native messaging host may not work correctly"
+  },
+  "startRegistryExists": {
+    "message": "  OK Windows registry key exists"
+  },
+  "startRegistryMissing": {
+    "message": "  WARNING: Windows registry key not found at $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1",
+        "example": "HKCU:\\Software\\Google\\Chrome"
+      }
+    }
+  },
+  "startChromeDiscoveryMayFail": {
+    "message": "  Chrome may not be able to discover the native messaging host"
+  },
+  "startComplete": {
+    "message": "  BUILD & REGISTRATION COMPLETE"
+  },
+  "startImportantPaths": {
+    "message": "[IMPORTANT PATHS]\n\n  1) Chrome Extension (Frontend):\n     $extensionPath$\n\n  2) Native Server (Backend):\n     $nativePath$",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1",
+        "example": "C:\\project\\.output\\build_extension"
+      },
+      "nativePath": {
+        "content": "$2",
+        "example": "C:\\project\\app\\native-server\\dist"
+      }
+    }
+  },
+  "startNextSteps": {
+    "message": "  NEXT STEPS"
+  },
+  "startInstructions": {
+    "message": "[STEP 1] Load Extension in Chrome (one time):\n  1. Open Chrome: chrome://extensions/\n  2. Enable Developer mode (top-right toggle)\n  3. Click 'Load unpacked'\n  4. Select folder: $extensionPath$\n  Note: Keep this folder loaded; the WXT dev server writes to the same path.\n\n[STEP 2] Connect the MCP Service:\n  1. Click the extension icon in Chrome\n  2. Click the Connect button\n  3. The service will start at http://127.0.0.1:12306\n\n[STEP 3] Dynamic Debugging (by component):\n\n  POPUP (apps/chrome-extension/entrypoints/popup/):\n    - Right-click the popup -> Inspect -> DevTools opens\n    - After saving a file, reopen the popup (WXT HMR reloads it automatically)\n    - Or press Ctrl+R in DevTools to force a refresh\n\n  BACKGROUND SERVICE WORKER (entrypoints/background.ts):\n    - Go to chrome://extensions/ -> find the extension -> click 'Service Worker'\n    - After saving a file, click the circular refresh icon on the extension card\n    - WXT reloads the extension automatically after a rebuild\n\n  CONTENT SCRIPTS (entrypoints/content.ts / inject-scripts/):\n    - Open the target page -> F12 -> Sources -> Content Scripts tab\n    - After saving a file, refresh the target page (Ctrl+R)\n    - WXT dynamically re-registers content scripts in development mode\n\n  INSPECT ALL EXTENSION PAGES:\n    - Open chrome://inspect/#extensions",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1",
+        "example": "C:\\project\\.output\\build_extension"
+      }
+    }
+  },
+  "startLaunchingWatch": {
+    "message": "  Launching WXT dev server (watch mode)..."
+  },
+  "startAutomaticRebuilds": {
+    "message": "  File changes trigger automatic rebuilds."
+  },
+  "startOneTimeComplete": {
+    "message": "  One-time build complete; development watchers are disabled."
+  },
+  "startPressStop": {
+    "message": "  Press Ctrl+C to stop."
+  },
+  "headerTitle": {
+    "message": "Chrome MCP"
+  },
+  "headerSubtitle": {
+    "message": "Browser automation console"
+  },
+  "openPersistentTab": {
+    "message": "Open in a persistent tab"
+  },
+  "useLightTheme": {
+    "message": "Use light theme"
+  },
+  "useDarkTheme": {
+    "message": "Use dark theme"
+  },
+  "onlineStatus": {
+    "message": "Online"
+  },
+  "offlineStatus": {
+    "message": "Offline"
+  },
+  "primaryNavigationLabel": {
+    "message": "Primary navigation"
+  },
+  "navServer": {
+    "message": "Server"
+  },
+  "navData": {
+    "message": "Data"
+  },
+  "navTasks": {
+    "message": "Tasks"
+  },
+  "navImport": {
+    "message": "Import"
+  },
+  "navExtensions": {
+    "message": "Extensions"
+  },
+  "navWebAi": {
+    "message": "Web AI"
+  },
+  "navAudio": {
+    "message": "Audio"
+  },
+  "navDebug": {
+    "message": "Debug"
+  },
+  "footerPort": {
+    "message": "Port $port$",
+    "placeholders": {
+      "port": {
+        "content": "$1"
+      }
+    }
+  },
+  "autoConnectLabel": {
+    "message": "Auto Connect"
+  },
+  "connectOnStartupHint": {
+    "message": "Connect on startup"
+  },
+  "nativeMcpPortLabel": {
+    "message": "Native MCP Port"
+  },
+  "otherSettingsLabel": {
+    "message": "Other"
+  },
+  "showDetailedLogsHint": {
+    "message": "Show detailed logs"
+  },
+  "backendTimeoutLabel": {
+    "message": "Backend Timeout (ms)"
+  },
+  "pendingRetriesLabel": {
+    "message": "Pending retries: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "resetGeneralSettings": {
+    "message": "Reset General Settings"
+  },
+  "resetGeneralSettingsConfirm": {
+    "message": "Reset the general server and debug settings to their defaults?"
+  },
+  "bingWorkerTitle": {
+    "message": "Bing task worker"
+  },
+  "bingWorkerSharedHint": {
+    "message": "Shared with Bing Dictionary and applied to a running worker."
+  },
+  "sourceLanguageLabel": {
+    "message": "Source language"
+  },
+  "qwenSettingsSharedHint": {
+    "message": "Shared by Laravel production tasks and the Extension test panel."
+  },
+  "modeLabel": {
+    "message": "Mode"
+  },
+  "qwenVoiceDesign": {
+    "message": "Voice Design"
+  },
+  "qwenVoiceClone": {
+    "message": "Voice Clone (Base)"
+  },
+  "qwenCustomVoice": {
+    "message": "TTS (CustomVoice)"
+  },
+  "waitTimeoutSecondsLabel": {
+    "message": "Wait timeout (sec)"
+  },
+  "voiceDescriptionLabel": {
+    "message": "Voice description"
+  },
+  "styleInstructionLabel": {
+    "message": "Style instruction"
+  },
+  "autoDownloadTestOutput": {
+    "message": "Auto-download test output"
+  },
+  "openNewTabForTest": {
+    "message": "Open a new tab for each test"
+  },
+  "aiWebProviderTitle": {
+    "message": "AI Web Provider"
+  },
+  "aiWebProviderHint": {
+    "message": "Which web AI the prompt-translate and web-chat workers drive in your live browser."
+  },
+  "savedStatus": {
+    "message": "Saved"
+  },
+  "validityAiProviderTitle": {
+    "message": "Validity AI Provider"
+  },
+  "validityAiProviderHint": {
+    "message": "Which web AI the word-validity check drives (validity and translation in one pass)."
+  },
+  "validityWordLanguageTitle": {
+    "message": "Validity Word Language"
+  },
+  "validityWordLanguageHint": {
+    "message": "Only English words are processed by default; select another language to process its backlog instead."
+  },
+  "otherLanguageCodePlaceholder": {
+    "message": "Other language code"
+  },
+  "useButton": {
+    "message": "Use"
+  },
+  "vectorStoreLabel": {
+    "message": "Vector store"
+  },
+  "indexDataLabel": {
+    "message": "Index data"
+  },
+  "logsLabel": {
+    "message": "Logs"
+  },
+  "stateLabel": {
+    "message": "State"
+  },
+  "clearLogsButton": {
+    "message": "Clear logs"
+  },
+  "noEventsRecorded": {
+    "message": "No events recorded."
+  },
+  "recordingSettingsManagedHint": {
+    "message": "Recording servers, metadata, and streaming options are managed in Settings Center."
+  },
+  "toolboxLabel": {
+    "message": "Toolbox"
+  },
+  "browserCapabilityLabel": {
+    "message": "Browser capability"
+  },
+  "disableNamedFeature": {
+    "message": "Disable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "enableNamedFeature": {
+    "message": "Enable $name$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "promptLabel": {
+    "message": "Prompt"
+  },
+  "imagePromptPlaceholder": {
+    "message": "Describe the image to generate…"
+  },
+  "generatedImageAlt": {
+    "message": "Generated image"
+  },
+  "downloadButton": {
+    "message": "Download"
+  },
+  "sourceUrlLabel": {
+    "message": "Source URL"
+  },
+  "notebooklmQuestionPlaceholder": {
+    "message": "What is this notebook about?"
+  },
+  "notebooklmDialogueLabel": {
+    "message": "Dialogue test — words/sentences to dialogue"
+  },
+  "notebooklmDialoguePlaceholder": {
+    "message": "Paste a few words or sentences to weave into a dialogue…"
+  },
+  "notebooklmDialogueHint": {
+    "message": "Built-in prompt: generates a short two-speaker dialogue using every item"
+  },
+  "extractedResultLabel": {
+    "message": "Extracted result"
+  },
+  "noAnswerReturned": {
+    "message": "No answer returned"
+  },
+  "notebooklmRequestFailed": {
+    "message": "NotebookLM request failed"
+  },
+  "lastVerifiedLabel": {
+    "message": "Last verified"
+  },
+  "mcpToolLabel": {
+    "message": "MCP tool"
+  },
+  "queryLabel": {
+    "message": "Query"
+  },
+  "webSearchPlaceholder": {
+    "message": "Search text or images…"
+  },
+  "searchEngineLabel": {
+    "message": "Engine"
+  },
+  "webMode": {
+    "message": "Web"
+  },
+  "imagesMode": {
+    "message": "Images"
+  },
+  "newsMode": {
+    "message": "News"
+  },
+  "maximumLabel": {
+    "message": "Max"
+  },
+  "waitForCaptchaHint": {
+    "message": "Wait for CAPTCHA — poll until solved or timeout"
+  },
+  "solveSearchVerification": {
+    "message": "Solve verification in the search tab."
+  },
+  "imageAlt": {
+    "message": "Image"
+  },
+  "textToSynthesizeLabel": {
+    "message": "Text to Synthesize"
+  },
+  "qwenTextPlaceholder": {
+    "message": "Enter text for Qwen3-TTS…"
+  },
+  "qwenGpuWaitingHint": {
+    "message": "Waiting for HuggingFace Zero GPU — keep the tab open."
+  },
+  "validityWordsLabel": {
+    "message": "Words (comma or newline separated)"
+  },
+  "validLabel": {
+    "message": "Valid"
+  },
+  "invalidLabel": {
+    "message": "Invalid"
+  },
+  "validityTestFailed": {
+    "message": "Validity test failed"
+  },
+  "dictionarySearchPlaceholder": {
+    "message": "Enter word to look up…"
+  },
+  "dictionaryLookingUp": {
+    "message": "Looking up word…"
+  },
+  "recentSearchesLabel": {
+    "message": "Recent Searches"
+  },
+  "dictionaryEmptyHint": {
+    "message": "Enter a word to start looking up definitions"
+  },
+  "playUsPronunciation": {
+    "message": "Play US pronunciation"
+  },
+  "playUkPronunciation": {
+    "message": "Play UK pronunciation"
+  },
+  "definitionsLabel": {
+    "message": "Definitions"
+  },
+  "detailedLabel": {
+    "message": "Detailed"
+  },
+  "webDefinitionsLabel": {
+    "message": "Web Definitions"
+  },
+  "examplesLabel": {
+    "message": "Examples"
+  },
+  "synonymsLabel": {
+    "message": "Synonyms"
+  },
+  "clearHistoryButton": {
+    "message": "Clear history"
+  },
+  "languagesLabel": {
+    "message": "Languages"
+  },
+  "removeLanguageTitle": {
+    "message": "Remove language"
+  },
+  "sentencePatternHint": {
+    "message": "Sentence structure label, for example: not only…but also"
+  },
+  "patternLabel": {
+    "message": "Pattern"
+  },
+  "phrasesLabel": {
+    "message": "Phrases"
+  },
+  "wordsLabel": {
+    "message": "Words"
+  },
+  "grammarLabel": {
+    "message": "Grammar"
+  },
+  "alternateExpressionsLabel": {
+    "message": "Alt ×"
+  },
+  "addLabel": {
+    "message": "Add"
+  },
+  "sourceLanguageExpressionsHint": {
+    "message": "Source language: skip alternate expressions (only translated languages get them)"
+  },
+  "articleTextLabel": {
+    "message": "Article text"
+  },
+  "articleTextPlaceholder": {
+    "message": "Paste a paragraph to translate and analyze…"
+  },
+  "articlePromptHint": {
+    "message": "Built-in XML-like prompt: sentence alignment and the flags enabled above, per language"
+  },
+  "targetLanguagesLabel": {
+    "message": "Target languages"
+  },
+  "primaryLanguageGeneratedHint": {
+    "message": "(the primary/source language is generated automatically and shown greyed)"
+  },
+  "sourceLanguageAlwaysGenerated": {
+    "message": "Source language of the expanded book — always generated"
+  },
+  "bookAutoRunHint": {
+    "message": "Auto-run — after each segment, automatically claim and generate the next until the source is complete"
+  },
+  "filterByTitlePlaceholder": {
+    "message": "Filter by title…"
+  },
+  "noSourcesForFilter": {
+    "message": "No sources found for this filter."
+  },
+  "loadingSegments": {
+    "message": "Loading segments…"
+  },
+  "reloadSegments": {
+    "message": "Reload segments"
+  },
+  "loadQueueButton": {
+    "message": "Load queue"
+  },
+  "backendLabel": {
+    "message": "Backend"
+  },
+  "freeDictionaryLabel": {
+    "message": "Free Dictionary"
+  },
+  "typeWordPlaceholder": {
+    "message": "Type a word…"
+  },
+  "playPronunciation": {
+    "message": "Play pronunciation"
+  },
+  "youglishPronunciationHint": {
+    "message": "Real-context video pronunciation (YouGlish)"
+  },
+  "forvoPronunciationHint": {
+    "message": "Native-speaker audio from around the world (Forvo)"
+  },
+  "cambridgePronunciationHint": {
+    "message": "Standard UK/US pronunciation (Cambridge)"
+  },
+  "loadQueueDescription": {
+    "message": "Pull pending words from the server and preview"
+  },
+  "confirmAndStart": {
+    "message": "Confirm and Start"
+  },
+  "confirmAndStartDescription": {
+    "message": "Open Bing tabs and begin crawling"
+  },
+  "untranslatedQueueLabel": {
+    "message": "Untranslated queue"
+  },
+  "totalLabel": {
+    "message": "Total"
+  },
+  "taskLabel": {
+    "message": "Task"
+  },
+  "workerOptionsManagedHint": {
+    "message": "Worker options are managed in Settings Center."
+  },
+  "myLanguageLabel": {
+    "message": "My language"
+  },
+  "learnLanguageLabel": {
+    "message": "Learn language"
+  },
+  "maximumBooksLabel": {
+    "message": "Max books (0 = all)"
+  },
+  "duoreaderFetchAudioHint": {
+    "message": "Fetch audio from Duoreader API (back up text and MP3 locally)"
+  },
+  "duoreaderCdnHint": {
+    "message": "Use CDN API (fast) — tab injection and .pz decoding, without DOM scraping"
+  },
+  "duoreaderCoverSearchHint": {
+    "message": "Search Google/Bing Images for book covers when loading the catalog"
+  },
+  "duoreaderForceReplaceHint": {
+    "message": "Force replace text upload (re-ingest chapters; audio remains idempotent)"
+  },
+  "refreshCatalogButton": {
+    "message": "Refresh Catalog"
+  },
+  "scrapeFetchLabel": {
+    "message": "Scrape / fetch"
+  },
+  "textUploadLabel": {
+    "message": "Text upload"
+  },
+  "booksLabel": {
+    "message": "Books"
+  },
+  "loadingCatalog": {
+    "message": "Loading catalog…"
+  },
+  "noBilingualBooks": {
+    "message": "No bilingual books found."
+  },
+  "aiWebPromptPlaceholder": {
+    "message": "Type a prompt to send to the live tab…"
+  },
+  "audioSettingsSharedHint": {
+    "message": "Shared with the Audio tab."
+  },
+  "nativeBridgeLabel": {
+    "message": "Native bridge"
+  },
+  "listenerLabel": {
+    "message": "Listener"
+  },
+  "clientSetupLabel": {
+    "message": "Client setup"
+  },
+  "taskMediaAlt": {
+    "message": "Task media"
+  },
+  "fastTierLabel": {
+    "message": "Fast tier"
+  },
+  "enterPromptFirst": {
+    "message": "Enter a prompt first"
+  },
+  "generationStartFailed": {
+    "message": "Failed to start generation"
+  },
+  "generationFailed": {
+    "message": "Generation failed"
+  },
+  "imageGenerationTimeout": {
+    "message": "Timed out waiting for the image"
+  },
+  "noBackgroundResponse": {
+    "message": "No response from the extension background — reload the extension and retry"
+  },
+  "qwenTtsFailed": {
+    "message": "Qwen TTS failed"
+  },
+  "searchFailed": {
+    "message": "Search failed"
+  },
+  "noEndpointConfigured": {
+    "message": "No endpoint configured in Settings"
+  },
+  "workerActionFailed": {
+    "message": "Failed to $action$ worker",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "loadStatusFailed": {
+    "message": "Failed to load status"
+  },
+  "lookupWordFailed": {
+    "message": "Failed to look up word"
+  },
+  "noDictionaryEntry": {
+    "message": "No Bing dictionary entry for this word"
+  },
+  "noResult": {
+    "message": "No result"
+  },
+  "clearDataFailed": {
+    "message": "Failed to clear data"
+  },
+  "taskCenterStartFailed": {
+    "message": "Failed to start Task Center"
+  },
+  "capabilityUpdateFailed": {
+    "message": "Failed to update capability"
+  },
+  "taskCenterStopFailed": {
+    "message": "Failed to stop Task Center"
+  },
+  "endpointSwitchFailed": {
+    "message": "Failed to switch the running API endpoint"
+  },
+  "loadQueueFailed": {
+    "message": "Failed to load queue"
+  },
+  "unreachableStatus": {
+    "message": "Unreachable"
+  },
+  "scrapeTestFailed": {
+    "message": "Scrape test failed"
+  },
+  "stopServiceFailed": {
+    "message": "Failed to stop service"
+  },
+  "startServiceFailed": {
+    "message": "Failed to start service"
+  },
+  "toggleServiceFailed": {
+    "message": "Failed to toggle service"
+  },
+  "loadBooksFailed": {
+    "message": "Failed to load books"
+  },
+  "apiTestFailed": {
+    "message": "API test failed"
+  },
+  "resumeFailed": {
+    "message": "Resume failed"
+  },
+  "startFailed": {
+    "message": "Start failed"
+  },
+  "providerGenerationFailed": {
+    "message": "$provider$ generation failed",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerReplyTimeout": {
+    "message": "Timed out waiting for the $provider$ reply",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerTestStartFailed": {
+    "message": "Failed to start $provider$ test: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "loadSourcesFailed": {
+    "message": "Failed to load sources"
+  },
+  "claimRejected": {
+    "message": "Claim rejected"
+  },
+  "claimFailed": {
+    "message": "Claim failed"
+  },
+  "submitDisabled": {
+    "message": "Submit disabled"
+  },
+  "submitFailed": {
+    "message": "Submit failed"
+  },
+  "providerStartFailed": {
+    "message": "Failed to start $provider$: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "featureName_bingDictionary": {
+    "message": "Bing Dictionary"
+  },
+  "featureDesc_bingDictionary": {
+    "message": "Look up definitions, translations, and pronunciation."
+  },
+  "featureName_notebooklm": {
+    "message": "NotebookLM"
+  },
+  "featureDesc_notebooklm": {
+    "message": "Automate questions and research in Google NotebookLM."
+  },
+  "featureName_geminiImage": {
+    "message": "Gemini Image"
+  },
+  "featureDesc_geminiImage": {
+    "message": "Generate images with Gemini and capture the result."
+  },
+  "featureName_articleStudyGuide": {
+    "message": "Article Guide"
+  },
+  "featureDesc_articleStudyGuide": {
+    "message": "Build aligned reading, grammar, and phrase study guides."
+  },
+  "featureName_bookStudyGenerator": {
+    "message": "Book Studio"
+  },
+  "featureDesc_bookStudyGenerator": {
+    "message": "Generate multilingual study material from book segments."
+  },
+  "featureName_aiTranslateHub": {
+    "message": "Translate Hub"
+  },
+  "featureDesc_aiTranslateHub": {
+    "message": "Translate with web AI providers and attach speech audio."
+  },
+  "featureName_webSearch": {
+    "message": "Web Search"
+  },
+  "featureDesc_webSearch": {
+    "message": "Search web, image, and news sources in live browser tabs."
+  },
+  "featureName_qwenTts": {
+    "message": "Qwen TTS"
+  },
+  "featureDesc_qwenTts": {
+    "message": "Generate and download speech with Qwen3-TTS."
+  },
+  "featureName_wordValidity": {
+    "message": "Word Validity"
+  },
+  "featureDesc_wordValidity": {
+    "message": "Test word validity classification with the shared web runtime."
+  },
+  "extEnabledStatus": {
+    "message": "Enabled"
+  },
+  "extAvailableStatus": {
+    "message": "Available"
+  },
+  "confirmAndStartWithPending": {
+    "message": "Confirm & Start · $count$ pending",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "confirmAndStartReady": {
+    "message": "Confirm & Start"
+  },
+  "endpointNotConfiguredHint": {
+    "message": "Not set — configure in Settings → API Configuration"
+  },
+  "noPendingWordsHint": {
+    "message": "No pending words to translate — nothing to crawl."
+  },
+  "queueItemAssignedLabel": {
+    "message": "Assigned:"
+  },
+  "noPendingTasksHint": {
+    "message": "No pending tasks."
+  },
+  "mediaCachedLabel": {
+    "message": "cached"
+  },
+  "mediaMissLabel": {
+    "message": "miss"
+  },
+  "tabIndexLabel": {
+    "message": "Tab $index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingFastLabel": {
+    "message": "⚡ $count$ fast",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "dictionaryLookUpButton": {
+    "message": "Look up"
+  },
+  "startAssistButton": {
+    "message": "Start assist"
+  },
+  "stopAssistButton": {
+    "message": "Stop assist"
+  },
+  "aiWebTestTitle": {
+    "message": "Test ($provider$)",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiWebWithAudioLabel": {
+    "message": "with audio"
+  },
+  "aiWebStatsTranslated": {
+    "message": "translated"
+  },
+  "aiWebStatsFailed": {
+    "message": "failed"
+  },
+  "aiWebStatsPending": {
+    "message": "pending"
+  },
+  "processorName_bingDictionary": {
+    "message": "Bing Dictionary"
+  },
+  "processorName_qwenTts": {
+    "message": "Qwen3 TTS"
+  },
+  "processorName_wordValidityWeb": {
+    "message": "Word Validity"
+  },
+  "processorName_webAiTranslate": {
+    "message": "Web-AI Translate"
+  },
+  "processorName_deepseek": {
+    "message": "DeepSeek AI"
+  },
+  "fastTierBadge": {
+    "message": "⚡ FAST"
+  },
+  "queueItemPrioAge": {
+    "message": "prio $priority$ · $age$s",
+    "placeholders": {
+      "priority": {
+        "content": "$1"
+      },
+      "age": {
+        "content": "$2"
+      }
+    }
+  }
 }

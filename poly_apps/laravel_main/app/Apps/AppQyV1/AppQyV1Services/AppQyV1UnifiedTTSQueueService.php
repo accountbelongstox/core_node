@@ -1425,7 +1425,16 @@ class AppQyV1UnifiedTTSQueueService
                     continue;
                 }
 
-                $stored = $this->tryRealPronunciation($task['content'], $lang, $task['md5']);
+                // Negative-cache API misses: an unresolvable word is released
+                // back to pending and re-claimed every cycle, so without a
+                // backoff each cycle would re-run the full external API chain
+                // (and the pacing sleep) for the same words.
+                $missCacheKey = 'appqyv1:tts_word_api_miss:' . $lang . ':' . $task['md5'];
+                $knownMiss = Cache::has($missCacheKey);
+
+                $stored = $knownMiss
+                    ? false
+                    : $this->tryRealPronunciation($task['content'], $lang, $task['md5']);
 
                 if ($stored) {
                     AppQyV1LangDictionaryModel::forgetMetricsCache($lang);
@@ -1446,19 +1455,31 @@ class AppQyV1UnifiedTTSQueueService
                     // claim. This is a delegation, not a failure - the retry
                     // budget is NOT consumed and tts_status returns to pending so
                     // pycore (or a later API hit) can own the row.
+                    if (!$knownMiss) {
+                        Cache::put($missCacheKey, true, now()->addMinutes(30));
+                    }
                     $this->ensureGlobalAudioTask($entry, $lang, 'word_audio', false);
                     $this->releaseWordProcessingClaim($entry);
 
-                    Log::info('[UnifiedTTSQueue] Word API miss - delegated to pycore word_audio lane', [
-                        'task_id' => $task['task_id'],
-                        'language' => $lang,
-                    ]);
+                    if ($knownMiss) {
+                        Log::debug('[UnifiedTTSQueue] Word API miss (cached) - delegated to pycore word_audio lane', [
+                            'task_id' => $task['task_id'],
+                            'language' => $lang,
+                        ]);
+                    } else {
+                        Log::info('[UnifiedTTSQueue] Word API miss - delegated to pycore word_audio lane', [
+                            'task_id' => $task['task_id'],
+                            'language' => $lang,
+                        ]);
+                    }
                 }
 
                 $processed++;
 
                 // Use dynamic interval between tasks (2 seconds normal, 5 seconds if frequent errors)
-                usleep($this->getProcessingInterval());
+                if (!$knownMiss) {
+                    usleep($this->getProcessingInterval());
+                }
             } catch (\Throwable $e) {
                 $errorMsg = $e->getMessage();
                 $this->handleProcessingError($errorMsg);

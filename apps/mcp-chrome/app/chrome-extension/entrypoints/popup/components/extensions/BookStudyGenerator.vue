@@ -1,11 +1,11 @@
 <template>
   <div class="bsg-panel">
     <div class="bsg-endpoint">
-      <span class="bsg-endpoint-label">Endpoint</span>
+      <span class="bsg-endpoint-label">{{ getMessage('apiConfigurationLabel') }}</span>
       <code class="bsg-endpoint-url">{{ apiBaseUrl || '(resolving…)' }}</code>
     </div>
 
-    <label class="bsg-label">Provider</label>
+    <label class="bsg-label">{{ getMessage('taskCenterProviderLabel') }}</label>
     <div class="bsg-provider-row">
       <button
         v-for="p in PROVIDER_ORDER"
@@ -18,7 +18,7 @@
     </div>
 
     <!-- Target languages -->
-    <label class="bsg-label">Target languages <span class="bsg-label-hint">(the primary/source language is generated automatically and shown greyed)</span></label>
+    <label class="bsg-label">{{ getMessage('targetLanguagesLabel') }} <span class="bsg-label-hint">{{ getMessage('primaryLanguageGeneratedHint') }}</span></label>
     <div class="bsg-langs">
       <button
         v-for="code in catalogCodes"
@@ -26,7 +26,7 @@
         class="bsg-lang-chip"
         :class="{ active: isLanguageSelected(code), primary: code === primaryLangHint }"
         :disabled="code === primaryLangHint"
-        :title="code === primaryLangHint ? 'Source language of the expanded book — always generated' : languageLabel(code)"
+        :title="code === primaryLangHint ? getMessage('sourceLanguageAlwaysGenerated') : languageLabel(code)"
         @click="toggleLanguage(code)"
       >{{ code.toUpperCase() }}<span v-if="code === primaryLangHint" class="bsg-lang-tag">src</span></button>
     </div>
@@ -34,7 +34,7 @@
     <!-- Auto-run -->
     <label class="bsg-autorun">
       <input type="checkbox" v-model="autoRun" />
-      <span>Auto-run — after each segment, automatically claim and generate the next until the source is complete</span>
+      <span>{{ getMessage('bookAutoRunHint') }}</span>
     </label>
 
     <!-- Controls: type filter + search + refresh -->
@@ -52,10 +52,10 @@
         v-model="search"
         class="bsg-search"
         type="text"
-        placeholder="Filter by title…"
+        :placeholder="getMessage('filterByTitlePlaceholder')"
         @keyup.enter="loadSources(1)"
       />
-      <button class="bsg-refresh" :disabled="loadingSources" title="Refresh" @click="loadSources(1)">
+      <button class="bsg-refresh" :disabled="loadingSources" :title="getMessage('refreshStatusButton')" @click="loadSources(1)">
         <span :class="{ spin: loadingSources }">↻</span>
       </button>
     </div>
@@ -64,7 +64,7 @@
     <div v-if="running || phase" class="bsg-activity">
       <span class="bsg-dot busy" />
       <span class="bsg-activity-text">{{ phase || 'Working…' }}</span>
-      <button v-if="running" class="bsg-stop" @click="stop">Stop</button>
+      <button v-if="running" class="bsg-stop" @click="stop">{{ getMessage('extStopButton') }}</button>
     </div>
     <div v-if="error" class="bsg-error">⚠ {{ error }}</div>
     <div v-if="result" class="bsg-result">{{ result }}</div>
@@ -76,7 +76,7 @@
       <div
         v-if="!loadingSources && sources.length === 0 && !sourcesError"
         class="bsg-empty"
-      >No sources found for this filter.</div>
+      >{{ getMessage('noSourcesForFilter') }}</div>
 
       <div v-for="src in sources" :key="keyOf(src.source_type, src.source_key)" class="bsg-source">
         <div class="bsg-source-head" @click="toggleExpand(src)">
@@ -117,14 +117,14 @@
 
         <!-- Expanded: segment strip from GET /status -->
         <div v-if="expandedKey === keyOf(src.source_type, src.source_key)" class="bsg-drill">
-          <div v-if="statusFor(src).loading" class="bsg-drill-msg">Loading segments…</div>
+          <div v-if="statusFor(src).loading" class="bsg-drill-msg">{{ getMessage('loadingSegments') }}</div>
           <div v-else-if="statusFor(src).error" class="bsg-error">⚠ {{ statusFor(src).error }}</div>
           <template v-else>
             <div class="bsg-drill-totals">
               <span>{{ statusFor(src).totals.segments_done }}/{{ statusFor(src).totals.segments_total }} done</span>
               <span v-if="statusFor(src).totals.generating > 0" class="bsg-drill-gen">· {{ statusFor(src).totals.generating }} generating</span>
               <span v-if="statusFor(src).totals.failed > 0" class="bsg-drill-fail">· {{ statusFor(src).totals.failed }} failed</span>
-              <button class="bsg-drill-refresh" title="Reload segments" @click.stop="loadStatus(src.source_type, src.source_key)">↻</button>
+              <button class="bsg-drill-refresh" :title="getMessage('reloadSegments')" @click.stop="loadStatus(src.source_type, src.source_key)">↻</button>
             </div>
             <div v-if="statusFor(src).segments.length === 0" class="bsg-drill-msg">
               No segments planned yet — Generate to plan and start.
@@ -147,7 +147,7 @@
     <div v-if="pageCount > 1" class="bsg-pager">
       <button class="bsg-page-btn" :disabled="page <= 1 || loadingSources" @click="setPage(page - 1)">‹ Prev</button>
       <span class="bsg-page-info">Page {{ page }} / {{ pageCount }} · {{ total }} total</span>
-      <button class="bsg-page-btn" :disabled="page >= pageCount || loadingSources" @click="setPage(page + 1)">Next ›</button>
+      <button class="bsg-page-btn" :disabled="page >= pageCount || loadingSources" @click="setPage(page + 1)">{{ getMessage('taskCenterNextPage') }} ›</button>
     </div>
   </div>
 </template>
@@ -162,6 +162,7 @@ import {
 } from '../../composables/useBookStudyGenerator';
 import { PROVIDER_ORDER, PROVIDER_LABELS } from '../../composables/useArticleStudyGuide';
 import { GEMINI_TRANSLATE_LANGUAGE_CATALOG } from '../../composables/promptPresets';
+import { getMessage } from '@/utils/i18n';
 
 const {
   provider,

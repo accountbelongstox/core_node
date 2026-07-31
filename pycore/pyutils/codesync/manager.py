@@ -96,7 +96,6 @@ class CodeSyncManager:
                                            "last_modified": 0.0, "light": True}
         else:
             self._stats = {"files": 0, "bytes": 0, "last_modified": 0.0}
-            self._start_stats_refresher()
 
         # Status mesh runs for every role. The mesh also sends our heartbeat to
         # dev/hub peers and adopts any newer config returned on the response.
@@ -124,6 +123,8 @@ class CodeSyncManager:
         # Apply the startup role (client receives by default; dev waits to distribute).
         self._apply_role(self.role)
         self._restore_runtime_prefs()
+        if not light_client:
+            self._start_stats_refresher()
         ColorPrint.green(f"[CodeSync Manager] Initialized role={self.role} "
                          f"(distributing={self.distributing}, light={self.light})")
 
@@ -218,6 +219,7 @@ class CodeSyncManager:
                         "message": "Only a dev-end can distribute code."}
             server = get_code_sync_server()
             if enabled:
+                get_watch_manager().start()
                 server.start()
                 self.distributing = True
                 msg = "Code distribution started"
@@ -274,6 +276,9 @@ class CodeSyncManager:
         SAME live filter settings as the file-sync (excluded dirs/files/extensions/
         path-substrings + optional .gitignore), so the UI's code stats reflect what
         would actually be distributed."""
+        watcher = get_watch_manager()
+        if watcher.running() and watcher.wait_ready(timeout=120.0):
+            return watcher.code_stats()
         files = 0
         total = 0
         latest = 0.0
@@ -551,6 +556,7 @@ class CodeSyncManager:
     def get_local_peer_status(self) -> dict:
         """Lightweight self status served at /code-sync/peer/status (probed often)."""
         me = self.config.get_self()
+        watcher_metrics = {}
         summary: Dict[str, Any] = {
             "role": self.role,
             "distributing": self.is_distributing(),
@@ -569,6 +575,8 @@ class CodeSyncManager:
                 )
         except Exception:
             pass
+        if not (self.light and self.role == "client"):
+            watcher_metrics = get_watch_manager().get_metrics()
         return {
             "id": self.config.machine_id,
             "name": me.get("name") or socket.gethostname(),
@@ -585,6 +593,7 @@ class CodeSyncManager:
             "sync_phase": self.get_sync_phase(),
             "summary": summary,
             "transport": code_sync_transport_status(),
+            "watcher": watcher_metrics,
         }
 
     def _peer_status_rows(self) -> list:
@@ -612,6 +621,8 @@ class CodeSyncManager:
             "self": self.get_local_peer_status(),
             "peers": self._peer_status_rows(),
         }
+        if not (self.light and self.role == "client"):
+            status["watcher"] = get_watch_manager().get_metrics()
         try:
             if self.role == "dev" and self.distributing:
                 status["server"] = self.push_sender.get_status()
@@ -644,7 +655,7 @@ class CodeSyncManager:
                 scanning = True
         except Exception:
             pass
-        snap = wm.snapshot()  # {dest_rel: (mtime, hash, abspath)}
+        snap = wm.snapshot()
         try:
             roots = wm.watch_dirs_str()
         except Exception:
@@ -672,7 +683,9 @@ class CodeSyncManager:
             except Exception:
                 abspath = ""
             try:
-                size = _os.path.getsize(abspath) if abspath else 0
+                size = int(meta[3]) if len(meta) > 3 else (
+                    _os.path.getsize(abspath) if abspath else 0
+                )
             except Exception:
                 size = 0
             parts = [p for p in str(dest).replace("\\", "/").split("/") if p]

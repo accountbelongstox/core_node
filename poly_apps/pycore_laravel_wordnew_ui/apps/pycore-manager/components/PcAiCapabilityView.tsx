@@ -21,15 +21,15 @@ import {
   Settings2, FolderOpen, Lock, FolderX, Gauge, ArrowUp, ArrowDown, Layers,
   ChevronDown, Wand2,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatMessage } from '../../../shell/shellTypes';
 import type {
   AiProvider, AiProviderRate, AiKeySlot,
   SystemResourcesResponse, SystemInfo,
-} from '../../../core/api-libs/pycore';
-import { usePycoreCapability } from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
+import { usePycoreCapability } from '@/apps/pycore-manager/api';
 import { PcPipelineStatusPanels } from './PcPipelineStatusPanels';
 import { PcRecordsPanel } from './PcRecordsPanel';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
@@ -514,7 +514,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
       await refreshRates();
       await mergeKeyStatus();
     },
-    { fallbackMs: 30_000 },
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
   );
 
   const toggleSort = useCallback((field: Exclude<ProviderSortField, 'original'>) => {

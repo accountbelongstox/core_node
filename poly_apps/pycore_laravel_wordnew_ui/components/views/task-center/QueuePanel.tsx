@@ -13,13 +13,13 @@
  */
 import React, { useState, useEffect, useRef } from 'react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import type {
   GlobalTaskItem,
   GlobalTaskDetailBundle,
   GlobalTaskEvent,
   TaskDetailStreamHandle,
-} from '../../../core/api/modules/ServerManagerAPI';
+} from '@/apps/laravel-manager/api';
 import { useTaskCenterState } from './TaskCenterState';
 import { TRANSLATIONS } from '../../../constants';
 import {
@@ -63,7 +63,7 @@ import {
   GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
   GLOBAL_TASK_PRIORITIES,
   GLOBAL_TASK_STATUSES_BY_ROLE,
-} from '../../../core/api-libs/pycore/QueueCenterContract';
+} from '@/apps/laravel-manager/integrations/pycore';
 
 interface QueuePanelProps {
   lang: Language;

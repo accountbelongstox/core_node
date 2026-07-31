@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { api } from '@/core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { DataTable, Modal, StatsCard, StatsGrid, type DataTableColumn } from '@/components/admin';
 import { useToast } from '@/components/admin';
-import { useTranslation } from '@/core/i18n';
+import { useTranslation } from '@/apps/laravel-manager/i18n';
 import {
   Music,
   Play,

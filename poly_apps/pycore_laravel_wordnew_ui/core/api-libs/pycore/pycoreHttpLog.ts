@@ -1,6 +1,6 @@
 /**
  * pycoreHttpLog - global in-memory ring buffer of HTTP request records for
- * the pycore-manager HTTP debugger (PcHttpDebugger). Holds BOTH directions:
+ * shared HTTP diagnostics consumers. Holds BOTH directions:
  *
  *   - direction 'pycore': FE -> pycore requests. Instrumented at the two FE
  *     choke points: PycoreHttp.requestPycoreHttp and PycoreApi HTTP helpers.

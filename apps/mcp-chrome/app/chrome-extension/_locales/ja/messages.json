@@ -1,234 +1,332 @@
 {
-  "extensionName": {
-    "message": "Chrome MCPサーバー"
-  },
-  "extensionDescription": {
-    "message": "自身のChromeブラウザの機能を外部に公開します"
-  },
-  "nativeServerConfigLabel": {
-    "message": "ネイティブサーバー設定"
-  },
-  "semanticEngineLabel": {
-    "message": "セマンティックエンジン"
-  },
-  "embeddingModelLabel": {
-    "message": "埋め込みモデル"
-  },
-  "indexDataManagementLabel": {
-    "message": "インデックスデータ管理"
-  },
-  "modelCacheManagementLabel": {
-    "message": "モデルキャッシュ管理"
-  },
-  "statusLabel": {
-    "message": "ステータス"
-  },
-  "runningStatusLabel": {
-    "message": "実行ステータス"
-  },
-  "connectionStatusLabel": {
-    "message": "接続ステータス"
-  },
-  "lastUpdatedLabel": {
-    "message": "最終更新:"
-  },
-  "connectButton": {
-    "message": "接続"
-  },
-  "disconnectButton": {
-    "message": "切断"
-  },
-  "connectingStatus": {
-    "message": "接続中..."
-  },
-  "connectedStatus": {
-    "message": "接続済み"
-  },
-  "disconnectedStatus": {
-    "message": "未接続"
-  },
-  "detectingStatus": {
-    "message": "検出中..."
-  },
-  "serviceRunningStatus": {
-    "message": "サービス実行中 (ポート: $1)",
-    "placeholders": {
-      "port": {
-        "content": "$1",
-        "example": "12306"
-      }
-    }
-  },
-  "serviceNotConnectedStatus": {
-    "message": "サービス未接続"
-  },
-  "connectedServiceNotStartedStatus": {
-    "message": "接続済み、サービス未起動"
-  },
-  "mcpServerConfigLabel": {
-    "message": "MCPサーバー設定"
-  },
-  "connectionPortLabel": {
-    "message": "接続ポート"
-  },
-  "refreshStatusButton": {
-    "message": "ステータス更新"
-  },
-  "copyConfigButton": {
-    "message": "設定をコピー"
-  },
-  "retryButton": {
-    "message": "再試行"
-  },
-  "cancelButton": {
-    "message": "キャンセル"
-  },
-  "confirmButton": {
-    "message": "確認"
-  },
-  "saveButton": {
-    "message": "保存"
-  },
-  "closeButton": {
-    "message": "閉じる"
-  },
-  "resetButton": {
-    "message": "リセット"
-  },
-  "initializingStatus": {
-    "message": "初期化中..."
-  },
-  "processingStatus": {
-    "message": "処理中..."
-  },
-  "loadingStatus": {
-    "message": "読み込み中..."
-  },
-  "clearingStatus": {
-    "message": "クリア中..."
-  },
-  "cleaningStatus": {
-    "message": "クリーンアップ中..."
-  },
-  "downloadingStatus": {
-    "message": "ダウンロード中..."
-  },
-  "semanticEngineReadyStatus": {
-    "message": "セマンティックエンジン準備完了"
-  },
-  "semanticEngineInitializingStatus": {
-    "message": "セマンティックエンジン初期化中..."
-  },
-  "semanticEngineInitFailedStatus": {
-    "message": "セマンティックエンジンの初期化に失敗しました"
-  },
-  "semanticEngineNotInitStatus": {
-    "message": "セマンティックエンジン未初期化"
-  },
-  "initSemanticEngineButton": {
-    "message": "セマンティックエンジンを初期化"
-  },
-  "reinitializeButton": {
-    "message": "再初期化"
-  },
-  "downloadingModelStatus": {
-    "message": "モデルをダウンロード中... $1%",
-    "placeholders": {
-      "progress": {
-        "content": "$1",
-        "example": "50"
-      }
-    }
-  },
-  "switchingModelStatus": {
-    "message": "モデルを切り替え中..."
-  },
-  "modelLoadedStatus": {
-    "message": "モデル読み込み完了"
-  },
-  "modelFailedStatus": {
-    "message": "モデルの読み込みに失敗しました"
-  },
-  "lightweightModelDescription": {
-    "message": "軽量多言語モデル"
-  },
-  "betterThanSmallDescription": {
-    "message": "e5-smallよりわずかに大きいが、性能は向上"
-  },
-  "multilingualModelDescription": {
-    "message": "多言語対応セマンティックモデル"
-  },
-  "fastPerformance": {
-    "message": "高速"
-  },
-  "balancedPerformance": {
-    "message": "バランス"
+  "aboutTitle": {
+    "message": "情報"
   },
   "accuratePerformance": {
     "message": "高精度"
   },
-  "networkErrorMessage": {
-    "message": "ネットワーク接続エラーです。ネットワークを確認して再試行してください"
-  },
-  "modelCorruptedErrorMessage": {
-    "message": "モデルファイルが破損しているか不完全です。再ダウンロードしてください"
-  },
-  "unknownErrorMessage": {
-    "message": "不明なエラーです。ネットワークがHuggingFaceにアクセスできるか確認してください"
-  },
-  "permissionDeniedErrorMessage": {
-    "message": "権限が拒否されました"
-  },
-  "timeoutErrorMessage": {
-    "message": "操作がタイムアウトしました"
-  },
-  "indexedPagesLabel": {
-    "message": "インデックス化されたページ"
-  },
-  "indexSizeLabel": {
-    "message": "インデックスサイズ"
+  "activeStatus": {
+    "message": "アクティブ"
   },
   "activeTabsLabel": {
     "message": "アクティブなタブ"
   },
-  "vectorDocumentsLabel": {
-    "message": "ベクトルドキュメント"
+  "addApiServerButton": {
+    "message": "+ APIサーバーを追加"
   },
-  "cacheSizeLabel": {
-    "message": "キャッシュサイズ"
+  "addLabel": {
+    "message": "追加"
+  },
+  "advancedSettingsLabel": {
+    "message": "詳細設定"
+  },
+  "aiWebPromptPlaceholder": {
+    "message": "ライブタブに送信するプロンプトを入力してください…"
+  },
+  "aiWebProviderHint": {
+    "message": "プロンプト翻訳および Web チャット ワーカーがライブ ブラウザで駆動する Web AI。"
+  },
+  "aiWebProviderTitle": {
+    "message": "AIウェブプロバイダー"
+  },
+  "aiWebStatsFailed": {
+    "message": "失敗した"
+  },
+  "aiWebStatsPending": {
+    "message": "保留中"
+  },
+  "aiWebStatsTranslated": {
+    "message": "翻訳された"
+  },
+  "aiWebTestTitle": {
+    "message": "テスト ($provider$)",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "aiWebWithAudioLabel": {
+    "message": "オーディオ付き"
+  },
+  "alternateExpressionsLabel": {
+    "message": "オルト×"
+  },
+  "apiAddCustomLabel": {
+    "message": "カスタムエンドポイントの追加"
+  },
+  "apiAddEndpoint": {
+    "message": "エンドポイントの追加"
+  },
+  "apiAutoDetecting": {
+    "message": "自動検出中…"
+  },
+  "apiAutoMode": {
+    "message": "自動 (利用可能な最良のもの)"
+  },
+  "apiAutoTag": {
+    "message": "オート"
+  },
+  "apiConfigurationLabel": {
+    "message": "API設定"
+  },
+  "apiCurrentLabel": {
+    "message": "現在："
+  },
+  "apiCustomUrlPlaceholder": {
+    "message": "URL を入力します (例: api.example.com)"
+  },
+  "apiLocalTag": {
+    "message": "地元"
+  },
+  "apiNone": {
+    "message": "なし"
+  },
+  "apiPortPlaceholder": {
+    "message": "ポート (オプション)"
+  },
+  "apiRemoteTag": {
+    "message": "リモート"
+  },
+  "apiServerConfigLabel": {
+    "message": "APIサーバー設定"
+  },
+  "apiTest": {
+    "message": "テスト"
+  },
+  "apiTestAll": {
+    "message": "すべてをテストする"
+  },
+  "apiTestFailed": {
+    "message": "APIテストに失敗しました"
+  },
+  "apiTesting": {
+    "message": "テスト中…"
+  },
+  "articlePromptHint": {
+    "message": "組み込みの XML のようなプロンプト: 言語ごとに文の配置と上記で有効になっているフラグ"
+  },
+  "articleTextLabel": {
+    "message": "記事本文"
+  },
+  "articleTextPlaceholder": {
+    "message": "翻訳および分析する段落を貼り付けます…"
+  },
+  "audioRecordingLabel": {
+    "message": "オーディオ録音"
+  },
+  "audioSettingsSharedHint": {
+    "message": "「オーディオ」タブと共有されます。"
+  },
+  "authTokenLabel": {
+    "message": "認証トークン："
+  },
+  "autoConnectLabel": {
+    "message": "自動接続"
+  },
+  "autoDownloadTestOutput": {
+    "message": "テスト出力の自動ダウンロード"
+  },
+  "autoStopSilenceLabel": {
+    "message": "無音時に自動停止"
+  },
+  "autoTheme": {
+    "message": "自動"
+  },
+  "backendLabel": {
+    "message": "バックエンド"
+  },
+  "backendTimeoutLabel": {
+    "message": "バックエンドのタイムアウト (ミリ秒)"
+  },
+  "backgroundStreamingDescription": {
+    "message": "有効にすると、このポップアップが閉じられていても、オーディオが継続的にキャプチャされ、設定されたAPIサーバーにストリーミングされます。"
+  },
+  "balancedPerformance": {
+    "message": "バランス"
+  },
+  "betterThanSmallDescription": {
+    "message": "e5-smallよりわずかに大きいが、性能は向上"
+  },
+  "bingAssistActiveTabs": {
+    "message": "アクティブなタブ:"
+  },
+  "bingAssistAdd": {
+    "message": "追加"
+  },
+  "bingAssistBatchSize": {
+    "message": "バッチサイズ (タスク):"
+  },
+  "bingAssistCachedAt": {
+    "message": "キャッシュ場所:"
+  },
+  "bingAssistDel": {
+    "message": "デル"
+  },
+  "bingAssistDuplicates": {
+    "message": "重複"
+  },
+  "bingAssistEndpointFromSettings": {
+    "message": "「設定」→「API」で設定します"
+  },
+  "bingAssistEndpointLabel": {
+    "message": "laravel_main エンドポイント:"
+  },
+  "bingAssistFailed": {
+    "message": "失敗した："
+  },
+  "bingAssistInvalid": {
+    "message": "無効："
+  },
+  "bingAssistInvalidNoEntry": {
+    "message": "無効です (Bing エントリがありません)"
+  },
+  "bingAssistLastRun": {
+    "message": "最終実行:"
+  },
+  "bingAssistNewTasks": {
+    "message": "新しいタスク"
+  },
+  "bingAssistParallelTabs": {
+    "message": "並列 Bing タブ:"
+  },
+  "bingAssistPending": {
+    "message": "保留中："
+  },
+  "bingAssistPlayAudio": {
+    "message": "発音を再生する"
+  },
+  "bingAssistPollInterval": {
+    "message": "ポーリング間隔 (秒):"
+  },
+  "bingAssistQueueTotal": {
+    "message": "キューの合計"
+  },
+  "bingAssistScrape": {
+    "message": "こする"
+  },
+  "bingAssistScrapeLabel": {
+    "message": "Bing スクレイピング テスト (スペース/カンマ区切り):"
+  },
+  "bingAssistSettingsLive": {
+    "message": "設定はライブで適用されます。サービスを停止する必要はありません。"
+  },
+  "bingAssistStatusLabel": {
+    "message": "状態："
+  },
+  "bingAssistStopToChange": {
+    "message": "設定を変更するにはサービスを停止してください。"
+  },
+  "bingAssistTargetLang": {
+    "message": "対象言語:"
+  },
+  "bingAssistTest": {
+    "message": "テスト"
+  },
+  "bingAssistTitle": {
+    "message": "Bing 翻訳アシスト"
+  },
+  "bingAssistTranslated": {
+    "message": "翻訳:"
+  },
+  "bingAssistTranslatingLabel": {
+    "message": "翻訳:"
+  },
+  "bingAssistWorkerId": {
+    "message": "作業者ID:"
+  },
+  "bingWorkerSharedHint": {
+    "message": "Bing Dictionary と共有され、実行中のワーカーに適用されます。"
+  },
+  "bingWorkerTitle": {
+    "message": "Bing タスクワーカー"
+  },
+  "bookAutoRunHint": {
+    "message": "自動実行 — 各セグメントの後に、ソースが完了するまで自動的に次のセグメントを要求して生成します。"
+  },
+  "bookmarksBarLabel": {
+    "message": "ブックマークバー"
+  },
+  "booksLabel": {
+    "message": "本"
+  },
+  "browserCapabilityLabel": {
+    "message": "ブラウザの機能"
+  },
+  "bytesUnit": {
+    "message": "バイト"
+  },
+  "cacheClearAllButton": {
+    "message": "すべてクリア"
+  },
+  "cacheClearButton": {
+    "message": "クリア"
+  },
+  "cacheDetailsLabel": {
+    "message": "キャッシュ詳細"
   },
   "cacheEntriesLabel": {
     "message": "キャッシュエントリ"
   },
-  "clearAllDataButton": {
-    "message": "全データをクリア"
+  "cacheLocationLabel": {
+    "message": "位置"
   },
-  "clearAllCacheButton": {
-    "message": "全キャッシュをクリア"
+  "cacheReadOnlyTag": {
+    "message": "読み取り専用"
+  },
+  "cacheRefreshButton": {
+    "message": "リフレッシュ"
+  },
+  "cacheSizeLabel": {
+    "message": "キャッシュサイズ"
+  },
+  "cacheStorageTitle": {
+    "message": "キャッシュストレージ"
+  },
+  "cacheUnavailableNote": {
+    "message": "このブラウザでは OPFS ストレージを利用できません。意図したキャッシュ ディレクトリ構造を表示します (読み取り専用)。"
+  },
+  "cambridgePronunciationHint": {
+    "message": "標準的な英国/米国の発音 (ケンブリッジ)"
+  },
+  "cancelButton": {
+    "message": "キャンセル"
+  },
+  "capabilityUpdateFailed": {
+    "message": "機能の更新に失敗しました"
+  },
+  "chunkCountLabel": {
+    "message": "チャンク数："
+  },
+  "chunkIntervalLabel": {
+    "message": "チャンク間隔（ミリ秒）："
+  },
+  "chunkedUploadOption": {
+    "message": "チャンクアップロード（HTTP）"
+  },
+  "claimFailed": {
+    "message": "請求が失敗しました"
+  },
+  "claimRejected": {
+    "message": "申し立てが却下されました"
   },
   "cleanExpiredCacheButton": {
     "message": "期限切れキャッシュをクリーンアップ"
   },
-  "exportDataButton": {
-    "message": "データのエクスポート"
+  "cleaningStatus": {
+    "message": "クリーンアップ中..."
   },
-  "importDataButton": {
-    "message": "データのインポート"
+  "clearAllCacheButton": {
+    "message": "全キャッシュをクリア"
   },
-  "confirmClearDataTitle": {
-    "message": "データクリアの確認"
+  "clearAllDataButton": {
+    "message": "全データをクリア"
   },
-  "settingsTitle": {
-    "message": "設定"
+  "clearDataFailed": {
+    "message": "データの消去に失敗しました"
   },
-  "aboutTitle": {
-    "message": "情報"
-  },
-  "helpTitle": {
-    "message": "ヘルプ"
-  },
-  "clearDataWarningMessage": {
-    "message": "この操作は、インデックス化されたすべてのウェブページコンテンツとベクトルデータをクリアします。これには以下が含まれます："
+  "clearDataIrreversibleWarning": {
+    "message": "この操作は元に戻せません！クリア後、再度ウェブページを閲覧してインデックスを再構築する必要があります。"
   },
   "clearDataList1": {
     "message": "すべてのウェブページテキストコンテンツインデックス"
@@ -239,212 +337,139 @@
   "clearDataList3": {
     "message": "検索履歴とキャッシュ"
   },
-  "clearDataIrreversibleWarning": {
-    "message": "この操作は元に戻せません！クリア後、再度ウェブページを閲覧してインデックスを再構築する必要があります。"
+  "clearDataWarningMessage": {
+    "message": "この操作は、インデックス化されたすべてのウェブページコンテンツとベクトルデータをクリアします。これには以下が含まれます："
   },
-  "confirmClearButton": {
-    "message": "クリアを確認"
+  "clearHistoryButton": {
+    "message": "履歴をクリアする"
   },
-  "cacheDetailsLabel": {
-    "message": "キャッシュ詳細"
+  "clearLogsButton": {
+    "message": "ログをクリアする"
   },
-  "noCacheDataMessage": {
-    "message": "キャッシュデータがありません"
+  "clearingStatus": {
+    "message": "クリア中..."
   },
-  "loadingCacheInfoStatus": {
-    "message": "キャッシュ情報を読み込み中..."
+  "clientSetupLabel": {
+    "message": "クライアントのセットアップ"
   },
-  "processingCacheStatus": {
-    "message": "キャッシュを処理中..."
-  },
-  "expiredLabel": {
-    "message": "期限切れ"
-  },
-  "bookmarksBarLabel": {
-    "message": "ブックマークバー"
-  },
-  "newTabLabel": {
-    "message": "新しいタブ"
-  },
-  "currentPageLabel": {
-    "message": "現在のページ"
-  },
-  "menuLabel": {
-    "message": "メニュー"
-  },
-  "navigationLabel": {
-    "message": "ナビゲーション"
-  },
-  "mainContentLabel": {
-    "message": "メインコンテンツ"
-  },
-  "languageSelectorLabel": {
-    "message": "言語"
-  },
-  "themeLabel": {
-    "message": "テーマ"
-  },
-  "lightTheme": {
-    "message": "ライト"
-  },
-  "darkTheme": {
-    "message": "ダーク"
-  },
-  "autoTheme": {
-    "message": "自動"
-  },
-  "advancedSettingsLabel": {
-    "message": "詳細設定"
-  },
-  "debugModeLabel": {
-    "message": "デバッグモード"
-  },
-  "verboseLoggingLabel": {
-    "message": "詳細ロギング"
-  },
-  "successNotification": {
-    "message": "操作が正常に完了しました"
-  },
-  "warningNotification": {
-    "message": "警告：続行する前に確認してください"
-  },
-  "infoNotification": {
-    "message": "情報"
-  },
-  "configCopiedNotification": {
-    "message": "設定がクリップボードにコピーされました"
-  },
-  "dataClearedNotification": {
-    "message": "データが正常にクリアされました"
-  },
-  "bytesUnit": {
-    "message": "バイト"
-  },
-  "kilobytesUnit": {
-    "message": "KB"
-  },
-  "megabytesUnit": {
-    "message": "MB"
-  },
-  "gigabytesUnit": {
-    "message": "GB"
-  },
-  "itemsUnit": {
-    "message": "項目"
-  },
-  "pagesUnit": {
-    "message": "ページ"
-  },
-  "audioRecordingLabel": {
-    "message": "オーディオ録音"
-  },
-  "recordingStatusLabel": {
-    "message": "録音ステータス："
-  },
-  "recordingStatus": {
-    "message": "録音中"
-  },
-  "idleStatus": {
-    "message": "待機中"
-  },
-  "durationLabel": {
-    "message": "時間："
-  },
-  "chunkCountLabel": {
-    "message": "チャンク数："
-  },
-  "apiServerConfigLabel": {
-    "message": "APIサーバー設定"
-  },
-  "serverNamePlaceholder": {
-    "message": "サーバー名"
-  },
-  "urlLabel": {
-    "message": "URL："
-  },
-  "urlPlaceholder": {
-    "message": "http://localhost:8080"
-  },
-  "authTokenLabel": {
-    "message": "認証トークン："
-  },
-  "optionalPlaceholder": {
-    "message": "オプション"
-  },
-  "streamingModeLabel": {
-    "message": "ストリーミングモード："
-  },
-  "realtimeWebsocketOption": {
-    "message": "リアルタイム（WebSocket）"
-  },
-  "chunkedUploadOption": {
-    "message": "チャンクアップロード（HTTP）"
+  "closeButton": {
+    "message": "閉じる"
   },
   "completeFileUploadOption": {
     "message": "完全ファイルアップロード"
   },
-  "chunkIntervalLabel": {
-    "message": "チャンク間隔（ミリ秒）："
+  "configCopiedNotification": {
+    "message": "設定がクリップボードにコピーされました"
   },
-  "addApiServerButton": {
-    "message": "+ APIサーバーを追加"
+  "confirmAndStart": {
+    "message": "確認して開始"
   },
-  "recordingSettingsLabel": {
-    "message": "録音設定"
+  "confirmAndStartDescription": {
+    "message": "Bing タブを開いてクロールを開始する"
   },
-  "includeMicrophoneLabel": {
-    "message": "マイクを含む"
+  "confirmAndStartReady": {
+    "message": "確認して開始"
   },
-  "saveLocallyLabel": {
-    "message": "ローカルに保存"
+  "confirmAndStartWithPending": {
+    "message": "確認して開始 · $count$ 保留中",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
   },
-  "autoStopSilenceLabel": {
-    "message": "無音時に自動停止"
+  "confirmButton": {
+    "message": "確認"
   },
-  "silenceDurationLabel": {
-    "message": "無音持続時間（秒）："
+  "confirmClearButton": {
+    "message": "クリアを確認"
   },
-  "maxDurationLabel": {
-    "message": "最大録音時間："
+  "confirmClearDataTitle": {
+    "message": "データクリアの確認"
   },
-  "oneMinuteOption": {
-    "message": "1分"
+  "connectButton": {
+    "message": "接続"
   },
-  "fiveMinutesOption": {
-    "message": "5分"
+  "connectOnStartupHint": {
+    "message": "起動時に接続する"
   },
-  "tenMinutesOption": {
-    "message": "10分"
+  "connectedServiceNotStartedStatus": {
+    "message": "接続済み、サービス未起動"
   },
-  "thirtyMinutesOption": {
-    "message": "30分"
+  "connectedStatus": {
+    "message": "接続済み"
   },
-  "oneHourOption": {
-    "message": "1時間"
+  "connectingStatus": {
+    "message": "接続中..."
   },
-  "noLimitOption": {
-    "message": "制限なし"
+  "connectionPortLabel": {
+    "message": "接続ポート"
   },
-  "sessionMetadataLabel": {
-    "message": "セッションメタデータ（JSON）"
+  "connectionStatusLabel": {
+    "message": "接続ステータス"
   },
-  "sessionMetadataHelper": {
-    "message": "ここで定義されたキー/値のペアは、各HTTP アップロードに追加され、WebSocket経由でメタデータペイロードとして1回送信されます。"
+  "copyConfigButton": {
+    "message": "設定をコピー"
   },
-  "startRecordingButton": {
-    "message": "録音開始"
+  "currentPageLabel": {
+    "message": "現在のページ"
   },
-  "stopRecordingButton": {
-    "message": "録音停止"
+  "darkTheme": {
+    "message": "ダーク"
   },
-  "enableBackgroundStreamingLabel": {
-    "message": "バックグラウンドオーディオストリーミングを有効にする"
+  "dataClearedNotification": {
+    "message": "データが正常にクリアされました"
   },
-  "activeStatus": {
-    "message": "アクティブ"
+  "debugModeLabel": {
+    "message": "デバッグモード"
   },
-  "backgroundStreamingDescription": {
-    "message": "有効にすると、このポップアップが閉じられていても、オーディオが継続的にキャプチャされ、設定されたAPIサーバーにストリーミングされます。"
+  "deepseekChatTitle": {
+    "message": "ディープシーク チャット"
+  },
+  "deepseekClear": {
+    "message": "クリア"
+  },
+  "deepseekEmpty": {
+    "message": "まだメッセージはありません。何か質問するか、テストを実行してください。"
+  },
+  "deepseekHint": {
+    "message": "プロンプトはローカル タスク キューを介して実行され、サインインしている chat.deepseek.com タブを駆動します。 API キーは必要ありません。"
+  },
+  "deepseekNoResponse": {
+    "message": "(空の応答)"
+  },
+  "deepseekPlaceholder": {
+    "message": "ディープシークに質問してください…"
+  },
+  "deepseekQueueError": {
+    "message": "タスクをキューに入れることができませんでした。バックグラウンドサービスは実行されていますか?"
+  },
+  "deepseekQueueRunning": {
+    "message": "ランニング中"
+  },
+  "deepseekQueueStopped": {
+    "message": "停止しました"
+  },
+  "deepseekSend": {
+    "message": "送信"
+  },
+  "deepseekSending": {
+    "message": "送信中…"
+  },
+  "deepseekTaskFailed": {
+    "message": "タスクが失敗しました。"
+  },
+  "deepseekTest": {
+    "message": "テスト"
+  },
+  "deepseekTestOk": {
+    "message": "接続OK — 応答を受信しました。"
+  },
+  "deepseekTestSent": {
+    "message": "テストプロンプトがキューに入れられ、応答を待っています…"
+  },
+  "deepseekTesting": {
+    "message": "テストプロンプトを送信中…"
   },
   "defaultServerName": {
     "message": "サーバー$INDEX$",
@@ -455,6 +480,319 @@
       }
     }
   },
+  "definitionsLabel": {
+    "message": "定義"
+  },
+  "detailedLabel": {
+    "message": "詳細"
+  },
+  "detectingStatus": {
+    "message": "検出中..."
+  },
+  "dictionaryEmptyHint": {
+    "message": "単語を入力して定義の検索を開始してください"
+  },
+  "dictionaryLookUpButton": {
+    "message": "見上げる"
+  },
+  "dictionaryLookingUp": {
+    "message": "単語を調べてみると…"
+  },
+  "dictionarySearchPlaceholder": {
+    "message": "単語を入力して調べます…"
+  },
+  "disableNamedFeature": {
+    "message": "$name$ を無効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "disconnectButton": {
+    "message": "切断"
+  },
+  "disconnectedStatus": {
+    "message": "未接続"
+  },
+  "downloadButton": {
+    "message": "ダウンロード"
+  },
+  "downloadingModelStatus": {
+    "message": "モデルをダウンロード中... $PROGRESS$%",
+    "placeholders": {
+      "progress": {
+        "content": "$1",
+        "example": "50"
+      }
+    },
+    "description": "Model download progress with percentage"
+  },
+  "downloadingStatus": {
+    "message": "ダウンロード中..."
+  },
+  "duoreaderCdnHint": {
+    "message": "CDN API を使用する (高速) — DOM スクレイピングを行わずに、タブ インジェクションと .pz デコードを使用します。"
+  },
+  "duoreaderCoverSearchHint": {
+    "message": "カタログをロードするときに本の表紙を Google/Bing 画像で検索します"
+  },
+  "duoreaderFetchAudioHint": {
+    "message": "Duoreader API からオーディオを取得 (テキストと MP3 をローカルにバックアップ)"
+  },
+  "duoreaderForceReplaceHint": {
+    "message": "テキストのアップロードを強制的に置き換えます (チャプターを再取り込みします。オーディオは冪等のままです)"
+  },
+  "durationLabel": {
+    "message": "時間："
+  },
+  "embeddingModelLabel": {
+    "message": "埋め込みモデル"
+  },
+  "enableBackgroundStreamingLabel": {
+    "message": "バックグラウンドオーディオストリーミングを有効にする"
+  },
+  "enableNamedFeature": {
+    "message": "$name$ を有効にする",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      }
+    }
+  },
+  "endpointNotConfiguredHint": {
+    "message": "未設定 — [設定] → [API 設定] で設定します"
+  },
+  "endpointSwitchFailed": {
+    "message": "実行中のAPIエンドポイントの切り替えに失敗しました"
+  },
+  "enterPromptFirst": {
+    "message": "最初にプロンプ​​トを入力してください"
+  },
+  "examplesLabel": {
+    "message": "例"
+  },
+  "expiredLabel": {
+    "message": "期限切れ"
+  },
+  "exportDataButton": {
+    "message": "データのエクスポート"
+  },
+  "extAvailableStatus": {
+    "message": "利用可能"
+  },
+  "extCollapseAll": {
+    "message": "すべて折りたたむ"
+  },
+  "extCompletedLabel": {
+    "message": "完了しました"
+  },
+  "extEnabledLabel": {
+    "message": "有効"
+  },
+  "extEnabledStatus": {
+    "message": "有効"
+  },
+  "extExpandAll": {
+    "message": "すべて展開"
+  },
+  "extExtensionsLabel": {
+    "message": "拡張機能"
+  },
+  "extGlobalTaskSystem": {
+    "message": "グローバルタスクシステム"
+  },
+  "extNoConfig": {
+    "message": "この拡張機能の構成はありません。"
+  },
+  "extPauseButton": {
+    "message": "一時停止"
+  },
+  "extPendingLabel": {
+    "message": "保留中"
+  },
+  "extResumeButton": {
+    "message": "再開する"
+  },
+  "extStartButton": {
+    "message": "始める"
+  },
+  "extStatePaused": {
+    "message": "一時停止中"
+  },
+  "extStateRunning": {
+    "message": "ランニング"
+  },
+  "extStateStopped": {
+    "message": "停止しました"
+  },
+  "extStopButton": {
+    "message": "停止"
+  },
+  "extTaskQueueSubtitle": {
+    "message": "APIリクエストをローカルで処理する"
+  },
+  "extTaskQueueTitle": {
+    "message": "タスクキュー"
+  },
+  "extensionDescription": {
+    "message": "自身のChromeブラウザの機能を外部に公開します"
+  },
+  "extensionName": {
+    "message": "Chrome MCPサーバー"
+  },
+  "extractedResultLabel": {
+    "message": "抽出結果"
+  },
+  "fastPerformance": {
+    "message": "高速"
+  },
+  "fastTierBadge": {
+    "message": "⚡ 速い"
+  },
+  "fastTierLabel": {
+    "message": "高速層"
+  },
+  "featureDesc_aiTranslateHub": {
+    "message": "Web AI プロバイダーで翻訳し、音声を添付します。"
+  },
+  "featureDesc_articleStudyGuide": {
+    "message": "一貫した読解、文法、フレーズの学習ガイドを作成します。"
+  },
+  "featureDesc_bingDictionary": {
+    "message": "定義、翻訳、発音を調べてください。"
+  },
+  "featureDesc_bookStudyGenerator": {
+    "message": "書籍の一部から多言語の学習教材を生成します。"
+  },
+  "featureDesc_geminiImage": {
+    "message": "Gemini で画像を生成し、結果をキャプチャします。"
+  },
+  "featureDesc_notebooklm": {
+    "message": "Google NotebookLM で質問と調査を自動化します。"
+  },
+  "featureDesc_qwenTts": {
+    "message": "Qwen3-TTS を使用して音声を生成し、ダウンロードします。"
+  },
+  "featureDesc_webSearch": {
+    "message": "ライブ ブラウザ タブで Web、画像、ニュース ソースを検索します。"
+  },
+  "featureDesc_wordValidity": {
+    "message": "共有 Web ランタイムを使用して単語の有効性分類をテストします。"
+  },
+  "featureName_aiTranslateHub": {
+    "message": "翻訳ハブ"
+  },
+  "featureName_articleStudyGuide": {
+    "message": "記事ガイド"
+  },
+  "featureName_bingDictionary": {
+    "message": "Bing 辞書"
+  },
+  "featureName_bookStudyGenerator": {
+    "message": "ブックスタジオ"
+  },
+  "featureName_geminiImage": {
+    "message": "ジェミニのイメージ"
+  },
+  "featureName_notebooklm": {
+    "message": "ノートブックLM"
+  },
+  "featureName_qwenTts": {
+    "message": "クウェンTTS"
+  },
+  "featureName_webSearch": {
+    "message": "ウェブ検索"
+  },
+  "featureName_wordValidity": {
+    "message": "単語の有効性"
+  },
+  "filterByTitlePlaceholder": {
+    "message": "タイトルでフィルタリング…"
+  },
+  "fiveMinutesOption": {
+    "message": "5分"
+  },
+  "footerPort": {
+    "message": "ポート$port$",
+    "placeholders": {
+      "port": {
+        "content": "$1"
+      }
+    }
+  },
+  "forvoPronunciationHint": {
+    "message": "世界中のネイティブスピーカーの音声 (Forvo)"
+  },
+  "freeDictionaryLabel": {
+    "message": "無料辞書"
+  },
+  "generatedImageAlt": {
+    "message": "生成された画像"
+  },
+  "generationFailed": {
+    "message": "生成に失敗しました"
+  },
+  "generationStartFailed": {
+    "message": "生成の開始に失敗しました"
+  },
+  "gigabytesUnit": {
+    "message": "GB"
+  },
+  "grammarLabel": {
+    "message": "文法"
+  },
+  "headerSubtitle": {
+    "message": "ブラウザ自動化コンソール"
+  },
+  "headerTitle": {
+    "message": "クロムMCP"
+  },
+  "helpTitle": {
+    "message": "ヘルプ"
+  },
+  "idleStatus": {
+    "message": "待機中"
+  },
+  "imageAlt": {
+    "message": "画像"
+  },
+  "imageGenerationTimeout": {
+    "message": "画像の待機中にタイムアウトになりました"
+  },
+  "imagePromptPlaceholder": {
+    "message": "生成する画像を説明します..."
+  },
+  "imagesMode": {
+    "message": "画像"
+  },
+  "importDataButton": {
+    "message": "データのインポート"
+  },
+  "includeMicrophoneLabel": {
+    "message": "マイクを含む"
+  },
+  "indexDataLabel": {
+    "message": "インデックスデータ"
+  },
+  "indexDataManagementLabel": {
+    "message": "インデックスデータ管理"
+  },
+  "indexSizeLabel": {
+    "message": "インデックスサイズ"
+  },
+  "indexedPagesLabel": {
+    "message": "インデックス化されたページ"
+  },
+  "infoNotification": {
+    "message": "情報"
+  },
+  "initSemanticEngineButton": {
+    "message": "セマンティックエンジンを初期化"
+  },
+  "initializingStatus": {
+    "message": "初期化中..."
+  },
   "invalidJsonError": {
     "message": "セッションメタデータJSONが無効です：$ERROR$",
     "placeholders": {
@@ -463,6 +801,809 @@
         "example": "予期しないトークン"
       }
     }
+  },
+  "invalidLabel": {
+    "message": "無効"
+  },
+  "itemsUnit": {
+    "message": "項目"
+  },
+  "kilobytesUnit": {
+    "message": "KB"
+  },
+  "languageSelectorLabel": {
+    "message": "言語"
+  },
+  "languagesLabel": {
+    "message": "言語"
+  },
+  "lastUpdatedLabel": {
+    "message": "最終更新:"
+  },
+  "lastVerifiedLabel": {
+    "message": "最終確認済み"
+  },
+  "learnLanguageLabel": {
+    "message": "言語を学ぶ"
+  },
+  "lightTheme": {
+    "message": "ライト"
+  },
+  "lightweightModelDescription": {
+    "message": "軽量多言語モデル"
+  },
+  "listenerLabel": {
+    "message": "リスナー"
+  },
+  "loadBooksFailed": {
+    "message": "本の読み込みに失敗しました"
+  },
+  "loadQueueButton": {
+    "message": "ロードキュー"
+  },
+  "loadQueueDescription": {
+    "message": "サーバーから保留中の単語を取得してプレビューする"
+  },
+  "loadQueueFailed": {
+    "message": "キューのロードに失敗しました"
+  },
+  "loadSourcesFailed": {
+    "message": "ソースのロードに失敗しました"
+  },
+  "loadStatusFailed": {
+    "message": "ステータスのロードに失敗しました"
+  },
+  "loadingCacheInfoStatus": {
+    "message": "キャッシュ情報を読み込み中..."
+  },
+  "loadingCatalog": {
+    "message": "カタログを読み込み中…"
+  },
+  "loadingSegments": {
+    "message": "セグメントをロード中…"
+  },
+  "loadingStatus": {
+    "message": "読み込み中..."
+  },
+  "logAuto": {
+    "message": "自動"
+  },
+  "logClearAll": {
+    "message": "すべてクリア"
+  },
+  "logPause": {
+    "message": "一時停止"
+  },
+  "logTestFail": {
+    "message": "ログの取得に失敗しました。"
+  },
+  "logTestOk": {
+    "message": "ログ パイプ OK — {0} エントリがロードされました。"
+  },
+  "logTestRefresh": {
+    "message": "テスト/リフレッシュ"
+  },
+  "logTesting": {
+    "message": "ログを更新中…"
+  },
+  "logsLabel": {
+    "message": "ログ"
+  },
+  "lookupWordFailed": {
+    "message": "単語の検索に失敗しました"
+  },
+  "mainContentLabel": {
+    "message": "メインコンテンツ"
+  },
+  "maxDurationLabel": {
+    "message": "最大録音時間："
+  },
+  "maximumBooksLabel": {
+    "message": "最大本 (0 = すべて)"
+  },
+  "maximumLabel": {
+    "message": "マックス"
+  },
+  "mcpServerConfigLabel": {
+    "message": "MCPサーバー設定"
+  },
+  "mcpToolLabel": {
+    "message": "MCPツール"
+  },
+  "mediaCachedLabel": {
+    "message": "キャッシュされた"
+  },
+  "mediaMissLabel": {
+    "message": "逃す"
+  },
+  "megabytesUnit": {
+    "message": "MB"
+  },
+  "menuLabel": {
+    "message": "メニュー"
+  },
+  "modeLabel": {
+    "message": "モード"
+  },
+  "modelCacheManagementLabel": {
+    "message": "モデルキャッシュ管理"
+  },
+  "modelCorruptedErrorMessage": {
+    "message": "モデルファイルが破損しているか不完全です。再ダウンロードしてください"
+  },
+  "modelFailedStatus": {
+    "message": "モデルの読み込みに失敗しました"
+  },
+  "modelLoadedStatus": {
+    "message": "モデル読み込み完了"
+  },
+  "multilingualModelDescription": {
+    "message": "多言語対応セマンティックモデル"
+  },
+  "myLanguageLabel": {
+    "message": "私の言語"
+  },
+  "nativeBridgeLabel": {
+    "message": "ネイティブブリッジ"
+  },
+  "nativeMcpPortLabel": {
+    "message": "ネイティブ MCP ポート"
+  },
+  "nativeServerConfigLabel": {
+    "message": "ネイティブサーバー設定"
+  },
+  "navAudio": {
+    "message": "オーディオ"
+  },
+  "navData": {
+    "message": "データ"
+  },
+  "navDebug": {
+    "message": "デバッグ"
+  },
+  "navExtensions": {
+    "message": "拡張機能"
+  },
+  "navImport": {
+    "message": "輸入"
+  },
+  "navServer": {
+    "message": "サーバ"
+  },
+  "navTasks": {
+    "message": "タスク"
+  },
+  "navWebAi": {
+    "message": "ウェブAI"
+  },
+  "navigationLabel": {
+    "message": "ナビゲーション"
+  },
+  "networkErrorMessage": {
+    "message": "ネットワーク接続エラーです。ネットワークを確認して再試行してください"
+  },
+  "newTabLabel": {
+    "message": "新しいタブ"
+  },
+  "newsMode": {
+    "message": "ニュース"
+  },
+  "noAnswerReturned": {
+    "message": "答えは返されませんでした"
+  },
+  "noBackgroundResponse": {
+    "message": "拡張機能のバックグラウンドからの応答がありません - 拡張機能をリロードして再試行してください"
+  },
+  "noBilingualBooks": {
+    "message": "バイリンガル書籍は見つかりませんでした。"
+  },
+  "noCacheDataMessage": {
+    "message": "キャッシュデータがありません"
+  },
+  "noDictionaryEntry": {
+    "message": "この単語に対する Bing 辞書のエントリはありません"
+  },
+  "noEndpointConfigured": {
+    "message": "設定でエンドポイントが構成されていません"
+  },
+  "noEventsRecorded": {
+    "message": "イベントは記録されていません。"
+  },
+  "noLimitOption": {
+    "message": "制限なし"
+  },
+  "noPendingTasksHint": {
+    "message": "保留中のタスクはありません。"
+  },
+  "noPendingWordsHint": {
+    "message": "翻訳する保留中の単語はありません。クロールする必要はありません。"
+  },
+  "noRecordableTabs": {
+    "message": "記録可能なタブがありません。通常の Web ページ (http/https) を開きます。Chrome システムおよび拡張機能のページは記録できません。"
+  },
+  "noResult": {
+    "message": "結果はありません"
+  },
+  "noSourcesForFilter": {
+    "message": "このフィルターのソースは見つかりませんでした。"
+  },
+  "notebooklmAnswerLabel": {
+    "message": "答え："
+  },
+  "notebooklmAsk": {
+    "message": "聞く"
+  },
+  "notebooklmAsking": {
+    "message": "質問中…"
+  },
+  "notebooklmDialogueHint": {
+    "message": "組み込みプロンプト: すべての項目を使用して、2 人の話者による短いダイアログを生成します。"
+  },
+  "notebooklmDialogueLabel": {
+    "message": "対話テスト — 対話の単語/文章"
+  },
+  "notebooklmDialoguePlaceholder": {
+    "message": "いくつかの単語や文章を貼り付けて対話を組み立てます…"
+  },
+  "notebooklmHint": {
+    "message": "まず NotebookLM ノートブックを開いてから質問してください。サインインが必要です。"
+  },
+  "notebooklmNotebookUrl": {
+    "message": "ノートブックの URL (オプション):"
+  },
+  "notebooklmQuestionLabel": {
+    "message": "質問："
+  },
+  "notebooklmQuestionPlaceholder": {
+    "message": "このノートは何について書かれていますか?"
+  },
+  "notebooklmRequestFailed": {
+    "message": "NotebookLM リクエストが失敗しました"
+  },
+  "notebooklmTitle": {
+    "message": "NotebookLM オートメーション"
+  },
+  "offlineStatus": {
+    "message": "オフライン"
+  },
+  "oneHourOption": {
+    "message": "1時間"
+  },
+  "oneMinuteOption": {
+    "message": "1分"
+  },
+  "onlineStatus": {
+    "message": "オンライン"
+  },
+  "openNewTabForTest": {
+    "message": "テストごとに新しいタブを開きます"
+  },
+  "openPersistentTab": {
+    "message": "永続的なタブで開く"
+  },
+  "optionalPlaceholder": {
+    "message": "オプション"
+  },
+  "otherLanguageCodePlaceholder": {
+    "message": "他の言語コード"
+  },
+  "otherSettingsLabel": {
+    "message": "他の"
+  },
+  "pagesUnit": {
+    "message": "ページ"
+  },
+  "patternLabel": {
+    "message": "パターン"
+  },
+  "pendingFastLabel": {
+    "message": "⚡ $count$ 速い",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "pendingRetriesLabel": {
+    "message": "保留中の再試行: $count$",
+    "placeholders": {
+      "count": {
+        "content": "$1"
+      }
+    }
+  },
+  "permissionDeniedErrorMessage": {
+    "message": "権限が拒否されました"
+  },
+  "phrasesLabel": {
+    "message": "フレーズ"
+  },
+  "playPronunciation": {
+    "message": "発音を再生する"
+  },
+  "playUkPronunciation": {
+    "message": "イギリスの発音を再生する"
+  },
+  "playUsPronunciation": {
+    "message": "米国の発音を再生する"
+  },
+  "primaryLanguageGeneratedHint": {
+    "message": "(主言語/ソース言語は自動的に生成され、灰色で表示されます)"
+  },
+  "primaryNavigationLabel": {
+    "message": "プライマリナビゲーション"
+  },
+  "processingCacheStatus": {
+    "message": "キャッシュを処理中..."
+  },
+  "processingStatus": {
+    "message": "処理中..."
+  },
+  "processorName_bingDictionary": {
+    "message": "Bing 辞書"
+  },
+  "processorName_deepseek": {
+    "message": "ディープシークAI"
+  },
+  "processorName_qwenTts": {
+    "message": "クウェン3 TTS"
+  },
+  "processorName_webAiTranslate": {
+    "message": "Web-AI翻訳"
+  },
+  "processorName_wordValidityWeb": {
+    "message": "単語の有効性"
+  },
+  "promptLabel": {
+    "message": "プロンプト"
+  },
+  "providerGenerationFailed": {
+    "message": "$provider$ の生成に失敗しました",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerReplyTimeout": {
+    "message": "$provider$ の応答を待機中にタイムアウトになりました",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      }
+    }
+  },
+  "providerStartFailed": {
+    "message": "$provider$ の開始に失敗しました: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "providerTestStartFailed": {
+    "message": "$provider$ テストの開始に失敗しました: $error$",
+    "placeholders": {
+      "provider": {
+        "content": "$1"
+      },
+      "error": {
+        "content": "$2"
+      }
+    }
+  },
+  "queryLabel": {
+    "message": "クエリ"
+  },
+  "queueAddBingTest": {
+    "message": "Bing テスト タスクの追加"
+  },
+  "queueAddDeepseekTest": {
+    "message": "DeepSeek テスト タスクの追加"
+  },
+  "queueCenterTabLogs": {
+    "message": "ログ"
+  },
+  "queueCenterTabQueue": {
+    "message": "列"
+  },
+  "queueItemAssignedLabel": {
+    "message": "割り当てられた:"
+  },
+  "queueItemPrioAge": {
+    "message": "プリオ $priority$ · $age$s",
+    "placeholders": {
+      "priority": {
+        "content": "$1"
+      },
+      "age": {
+        "content": "$2"
+      }
+    }
+  },
+  "queueTestActions": {
+    "message": "テストアクション:"
+  },
+  "queueTestConnection": {
+    "message": "テスト接続"
+  },
+  "queueTestFail": {
+    "message": "キュー接続に失敗しました。"
+  },
+  "queueTestOk": {
+    "message": "キューが接続されました — キューに {0} 個のタスクがあります。"
+  },
+  "queueTesting": {
+    "message": "キュー接続をテストしています…"
+  },
+  "qwenCustomVoice": {
+    "message": "TTS（カスタムボイス）"
+  },
+  "qwenGpuWaitingHint": {
+    "message": "HuggingFace Zero GPU を待機しています — タブを開いたままにしてください。"
+  },
+  "qwenSettingsSharedHint": {
+    "message": "Laravel 本番タスクと拡張機能テストパネルによって共有されます。"
+  },
+  "qwenTextPlaceholder": {
+    "message": "Qwen3-TTS のテキストを入力してください…"
+  },
+  "qwenTtsFailed": {
+    "message": "クウェン TTS が失敗しました"
+  },
+  "qwenVoiceClone": {
+    "message": "ボイスクローン（ベース）"
+  },
+  "qwenVoiceDesign": {
+    "message": "音声デザイン"
+  },
+  "realtimeWebsocketOption": {
+    "message": "リアルタイム（WebSocket）"
+  },
+  "recentSearchesLabel": {
+    "message": "最近の検索"
+  },
+  "recordingGeneralError": {
+    "message": "録音の開始中にエラーが発生しました：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "不明なエラー"
+      }
+    }
+  },
+  "recordingSettingsLabel": {
+    "message": "録音設定"
+  },
+  "recordingSettingsManagedHint": {
+    "message": "録画サーバー、メタデータ、ストリーミング オプションは設定センターで管理されます。"
+  },
+  "recordingStatus": {
+    "message": "録音中"
+  },
+  "recordingStatusLabel": {
+    "message": "録音ステータス："
+  },
+  "recordingTargetLabel": {
+    "message": "録音対象（タブ）"
+  },
+  "refreshCatalogButton": {
+    "message": "カタログを更新"
+  },
+  "refreshStatusButton": {
+    "message": "ステータス更新"
+  },
+  "reinitializeButton": {
+    "message": "再初期化"
+  },
+  "reloadSegments": {
+    "message": "セグメントのリロード"
+  },
+  "removeLanguageTitle": {
+    "message": "言語を削除する"
+  },
+  "resetButton": {
+    "message": "リセット"
+  },
+  "resetGeneralSettings": {
+    "message": "一般設定をリセットする"
+  },
+  "resetGeneralSettingsConfirm": {
+    "message": "一般的なサーバーとデバッグ設定をデフォルトにリセットしますか?"
+  },
+  "resumeFailed": {
+    "message": "再開に失敗しました"
+  },
+  "retryButton": {
+    "message": "再試行"
+  },
+  "runningStatusLabel": {
+    "message": "実行ステータス"
+  },
+  "saveButton": {
+    "message": "保存"
+  },
+  "saveLocallyLabel": {
+    "message": "ローカルに保存"
+  },
+  "savedStatus": {
+    "message": "保存されました"
+  },
+  "scrapeFetchLabel": {
+    "message": "スクレイピング/フェッチ"
+  },
+  "scrapeTestFailed": {
+    "message": "スクレープテストに失敗しました"
+  },
+  "searchEngineLabel": {
+    "message": "エンジン"
+  },
+  "searchFailed": {
+    "message": "検索に失敗しました"
+  },
+  "semanticEngineInitFailedStatus": {
+    "message": "セマンティックエンジンの初期化に失敗しました"
+  },
+  "semanticEngineInitializingStatus": {
+    "message": "セマンティックエンジン初期化中..."
+  },
+  "semanticEngineLabel": {
+    "message": "セマンティックエンジン"
+  },
+  "semanticEngineNotInitStatus": {
+    "message": "セマンティックエンジン未初期化"
+  },
+  "semanticEngineReadyStatus": {
+    "message": "セマンティックエンジン準備完了"
+  },
+  "sentencePatternHint": {
+    "message": "文構造ラベル、例: だけではなく...だけでなく、"
+  },
+  "serverNamePlaceholder": {
+    "message": "サーバー名"
+  },
+  "serviceNotConnectedStatus": {
+    "message": "サービス未接続"
+  },
+  "serviceRunningStatus": {
+    "message": "サービス実行中 (ポート: $PORT$)",
+    "placeholders": {
+      "port": {
+        "content": "$1",
+        "example": "12306"
+      }
+    },
+    "description": "Service running with port number"
+  },
+  "sessionMetadataHelper": {
+    "message": "ここで定義されたキー/値のペアは、各HTTP アップロードに追加され、WebSocket経由でメタデータペイロードとして1回送信されます。"
+  },
+  "sessionMetadataLabel": {
+    "message": "セッションメタデータ（JSON）"
+  },
+  "settingsTitle": {
+    "message": "設定"
+  },
+  "showDetailedLogsHint": {
+    "message": "詳細なログを表示する"
+  },
+  "silenceDurationLabel": {
+    "message": "無音持続時間（秒）："
+  },
+  "solveSearchVerification": {
+    "message": "検索タブで検証を解決します。"
+  },
+  "sourceLanguageAlwaysGenerated": {
+    "message": "展開されたブックのソース言語 — 常に生成されます"
+  },
+  "sourceLanguageExpressionsHint": {
+    "message": "ソース言語: 代替表現をスキップします (翻訳された言語のみがそれらを取得します)"
+  },
+  "sourceLanguageLabel": {
+    "message": "ソース言語"
+  },
+  "sourceUrlLabel": {
+    "message": "ソースURL"
+  },
+  "startAssistButton": {
+    "message": "スタートアシスト"
+  },
+  "startAutomaticRebuilds": {
+    "message": "  ファイルの変更により自動的に再ビルドされます。"
+  },
+  "startBannerTitle": {
+    "message": "  Chrome MCP Server - Windows"
+  },
+  "startBuildConfigIncomplete": {
+    "message": "警告: ビルド構成が不完全な可能性があります。既定値で続行します。"
+  },
+  "startBuildSkipped": {
+    "message": "  ビルドを省略し、既存の出力を使用します。"
+  },
+  "startBuildingExtension": {
+    "message": "Chrome拡張機能をビルドしています..."
+  },
+  "startBuildingNative": {
+    "message": "Native Serverをビルドしています..."
+  },
+  "startBuildingNativeLive": {
+    "message": "  mcp-chrome-bridgeをビルドしています（ライブ出力）..."
+  },
+  "startBuildingShared": {
+    "message": "共有パッケージをビルドしています..."
+  },
+  "startBuildingSharedLive": {
+    "message": "  chrome-mcp-sharedをビルドしています（ライブ出力）..."
+  },
+  "startCannotRegister": {
+    "message": "  拡張機能IDがないためNative Hostを登録できません"
+  },
+  "startCheckingCmdShims": {
+    "message": "  Windowsの.cmdシムを確認しています..."
+  },
+  "startCheckingDependencies": {
+    "message": "依存関係を確認しています..."
+  },
+  "startChromeDiscoveryMayFail": {
+    "message": "  ChromeがNative Messaging Hostを検出できない可能性があります"
+  },
+  "startComplete": {
+    "message": "  ビルドと登録が完了しました"
+  },
+  "startDependenciesInstalled": {
+    "message": "  OK 依存関係は既にインストールされています"
+  },
+  "startDependencyInstallFinished": {
+    "message": "  OK 依存関係のインストールが完了しました"
+  },
+  "startExtensionBuildFailed": {
+    "message": "  エラー: $maximum$回試行してもChrome拡張機能をビルドできませんでした",
+    "placeholders": {
+      "maximum": {
+        "content": "$1"
+      }
+    }
+  },
+  "startExtensionBuilt": {
+    "message": "  OK Chrome拡張機能を正常にビルドしました"
+  },
+  "startExtensionIdUncalculated": {
+    "message": "  拡張機能IDを自動計算できません"
+  },
+  "startFailed": {
+    "message": "開始に失敗しました"
+  },
+  "startHostMayFail": {
+    "message": "  Native Messaging Hostが正しく動作しない可能性があります"
+  },
+  "startImportantPaths": {
+    "message": "[重要なパス]\n\n  1) Chrome拡張機能（フロントエンド）:\n     $extensionPath$\n\n  2) Native Server（バックエンド）:\n     $nativePath$",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      },
+      "nativePath": {
+        "content": "$2"
+      }
+    }
+  },
+  "startInstallingDependencies": {
+    "message": "依存関係をインストールしています..."
+  },
+  "startInstallingDependenciesLive": {
+    "message": "  依存関係をインストールしています（ライブ出力）..."
+  },
+  "startInstructions": {
+    "message": "[手順1] Chromeに拡張機能を読み込む（初回のみ）:\n  1. Chromeで chrome://extensions/ を開く\n  2. デベロッパーモードを有効にする（右上の切り替え）\n  3. 「パッケージ化されていない拡張機能を読み込む」をクリックする\n  4. フォルダーを選択する: $extensionPath$\n  注意: このフォルダーは読み込んだままにしてください。WXT開発サーバーは同じパスに書き込みます。\n\n[手順2] MCPサービスに接続する:\n  1. Chromeで拡張機能アイコンをクリックする\n  2. 接続ボタンをクリックする\n  3. サービスは http://127.0.0.1:12306 で開始します\n\n[手順3] 動的デバッグ（コンポーネント別）:\n\n  ポップアップ (apps/chrome-extension/entrypoints/popup/):\n    - ポップアップを右クリック -> 検証 -> DevToolsが開きます\n    - ファイル保存後、ポップアップを再度開きます（WXT HMRが自動再読み込み）\n    - またはDevTools内でCtrl+Rを押して強制更新します\n\n  BACKGROUND SERVICE WORKER (entrypoints/background.ts):\n    - chrome://extensions/ を開く -> 拡張機能を探す -> 「Service Worker」をクリックする\n    - ファイル保存後、拡張機能カードの丸い更新アイコンをクリックする\n    - WXTは再ビルド後に拡張機能を自動再読み込みします\n\n  CONTENT SCRIPTS (entrypoints/content.ts / inject-scripts/):\n    - 対象ページを開く -> F12 -> Sources -> Content Scriptsタブ\n    - ファイル保存後、対象ページを更新する（Ctrl+R）\n    - WXTは開発モードでContent Scriptsを動的に再登録します\n\n  すべての拡張機能ページを検証する:\n    - chrome://inspect/#extensions を開く",
+    "placeholders": {
+      "extensionPath": {
+        "content": "$1"
+      }
+    }
+  },
+  "startLaunchingWatch": {
+    "message": "  WXT開発サーバーを起動しています（監視モード）..."
+  },
+  "startLocation": {
+    "message": "    場所: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestContent": {
+    "message": "  マニフェストの内容:"
+  },
+  "startManifestFileMissing": {
+    "message": "  警告: マニフェストファイルが見つかりません: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestKeyMissing": {
+    "message": "  警告: manifest.jsonに'key'フィールドがありません"
+  },
+  "startManifestKeyPresent": {
+    "message": "  OK manifest.jsonに拡張機能ID用の'key'フィールドがあります"
+  },
+  "startManifestMissing": {
+    "message": "  エラー: manifest.jsonが見つかりません: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startManifestRegistered": {
+    "message": "  OK Chromeマニフェストを登録しました"
+  },
+  "startManifestVerificationFailed": {
+    "message": "  警告: manifest.jsonの構造を確認できませんでした"
+  },
+  "startNativeBuilt": {
+    "message": "  OK Native Serverをビルドしました（成果物あり）"
+  },
+  "startNativeMissing": {
+    "message": "  警告: Native Serverの成果物が見つかりません: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startNextSteps": {
+    "message": "  次の手順"
+  },
+  "startNodeMissing": {
+    "message": "  エラー: Node.jsが見つかりません"
+  },
+  "startNodeVersion": {
+    "message": "  OK Node.js: $version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startOneTimeComplete": {
+    "message": "  1回限りのビルドが完了しました。開発ウォッチャーは無効です。"
+  },
+  "startPnpmMissing": {
+    "message": "  エラー: pnpmが見つかりません"
+  },
+  "startPnpmVersion": {
+    "message": "  OK pnpm: v$version$",
+    "placeholders": {
+      "version": {
+        "content": "$1"
+      }
+    }
+  },
+  "startPressStop": {
+    "message": "  Ctrl+Cを押すと停止します。"
+  },
+  "startProcessingBuildConfiguration": {
+    "message": "[Python] ビルド構成を処理しています..."
+  },
+  "startPythonError": {
+    "message": "警告: Pythonスクリプトでエラーが発生しました（続行します）: $error$",
+    "placeholders": {
+      "error": {
+        "content": "$1"
+      }
+    }
+  },
+  "startRebuilding": {
+    "message": "  再ビルドしています（MCP_SKIP_BUILD=1で既存の出力を使用できます）。"
+  },
+  "startRecordingButton": {
+    "message": "録音開始"
   },
   "startRecordingError": {
     "message": "録音の開始に失敗しました：$ERROR$",
@@ -473,13 +1614,596 @@
       }
     }
   },
-  "recordingGeneralError": {
-    "message": "録音の開始中にエラーが発生しました：$ERROR$",
+  "startRegisteringHost": {
+    "message": "  Native Messaging Hostを登録しています..."
+  },
+  "startRegisteringNative": {
+    "message": "Native Messaging Hostを登録しています..."
+  },
+  "startRegistrationMayRequireUpdate": {
+    "message": "  Native Hostの登録で拡張機能IDの手動更新が必要になる場合があります"
+  },
+  "startRegistrationVerification": {
+    "message": "  登録の確認:"
+  },
+  "startRegistrationWillProceed": {
+    "message": "  Native Hostの登録を続行しますが、IDの手動更新が必要になる場合があります"
+  },
+  "startRegistryExists": {
+    "message": "  OK Windowsレジストリキーがあります"
+  },
+  "startRegistryMissing": {
+    "message": "  警告: Windowsレジストリキーが見つかりません: $path$",
     "placeholders": {
-      "error": {
-        "content": "$1",
-        "example": "不明なエラー"
+      "path": {
+        "content": "$1"
       }
     }
+  },
+  "startRetryingBuild": {
+    "message": "  ビルドを再試行しています（$attempt$/$maximum$回目）...",
+    "placeholders": {
+      "attempt": {
+        "content": "$1"
+      },
+      "maximum": {
+        "content": "$2"
+      }
+    }
+  },
+  "startServiceFailed": {
+    "message": "サービスの開始に失敗しました"
+  },
+  "startSetupTitle": {
+    "message": "Chrome MCP Server - Windows セットアップ"
+  },
+  "startSharedBuilt": {
+    "message": "  OK 共有パッケージをビルドしました（成果物あり）"
+  },
+  "startSharedMissing": {
+    "message": "  警告: 共有ビルド成果物が見つかりません: $path$",
+    "placeholders": {
+      "path": {
+        "content": "$1"
+      }
+    }
+  },
+  "startSkipBuild": {
+    "message": "  MCP_SKIP_BUILD=1。再ビルドを省略し、既存の出力を使用します。"
+  },
+  "startWatchDevSelected": {
+    "message": "  開発監視モードを選択しました。"
+  },
+  "startWatchOnceSelected": {
+    "message": "  1回限りのビルドを選択しました。"
+  },
+  "startWatchPrompt": {
+    "message": "開発監視モードを有効にしますか？ [Y/n]"
+  },
+  "stateLabel": {
+    "message": "州"
+  },
+  "statusLabel": {
+    "message": "ステータス"
+  },
+  "stopAssistButton": {
+    "message": "ストップアシスト"
+  },
+  "stopRecordingButton": {
+    "message": "録音停止"
+  },
+  "stopServiceFailed": {
+    "message": "サービスの停止に失敗しました"
+  },
+  "streamingModeLabel": {
+    "message": "ストリーミングモード："
+  },
+  "styleInstructionLabel": {
+    "message": "スタイルの指示"
+  },
+  "submitDisabled": {
+    "message": "送信が無効になっています"
+  },
+  "submitFailed": {
+    "message": "送信に失敗しました"
+  },
+  "successNotification": {
+    "message": "操作が正常に完了しました"
+  },
+  "switchingModelStatus": {
+    "message": "モデルを切り替え中..."
+  },
+  "synonymsLabel": {
+    "message": "同義語"
+  },
+  "tabIndexLabel": {
+    "message": "タブ$index$",
+    "placeholders": {
+      "index": {
+        "content": "$1"
+      }
+    }
+  },
+  "targetLanguagesLabel": {
+    "message": "対象言語"
+  },
+  "taskCenterActiveCount": {
+    "message": "$1 アクティブ"
+  },
+  "taskCenterActiveLabel": {
+    "message": "アクティブ"
+  },
+  "taskCenterAiTranslateLabel": {
+    "message": "AI翻訳"
+  },
+  "taskCenterAllLabel": {
+    "message": "全て"
+  },
+  "taskCenterAllTasks": {
+    "message": "すべてのタスク"
+  },
+  "taskCenterAppLabel": {
+    "message": "応用"
+  },
+  "taskCenterAttemptLabel": {
+    "message": "試み"
+  },
+  "taskCenterAttemptsLabel": {
+    "message": "試み"
+  },
+  "taskCenterBackendFailureCount": {
+    "message": "$1 の失敗"
+  },
+  "taskCenterBackendOffline": {
+    "message": "バックエンドがオフライン"
+  },
+  "taskCenterBackendOnline": {
+    "message": "バックエンドオンライン"
+  },
+  "taskCenterBumpFailed": {
+    "message": "タスクの移動に失敗しました"
+  },
+  "taskCenterBumpHint": {
+    "message": "このタスクを優先度 $1 の優先レーンの前に移動します。"
+  },
+  "taskCenterBumpedLabel": {
+    "message": "上部に移動しました"
+  },
+  "taskCenterBumpingLabel": {
+    "message": "移動中…"
+  },
+  "taskCenterCancelReadyAction": {
+    "message": "準備完了のキャンセル"
+  },
+  "taskCenterCapabilityLabel": {
+    "message": "能力"
+  },
+  "taskCenterCapability_chatgpt_hint": {
+    "message": "ChatGPT Web 会話を実行し、読み上げ音声をキャプチャし、結果を Laravel に書き戻します。"
+  },
+  "taskCenterCapability_chatgpt_label": {
+    "message": "ChatGPT の長い形式のオーディオ タスクを実行する"
+  },
+  "taskCenterCapability_gemini_image_hint": {
+    "message": "Gemini で語彙ライブラリのカバーを生成し、Laravel に書き戻します。"
+  },
+  "taskCenterCapability_gemini_image_label": {
+    "message": "AI単語グループカバー生成"
+  },
+  "taskCenterCapability_image_hint": {
+    "message": "共有ブラウザワーカーを介して本の表紙とメディアポスターを検索して書き戻します"
+  },
+  "taskCenterCapability_image_label": {
+    "message": "表紙とポスターの検索"
+  },
+  "taskCenterCapability_notebooklm_hint": {
+    "message": "Laravel NotebookLM は結果のライトバックを伴う共有ブラウザー ランタイムへのキューを作成します"
+  },
+  "taskCenterCapability_notebooklm_label": {
+    "message": "NotebookLM 生成タスクの実行"
+  },
+  "taskCenterCapability_validity_hint": {
+    "message": "未チェックまたは未翻訳の単語を排出し、Web AI および Bing 翻訳ワーカーを有効にします。"
+  },
+  "taskCenterCapability_validity_label": {
+    "message": "単語の有効性と翻訳のタスクを実行する"
+  },
+  "taskCenterCategoryLoadError": {
+    "message": "カテゴリタスクのロードに失敗しました"
+  },
+  "taskCenterCategory_article_audio": {
+    "message": "記事の音声"
+  },
+  "taskCenterCategory_article_tts_generation": {
+    "message": "記事音声生成"
+  },
+  "taskCenterCategory_audio_transcribe": {
+    "message": "音声転写"
+  },
+  "taskCenterCategory_chatgpt_chat": {
+    "message": "チャットGPT会話"
+  },
+  "taskCenterCategory_dictionary_explanation": {
+    "message": "辞書の説明"
+  },
+  "taskCenterCategory_dictionary_explanation_demo": {
+    "message": "辞書のデモ"
+  },
+  "taskCenterCategory_gemini_chat": {
+    "message": "AI会話"
+  },
+  "taskCenterCategory_gemini_image": {
+    "message": "AI画像生成"
+  },
+  "taskCenterCategory_notebooklm": {
+    "message": "NotebookLM処理"
+  },
+  "taskCenterCategory_poster": {
+    "message": "表紙とポスターの検索"
+  },
+  "taskCenterCategory_prompt_translation": {
+    "message": "即時翻訳"
+  },
+  "taskCenterCategory_sentence_audio": {
+    "message": "文章音声"
+  },
+  "taskCenterCategory_stt": {
+    "message": "音声認識"
+  },
+  "taskCenterCategory_subtitle_search": {
+    "message": "字幕検索"
+  },
+  "taskCenterCategory_word_audio": {
+    "message": "ワード音声"
+  },
+  "taskCenterCategory_word_media": {
+    "message": "ワード画像"
+  },
+  "taskCenterCategory_word_translation": {
+    "message": "単語の翻訳"
+  },
+  "taskCenterCategory_word_validity": {
+    "message": "単語の有効性"
+  },
+  "taskCenterCompletedLabel": {
+    "message": "完了"
+  },
+  "taskCenterConnectingStream": {
+    "message": "ライブストリームに接続中…"
+  },
+  "taskCenterCurrentStageLabel": {
+    "message": "ステージ"
+  },
+  "taskCenterCurrentTaskLabel": {
+    "message": "現在のタスク"
+  },
+  "taskCenterDoneLabel": {
+    "message": "終わり"
+  },
+  "taskCenterDuplicateLabel": {
+    "message": "重複"
+  },
+  "taskCenterElapsedLabel": {
+    "message": "経過"
+  },
+  "taskCenterExecutionDescription": {
+    "message": "[タスク] タブと共有され、準備ができたらすぐに適用されます。"
+  },
+  "taskCenterExecutionTitle": {
+    "message": "タスクの実行"
+  },
+  "taskCenterFailedLabel": {
+    "message": "失敗した"
+  },
+  "taskCenterHistoryLabel": {
+    "message": "歴史"
+  },
+  "taskCenterInactiveLabel": {
+    "message": "非アクティブ"
+  },
+  "taskCenterLaneLabel": {
+    "message": "レーン"
+  },
+  "taskCenterLastLabel": {
+    "message": "最後"
+  },
+  "taskCenterLeasedLabel": {
+    "message": "リース"
+  },
+  "taskCenterLiveLabel": {
+    "message": "ライブ"
+  },
+  "taskCenterLoadError": {
+    "message": "タスクのロードに失敗しました"
+  },
+  "taskCenterLoadSummary": {
+    "message": "ロードされた $1 保留中 ($2 ブラウザで処理可能)"
+  },
+  "taskCenterNewLabel": {
+    "message": "新しい"
+  },
+  "taskCenterNextPage": {
+    "message": "次"
+  },
+  "taskCenterNoMatchingTasks": {
+    "message": "現在のフィルターに一致するタスクはありません"
+  },
+  "taskCenterNoTasksFound": {
+    "message": "タスクが見つかりません"
+  },
+  "taskCenterNotReadyStatus": {
+    "message": "準備ができていません"
+  },
+  "taskCenterPageRange": {
+    "message": "$1-$2 of $3"
+  },
+  "taskCenterPayloadLabel": {
+    "message": "ペイロード"
+  },
+  "taskCenterPendingLabel": {
+    "message": "保留中"
+  },
+  "taskCenterPhaseLabel": {
+    "message": "段階"
+  },
+  "taskCenterPreviousPage": {
+    "message": "前の"
+  },
+  "taskCenterProcessingLabel": {
+    "message": "処理"
+  },
+  "taskCenterProcessorDetails": {
+    "message": "プロセッサ · $1/$2 がアクティブです"
+  },
+  "taskCenterProcessorsLabel": {
+    "message": "プロセッサー"
+  },
+  "taskCenterProductionDescription": {
+    "message": "Laravelキュー→共有MCPランタイム→結果ライトバック。"
+  },
+  "taskCenterProductionTitle": {
+    "message": "生産タスク"
+  },
+  "taskCenterProviderLabel": {
+    "message": "プロバイダー"
+  },
+  "taskCenterQueueLabel": {
+    "message": "列"
+  },
+  "taskCenterReadyAndStartAction": {
+    "message": "準備が整い、タスクを開始します"
+  },
+  "taskCenterReadyControlHint": {
+    "message": "Ready モニター Laravel。トグルはタスクをすぐに開始または停止します。"
+  },
+  "taskCenterReadyOnlyAction": {
+    "message": "準備ができて"
+  },
+  "taskCenterReadyOnlyHint": {
+    "message": "準備を整えて、タスクを実行せずに Laravel を監視します。"
+  },
+  "taskCenterReadyRunningStatus": {
+    "message": "準備完了・実行中"
+  },
+  "taskCenterReadyStatus": {
+    "message": "準備ができて"
+  },
+  "taskCenterReadyWithTasksHint": {
+    "message": "準備が整い、選択したすべてのタスク機能を開始します。"
+  },
+  "taskCenterRefresh": {
+    "message": "タスクを更新する"
+  },
+  "taskCenterResultLabel": {
+    "message": "結果"
+  },
+  "taskCenterSearchAction": {
+    "message": "検索"
+  },
+  "taskCenterSearchPlaceholder": {
+    "message": "タスクの内容または ID を検索する"
+  },
+  "taskCenterSelectedCount": {
+    "message": "$1 が選択されました"
+  },
+  "taskCenterShowAll": {
+    "message": "すべて表示 $1"
+  },
+  "taskCenterShowLess": {
+    "message": "表示を少なくする"
+  },
+  "taskCenterSortLabel": {
+    "message": "選別"
+  },
+  "taskCenterSortNewest": {
+    "message": "最新"
+  },
+  "taskCenterSortOldest": {
+    "message": "最古の"
+  },
+  "taskCenterSortPriority": {
+    "message": "優先度"
+  },
+  "taskCenterStartFailed": {
+    "message": "タスクセンターの起動に失敗しました"
+  },
+  "taskCenterStatusLabel": {
+    "message": "状態"
+  },
+  "taskCenterStatus_assigned": {
+    "message": "割り当て済み"
+  },
+  "taskCenterStatus_cancelled": {
+    "message": "キャンセル"
+  },
+  "taskCenterStatus_completed": {
+    "message": "完了"
+  },
+  "taskCenterStatus_completed_demo": {
+    "message": "デモが完了しました"
+  },
+  "taskCenterStatus_failed": {
+    "message": "失敗した"
+  },
+  "taskCenterStatus_leased": {
+    "message": "リース"
+  },
+  "taskCenterStatus_pending": {
+    "message": "保留中"
+  },
+  "taskCenterStatus_processing": {
+    "message": "処理"
+  },
+  "taskCenterStopFailed": {
+    "message": "タスクセンターを停止できませんでした"
+  },
+  "taskCenterStreamUnavailable": {
+    "message": "ライブストリームは利用できません"
+  },
+  "taskCenterTaskCount": {
+    "message": "$1 タスク"
+  },
+  "taskCenterTaskTopLabel": {
+    "message": "先頭に移動"
+  },
+  "taskCenterTimelineLabel": {
+    "message": "タイムライン"
+  },
+  "taskCenterTimeoutLabel": {
+    "message": "タイムアウト"
+  },
+  "taskCenterUnifiedTitle": {
+    "message": "統合タスクセンター"
+  },
+  "taskCenterWorkerLabel": {
+    "message": "ワーカー"
+  },
+  "taskLabel": {
+    "message": "タスク"
+  },
+  "taskMediaAlt": {
+    "message": "タスクメディア"
+  },
+  "tenMinutesOption": {
+    "message": "10分"
+  },
+  "textToSynthesizeLabel": {
+    "message": "合成するテキスト"
+  },
+  "textUploadLabel": {
+    "message": "テキストのアップロード"
+  },
+  "themeLabel": {
+    "message": "テーマ"
+  },
+  "thirtyMinutesOption": {
+    "message": "30分"
+  },
+  "timeoutErrorMessage": {
+    "message": "操作がタイムアウトしました"
+  },
+  "toggleServiceFailed": {
+    "message": "サービスの切り替えに失敗しました"
+  },
+  "toolboxLabel": {
+    "message": "ツールボックス"
+  },
+  "totalLabel": {
+    "message": "合計"
+  },
+  "typeWordPlaceholder": {
+    "message": "単語を入力してください…"
+  },
+  "unknownErrorMessage": {
+    "message": "不明なエラーです。ネットワークがHuggingFaceにアクセスできるか確認してください"
+  },
+  "unreachableStatus": {
+    "message": "到達不能"
+  },
+  "untranslatedQueueLabel": {
+    "message": "未翻訳のキュー"
+  },
+  "urlLabel": {
+    "message": "URL："
+  },
+  "urlPlaceholder": {
+    "message": "http://localhost:8080"
+  },
+  "useButton": {
+    "message": "使用"
+  },
+  "useDarkTheme": {
+    "message": "ダークテーマを使用する"
+  },
+  "useLightTheme": {
+    "message": "ライトテーマを使用する"
+  },
+  "validLabel": {
+    "message": "有効"
+  },
+  "validityAiProviderHint": {
+    "message": "単語の有効性チェックがどの Web AI によって行われるか (有効性と翻訳を 1 回のパスで)。"
+  },
+  "validityAiProviderTitle": {
+    "message": "妥当性AIプロバイダー"
+  },
+  "validityTestFailed": {
+    "message": "妥当性テストに失敗しました"
+  },
+  "validityWordLanguageHint": {
+    "message": "デフォルトでは英単語のみが処理されます。代わりに別の言語を選択してバックログを処理してください。"
+  },
+  "validityWordLanguageTitle": {
+    "message": "有効性の単語の言語"
+  },
+  "validityWordsLabel": {
+    "message": "単語（カンマまたは改行区切り）"
+  },
+  "vectorDocumentsLabel": {
+    "message": "ベクトルドキュメント"
+  },
+  "vectorStoreLabel": {
+    "message": "ベクターストア"
+  },
+  "verboseLoggingLabel": {
+    "message": "詳細ロギング"
+  },
+  "voiceDescriptionLabel": {
+    "message": "音声解説"
+  },
+  "waitForCaptchaHint": {
+    "message": "CAPTCHA を待つ — 解決されるかタイムアウトになるまでポーリングします"
+  },
+  "waitTimeoutSecondsLabel": {
+    "message": "待機タイムアウト (秒)"
+  },
+  "warningNotification": {
+    "message": "警告：続行する前に確認してください"
+  },
+  "webDefinitionsLabel": {
+    "message": "ウェブ定義"
+  },
+  "webMode": {
+    "message": "ウェブ"
+  },
+  "webSearchPlaceholder": {
+    "message": "テキストまたは画像を検索…"
+  },
+  "wordsLabel": {
+    "message": "言葉"
+  },
+  "workerActionFailed": {
+    "message": "$action$ ワーカーに失敗しました",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      }
+    }
+  },
+  "workerOptionsManagedHint": {
+    "message": "労働者のオプションは設定センターで管理されます。"
+  },
+  "youglishPronunciationHint": {
+    "message": "リアルコンテキストビデオの発音 (YouGlish)"
   }
 }

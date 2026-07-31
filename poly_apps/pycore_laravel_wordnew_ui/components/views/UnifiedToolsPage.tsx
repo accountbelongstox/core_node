@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ALL_TOOLS, getAllCategories } from '../../config/tools.config';
-import { ToolDefinition } from '../../core/types';
-import { api } from '../../core/api';
+import { ToolDefinition } from '@/apps/laravel-manager/types';
+import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import {
   Search, Star, Clock, Play, Loader, Copy, Check, X, ChevronRight, ChevronLeft,

@@ -1,6 +1,6 @@
 /**
  * Master API base library barrel — the shared transport every end API lib
- * (laravel / pycore / wordnew) inherits. See MasterApiClient.ts for the
+ * Application-owned API transports inherit this layer. See MasterApiClient.ts for the
  * contract (30-min default ceiling, persistent offline write queue, replay).
  */
 export {

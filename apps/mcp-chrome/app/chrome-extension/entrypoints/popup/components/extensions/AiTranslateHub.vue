@@ -9,14 +9,14 @@
         :disabled="!currentEndpoint || queueOverview.loading"
       >
         <span class="toggle-dot"></span>
-        <template v-if="queueOverview.loading">Loading…</template>
-        <template v-else-if="workerState.isRunning">Stop</template>
+        <template v-if="queueOverview.loading">{{ getMessage('loadingStatus') }}</template>
+        <template v-else-if="workerState.isRunning">{{ getMessage('extStopButton') }}</template>
         <template v-else-if="prepared">
           Confirm &amp; Start{{
             queueOverview.summary ? ' · ' + queueOverview.summary.pending + ' pending' : ''
           }}
         </template>
-        <template v-else>Load queue</template>
+        <template v-else>{{ getMessage('loadQueueButton') }}</template>
       </button>
     </div>
 
@@ -25,7 +25,7 @@
     <!-- Backend line -->
     <div class="backend-line">
       <span :class="['be-dot', connectionStatus.state === 'ok' ? 'ok' : connectionStatus.state === 'fail' ? 'fail' : 'idle']"></span>
-      <span class="be-label">Backend</span>
+      <span class="be-label">{{ getMessage('backendLabel') }}</span>
       <span class="be-url" :title="currentEndpoint">
         {{ currentEndpoint || 'not set — configure in Settings' }}
       </span>
@@ -45,7 +45,7 @@
     <div class="dict-section" style="border-top: 1px solid var(--border); padding-top: 8px;">
       <div class="flex items-center gap-2 mb-2">
         <span class="text-sm">🔊</span>
-        <span class="text-[11px] font-semibold" style="color: var(--text)">Free Dictionary</span>
+        <span class="text-[11px] font-semibold" style="color: var(--text)">{{ getMessage('freeDictionaryLabel') }}</span>
       </div>
 
       <!-- Search box -->
@@ -53,7 +53,7 @@
         <input
           v-model="searchQuery"
           type="text"
-          placeholder="Type a word…"
+          :placeholder="getMessage('typeWordPlaceholder')"
           class="flex-1 px-2 py-1 rounded text-[11px] outline-none"
           style="background: var(--surface-2); color: var(--text); border: 1px solid var(--border)"
           @keydown.enter="lookupDictionary"
@@ -83,7 +83,7 @@
             @click="playAudio(getBestAudioUrl(dictionaryResult))"
             class="text-[10px] px-1.5 py-0.5 rounded transition-colors"
             style="background: var(--accent-soft); color: var(--accent-fg)"
-            title="Play pronunciation"
+            :title="getMessage('playPronunciation')"
           >
             🔊 Play
           </button>
@@ -129,7 +129,7 @@
             rel="noopener"
             class="text-[9px] px-2 py-0.5 rounded no-underline"
             style="background: #fee2e2; color: #dc2626; border: 1px solid #fca5a5"
-            title="Real-context video pronunciation (YouGlish)"
+            :title="getMessage('youglishPronunciationHint')"
           >▶ YouGlish</a>
           <a
             :href="'https://forvo.com/word/' + encodeURIComponent(dictionaryResult.word) + '/'"
@@ -137,7 +137,7 @@
             rel="noopener"
             class="text-[9px] px-2 py-0.5 rounded no-underline"
             style="background: #e0f2fe; color: #0284c7; border: 1px solid #7dd3fc"
-            title="Native-speaker audio from around the world (Forvo)"
+            :title="getMessage('forvoPronunciationHint')"
           >🌍 Forvo</a>
           <a
             :href="'https://dictionary.cambridge.org/dictionary/english-chinese-traditional/' + encodeURIComponent(dictionaryResult.word)"
@@ -145,7 +145,7 @@
             rel="noopener"
             class="text-[9px] px-2 py-0.5 rounded no-underline"
             style="background: #ecfdf5; color: #059669; border: 1px solid #6ee7b7"
-            title="Standard UK/US pronunciation (Cambridge)"
+            :title="getMessage('cambridgePronunciationHint')"
           >📖 Cambridge</a>
         </div>
       </div>
@@ -156,6 +156,7 @@
 <script lang="ts" setup>
 import { onMounted } from 'vue';
 import { useAiTranslateHub } from '../../composables/useAiTranslateHub';
+import { getMessage } from '@/utils/i18n';
 
 const {
   workerState,

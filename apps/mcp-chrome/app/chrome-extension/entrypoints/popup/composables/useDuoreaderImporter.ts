@@ -6,6 +6,7 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
+import { getMessage } from '@/utils/i18n';
 import {
   PROGRESS_STORAGE_KEY,
   DuoreaderBookMeta,
@@ -103,14 +104,14 @@ export function useDuoreaderImporter() {
         },
       });
       if (!res?.success) {
-        error.value = res?.error || 'Failed to load books';
+        error.value = res?.error || getMessage('loadBooksFailed');
         books.value = [];
         return;
       }
       books.value = await hydrateCoverDisplay(res.books || []);
       logger.info(LOG, `Catalog loaded: ${books.value.length} book(s)`);
     } catch (e: any) {
-      error.value = e?.message || 'Failed to load books';
+      error.value = e?.message || getMessage('loadBooksFailed');
       logger.error(LOG, error.value, e);
     } finally {
       loadingBooks.value = false;
@@ -137,7 +138,7 @@ export function useDuoreaderImporter() {
       });
       apiTestResult.value = res?.result || null;
       if (!res?.success) {
-        error.value = res?.error || apiTestResult.value?.error || 'API test failed';
+        error.value = res?.error || apiTestResult.value?.error || getMessage('apiTestFailed');
         logger.warn(LOG, error.value);
         return;
       }
@@ -146,7 +147,7 @@ export function useDuoreaderImporter() {
         `API test OK: ${apiTestResult.value?.articleCount} articles, sample ${apiTestResult.value?.sampleParagraphs} paragraphs (${apiTestResult.value?.elapsedMs}ms)`,
       );
     } catch (e: any) {
-      error.value = e?.message || 'API test failed';
+      error.value = e?.message || getMessage('apiTestFailed');
       logger.error(LOG, error.value, e);
     } finally {
       testingApi.value = false;
@@ -176,7 +177,7 @@ export function useDuoreaderImporter() {
         resume: isResume,
       });
       if (!res?.success) {
-        error.value = res?.error || `${isResume ? 'Resume' : 'Start'} failed`;
+        error.value = res?.error || getMessage(isResume ? 'resumeFailed' : 'startFailed');
         logger.warn(LOG, error.value);
         return;
       }
@@ -191,7 +192,7 @@ export function useDuoreaderImporter() {
       startPolling();
       await refreshProgress();
     } catch (e: any) {
-      error.value = e?.message || `${isResume ? 'Resume' : 'Start'} failed`;
+      error.value = e?.message || getMessage(isResume ? 'resumeFailed' : 'startFailed');
       logger.error(LOG, error.value, e);
     }
   };

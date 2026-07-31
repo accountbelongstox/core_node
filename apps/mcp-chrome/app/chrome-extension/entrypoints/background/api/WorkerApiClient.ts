@@ -72,6 +72,7 @@ export class WorkerApiClient extends BaseApiClient {
    */
   async heartbeat(
     workerId?: string,
+    capabilities?: WorkerCapability[],
   ): Promise<ApiResponse<{ pending_urgent: number; pending_fast: number }>> {
     const id = workerId || this.workerId;
 
@@ -81,7 +82,7 @@ export class WorkerApiClient extends BaseApiClient {
 
     return this.post<{ pending_urgent: number; pending_fast: number }>(
       WORKER_PATHS.HEARTBEAT,
-      { worker_id: id },
+      { worker_id: id, capabilities },
       CONTROL_RPC_OPTS,
     );
   }

@@ -38,7 +38,8 @@ import PcImageSearchPage from './PcImageSearchPage';
 import PcSubtitleSearchPage from './PcSubtitleSearchPage';
 import PcWordAudioPage from './PcWordAudioPage';
 import { SUBTAB_MOTION } from '../components/PcAiShared';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 type AiTab = 'capability' | 'studio' | 'keys' | 'translate' | 'imageSearch' | 'subtitleSearch' | 'wordAudio' | 'history';
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask, TaskItem } from '../../types';
 import { Folder, FolderOpen, FileCode, FileText, X, Plus, RefreshCw, Trash2, ArrowRight, ChevronRight, ChevronDown, Eye, Save, Loader2, AlertCircle } from "lucide-react";
 import { commonClasses } from '../../styles/theme';

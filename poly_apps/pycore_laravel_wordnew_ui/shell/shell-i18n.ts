@@ -1,10 +1,10 @@
 /**
- * Shell i18n seam. The dashboard already initialises react-i18next in core/i18n
+ * Shell i18n seam. The host initializes react-i18next at its application boundary.
  * (en/zh). The shell keeps that single instance and lets each end register its
  * own locale namespace (lm / pc / wf) so the global language switch drives all
  * three. Full per-end locale dictionaries are loaded in a later phase.
  */
-import i18n from '../core/i18n';
+import i18n from '../apps/laravel-manager/i18n';
 
 export type EndNamespace = 'lm' | 'pc' | 'wf' | 'pdd';
 

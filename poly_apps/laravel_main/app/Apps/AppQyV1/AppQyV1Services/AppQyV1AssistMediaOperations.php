@@ -38,7 +38,7 @@ trait AppQyV1AssistMediaOperations
 
         $model = new AppQyV1VocabularyLibraryModel();
 
-        return $model->getConnection()->transaction(function () use ($claimer, $limit) {
+        return $model->getConnection()->transaction(function () use ($claimer, $limit, $model) {
             $rows = AppQyV1VocabularyLibraryModel::query()
                 ->whereNotNull('cover_filename')
                 ->where(function ($query) use ($model) {
@@ -135,6 +135,7 @@ trait AppQyV1AssistMediaOperations
      *  column would 500 the whole assist status (cover/tts included). Until the
      *  migrations run, poster work no-ops gracefully (zero counts, claims nothing). */
     private static ?bool $posterColumns = null;
+    private static array $posterMcpMarkerColumns = [];
 
     private static function posterColumnsReady(): bool
     {
@@ -144,13 +145,29 @@ trait AppQyV1AssistMediaOperations
                 $schema = $book->getConnection()->getSchemaBuilder();
                 $table = $book->getTable();
                 self::$posterColumns = $schema->hasColumn($table, 'poster_status')
-                    && $schema->hasColumn($table, 'assist_claimed_at')
-                    && $schema->hasColumn($table, 'poster_mcp_submitted_at');
+                    && $schema->hasColumn($table, 'assist_claimed_at');
             } catch (\Throwable $e) {
                 self::$posterColumns = false;
             }
         }
         return self::$posterColumns;
+    }
+
+    /** The MCP provenance marker was added after the base poster queue columns. */
+    private static function posterMcpMarkerSupported(string $modelClass): bool
+    {
+        if (!array_key_exists($modelClass, self::$posterMcpMarkerColumns)) {
+            try {
+                $model = new $modelClass();
+                self::$posterMcpMarkerColumns[$modelClass] = $model->getConnection()
+                    ->getSchemaBuilder()
+                    ->hasColumn($model->getTable(), 'poster_mcp_submitted_at');
+            } catch (\Throwable $e) {
+                self::$posterMcpMarkerColumns[$modelClass] = false;
+            }
+        }
+
+        return self::$posterMcpMarkerColumns[$modelClass];
     }
 
     public function submitCover(
@@ -443,7 +460,10 @@ trait AppQyV1AssistMediaOperations
 
     // Re-queue 'failed' posters older than this backoff (mirrors the cover
     // FAILED_COOLDOWN; shared with AppQyV1PosterCollectionTask).
-    public const POSTER_FAILED_BACKOFF_MINUTES = 10;
+    // Failed poster claims are immediately eligible for another pull. The
+    // worker must be able to replace a rejected provider result in the next
+    // cycle instead of hiding the row behind a cooldown window.
+    public const POSTER_FAILED_BACKOFF_MINUTES = 0;
 
     /**
      * Cover provenance allowlist (7.2 contract): a ready cover is ACCEPTED only
@@ -497,13 +517,14 @@ trait AppQyV1AssistMediaOperations
     {
         /** @var Model $probe */
         $probe = new $modelClass();
+        $provenanceSupported = self::posterMcpMarkerSupported($modelClass);
 
-        return $probe->getConnection()->transaction(function () use ($mediaType, $modelClass, $claimerId, $limit) {
+        return $probe->getConnection()->transaction(function () use ($mediaType, $modelClass, $claimerId, $limit, $provenanceSupported) {
             $leaseFloor = now()->subMinutes(self::LEASE_MINUTES);
             $failedFloor = now()->subMinutes(self::POSTER_FAILED_BACKOFF_MINUTES);
 
             $rows = $modelClass::query()
-                ->where(function ($query) use ($failedFloor) {
+                ->where(function ($query) use ($failedFloor, $provenanceSupported) {
                     $query->where('poster_status', 'pending')
                         ->orWhere(function ($retryQuery) use ($failedFloor) {
                             $retryQuery->where('poster_status', 'failed')
@@ -515,14 +536,16 @@ trait AppQyV1AssistMediaOperations
                     // Provenance rule (7.2): a READY cover is re-claimed for
                     // mcp-chrome re-upload only when it was never mcp-submitted
                     // AND its provider is outside the search-engine allowlist.
-                    $query->orWhere(function ($provenance) {
-                        $provenance->where('poster_status', 'ready')
-                            ->whereNull('poster_mcp_submitted_at')
-                            ->where(function ($provider) {
-                                $provider->whereNull('poster_provider')
-                                    ->orWhereNotIn('poster_provider', self::POSTER_COMPLIANT_PROVIDERS);
+                    if ($provenanceSupported) {
+                        $query->orWhere(function ($provenance) {
+                            $provenance->where('poster_status', 'ready')
+                                ->whereNull('poster_mcp_submitted_at')
+                                ->where(function ($provider) {
+                                    $provider->whereNull('poster_provider')
+                                        ->orWhereNotIn('poster_provider', self::POSTER_COMPLIANT_PROVIDERS);
+                                });
                             });
-                    });
+                    }
                 })
                 ->where(function ($query) use ($leaseFloor) {
                     $query->whereNull('assist_claimed_at')
@@ -634,8 +657,10 @@ trait AppQyV1AssistMediaOperations
 
         // applyToModel saved the poster_* columns; mark the mcp submission and clear the lease.
         $model = $model->refresh();
-        $model->setAttribute('poster_mcp_submitted_at', now());
-        $model->save();
+        if (self::posterMcpMarkerSupported($modelClass)) {
+            $model->setAttribute('poster_mcp_submitted_at', now());
+            $model->save();
+        }
         $this->clearPosterLease($model);
 
         Log::info('[Assist] Poster submitted by assist worker', [
@@ -661,7 +686,8 @@ trait AppQyV1AssistMediaOperations
      */
     private function isPosterProvenanceCompliant(Model $model): bool
     {
-        if ($model->getAttribute('poster_mcp_submitted_at') !== null) {
+        if (self::posterMcpMarkerSupported(get_class($model))
+            && $model->getAttribute('poster_mcp_submitted_at') !== null) {
             return true;
         }
         return in_array((string) $model->getAttribute('poster_provider'), self::POSTER_COMPLIANT_PROVIDERS, true);
@@ -696,8 +722,10 @@ trait AppQyV1AssistMediaOperations
             ];
         }
         $model = $model->refresh();
-        $model->setAttribute('poster_mcp_submitted_at', now());
-        $model->save();
+        if (self::posterMcpMarkerSupported(get_class($model))) {
+            $model->setAttribute('poster_mcp_submitted_at', now());
+            $model->save();
+        }
         $this->clearPosterLease($model);
 
         return [

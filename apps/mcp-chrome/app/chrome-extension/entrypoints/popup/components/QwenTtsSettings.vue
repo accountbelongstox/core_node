@@ -3,45 +3,46 @@
     <div class="settings-card__header">
       <div>
         <h4>Qwen3-TTS</h4>
-        <p>Shared by Laravel production tasks and the Extension test panel.</p>
+        <p>{{ getMessage('qwenSettingsSharedHint') }}</p>
       </div>
     </div>
 
     <div class="settings-grid">
       <label>
-        <span>Mode</span>
+        <span>{{ getMessage('modeLabel') }}</span>
         <select v-model="mode">
-          <option value="voice_design">Voice Design</option>
-          <option value="voice_clone">Voice Clone (Base)</option>
-          <option value="custom_voice">TTS (CustomVoice)</option>
+          <option value="voice_design">{{ getMessage('qwenVoiceDesign') }}</option>
+          <option value="voice_clone">{{ getMessage('qwenVoiceClone') }}</option>
+          <option value="custom_voice">{{ getMessage('qwenCustomVoice') }}</option>
         </select>
       </label>
 
       <label>
-        <span>Wait timeout (sec)</span>
+        <span>{{ getMessage('waitTimeoutSecondsLabel') }}</span>
         <input v-model.number="waitTimeoutSec" type="number" min="30" max="600" />
       </label>
     </div>
 
     <label v-if="mode === 'voice_design'">
-      <span>Voice description</span>
+      <span>{{ getMessage('voiceDescriptionLabel') }}</span>
       <textarea v-model="voiceDescription" rows="2" />
     </label>
 
     <label v-if="mode === 'custom_voice'">
-      <span>Style instruction</span>
+      <span>{{ getMessage('styleInstructionLabel') }}</span>
       <textarea v-model="styleInstruction" rows="2" />
     </label>
 
     <div class="settings-checks">
-      <label><input v-model="autoDownload" type="checkbox" /> Auto-download test output</label>
-      <label><input v-model="openInNewTab" type="checkbox" /> Open a new tab for each test</label>
+      <label><input v-model="autoDownload" type="checkbox" /> {{ getMessage('autoDownloadTestOutput') }}</label>
+      <label><input v-model="openInNewTab" type="checkbox" /> {{ getMessage('openNewTabForTest') }}</label>
     </div>
   </section>
 </template>
 
 <script lang="ts" setup>
 import { useQwenTtsSettings } from '../composables/useQwenTtsSettings';
+import { getMessage } from '@/utils/i18n';
 
 const {
   mode,

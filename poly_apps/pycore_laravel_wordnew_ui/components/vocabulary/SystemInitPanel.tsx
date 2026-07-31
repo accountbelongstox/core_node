@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Play, CheckCircle, AlertCircle, Loader2, RefreshCw } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { commonClasses } from '../../styles/theme';
 
 interface SystemInitPanelProps {

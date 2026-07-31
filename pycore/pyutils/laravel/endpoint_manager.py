@@ -60,6 +60,10 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
+from pycore.pyutils.laravel.identity import (
+    LARAVEL_HEALTH_SERVICE,
+    build_pycore_identity_headers,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -150,12 +154,24 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     requests = get_third_package_requests()
     started = time.monotonic()
     try:
-        resp = requests.get(url + HEALTH_PATH, timeout=timeout)
+        resp = requests.get(
+            url + HEALTH_PATH,
+            headers=build_pycore_identity_headers(),
+            timeout=timeout,
+        )
         result["latency_ms"] = int((time.monotonic() - started) * 1000)
         result["status"] = resp.status_code
-        result["healthy"] = resp.status_code < 500
-        if not result["healthy"]:
+        content_type = (resp.headers.get("Content-Type") or "").lower()
+        body = resp.json() if "application/json" in content_type else {}
+        result["healthy"] = (
+            200 <= resp.status_code < 300
+            and isinstance(body, dict)
+            and body.get("service") == LARAVEL_HEALTH_SERVICE
+        )
+        if resp.status_code < 200 or resp.status_code >= 300:
             result["error"] = f"HTTP {resp.status_code}"
+        elif not result["healthy"]:
+            result["error"] = "Unrecognized Laravel endpoint"
     except Exception as exc:  # noqa: BLE001
         result["latency_ms"] = int((time.monotonic() - started) * 1000)
         result["error"] = str(exc).splitlines()[0][:200]

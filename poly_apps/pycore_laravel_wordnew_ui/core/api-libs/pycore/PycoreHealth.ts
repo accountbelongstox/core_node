@@ -1,6 +1,5 @@
 /**
- * PycoreHealth — reachability state + all-Offline retry loop for the
- * pycore-manager end.
+ * PycoreHealth — shared Pycore reachability state and offline retry loop.
  *
  * The pycore end has a single "endpoint": the pycore backend on :59000
  * (direct). Health is determined by a FastAPI HTTP controller probe
@@ -9,14 +8,12 @@
  *
  * Loop:
  *  - while DOWN (http_unreachable), re-ping at a
- *    configurable interval (default below, overridable in PcSettingsPage,
- *    read fresh on every tick);
+ *    configurable interval, read fresh on every tick;
  *  - while PROBING, retry failed pings on a short
  *    interval (not the 60s offline cadence);
  *  - the loop stops as soon as the backend answers — an up backend is
  *    never polled;
- *  - path-prefix gating: PcApp (mounted only under /pycore-manager) runs
- *    the initial check and owns start/stop of the loop.
+ *  - an application consumer owns the initial check and loop lifecycle.
  *
  * Listeners subscribe via PYCORE_HEALTH_EVENT on window; the interval
  * override lives in the shared browser persistence manager.
@@ -25,11 +22,15 @@ import {
   OfflineRecheckScheduler,
   clampRecheckInterval,
 } from '../../health/OfflineRecheckScheduler';
-import { requestPycoreStatus } from './PycoreHttp';
-import { PYCORE_HEALTH_DEFAULTS, PYCORE_HTTP_PATHS } from './PycoreNetwork';
+import { isHttpConnected, reportHttpDiag, requestPycoreStatus } from './PycoreHttp';
+import {
+  PYCORE_HEALTH_DEFAULTS,
+  PYCORE_HEALTH_EVENT,
+  PYCORE_HTTP_PATHS,
+} from './PycoreNetwork';
 import { StorageKeys, StorageManager } from '../../persistence';
 
-export { PYCORE_HEALTH_DEFAULTS } from './PycoreNetwork';
+export { PYCORE_HEALTH_DEFAULTS, PYCORE_HEALTH_EVENT } from './PycoreNetwork';
 
 export type PycoreReachability =
   | 'unknown'
@@ -44,8 +45,6 @@ export interface PycoreHealthState {
   timestamp: number | null;
   reachability: PycoreReachability;
 }
-
-export const PYCORE_HEALTH_EVENT = 'pycore-health-changed';
 
 let lastState: PycoreHealthState = {
   up: null,
@@ -90,11 +89,13 @@ export function checkPycoreNow(): Promise<boolean> {
   inFlight = (async () => {
     const start = performance.now();
     let httpOk = false;
+    let probeError = '';
     try {
       await requestPycoreStatus(PYCORE_HEALTH_DEFAULTS.pingTimeoutMs);
       httpOk = true;
-    } catch {
-      httpOk = false;
+    } catch (error: any) {
+      httpOk = isHttpConnected();
+      probeError = error?.message || String(error);
     }
     const ms = Math.round(performance.now() - start);
     if (httpOk) {
@@ -109,11 +110,10 @@ export function checkPycoreNow(): Promise<boolean> {
       applyReachability('http_unreachable', ms);
       return false;
     }
-    // First miss after ready: stay probing (up=null). Never retain a prior
-    // eslint-disable-next-line no-console
-    console.warn(
+    reportHttpDiag(
+      'info',
       `[pycore-health] GET ${PYCORE_HTTP_PATHS.status} failed (attempt ${consecutiveFailures}/${PYCORE_HEALTH_DEFAULTS.failuresBeforeDown}); ` +
-      'keeping probing state.',
+      `keeping probing state. ${probeError}`,
     );
     applyReachability('probing', ms);
     scheduleProbeRetry();
@@ -161,7 +161,7 @@ export function getPycoreHealth(): PycoreHealthState {
 }
 
 /**
- * Manual re-check (PcSettingsPage button). Also re-syncs the loop.
+ * Manual re-check. Also re-syncs the loop.
  */
 export async function recheckPycoreNow(): Promise<boolean> {
   const up = await checkPycoreNow();

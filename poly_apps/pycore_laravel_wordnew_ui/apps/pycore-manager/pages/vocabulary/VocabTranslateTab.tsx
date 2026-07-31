@@ -5,9 +5,9 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Languages, Volume2, Loader2, ArrowRightLeft, Copy, Check } from 'lucide-react';
-import { pycoreApi } from '../../../../core/api-libs/pycore';
-import { fetchPycoreBlobUrl } from '../../../../core/api-libs/pycore/PycoreBlob';
-import type { VocabLanguageInfo } from '../../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
+import type { VocabLanguageInfo } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, vp, toArray } from './vocabShared';
 
 const L = {

@@ -15,4 +15,4 @@
  */
 
 export { useAppState } from '../hooks/compatibilityHooks';
-export { UnifiedAppProvider as AppStateProvider } from '../core/contexts/UnifiedAppContext';
+export { UnifiedAppProvider as AppStateProvider } from '@/apps/laravel-manager/context/UnifiedAppContext';

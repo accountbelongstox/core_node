@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Languages, Play } from 'lucide-react';
 import { Language } from '../../../types';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '../../../hooks';
-import type { DevHistoryAssistTask } from '../../../core/api/modules/DevHistoryAPI';
+import type { DevHistoryAssistTask } from '@/apps/laravel-manager/api';
 
 interface Props {
   lang: Language;

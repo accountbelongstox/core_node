@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { HardDrive, ExternalLink } from 'lucide-react';
-import { api } from '../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useAppState } from '../../contexts/AppStateContext';
 import { ViewType, type StaticResourcesSummary } from '../../types';
 import { commonClasses } from '../../styles/theme';

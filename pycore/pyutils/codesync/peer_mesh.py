@@ -76,14 +76,17 @@ class PeerMeshManager:
         self._running = False
         self._thread = None
         self._running_signal = f"codesync.peer_mesh.running.{uuid.uuid4().hex}"
+        self._ready_signal = f"codesync.peer_mesh.ready.{uuid.uuid4().hex}"
         # peer_id -> {reachable, last_seen, status}  (OUTBOUND probe results)
         self._peer_state: Dict[str, Dict[str, Any]] = {}
         # sender_id -> {last_checkin, status, source, lan_ip}  (INBOUND heartbeats)
         self._heartbeats: Dict[str, Dict[str, Any]] = {}
         # peer_ids that still need the latest config pushed (offline at push time)
         self._pending: set = set()
+        self._last_tick_ms = 0
         init_serialized_owner(self, "codesync.peer_mesh.state", "CodeSyncPeerMeshState")
         THREAD_BUS.signal(self._running_signal, False)
+        THREAD_BUS.clear_signal(self._ready_signal)
 
     # ----- lifecycle ------------------------------------------------------- #
     def start(self) -> None:
@@ -126,6 +129,9 @@ class PeerMeshManager:
         """A heartbeat stays "fresh" for 3 effective ticks (=90s light, 15s full)."""
         return self._tick_seconds() * 3
 
+    def wait_ready(self, timeout: Optional[float] = None) -> bool:
+        return bool(THREAD_BUS.wait_signal(self._ready_signal, timeout))
+
     # ----- probing --------------------------------------------------------- #
     def _peer_url(self, peer: Dict[str, Any], path: str) -> str:
         return f"http://{peer.get('host')}:{int(peer.get('port', PYCORE_HTTP_PORT))}{path}"
@@ -138,6 +144,29 @@ class PeerMeshManager:
         except Exception:
             return None
         return None
+
+    def _probe_all(self, peers: List[Dict[str, Any]]) -> List[tuple]:
+        jobs = []
+        results = []
+        deadline = time.monotonic() + PROBE_TIMEOUT + 1.0
+        for peer in peers:
+            signal_name = f"codesync.peer_mesh.probe.{uuid.uuid4().hex}"
+            start_bus_task(
+                self._probe,
+                peer,
+                thread_name=f"CodeSync-Probe-{peer.get('id')}",
+                response_signal=signal_name,
+            )
+            jobs.append((peer, signal_name))
+        for peer, signal_name in jobs:
+            response = THREAD_BUS.wait_signal(
+                signal_name,
+                timeout=max(0.0, deadline - time.monotonic()),
+            )
+            THREAD_BUS.clear_signal(signal_name)
+            status = response.get("result") if isinstance(response, dict) and response.get("success") else None
+            results.append((peer, status if isinstance(status, dict) else None))
+        return results
 
     def _loop(self) -> None:
         while THREAD_BUS.get_signal(self._running_signal, False):
@@ -156,28 +185,59 @@ class PeerMeshManager:
         """Dev: probe peers, flush pending config, announce to clients. Client:
         PASSIVE — no outbound probe/announce; it is connected-into and only records
         inbound heartbeats + serves its own status."""
+        started_at = time.monotonic()
         self_id = self.config.machine_id
         my_role = self.config.get_role()
         if my_role != "client":
-            for peer in self.config.list_peers():
-                pid = peer.get("id")
-                if pid == self_id:
-                    continue
-                status = self._probe(peer)
+            peers = [
+                peer for peer in self.config.list_peers()
+                if peer.get("id") != self_id
+            ]
+            resolved = {}
+            config_changed = False
+            for peer, status in self._probe_all(peers):
+                pid = str(peer.get("id") or "")
+                remote_id = str((status or {}).get("id") or pid)
+                if status is not None and remote_id != pid:
+                    config_changed = self.config.reconcile_peer_identity(pid, remote_id) or config_changed
+                current = resolved.get(remote_id)
+                if current is None or (current[1] is None and status is not None):
+                    effective_peer = dict(peer)
+                    effective_peer["id"] = remote_id
+                    resolved[remote_id] = (effective_peer, status)
+            if config_changed:
+                self._queue_config_for_all()
+            for pid, (peer, status) in resolved.items():
                 reachable = status is not None
                 newly_reachable, has_pending = self._record_probe(pid, reachable, status)
-                # Deliver any queued config to a peer that just came back online.
                 if reachable and (newly_reachable or has_pending):
                     self._push_config_to(peer)
-        # Dev announces itself to its (reachable) clients so a client — which never
-        # dials out — still shows the dev as an active inbound connection.
+            try:
+                emit_event(BusSignals.CODE_SYNC_UPDATE, self.snapshot())
+            except Exception:
+                pass
+        THREAD_BUS.signal(self._ready_signal, True)
         self._send_heartbeats()
+        self._record_tick_metrics(int((time.monotonic() - started_at) * 1000))
         snap = self.snapshot()
         try:
             emit_event(BusSignals.CODE_SYNC_UPDATE, snap)
         except Exception:
             pass
         return snap
+
+    @serialized_method
+    def _record_tick_metrics(self, duration_ms: int) -> None:
+        self._last_tick_ms = int(duration_ms)
+
+    @serialized_method
+    def _queue_config_for_all(self) -> None:
+        self_id = self.config.machine_id
+        self._pending.update(
+            str(peer.get("id") or "")
+            for peer in self.config.list_peers()
+            if peer.get("id") and peer.get("id") != self_id
+        )
 
     @serialized_method
     def _record_probe(
@@ -208,22 +268,52 @@ class PeerMeshManager:
             local = self._local_status_fn() or {}
         except Exception:
             return
-        for peer in self.config.list_peers():
-            if peer.get("id") == self_id or peer.get("role") != "client":
-                continue
-            try:
-                r = requests.post(self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
-                                  json=local, timeout=PROBE_TIMEOUT)
-                if r.status_code != 200 or not self._apply_remote_config_fn:
-                    continue
-                cfg = (r.json() or {}).get("config")
-                if isinstance(cfg, dict) and isinstance(cfg.get("peers"), list):
-                    self._apply_remote_config_fn(
-                        cfg.get("peers", []),
-                        int(cfg.get("version", 0)),
-                        float(cfg.get("updated_at", 0.0)))
-            except Exception:
-                continue
+        peers = [
+            peer for peer in self.config.list_peers()
+            if peer.get("id") != self_id and peer.get("role") == "client"
+        ]
+        jobs = []
+        deadline = time.monotonic() + PROBE_TIMEOUT + 1.0
+        for peer in peers:
+            signal_name = f"codesync.peer_mesh.heartbeat.{uuid.uuid4().hex}"
+            start_bus_task(
+                self._send_heartbeat,
+                peer,
+                local,
+                thread_name=f"CodeSync-Heartbeat-{peer.get('id')}",
+                response_signal=signal_name,
+            )
+            jobs.append(signal_name)
+        for signal_name in jobs:
+            response = THREAD_BUS.wait_signal(
+                signal_name,
+                timeout=max(0.0, deadline - time.monotonic()),
+            )
+            THREAD_BUS.clear_signal(signal_name)
+            cfg = response.get("result") if isinstance(response, dict) and response.get("success") else None
+            if isinstance(cfg, dict) and isinstance(cfg.get("peers"), list) and self._apply_remote_config_fn:
+                self._apply_remote_config_fn(
+                    cfg.get("peers", []),
+                    int(cfg.get("version", 0)),
+                    float(cfg.get("updated_at", 0.0)),
+                )
+
+    def _send_heartbeat(
+        self,
+        peer: Dict[str, Any],
+        local: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            response = requests.post(
+                self._peer_url(peer, routes.PEER_HEARTBEAT_PATH),
+                json=local,
+                timeout=PROBE_TIMEOUT,
+            )
+            if response.status_code == 200:
+                return (response.json() or {}).get("config")
+        except Exception:
+            return None
+        return None
 
     def record_heartbeat(self, payload: Dict[str, Any],
                          source: Optional[str] = None) -> None:
@@ -381,7 +471,27 @@ class PeerMeshManager:
             "peer_state": {pid: dict(st) for pid, st in self._peer_state.items()},
             "heartbeats": {hid: dict(hb) for hid, hb in self._heartbeats.items()},
             "pending": set(self._pending),
+            "last_tick_ms": self._last_tick_ms,
         }
+
+    def client_targets(self) -> List[Dict[str, Any]]:
+        state = self._copy_mesh_state()
+        peer_state = state["peer_state"]
+        selected = {}
+        for peer in self.config.list_peers():
+            if peer.get("role") != "client" or peer.get("id") == self.config.machine_id:
+                continue
+            status_row = peer_state.get(peer.get("id"), {})
+            if not status_row.get("reachable"):
+                continue
+            status = status_row.get("status") or {}
+            canonical_id = str(status.get("id") or peer.get("id") or "")
+            candidate = dict(peer)
+            candidate["canonical_id"] = canonical_id
+            current = selected.get(canonical_id)
+            if current is None:
+                selected[canonical_id] = candidate
+        return list(selected.values())
 
     def snapshot(self) -> Dict[str, Any]:
         """Merge probe + heartbeat into a UI/status snapshot.
@@ -442,4 +552,5 @@ class PeerMeshManager:
             "self": local,
             "peers": peers_out,
             "version": self.config.version(),
+            "last_tick_ms": int(state.get("last_tick_ms") or 0),
         }

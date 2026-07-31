@@ -40,10 +40,11 @@ import {
   Volume2, RefreshCw, Play, Square, CheckCircle2, AlertTriangle, WifiOff,
   BookOpen, Sparkles,
 } from 'lucide-react';
-import { requestPycoreHttp, onHttpStatus } from '../../../core/api-libs/pycore';
-import { PYCORE_HTTP_ROUTES } from '../../../core/api-libs/pycore/PycoreHttpRoutes';
-import type { BookSourceState } from '../../../core/api-libs/pycore';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { requestPycoreHttp, onHttpStatus } from '@/apps/pycore-manager/api';
+import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import type { BookSourceState } from '@/apps/pycore-manager/api';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 // ---- persistence ---------------------------------------------------------- #
 // One localStorage blob mirrors the generation session so a refresh/reopen

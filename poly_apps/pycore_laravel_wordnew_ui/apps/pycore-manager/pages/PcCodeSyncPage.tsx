@@ -6,7 +6,7 @@
  * receives). Dev distribution and client skip-update toggles persist in
  * `<cache>/pycore/codesync/runtime_prefs.json` (same backend path as the tray).
  * The peer list shows reachability + live status, fed by the backend
- * `code_sync_update` HTTP event with a 5s reconciliation poll
+ * `code_sync_update` HTTP event with a low-frequency reconciliation poll
  * fallback against the code-sync peers HTTP (PycoreApi.getPeers).
  *
  * No dependency on the original app's AppContext / LiveContext / UI — local React
@@ -24,17 +24,18 @@ import {
   GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
-  pycoreApi, connectPycoreHttp, onHttpStatus, PYCORE_PORT,
-} from '../../../core/api-libs/pycore';
+  pycoreApi, connectPycoreHttp, onHttpStatus, PYCORE_HTTP_DEFAULTS, PYCORE_PORT,
+} from '@/apps/pycore-manager/api';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
   SyncSettings, SyncLogEntry, FileTreeNode, PycoreFileTreeResponse, PeerFileTreeResponse,
-} from '../../../core/api-libs/pycore';
+} from '@/apps/pycore-manager/api';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
-import { pycoreEventBus } from '../../../core/api-libs/pycore/PycoreEventBus';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { pycoreEventBus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { formatBytes } from '../../../core/utils/formatBytes';
 
 const DEFAULT_PORT = PYCORE_PORT;
@@ -202,7 +203,7 @@ const PcCodeSyncPage: React.FC = () => {
   // Continuous-poll view: snapshot + poll loop live in the global provider above
   // the router (survive navigation; reload re-polls the peers HTTP).
   const mesh = usePersistentTask<MeshSnapshot>('pycore.code-sync', {
-    intervalMs: 5000,
+    intervalMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
     poll: () => pycoreApi.getPeers()
       .then((r: any) => {
         setUnreachable(false);
@@ -291,7 +292,7 @@ const PcCodeSyncPage: React.FC = () => {
   useTopicDrivenRefresh(
     [PYCORE_EVENT_TOPICS.codeSyncUpdate, PYCORE_EVENT_TOPICS.operationChanged],
     loadLogs,
-    { fallbackMs: 30_000 },
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
   );
 
   // --- synced file tree: lazy-load + poll only while the panel is open ----- #
@@ -600,7 +601,16 @@ const PcCodeSyncPage: React.FC = () => {
         </span>
       );
     }
-    if (l.details) return <span className="shrink-0 text-slate-400">{l.details}</span>;
+    if (l.details) {
+      let detail = l.details;
+      if (l.action === 'connection') {
+        const normalized = detail.toLowerCase();
+        if (normalized.includes('10060') || normalized.includes('timed out')) detail = 'Connection timed out · retry scheduled';
+        else if (normalized.includes('10061') || normalized.includes('refused')) detail = 'Connection refused · retry scheduled';
+        else if (normalized.includes('10054') || normalized.includes('reset')) detail = 'Connection reset · retry scheduled';
+      }
+      return <span className="shrink-0 max-w-72 truncate text-slate-400" title={l.details}>{detail}</span>;
+    }
     if (typeof l.size === 'number' && l.size > 0) {
       return <span className="shrink-0 text-slate-400">{formatBytes(l.size)}</span>;
     }
@@ -614,12 +624,15 @@ const PcCodeSyncPage: React.FC = () => {
   };
 
   // Action badge colour for a sync-log row.
-  const logActionCls = (action?: string): string => {
-    switch (action) {
+  const logActionCls = (entry: SyncLogEntry): string => {
+    switch (entry.action) {
       case 'error': return 'bg-rose-500/15 text-rose-500';
       case 'deleted': return 'bg-rose-500/15 text-rose-500';
       case 'skipped': return 'bg-amber-500/15 text-amber-500';
       case 'reconnect': return 'bg-violet-500/15 text-violet-500';
+      case 'connection': return entry.reason?.toLowerCase().includes('connected')
+        ? 'bg-emerald-500/15 text-emerald-500'
+        : 'bg-amber-500/15 text-amber-500';
       case 'sent':
       case 'received': return 'bg-emerald-500/15 text-emerald-500';
       default: return 'bg-emerald-500/15 text-emerald-500';
@@ -1216,7 +1229,7 @@ const PcCodeSyncPage: React.FC = () => {
               const t = logTime(l.timestamp);
               return (
                 <li key={i} className="flex items-start gap-2 px-2 py-1 rounded-lg hover:bg-slate-100/60 dark:hover:bg-white/5">
-                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${logActionCls(l.action)}`}>
+                  <span className={`shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${logActionCls(l)}`}>
                     {l.action || 'sync'}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -1227,7 +1240,9 @@ const PcCodeSyncPage: React.FC = () => {
                       </span>
                     )}
                     {l.reason && (
-                      <span className="text-slate-400 ml-1.5 break-all">{l.reason}</span>
+                      <span className="text-slate-400 ml-1.5 break-all">
+                        {l.reason === 'HTTP SSE connection failed' ? 'SSE unavailable' : l.reason}
+                      </span>
                     )}
                   </div>
                   {syncSizeCell(l)}

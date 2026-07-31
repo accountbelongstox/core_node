@@ -2,7 +2,7 @@
   <section class="panel-grid panel-grid--server">
     <article class="hero-card">
       <div>
-        <p class="ui-eyebrow">Native bridge</p>
+        <p class="ui-eyebrow">{{ getMessage('nativeBridgeLabel') }}</p>
         <h2>{{ isReady ? 'Automation core is ready' : 'Connect the automation core' }}</h2>
         <p>{{ statusText }}</p>
       </div>
@@ -13,7 +13,7 @@
 
     <article class="ui-card">
       <div class="ui-card__heading">
-        <div><p class="ui-eyebrow">Listener</p><h3>Connection</h3></div>
+        <div><p class="ui-eyebrow">{{ getMessage('listenerLabel') }}</p><h3>{{ getMessage('connectionStatusLabel') }}</h3></div>
         <span class="status-dot" :class="{ 'status-dot--success': isReady }" />
       </div>
       <p class="ui-helper">
@@ -26,7 +26,7 @@
 
     <article class="ui-card ui-card--wide">
       <div class="ui-card__heading">
-        <div><p class="ui-eyebrow">Client setup</p><h3>{{ getMessage('mcpServerConfigLabel') }}</h3></div>
+        <div><p class="ui-eyebrow">{{ getMessage('clientSetupLabel') }}</p><h3>{{ getMessage('mcpServerConfigLabel') }}</h3></div>
         <button class="ui-button ui-button--ghost" @click="copyMcpConfig">{{ copyButtonText }}</button>
       </div>
       <pre class="code-block">{{ mcpConfigJson }}</pre>

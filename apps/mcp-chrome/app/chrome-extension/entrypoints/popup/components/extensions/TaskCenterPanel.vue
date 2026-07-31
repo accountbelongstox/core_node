@@ -1,21 +1,21 @@
 <template>
   <div class="rounded-xl p-3 shadow-sm space-y-3" style="background: var(--surface); border: 1px solid var(--border)">
     <TaskCapabilitySelector
-      title="生产任务 · Production tasks"
-      description="Laravel queue → MCP shared runtime → result write-back. Extension panels remain single-feature tests."
+      :title="getMessage('taskCenterProductionTitle')"
+      :description="getMessage('taskCenterProductionDescription')"
       compact
     />
 
     <div class="tk-cap-summary">
-      <span>Selections are synchronized with Settings Center.</span>
-      <strong>{{ checkedCapabilityKeys.length }} selected</strong>
-      <span v-if="isRunning">{{ state.activeCapabilities.length }} active</span>
+      <span>{{ readinessHint }}</span>
+      <strong>{{ getMessage('taskCenterSelectedCount', [String(checkedCapabilityKeys.length)]) }}</strong>
+      <span v-if="isRunning">{{ getMessage('taskCenterActiveCount', [String(state.activeCapabilities.length)]) }}</span>
     </div>
 
     <p v-if="error" class="tk-error">{{ error }}</p>
 
     <div class="flex items-center justify-between">
-      <span class="text-xs" style="color: var(--text-muted)">Start monitors Laravel; selections toggle execution</span>
+      <span class="text-xs" style="color: var(--text-muted)">{{ getMessage('taskCenterReadyControlHint') }}</span>
       <div class="flex items-center gap-3">
         <span
           class="px-3 py-1 text-xs font-bold rounded-full"
@@ -23,14 +23,14 @@
             ? 'background: var(--accent-soft); color: var(--success)'
             : 'background: var(--surface-2); color: var(--text-muted)'"
         >
-          {{ isRunning ? '● RUNNING' : '○ STOPPED' }}
+          {{ readinessStatus }}
         </span>
         <button
           class="px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm"
           @click="toggleCenter"
           :disabled="!isRunning && !config.apiUrl"
         >
-          {{ isRunning ? 'Stop' : 'Start' }}
+          {{ isRunning ? getMessage('taskCenterCancelReadyAction') : readinessAction }}
         </button>
       </div>
     </div>
@@ -40,12 +40,12 @@
     <div v-if="state.backend" class="tk-status">
       <div v-if="state.backend" class="tk-be" :class="backendOnline ? 'tk-be--on' : 'tk-be--off'">
         <span class="tk-be-dot">{{ backendOnline ? '●' : '○' }}</span>
-        <span class="tk-be-label">{{ backendOnline ? 'Backend online' : 'Backend offline' }}</span>
+        <span class="tk-be-label">{{ backendOnline ? getMessage('taskCenterBackendOnline') : getMessage('taskCenterBackendOffline') }}</span>
         <span v-if="backendLastRequest" class="tk-be-meta">· {{ backendLastRequest }}</span>
         <span
           v-if="(state.backend.consecutiveFailures || 0) > 0"
           class="tk-be-meta tk-be-fail"
-        >· {{ state.backend.consecutiveFailures }} fails</span>
+        >· {{ getMessage('taskCenterBackendFailureCount', [String(state.backend.consecutiveFailures)]) }}</span>
         <span v-if="state.backend.lastError" class="tk-be-err" :title="state.backend.lastError">
           · {{ state.backend.lastError }}
         </span>
@@ -56,19 +56,19 @@
       <!-- Overall Stats -->
       <div class="grid grid-cols-4 gap-3">
         <div class="bg-purple-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-purple-600 font-medium">Processors</span>
+          <span class="block text-xs text-purple-600 font-medium">{{ getMessage('taskCenterProcessorsLabel') }}</span>
           <span class="block text-lg font-bold text-purple-700">{{ state.stats.runningProcessors }}/{{ state.stats.totalProcessors }}</span>
         </div>
         <div class="bg-blue-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-blue-600 font-medium">Pending</span>
+          <span class="block text-xs text-blue-600 font-medium">{{ getMessage('taskCenterPendingLabel') }}</span>
           <span class="block text-lg font-bold text-blue-700">{{ state.stats.totalPending }}</span>
         </div>
         <div class="bg-green-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-green-600 font-medium">Completed</span>
+          <span class="block text-xs text-green-600 font-medium">{{ getMessage('taskCenterCompletedLabel') }}</span>
           <span class="block text-lg font-bold text-green-700">{{ state.stats.totalTranslated }}</span>
         </div>
         <div class="bg-red-50 rounded-lg p-3 text-center space-y-1">
-          <span class="block text-xs text-red-600 font-medium">Failed</span>
+          <span class="block text-xs text-red-600 font-medium">{{ getMessage('taskCenterFailedLabel') }}</span>
           <span class="block text-lg font-bold text-red-700">{{ state.stats.totalFailed }}</span>
         </div>
       </div>
@@ -76,7 +76,7 @@
       <!-- Individual Processors (collapsible — long list; collapsed by default) -->
       <button type="button" class="tk-collapse" @click="showProcessors = !showProcessors">
         <span class="tk-collapse-caret">{{ showProcessors ? '▾' : '▸' }}</span>
-        <span>Processors · {{ state.stats.runningProcessors }}/{{ state.stats.totalProcessors }} active</span>
+        <span>{{ getMessage('taskCenterProcessorDetails', [String(state.stats.runningProcessors), String(state.stats.totalProcessors)]) }}</span>
       </button>
       <div v-show="showProcessors" class="space-y-3">
         <div
@@ -93,7 +93,7 @@
                 ? 'background: var(--accent-soft); color: var(--success)'
                 : 'background: var(--surface); color: var(--text-muted)'"
             >
-              {{ processor.isRunning ? '▶ Active' : '⏸ Inactive' }}
+              {{ processor.isRunning ? `▶ ${getMessage('taskCenterActiveLabel')}` : `⏸ ${getMessage('taskCenterInactiveLabel')}` }}
             </span>
           </div>
 
@@ -101,26 +101,37 @@
             <!-- Bento Queue Stats -->
             <div class="grid grid-cols-3 gap-2">
               <div class="bg-blue-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-blue-700 font-medium">Queue</div>
+                <div class="text-xs text-blue-700 font-medium">{{ getMessage('taskCenterQueueLabel') }}</div>
                 <div class="text-base font-bold text-blue-800">{{ processor.stats.queueTotal || 0 }}</div>
               </div>
               <div class="bg-green-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-green-700 font-medium">New</div>
+                <div class="text-xs text-green-700 font-medium">{{ getMessage('taskCenterNewLabel') }}</div>
                 <div class="text-base font-bold text-green-800">{{ processor.stats.newTasks || 0 }}</div>
               </div>
               <div class="bg-orange-100 rounded-lg p-2 text-center space-y-1">
-                <div class="text-xs text-orange-700 font-medium">Dup</div>
+                <div class="text-xs text-orange-700 font-medium">{{ getMessage('taskCenterDuplicateLabel') }}</div>
                 <div class="text-base font-bold text-orange-800">{{ processor.stats.duplicateTasks || 0 }}</div>
               </div>
             </div>
 
             <!-- Traditional Stats -->
             <div class="flex flex-wrap gap-3 text-xs" style="color: var(--text-muted)">
-              <span class="font-medium">Pending: <span style="color: var(--text)">{{ processor.stats.pending }}</span></span>
-              <span class="font-medium">Done: <span style="color: var(--text)">{{ processor.stats.translated }}</span></span>
-              <span class="font-medium">Failed: <span style="color: var(--text)">{{ processor.stats.failed }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterPendingLabel') }}: <span style="color: var(--text)">{{ processor.stats.pending }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterDoneLabel') }}: <span style="color: var(--text)">{{ processor.stats.translated }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterFailedLabel') }}: <span style="color: var(--text)">{{ processor.stats.failed }}</span></span>
               <span v-if="processor.stats.lastRun" class="font-medium">
-                Last: <span style="color: var(--text)">{{ formatTimestamp(processor.stats.lastRun) }}</span>
+                {{ getMessage('taskCenterLastLabel') }}: <span style="color: var(--text)">{{ formatTimestamp(processor.stats.lastRun) }}</span>
+              </span>
+              <span v-if="processor.stats.currentAssistItem" class="font-medium">
+                {{ getMessage('taskCenterCurrentTaskLabel') }}:
+                <span style="color: var(--text)">{{ processor.stats.currentAssistItem }}</span>
+              </span>
+              <span v-if="processor.stats.currentAssistStage" class="font-medium">
+                {{ getMessage('taskCenterCurrentStageLabel') }}:
+                <span style="color: var(--text)">{{ processor.stats.currentAssistStage }}</span>
+              </span>
+              <span v-if="processor.stats.lastAssistError" class="font-medium tk-be-fail" :title="processor.stats.lastAssistError">
+                {{ processor.stats.lastAssistError }}
               </span>
             </div>
           </div>
@@ -142,6 +153,7 @@ import { useTaskCenter } from '../../composables/useTaskCenter';
 import { useTaskCapabilities } from '../../composables/useTaskCapabilities';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { CAPABILITIES, type CapabilityKey } from '@/utils/task-capabilities';
+import { getMessage } from '@/utils/i18n';
 import TaskCapabilitySelector from '../TaskCapabilitySelector.vue';
 import UnifiedTaskCenter from './UnifiedTaskCenter.vue';
 
@@ -176,6 +188,23 @@ const {
 } = useTaskCapabilities();
 
 const isRunning = computed(() => state.value.isRunning);
+const hasSelectedCapabilities = computed(() => checkedCapabilityKeys.value.length > 0);
+const readinessAction = computed(() =>
+  getMessage(hasSelectedCapabilities.value
+    ? 'taskCenterReadyAndStartAction'
+    : 'taskCenterReadyOnlyAction'),
+);
+const readinessStatus = computed(() => {
+  if (!isRunning.value) return `○ ${getMessage('taskCenterNotReadyStatus')}`;
+  return state.value.activeCapabilities.length > 0
+    ? `● ${getMessage('taskCenterReadyRunningStatus')}`
+    : `● ${getMessage('taskCenterReadyStatus')}`;
+});
+const readinessHint = computed(() =>
+  getMessage(hasSelectedCapabilities.value
+    ? 'taskCenterReadyWithTasksHint'
+    : 'taskCenterReadyOnlyHint'),
+);
 
 // Live switches: WHILE running, toggling a checkbox flips that lane
 // on/off immediately via set_capability — no full restart. While stopped, the

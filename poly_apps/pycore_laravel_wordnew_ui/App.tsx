@@ -19,18 +19,19 @@ import { HtmlErrorModal } from './components/HtmlErrorModal';
 import { ApiConfigProvider } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import { ToastProvider, InviteCodeManager } from './components/admin';
-import { api } from './core/api';
-import { userModel } from './core/models/UserModel';
+import { api } from '@/apps/laravel-manager/api';
+import { userModel } from './apps/laravel-manager/models/UserModel';
 import { useUser } from './hooks/useUser';
 import { ViewType } from './types';
 import { useTranslation } from 'react-i18next';
 import { APP_NAME } from './constants';
 import { getRequireLoginMessage, isRequireLoginView, setDebugAuthBypass } from './config/auth';
-import i18n from './core/i18n';
+import i18n from './apps/laravel-manager/i18n';
 import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
 import { apiManager } from './services/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
 import { OfflineBanner, GlobalLogPanel, LaravelLogPanel } from './components/shared';
+import { subscribeGlobalLoginRequest } from './apps/laravel-manager/auth/loginModalBridge';
 
 /**
  * AppContent – main layout and view routing.
@@ -171,6 +172,11 @@ const AppContent: React.FC = () => {
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => subscribeGlobalLoginRequest(() => {
+    setLoginModalFromProtectedView(false);
+    setShowLoginModal(true);
+  }), []);
 
   useEffect(() => {
     console.log('[App] Mounted with activeView:', activeView);

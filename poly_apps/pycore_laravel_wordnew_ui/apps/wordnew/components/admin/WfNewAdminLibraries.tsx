@@ -30,8 +30,9 @@ import {
 import { ElementTheme } from '../../WfNewTypes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
 import { wfNewAdminApi } from '../../api';
-import { pycoreApi } from '../../../../core/api-libs/pycore';
-import { StorageKeys, StorageManager } from '../../../../core/persistence';
+import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { StorageManager } from '../../../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
 /** Language selection shared with the words panel (concrete languages only). */
 /** Shown while the breakdown is loading or when the endpoint fails. */

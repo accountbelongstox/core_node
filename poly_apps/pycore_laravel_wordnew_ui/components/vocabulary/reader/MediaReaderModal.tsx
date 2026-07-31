@@ -3,8 +3,8 @@ import {
   BookOpen, FileText, List as ListIcon, Rows, Volume2, VolumeX, Pause,
   Play, Square, ChevronLeft, ChevronRight, X as CloseIcon,
 } from 'lucide-react';
-import { api } from '../../../core/api';
-import type { ReaderSentence, ReaderChapter, ReaderDetailParams } from '../../../core/api/modules/MediaQueryAPI';
+import { api } from '@/apps/laravel-manager/api';
+import type { ReaderSentence, ReaderChapter, ReaderDetailParams } from '@/apps/laravel-manager/api';
 import { SUPPORTED_LEARNING_LANGUAGES } from '../../../core/i18n/supportedLearningLanguages';
 import { commonClasses } from '../../../styles/theme';
 import { Modal } from '../../common';

@@ -14,12 +14,12 @@
         :key="capability.key"
         class="capability-option"
         :class="{ 'capability-option--enabled': capabilityState[capability.key].value }"
-        :title="capability.hint"
+        :title="getMessage(capability.hintKey)"
       >
         <input v-model="capabilityState[capability.key].value" type="checkbox" />
         <span>
-          <strong>{{ capability.zhLabel }}</strong>
-          <small>{{ capability.hint }}</small>
+          <strong>{{ getMessage(capability.labelKey) }}</strong>
+          <small>{{ getMessage(capability.hintKey) }}</small>
         </span>
       </label>
     </div>
@@ -28,6 +28,7 @@
 
 <script lang="ts" setup>
 import { useTaskCapabilities } from '../composables/useTaskCapabilities';
+import { getMessage } from '@/utils/i18n';
 
 withDefaults(
   defineProps<{
@@ -36,8 +37,8 @@ withDefaults(
     compact?: boolean;
   }>(),
   {
-    title: 'Task execution',
-    description: 'Shared with the Task tab and applied live while it is running.',
+    title: getMessage('taskCenterExecutionTitle'),
+    description: getMessage('taskCenterExecutionDescription'),
     compact: false,
   },
 );

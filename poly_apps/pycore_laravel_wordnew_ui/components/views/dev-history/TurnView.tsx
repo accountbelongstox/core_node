@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DevHistoryTurn } from '../../../core/api/modules/DevHistoryAPI';
+import type { DevHistoryTurn } from '@/apps/laravel-manager/api';
 import { ROLE_STYLE } from './shared';
 
 interface TurnViewProps {

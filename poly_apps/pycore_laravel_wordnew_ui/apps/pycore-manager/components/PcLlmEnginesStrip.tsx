@@ -4,16 +4,14 @@
  * engine with a status pill (up = available+running, down = installed but not
  * running, setup = missing), default model, priority and a live Test button.
  * Managed server engines (ollama) get a start/stop toggle. Polls status every
- * 10s while mounted. Backend falls back to OpenRouter when no engine is up.
+ * periodically while mounted. Backend falls back to OpenRouter when no engine is up.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Cpu, Loader2, Power, PowerOff } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { LlmEngine, LlmStatus } from '../../../core/api-libs/pycore';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
+import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
+import type { LlmEngine, LlmStatus } from '@/apps/pycore-manager/api';
+import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
-
-const LLM_POLL_MS = 30_000;
 
 type PillState = 'up' | 'down' | 'setup';
 
@@ -56,7 +54,11 @@ const PcLlmEnginesStrip: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
     void load();
     return () => { mounted.current = false; };
   }, [load]);
-  useTopicDrivenRefresh([PYCORE_EVENT_TOPICS.operationChanged], load, { fallbackMs: LLM_POLL_MS });
+  useTopicDrivenRefresh(
+    [PYCORE_EVENT_TOPICS.operationChanged],
+    load,
+    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
+  );
 
   const runTest = async (engine: string) => {
     setBusy(`test-${engine}`);

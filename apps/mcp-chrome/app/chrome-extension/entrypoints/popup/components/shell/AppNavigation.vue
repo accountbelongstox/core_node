@@ -1,5 +1,5 @@
 <template>
-  <nav class="app-navigation" aria-label="Primary">
+  <nav class="app-navigation" :aria-label="getMessage('primaryNavigationLabel')">
     <button
       v-for="tab in tabs"
       :key="tab.id"
@@ -25,19 +25,20 @@ import {
   TaskCenterIcon,
 } from '../icons';
 import type { PopupTabId } from '../../types';
+import { getMessage } from '@/utils/i18n';
 
 defineProps<{ modelValue: PopupTabId }>();
 defineEmits<{ 'update:modelValue': [value: PopupTabId] }>();
 
 const tabs = [
-  { id: 'server', label: 'Server', icon: ServerIcon },
-  { id: 'data', label: 'Data', icon: DataIcon },
-  { id: 'tasks', label: 'Tasks', icon: TaskCenterIcon },
-  { id: 'import', label: 'Import', icon: ImportIcon },
-  { id: 'extensions', label: 'Extensions', icon: ExtensionIcon },
-  { id: 'aiweb', label: 'Web AI', icon: ExtensionIcon },
-  { id: 'audio', label: 'Audio', icon: AudioIcon },
-  { id: 'settings', label: 'Settings', icon: SettingsIcon },
-  { id: 'debug', label: 'Debug', icon: DebugIcon },
+  { id: 'server', label: getMessage('navServer'), icon: ServerIcon },
+  { id: 'data', label: getMessage('navData'), icon: DataIcon },
+  { id: 'tasks', label: getMessage('navTasks'), icon: TaskCenterIcon },
+  { id: 'import', label: getMessage('navImport'), icon: ImportIcon },
+  { id: 'extensions', label: getMessage('navExtensions'), icon: ExtensionIcon },
+  { id: 'aiweb', label: getMessage('navWebAi'), icon: ExtensionIcon },
+  { id: 'audio', label: getMessage('navAudio'), icon: AudioIcon },
+  { id: 'settings', label: getMessage('settingsTitle'), icon: SettingsIcon },
+  { id: 'debug', label: getMessage('navDebug'), icon: DebugIcon },
 ] as const;
 </script>

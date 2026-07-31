@@ -46,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.TASK_CENTER, icon: ListChecks, labelKey: 'taskCenter' },
   { id: ViewType.SERVER_MANAGER, icon: Network, labelKey: 'server' },
   // Database Viewer was merged into Database Manager (Tables tab); the old
-  // #/db-viewer slug deep-links there (see core/routing/viewRoute.ts).
+  // #/db-viewer slug deep-links there through the Laravel Manager router.
   { id: ViewType.DATABASE_MANAGER, icon: DatabaseZap, labelKey: 'dbManager' },
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];

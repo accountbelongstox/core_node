@@ -10,7 +10,8 @@
  * stored as `unknown[]` here (typed by the component on read) to avoid a
  * circular import with the component that defines those shapes.
  */
-import { PersistedStore, StorageManager, StorageKeys } from '../../core/persistence';
+import { PersistedStore, StorageManager } from '../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from './persistence/WordNewStorageKeys';
 
 export interface WfNewSocialCache {
   partners: unknown[] | null;

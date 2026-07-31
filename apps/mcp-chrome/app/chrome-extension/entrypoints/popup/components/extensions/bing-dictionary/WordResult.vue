@@ -14,7 +14,7 @@
         <button
           v-if="result.usAudioUrl"
           class="phonetic-play"
-          title="Play US pronunciation"
+          :title="getMessage('playUsPronunciation')"
           @click="onPlayAudio(result.usAudioUrl)"
         >♪</button>
       </span>
@@ -23,7 +23,7 @@
         <button
           v-if="result.ukAudioUrl"
           class="phonetic-play"
-          title="Play UK pronunciation"
+          :title="getMessage('playUkPronunciation')"
           @click="onPlayAudio(result.ukAudioUrl)"
         >♪</button>
       </span>
@@ -31,7 +31,7 @@
 
     <!-- Short definitions -->
     <div v-if="result.translations.length > 0" class="wr-section">
-      <h5 class="wr-title">Definitions</h5>
+      <h5 class="wr-title">{{ getMessage('definitionsLabel') }}</h5>
       <div class="wr-defs">
         <div v-for="(trans, index) in result.translations" :key="index" class="wr-def">
           <span v-if="trans.type" class="wr-pos">{{ trans.type }}</span>
@@ -42,7 +42,7 @@
 
     <!-- Detailed Collins/Oxford definitions -->
     <div v-if="result.detailedDefinitions.length > 0" class="wr-section">
-      <h5 class="wr-title">Detailed</h5>
+      <h5 class="wr-title">{{ getMessage('detailedLabel') }}</h5>
       <ol class="wr-detailed">
         <li v-for="(d, index) in result.detailedDefinitions" :key="index" class="wr-detailed-item">
           <span class="wr-detailed-cn">{{ d.cn }}</span>
@@ -53,7 +53,7 @@
 
     <!-- Web definitions -->
     <div v-if="result.webDefinitions.length > 0" class="wr-section">
-      <h5 class="wr-title">Web Definitions</h5>
+      <h5 class="wr-title">{{ getMessage('webDefinitionsLabel') }}</h5>
       <div v-for="(w, index) in result.webDefinitions" :key="index" class="wr-web">
         <span v-if="w.type" class="wr-web-type">{{ w.type }}</span>
         <span class="wr-text">{{ w.content }}</span>
@@ -62,7 +62,7 @@
 
     <!-- Example sentences -->
     <div v-if="result.examples.length > 0" class="wr-section">
-      <h5 class="wr-title">Examples</h5>
+      <h5 class="wr-title">{{ getMessage('examplesLabel') }}</h5>
       <div class="wr-examples">
         <div v-for="(ex, index) in result.examples" :key="index" class="wr-example">
           <p class="wr-ex-en">{{ ex.text }}</p>
@@ -73,7 +73,7 @@
 
     <!-- Synonyms / antonyms -->
     <div v-if="result.synonyms.length > 0" class="wr-section">
-      <h5 class="wr-title">Synonyms</h5>
+      <h5 class="wr-title">{{ getMessage('synonymsLabel') }}</h5>
       <div v-for="(s, index) in result.synonyms" :key="index" class="wr-syn">
         <span v-if="s.type" class="wr-syn-type">{{ s.type }}</span>
         <span class="wr-text">{{ s.words }}</span>
@@ -82,7 +82,7 @@
 
     <!-- Sample images -->
     <div v-if="result.images.length > 0" class="wr-section">
-      <h5 class="wr-title">Images</h5>
+      <h5 class="wr-title">{{ getMessage('imagesMode') }}</h5>
       <div class="wr-images">
         <img
           v-for="(src, index) in result.images.slice(0, 6)"
@@ -100,6 +100,7 @@
 
 <script lang="ts" setup>
 import type { WordResult } from '../../../composables/useBingDictionary';
+import { getMessage } from '@/utils/i18n';
 
 interface Props {
   result: WordResult | null;

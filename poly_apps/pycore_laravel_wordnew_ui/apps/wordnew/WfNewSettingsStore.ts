@@ -11,7 +11,8 @@
  * wf_new_favorites, wf_streak_days. `migrateLegacyKeys()` folds any existing
  * values in once, then deletes the old raw keys.
  */
-import { PersistedStore, StorageManager, StorageKeys } from '../../core/persistence';
+import { PersistedStore, StorageManager } from '../../core/persistence';
+import { WordNewStorageKeys as StorageKeys } from './persistence/WordNewStorageKeys';
 import type { Word } from './api';
 
 export interface WfNewSettings {

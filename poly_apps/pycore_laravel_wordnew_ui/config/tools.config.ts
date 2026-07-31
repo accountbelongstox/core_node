@@ -1,4 +1,4 @@
-﻿import { ToolDefinition } from '../core/types';
+import { ToolDefinition } from '@/apps/laravel-manager/types';
 import {
   Languages, Volume2, FileImage, FileText, Sparkles, BookOpen, Image, Mic,
   Server, HardDrive, Network, Lock, FileCode, Terminal,

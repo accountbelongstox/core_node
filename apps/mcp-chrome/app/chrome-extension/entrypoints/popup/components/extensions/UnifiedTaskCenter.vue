@@ -2,7 +2,7 @@
   <div class="utc">
     <!-- Header -->
     <div class="utc-head">
-      <h3 class="utc-title">🗂️ Unified Task Center</h3>
+      <h3 class="utc-title">🗂️ {{ getMessage('taskCenterUnifiedTitle') }}</h3>
       <div class="utc-head-right">
         <span class="utc-total-badge" v-if="totalPending > 0">{{ totalPending }}</span>
         <!-- Load is now driven by the Start button (via exposed loadAll); this is
@@ -11,7 +11,7 @@
           class="utc-refresh"
           :disabled="loading || loadAllBusy"
           @click="refresh"
-          :title="loadAllMsg || 'Refresh tasks'"
+          :title="loadAllMsg || getMessage('taskCenterRefresh')"
         >
           <span :class="{ 'spin': loading || loadAllBusy }">↻</span>
         </button>
@@ -20,62 +20,57 @@
     <div v-if="loadAllMsg" class="utc-load-msg">{{ loadAllMsg }}</div>
 
     <!-- Category summary cards -->
-    <div class="utc-grid">
+    <div v-if="visibleSummaryCats.length" class="utc-grid">
       <div
-        v-for="cat in SUMMARY_CATS"
+        v-for="cat in visibleSummaryCats"
         :key="cat.type"
         class="utc-cat"
         :class="{ 'utc-cat--active': pendingByType[cat.type] > 0 }"
-        @click="historyTypeFilter = historyTypeFilter === cat.type ? '' : cat.type"
+        @click="openCategory(cat)"
         :style="{ '--cat-accent': cat.color }"
         :title="cat.label"
       >
         <span class="utc-cat-icon">{{ cat.icon }}</span>
         <div class="utc-cat-body">
-          <div class="utc-cat-name">{{ cat.zhLabel }}</div>
+          <div class="utc-cat-name">{{ categoryLabel(cat) }}</div>
           <div class="utc-cat-nums">
             <span class="utc-num-pending" :class="{ 'utc-num--lit': (pendingByType[cat.type] || 0) > 0 }">
               {{ pendingByType[cat.type] || 0 }}
             </span>
-            <span class="utc-num-sep">待处理</span>
+            <span class="utc-num-sep utc-num-action" @click.stop="openCategoryWithStatus(cat, 'pending')">
+              {{ getMessage('taskCenterPendingLabel') }}
+            </span>
             <span v-if="(processingByType[cat.type] || 0) > 0" class="utc-num-proc">
-              · {{ processingByType[cat.type] }} 处理中
+              · {{ processingByType[cat.type] }} {{ getMessage('taskCenterProcessingLabel') }}
+            </span>
+            <span v-if="(completedByType[cat.type] || 0) > 0" class="utc-num-completed utc-num-action" @click.stop="openCategoryWithStatus(cat, 'completed')">
+              · {{ completedByType[cat.type] }} {{ getMessage('taskCenterCompletedLabel') }}
             </span>
           </div>
         </div>
-        <div
-          v-if="historyTypeFilter === cat.type"
-          class="utc-cat-sel"
-        />
       </div>
     </div>
 
     <!-- Controls row -->
     <div class="utc-controls">
       <label class="utc-ctl">
-        <span class="utc-ctl-label">Sort</span>
+        <span class="utc-ctl-label">{{ getMessage('taskCenterSortLabel') }}</span>
         <select v-model="sortKey" class="utc-select">
-          <option value="created_desc">Newest</option>
-          <option value="created_asc">Oldest</option>
-          <option value="priority_desc">Priority ↓</option>
-          <option value="status">Status</option>
+          <option value="created_desc">{{ getMessage('taskCenterSortNewest') }}</option>
+          <option value="created_asc">{{ getMessage('taskCenterSortOldest') }}</option>
+          <option value="priority_desc">{{ getMessage('taskCenterSortPriority') }} ↓</option>
+          <option value="status">{{ getMessage('taskCenterStatusLabel') }}</option>
         </select>
       </label>
       <label class="utc-ctl">
-        <span class="utc-ctl-label">Status</span>
+        <span class="utc-ctl-label">{{ getMessage('taskCenterStatusLabel') }}</span>
         <select v-model="statusFilter" class="utc-select">
-          <option value="">All</option>
-          <option value="live">Live</option>
-          <option value="history">History</option>
-          <option value="failed">Failed</option>
+          <option value="">{{ getMessage('taskCenterAllLabel') }}</option>
+          <option value="live">{{ getMessage('taskCenterLiveLabel') }}</option>
+          <option value="history">{{ getMessage('taskCenterHistoryLabel') }}</option>
+          <option value="failed">{{ getMessage('taskCenterFailedLabel') }}</option>
         </select>
       </label>
-      <button
-        v-if="historyTypeFilter"
-        class="utc-clear-filter"
-        @click="historyTypeFilter = ''"
-        title="Clear type filter"
-      >✕ {{ taskTypeLabel(historyTypeFilter) }}</button>
     </div>
 
     <div v-if="error" class="utc-error">⚠ {{ error }}</div>
@@ -84,7 +79,7 @@
     <section v-if="liveRows.length" class="utc-group">
       <div class="utc-grouphead">
         <span class="utc-groupdot utc-groupdot--live" />
-        Live <span class="utc-groupcount">{{ liveRows.length }}</span>
+        {{ getMessage('taskCenterLiveLabel') }} <span class="utc-groupcount">{{ liveRows.length }}</span>
       </div>
       <ul class="utc-list">
         <li
@@ -96,8 +91,8 @@
           <span class="utc-rowicon">{{ taskIcon(row.task_type, row.execution_type) }}</span>
           <div class="utc-rowmain">
             <div class="utc-rowtop">
-              <span class="utc-rowlabel">{{ taskTypeLabel(row.task_type, row.execution_type) }}</span>
-              <span v-if="rowIsFast(row)" class="utc-fast" title="Fast tier">⚡</span>
+              <span class="utc-rowlabel">{{ localizedTaskTypeLabel(row.task_type, row.execution_type) }}</span>
+              <span v-if="rowIsFast(row)" class="utc-fast" :title="getMessage('fastTierLabel')">⚡</span>
             </div>
             <div class="utc-rowsub" :title="row.task_id">{{ row.task_id }}</div>
           </div>
@@ -106,13 +101,13 @@
               {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)">✨</span>
             </span>
             <span class="utc-status-pill" :style="statusStyle(row.status)">
-              <span class="utc-statusdot" />{{ row.status }}
+              <span class="utc-statusdot" />{{ localizedStatus(row.status) }}
             </span>
           </div>
         </li>
       </ul>
       <button v-if="liveHasMore" type="button" class="utc-more" @click="showAllLive = !showAllLive">
-        {{ showAllLive ? '收起 Show less' : `展开全部 Show all ${liveRows.length}` }}
+        {{ showAllLive ? getMessage('taskCenterShowLess') : getMessage('taskCenterShowAll', [String(liveRows.length)]) }}
       </button>
     </section>
 
@@ -120,7 +115,7 @@
     <section v-if="historyRows.length" class="utc-group">
       <div class="utc-grouphead">
         <span class="utc-groupdot utc-groupdot--hist" />
-        History <span class="utc-groupcount">{{ historyRows.length }}</span>
+        {{ getMessage('taskCenterHistoryLabel') }} <span class="utc-groupcount">{{ historyRows.length }}</span>
       </div>
       <ul class="utc-list">
         <li
@@ -132,7 +127,7 @@
           <span class="utc-rowicon">{{ taskIcon(row.task_type, row.execution_type) }}</span>
           <div class="utc-rowmain">
             <div class="utc-rowtop">
-              <span class="utc-rowlabel">{{ taskTypeLabel(row.task_type, row.execution_type) }}</span>
+              <span class="utc-rowlabel">{{ localizedTaskTypeLabel(row.task_type, row.execution_type) }}</span>
               <span v-if="rowIsFast(row)" class="utc-fast">⚡</span>
             </div>
             <div class="utc-rowsub" :title="row.task_id">{{ row.task_id }}</div>
@@ -142,19 +137,87 @@
               {{ capabilityLabel(row.capability) }}<span v-if="rowIsAi(row)">✨</span>
             </span>
             <span class="utc-status-pill" :style="statusStyle(row.status)">
-              <span class="utc-statusdot" />{{ row.status }}
+              <span class="utc-statusdot" />{{ localizedStatus(row.status) }}
             </span>
           </div>
         </li>
       </ul>
       <button v-if="historyHasMore" type="button" class="utc-more" @click="showAllHistory = !showAllHistory">
-        {{ showAllHistory ? '收起 Show less' : `展开全部 Show all ${historyRows.length}` }}
+        {{ showAllHistory ? getMessage('taskCenterShowLess') : getMessage('taskCenterShowAll', [String(historyRows.length)]) }}
       </button>
     </section>
 
     <div v-if="!loading && !liveRows.length && !historyRows.length && !error" class="utc-empty">
       <span class="utc-empty-icon">✓</span>
-      No tasks match the current filters
+      {{ getMessage('taskCenterNoMatchingTasks') }}
+    </div>
+
+    <div v-if="selectedCategory" class="utc-modal-backdrop" @click.self="closeCategory">
+      <section class="utc-modal" role="dialog" aria-modal="true" :aria-label="selectedCategory.label">
+        <header class="utc-modal-head">
+          <div>
+            <h4 class="utc-modal-title">
+              <span>{{ selectedCategory.icon }}</span>
+              {{ categoryLabel(selectedCategory) }}
+            </h4>
+            <div class="utc-modal-subtitle">{{ getMessage('taskCenterTaskCount', [categoryTotal.toLocaleString()]) }}</div>
+          </div>
+          <button type="button" class="utc-modal-close" :title="getMessage('closeButton')" @click="closeCategory">×</button>
+        </header>
+
+        <form class="utc-modal-tools" @submit.prevent="applyCategorySearch">
+          <input
+            v-model="categorySearchInput"
+            class="utc-modal-search"
+            type="search"
+            maxlength="120"
+            :placeholder="getMessage('taskCenterSearchPlaceholder')"
+          />
+          <select v-model="categoryStatus" class="utc-select" @change="resetCategoryPage">
+            <option value="all">{{ getMessage('taskCenterAllTasks') }}</option>
+            <option value="pending">{{ getMessage('taskCenterPendingLabel') }}</option>
+            <option value="processing">{{ getMessage('taskCenterProcessingLabel') }}</option>
+            <option value="leased">{{ getMessage('taskCenterLeasedLabel') }}</option>
+            <option value="completed">{{ getMessage('taskCenterCompletedLabel') }}</option>
+            <option value="failed">{{ getMessage('taskCenterFailedLabel') }}</option>
+          </select>
+          <button type="submit" class="utc-modal-search-btn">{{ getMessage('taskCenterSearchAction') }}</button>
+        </form>
+
+        <div v-if="categoryError" class="utc-error">⚠ {{ categoryError }}</div>
+        <div v-else-if="categoryLoading" class="utc-modal-loading"><span class="spin">↻</span> {{ getMessage('loadingStatus') }}</div>
+        <ul v-else-if="categoryItems.length" class="utc-modal-list">
+          <li
+            v-for="item in categoryItems"
+            :key="`${item.media_type || item.language || item.task_type}:${item.task_id || item.id}`"
+            class="utc-modal-row"
+          >
+            <div class="utc-modal-row-main">
+              <strong :title="item.content_text || String(item.task_id || item.id)">
+                {{ item.content_text || item.task_id || `#${item.id}` }}
+              </strong>
+              <span>
+                {{ item.language || item.media_type || item.task_type }} · ID {{ item.task_id || item.id }}
+              </span>
+            </div>
+            <div class="utc-modal-row-meta">
+              <span class="utc-status-pill" :style="statusStyle(item.status)">
+                <span class="utc-statusdot" />{{ localizedStatus(item.status) }}
+              </span>
+              <span v-if="item.priority" class="utc-modal-priority">P{{ item.priority }}</span>
+            </div>
+          </li>
+        </ul>
+        <div v-else class="utc-empty">{{ getMessage('taskCenterNoTasksFound') }}</div>
+
+        <footer class="utc-modal-page">
+          <span>{{ categoryPageRange }}</span>
+          <div>
+            <button type="button" :disabled="categoryLoading || categoryStart === 0" @click="previousCategoryPage">{{ getMessage('taskCenterPreviousPage') }}</button>
+            <button type="button" :disabled="categoryLoading || categoryStart + CATEGORY_PAGE_SIZE >= categoryTotal" @click="nextCategoryPage">{{ getMessage('taskCenterNextPage') }}</button>
+          </div>
+        </footer>
+      </section>
     </div>
 
     <TaskDetailModal
@@ -170,7 +233,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
 import { TaskCenterApiClient } from '@/services/TaskCenterApiClient';
+import type { AssistCategoryItem } from '@/services/TaskCenterApiClient';
 import { usePersistedRef } from '@/composables/usePersistedRef';
+import { getMessage } from '@/utils/i18n';
 import type { QueueLiveCounts, TaskRow } from '@/utils/queue-center-contract';
 import {
   CHROME_TASK_TYPES,
@@ -194,24 +259,41 @@ interface SummaryCat {
   type: string;
   icon: string;
   label: string;
-  zhLabel: string;
+  labelKey: string;
   color: string;
 }
 
 // The popup renders the central Laravel task catalog in contract order. Adding
 // or changing a task type starts in config/queue_center_contract.json and is
 // immediately reflected by Laravel, Pycore, mcp-chrome, and both task UIs.
+const PYCORE_ONLY_SUMMARY_TYPES = new Set(['word_audio', 'sentence_audio']);
+
 const SUMMARY_CATS: SummaryCat[] = TASK_TYPE_CATALOG
-  .filter((definition) => Boolean(definition.ui.summary_label))
+  // Pycore owns production word and sentence audio. Keep their shared task
+  // definitions available to the runtime while omitting them from this panel.
+  .filter((definition) => Boolean(definition.ui.summary_label)
+    && !PYCORE_ONLY_SUMMARY_TYPES.has(definition.key))
   .map((definition) => ({
     type: definition.key,
     icon: definition.ui.icon,
     label: definition.label,
-    zhLabel: definition.ui.summary_label,
+    labelKey: `taskCenterCategory_${definition.key}`,
     color: definition.ui.color,
   }));
 
 const LIVE_STATUSES = new Set(LIVE_TASK_STATUSES);
+
+const categoryLabel = (category: SummaryCat): string => getMessage(category.labelKey);
+const localizedTaskTypeLabel = (taskType: string, executionType?: string | null): string => {
+  const category = SUMMARY_CATS.find((item) => item.type === taskType);
+  return category ? categoryLabel(category) : taskTypeLabel(taskType, executionType);
+};
+const localizedStatus = (status: string): string => {
+  const normalized = String(status || '').toLowerCase();
+  const key = `taskCenterStatus_${normalized.replace(/[^a-z0-9_]/g, '_')}`;
+  const localized = getMessage(key);
+  return localized === key ? status : localized;
+};
 
 const rows = ref<TaskRow[]>([]);
 const loading = ref(false);
@@ -227,10 +309,19 @@ const serverByType = ref<Record<string, QueueLiveCounts> | null>(null);
 
 const sortKey = usePersistedRef<'created_desc' | 'created_asc' | 'priority_desc' | 'status'>('utcSort', 'created_desc');
 const statusFilter = usePersistedRef<'' | 'live' | 'history' | 'failed'>('utcStatusFilter', '');
-const historyTypeFilter = usePersistedRef<string>('historyTypeFilter', '');
 
 const selectedTaskId = ref<string | null>(null);
 const selectedProcessorType = ref<string | null>(null);
+const selectedCategory = ref<SummaryCat | null>(null);
+const categoryItems = ref<AssistCategoryItem[]>([]);
+const categoryTotal = ref(0);
+const categoryStart = ref(0);
+const categorySearchInput = ref('');
+const categorySearch = ref('');
+const categoryStatus = ref('pending');
+const categoryLoading = ref(false);
+const categoryError = ref('');
+const CATEGORY_PAGE_SIZE = 20;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let taskCenterApi: TaskCenterApiClient | null = null;
@@ -286,6 +377,21 @@ const processingByType = computed(() => {
   return m;
 });
 
+const completedByType = computed(() => {
+  const result: Record<string, number> = {};
+  for (const row of rows.value) {
+    if (String(row.status || '').toLowerCase() !== TASK_STATUS_BY_ROLE.completed) continue;
+    result[row.task_type] = (result[row.task_type] || 0) + 1;
+  }
+  return result;
+});
+
+const visibleSummaryCats = computed(() => SUMMARY_CATS.filter((category) => {
+  const pending = pendingByType.value[category.type] || 0;
+  const processing = processingByType.value[category.type] || 0;
+  return pending + processing > 0;
+}));
+
 const totalPending = computed(() => {
   if (serverByType.value) {
     return Object.values(pendingByType.value).reduce((sum, pending) => sum + pending, 0);
@@ -326,10 +432,7 @@ const sortRows = (list: TaskRow[]): TaskRow[] => {
   return arr;
 };
 
-const passesFilter = (row: TaskRow): boolean =>
-  !historyTypeFilter.value || row.task_type === historyTypeFilter.value;
-
-const filtered = computed(() => rows.value.filter(passesFilter));
+const filtered = computed(() => rows.value);
 
 const liveRows = computed(() => {
   if (statusFilter.value === 'history' || statusFilter.value === 'failed') return [];
@@ -366,6 +469,82 @@ const openTask = (row: TaskRow): void => {
   selectedTaskId.value = row.task_id;
 };
 
+const categoryPageRange = computed(() => {
+  if (categoryTotal.value === 0) return getMessage('taskCenterPageRange', ['0', '0', '0']);
+  const end = Math.min(categoryStart.value + categoryItems.value.length, categoryTotal.value);
+  return getMessage('taskCenterPageRange', [
+    String(categoryStart.value + 1),
+    String(end),
+    categoryTotal.value.toLocaleString(),
+  ]);
+});
+
+const loadCategoryPage = async (): Promise<void> => {
+  if (!selectedCategory.value) return;
+  categoryLoading.value = true;
+  categoryError.value = '';
+  try {
+    const page = await apiClient().listCategoryItems(
+      selectedCategory.value.type,
+      categoryStatus.value,
+      categoryStart.value,
+      CATEGORY_PAGE_SIZE,
+      categorySearch.value,
+    );
+    categoryItems.value = page.items;
+    categoryTotal.value = page.total;
+  } catch (e: any) {
+    categoryItems.value = [];
+    categoryTotal.value = 0;
+    categoryError.value = e?.message || getMessage('taskCenterCategoryLoadError');
+  } finally {
+    categoryLoading.value = false;
+  }
+};
+
+const openCategory = async (category: SummaryCat): Promise<void> => {
+  selectedCategory.value = category;
+  categoryStatus.value = 'pending';
+  categoryStart.value = 0;
+  categorySearchInput.value = '';
+  categorySearch.value = '';
+  await loadCategoryPage();
+};
+
+const openCategoryWithStatus = async (category: SummaryCat, status: string): Promise<void> => {
+  await openCategory(category);
+  categoryStatus.value = status;
+  await loadCategoryPage();
+};
+
+const closeCategory = (): void => {
+  selectedCategory.value = null;
+  categoryItems.value = [];
+  categoryError.value = '';
+};
+
+const applyCategorySearch = async (): Promise<void> => {
+  categorySearch.value = categorySearchInput.value.trim();
+  categoryStart.value = 0;
+  await loadCategoryPage();
+};
+
+const resetCategoryPage = async (): Promise<void> => {
+  categoryStart.value = 0;
+  await loadCategoryPage();
+};
+
+const previousCategoryPage = async (): Promise<void> => {
+  categoryStart.value = Math.max(0, categoryStart.value - CATEGORY_PAGE_SIZE);
+  await loadCategoryPage();
+};
+
+const nextCategoryPage = async (): Promise<void> => {
+  if (categoryStart.value + CATEGORY_PAGE_SIZE >= categoryTotal.value) return;
+  categoryStart.value += CATEGORY_PAGE_SIZE;
+  await loadCategoryPage();
+};
+
 const refresh = async (): Promise<void> => {
   loading.value = true;
   error.value = '';
@@ -374,7 +553,7 @@ const refresh = async (): Promise<void> => {
     rows.value = snapshot.tasks;
     serverByType.value = snapshot.summaryByType;
   } catch (e: any) {
-    error.value = e?.message || 'Failed to load tasks';
+    error.value = e?.message || getMessage('taskCenterLoadError');
   } finally {
     loading.value = false;
   }
@@ -393,10 +572,13 @@ const loadAll = async (): Promise<void> => {
     const existing = new Map(rows.value.map((r) => [r.task_id, r]));
     for (const t of all) existing.set(t.task_id, t);
     rows.value = [...existing.values()];
-    loadAllMsg.value = `Loaded ${all.length} pending (${chromeHandled.length} chrome-processable)`;
+    loadAllMsg.value = getMessage('taskCenterLoadSummary', [
+      String(all.length),
+      String(chromeHandled.length),
+    ]);
     setTimeout(() => { loadAllMsg.value = ''; }, 4000);
   } catch (e: any) {
-    error.value = e?.message || 'Load failed';
+    error.value = e?.message || getMessage('taskCenterLoadError');
   } finally {
     loadAllBusy.value = false;
   }
@@ -485,6 +667,8 @@ defineExpose({ loadAll });
 .utc-num-pending.utc-num--lit { color: var(--cat-accent, #38bdf8); }
 .utc-num-sep { font-size: 9px; color: var(--text-muted); }
 .utc-num-proc { font-size: 9px; color: #f59e0b; white-space: nowrap; }
+.utc-num-action { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.utc-num-completed { font-size: 9px; color: #34d399; white-space: nowrap; }
 
 /* ── Controls ── */
 .utc-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -572,4 +756,58 @@ defineExpose({ loadAll });
   font-weight: 600; text-transform: lowercase;
 }
 .utc-statusdot { width: 5px; height: 5px; border-radius: 50%; background: var(--dot, var(--text-muted)); flex-shrink: 0; }
+
+/* ── Category drill-down ── */
+.utc-modal-backdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px;
+  background: rgba(2, 6, 23, .72);
+  backdrop-filter: blur(3px);
+}
+.utc-modal {
+  width: min(620px, 100%); max-height: calc(100vh - 28px);
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; border: 1px solid var(--border); border-radius: 14px;
+  background: var(--surface); color: var(--text);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, .42);
+}
+.utc-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.utc-modal-title { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 15px; }
+.utc-modal-subtitle { margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+.utc-modal-close {
+  width: 28px; height: 28px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-2); color: var(--text); font-size: 20px; line-height: 1; cursor: pointer;
+}
+.utc-modal-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 6px; }
+.utc-modal-search {
+  min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface-2); color: var(--text); font-size: 11px;
+}
+.utc-modal-search-btn {
+  padding: 5px 10px; border: 1px solid var(--accent); border-radius: 7px;
+  background: var(--accent); color: white; font-size: 11px; font-weight: 700; cursor: pointer;
+}
+.utc-modal-loading { padding: 24px 0; text-align: center; color: var(--text-muted); font-size: 11px; }
+.utc-modal-list {
+  min-height: 0; overflow-y: auto; list-style: none; margin: 0; padding: 0;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.utc-modal-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 9px; border: 1px solid var(--border); border-radius: 9px;
+  background: var(--surface-2);
+}
+.utc-modal-row-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.utc-modal-row-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.utc-modal-row-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 9px; }
+.utc-modal-row-meta { flex-shrink: 0; display: flex; align-items: center; gap: 5px; }
+.utc-modal-priority { color: #f59e0b; font-size: 9px; font-weight: 700; }
+.utc-modal-page { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 10px; }
+.utc-modal-page div { display: flex; gap: 6px; }
+.utc-modal-page button {
+  padding: 4px 9px; border: 1px solid var(--border); border-radius: 7px;
+  background: var(--surface-2); color: var(--text); font-size: 10px; cursor: pointer;
+}
+.utc-modal-page button:disabled { opacity: .4; cursor: default; }
 </style>

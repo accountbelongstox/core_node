@@ -3,11 +3,12 @@
  * worker control; this panel owns engine priority, concurrency and live logs.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '../../../core/api-libs/pycore';
-import type { TtsEngine, TtsStatus } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '@/apps/pycore-manager/api';
+import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
-import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 const LOG_LIMIT = 1000;
 
 export function PcWordAudioPanel(): JSX.Element {

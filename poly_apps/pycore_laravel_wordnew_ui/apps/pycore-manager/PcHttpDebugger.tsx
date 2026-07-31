@@ -18,8 +18,9 @@ import { Bug, Trash2, ChevronUp, ChevronDown, Search } from 'lucide-react';
 import {
   getHttpDebugEntries, subscribeHttpDebug, clearHttpDebug,
   type HttpDebugRecord, type HttpDirection,
-} from '../../core/api-libs/pycore/pycoreHttpLog';
-import { StorageKeys, StorageManager } from '../../core/persistence';
+} from '@/apps/pycore-manager/api';
+import { StorageManager } from '../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
 
 function readOpen(): boolean {
   return StorageManager.getRaw(StorageKeys.PYCORE_HTTP_DEBUG_OPEN) === '1';

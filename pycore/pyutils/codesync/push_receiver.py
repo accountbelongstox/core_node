@@ -13,6 +13,7 @@ import base64
 import gzip
 import json
 import os
+import time
 from pathlib import Path
 
 from pycore.pyutils.codesync.textnorm import normalized_md5
@@ -79,6 +80,7 @@ class PushReceiver:
             send(json.dumps({"type": "welcome", "client_id": self.m.config.machine_id,
                              "name": me.get("name"), "caps": {
                                  "gzip": True,
+                                 "manifest_gzip": True,
                                  "full_sync_complete": True,
                              }}))
             self.m.log_sync("connection", "", "HTTP SSE connected",
@@ -150,6 +152,7 @@ class PushReceiver:
         self.m.set_sync_phase("receiving", len(files), channel=dev_id,
                               name=dev_name, direction="receive")
         received = self._load_received()
+        root = self.m.sync_target_root().resolve()
         results = []
         for f in files:
             r = self._apply_one(f, peer=peer)
@@ -160,7 +163,9 @@ class PushReceiver:
                 # Update-only: a written/skipped real file records its hash; a delete
                 # entry is IGNORED (file kept), so we never drop it from the table.
                 if r.get("status") in ("written", "skipped") and not f.get("deleted"):
-                    received[rel] = f.get("hash")
+                    target = (root / str(rel).replace("\\", "/")).resolve()
+                    if target == root or root in target.parents:
+                        received[rel] = self._received_record(target, f.get("hash"))
         self._save_received(received)
         send(json.dumps({"type": "batch_ack", "results": results}))
         self.m.set_sync_phase("idle", 0, channel=dev_id, name=dev_name,
@@ -171,8 +176,7 @@ class PushReceiver:
         return get_local_data_dir() / "codesync" / "received_files.json"
 
     def _load_received(self) -> dict:
-        """The client's SMALL per-sync table {rel: hash} of files it has received,
-        used to retain update-only ownership metadata between reconciliations."""
+        """Load confirmed hashes and filesystem metadata from prior receives."""
         try:
             p = self._received_table_path()
             if p.exists():
@@ -193,6 +197,34 @@ class PushReceiver:
         except Exception:
             pass
 
+    @staticmethod
+    def _received_record(target: Path, file_hash: str) -> dict:
+        try:
+            stat = target.stat()
+            return {
+                "hash": str(file_hash or ""),
+                "size": int(stat.st_size),
+                "mtime_ns": int(stat.st_mtime_ns),
+                "ctime_ns": int(stat.st_ctime_ns),
+            }
+        except OSError:
+            return {
+                "hash": str(file_hash or ""),
+                "size": -1,
+                "mtime_ns": -1,
+                "ctime_ns": -1,
+            }
+
+    @staticmethod
+    def _received_cache_matches(record, file_hash: str, stat) -> bool:
+        return bool(
+            isinstance(record, dict)
+            and str(record.get("hash") or "") == str(file_hash or "")
+            and int(record.get("size", -1)) == int(stat.st_size)
+            and int(record.get("mtime_ns", -1)) == int(stat.st_mtime_ns)
+            and int(record.get("ctime_ns", -1)) == int(stat.st_ctime_ns)
+        )
+
     def _handle_manifest(self, msg: dict, send) -> None:
         """A dev sends its FULL file table {rel: canonical_hash} on first connect and
         on every reconnect (the real-time full-update diff). We compare it against our
@@ -201,7 +233,13 @@ class PushReceiver:
         file we have that the dev no longer lists is KEPT (it may be a dev-only env
         difference, an excluded artifact, or something the client still needs to run).
         So the client only ever gains/refreshes files, never loses them."""
+        started_at = time.monotonic()
         files = msg.get("files") or {}
+        if msg.get("files_gzip"):
+            encoded = base64.b64decode(msg.get("files_gzip"))
+            files = json.loads(gzip.decompress(encoded).decode("utf-8"))
+        if not isinstance(files, dict):
+            files = {}
         dev_id = msg.get("dev_id") or "_local"
         dev_name = msg.get("dev_name") or ""
         peer = dev_name or (str(dev_id)[:8] if dev_id else "")
@@ -209,6 +247,7 @@ class PushReceiver:
         received = self._load_received()
         need = []
         hashed = 0
+        cached = 0
         total = len(files)
         ColorPrint.blue(
             f"[CodeSync HTTP/SSE] Full manifest received from '{peer}': "
@@ -236,19 +275,24 @@ class PushReceiver:
                 need.append(srel)
                 continue
             try:
-                matches = normalized_md5(target.read_bytes()) == h
+                stat = target.stat()
+                if self._received_cache_matches(received.get(srel), h, stat):
+                    matches = True
+                    cached += 1
+                else:
+                    matches = normalized_md5(target.read_bytes()) == h
+                    hashed += 1
             except Exception:
                 matches = False
-            hashed += 1
             if matches:
-                new_table[srel] = h
+                new_table[srel] = self._received_record(target, h)
             else:
                 need.append(srel)
         # UPDATE-ONLY: the client NEVER deletes. A file we have that is absent from
         # the dev manifest (removed/excluded on the dev, or a dev-only env file) is
         # KEPT. We just retain it in our fast-skip table (when still on disk) so a
         # transient/empty/partial manifest can never make us drop or re-fetch it.
-        for rel, h in received.items():
+        for rel, record in received.items():
             if rel in new_table or rel in files:
                 continue
             srel = str(rel).replace("\\", "/")
@@ -257,14 +301,16 @@ class PushReceiver:
             except Exception:
                 continue
             if (target == root or root in target.parents) and target.exists():
-                new_table[rel] = h
+                new_table[rel] = record
         # Persist the confirmed-present files; needed ones are added by _apply_batch
         # as they are actually written.
         self._save_received(new_table)
         self.m.log_sync("reconnect", "", "full diff complete",
                         details=f"{len(need)} to fetch, "
                                 f"{len(files) - len(need)} up-to-date "
-                                f"({hashed} re-hashed); update-only, 0 deleted",
+                                f"({cached} cached, {hashed} re-hashed); "
+                                f"{time.monotonic() - started_at:.1f}s; "
+                                "update-only, 0 deleted",
                         peer=peer, direction="receive")
         ColorPrint.green(
             f"[CodeSync HTTP/SSE] Full diff complete for '{peer}': "

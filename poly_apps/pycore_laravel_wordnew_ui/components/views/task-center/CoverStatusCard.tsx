@@ -16,9 +16,9 @@ import React, { useState } from 'react';
 import { Language } from '../../../types';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
-import { api } from '../../../core/api';
+import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '../../../hooks';
-import type { CoverStatusData, CoverQueueStats } from '../../../core/api/modules/AppQyV1';
+import type { CoverStatusData, CoverQueueStats } from '@/apps/laravel-manager/api';
 import { useToast, ConfirmModal } from '../../admin';
 import { logInfo, logError } from '../../../core/logstore/logStore';
 import {

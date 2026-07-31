@@ -628,7 +628,7 @@ export const WfNewApp: React.FC = () => {
                   title,
                   count: 0,
                   countUnit: 'sentences',
-                  category: 'agent_history',
+                  category: 'daily',
                 })}
               />
             </motion.div>

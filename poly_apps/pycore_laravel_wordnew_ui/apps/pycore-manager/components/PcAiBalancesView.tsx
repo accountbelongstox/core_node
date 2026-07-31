@@ -15,8 +15,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Wallet, RefreshCcw, AlertTriangle, CheckCircle2, MinusCircle, XCircle, Info,
 } from 'lucide-react';
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import type { AiBalance, AiBalanceResponse } from '../../../core/api-libs/pycore';
+import { pycoreApi } from '@/apps/pycore-manager/api';
+import type { AiBalance, AiBalanceResponse } from '@/apps/pycore-manager/api';
 import { logInfo, logSuccess, logError } from '../../../core/logstore/logStore';
 
 const LOG_SRC = 'pc-ai-balance';
