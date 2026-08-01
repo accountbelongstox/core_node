@@ -14,7 +14,6 @@
     "sentence_audio"
   ],
   "callback_queue_roles": {
-    "global_task_worker": "transport",
     "translation_worker": "consumer",
     "translation_queue_monitor": "monitor",
     "translation_ws_client": "signal",

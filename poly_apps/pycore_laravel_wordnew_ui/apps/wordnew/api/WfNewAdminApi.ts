@@ -264,8 +264,8 @@ async function request<T>(method: string, path: string, body?: Record<string, un
 }
 
 const getJSON = <T,>(path: string): Promise<T> => request<T>('GET', path);
-const postJSON = <T,>(path: string, body: Record<string, unknown>): Promise<T> => request<T>('POST', path, body);
-const putJSON = <T,>(path: string, body: Record<string, unknown>): Promise<T> => request<T>('PUT', path, body);
+const postJSON = <T,>(path: string, body: object): Promise<T> => request<T>('POST', path, body as Record<string, unknown>);
+const putJSON = <T,>(path: string, body: object): Promise<T> => request<T>('PUT', path, body as Record<string, unknown>);
 const deleteJSON = <T,>(path: string): Promise<T> => request<T>('DELETE', path);
 
 /** Resolve a backend-relative media path (audio/covers/images) onto the pinned base. */

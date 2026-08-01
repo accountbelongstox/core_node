@@ -802,7 +802,26 @@ export const TRANSLATIONS = {
       test_error: "Connection failed",
       current_origin: "Current origin",
       browser_origin: "Browser Origin",
-      auth_required: "Settings page requires authentication. Please login to continue."
+      auth_required: "Settings page requires authentication. Please login to continue.",
+      profile: {
+        title: "User Profile",
+        avatar: "Avatar",
+        upload_avatar: "Upload Avatar",
+        change_avatar: "Change Avatar",
+        avatar_hint: "JPG, PNG or WebP. Max 5 MB.",
+        avatar_updated: "Avatar updated successfully",
+        avatar_failed: "Failed to update avatar",
+        avatar_too_large: "Image must be 5 MB or smaller",
+        avatar_invalid_type: "Unsupported image type",
+        current_password: "Current Password",
+        new_password: "New Password",
+        confirm_password: "Confirm Password",
+        change_password: "Change Password",
+        password_changed: "Password changed successfully",
+        password_failed: "Failed to change password",
+        password_mismatch: "New passwords do not match",
+        password_required: "All password fields are required"
+      }
     },
     invite_codes: {
       auth_required: "Invite Code Manager requires admin access. Please login with admin account."
@@ -1825,7 +1844,26 @@ export const TRANSLATIONS = {
       test_error: "连接失败",
       current_origin: "当前源",
       browser_origin: "浏览器源",
-      auth_required: "设置页面需要身份验证。请登录后继续。"
+      auth_required: "设置页面需要身份验证。请登录后继续。",
+      profile: {
+        title: "用户资料",
+        avatar: "头像",
+        upload_avatar: "上传头像",
+        change_avatar: "更换头像",
+        avatar_hint: "支持 JPG、PNG 或 WebP，最大 5 MB。",
+        avatar_updated: "头像更新成功",
+        avatar_failed: "头像更新失败",
+        avatar_too_large: "图片大小不能超过 5 MB",
+        avatar_invalid_type: "不支持的图片格式",
+        current_password: "当前密码",
+        new_password: "新密码",
+        confirm_password: "确认新密码",
+        change_password: "修改密码",
+        password_changed: "密码修改成功",
+        password_failed: "密码修改失败",
+        password_mismatch: "两次输入的新密码不一致",
+        password_required: "请填写全部密码字段"
+      }
     },
     invite_codes: {
       auth_required: "邀请码管理需要管理员权限。请使用管理员账户登录。"

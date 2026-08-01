@@ -36,7 +36,6 @@ class AppQyV1VocabularyCoverService
         // (previously a vocabulary_covers row was firstOrCreate'd here).
         if ($library->cover_filename === null || $library->cover_filename === '') {
             $library->cover_filename = $expectedFilename;
-            $library->cover_prompt = $this->buildPrompt($library);
             if (!in_array($library->cover_status, ['pending', 'processing', 'retry', 'ready', 'failed'], true)) {
                 $library->cover_status = 'pending';
             }
@@ -57,7 +56,7 @@ class AppQyV1VocabularyCoverService
         }
 
         // Re-requesting a failed cover re-queues it for mcp-chrome: keep the
-        // existing filename/prompt, reset attempts and clear the lease +
+        // existing filename, reset attempts and clear the lease +
         // error so the maintenance pass / assist claim picks it up again.
         if ($library->cover_status === 'failed') {
             $library->cover_status = 'pending';
@@ -137,20 +136,6 @@ class AppQyV1VocabularyCoverService
         $slug = Str::of($name)->lower()->squish()->toString();
         $hash = md5($libraryId . '|' . $slug);
         return "{$hash}.png";
-    }
-
-    /**
-     * Cover prompt for a library. Delegates to AppQyV1CoverPromptBuilder, which
-     * produces a TEXT-FREE prompt (image models render letters poorly) with
-     * RANDOMIZED visual variables (style/palette/background/lighting/motif) so
-     * each call — and therefore each regeneration — yields a different image.
-     *
-     * Public because it is shared by the local generation pipeline AND the
-     * assist claim endpoint (pycore receives this exact prompt).
-     */
-    public function buildPrompt(AppQyV1VocabularyLibraryModel $library): string
-    {
-        return AppQyV1CoverPromptBuilder::build($library);
     }
 
     /**

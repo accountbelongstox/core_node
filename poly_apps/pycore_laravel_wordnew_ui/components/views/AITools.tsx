@@ -153,10 +153,7 @@ const AITools: React.FC = () => {
 
       {/* ── Console rail ─────────────────────────────────────────────── */}
       <aside
-        className={`${sidebarOpen ? 'w-72' : 'w-[68px]'} relative z-10 flex flex-col
-          border-r border-slate-200/80 dark:border-white/5
-          bg-white/70 dark:bg-white/[0.02] backdrop-blur-xl
-          transition-[width] duration-300 ease-out`}
+        className="hidden"
       >
         {/* Brand */}
         <div className="flex items-center gap-3 px-4 h-16 border-b border-slate-200/80 dark:border-white/5">
@@ -253,6 +250,29 @@ const AITools: React.FC = () => {
 
       {/* ── Workspace ────────────────────────────────────────────────── */}
       <main className="relative z-10 flex-1 flex flex-col min-w-0">
+        <nav className="flex justify-center border-b border-slate-200/80 dark:border-white/5 px-4 py-2 bg-white/40 dark:bg-white/[0.015]">
+          <div className="flex max-w-full items-center justify-center gap-1 overflow-x-auto rounded-lg bg-slate-900/[0.04] dark:bg-white/[0.04] p-1">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id;
+              const a = ACCENT[item.id];
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setCurrentView(item.id)}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
+                    isActive
+                      ? `${a.ambient} ${a.text} ring-1 ${a.ring}`
+                      : 'text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/[0.05] dark:hover:text-white'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="hidden md:inline">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </nav>
         {/* Header strip */}
         <header className="shrink-0 px-7 h-16 flex items-center justify-between border-b border-slate-200/80 dark:border-white/5 bg-white/40 dark:bg-white/[0.015] backdrop-blur-sm">
           <div className="min-w-0">

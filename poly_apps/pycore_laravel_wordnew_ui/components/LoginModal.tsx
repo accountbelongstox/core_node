@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
 import { useTranslation } from 'react-i18next';
-import { Language } from '../types';
+import { Language } from '../apps/laravel-manager/uiTypes';
 import { useUser } from '../hooks/useUser';
 import { api } from '@/apps/laravel-manager/api';
 import { InviteCode } from '@/apps/laravel-manager/api';

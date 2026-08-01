@@ -56,7 +56,7 @@ export class ITToolsModel extends BaseModel {
       this.execute(api.itToolsV1.encrypt({ text, key, algorithm })),
 
     decrypt: (encrypted: string, key: string, algorithm?: string) =>
-      this.execute(api.itToolsV1.decrypt({ text: encrypted, key, algorithm }))
+      this.execute(api.itToolsV1.decrypt({ encrypted, key, algorithm }))
   };
 
   // Converter namespace
@@ -67,8 +67,8 @@ export class ITToolsModel extends BaseModel {
     },
 
     url: {
-      encode: (text: string) => this.execute(api.itToolsV1.urlEncode({ text })),
-      decode: (text: string) => this.execute(api.itToolsV1.urlDecode({ text }))
+      encode: (text: string) => this.execute(api.itToolsV1.urlEncode({ url: text })),
+      decode: (text: string) => this.execute(api.itToolsV1.urlDecode({ encoded: text }))
     },
 
     json: {
@@ -98,7 +98,7 @@ export class ITToolsModel extends BaseModel {
       this.execute(api.itToolsV1.convertColorConverter({ color, from, to })),
 
     base: (number: string, from: number, to: number) =>
-      this.execute(api.itToolsV1.convertBase({ number, from, to })),
+      this.execute(api.itToolsV1.convertBase({ value: number, from, to })),
 
     temperature: (value: number, from: string, to: string) =>
       this.execute(api.itToolsV1.convertTemperature({ value, from, to }))
@@ -113,7 +113,10 @@ export class ITToolsModel extends BaseModel {
       this.execute(api.itToolsV1.regexTest({ text, pattern, flags })),
 
     loremIpsum: (paragraphs?: number, words?: number) =>
-      this.execute(api.itToolsV1.loremIpsum({ paragraphs, words })),
+      this.execute(api.itToolsV1.loremIpsum({
+        count: paragraphs ?? words,
+        unit: paragraphs !== undefined ? 'paragraphs' : 'words',
+      })),
 
     diff: (text1: string, text2: string) =>
       this.execute(api.itToolsV1.textDiff({ text1, text2 }))
@@ -125,7 +128,7 @@ export class ITToolsModel extends BaseModel {
       this.execute(api.itToolsV1.mathEvaluate({ expression })),
 
     percentage: (value: number, total: number) =>
-      this.execute(api.itToolsV1.calculatePercentage({ value, total }))
+      this.execute(api.itToolsV1.calculatePercentage({ operation: 'percent_of', value1: value, value2: total }))
   };
 
   // Web namespace

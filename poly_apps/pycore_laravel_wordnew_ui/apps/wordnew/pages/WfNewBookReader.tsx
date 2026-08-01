@@ -561,7 +561,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
   }, [loadVerses]);
 
   const allEmpty = useMemo(() => verses.length > 0 && verses.every((v) => {
-    const cells = v.languages ? Object.values(v.languages) : [];
+    const cells = v.languages ? Object.values(v.languages) as Array<{ text?: string | null }> : [];
     return !cells.some((c) => c?.text?.trim()) && !(v.text?.trim());
   }), [verses]);
 

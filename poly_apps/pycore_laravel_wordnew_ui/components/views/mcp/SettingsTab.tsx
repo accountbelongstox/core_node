@@ -1,7 +1,7 @@
 import React from 'react';
 import { commonClasses } from '../../../styles/theme';
 import { TRANSLATIONS } from '../../../constants';
-import type { Language } from '../../../types';
+import type { Language } from '../../../apps/laravel-manager/uiTypes';
 
 /** MCP Settings tab (placeholder). Self-contained — derives its own strings. */
 const SettingsTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {

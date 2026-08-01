@@ -15,7 +15,7 @@
  * tab stays warm.
  */
 import React, { useState, useEffect } from 'react';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { TaskCenterOverview } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';

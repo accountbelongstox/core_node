@@ -25,8 +25,9 @@ from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
 
 _MISSING_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/missing"
-_HTTP_TIMEOUT = 60
-_POLL_LIMIT = 100
+_HTTP_TIMEOUT = 10
+_POLL_LIMIT = 50
+_MIN_POLL_INTERVAL_SECONDS = 5.0
 
 # THREAD_BUS signal carrying the latest snapshot for the queue router (rule §4:
 # inter-thread data flows over the bus, not shared attributes).
@@ -44,6 +45,7 @@ class SentenceQueueMonitorService:
         self._bumped_until: Dict[str, float] = {}
         self._snapshot: Dict[str, Any] = {"items": [], "total": 0, "reachable": False}
         self._snapshot_ts = 0.0
+        self._last_poll_attempt_ts = 0.0
         self._laravel_reachable = False
         self._unreachable_warned = False
         self._last_logged_shape: Optional[Tuple[int, int]] = None
@@ -153,6 +155,10 @@ class SentenceQueueMonitorService:
         supervise pattern). Rule §4: lifecycle state travels through THREAD_BUS."""
         if THREAD_BUS.get_signal(self._poll_running_signal, False):
             return
+        now = time.monotonic()
+        if now - self._last_poll_attempt_ts < _MIN_POLL_INTERVAL_SECONDS:
+            return
+        self._last_poll_attempt_ts = now
         THREAD_BUS.signal(self._poll_running_signal, True)
         try:
             start_bus_task(self._poll_worker, thread_name="sentence-queue-monitor-poll")

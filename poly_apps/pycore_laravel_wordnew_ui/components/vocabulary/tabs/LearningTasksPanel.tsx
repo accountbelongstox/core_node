@@ -6,7 +6,7 @@ import {
   AsyncState,
   VocabularyTask,
   VocabularyWord
-} from '../../../types';
+} from '../../../apps/laravel-manager/uiTypes';
 
 interface LearningTasksPanelProps {
   tasks: AsyncState<VocabularyTask[]>;

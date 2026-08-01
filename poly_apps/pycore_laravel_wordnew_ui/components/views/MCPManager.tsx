@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../constants';
 import { Image, ListTodo, ImagePlus, Settings, Eye } from 'lucide-react';
 import OcrTab from './mcp/OcrTab';

@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import BentoCard from '../BentoCard';
 import { Palette, Copy, Check, ArrowRight, Hash, Zap, Cloud } from "lucide-react";
-import { ToolConnectionConfig } from '../../types';
-import { apiClient } from '../../services/api';
+import { ToolConnectionConfig } from '../../apps/laravel-manager/uiTypes';
+import { toolDemoService } from '../../apps/laravel-manager/services/ToolDemoService';
 import { NOISE_TEXTURE_BG_CLASS } from '../../utils/noiseTexture';
 
 interface HexToRgbProps {
@@ -21,7 +21,7 @@ const HexToRgb: React.FC<HexToRgbProps> = ({ config }) => {
   useEffect(() => {
       const convert = async () => {
           if (hex.length < 4) return;
-          const res = await apiClient.executeToolAction('col1', 'convert', { hex }, config);
+          const res = await toolDemoService.executeToolAction('col1', 'convert', { hex }, config);
           if (res.success && res.data) {
               setRgb(res.data.rgb);
               setDataSource(res.dataSource || 'mock');

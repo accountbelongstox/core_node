@@ -8,7 +8,7 @@ import HexToRgb from '../tools/HexToRgb';
 import PasswordGenerator from '../tools/PasswordGenerator';
 import WordCounter from '../tools/WordCounter';
 import UniversalTool from '../tools/UniversalTool';
-import { LayoutMode, Language } from '../../types';
+import { LayoutMode, Language } from '../../apps/laravel-manager/uiTypes';
 import { CopyButton } from '../common/CopyButton';
 
 interface UploadedFile {

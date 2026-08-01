@@ -63,22 +63,19 @@ trait AppQyV1AssistMediaOperations
 
             $items = [];
             foreach ($rows as $library) {
-                // Always rebuild a FRESH randomized, text-free prompt so each
-                // (re)generation varies instead of repeating the stored one.
-                // Persist exactly what we hand to pycore for provenance.
-                $prompt = $this->coverService->buildPrompt($library);
-                $library->cover_prompt = $prompt;
-
                 $library->assist_claimed_at = now();
                 $library->assist_claimed_by = mb_substr($claimer, 0, 64);
                 $library->save();
 
+                // The assist client owns prompt composition and visual creativity;
+                // Laravel returns semantic metadata only.
                 $items[] = [
                     'type' => 'cover',
                     'id' => (int) $library->id,
                     'payload' => [
                         'name' => $library->name,
-                        'prompt' => $prompt,
+                        'category' => $library->category,
+                        'difficulty' => $library->difficulty_level,
                         'size' => ($library->cover_width ?? 1024) . 'x' . ($library->cover_height ?? 1024),
                         'filename' => $library->cover_filename,
                     ],
@@ -339,9 +336,8 @@ trait AppQyV1AssistMediaOperations
      * Clear (delete) cover image files and re-queue the rows for regeneration.
      *
      * For each matching requested cover: delete the on-disk file, reset the row
-     * to 'pending' (attempts=0, error/lease/timestamps cleared) and DROP the
-     * stored cover_prompt so the next claim builds a fresh randomized one. Use
-     * to discard unsatisfactory covers and let mcp-chrome replace them.
+     * to 'pending' (attempts=0, error/lease/timestamps cleared). Use to discard
+     * unsatisfactory covers and let mcp-chrome replace them with fresh art.
      *
      * Scope: $all=true clears every requested cover; $failedOnly=true narrows to
      * failed/retry rows; otherwise only the given ids.
@@ -374,7 +370,6 @@ trait AppQyV1AssistMediaOperations
             $library->cover_status = 'pending';
             $library->cover_attempts = 0;
             $library->cover_error_message = null;
-            $library->cover_prompt = null;            // -> fresh randomized prompt on next claim
             $library->cover_started_at = null;
             $library->cover_finished_at = null;
             $library->cover_last_generated_at = null;

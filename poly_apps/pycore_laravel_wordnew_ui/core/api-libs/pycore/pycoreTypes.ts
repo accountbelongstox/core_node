@@ -2313,6 +2313,9 @@ export interface PcCompletedTaskSyncResponse {
   resource_count: number;
   last_sync_at: string | null;
   types: Record<string, number>;
+  records: PcTaskRecord[];
+  count: number;
+  next_cursor_id?: number | null;
   error?: string;
 }
 

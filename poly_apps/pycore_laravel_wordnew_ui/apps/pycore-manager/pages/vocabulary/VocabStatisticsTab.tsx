@@ -82,8 +82,11 @@ export default function VocabStatisticsTab() {
   if (loading) return <VocabLoading />;
   if (offline && !summary && !breakdown.length) return <VocabBanner kind="offline" message={VL.offline} />;
 
-  const storageSections = storage
-    ? Object.entries(storage).filter(([, v]) => v && typeof v === 'object')
+  const storageSections: Array<[string, { count?: number; size?: number }]> = storage
+    ? Object.entries(storage).filter((entry): entry is [string, { count?: number; size?: number }] => {
+        const value = entry[1];
+        return !!value && typeof value === 'object';
+      })
     : [];
 
   return (

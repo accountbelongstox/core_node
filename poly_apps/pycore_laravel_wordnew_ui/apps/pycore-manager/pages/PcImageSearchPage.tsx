@@ -109,7 +109,7 @@ function loadImageResource(url: string): Promise<string> {
   return pending;
 }
 
-function RpcSearchImage({ url, alt, className }: { url: string; alt: string; className: string }) {
+function RpcSearchImage({ url, alt, className }: { key?: React.Key; url: string; alt: string; className: string }) {
   const [src, setSrc] = useState('');
   const [visible, setVisible] = useState(false);
   const targetRef = useRef<HTMLSpanElement | null>(null);

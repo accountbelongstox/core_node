@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../BentoCard';
-import { FileNode, Language, StaticFileContent } from '../../types';
+import { FileNode, Language, StaticFileContent } from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { smartSortFiles, processFileEntries } from '../../utils/mediaUtils';

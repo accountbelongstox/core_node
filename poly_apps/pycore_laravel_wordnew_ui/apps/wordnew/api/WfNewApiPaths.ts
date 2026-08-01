@@ -86,8 +86,15 @@ export const WfNewApiPaths = {
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
+  /** Raise TTS priority for ONE sentence by content_id/hash
+   *  (POST { content_id, language, interactive?, create_task?, text? }). */
+  sentenceBump: p('/ai_tools/tts/sentence/bump'),
   /** Raise TTS priority for a batch of visible sentences (POST { items, interactive? }). */
   sentenceBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
+  /** Enqueue + prioritize word-audio generation by word text
+   *  (POST { tasks: [{content, language, type}], interactive? }); interactive=true
+   *  moves the batch to the FRONT of the audio queue (move-to-front ticket). */
+  ttsQueueBatchAdd: p('/ai_tools/tts/queue/batch/add'),
   /** Stack words into the translation queue at high priority (POST { words, language, target_language, priority? }). */
   translationQueueStack: p('/ai_tools/translation/queue/stack'),
 

@@ -1,5 +1,5 @@
 // Mock data (file trees, tasks) split out of constants.tsx.
-import { FileNode, TaskItem } from "../types";
+import { FileNode, TaskItem } from "../apps/laravel-manager/uiTypes";
 
 export const MOCK_FILE_TREE: FileNode[] = [
   // ... (Existing Mock File Tree - kept same)

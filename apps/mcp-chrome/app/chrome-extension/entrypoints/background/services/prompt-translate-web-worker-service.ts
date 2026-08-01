@@ -54,6 +54,10 @@ class PromptTranslateWebWorkerService extends SimpleWorkerBase {
     return LOG;
   }
 
+  protected get pullTaskTypes(): string[] {
+    return [TASK_TYPE_KEYS.prompt_translation];
+  }
+
   protected handlesTaskType(taskType: string): boolean {
     return taskType === TASK_TYPE_KEYS.prompt_translation;
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Upload, Play, Wand2, Image, Copy, Eye } from 'lucide-react';
-import { Language, AsyncState } from '../../../types';
+import { Language, AsyncState } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';

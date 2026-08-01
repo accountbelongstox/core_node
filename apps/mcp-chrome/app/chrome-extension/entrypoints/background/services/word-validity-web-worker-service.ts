@@ -56,6 +56,10 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
     return LOG;
   }
 
+  protected get pullTaskTypes(): string[] {
+    return [TASK_TYPE_KEYS.word_validity];
+  }
+
   protected handlesTaskType(taskType: string): boolean {
     return taskType === TASK_TYPE_KEYS.word_validity;
   }
@@ -69,7 +73,13 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
 
     let classification;
     try {
-      classification = await runWordValidityClassification(words);
+      // Validity + translation in ONE DeepSeek pass (2.4): the batch returns a
+      // verdict and, for every valid word, its target-language translation.
+      const targetLanguage = typeof (task.payload as any)?.target_language === 'string'
+        && (task.payload as any).target_language.trim()
+        ? (task.payload as any).target_language.trim()
+        : 'zh';
+      classification = await runWordValidityClassification(words, undefined, targetLanguage);
     } catch (error: any) {
       logger.warn(LOG, `Web provider failed for ${task.task_id}`, error);
       await this.submitResult(task.task_id, 'failed', undefined, {

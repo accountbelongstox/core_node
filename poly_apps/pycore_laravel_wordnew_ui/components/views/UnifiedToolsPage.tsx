@@ -11,11 +11,13 @@ import {
 } from 'lucide-react';
 import { downloadAsFile, toJsonString, copyToClipboard, buildExportFilename } from '../../utils/exportResult';
 import MCPManager from './MCPManager';
+import AITools from './AITools';
 
 // Sentinel "category" that swaps the tool grid for the embedded MCP Server
 // utilities (screenshots + placeholder images), relocated here when the
 // standalone #/mcp tab was removed.
 const MCP_TOOLS_CATEGORY = '__mcp_server__';
+const AI_TOOLS_CATEGORY = '__ai_tools__';
 
 /**
  * Unified Tools Page — theme-aware, responsive redesign.
@@ -317,6 +319,18 @@ export function UnifiedToolsPage() {
   const renderCategoryNav = () => (
     <nav className="flex-1 overflow-y-auto p-2 space-y-1">
       <button
+        onClick={() => { setSelectedCategory(AI_TOOLS_CATEGORY); setSelectedTool(null); setMobileNavOpen(false); }}
+        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+          selectedCategory === AI_TOOLS_CATEGORY
+            ? 'bg-fuchsia-50 dark:bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-300 ring-1 ring-fuchsia-500/30'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+        }`}
+      >
+        <Sparkles className="w-4 h-4 flex-shrink-0" />
+        <span className="flex-1 text-left">AI Tools</span>
+      </button>
+
+      <button
         onClick={() => { setSelectedCategory('all'); setMobileNavOpen(false); }}
         className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
           selectedCategory === 'all'
@@ -468,13 +482,6 @@ export function UnifiedToolsPage() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 rounded-lg p-1 order-3 sm:order-none w-full sm:w-auto justify-center">
-            {tabBtn('all', 'Tools', Layers, Object.keys(ALL_TOOLS).length, 'bg-indigo-600 text-white shadow-sm')}
-            {tabBtn('favorites', 'Favorites', Star, favorites.length, 'bg-amber-500 text-white shadow-sm')}
-            {tabBtn('recent', 'Recent', Clock, history.length, 'bg-purple-600 text-white shadow-sm')}
-          </div>
-
           {/* Search */}
           <div className="relative flex-1 sm:flex-none order-2 sm:order-none min-w-[160px] sm:min-w-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -495,6 +502,14 @@ export function UnifiedToolsPage() {
             )}
           </div>
         </div>
+
+        <nav className="flex justify-center border-t border-slate-200/80 dark:border-slate-800/80 px-4 py-2">
+          <div className="flex items-center justify-center gap-1 rounded-lg bg-slate-100 dark:bg-slate-800/60 p-1">
+            {tabBtn('all', 'Tools', Layers, Object.keys(ALL_TOOLS).length, 'bg-indigo-600 text-white shadow-sm')}
+            {tabBtn('favorites', 'Favorites', Star, favorites.length, 'bg-amber-500 text-white shadow-sm')}
+            {tabBtn('recent', 'Recent', Clock, history.length, 'bg-purple-600 text-white shadow-sm')}
+          </div>
+        </nav>
       </header>
 
       {/* Body */}
@@ -529,7 +544,11 @@ export function UnifiedToolsPage() {
 
         {/* Main area: MCP server panel OR grid browse OR tool detail */}
         <main className="flex-1 flex overflow-hidden">
-          {selectedCategory === MCP_TOOLS_CATEGORY ? (
+          {selectedCategory === AI_TOOLS_CATEGORY ? (
+            <section className="flex-1 overflow-hidden">
+              <AITools />
+            </section>
+          ) : selectedCategory === MCP_TOOLS_CATEGORY ? (
             <section className="flex-1 overflow-auto p-4 sm:p-6">
               <MCPManager allowedTabs={['screenshots', 'placeholder']} />
             </section>

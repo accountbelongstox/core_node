@@ -1,9 +1,10 @@
 import { APIResponse, APIRequestConfig, APIModuleConfig } from '../../types';
 import { apiCache } from './APICache';
-import { htmlErrorManager } from '../../../../services/HtmlErrorManager';
+import { htmlErrorManager } from '../../services/HtmlErrorManager';
 import { appendLog } from '../../../../core/logstore/logStore';
 import { coordinateRequest } from '../../../../core/network/RequestCoordinator';
 import { getAuthHeader, setAuthToken } from '../../../../core/auth/AuthSession';
+import { requestGlobalLogin } from '../../auth/loginModalBridge';
 
 /**
  * Endpoints excluded from the global log panel: high-frequency background
@@ -65,7 +66,11 @@ function normalizeBaseURL(url: string): string {
  * (which App.tsx / ApiEndpointSwitcher drive from the resolved endpoint).
  */
 export function setSharedBaseURL(url: string): void {
-  sharedBaseURL = normalizeBaseURL(url);
+  const nextBaseURL = normalizeBaseURL(url);
+  if (sharedBaseURL !== null && sharedBaseURL !== nextBaseURL) {
+    apiCache.clear();
+  }
+  sharedBaseURL = nextBaseURL;
 }
 
 /** The current shared base URL, or null if none has been set yet. */
@@ -139,14 +144,6 @@ export class BaseAPI {
    * value wins for every module.
    */
   private seedBaseURL: string;
-  /**
-   * Per-instance temporary override. Normally null so the module follows the
-   * process-wide shared base URL in lock-step. Settings' "test connection"
-   * flow assigns `baseURL` to probe an arbitrary URL, then assigns the old
-   * value back; the setter clears this override on restore so the module
-   * resumes following the global (auto-failover-aware) endpoint.
-   */
-  private instanceOverride: string | null = null;
   protected prefix: string;
   protected headers: Record<string, string>;
   protected timeout: number;
@@ -159,21 +156,8 @@ export class BaseAPI {
    * before any endpoint has been selected.
    */
   protected get baseURL(): string {
-    if (this.instanceOverride !== null) return this.instanceOverride;
     const shared = getSharedBaseURL();
     return shared !== null ? shared : this.seedBaseURL;
-  }
-
-  /**
-   * Temporarily point only this module instance at `url`. Assigning the
-   * currently-resolved value back (shared, or the construction-time seed)
-   * clears the override so the instance rejoins the global lock-step
-   * endpoint instead of pinning a now-stale URL.
-   */
-  protected set baseURL(url: string) {
-    const shared = getSharedBaseURL();
-    const resolved = shared !== null ? shared : this.seedBaseURL;
-    this.instanceOverride = url === resolved ? null : normalizeBaseURL(url);
   }
 
   constructor(config: APIModuleConfig) {
@@ -270,7 +254,7 @@ export class BaseAPI {
    * Core request method
    */
   protected async request<T>(config: APIRequestConfig, retryCount: number = 0): Promise<APIResponse<T>> {
-    const fullURL = this.buildURL(config.url);
+    const fullURL = this.buildURL(config.url, config.baseURL, config.root);
     if (config.method === 'GET' && retryCount === 0) {
       const authKey = getSharedAuthToken() || 'anonymous';
       return coordinateRequest(
@@ -360,6 +344,7 @@ export class BaseAPI {
           message: data.message
         };
       } else {
+        if (response.status === 401) requestGlobalLogin();
         // Error response - trigger HTML error modal if debug info available
         if (data.exception || data.trace) {
           // Pass JSON directly as string - don't convert to HTML
@@ -430,15 +415,95 @@ export class BaseAPI {
   /**
    * Build the full URL
    */
-  protected buildURL(path: string): string {
+  protected buildURL(path: string, requestBaseURL?: string, root = false): string {
     // If path is already a full URL (starts with http:// or https://), return it directly
     if (path.startsWith('http://') || path.startsWith('https://')) {
       return path;
     }
 
     const cleanPath = path.startsWith('/') ? path.slice(1) : path;
-    const cleanPrefix = this.prefix ? (this.prefix.endsWith('/') ? this.prefix.slice(0, -1) : this.prefix) : '';
-    return `${this.baseURL}${cleanPrefix}/${cleanPath}`;
+    const cleanPrefix = !root && this.prefix ? (this.prefix.endsWith('/') ? this.prefix.slice(0, -1) : this.prefix) : '';
+    const resolvedBaseURL = requestBaseURL ? normalizeBaseURL(requestBaseURL) : this.baseURL;
+    return `${resolvedBaseURL}${cleanPrefix}/${cleanPath}`;
+  }
+
+  async rawRequest(path: string, init: RequestInit = {}, includeAuth = true): Promise<Response> {
+    const url = this.buildURL(path);
+    const startedAt = performance.now();
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), this.timeout || DEFAULT_REQUEST_TIMEOUT_MS);
+    const method = String(init.method || 'GET').toUpperCase();
+    const extraHeaders = Object.fromEntries(new Headers(init.headers).entries());
+    const isLaravelEndpoint = url === this.baseURL || url.startsWith(`${this.baseURL}/`);
+    const headers = includeAuth && isLaravelEndpoint ? this.resolveRequestHeaders(extraHeaders) : extraHeaders;
+    let response: Response;
+
+    try {
+      response = await fetch(url, { ...init, method, headers, signal: init.signal || abortController.signal });
+      logRequestOutcome(method, url, response.status, performance.now() - startedAt, response.ok ? null : response.statusText);
+      return response;
+    } catch (error: any) {
+      const normalized = normalizeRequestError(error);
+      logRequestOutcome(method, url, 0, performance.now() - startedAt, normalized.message);
+      throw normalized;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  protected uploadWithProgress<T>(
+    path: string,
+    data: FormData,
+    onProgress: (percentage: number) => void,
+    root = false,
+  ): Promise<APIResponse<T>> {
+    const url = this.buildURL(path, undefined, root);
+    const headers = this.resolveRequestHeaders();
+
+    return new Promise<APIResponse<T>>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url);
+      Object.entries(headers).forEach(([key, value]) => xhr.setRequestHeader(key, value));
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      xhr.onload = () => {
+        const success = xhr.status >= 200 && xhr.status < 300;
+        let payload: any = null;
+        try {
+          const parsed = JSON.parse(xhr.responseText);
+          payload = parsed?.data ?? parsed;
+          resolve({
+            success,
+            data: success ? payload : parsed?.data ?? null,
+            error: success ? null : parsed?.error || parsed?.message || 'Upload failed',
+            status: xhr.status,
+            message: parsed?.message,
+            debugInfo: success ? undefined : parsed,
+          });
+        } catch {
+          resolve({
+            success,
+            data: success ? xhr.responseText as T : null,
+            error: success ? null : 'Upload failed',
+            status: xhr.status,
+          });
+        }
+      };
+      xhr.onerror = () => resolve({
+        success: false,
+        data: null,
+        error: 'Network unreachable (server did not respond)',
+        status: xhr.status || 0,
+        isNetworkError: true,
+      });
+      xhr.send(data);
+    });
+  }
+
+  /** Read-only active endpoint for downloads, media URLs, and event streams. */
+  public getBaseURL(): string {
+    return this.baseURL;
   }
 
   /**
@@ -471,7 +536,7 @@ export class BaseAPI {
    */
   protected getCacheKey(method: string, url: string, params?: Record<string, any>): string {
     const paramStr = params ? JSON.stringify(params) : '';
-    return `${method}:${url}:${paramStr}`;
+    return `${method}:${this.buildURL(url)}:${paramStr}`;
   }
 
   /**

@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Settings, Cloud, Zap, AlertCircle, Save } from "lucide-react";
 import BentoCard from '../BentoCard';
-import { ToolItem, ToolConnectionConfig } from '../../types';
+import { ToolItem, ToolConnectionConfig } from '../../apps/laravel-manager/uiTypes';
 import { DEFAULT_API_CONFIGS } from '../../constants';
-import { apiClient } from '../../services/api';
 import { getDefaultBaseURL } from '../../config/constants';
 import { getSharedBaseURL } from '@/apps/laravel-manager/api';
 
@@ -25,7 +24,7 @@ const ToolWorkspace: React.FC<ToolWorkspaceProps> = ({ tool, onBack, children })
 
   const handleSaveConfig = () => {
     // Update Central Client if needed, or just local config
-    // apiClient.updateToolConfig(config); 
+    // Tool configuration is local to this demo workspace.
     setShowToast("Configuration Saved");
     setTimeout(() => setShowToast(null), 2000);
     setShowSettings(false);

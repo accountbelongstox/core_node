@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 trait AppQyV1SentenceAudioLookupTrait
 {
     /**
-     * Paginated, disk-reconciled list for Queue Center.
+     * Paginated database-only list for Queue Center.
      *
      * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>,summary:array{languages:array<string,int>,reconciled:int}}
      */
@@ -95,19 +95,14 @@ trait AppQyV1SentenceAudioLookupTrait
             ->orderByDesc('occurrence_count')
             ->orderBy('id')
             ->skip($skip)
-            ->take($take * 4)
+            ->take($take)
             ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
         $collected = 0;
         foreach ($rows as $row) {
             if ($collected >= $take) {
                 break;
             }
-            $this->reconcilePartialRow($row, $lang);
-            if (!$this->rowNeedsAudioWork($lang, $row)) {
-                $reconciled++;
-                continue;
-            }
-            $missing = $this->missingVariantsForRow($lang, $row);
+            $missing = $this->missingRegisteredVariants($lang, $row);
             $items[] = [
                 'content_id' => (string) $row->content_id,
                 'text' => (string) $row->text,
@@ -121,6 +116,20 @@ trait AppQyV1SentenceAudioLookupTrait
             $collected++;
         }
         return $collected;
+    }
+
+    /** @return array<int,array{key:string,accent:?string,gender:string}> */
+    private function missingRegisteredVariants(string $lang, LangSentence $sentence): array
+    {
+        $missing = [];
+        foreach ($this->variantsForLanguage($lang) as $spec) {
+            $key = (string) ($spec['key'] ?? '');
+            if (AppQyV1SentenceAudioFiles::hasVariantWithFile($sentence, $key)) {
+                continue;
+            }
+            $missing[] = $spec;
+        }
+        return $missing;
     }
 
     /** @return array<int,array<string,mixed>> */

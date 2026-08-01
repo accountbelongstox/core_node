@@ -47,7 +47,7 @@
     </div>
     <p v-if="validitySaved" class="text-[8px] mt-1.5 text-emerald-400">{{ getMessage('savedStatus') }}</p>
 
-    <!-- Word-validity task: which word language to drain (EN only by default). -->
+    <!-- Word-validity task: which word languages to drain (multi-select, EN by default). -->
     <h4 class="text-[9px] font-bold uppercase tracking-tight mt-3 mb-1.5" style="color: var(--text-muted)">
       {{ getMessage('validityWordLanguageTitle') }}
     </h4>
@@ -61,7 +61,7 @@
         @click="selectLanguage(opt.id)"
         :class="[
           'px-2 py-1.5 rounded text-[9px] font-bold transition-all border',
-          validityLanguage === opt.id
+          validityLanguages.includes(opt.id)
             ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40'
             : 'text-slate-400 border-slate-700 hover:bg-slate-800/50',
         ]"
@@ -93,8 +93,8 @@ import {
   setPreferredProvider,
   getValidityProvider,
   setValidityProvider,
-  getValidityLanguage,
-  setValidityLanguage,
+  getValidityLanguages,
+  setValidityLanguages,
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
 import { getMessage } from '@/utils/i18n';
@@ -124,7 +124,7 @@ const languageOptions: { id: string; label: string }[] = [
 
 const provider = ref<SelectableProvider>('chatgpt');
 const validityProvider = ref<AiWebProvider>('deepseek');
-const validityLanguage = ref<string>('en');
+const validityLanguages = ref<string[]>(['en']);
 const customValidityLanguage = ref('');
 const saved = ref(false);
 const validitySaved = ref(false);
@@ -150,7 +150,7 @@ onMounted(async () => {
     // keep default
   }
   try {
-    validityLanguage.value = await getValidityLanguage();
+    validityLanguages.value = await getValidityLanguages();
   } catch {
     // keep default
   }
@@ -177,9 +177,17 @@ const selectValidity = async (id: AiWebProvider) => {
 };
 
 const selectLanguage = async (id: string): Promise<boolean> => {
+  // Multi-select toggle (2.4): click adds/removes the language; the selection
+  // must keep at least one language (EN is the default selection).
+  const code = String(id || '').trim().toLowerCase();
+  if (!code) return false;
+  const current = validityLanguages.value.includes(code)
+    ? validityLanguages.value.filter((lang) => lang !== code)
+    : [...validityLanguages.value, code];
+  if (current.length === 0) return false;
   try {
-    await setValidityLanguage(id);
-    validityLanguage.value = id;
+    await setValidityLanguages(current);
+    validityLanguages.value = current;
     flash(languageSaved);
     return true;
   } catch {

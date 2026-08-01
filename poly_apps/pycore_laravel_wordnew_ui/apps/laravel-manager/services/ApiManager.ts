@@ -12,12 +12,14 @@ import {
   getCurrentOriginEndpoint,
   isCurrentUrlId,
   CURRENT_URL_TYPE,
-} from '../config/api-endpoints';
-import { clampRecheckInterval } from '../core/health/OfflineRecheckScheduler';
+} from '../../../config/api-endpoints';
+import { clampRecheckInterval } from '../../../core/health/OfflineRecheckScheduler';
 import { setSharedBaseURL } from '@/apps/laravel-manager/api';
-import { pycoreLaravelApi } from '../apps/laravel-manager/integrations/pycore';
-import { StorageManager } from '../core/persistence';
-import { LaravelManagerStorageKeys as StorageKeys } from '../apps/laravel-manager/persistence/LaravelManagerStorageKeys';
+import { pycoreLaravelApi } from '../integrations/pycore';
+import { StorageManager } from '../../../core/persistence';
+import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
+import { EndpointProbeAPI } from '../api/modules/EndpointProbeAPI';
+import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from '../api/ApiContract';
 
 /** Fired whenever a full health pass settles (startup, interval retry, manual re-detect). */
 export const API_HEALTH_EVENT = 'api-health-initialized';
@@ -36,6 +38,7 @@ interface ApiManagerOptions {
 }
 
 class ApiManager {
+  private endpointProbe = new EndpointProbeAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.root));
   private currentEndpoint: BackendApiEndpoint | null = null;
   private healthResults: Map<string, HealthCheckResult> = new Map();
   private initialized = false;
@@ -307,55 +310,25 @@ class ApiManager {
     options: { timeout?: number } = {}
   ): Promise<HealthCheckResult> {
     const timeout = options.timeout ?? GLOBAL_API_ENDPOINTS.timeout;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-
     const startTime = performance.now();
+    const baseURL = buildApiUrl(endpoint);
+    let result: HealthCheckResult;
 
     try {
-      const url = buildApiUrl(endpoint, '/api/health');
-      const response = await fetch(url, {
-        method: 'GET',
-        signal: controller.signal,
-        headers: {
-          'Accept': 'application/json'
-        }
-      });
-
+      const response = await this.endpointProbe.probeHealth(baseURL, timeout);
       const responseTime = Math.round(performance.now() - startTime);
-
-      // Health must mean "the Laravel backend answered", not merely "some server
-      // returned 2xx". A dev server / reverse proxy answers /api/health with a
-      // 200 text/html SPA index — a false positive that would pin the dashboard
-      // to a non-API origin and show the wrong availability. Require 2xx + JSON
-      // content-type + the backend's health marker
-      // ({"status":"healthy","service":"Laravel API",...}); reject HTML/non-JSON.
-      let healthy = false;
-      if (response.ok) {
-        const contentType = (response.headers.get('content-type') || '').toLowerCase();
-        if (contentType.includes('application/json')) {
-          try {
-            const body = await response.clone().json();
-            healthy = !!body && typeof body === 'object' &&
-              (body.status !== undefined || body.service !== undefined);
-          } catch {
-            healthy = false;
-          }
-        }
-      }
-
-      const result: HealthCheckResult = {
+      const payload = response.data;
+      const healthy = response.success && !!payload && (payload.status !== undefined || payload.service !== undefined);
+      result = {
         endpoint,
         isHealthy: healthy,
         responseTime,
+        error: healthy ? undefined : response.error || 'Invalid Laravel health response',
         timestamp: Date.now()
       };
-
-      this.healthResults.set(endpoint.id, result);
-      return result;
     } catch (error) {
       const responseTime = Math.round(performance.now() - startTime);
-      const result: HealthCheckResult = {
+      result = {
         endpoint,
         isHealthy: false,
         responseTime,
@@ -363,11 +336,9 @@ class ApiManager {
         timestamp: Date.now()
       };
 
-      this.healthResults.set(endpoint.id, result);
-      return result;
-    } finally {
-      clearTimeout(timeoutId);
     }
+    this.healthResults.set(endpoint.id, result);
+    return result;
   }
 
   /**

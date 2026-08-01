@@ -33,7 +33,7 @@ const COMPLETED_TASK_TYPE_LABEL_KEY: Record<CanonicalCompletedTaskType, string> 
   media_image: 'mediaImage',
 };
 
-const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) => {
+const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const state = usePycoreTaskCenterState();
@@ -75,14 +75,10 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
     [showAll, selectedCanonicalType, total, state.recentTypes],
   );
 
-  useEffect(() => { void state.initialSync(hub.refreshHub); }, [state, hub]);
-  useEffect(() => {
-    if (refreshTick) void hub.refreshHub();
-  }, [refreshTick, hub]);
-
+  useEffect(() => { void state.initialSync(); }, [state]);
   const syncArchive = useCallback(async () => {
-    await state.syncArchive(hub.refreshHub);
-  }, [state, hub]);
+    await state.syncArchive();
+  }, [state]);
 
   const loadMore = useCallback(async () => {
     await state.loadMoreArchive();
@@ -112,9 +108,9 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
             <button onClick={syncArchive} disabled={state.recentSyncing}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
-              title="Archive terminal Laravel and local pycore tasks, then cache their resources locally">
+              title={t('queueCenter.recent.refreshPageHint')}>
               {state.recentSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
-              {state.recentSyncing ? 'Syncing…' : 'Sync & cache'}
+              {state.recentSyncing ? t('queueCenter.recent.refreshingPage') : t('queueCenter.recent.refreshPage')}
             </button>
             <button onClick={() => hub.refreshHub()} disabled={state.recentLoading || hub.loading}
               className="p-1.5 rounded-lg pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
@@ -126,8 +122,7 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">{t('queueCenter.recent.hint')}</p>
         <div className="flex items-center gap-x-4 gap-y-1 flex-wrap text-[11px] font-mono text-slate-500">
           <span>{t('queueCenter.recent.total')} <b className="text-slate-700 dark:text-slate-300">{total}</b></span>
-          <span>cached resources <b className="text-sky-500">{state.recentResourceCount}</b></span>
-          <span>last sync <b className="text-slate-700 dark:text-slate-300">{state.recentLastSyncAt ? relativeTime(state.recentLastSyncAt) : 'never'}</b></span>
+          <span>{t('queueCenter.recent.lastRefresh')} <b className="text-slate-700 dark:text-slate-300">{state.recentLastSyncAt ? relativeTime(state.recentLastSyncAt) : t('queueCenter.recent.never')}</b></span>
         </div>
         {state.recentErr && <p className="text-[11px] text-amber-500 flex items-center gap-1"><AlertTriangle className="w-3 h-3 shrink-0" />{state.recentErr}</p>}
       </section>
@@ -244,11 +239,11 @@ const PcRecentTasksPanel: React.FC<QueueCenterPanelProps> = ({ refreshTick }) =>
           </table>
         </section>
       )}
-      {state.recentNextOffset != null && (
+      {state.recentNextCursorId != null && (
         <div className="flex justify-center">
           <button type="button" onClick={loadMore} disabled={state.recentLoading}
             className="px-3 py-1.5 rounded-xl pc-glass text-xs font-bold text-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50">
-            {state.recentLoading ? 'Loading…' : `Load more (${visibleRecords.length}/${visibleTotal})`}
+            {state.recentLoading ? t('queueCenter.recent.loading') : t('queueCenter.recent.loadMore', { loaded: visibleRecords.length, total: visibleTotal })}
           </button>
         </div>
       )}

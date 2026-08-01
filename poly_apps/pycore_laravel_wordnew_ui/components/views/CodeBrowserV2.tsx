@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '@/apps/laravel-manager/api';
-import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../types';
+import { Language, AsyncState, FileNode as ServerFileNode, FilePreview, TaskCategory, DispatchTask } from '../../apps/laravel-manager/uiTypes';
 import {
   Folder,
   FolderOpen,
@@ -411,7 +411,7 @@ const CodeBrowserV2: React.FC<CodeBrowserProps> = ({ lang = 'en' }) => {
           <span className="text-sm font-mono truncate">{node.name}</span>
           {node.size && (
             <span className="text-xs text-gray-500 ml-auto">
-              {formatFileSize(node.size)}
+              {formatFileSize(Number(node.size))}
             </span>
           )}
         </div>

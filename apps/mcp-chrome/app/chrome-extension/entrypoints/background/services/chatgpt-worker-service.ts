@@ -46,6 +46,10 @@ class ChatGptWorkerService extends SimpleWorkerBase {
     return LOG;
   }
 
+  protected get pullTaskTypes(): string[] {
+    return [TASK_TYPE_KEYS.chatgpt_chat];
+  }
+
   protected handlesTaskType(taskType: string): boolean {
     return taskType === TASK_TYPE_KEYS.chatgpt_chat;
   }

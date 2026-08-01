@@ -13,7 +13,7 @@
  * (see shared.tsx GlobalTasksSnapshot) so tab switches stay warm.
  */
 import React from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { useTaskCenterState } from './TaskCenterState';
 import { TRANSLATIONS } from '../../../constants';
 import {

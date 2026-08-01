@@ -3,7 +3,7 @@
 BaseLaravelWorkerService
 
 Shared scaffold for pycore workers that integrate with the Laravel backend's
-generic "worker task" API (/api/worker/register|heartbeat|tasks/pull|tasks/result).
+generic worker task API (tasks/{taskType}/pull with inline identity, then tasks/{taskType}/result).
 
 Extracted verbatim (behavior-preserving) from the former translation_worker_service.py
 monolith. Holds the parts that are IDENTICAL across the Laravel-pulled workers:
@@ -12,16 +12,17 @@ monolith. Holds the parts that are IDENTICAL across the Laravel-pulled workers:
   - Stable hostname-based worker_id + candidate Laravel base-URL discovery.
   - Lazy third-party ``requests`` accessor + noisy-exception condenser.
   - One-shot "no reachable Laravel" connection-failure hint.
-  - register / heartbeat / pull / _post_result HTTP with retry + circuit breaker.
+  - inline worker discovery on pull + _post_result retry and circuit breaker.
 
 The concrete subclass (TranslationWorkerService) supplies:
   - worker_name, _log_prefix (set in __init__ before any base HTTP method runs)
   - _effective_processor_types() / _effective_capabilities() (lane gating)
+  - _effective_task_types() (typed pull route scope, primary type last)
   - the lane-specific task processing
 
-The word/sentence source-queue workers are intentionally outside this base:
-they claim domain rows through dedicated claim/report contracts rather than the
-GlobalTask worker wire model. Shared Laravel transport still goes through
+The word/sentence audio workers (pyctl/tts/laravel_audio_worker.py) also build
+on this base: typed pull route claims, audio bytes uploaded via domain report
+endpoints before results. Shared Laravel transport still goes through
 LaravelClient; every generic /api/worker/* consumer belongs in this base.
 """
 
@@ -48,7 +49,7 @@ from pycore.pyutils.common.queue_center_contract import (
 
 class BaseLaravelWorkerService:
     """
-    Base class for Laravel-pulled pycore workers (register/heartbeat/pull/result).
+    Base class for Laravel-pulled pycore workers (pull/result).
 
     Concrete singleton construction is handled by a THREAD_BUS-backed provider.
     """
@@ -80,6 +81,15 @@ class BaseLaravelWorkerService:
     CIRCUIT_FAIL_THRESHOLD = 3
     CIRCUIT_COOLDOWN_SECONDS = 120
 
+    # THREAD_BUS serialized state-owner identity. The translation worker keeps
+    # the historical key; sibling workers (pyctl/tts/laravel_audio_worker.py)
+    # MUST override both so each singleton owns a distinct state queue.
+    STATE_OWNER_KEY = "translation.worker.state"
+    STATE_OWNER_NAME = "TranslationWorkerState"
+    # Serialized state-owner timeout (seconds). The audio workers override with
+    # 180s: their on-owner engine probe (tts_status) can outlive 60s on a cold box.
+    STATE_OWNER_TIMEOUT = 60.0
+
     # -------------------- base init (called by subclass __init__) --------------------
 
     def _init_base_laravel(self, laravel_api_url: str) -> None:
@@ -92,7 +102,7 @@ class BaseLaravelWorkerService:
         """
         # Candidate Laravel base URLs from LaravelEndpointManager (same source as
         # the pycore-manager Laravel endpoint UI). Stored-first resolve() picks the
-        # user's selection; the full candidate list is the registration sweep.
+        # user's selection; the full candidate list is the first-pull sweep.
         self._candidates: List[str] = []
         self.api_url = self._sync_laravel_endpoint(laravel_api_url)
         self.worker_id = self._build_worker_id()
@@ -119,20 +129,25 @@ class BaseLaravelWorkerService:
         # INFLIGHT_DEFAULT_TTL) and expired entries are purged before the skip
         # check, so a re-offered task can be claimed again.
         self._inflight: Dict[str, float] = {}
+        # task_id -> task_type, recorded on every successful pull. The typed
+        # result route (/api/worker/tasks/{taskType}/result) needs the type at
+        # result time; keeping it here spares every handler call site from
+        # passing it through. Bounded in _remember_task_types.
+        self._task_type_by_id: Dict[str, str] = {}
         # The serialized worker owns every mutation of this store.
-        self._http_timeout = 8  # seconds for register/heartbeat/pull/result calls
+        self._http_timeout = 8  # seconds for pull/result calls
 
         # Log prefix - subclass overrides (e.g. "[TranslationWorker]"). Default
         # keeps base-only usage legible.
         self._log_prefix = "[LaravelWorker]"
         init_serialized_owner(
             self,
-            "translation.worker.state",
-            "TranslationWorkerState",
-            timeout=60.0,
+            self.STATE_OWNER_KEY,
+            self.STATE_OWNER_NAME,
+            timeout=self.STATE_OWNER_TIMEOUT,
         )
         # Register for immediate notification when the user switches endpoint in
-        # the UI so we re-register on the NEXT heartbeat tick instead of waiting
+        # the UI so the next pull uses it instead of waiting
         # for the worker to naturally detect the URL change.
         laravel_endpoint_manager.register_endpoint_change_listener(
             self.on_endpoint_changed
@@ -142,9 +157,8 @@ class BaseLaravelWorkerService:
         """Immediately reset registration state when the Laravel endpoint changes.
 
         Called synchronously by LaravelEndpointManager.select() the moment the user
-        confirms a new endpoint. On the next poll_once() tick _register() will use
-        ``new_url`` instead of the stale one, so the worker re-appears on Laravel
-        within one heartbeat interval rather than waiting out the old endpoint.
+        confirms a new endpoint. The next pull sends the full worker identity to
+        ``new_url`` and refreshes the worker record there.
         """
         prev = self.api_url
         self.api_url = new_url.rstrip("/")
@@ -153,7 +167,7 @@ class BaseLaravelWorkerService:
         self._conn_unreachable_warned = False
         ColorPrint.blue(
             f"{self._log_prefix} Endpoint changed {prev!r} → {new_url!r}; "
-            "will re-register on next tick"
+            "next pull will advertise worker identity"
         )
 
     # -------------------- identity --------------------
@@ -290,78 +304,8 @@ class BaseLaravelWorkerService:
 
     # -------------------- Laravel worker API --------------------
 
-    def _register(self) -> bool:
-        """
-        Register this worker with Laravel, discovering a reachable backend across
-        the candidate URLs. The first candidate that answers is pinned as
-        ``self.api_url`` for subsequent heartbeat/pull/result calls.
-
-        Messaging: on success (or recovery) we log once. When NONE of the
-        candidates are reachable we emit a single concise hint - "no reachable
-        Laravel backend" with the tried list - and then stay quiet until the
-        situation changes, instead of dumping a connection stack every tick.
-        """
-        resolved = self._sync_laravel_endpoint()
-        if self._registered:
-            if self.api_url.rstrip("/") == resolved.rstrip("/"):
-                return True
-            ColorPrint.blue(
-                f"{self._log_prefix} Laravel endpoint changed "
-                f"({self.api_url} -> {resolved}); re-registering")
-            self._registered = False
-
-        last_reason = ""
-        processor_types = self._effective_processor_types()
-        capabilities = self._effective_capabilities()
-        for base in self._candidates:
-            try:
-                resp = laravel_client.post(
-                    "/api/worker/register",
-                    base_url=base,
-                    json={
-                        "worker_id": self.worker_id,
-                        "worker_name": self.worker_name,
-                        "processor_types": processor_types,
-                        "capabilities": capabilities,
-                        "hostname": self.hostname,
-                        "platform": self.platform,
-                    },
-                    timeout=self._http_timeout,
-                )
-                if resp.status_code in (200, 201):
-                    self.api_url = base
-                    self._registered = True
-                    self._advertised_processor_types = list(processor_types)
-                    self._advertised_capabilities = list(capabilities)
-                    if self._conn_unreachable_warned or self._conn_fail_streak:
-                        ColorPrint.green(
-                            f"{self._log_prefix} Reconnected to Laravel at {base} "
-                            f"(after {self._conn_fail_streak} failed attempt(s))"
-                        )
-                    else:
-                        ColorPrint.green(f"{self._log_prefix} Registered with Laravel at {base}")
-                    self._conn_fail_streak = 0
-                    self._conn_unreachable_warned = False
-                    return True
-                # Reachable but refused registration - report once, keep trying others.
-                last_reason = f"HTTP {resp.status_code} from {base}"
-            except Exception as e:
-                last_reason = f"{base}: {self._short_err(e)}"
-                continue
-
-        # No candidate accepted us.
-        self._conn_fail_streak += 1
-        if not self._conn_unreachable_warned:
-            self._conn_unreachable_warned = True
-            ColorPrint.yellow(
-                f"{self._log_prefix} No reachable Laravel backend - could not connect to any of "
-                f"{self._candidates}. Last: {last_reason}. Will keep retrying quietly "
-                "(select the Laravel endpoint in pycore-manager Settings)."
-            )
-        return False
-
     def _note_fast_signals(self, body: Optional[Dict[str, Any]]) -> None:
-        """Record pending_fast / pending_urgent counters from a pull/heartbeat body.
+        """Record pending_fast / pending_urgent counters from a pull body.
 
         These steer the jittered fast-drain burst (pending_fast>0) and surface in
         get_queue_status() for routers/local. The concrete subclass initializes
@@ -378,35 +322,29 @@ class BaseLaravelWorkerService:
         except (TypeError, ValueError):
             self._pending_urgent = 0
 
-    def _heartbeat(self) -> None:
-        """Send a worker heartbeat (best-effort; a dropped connection forces
-        re-discovery on the next tick rather than spamming the log).
+    def _effective_task_types(self) -> List[str]:
+        """Task types this worker pulls via the typed pull route
+        (/api/worker/tasks/{taskType}/pull). PRIMARY TYPE LAST: it holds the
+        long-poll budget, earlier types are quick-polled wait=0 so their waits
+        never stack. Subclasses override; empty list = nothing to pull."""
+        return []
 
-        The heartbeat also carries the live capabilities (so Laravel keeps the
-        worker's advertised set fresh) and its response carries pending_fast /
-        pending_urgent which we fold into the fast-drain signal.
-        """
-        try:
-            resp = laravel_client.post(
-                "/api/worker/heartbeat",
-                base_url=self.api_url,
-                json={
-                    "worker_id": self.worker_id,
-                    "capabilities": self._effective_capabilities(),
-                },
-                timeout=self._http_timeout,
-            )
-            if resp is not None and getattr(resp, "status_code", 0) == 200:
-                data = resp.json() or {}
-                body = data.get("data") if isinstance(data.get("data"), dict) else data
-                self._note_fast_signals(body)
-        except Exception as e:
-            # Laravel likely went away - drop registration so _register re-discovers
-            # (and emits the single "no reachable Laravel" hint) next tick.
-            self._registered = False
-            ColorPrint.yellow(
-                f"{self._log_prefix} Heartbeat failed ({self._short_err(e)}); will re-discover"
-            )
+    def _remember_task_types(self, tasks: List[Dict[str, Any]]) -> None:
+        """Record task_id -> task_type from a pulled batch for the typed result
+        route (bounded: oldest entries dropped past 1000)."""
+        for task in tasks:
+            task_id = str(task.get("task_id") or "")
+            task_type = str(task.get("task_type") or "")
+            if task_id and task_type:
+                self._task_type_by_id[task_id] = task_type
+        while len(self._task_type_by_id) > 1000:
+            self._task_type_by_id.pop(next(iter(self._task_type_by_id)))
+
+    def _pull_timeout(self, wait: int) -> int:
+        """HTTP timeout for one pull: a long-poll ``wait`` must outlive the
+        server hold (otherwise the client times out first and every long-poll
+        looks like a transient error). wait=0 keeps the historical 8s timeout."""
+        return self._http_timeout + max(0, int(wait))
 
     def _pull_tasks(self, base: Optional[str] = None, wait: int = 0) -> List[Dict[str, Any]]:
         """GET pending tasks for this worker. Returns [] on any error.
@@ -435,24 +373,56 @@ class BaseLaravelWorkerService:
         re-discovery). A transient Timeout / other error just logs and stays
         registered - the next tick retries against the same pinned backend.
         """
-        base = base or self.api_url
-        try:
-            resp = laravel_client.get(
-                "/api/worker/tasks/pull",
-                base_url=base,
-                params={"worker_id": self.worker_id, "wait": wait},
-                timeout=self._http_timeout,
-            )
-            if resp.status_code == 200:
-                data = resp.json() or {}
-                # Worker API wraps the payload: { success, data:{ count, tasks }, ... }.
-                # Accept both the wrapped and a bare { tasks } shape.
-                body = data.get("data") if isinstance(data.get("data"), dict) else data
+        self._sync_laravel_endpoint()
+        candidates = [base or self.api_url] if self._registered else list(self._candidates)
+        processor_types = self._effective_processor_types()
+        capabilities = self._effective_capabilities()
+        task_types = [t for t in self._effective_task_types() if t]
+        if not task_types:
+            return []
+        last_error: Optional[Exception] = None
+        for candidate in candidates:
+            try:
+                merged: List[Dict[str, Any]] = []
+                body: Dict[str, Any] = {}
+                for index, task_type in enumerate(task_types):
+                    # The primary type (LAST) holds the long-poll budget; the
+                    # others are quick-polled wait=0 so waits never stack.
+                    type_wait = wait if index == len(task_types) - 1 else 0
+                    resp = laravel_client.get(
+                        f"/api/worker/tasks/{task_type}/pull",
+                        base_url=candidate,
+                        params={
+                            "worker_id": self.worker_id,
+                            "worker_name": self.worker_name,
+                            "processor_types[]": processor_types,
+                            "capabilities[]": capabilities,
+                            "capabilities_present": 1,
+                            "hostname": self.hostname,
+                            "platform": self.platform,
+                            "wait": type_wait,
+                        },
+                        timeout=self._pull_timeout(type_wait),
+                    )
+                    if resp.status_code != 200:
+                        raise RuntimeError(f"pull HTTP {resp.status_code}")
+                    data = resp.json() or {}
+                    body = data.get("data") if isinstance(data.get("data"), dict) else data
+                    merged.extend((body or {}).get("tasks", []) or [])
+                self.api_url = candidate
+                self._registered = True
+                self._advertised_processor_types = list(processor_types)
+                self._advertised_capabilities = list(capabilities)
+                self._conn_fail_streak = 0
+                self._conn_unreachable_warned = False
                 self._note_fast_signals(body)
-                tasks = (body or {}).get("tasks", []) or []
-                return tasks
-            ColorPrint.yellow(f"{self._log_prefix} Pull returned HTTP {resp.status_code}")
-        except Exception as e:
+                self._remember_task_types(merged)
+                return merged
+            except Exception as e:
+                last_error = e
+                continue
+
+        if last_error is not None:
             # Distinguish a hard connection failure (backend gone -> re-discover)
             # from a transient blip (timeout / read error -> keep registration).
             conn_error_cls = None
@@ -460,16 +430,19 @@ class BaseLaravelWorkerService:
                 conn_error_cls = self._requests().exceptions.ConnectionError
             except Exception:
                 conn_error_cls = None
-            if conn_error_cls is not None and isinstance(e, conn_error_cls):
+            if conn_error_cls is not None and isinstance(last_error, conn_error_cls):
                 self._registered = False
-                ColorPrint.yellow(
-                    f"{self._log_prefix} Pull connection failed "
-                    f"({self._short_err(e)}); will re-discover"
-                )
+                self._conn_fail_streak += 1
+                if not self._conn_unreachable_warned:
+                    self._conn_unreachable_warned = True
+                    ColorPrint.yellow(
+                        f"{self._log_prefix} No reachable Laravel queue API across "
+                        f"{candidates} ({self._short_err(last_error)}); will retry quietly"
+                    )
             else:
                 ColorPrint.yellow(
                     f"{self._log_prefix} Pull transient error "
-                    f"({self._short_err(e)}); will retry next tick"
+                    f"({self._short_err(last_error)}); will retry next tick"
                 )
         return []
 
@@ -516,13 +489,26 @@ class BaseLaravelWorkerService:
         if error is not None:
             body["error"] = error
 
+        # Typed result route (/api/worker/tasks/{taskType}/result): the type
+        # comes from the pull-time registry, so handler call sites stay
+        # unchanged. A missing type means the task predates this process —
+        # drop the result; Laravel re-queues the task at lease timeout.
+        task_type = self._task_type_by_id.get(str(task_id))
+        if not task_type:
+            ColorPrint.red(
+                f"{self._log_prefix} Result for task {task_id} has no recorded "
+                "task_type - dropping (Laravel re-queues at lease timeout)"
+            )
+            return False
+        result_url = f"/api/worker/tasks/{task_type}/result"
+
         last_note = ""
         last_was_5xx = False
         max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
         for attempt in range(1, max_attempts + 1):
             try:
                 resp = laravel_client.post(
-                    "/api/worker/tasks/result",
+                    result_url,
                     base_url=self.api_url,
                     json=body,
                     timeout=self._http_timeout,

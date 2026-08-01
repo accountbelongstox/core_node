@@ -15,7 +15,7 @@ import {
   TranslationResponse,
   LanguageInfo,
   AsyncState
-} from '../../../types';
+} from '../../../apps/laravel-manager/uiTypes';
 
 interface TranslateInputPanelProps {
   translation: AsyncState<TranslationResponse>;

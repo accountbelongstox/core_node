@@ -25,6 +25,7 @@ import {
   type AssistClaimItem,
 } from '@/services/assist-image-api';
 import { submitOutbox } from './outbox/submit-outbox';
+import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-library';
 
 const LOG = 'Gemini Image';
 const ASSIST_CLAIMER = 'mcp-chrome-gemini-cover';
@@ -61,6 +62,10 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
 
   protected get workerLabel(): string {
     return LOG;
+  }
+
+  protected get pullTaskTypes(): string[] {
+    return [TASK_TYPE_KEYS.gemini_image];
   }
 
   protected handlesTaskType(taskType: string): boolean {
@@ -145,8 +150,13 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
   private async processAssistCover(item: AssistClaimItem): Promise<void> {
     if (!this.config?.apiUrl) return;
     const payload = item.payload || {};
-    const prompt = String(payload.prompt || '').trim();
     const name = String(payload.name || '').trim();
+    const prompt = vocabularyCoverPromptLibrary.compose({
+      id: item.id,
+      name,
+      category: String(payload.category || '').trim(),
+      difficulty: String(payload.difficulty || '').trim(),
+    });
     const itemKey = `cover:library:${item.id}`;
     const started = Date.now();
 
@@ -157,13 +167,6 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
       name,
       promptLength: prompt.length,
     });
-
-    if (!prompt) {
-      this.assistStats.assistFailed += 1;
-      this.stats.failed += 1;
-      await releaseAssistItem(this.config.apiUrl, 'cover', item.id, 'mcp-chrome: vocabulary cover prompt is empty');
-      return;
-    }
 
     const generated = await generateViaGemini(prompt);
     if (!generated || !looksLikeImageBase64(generated.imageBase64)) {

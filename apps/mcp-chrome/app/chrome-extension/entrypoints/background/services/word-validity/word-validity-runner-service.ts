@@ -23,7 +23,7 @@
 
 import { BaseApiClient, type ApiResponse } from '../../api/BaseApiClient';
 import { apiManager } from '@/services/ApiManager';
-import { getValidityProvider, getValidityLanguage, type AiWebProvider } from '@/services/AiProviderSettings';
+import { getValidityProvider, getValidityLanguages, type AiWebProvider } from '@/services/AiProviderSettings';
 import type { ClassifierWord } from './word-validity-classifier';
 import { runWordValidityClassification } from './word-validity-web-runtime';
 import { logger } from '@/utils/logger';
@@ -44,6 +44,8 @@ export interface ValidityRunnerConfig {
   /** Language whose unchecked words to drain (default: the persisted Settings
    *  selection, EN unless the user opted into another language). */
   language?: string;
+  /** Multi-select drain list (2.4); overrides `language` when non-empty. */
+  languages?: string[];
   /** Web-AI provider driving the classification (default: the persisted
    *  Settings selection, DeepSeek web unless changed). */
   provider?: AiWebProvider;
@@ -55,7 +57,7 @@ export interface ValidityRunnerConfig {
 
 // The runner's status IS the shared ValidityStatus (with a concrete language).
 // Centralized in utils/task-center-types.ts so the popup consumes one shape.
-export type ValidityRunnerStatus = ValidityStatus & { language: string };
+export type ValidityRunnerStatus = ValidityStatus & { language: string; languages: string[] };
 
 /** One pending word row from the backend. */
 interface PendingWord {
@@ -111,6 +113,7 @@ class WordValidityRunnerService {
     totalInvalid: 0,
     lastError: null,
     language: 'en',
+    languages: ['en'],
   };
 
   /**
@@ -132,7 +135,11 @@ class WordValidityRunnerService {
       throw new Error(this.status.lastError);
     }
 
-    const language = config.language || await getValidityLanguage();
+    const languages = (config.languages && config.languages.length > 0)
+      ? config.languages
+      : config.language
+        ? [config.language]
+        : await getValidityLanguages();
     const provider = config.provider || await getValidityProvider();
     const targetLanguage = config.targetLanguage || DEFAULT_TARGET_LANG;
     const limit = Math.max(1, Math.min(DEFAULT_LIMIT, Math.floor(config.limit ?? DEFAULT_LIMIT)));
@@ -146,12 +153,13 @@ class WordValidityRunnerService {
       totalValid: 0,
       totalInvalid: 0,
       lastError: null,
-      language,
+      language: languages[0],
+      languages,
     };
 
-    logger.info(LOG, `Started (language=${language}, provider=${provider}, target=${targetLanguage}, base=${apiBase})`);
+    logger.info(LOG, `Started (languages=${languages.join(',')}, provider=${provider}, target=${targetLanguage}, base=${apiBase})`);
     // Fire and forget: don't block the message handler on the whole drain.
-    void this.runLoop(new ValidityApiClient(apiBase), language, provider, targetLanguage, limit);
+    void this.runLoop(new ValidityApiClient(apiBase), languages, provider, targetLanguage, limit);
   }
 
   /** Request a graceful stop; the loop halts before its next round. */
@@ -167,23 +175,32 @@ class WordValidityRunnerService {
 
   private async runLoop(
     client: ValidityApiClient,
-    language: string,
+    languages: string[],
     provider: AiWebProvider,
     targetLanguage: string,
     limit: number,
   ): Promise<void> {
     let consecutiveEmpty = 0;
+    const drained = new Set<string>();
     try {
       while (this.running && !this.stopRequested && this.status.rounds < MAX_ROUNDS) {
+        // 1. Pull the next batch of unchecked words from the next language
+        // whose backlog is not drained yet (round-robin across the selection).
+        const language = languages.find((lang) => !drained.has(lang));
+        if (!language) {
+          this.status.done = true;
+          logger.info(LOG, `Backlog drained after ${this.status.rounds} round(s)`);
+          break;
+        }
         this.status.rounds++;
+        this.status.language = language;
 
-        // 1. Pull the next batch of unchecked words.
         const pending = await client.fetchPending(language, limit);
         const words = this.extractPending(pending);
         if (words.length === 0) {
-          this.status.done = true;
-          logger.info(LOG, `Backlog drained after ${this.status.rounds - 1} round(s)`);
-          break;
+          drained.add(language);
+          logger.info(LOG, `${language}: backlog drained`);
+          continue;
         }
 
         // 2. Classify via the configured web-AI tab (DeepSeek by default).

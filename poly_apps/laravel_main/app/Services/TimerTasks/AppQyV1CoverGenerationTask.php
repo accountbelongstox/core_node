@@ -220,8 +220,8 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
      *
      * This pass performs the SAME initialisation proactively for a bounded batch
      * of public libraries whose cover_filename is still NULL/empty, mirroring the
-     * getCoverData init block exactly (deterministic filename, fresh randomized
-     * prompt, pending status, default priority). Idempotent + fill-missing: a
+     * getCoverData init block exactly (deterministic filename, pending status,
+     * default priority). Idempotent + fill-missing: a
      * library that already carries a cover_filename is never touched, so an
      * existing (scraped or generated) cover is never clobbered.
      *
@@ -250,7 +250,6 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
             // Deterministic filename (md5 of id+slug) matches getCoverData, so a
             // later render resolves to the same on-disk path — no divergence.
             $library->cover_filename = $coverService->buildFilename($library);
-            $library->cover_prompt = $coverService->buildPrompt($library);
             $library->cover_status = 'pending';
             if (!$library->cover_priority) {
                 $library->cover_priority = 5;

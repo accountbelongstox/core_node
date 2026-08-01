@@ -543,6 +543,42 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
+  async bumpSentenceAudio(contentId: string, language: string) {
+    const res = await postJSON<any>(WfNewApiPaths.sentenceBump, {
+      content_id: contentId,
+      language,
+      interactive: true,
+      create_task: true,
+    });
+    return {
+      success: !!(res?.success ?? res?.ok),
+      priority: res?.priority != null ? Number(res.priority) : undefined,
+      error: res?.error ?? undefined,
+    };
+  },
+
+  async bumpSentenceAudioBatch(items: Array<{ text: string; language: string }>) {
+    const res = await postJSON<any>(WfNewApiPaths.sentenceBumpBatch, { items });
+    return {
+      success: !!(res?.success ?? res?.ok),
+      queued: res?.queued != null ? Number(res.queued) : undefined,
+      total: res?.total != null ? Number(res.total) : undefined,
+      error: res?.error ?? undefined,
+    };
+  },
+
+  async prioritizeWordAudio(words: string[], language: string) {
+    const res = await postJSON<any>(WfNewApiPaths.ttsQueueBatchAdd, {
+      tasks: words.map((word) => ({ content: word, language, type: 'word' })),
+      interactive: true,
+    });
+    return {
+      success: !!(res?.success ?? res?.status === 'success'),
+      queued: res?.data?.added != null ? Number(res.data.added) : undefined,
+      error: res?.error ?? undefined,
+    };
+  },
+
   async getBookReadingProgress(sourceKey: string) {
     if (!authToken) return null;
     try {

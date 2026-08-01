@@ -1,7 +1,6 @@
 import React from 'react';
-import { ViewType, NavItem, Language } from '../types';
+import { ViewType, NavItem, Language } from '../apps/laravel-manager/uiTypes';
 import { useTranslation } from 'react-i18next';
-import { useUserRole } from '../hooks/useUserRole';
 import {
   Wrench,
   Server,
@@ -13,10 +12,8 @@ import {
   Sparkles,
   BrainCircuit,
   AudioLines,
-  KeyRound,
   DatabaseZap,
   Clapperboard,
-  History
 } from "lucide-react";
 
 interface SidebarProps {
@@ -34,10 +31,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.MEDIA_BROWSER, icon: Clapperboard, labelKey: 'media' },
   { id: ViewType.TOOLS, icon: Wrench, labelKey: 'tools' },
   { id: ViewType.VOCABULARY, icon: BookOpen, labelKey: 'vocabulary' },
-  { id: ViewType.AI_TOOLS, icon: Sparkles, labelKey: 'aiTools' },
   { id: ViewType.AI_MANAGEMENT, icon: BrainCircuit, labelKey: 'aiManagement' },
   { id: ViewType.WORD_AUDIO, icon: AudioLines, labelKey: 'wordAudio' },
-  { id: ViewType.DEV_HISTORY, icon: History, labelKey: 'devHistory' },
   // MCP Manager (#/mcp) was dismantled: task-dispatch+prompts -> Task Center
   // (Dispatch tab), screenshots+placeholder -> Tools (MCP Server), voice ->
   // AI Tools (Voice Subtitle); OCR dropped as a duplicate of AI Tools OCR.
@@ -51,18 +46,9 @@ const NAV_ITEMS: NavItem[] = [
   { id: ViewType.SETTINGS, icon: Settings, labelKey: 'settings' },
 ];
 
-const ADMIN_NAV_ITEMS: NavItem[] = [
-  { id: ViewType.INVITE_CODE_MANAGER, icon: KeyRound, labelKey: 'inviteCodes' },
-];
-
 const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, lang }) => {
   const { t } = useTranslation();
-  const { canManageInviteCodes } = useUserRole();
-
-  const visibleNavItems = [
-    ...NAV_ITEMS,
-    ...(canManageInviteCodes ? ADMIN_NAV_ITEMS : [])
-  ];
+  const visibleNavItems = NAV_ITEMS;
 
   return (
     <aside className="fixed left-0 top-0 w-14 md:w-16 h-screen flex flex-col items-center py-3 bg-white/50 dark:bg-slate-950/50 backdrop-blur-md border-r border-black/5 dark:border-white/10 z-50 transition-colors duration-300">

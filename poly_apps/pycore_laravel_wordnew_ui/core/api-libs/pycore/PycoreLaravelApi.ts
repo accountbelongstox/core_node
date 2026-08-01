@@ -3,8 +3,8 @@
  *
  * The frontend owns the prepared endpoint catalog; the pycore backend owns its
  * persisted overrides and selected target (the same resolution
- * `video_extract.backend_status` reports). `list` synchronizes the frontend
- * catalog into the backend cache and returns the backend-priority merged view.
+ * `video_extract.backend_status` reports). `list` is used at initialization and
+ * after explicit endpoint mutations, not as a polling surface.
  * These HTTPs also let the dashboard select/add/remove/probe those endpoints.
  * All calls use the shared HTTP controller transport (`requestPycoreHttp`).
  * a clear "HTTP unavailable" error when pycore (:59000) is offline — callers
@@ -64,6 +64,54 @@ export interface LaravelApiListOptions {
   frontendEndpoints?: readonly string[];
 }
 
+let cachedList: LaravelApiListResponse | null = null;
+let cachedListKey = '';
+let listInFlight: Promise<LaravelApiListResponse> | null = null;
+let listInFlightKey = '';
+
+function endpointListKey(opts?: LaravelApiListOptions): string {
+  return JSON.stringify({
+    probe: opts?.probe ?? false,
+    frontendEndpoints: opts?.frontendEndpoints ? Array.from(opts.frontendEndpoints) : [],
+  });
+}
+
+function invalidateEndpointList(): void {
+  cachedList = null;
+  cachedListKey = '';
+}
+
+function listEndpoints(opts?: LaravelApiListOptions): Promise<LaravelApiListResponse> {
+  const key = endpointListKey(opts);
+  if (cachedList && cachedListKey === key) return Promise.resolve(cachedList);
+  if (listInFlight && listInFlightKey === key) return listInFlight;
+
+  listInFlightKey = key;
+  listInFlight = requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiList, {
+    probe: opts?.probe ?? false,
+    ...(opts?.frontendEndpoints
+      ? { frontend_endpoints: Array.from(opts.frontendEndpoints) }
+      : {}),
+  }).then((response) => {
+    cachedList = response as LaravelApiListResponse;
+    cachedListKey = key;
+    return cachedList;
+  }).finally(() => {
+    listInFlight = null;
+    listInFlightKey = '';
+  });
+  return listInFlight;
+}
+
+async function mutateEndpoint(
+  route: string,
+  params: Record<string, unknown>,
+): Promise<LaravelApiMutateResponse> {
+  const response = await requestPycoreHttp(route, params) as LaravelApiMutateResponse;
+  invalidateEndpointList();
+  return response;
+}
+
 /**
  * Window event fired after a successful `laravel_api.select`, so sibling
  * widgets (e.g. PcLaravelMediaPanel's `video_extract.backend_status` view)
@@ -73,29 +121,23 @@ export const pycoreLaravelApi = {
   /** List known Laravel endpoints + which one is current. Instant (last-known
    *  health rows); pass probe:false for a pure cached read that does not kick
    *  the server-side background sweep. */
-  list: (opts?: LaravelApiListOptions): Promise<LaravelApiListResponse> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiList, {
-      probe: opts?.probe ?? true,
-      ...(opts?.frontendEndpoints
-        ? { frontend_endpoints: Array.from(opts.frontendEndpoints) }
-        : {}),
-    }),
+  list: listEndpoints,
 
   /** Add a custom Laravel base URL. */
   add: (url: string): Promise<LaravelApiMutateResponse> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiAdd, { url }),
+    mutateEndpoint(PYCORE_HTTP_ROUTES.laravelApiAdd, { url }),
 
   /** Remove a (custom) Laravel base URL. */
   remove: (url: string): Promise<LaravelApiMutateResponse> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiRemove, { url }),
+    mutateEndpoint(PYCORE_HTTP_ROUTES.laravelApiRemove, { url }),
 
   /** Switch the sync engine's target to `url`. */
   select: (url: string): Promise<LaravelApiMutateResponse> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiSelect, { url }),
+    mutateEndpoint(PYCORE_HTTP_ROUTES.laravelApiSelect, { url }),
 
   /** Re-probe one endpoint (`url`) or all endpoints (no arg). */
   probe: (url?: string): Promise<LaravelApiMutateResponse> =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.laravelApiProbe, url ? { url } : {}),
+    mutateEndpoint(PYCORE_HTTP_ROUTES.laravelApiProbe, url ? { url } : {}),
 };
 
 export type PycoreLaravelApi = typeof pycoreLaravelApi;

@@ -13,7 +13,7 @@
  * Task Center modals (QueuePanel detail modal). All labels English.
  */
 import React, { useState } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { AssistRequestCreateItem } from '@/apps/laravel-manager/api';
 import { XCircle, HandHelping, Zap } from 'lucide-react';

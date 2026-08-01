@@ -1,5 +1,5 @@
 import { BaseAPI } from '../base/BaseAPI';
-import { getDefaultBaseURL } from '../../../../config/constants';
+import { LARAVEL_API_ROUTE } from '../ApiContract';
 
 /**
  * DatabaseManagerAPI
@@ -203,7 +203,7 @@ export class DatabaseManagerAPI extends BaseAPI {
    */
   async exportTable(table: string, connection: string, format: ExportFormat): Promise<void> {
     const url = this.addQueryParams(
-      this.buildURL(`tables/${encodeURIComponent(table)}/export`),
+      this.buildURL(LARAVEL_API_ROUTE.database.exportTable(table)),
       { connection, format }
     );
     const filename = `${connection}_${table}.${format}`;
@@ -268,7 +268,7 @@ export class DatabaseManagerAPI extends BaseAPI {
 
   /** GET /backups/{id}/download — trigger a browser download of the backup. */
   async downloadBackup(id: string, filename?: string): Promise<void> {
-    const url = this.buildURL(`backups/${encodeURIComponent(id)}/download`);
+    const url = this.buildURL(LARAVEL_API_ROUTE.database.downloadBackup(id));
     await this.downloadBlob(url, filename || `backup_${id}`);
   }
 
@@ -356,9 +356,8 @@ export class DatabaseManagerAPI extends BaseAPI {
    * Authorization / global headers so loopback-bypass and bearer auth both work.
    */
   private async downloadBlob(url: string, filename: string): Promise<void> {
-    const response = await fetch(url, {
+    const response = await this.rawRequest(url, {
       method: 'GET',
-      headers: this.resolveRequestHeaders()
     });
 
     if (!response.ok) {
@@ -395,18 +394,9 @@ export class AuthDebugAPI extends BaseAPI {
   /**
    * GET /debug-status (no auth) — loopback debug-bypass probe.
    *
-   * The bypass is purely about SAME-MACHINE access, so this probe must hit the
-   * page-origin host on the API port (getDefaultBaseURL), NOT the shared base
-   * URL. The shared base URL can be repointed to a LAN IP / remote endpoint by
-   * ApiManager's background health failover; if the probe followed it, Laravel
-   * would see a non-loopback client and report debug_mode:false even though the
-   * user is genuinely local — the root cause of "auto-login fails in dev". By
-   * pinning to getDefaultBaseURL() the probe is failover-proof: opened on
-   * 127.0.0.1 -> probes 127.0.0.1:9000 -> loopback -> bypass; opened on a LAN
-   * IP -> probes that host -> remote -> login required (correct).
+   * The probe follows the same selected endpoint as every Laravel Manager API.
    */
   async getDebugStatus(): Promise<AuthDebugStatus | null> {
-    this.baseURL = getDefaultBaseURL();
     const res = await this.get<AuthDebugStatus>('debug-status', undefined, false, 0, false);
     if (!res.success || !res.data) return null;
     return res.data as AuthDebugStatus;

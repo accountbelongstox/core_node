@@ -158,7 +158,7 @@ def queue_events(
     service_base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     ok, response, error = get_json(
-        "/queue/events",
+        "/queue/events/poll",
         query={
             "client_id": client_id,
             "since_seq": max(0, int(since_seq or 0)),

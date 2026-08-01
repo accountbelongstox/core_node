@@ -16,6 +16,15 @@ from pycore.pyctl.translation.http_event_client_service import (
 )
 
 
+# Known callbacks that are only registered on some launcher paths; their
+# registrars in pycore/pyctl/tts/heartbeat.py are idempotent, so an enable can
+# attach them lazily (callback name -> registrar function name).
+_LAZY_REGISTRARS = {
+    "tts_queue_poller": "register_tts_queue_poller",
+    "tts_sentence_worker": "register_tts_sentence_worker",
+}
+
+
 def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
     """Enable/disable a heartbeat callback. Returns (ok, error_or_None)."""
     heartbeat = shared_heartbeat_system
@@ -25,6 +34,18 @@ def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
             if want
             else heartbeat.disable_callback(name)
         )
+        if not ok and want and name in _LAZY_REGISTRARS:
+            # Known callback that this launcher path never registered — attach
+            # it on demand (the registrars are idempotent) instead of leaving
+            # the persisted capability half-on. Local import: pycore.pyctl.tts
+            # modules import THIS module (apply_assist_runtime), so a top-level
+            # import would be circular.
+            from pycore.pyctl.tts import heartbeat as tts_heartbeat
+
+            if not heartbeat.is_running():
+                heartbeat.start()
+            getattr(tts_heartbeat, _LAZY_REGISTRARS[name])()
+            ok = heartbeat.enable_callback(name)
         if not ok:
             # Not registered while disabling is already "off" — not a failure.
             if not want:
@@ -61,7 +82,9 @@ def apply_assist_runtime(config: Dict[str, Any]) -> Dict[str, Any]:
         if not ok and error:
             errors.append(error)
 
-    if not want_realtime:
+    if want_realtime:
+        translation_http_event_client.supervise()
+    else:
         try:
             translation_http_event_client.stop()
         except Exception as exc:  # noqa: BLE001

@@ -866,7 +866,7 @@ class BingDictionaryWorkerService {
     try {
       this.stats.lastRun = Date.now();
 
-      const response = await this.workerClient.pullTasks(undefined, {
+      const response = await this.pullTasksAcrossTypes({
         limit: this.config.batchSize,
         // `wait` (server-side long-poll seconds) replaces the old `timeout`
         // param; cap to the poll interval so this loop stays responsive.
@@ -977,6 +977,34 @@ class BingDictionaryWorkerService {
   // Task processing
   // ------------------------------------------------------------------
 
+  /**
+   * Pull across the dictionary/translate task types via the typed pull route
+   * (/api/worker/tasks/{taskType}/pull). word_translation LAST: the
+   * highest-volume primary holds the long-poll budget; the dictionary types
+   * are quick-polled wait=0 first so their waits never stack.
+   */
+  private async pullTasksAcrossTypes(options: { limit: number; wait: number }) {
+    const types = [
+      TASK_TYPE_KEYS.dictionary_explanation,
+      TASK_TYPE_KEYS.dictionary_explanation_demo,
+      TASK_TYPE_KEYS.word_translation,
+    ];
+    const merged: Task[] = [];
+    let lastData: any = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
+    for (let i = 0; i < types.length; i++) {
+      const typeWait = i === types.length - 1 ? options.wait : 0;
+      const resp = await this.workerClient!.pullTasks(types[i], undefined, {
+        limit: options.limit,
+        wait: typeWait,
+      });
+      if (!resp.success || !resp.data) return resp;
+      lastData = resp.data;
+      if (Array.isArray(resp.data.tasks)) merged.push(...resp.data.tasks);
+      if (merged.length >= options.limit) break;
+    }
+    return { success: true, data: { ...lastData, tasks: merged, count: merged.length } };
+  }
+
   private async processTask(task: Task): Promise<void> {
     if (!this.workerClient || !this.config) return;
 
@@ -993,7 +1021,7 @@ class BingDictionaryWorkerService {
       const reason = `unhandled task_type/capability: task_type=${task.task_type} capability=${task.capability ?? 'none'}`;
       logger.warn(LOG, `Releasing task ${task.task_id} — ${reason}`);
       try {
-        await this.workerClient.submitResult({
+        await this.workerClient.submitResult(task.task_type, {
           task_id: task.task_id,
           worker_id: workerId,
           status: TASK_STATUS_BY_ROLE.failed,
@@ -1014,8 +1042,8 @@ class BingDictionaryWorkerService {
       this.lastActivityAt = Date.now();
       this.poolDiscarded = false;
 
-      await this.workerClient.acceptTask(task.task_id);
-      await this.workerClient.submitResult({
+      await this.workerClient.acceptTask(task.task_type, task.task_id);
+      await this.workerClient.submitResult(task.task_type, {
         task_id: task.task_id,
         worker_id: workerId,
         status: TASK_STATUS_BY_ROLE.processing,
@@ -1210,7 +1238,7 @@ class BingDictionaryWorkerService {
           if (progress - lastReported >= 20 && progress < 100) {
             lastReported = progress;
             this.workerClient!
-              .submitResult({
+              .submitResult(task.task_type, {
                 task_id: task.task_id,
                 worker_id: workerId,
                 status: TASK_STATUS_BY_ROLE.processing,
@@ -1264,7 +1292,7 @@ class BingDictionaryWorkerService {
             `${hadOutput ? 'partial-saved' : 're-pended'}; NOTHING invalidated by outage`,
         );
         if (hadOutput) {
-          await this.workerClient.submitResult({
+          await this.workerClient.submitResult(task.task_type, {
             task_id: task.task_id,
             worker_id: workerId,
             status: TASK_STATUS_BY_ROLE.completed,
@@ -1279,7 +1307,7 @@ class BingDictionaryWorkerService {
             },
           });
         } else {
-          await this.workerClient.submitResult({
+          await this.workerClient.submitResult(task.task_type, {
             task_id: task.task_id,
             worker_id: workerId,
             status: TASK_STATUS_BY_ROLE.failed,
@@ -1303,7 +1331,7 @@ class BingDictionaryWorkerService {
       // work done. Submit 'failed' so the task re-pends and is retried later,
       // instead of a fake completed-empty that would mark the words handled.
       if (translations.length === 0 && invalidWords.length === 0) {
-        await this.workerClient.submitResult({
+        await this.workerClient.submitResult(task.task_type, {
           task_id: task.task_id,
           worker_id: workerId,
           status: TASK_STATUS_BY_ROLE.failed,
@@ -1325,7 +1353,7 @@ class BingDictionaryWorkerService {
           `${invalidWords.length} invalid, ${regionRedirectWords.length} region-redirect`,
       );
 
-      const submitResp = await this.workerClient.submitResult({
+      const submitResp = await this.workerClient.submitResult(task.task_type, {
         task_id: task.task_id,
         worker_id: workerId,
         status: TASK_STATUS_BY_ROLE.completed,
@@ -1358,7 +1386,7 @@ class BingDictionaryWorkerService {
       logger.error(LOG, 'Task processing failed', error);
 
       try {
-        await this.workerClient.submitResult({
+        await this.workerClient.submitResult(task.task_type, {
           task_id: task.task_id,
           worker_id: workerId,
           status: TASK_STATUS_BY_ROLE.failed,

@@ -11,7 +11,7 @@
  * Guardrails: no try/catch, no `||`/`??` — explicit ternaries only.
  */
 import React from 'react';
-import type { Language, FileNode } from '../../../types';
+import type { Language, FileNode } from '../../../apps/laravel-manager/uiTypes';
 import type { Segment, Selection } from './mbShared';
 import FileTreePanel from './FileTreePanel';
 import SourceListPanel from './SourceListPanel';

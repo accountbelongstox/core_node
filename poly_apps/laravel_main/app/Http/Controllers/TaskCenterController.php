@@ -8,6 +8,7 @@ use App\Services\UserConfig\UserConfigService;
 use App\Support\QueueCenterContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use App\Traits\ApiResponse;
 
 /**
@@ -116,6 +117,7 @@ class TaskCenterController extends Controller
         $limit = max(1, min((int) $request->input('limit', $defaultLimit), $completedLimit));
         $cursorId = max(0, (int) $request->input('cursor_id', 0));
         $taskType = trim((string) $request->input('task_type', ''));
+        $includeTypes = $request->boolean('include_types', $cursorId === 0);
         $terminal = GlobalTask::statuses('terminal');
         $query = GlobalTask::query()->whereIn('status', $terminal);
         if ($cursorId > 0) {
@@ -157,16 +159,21 @@ class TaskCenterController extends Controller
             ->orderByDesc('id')
             ->limit($limit)
             ->get();
-        $types = GlobalTask::query()
-            ->whereIn('status', $terminal)
-            ->whereNotNull('task_type')
-            ->groupBy('task_type')
-            ->selectRaw('task_type, count(*) as total')
-            ->orderBy('task_type')
-            ->get()
-            ->mapWithKeys(static function ($row) {
-                return [(string) $row->task_type => (int) $row->total];
+        $types = collect();
+        if ($includeTypes) {
+            $types = Cache::remember('task-center:completed-types', 60, static function () use ($terminal) {
+                return GlobalTask::query()
+                    ->whereIn('status', $terminal)
+                    ->whereNotNull('task_type')
+                    ->groupBy('task_type')
+                    ->selectRaw('task_type, count(*) as total')
+                    ->orderBy('task_type')
+                    ->get()
+                    ->mapWithKeys(static function ($row) {
+                        return [(string) $row->task_type => (int) $row->total];
+                    });
             });
+        }
         $records = $tasks->map(static function (GlobalTask $task) {
             return [
                 'source_id' => (int) $task->id,

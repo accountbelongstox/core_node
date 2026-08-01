@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { TaskItem, AudioSegment } from '../types';
+import { TaskItem, AudioSegment } from '../apps/laravel-manager/uiTypes';
 import { X, Play, Pause, SkipForward, SkipBack, RefreshCw, GripHorizontal } from "lucide-react";
 import ReactDOM from 'react-dom';
 

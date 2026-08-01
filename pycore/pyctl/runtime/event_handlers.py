@@ -24,7 +24,6 @@ from pycore.pyctl.runtime.callmodule_config import Config
 import pycore.pylauncher.platform.system_service_manager as ssm
 from pycore.pyctl.assist.assist_settings import assist_callback_states
 from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
-from pycore.pyctl.laravel.log_mirror_service import laravel_log_mirror_service
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_service
 from pycore.pyctl.translation.http_event_client_service import (
@@ -366,14 +365,8 @@ def register_runtime_workers() -> None:
             interval=Config.TRANSLATION_WORKER_INTERVAL,
             enabled=translation_enabled,
         )
-        heartbeat.register_callback(
-            name='global_task_worker',
-            callback=worker.poll_once,
-            interval=Config.TRANSLATION_WORKER_INTERVAL,
-            enabled=callback_states["global_task_worker"],
-        )
         ColorPrint.green(
-            f"[EventHandlers] Registered global_task_worker and translation_worker callbacks "
+            f"[EventHandlers] Registered translation_worker callback "
             f"(interval={Config.TRANSLATION_WORKER_INTERVAL}s, "
             f"enabled={translation_enabled} (user settings), "
             f"api={Config.LARAVEL_WORKER_API_URL})"
@@ -450,13 +443,6 @@ def register_runtime_workers() -> None:
         interval=rate_interval,
         enabled=rate_enabled not in ("0", "false", "no"),
     )
-    heartbeat.register_callback(
-        name="laravel_log_mirror",
-        callback=laravel_log_mirror_service.poll_once,
-        interval=15,
-        enabled=True,
-    )
-
     try:
         restore_persisted_heartbeat_prefs()
         apply_persisted_system_settings()

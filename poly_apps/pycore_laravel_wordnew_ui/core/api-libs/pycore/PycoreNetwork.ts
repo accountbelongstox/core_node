@@ -11,7 +11,6 @@ export const PYCORE_HTTP_PATHS = {
   info: `${PYCORE_HTTP_API_PREFIX}/info`,
   routes: `${PYCORE_HTTP_API_PREFIX}/routes`,
   events: PYCORE_HTTP_EVENTS_PATH,
-  eventsAck: `${PYCORE_HTTP_EVENTS_PATH}/ack`,
 } as const;
 
 export const PYCORE_HTTP_HEADER_NAMES = {

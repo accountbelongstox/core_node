@@ -17,6 +17,7 @@ import { Modal } from '../admin/Modal';
 import { useToast } from '../admin';
 import { LoadingBlock, InlineSpinner, AlertBox, EmptyState, StatusBadge, Field, CopyButton } from '../common';
 import type { StatusTone } from '../common';
+import { CenteredPage, CenteredTabBar } from '../shared';
 import { useApiResource } from '../../hooks';
 import {
   DatabaseZap,
@@ -47,7 +48,7 @@ import {
   Users,
   UserPlus
 } from 'lucide-react';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { Portal } from '../shared';
 import { OVERLAY_Z } from '../../styles/overlay';
 import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
@@ -1915,7 +1916,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col p-6">
+    <CenteredPage className="h-full flex flex-col p-6">
       <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <DatabaseZap className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
@@ -1943,21 +1944,8 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? 'border-indigo-600 text-indigo-700 dark:text-indigo-300'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="mb-4">
+        <CenteredTabBar items={TABS.map((item) => ({ id: item.key, label: item.label }))} activeId={tab} onChange={(id) => setTab(id as TabKey)} />
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -1977,7 +1965,7 @@ const DatabaseManager: React.FC<DatabaseManagerProps> = () => {
           </>
         )}
       </div>
-    </div>
+    </CenteredPage>
   );
 };
 

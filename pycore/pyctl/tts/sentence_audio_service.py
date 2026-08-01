@@ -12,7 +12,7 @@ Endpoints (prefix /api/local/sentence-audio):
 import traceback
 from typing import Any, Dict, List, Optional
 
-from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
 from pycore.pyctl.tts.sentence_queue_monitor_service import (
     sentence_queue_monitor_service,
 )
@@ -42,7 +42,7 @@ _VARIANT_TIMEOUT = 30
 def run_once():
     """Trigger one claim+synth cycle immediately (manual assist)."""
     try:
-        tts_sentence_worker_service.poll_and_process()
+        laravel_sentence_audio_worker.poll_and_process()
         return {"ok": True}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
@@ -54,7 +54,7 @@ def queue_snapshot():
     can show a per-row spinner. Never raises - returns a graceful JSON on any
     error (no 500/loading-stuck)."""
     try:
-        worker = tts_sentence_worker_service.get_status()
+        worker = laravel_sentence_audio_worker.get_status()
         monitor = sentence_queue_monitor_service.get_snapshot()
         bumps = queue_bump_hub.snapshot()
         processing_keys = set(worker.get("current_keys") or [])

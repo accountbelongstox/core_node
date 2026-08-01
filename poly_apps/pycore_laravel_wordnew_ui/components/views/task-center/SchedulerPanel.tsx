@@ -12,7 +12,7 @@
  * the visible join between the scheduler layer and the queue layer.
  */
 import React, { useState, useMemo } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type {
   TaskCenterQueueRole,

@@ -15,7 +15,7 @@ from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyutils.common.endpoint_scoped_cache import EndpointScopedCache
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
 
 _ASSIST_OVERVIEW_PATH = "/api/app_qy_v1/assist/overview"
 _ASSIST_OVERVIEW_TTL = 30.0
@@ -193,7 +193,7 @@ _fetch_assist_overview = fetch_assist_overview
 
 
 def queue_snapshot() -> Dict[str, Any]:
-    return {"success": True, **(tts_sentence_worker_service.get_status() or {})}
+    return {"success": True, **(laravel_sentence_audio_worker.get_status() or {})}
 
 
 __all__ = [

@@ -4,17 +4,18 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
-use App\Models\GlobalTask;
 use App\Models\LangSentence;
 use App\Services\MediaIngestService;
-use App\Services\TaskManagerService;
+use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Support\Facades\Log;
 
 trait AppQyV1SentenceAudioPriorityTrait
 {
     /**
-     * Raise a sentence's audio priority with a move-to-front ticket and
-     * optionally create one deduplicated interactive task.
+     * Raise a sentence's audio priority: keep the row-level move-to-front
+     * ticket (the row-based claim fallback and the FE still read tts_priority)
+     * and delegate the actual queue ordering — enqueue, fast-lane bump and
+     * outbox event — to the queue center (global_tasks).
      *
      * @return array{ok:bool,tts_priority?:int,task_id?:string,already_done?:bool,error?:string}
      */
@@ -51,54 +52,50 @@ trait AppQyV1SentenceAudioPriorityTrait
         }
         $ticket = $this->assignFrontTicket($sentence);
 
-        if ($emitEvent) {
-            $this->emitPriorityEvent([
-                'content_id' => $contentId,
-                'language' => $language,
-                'priority' => $ticket,
-                'text' => (string) $sentence->text,
-            ]);
-        }
-
+        // The queue center owns ordering now. Its moveToHead emits
+        // sentence.priority itself, so the local emit below only fires for the
+        // paths that do NOT go through moveToHead (non-interactive enqueue or
+        // row-only bumps) — preserving the endpoint's event behavior without
+        // double-emitting.
         $taskId = null;
         if ($createTask) {
             try {
-                $existing = GlobalTask::query()
-                    ->where('app_name', 'AppQyV1')
-                    ->where('task_type', 'sentence_audio')
-                    ->whereIn('status', ['pending', 'processing'])
-                    ->where('payload->content_id', $contentId)
-                    ->where('payload->language', $language)
-                    ->first();
-                if ($existing) {
-                    if ($interactive && !$existing->is_fast_tier) {
-                        $existing->execution_type = GlobalTask::executionType('remote_fast');
-                        $existing->priority = max((int) $existing->priority, GlobalTask::priority('fast'));
-                        $existing->is_fast_tier = true;
-                        $existing->save();
-                    }
-                    $taskId = (string) $existing->task_id;
+                $queueCenter = app(QueueCenterService::class);
+                $dedupKey = QueueCenterService::dedupKeyFor(
+                    QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                    $language,
+                    $contentId
+                );
+                $queuePayload = [
+                    'text' => (string) $sentence->text,
+                    'language' => $language,
+                    'content_id' => $contentId,
+                    'engine_profile' => $this->sentenceEngineInfo()['profile'],
+                    'preferred_engine' => $this->sentenceEngineInfo()['primary'],
+                ];
+                if ($interactive) {
+                    $result = $queueCenter->moveToHead(
+                        QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                        $dedupKey,
+                        $queuePayload,
+                        $emitEvent
+                    );
+                    $taskId = isset($result['task_id']) ? (string) $result['task_id'] : null;
                 } else {
-                    /** @var TaskManagerService $taskManager */
-                    $taskManager = app(TaskManagerService::class);
-                    $task = $taskManager->createTask(
-                        'AppQyV1',
-                        'sentence_audio',
-                        GlobalTask::executionType('remote_sentence_audio'),
-                        [
+                    $result = $queueCenter->enqueue(
+                        QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                        $queuePayload,
+                        $dedupKey
+                    );
+                    $taskId = (string) $result['task']->task_id;
+                    if ($emitEvent) {
+                        $this->emitPriorityEvent([
                             'content_id' => $contentId,
                             'language' => $language,
-                            'content' => (string) $sentence->text,
-                            'engine_profile' => $this->sentenceEngineInfo()['profile'],
-                            'preferred_engine' => $this->sentenceEngineInfo()['primary'],
-                        ],
-                        120,
-                        self::PRIORITY_FRONT,
-                        3,
-                        $interactive,
-                        GlobalTask::capability('sentence_audio')
-                    );
-                    $taskId = (string) $task->task_id;
+                            'priority' => $ticket,
+                            'text' => (string) $sentence->text,
+                        ]);
+                    }
                 }
             } catch (\Throwable $e) {
                 Log::warning('[SentenceAudio] bump task create failed', [
@@ -107,6 +104,13 @@ trait AppQyV1SentenceAudioPriorityTrait
                     'error' => $e->getMessage(),
                 ]);
             }
+        } elseif ($emitEvent) {
+            $this->emitPriorityEvent([
+                'content_id' => $contentId,
+                'language' => $language,
+                'priority' => $ticket,
+                'text' => (string) $sentence->text,
+            ]);
         }
 
         return [

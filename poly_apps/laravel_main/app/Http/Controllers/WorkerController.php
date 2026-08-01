@@ -124,17 +124,63 @@ class WorkerController extends Controller
     }
 
     /**
-     * Pull tasks for worker (long polling)
+     * Known task_type keys from the central contract (task_types[].key).
+     *
+     * @return array<int,string>
+     */
+    private function taskTypeKeys(): array
+    {
+        return array_values(array_filter(array_map(
+            static fn ($definition) => is_array($definition) ? ($definition['key'] ?? null) : null,
+            QueueCenterContract::taskTypes()
+        ), 'is_string'));
+    }
+
+    /**
+     * 404 when the path task type is not a contract task type.
+     */
+    private function invalidTaskType(string $taskType): ?JsonResponse
+    {
+        if (in_array($taskType, $this->taskTypeKeys(), true)) {
+            return null;
+        }
+
+        return $this->notFound("Unknown task type: {$taskType}");
+    }
+
+    /**
+     * The stored task_type of one task (null when the task does not exist).
+     */
+    private function storedTaskType(string $taskId): ?string
+    {
+        $taskType = GlobalTask::where('task_id', $taskId)->value('task_type');
+        return is_string($taskType) ? $taskType : null;
+    }
+
+    /**
+     * Pull tasks of one task type for worker (long polling)
      * Tasks are automatically assigned to worker atomically
      *
-     * GET /api/worker/tasks/pull
+     * GET /api/worker/tasks/{taskType}/pull
      */
-    public function pullTasks(Request $request): JsonResponse
+    public function pullTasks(Request $request, string $taskType): JsonResponse
     {
+        if ($invalid = $this->invalidTaskType($taskType)) {
+            return $invalid;
+        }
         $pullLimit = QueueCenterContract::taskLimit('worker_pull');
         $longPollLimit = QueueCenterContract::taskLimit('long_poll_seconds');
         $validated = $request->validate([
             'worker_id' => 'required|string',
+            'worker_name' => 'nullable|string',
+            'processor_types' => 'nullable|array',
+            'processor_types.*' => ['string', Rule::in(GlobalTask::executionTypes())],
+            'capabilities' => 'nullable|array',
+            'capabilities.*' => ['string', Rule::in(GlobalTask::capabilities())],
+            'capabilities_present' => 'nullable|boolean',
+            'hostname' => 'nullable|string',
+            'platform' => 'nullable|string',
+            'metadata' => 'nullable|array',
             'limit' => "nullable|integer|min:1|max:{$pullLimit}",
             // Long-poll wait budget (seconds). 0 = legacy immediate return.
             // Clamped to the central long_poll_seconds contract value.
@@ -148,6 +194,31 @@ class WorkerController extends Controller
         // `=== 0` comparison below or the immediate-return fast path is never taken.
         $wait = isset($validated['wait']) ? (int) $validated['wait'] : null;
 
+        // Queue consumers advertise their identity on the pull itself. This keeps
+        // worker discovery, capability refresh, and queue claiming in one request
+        // instead of requiring a separate register + heartbeat handshake first.
+        // Legacy consumers that already registered remain compatible because all
+        // identity fields except worker_id are optional here.
+        if (isset($validated['worker_name'], $validated['processor_types'])) {
+            $this->workerManager->register(
+                $workerId,
+                $validated['worker_name'],
+                $validated['processor_types'],
+                $validated['hostname'] ?? null,
+                $validated['platform'] ?? null,
+                $validated['metadata'] ?? [],
+                isset($validated['capabilities_present'])
+                    ? ($validated['capabilities'] ?? [])
+                    : null,
+                true
+            );
+        } else {
+            $this->workerManager->heartbeat(
+                $workerId,
+                $validated['capabilities'] ?? null
+            );
+        }
+
         // Long-poll by default: hold the request (cheap COUNT polling, no held DB
         // lock) until a task appears or the wait budget elapses, so a worker idling
         // on an empty queue is woken promptly the instant a high-priority task is
@@ -160,17 +231,17 @@ class WorkerController extends Controller
         // workers instead pace themselves off the pending_urgent/pending_fast
         // hints returned below. Long-poll stays enabled on Octane/fpm.
         if ($wait === 0 || ServerRuntime::isSingleWorker()) {
-            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit);
+            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
         } else {
-            $tasks = $this->taskManager->pullAndAssignTasksLongPoll($workerId, $limit, $wait);
+            $tasks = $this->taskManager->pullAndAssignTasksLongPoll($workerId, $limit, $wait, $taskType);
         }
 
         // Notify signal in the pull response too: the urgent backlog STILL waiting
-        // after this pull (other high-priority tasks beyond the returned batch).
-        $processorTypes = $this->taskManager->workerProcessorTypes($workerId);
+        // after this pull (other high-priority tasks of this type beyond the
+        // returned batch).
         $capabilities = $this->taskManager->workerCapabilities($workerId);
-        $pendingUrgent = $this->taskManager->countUrgentPending($processorTypes);
-        $pendingFast = $this->taskManager->countFastPending($processorTypes, $capabilities);
+        $pendingUrgent = $this->taskManager->countUrgentPendingForType($taskType);
+        $pendingFast = $this->taskManager->countFastPendingForType($taskType, $capabilities);
 
         return $this->success([
             'count' => count($tasks),
@@ -186,21 +257,33 @@ class WorkerController extends Controller
     }
 
     /**
-     * Accept (acknowledge) a pulled task
+     * Accept (acknowledge) a pulled task of the given type
      *
-     * POST /api/worker/tasks/accept
+     * POST /api/worker/tasks/{taskType}/accept
      *
      * Pull already assigns atomically, so this is an idempotent acknowledgment
      * kept for the documented pull -> accept -> result contract (the browser
      * dictionary worker calls it for every task). Accepting a task you already
      * own succeeds; a still-pending task is claimed; someone else's task is 409.
      */
-    public function acceptTask(Request $request): JsonResponse
+    public function acceptTask(Request $request, string $taskType): JsonResponse
     {
+        if ($invalid = $this->invalidTaskType($taskType)) {
+            return $invalid;
+        }
+
         $validated = $request->validate([
             'task_id' => 'required|string',
             'worker_id' => 'required|string',
         ]);
+
+        $storedType = $this->storedTaskType($validated['task_id']);
+        if ($storedType === null) {
+            return $this->notFound('Task or worker not found');
+        }
+        if ($storedType !== $taskType) {
+            return $this->error("Task type mismatch: task is '{$storedType}', not '{$taskType}'", 422);
+        }
 
         $outcome = $this->taskManager->acceptTask(
             $validated['task_id'],
@@ -222,12 +305,16 @@ class WorkerController extends Controller
     }
 
     /**
-     * Submit task result
+     * Submit the result of a task of the given type
      *
-     * POST /api/worker/tasks/result
+     * POST /api/worker/tasks/{taskType}/result
      */
-    public function submitResult(Request $request): JsonResponse
+    public function submitResult(Request $request, string $taskType): JsonResponse
     {
+        if ($invalid = $this->invalidTaskType($taskType)) {
+            return $invalid;
+        }
+
         $validated = $request->validate([
             'task_id' => 'required|string',
             'worker_id' => 'required|string',
@@ -236,6 +323,14 @@ class WorkerController extends Controller
             'result' => 'nullable|array',
             'error' => 'nullable|string',
         ]);
+
+        $storedType = $this->storedTaskType($validated['task_id']);
+        if ($storedType === null) {
+            return $this->notFound('Task not found');
+        }
+        if ($storedType !== $taskType) {
+            return $this->error("Task type mismatch: task is '{$storedType}', not '{$taskType}'", 422);
+        }
 
         // NULL when the worker omitted progress (a lease keep-alive ping —
         // d.txt 7): the service then leaves the stored progress untouched and

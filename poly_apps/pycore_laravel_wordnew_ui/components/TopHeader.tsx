@@ -10,7 +10,6 @@ const CODE_UPDATE_POLL_MS = 60000;
 const RELATIVE_TICK_MS = 1000;
 
 interface TopHeaderProps {
-  pageTitle: string;
   isLoggedIn: boolean;
   onAuthClick: () => void;
 }
@@ -61,7 +60,7 @@ function formatRelativeAgo(lastModifiedIso: string, serverNow: number, t: TFunct
  * Right-side top bar. Sticks to the top when the main content scrolls.
  * Rendered inside the main content column (next to the fixed Sidebar).
  */
-const TopHeader: React.FC<TopHeaderProps> = ({ pageTitle, isLoggedIn, onAuthClick }) => {
+const TopHeader: React.FC<TopHeaderProps> = ({ isLoggedIn, onAuthClick }) => {
   const { lang, theme, toggleLang, toggleTheme } = useAppState();
   const { t } = useTranslation();
   const [codeUpdatedAt, setCodeUpdatedAt] = useState<string | null>(null);
@@ -116,20 +115,18 @@ const TopHeader: React.FC<TopHeaderProps> = ({ pageTitle, isLoggedIn, onAuthClic
     : t('header.code_last_updated_unavailable');
 
   return (
-    <header className="sticky top-0 z-40 min-h-16 flex flex-wrap items-center justify-between px-4 sm:px-6 py-2 gap-3 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md transition-colors duration-300 flex-shrink-0">
-      <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 min-w-0">
-        <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-white truncate">
-          {pageTitle}
-        </h1>
+    <header className="sticky top-0 z-40 min-h-16 border-b border-black/5 dark:border-white/10 bg-white/60 dark:bg-slate-900/50 backdrop-blur-md transition-colors duration-300 flex-shrink-0">
+      <div className="grid w-full grid-cols-1 lg:grid-cols-2 items-center gap-3 px-4 sm:px-6 py-2">
+        <div className="flex min-w-0 items-center justify-start">
         <span
-          className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap flex-shrink-0"
+          className="inline-block max-w-full truncate px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-[10px] text-indigo-600 dark:text-indigo-400 font-mono whitespace-nowrap"
           title={codeUpdatedFile ? codeUpdatedFile : undefined}
         >
           {codeUpdateBadge}
         </span>
-      </div>
+        </div>
 
-      <div className="flex items-center gap-2 sm:gap-4 text-xs font-medium flex-wrap">
+      <div className="flex items-center justify-end gap-2 sm:gap-4 text-xs font-medium flex-wrap">
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`w-2 h-2 rounded-full shadow-[0_0_8px_rgba(16,185,129,0.5)] ${isLoggedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
           <span className={`${isLoggedIn ? 'text-emerald-600 dark:text-emerald-500' : 'text-slate-500'} whitespace-nowrap`}>
@@ -186,6 +183,7 @@ const TopHeader: React.FC<TopHeaderProps> = ({ pageTitle, isLoggedIn, onAuthClic
             )}
           </button>
         </div>
+      </div>
       </div>
     </header>
   );

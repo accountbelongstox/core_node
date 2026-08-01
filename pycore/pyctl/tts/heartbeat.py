@@ -10,6 +10,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import assist_callback_states
 from pycore.pyutils.common.service_config import (
+    SENTENCE_QUEUE_MONITOR_INTERVAL,
     TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
     TRANSLATION_QUEUE_MONITOR_INTERVAL,
     TTS_SENTENCE_WORKER_BATCH,
@@ -17,8 +18,10 @@ from pycore.pyutils.common.service_config import (
     TTS_WORKER_BATCH,
     TTS_WORKER_INTERVAL,
 )
-from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
-from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
 from pycore.pyctl.tts.sentence_audio_auto import (
     restore_persisted_auto_start as restore_sentence_audio_auto_start,
 )
@@ -33,7 +36,7 @@ from pycore.pyctl.tts.word_tts_auto import (
 def register_tts_queue_poller() -> None:
     """Register the TTS word-generation queue worker callback (idempotent)."""
     heartbeat = shared_heartbeat_system
-    poller = tts_queue_poller_service
+    poller = laravel_word_audio_worker
     enabled_on_start = assist_callback_states()["tts_queue_poller"]
     heartbeat.register_callback(
         name="tts_queue_poller",
@@ -56,7 +59,7 @@ def register_tts_queue_poller() -> None:
 def register_tts_sentence_worker() -> None:
     """Register the TTS sentence-audio worker callback (idempotent)."""
     heartbeat = shared_heartbeat_system
-    worker = tts_sentence_worker_service
+    worker = laravel_sentence_audio_worker
     enabled_on_start = assist_callback_states()["tts_sentence_worker"]
     heartbeat.register_callback(
         name="tts_sentence_worker",
@@ -84,12 +87,12 @@ def register_sentence_queue_monitor() -> None:
     heartbeat.register_callback(
         name="sentence_queue_monitor",
         callback=monitor.poll_once,
-        interval=TRANSLATION_QUEUE_MONITOR_INTERVAL,
+        interval=SENTENCE_QUEUE_MONITOR_INTERVAL,
         enabled=enabled_on_start,
     )
     ColorPrint.green("[Callmodule] Registered sentence queue monitor callback")
     ColorPrint.blue("  - Callback name: sentence_queue_monitor")
-    ColorPrint.blue(f"  - Interval: {TRANSLATION_QUEUE_MONITOR_INTERVAL} seconds")
+    ColorPrint.blue(f"  - Interval: {SENTENCE_QUEUE_MONITOR_INTERVAL} seconds")
     ColorPrint.blue(
         f"  - Initial state: {'enabled' if enabled_on_start else 'disabled'} (user settings)"
     )

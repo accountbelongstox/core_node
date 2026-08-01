@@ -1,9 +1,9 @@
 ﻿
 import React, { useState, useEffect } from 'react';
 import BentoCard from '../BentoCard';
-import { ToolConnectionConfig, ToolUISchema } from '../../types';
+import { ToolConnectionConfig, ToolUISchema } from '../../apps/laravel-manager/uiTypes';
 import { Upload, File, ChevronDown, Check, AlertTriangle, Cloud, Zap } from "lucide-react";
-import { apiClient } from '../../services/api';
+import { toolDemoService } from '../../apps/laravel-manager/services/ToolDemoService';
 
 interface UniversalToolProps {
   config: ToolConnectionConfig;
@@ -53,7 +53,7 @@ const UniversalTool: React.FC<UniversalToolProps> = ({ config, schema }) => {
       const payload = Object.fromEntries(
         Object.entries(formData).filter(([, v]) => v !== '' && v !== null && v !== undefined)
       );
-      const response = await apiClient.executeToolAction(schema.id, actionId, payload, config);
+      const response = await toolDemoService.executeToolAction(schema.id, actionId, payload, config);
       
       if (response.success) {
         setOutputData(response.data);

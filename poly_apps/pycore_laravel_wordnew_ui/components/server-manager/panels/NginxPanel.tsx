@@ -9,7 +9,7 @@ import {
   NginxBackup,
   NginxMetrics,
   NginxBatchAction
-} from '../../../types';
+} from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../../common';

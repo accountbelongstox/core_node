@@ -13,7 +13,7 @@ import {
   LucideIcon,
   Sparkles,
 } from 'lucide-react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import { StatusBadge as CommonStatusBadge } from '../../common/StatusBadge';
 import { StatCard as CommonStatCard } from '../../common/StatCard';
@@ -121,6 +121,7 @@ interface TaskTypeMeta {
   label: string;
   color: string;
   icon: string;
+  badge: string;
 }
 
 export const TASK_TYPE_META: Record<string, TaskTypeMeta> = Object.fromEntries(
@@ -128,6 +129,7 @@ export const TASK_TYPE_META: Record<string, TaskTypeMeta> = Object.fromEntries(
     label: definition.label,
     color: definition.ui.color,
     icon: definition.ui.icon,
+    badge: definition.ui.badge,
   }]),
 );
 
@@ -141,6 +143,7 @@ export const taskTypeMeta = (taskType: string | null | undefined): TaskTypeMeta 
       label: key || 'Unknown',
       color: '#64748b',
       icon: '📦',
+      badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
     }
   );
 };

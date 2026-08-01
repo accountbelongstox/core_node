@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
-"""Queue priority commands (Laravel + local worker wakeups)."""
+"""Queue priority commands (Laravel).
+
+Audio-lane priority commands were retired with the domain-claim audio workers:
+word/sentence audio priority now rides the queue-center bump API and the SSE
+wake channel (pyctl/tts/laravel_audio_worker.py). Image/cover/poster lanes are
+unchanged.
+"""
 
 from typing import Any, Dict, List
 
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
-from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
-from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 
 _IMAGE_PATH = "/api/app_qy_v1/ai_tools/word_image/queue/add"
-_SENTENCE_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/bump-batch"
-_SENTENCE_ITEM_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/bump"
-_WORD_AUDIO_PATH = "/api/app_qy_v1/ai_tools/tts/queue/batch/add"
 _COVER_PATH = "/api/app_qy_v1/assist/cover/retry"
 _POSTER_PATH = "/api/app_qy_v1/assist/poster/priority"
 _TIMEOUT = 30
@@ -50,58 +50,6 @@ def prioritize_word_images(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         _IMAGE_PATH,
         {"words": normalized, "priority": "front", "interactive": True},
     )
-
-
-def prioritize_sentence_audio(items: List[Dict[str, Any]]) -> Dict[str, Any]:
-    normalized = [
-        {"text": item["text"], "language": item["language"]}
-        for item in items
-        if isinstance(item, dict)
-        and str(item.get("text") or "").strip()
-        and str(item.get("language") or "").strip()
-    ]
-    if not normalized:
-        return {"success": False, "error": "items are required"}
-    result = _post_laravel(_SENTENCE_PATH, {"items": list(reversed(normalized))})
-    if result.get("success") and shared_heartbeat_system.is_callback_enabled("tts_sentence_worker"):
-        tts_sentence_worker_service.notify_batch_bump()
-    return result
-
-
-def prioritize_sentence_audio_item(content_id: str, language: str) -> Dict[str, Any]:
-    if not str(content_id or "").strip() or not str(language or "").strip():
-        return {"success": False, "error": "content_id and language are required"}
-    result = _post_laravel(_SENTENCE_ITEM_PATH, {
-        "content_id": content_id,
-        "language": language,
-        "interactive": True,
-        "create_task": True,
-    })
-    if ((result.get("success") or result.get("ok"))
-            and shared_heartbeat_system.is_callback_enabled("tts_sentence_worker")):
-        tts_sentence_worker_service.notify_bump(
-            content_id,
-            language,
-            int(result.get("priority") or 0),
-        )
-    return result
-
-
-def prioritize_word_audio_words(words: List[str], language: str) -> Dict[str, Any]:
-    cleaned = [str(word).strip() for word in words if str(word).strip()]
-    if not cleaned or not str(language or "").strip():
-        return {"success": False, "error": "words and language are required"}
-    result = _post_laravel(_WORD_AUDIO_PATH, {
-        "tasks": [
-            {"content": word, "language": language, "type": "word"}
-            for word in reversed(cleaned)
-        ],
-        "interactive": True,
-    })
-    if ((result.get("success") or result.get("status") == "success")
-            and shared_heartbeat_system.is_callback_enabled("tts_queue_poller")):
-        tts_queue_poller_service.poll_and_process()
-    return result
 
 
 def prioritize_covers(ids: List[int], all_covers: bool = False) -> Dict[str, Any]:

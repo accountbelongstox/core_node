@@ -1,5 +1,5 @@
 
-import { ApiCatalogEndpoint } from "./types";
+import { ApiCatalogEndpoint } from "./apps/laravel-manager/uiTypes";
 
 export const API_ENDPOINTS: ApiCatalogEndpoint[] = [
     // --- System API ---

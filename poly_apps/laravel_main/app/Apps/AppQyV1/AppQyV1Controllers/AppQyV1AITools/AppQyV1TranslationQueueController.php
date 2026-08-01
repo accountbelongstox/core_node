@@ -25,6 +25,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -365,7 +366,7 @@ class AppQyV1TranslationQueueController extends Controller
                 ->where('app_name', 'AppQyV1')
                 ->where('task_type', 'word_translation')
                 ->groupBy('status')
-                ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
+                ->select('status', DB::raw('count(*) as total'))
                 ->pluck('total', 'status');
 
             $countFor = static function (array $statuses) use ($grouped): int {
@@ -415,10 +416,22 @@ class AppQyV1TranslationQueueController extends Controller
             }
         }
 
-        // Total rows matching the filtered query (drives client pagination).
-        $filteredTotal = (clone $pageQuery)->count();
+        $requestedStatus = $validated['status'] ?? '';
+        $summaryTotalKey = match ($requestedStatus) {
+            'pending' => 'pending',
+            'processing' => 'processing',
+            'assigned' => 'leased',
+            'completed' => 'completed',
+            'failed' => 'failed',
+            '' => 'total',
+            default => null,
+        };
+        $filteredTotal = $summaryTotalKey !== null
+            ? (int) ($summary[$summaryTotalKey] ?? 0)
+            : (clone $pageQuery)->count();
 
         $query = $pageQuery
+            ->select(['task_id', 'payload', 'priority', 'status', 'created_at', 'assigned_to'])
             ->orderBy('priority', 'desc')
             ->orderBy('created_at', 'asc')
             ->offset($offset)
@@ -569,46 +582,43 @@ class AppQyV1TranslationQueueController extends Controller
         // not on a tight interval) so repeated loads reuse one set of table counts.
         $summary = Cache::remember(
             'appqyv1:wordtrans_pending_summary:' . $langCode,
-            8,
+            60,
             static function () use ($langCode) {
-                $pending = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->where('has_translation', false)
-                    ->where('is_valid', true)
-                    ->count();
-                $completed = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->where('has_translation', true)
-                    ->count();
-                $failed = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->where('is_valid', false)
-                    ->count();
-                $total = AppQyV1LangDictionaryModel::forLanguage($langCode)->count();
+                $counts = AppQyV1LangDictionaryModel::forLanguage($langCode)
+                    ->selectRaw('count(*) as total')
+                    ->selectRaw('sum(case when has_translation = false and is_valid = true then 1 else 0 end) as pending')
+                    ->selectRaw('sum(case when has_translation = true then 1 else 0 end) as completed')
+                    ->selectRaw('sum(case when is_valid = false then 1 else 0 end) as failed')
+                    ->first();
 
                 return [
-                    'pending' => $pending,
-                    'completed' => $completed,
-                    'failed' => $failed,
-                    'total' => $total,
+                    'pending' => (int) ($counts->pending ?? 0),
+                    'completed' => (int) ($counts->completed ?? 0),
+                    'failed' => (int) ($counts->failed ?? 0),
+                    'total' => (int) ($counts->total ?? 0),
                 ];
             }
         );
 
         // Live crawl activity: word_translation tasks currently assigned/processing
         // for this language pair (real-time, uncached).
-        $processing = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-            ->where('payload->language', $langCode)
-            ->where('payload->target_language', $targetCode)
-            ->count();
-
-        $leased = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::status('assigned'))
-            ->where('payload->language', $langCode)
-            ->where('payload->target_language', $targetCode)
-            ->count();
+        $activity = Cache::remember(
+            'appqyv1:wordtrans_pending_activity:' . $langCode . ':' . $targetCode,
+            10,
+            static function () use ($langCode, $targetCode) {
+                return GlobalTask::query()
+                    ->where('app_name', 'AppQyV1')
+                    ->where('task_type', 'word_translation')
+                    ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
+                    ->where('payload->language', $langCode)
+                    ->where('payload->target_language', $targetCode)
+                    ->groupBy('status')
+                    ->select('status', DB::raw('count(*) as total'))
+                    ->pluck('total', 'status');
+            }
+        );
+        $leased = (int) ($activity[GlobalTask::status('assigned')] ?? 0);
+        $processing = $leased + (int) ($activity[GlobalTask::status('processing')] ?? 0);
 
         // The requested page of untranslated words to preview (most-queried first).
         $pageWords = AppQyV1LangDictionaryModel::forLanguage($langCode)

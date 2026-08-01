@@ -86,8 +86,12 @@ export const pycoreApiLocal = {
       offset: params.offset ?? 0,
       task_type: params.task_type,
     }) as Promise<PcCompletedTaskArchiveResponse>,
-  syncCompletedTasks: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistorySyncCompletedArchive, {}) as Promise<PcCompletedTaskSyncResponse>,
+  syncCompletedTasks: (params: { limit?: number; cursor_id?: number; task_type?: string } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistorySyncCompletedArchive, {
+      limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
+      cursor_id: params.cursor_id ?? 0,
+      task_type: params.task_type,
+    }) as Promise<PcCompletedTaskSyncResponse>,
   getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
     const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCompletedArchiveResource, {
       cache_key: cacheKey,
@@ -197,18 +201,6 @@ export const pycoreApiLocal = {
   prioritizeWordImages: (items: Array<{ word: string; language: string }>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeWordImages, { items }) as Promise<
       { success: boolean; count?: number; error?: string }
-    >,
-  prioritizeSentenceAudio: (items: Array<{ text: string; language: string; content_id?: string }>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeSentenceAudio, { items }) as Promise<
-      { success: boolean; bumped?: number; error?: string }
-    >,
-  prioritizeSentenceAudioItem: (contentId: string, language: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeSentenceAudioItem, {
-      content_id: contentId, language,
-    }) as Promise<{ success?: boolean; ok?: boolean; priority?: number; error?: string }>,
-  prioritizeWordAudioWords: (words: string[], language: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeWordAudioWords, { words, language }) as Promise<
-      { success: boolean; queued?: number; error?: string }
     >,
   prioritizeCovers: (ids: number[], all = false) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeCovers, { ids, all }) as Promise<

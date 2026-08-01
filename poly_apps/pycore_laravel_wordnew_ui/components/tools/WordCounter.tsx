@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import BentoCard from '../BentoCard';
 import { AlignLeft, Type, Clock, FileText, Cloud, Zap } from "lucide-react";
-import { ToolConnectionConfig } from '../../types';
-import { apiClient } from '../../services/api';
+import { ToolConnectionConfig } from '../../apps/laravel-manager/uiTypes';
+import { toolDemoService } from '../../apps/laravel-manager/services/ToolDemoService';
 
 interface WordCounterProps {
   config: ToolConnectionConfig;
@@ -28,7 +28,7 @@ const WordCounter: React.FC<WordCounterProps> = ({ config }) => {
 
   useEffect(() => {
     const analyze = async () => {
-        const res = await apiClient.executeToolAction('ta4', 'analyze', { text }, config);
+        const res = await toolDemoService.executeToolAction('ta4', 'analyze', { text }, config);
         if (res.success && res.data) {
             setStats(res.data);
             setDataSource(res.dataSource || 'mock');

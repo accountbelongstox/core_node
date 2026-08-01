@@ -42,8 +42,10 @@ class UserProfileController extends Controller
             'avatar_url' => $this->getAvatarUrl($user->avatar),
             'bio' => $user->bio,
             'location' => $user->location,
-            'rolelevel' => $user->rolelevel,
+            'rolelevel' => (int) ($user->rolelevel ?? 0),
+            'role_level' => (int) ($user->rolelevel ?? 0),
             'rolename' => $user->rolename,
+            'role_name' => $user->rolename,
             'is_active' => $user->is_active ?? 1,
             'created_at' => $user->created_at,
             'updated_at' => $user->updated_at,
@@ -131,8 +133,10 @@ class UserProfileController extends Controller
             'avatar_url' => $this->getAvatarUrl($user->avatar),
             'bio' => $user->bio,
             'location' => $user->location,
-            'rolelevel' => $user->rolelevel,
+            'rolelevel' => (int) ($user->rolelevel ?? 0),
+            'role_level' => (int) ($user->rolelevel ?? 0),
             'rolename' => $user->rolename,
+            'role_name' => $user->rolename,
             'is_active' => $user->is_active ?? 1,
         ];
 
@@ -152,7 +156,7 @@ class UserProfileController extends Controller
 
         $validator = Validator::make($request->all(), [
             'current_password' => 'required|string',
-            'new_password' => 'required|string|min:8',
+            'new_password' => 'required|string',
             'confirm_password' => 'required|string|same:new_password',
         ]);
 

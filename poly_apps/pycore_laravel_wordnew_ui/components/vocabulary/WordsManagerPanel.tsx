@@ -30,7 +30,7 @@ import {
   AudioLines, Languages as LanguagesIcon, BarChart3,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
-import { mediaUrl } from '../../config/constants';
+import { laravelMediaUrl as mediaUrl } from '../../apps/laravel-manager/network/mediaUrl';
 import type { DictionaryWordRow, DictionaryWordFilter } from '@/apps/laravel-manager/api';
 import { ConfirmModal, useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';

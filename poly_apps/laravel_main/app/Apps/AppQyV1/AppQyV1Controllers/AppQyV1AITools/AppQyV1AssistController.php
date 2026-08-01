@@ -362,8 +362,8 @@ class AppQyV1AssistController extends Controller
      * Response: { success, cleared:int, files_deleted:int }
      *
      * Deletes the cover image file(s) and re-queues the row(s) to 'pending' with
-     * a fresh randomized prompt, so pycore regenerates them. Use to discard
-     * unsatisfactory covers. failed_only=true narrows to failed/retry rows.
+     * so mcp-chrome generates fresh artwork. Use to discard unsatisfactory
+     * covers. failed_only=true narrows to failed/retry rows.
      */
     public function coverClear(Request $request): JsonResponse
     {

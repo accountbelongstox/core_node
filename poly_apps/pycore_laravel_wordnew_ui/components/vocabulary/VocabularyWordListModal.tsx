@@ -6,7 +6,7 @@ import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/ove
 import type {
   VocabularyStatisticsWordRow,
   VocabularyWordsPagination,
-} from '../../types';
+} from '../../apps/laravel-manager/uiTypes';
 
 const TRUNCATE_LENGTH = 80;
 const PER_PAGE_OPTIONS = [50, 100, 200];

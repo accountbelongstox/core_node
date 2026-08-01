@@ -39,6 +39,7 @@ BaseModel = pydantic.BaseModel
 
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyctl.assist.assist_settings import load_assist_settings
 from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_service
@@ -48,9 +49,6 @@ from pycore.pyctl.translation.worker.worker import (
 from pycore.pyctl.queue_center.assist_overview import (
     queue_snapshot,
     workers_status,
-)
-from pycore.pyctl.task_history.service import (
-    get_recent_tasks,
 )
 from pycore.pyctl.assist.service import assist_config, assist_status
 from pycore.pyutils.common.queue_center_contract import (
@@ -93,7 +91,8 @@ _LOCAL_TASK_STATUSES = ("pending", "processing", "completed", "failed")
 
 # How many recent local task records the aggregate includes.
 _RECENT_TASK_LIMIT = 20
-_SNAPSHOT_HISTORY_LIMIT = 200
+_SNAPSHOT_CACHE_SIGNAL = "queue_center.snapshot.cache"
+_SNAPSHOT_CACHE_SECONDS = 5.0
 class QueueCenterControlRequest(BaseModel):
     enabled: bool
     requested_by: Optional[str] = None
@@ -338,6 +337,17 @@ def get_queue_center_snapshot():
     reused across the remote_queue section and the translation slice to avoid
     a redundant serialized RPC round-trip.
     """
+    cached = THREAD_BUS.get_signal(_SNAPSHOT_CACHE_SIGNAL, None)
+    if isinstance(cached, dict):
+        cached_at = cached.get("cached_at")
+        cached_value = cached.get("value")
+        if (
+            isinstance(cached_at, (int, float))
+            and isinstance(cached_value, dict)
+            and time.monotonic() - cached_at < _SNAPSHOT_CACHE_SECONDS
+        ):
+            return cached_value
+
     request_id = str(int(time.time() * 1000))
     errors: Dict[str, str] = {}
     # --- Compute the monitor snapshot ONCE so remote_queue and translation
@@ -366,12 +376,6 @@ def get_queue_center_snapshot():
     overview = _capture_slice("overview", get_queue_overview, errors, request_id)
     sentence_queue = _capture_slice("sentence_queue", queue_snapshot, errors, request_id)
     tts = _capture_slice("tts", lambda: tts_status(refresh=0), errors, request_id)
-    recent = _capture_slice(
-        "recent",
-        lambda: get_recent_tasks(limit=_SNAPSHOT_HISTORY_LIMIT),
-        errors,
-        request_id
-    )
     generated_at = datetime.now(timezone.utc).isoformat()
     task_center["timestamp"] = generated_at
     remote = task_center["remote_queue"]
@@ -384,7 +388,7 @@ def get_queue_center_snapshot():
         task_center_snapshot=task_center,
     )
 
-    return {
+    snapshot = {
         "success": not errors,
         "schema_version": QUEUE_CENTER_SCHEMA_VERSION,
         "generated_at": generated_at,
@@ -408,15 +412,21 @@ def get_queue_center_snapshot():
             "tts": tts,
             "overview": overview,
             "sentence_queue": sentence_queue,
-            "recent": recent,
+            "recent": None,
         },
         "errors": errors,
     }
+    THREAD_BUS.signal(_SNAPSHOT_CACHE_SIGNAL, {
+        "cached_at": time.monotonic(),
+        "value": snapshot,
+    })
+    return snapshot
 
 
 def set_queue_center_control(control_name: str, req: QueueCenterControlRequest):
     """Apply one named, persistent Queue Center control and return fresh state."""
     enabled = bool(req.enabled)
+    THREAD_BUS.clear_signal(_SNAPSHOT_CACHE_SIGNAL)
     canonical_name = normalize_control_name(control_name)
     requested_by = (
         req.requested_by.strip()

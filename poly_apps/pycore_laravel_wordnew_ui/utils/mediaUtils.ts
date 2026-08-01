@@ -1,4 +1,4 @@
-import { FileNode } from "../types";
+import { FileNode } from "../apps/laravel-manager/uiTypes";
 
 // Mapping for Chinese numerals to Arabic for sorting
 const CN_NUM_MAP: Record<string, number> = {

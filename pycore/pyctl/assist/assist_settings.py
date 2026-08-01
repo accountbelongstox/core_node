@@ -101,7 +101,6 @@ def assist_callback_states(
     translation_worker = translation or ai_translate or subtitle or stt
     transport = translation_worker or word_audio or sentence_audio
     return {
-        "global_task_worker": transport,
         "translation_worker": translation_worker,
         "translation_queue_monitor": translation or ai_translate,
         "translation_http_event_client": transport,

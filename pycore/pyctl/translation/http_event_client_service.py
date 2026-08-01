@@ -48,7 +48,7 @@ Events handled (Phase C broadcast contract):
   - sentence.priority { content_id, language, priority, text }
         or aggregate { batch: true, count, languages }
         -> QueueBumpHub.record (UI toasts + HTTP events) +
-           TTSSentenceWorkerService.notify_bump / notify_batch_bump
+           LaravelSentenceAudioWorker.notify_bump / notify_batch_bump
            (re-key queued task + immediate wake)
 
 ------------------------------------------------------------------------------
@@ -97,18 +97,16 @@ from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_
 from pycore.pyctl.translation.worker.worker import (
     translation_worker_service,
 )
-# Sentence-audio lane: bump hub (UI toasts/HTTP events) + worker (re-key + wake)
-# for the
-# sentence.priority events that ride this same SSE stream.
+# Sentence-audio lane: bump hub (UI toasts/HTTP events) + the dedicated
+# audio workers (re-key + wake) for the sentence.priority / word_audio.priority
+# events that ride this same SSE stream.
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
-from pycore.pyctl.tts.sentence_worker_service import (
-    tts_sentence_worker_service,
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
 )
 from pycore.pyctl.tts.sentence_queue_monitor_service import (
     sentence_queue_monitor_service,
-)
-from pycore.pyctl.tts.word_queue_poller_service import (
-    tts_queue_poller_service,
 )
 from pycore.pyutils.common.service_config import (
     TRANSLATION_EVENT_CHANNEL,
@@ -225,9 +223,9 @@ class TranslationHttpEventClient:
 
     @serialized_method
     def _get_sentence_worker(self):
-        """Resolve the TTSSentenceWorkerService singleton (lazy)."""
+        """Resolve the LaravelSentenceAudioWorker singleton (lazy)."""
         if self._sentence_worker is None:
-            self._sentence_worker = tts_sentence_worker_service
+            self._sentence_worker = laravel_sentence_audio_worker
         return self._sentence_worker
 
     # -------------------- URL --------------------
@@ -350,7 +348,7 @@ class TranslationHttpEventClient:
 
         elif suffix == "wordaudiopriority":
             items = data.get("items") if data.get("batch") else [data]
-            worker = tts_queue_poller_service
+            worker = laravel_word_audio_worker
             for item in items if isinstance(items, list) else []:
                 if not isinstance(item, dict):
                     continue
@@ -358,11 +356,6 @@ class TranslationHttpEventClient:
                 language = str(item.get("language") or "").strip()
                 if md5 and language:
                     worker.prioritize_word(md5, language)
-            if shared_heartbeat_system.is_callback_enabled("tts_queue_poller"):
-                start_bus_task(
-                    worker.poll_and_process,
-                    thread_name="SseWordAudioWakeThread",
-                )
 
         # word_image.priority / cover.priority are intentionally not woken here:
         # apps/mcp-chrome owns image and cover execution. Pycore only relays

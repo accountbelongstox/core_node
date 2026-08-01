@@ -2295,7 +2295,7 @@
     "message": "Gültigkeitstest fehlgeschlagen"
   },
   "validityWordLanguageHint": {
-    "message": "Standardmäßig werden nur englische Wörter verarbeitet; Wählen Sie stattdessen eine andere Sprache aus, um den Rückstand zu verarbeiten."
+    "message": "Standardmäßig werden nur englische Wörter verarbeitet; wählen Sie eine oder mehrere Sprachen aus, um deren Rückstände in einem Lauf abzuarbeiten."
   },
   "validityWordLanguageTitle": {
     "message": "Gültigkeitswortsprache"

@@ -2295,7 +2295,7 @@
     "message": "有效性測試失敗"
   },
   "validityWordLanguageHint": {
-    "message": "默認只處理英語單詞；可選擇其他語言來處理其積壓任務。"
+    "message": "默認只處理英語單詞；可多選語言，同一次執行中逐個清空其積壓任務。"
   },
   "validityWordLanguageTitle": {
     "message": "有效性檢查單詞語言"

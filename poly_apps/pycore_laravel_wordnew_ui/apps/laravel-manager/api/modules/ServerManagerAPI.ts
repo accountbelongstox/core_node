@@ -1,4 +1,4 @@
-import { BaseAPI, DEFAULT_REQUEST_TIMEOUT_MS } from '../base/BaseAPI';
+import { BaseAPI } from '../base/BaseAPI';
 import { APIResponse } from '../../types';
 import type {
   GlobalTaskCapability,
@@ -12,12 +12,12 @@ import type {
   GlobalTaskStatus,
   GlobalTaskStatsRecord,
   GlobalTaskSummary,
-} from '../../../../core/api-libs/pycore/QueueCenterContract';
+} from '../../integrations/pycore';
 import {
   GLOBAL_TASK_EVENTS_BY_ROLE,
   GLOBAL_TASK_PRIORITIES,
   GLOBAL_TASK_STREAM_EVENTS_BY_ROLE,
-} from '../../../../core/api-libs/pycore/QueueCenterContract';
+} from '../../integrations/pycore';
 
 // ==================== Global Task / Worker substrate types ====================
 // laravel_main's distributed worker queue (`global_tasks` + `workers` tables).
@@ -296,7 +296,7 @@ export class ServerManagerAPI extends BaseAPI {
     status: string;
     output: string;
   }>> {
-    return this.post('/server-manager/restart', {});
+    return this.request({ url: '/server-manager/restart', method: 'POST', data: {}, retry: false });
   }
 
   // ==================== Global Task / Worker substrate ====================
@@ -612,76 +612,10 @@ export class ServerManagerAPI extends BaseAPI {
    * Perform a GET against an Octane-tasks WEB route.
    *
    * These endpoints live under the Laravel `web` route group (no `/api`
-   * prefix), so they intentionally bypass BaseAPI.request() / buildURL()
-   * (which would prepend `this.prefix === '/api'`). This helper still
-   * mirrors BaseAPI's reliability contract: a fail-fast AbortController
-   * timeout, the module's shared headers, a non-JSON guard, and a
-   * normalized network/timeout error instead of a raw fetch TypeError.
+   * prefix). BaseAPI owns timeout, auth, decoding, logging, and errors.
    */
   private async octaneWebGet<T>(path: string): Promise<APIResponse<T>> {
-    const url = `${this.baseURL}${path}`;
-    const timeoutMs = this.timeout || DEFAULT_REQUEST_TIMEOUT_MS;
-    const abortController = new AbortController();
-    const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
-
-    try {
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: this.resolveRequestHeaders({
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0',
-        }),
-        signal: abortController.signal,
-      });
-
-      const contentType = response.headers.get('content-type');
-      const isJson = contentType !== null && contentType.includes('application/json');
-
-      if (!isJson) {
-        const text = await response.text();
-        return {
-          success: false,
-          data: null,
-          error: `Invalid response format. Expected JSON but got: ${contentType || 'unknown'}. Response preview: ${text.slice(0, 200)}`,
-          status: response.status,
-        };
-      }
-
-      const data = await response.json();
-      return {
-        success: response.ok,
-        data: response.ok ? (data.data !== undefined ? data.data : data) : null,
-        error: response.ok ? null : (data.error || data.message || 'Request failed'),
-        status: response.status,
-      };
-    } catch (error: any) {
-      const isOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-      const isTimeout = error?.name === 'AbortError' || error?.name === 'TimeoutError';
-      const isNetworkError = isOffline || error?.name === 'TypeError';
-
-      let message: string;
-      if (isTimeout) {
-        message = 'Request timed out';
-      } else if (isOffline) {
-        message = 'Network unreachable (device is offline)';
-      } else if (isNetworkError) {
-        message = 'Network unreachable (server did not respond)';
-      } else {
-        message = error?.message || 'Network error';
-      }
-
-      return {
-        success: false,
-        data: null,
-        error: message,
-        status: 0,
-        isTimeout,
-        isNetworkError,
-      } as APIResponse<T>;
-    } finally {
-      clearTimeout(timeoutId);
-    }
+    return this.request<T>({ url: path, method: 'GET', root: true, retry: false });
   }
 
   /**

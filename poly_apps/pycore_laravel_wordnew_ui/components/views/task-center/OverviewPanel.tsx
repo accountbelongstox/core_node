@@ -9,7 +9,7 @@
  * canvas. Row click on a relation jumps to the scheduler tab.
  */
 import React from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import type {

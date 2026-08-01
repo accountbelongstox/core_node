@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { ViewType, Language, Theme } from '../../../types';
+import { ViewType, Language, Theme } from '../uiTypes';
 import { UnifiedUser, UserPreferences } from '../types';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
@@ -157,20 +157,23 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
 
   useEffect(() => {
     const storedUser = userModel.getUser();
-    if (storedUser && !stateRef.current.UnifiedUser) {
-      setState(prev => ({ ...prev, UnifiedUser: storedUser, isLoggedIn: true }));
-      return;
-    }
-
-    if (!storedUser && userModel.hasStoredToken()) {
-      userModel.bootstrapLoopbackSession().then((restored) => {
-        if (!restored) return;
-        const restoredUser = userModel.getUser();
-        if (restoredUser) {
-          setState(prev => ({ ...prev, UnifiedUser: restoredUser, isLoggedIn: true }));
-        }
-      });
-    }
+    const restore = async (): Promise<void> => {
+      let restoredUser = storedUser;
+      if (storedUser && !stateRef.current.UnifiedUser) {
+        setState(prev => ({ ...prev, UnifiedUser: storedUser, isLoggedIn: true }));
+      }
+      if (!userModel.hasStoredToken()) return;
+      if (storedUser) {
+        restoredUser = await userModel.refreshProfile();
+      } else {
+        const restored = await userModel.bootstrapLoopbackSession();
+        restoredUser = restored ? userModel.getUser() : null;
+      }
+      if (restoredUser) {
+        setState(prev => ({ ...prev, UnifiedUser: restoredUser, isLoggedIn: true }));
+      }
+    };
+    void restore();
   }, []);
 
   // Auto-save state to storage
@@ -368,6 +371,13 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     }
   }, []);
 
+  const refreshUser = useCallback(async (): Promise<boolean> => {
+    const user = await userModel.refreshProfile();
+    if (!user) return false;
+    setState(prev => ({ ...prev, UnifiedUser: user, isLoggedIn: true }));
+    return true;
+  }, []);
+
   // Update preferences
   const updatePreferences = useCallback(async (prefs: Partial<UserPreferences>): Promise<boolean> => {
     setState(prev => ({ ...prev, loading: true, error: null }));
@@ -476,6 +486,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     login,
     register,
     logout,
+    refreshUser,
     updatePreferences,
     addRecentTool,
     toggleFavorite,

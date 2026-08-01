@@ -66,7 +66,11 @@ def stt_enabled() -> bool:
 
 
 def audio_enabled() -> bool:
-    """Global remote_audio follows the existing word-TTS worker toggle."""
+    """Word-audio toggle state (legacy gate for non-lane callers).
+
+    The remote_audio lane itself is owned by the dedicated word-audio worker
+    (pyctl/tts/laravel_audio_worker.py) and is no longer advertised through
+    effective_capabilities()/effective_processor_types()."""
     try:
         return shared_heartbeat_system.is_callback_enabled("tts_queue_poller")
     except Exception:
@@ -74,7 +78,9 @@ def audio_enabled() -> bool:
 
 
 def sentence_audio_enabled() -> bool:
-    """Global sentence-audio follows the existing sentence worker toggle."""
+    """Sentence-audio toggle state (legacy gate for non-lane callers, e.g.
+    prompt_translate). The remote_sentence_audio lane is owned by the
+    dedicated sentence-audio worker (pyctl/tts/laravel_audio_worker.py)."""
     try:
         return shared_heartbeat_system.is_callback_enabled("tts_sentence_worker")
     except Exception:
@@ -90,10 +96,9 @@ def effective_capabilities() -> List[str]:
         caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["ai_translate"])
     if stt_enabled():
         caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["stt"])
-    if audio_enabled():
-        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["audio"])
-    if sentence_audio_enabled():
-        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["sentence_audio"])
+    # audio / sentence_audio are intentionally NOT advertised here: those lanes
+    # belong to the dedicated workers (pyctl/tts/laravel_audio_worker.py), so
+    # the translation worker never races them for the same audio tasks.
     return caps
 
 
@@ -112,10 +117,8 @@ def effective_processor_types(worker) -> List[str]:
         types.append(worker.SUBTITLE_EXECUTION_TYPE)
     if stt_enabled():
         types.append(worker.STT_EXECUTION_TYPE)
-    if audio_enabled():
-        types.append(worker.AUDIO_EXECUTION_TYPE)
-    if sentence_audio_enabled():
-        types.append(worker.SENTENCE_AUDIO_EXECUTION_TYPE)
+    # remote_audio / remote_sentence_audio are owned by the dedicated audio
+    # workers (pyctl/tts/laravel_audio_worker.py); not advertised here.
     capabilities = effective_capabilities()
     if any(capability in GLOBAL_TASK_FAST_LANE_CAPABILITIES for capability in capabilities):
         types.insert(0, worker.TRANSLATION_FAST_PROCESSOR_TYPE)

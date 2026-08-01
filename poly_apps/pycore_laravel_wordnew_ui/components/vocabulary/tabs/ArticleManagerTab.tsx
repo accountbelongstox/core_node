@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BookOpen, ChevronLeft, ChevronRight, RefreshCw, Trash2, Volume2 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
-import type { APIResponse } from '../../../types';
+import type { APIResponse } from '../../../apps/laravel-manager/types';
 import type { ArticleBatchDeleteResult, ArticleDeleteResult, ArticleItem } from '@/apps/laravel-manager/api';
 import { requestGlobalLogin } from '../../../apps/laravel-manager/auth/loginModalBridge';
 import { commonClasses } from '../../../styles/theme';
 import { useAppState } from '../../../contexts/AppStateContext';
+import { useUserRole } from '../../../hooks/useUserRole';
 import { Modal, useToast } from '../../admin';
 import EmptyState from '../../common/EmptyState';
 
@@ -15,6 +16,7 @@ const DELETE_CONFIRMATIONS = new Set(['yes', 'delete']);
 const ArticleManagerTab: React.FC = () => {
   const toast = useToast();
   const { isLoggedIn } = useAppState();
+  const { isAdmin } = useUserRole();
   const [items, setItems] = useState<ArticleItem[]>([]);
   const [categories, setCategories] = useState<Record<string, number>>({});
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -105,8 +107,7 @@ const ArticleManagerTab: React.FC = () => {
       return true;
     }
     if (status === 403) {
-      toast.error('The current account is not an administrator. Sign in with an administrator account.');
-      requestGlobalLogin();
+      toast.error('This operation requires administrator access.');
       return true;
     }
     return false;
@@ -119,6 +120,10 @@ const ArticleManagerTab: React.FC = () => {
     if (!isLoggedIn) {
       toast.error('Deleting articles requires an administrator login.');
       requestGlobalLogin();
+      return;
+    }
+    if (!isAdmin) {
+      toast.error('This operation requires administrator access.');
       return;
     }
     if (!requireDeleteConfirmation(articleIds.length)) return;
@@ -145,7 +150,7 @@ const ArticleManagerTab: React.FC = () => {
     } finally {
       setDeleting(false);
     }
-  }, [handleAuthFailure, isLoggedIn, loadItems, requireDeleteConfirmation, toast]);
+  }, [handleAuthFailure, isAdmin, isLoggedIn, loadItems, requireDeleteConfirmation, toast]);
 
   const categoryEntries = Object.entries(categories);
   const pageStart = total === 0 ? 0 : offset + 1;

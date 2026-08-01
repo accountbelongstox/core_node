@@ -162,6 +162,7 @@ export interface WordNewRecitationStreak {
 
 export type WordNewGroupProgressPayload =
   | ({ gid?: string } & WordNewGroupProgressUpdate & Record<string, any>)
+  | { gid?: string; word_id: string | number; action: 'read'; play_time: number }
   | { gid?: string; updates: WordNewGroupProgressUpdate[] };
 
 export interface WordNewRecitationLogPayload {

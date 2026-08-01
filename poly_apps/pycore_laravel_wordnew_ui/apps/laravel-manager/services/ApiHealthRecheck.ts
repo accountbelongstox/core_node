@@ -10,7 +10,7 @@
  */
 import { apiManager } from './ApiManager';
 import { api } from '@/apps/laravel-manager/api';
-import { OfflineRecheckScheduler } from '../core/health/OfflineRecheckScheduler';
+import { OfflineRecheckScheduler } from '../../../core/health/OfflineRecheckScheduler';
 
 /**
  * One stored-first detection pass (stored endpoint only → full sweep only if

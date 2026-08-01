@@ -3,7 +3,7 @@ import {
   Volume2, Play, Pause, SkipBack, SkipForward, Clock, Calendar, Upload, X,
   Plus, RefreshCw, Trash2, Check, XCircle, Edit2
 } from 'lucide-react';
-import { Language, AsyncState, VoiceQueueItem } from '../../../types';
+import { Language, AsyncState, VoiceQueueItem } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';

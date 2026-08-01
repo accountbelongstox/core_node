@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import BentoCard from '../../BentoCard';
-import { FileNode, Language } from '../../../types';
+import { FileNode, Language } from '../../../apps/laravel-manager/uiTypes';
 import { useUser } from '../../../hooks/useUser';
 import { isDebugAuthBypass } from '../../../config/auth';
 import { smartSortFiles } from '../../../utils/mediaUtils';

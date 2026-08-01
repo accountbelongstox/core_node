@@ -1,6 +1,6 @@
 import React from 'react';
 import { commonClasses } from '../../../styles/theme';
-import { TranslationResponse } from '../../../types';
+import { TranslationResponse } from '../../../apps/laravel-manager/uiTypes';
 
 interface TranslationHistoryBarProps {
   history: TranslationResponse[];

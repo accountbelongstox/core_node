@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
-import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '../../types';
+import { NginxSite, NginxSiteCreateRequest, NginxPortCheck, Language } from '../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../constants';
 import { commonClasses } from '../../styles/theme';
 import { api } from '@/apps/laravel-manager/api';

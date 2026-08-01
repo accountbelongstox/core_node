@@ -255,15 +255,20 @@ class TaskManagerService
      *
      * @param string $workerId Worker ID
      * @param int $limit Maximum number of tasks to return
+     * @param string|null $taskType Type scope from the typed worker route
+     *   (/api/worker/tasks/{taskType}/pull). When set, lane iteration and the
+     *   shared-fast-lane block are skipped: pending tasks are claimed by
+     *   task_type alone (any execution lane, fast tier included), still
+     *   capability-filtered against the worker.
      * @return array Array of assigned tasks
      */
-    public function pullAndAssignTasksForWorker(string $workerId, int $limit): array
+    public function pullAndAssignTasksForWorker(string $workerId, int $limit, ?string $taskType = null): array
     {
         // Use single transaction for all operations. LOCK ORDER: worker row
         // first, then task rows — submitResult() acquires its locks in the SAME
         // order, so a concurrent pull and result-submit for one worker serialize
         // instead of deadlocking (opposite orders deadlock on Postgres).
-        $assignedTasks = $this->db()->transaction(function () use ($workerId, $limit) {
+        $assignedTasks = $this->db()->transaction(function () use ($workerId, $limit, $taskType) {
             // Lock worker for update
             $worker = Worker::where('worker_id', $workerId)
                 ->lockForUpdate()
@@ -271,6 +276,44 @@ class TaskManagerService
 
             if (!$worker) {
                 throw new \Exception("Worker not found: $workerId");
+            }
+
+            $assignedTasks = [];
+
+            // Type-scoped claim (typed worker route): one locked query on
+            // task_type, capability-matched in PHP (same over-fetch idiom as
+            // the fast-lane block below, cross-DB safe).
+            if ($taskType !== null) {
+                $workerCaps = $worker->capabilityList();
+                $candidates = GlobalTask::pending()
+                    ->where('task_type', $taskType)
+                    ->orderBy('priority', 'desc')
+                    ->orderBy('created_at', 'asc')
+                    ->limit(min(32, $limit + 8))
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($candidates as $task) {
+                    if (count($assignedTasks) >= $limit) {
+                        break;
+                    }
+                    if (!$task->capabilityMatches($workerCaps)) {
+                        continue;
+                    }
+
+                    $task->assignTo($workerId, $task->timeout_seconds);
+                    $worker->assignTask($task->task_id);
+                    $assignedTasks[] = $task;
+
+                    GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'capability' => $task->capability,
+                        'reason' => 'pull_typed',
+                    ]);
+                }
+
+                return $assignedTasks;
             }
 
             Log::info('[pullAndAssignTasksForWorker] Worker locked', [
@@ -456,7 +499,7 @@ class TaskManagerService
      *
      * @return array Array of assigned tasks (possibly empty after the wait).
      */
-    public function pullAndAssignTasksLongPoll(string $workerId, int $limit, ?int $maxWaitSeconds = null): array
+    public function pullAndAssignTasksLongPoll(string $workerId, int $limit, ?int $maxWaitSeconds = null, ?string $taskType = null): array
     {
         $deadline = microtime(true) + ($maxWaitSeconds ?? QueueCenterContract::taskLimit('long_poll_seconds'));
 
@@ -466,23 +509,23 @@ class TaskManagerService
         $processorTypes = ($worker && is_array($worker->processor_types)) ? $worker->processor_types : [];
 
         do {
-            $tasks = $this->pullAndAssignTasksForWorker($workerId, $limit);
+            $tasks = $this->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
             if (!empty($tasks)) {
                 return $tasks;
             }
 
-            // No work: stop waiting once the deadline passes or the worker has no
-            // processor types (nothing could ever match).
-            if (empty($processorTypes) || microtime(true) >= $deadline) {
+            // No work: stop waiting once the deadline passes or (untyped pull
+            // only) the worker has no processor types (nothing could ever match).
+            if (($taskType === null && empty($processorTypes)) || microtime(true) >= $deadline) {
                 return [];
             }
 
             // Cheap unlocked existence probe; sleep before the next assign attempt.
             usleep(self::POLL_INTERVAL_US);
 
-            $hasPending = GlobalTask::pending()
-                ->whereIn('execution_type', $processorTypes)
-                ->exists();
+            $hasPending = $taskType !== null
+                ? GlobalTask::pending()->where('task_type', $taskType)->exists()
+                : GlobalTask::pending()->whereIn('execution_type', $processorTypes)->exists();
             if (!$hasPending) {
                 continue;
             }
@@ -491,7 +534,43 @@ class TaskManagerService
 
         // Final assign attempt right at the deadline (a task may have appeared in
         // the last interval).
-        return $this->pullAndAssignTasksForWorker($workerId, $limit);
+        return $this->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
+    }
+
+    /**
+     * Count PENDING tasks of one type with priority >= $minPriority — the typed
+     * pull route's `pending_urgent` signal.
+     */
+    public function countUrgentPendingForType(string $taskType, ?int $minPriority = null): int
+    {
+        $minPriority = $minPriority ?? QueueCenterContract::taskPriority('fast');
+
+        return (int) GlobalTask::pending()
+            ->where('task_type', $taskType)
+            ->where('priority', '>=', $minPriority)
+            ->count();
+    }
+
+    /**
+     * Count PENDING fast-tier tasks of one type claimable by these capabilities —
+     * the typed pull route's `pending_fast` signal.
+     *
+     * @param array<int,string> $capabilities
+     */
+    public function countFastPendingForType(string $taskType, array $capabilities): int
+    {
+        $capabilities = array_values(array_filter($capabilities, 'is_string'));
+
+        return (int) GlobalTask::pending()
+            ->where('task_type', $taskType)
+            ->where('execution_type', GlobalTask::executionType('remote_fast'))
+            ->where(function ($q) use ($capabilities) {
+                $q->whereNull('capability');
+                if (!empty($capabilities)) {
+                    $q->orWhereIn('capability', $capabilities);
+                }
+            })
+            ->count();
     }
 
     /**
@@ -823,6 +902,59 @@ class TaskManagerService
             ]);
 
             return 'cancelled';
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Re-queue a terminal task (control-plane retry behind
+     * POST /api/queue-center/tasks/{id}/retry).
+     *
+     * Only failed/cancelled tasks are retryable: live tasks are already in
+     * flight and completed ones are immutable. The task returns to pending
+     * with a fresh retry budget and cleared assignment/error fields.
+     *
+     * @return string One of 'retried', 'not_found', 'not_retryable'
+     */
+    public function retryTask(string $taskId): string
+    {
+        return $this->db()->transaction(function () use ($taskId) {
+            $task = GlobalTask::where('task_id', $taskId)
+                ->lockForUpdate()
+                ->first();
+
+            if (!$task) {
+                return 'not_found';
+            }
+
+            $retryable = [
+                GlobalTask::status('failed'),
+                GlobalTask::status('cancelled'),
+            ];
+            if (!in_array($task->status, $retryable, true)) {
+                return 'not_retryable';
+            }
+
+            $task->status = GlobalTask::status('pending');
+            $task->assigned_to = null;
+            $task->assigned_at = null;
+            $task->timeout_at = null;
+            $task->completed_at = null;
+            $task->error = null;
+            $task->retry_count = 0;
+            $task->progress = 0;
+            $task->save();
+
+            GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('reclaimed'), null, 0, [
+                'execution_type' => $task->execution_type,
+                'reason' => 'control plane retry',
+            ]);
+
+            Log::info('Task re-queued by control plane', [
+                'task_id' => $taskId,
+                'execution_type' => $task->execution_type,
+            ]);
+
+            return 'retried';
         }, self::TRANSACTION_ATTEMPTS);
     }
 

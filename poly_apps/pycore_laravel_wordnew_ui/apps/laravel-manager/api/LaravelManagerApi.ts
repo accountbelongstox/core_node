@@ -45,6 +45,7 @@ class APIService {
   public wordAudio: WordAudioAPI;
   public devHistory: DevHistoryAPI;
   public articles: ArticleAPI;
+  public http: BaseAPI;
 
   private constructor() {
     // Seed the single shared base URL so EVERY module (including
@@ -97,6 +98,7 @@ class APIService {
     this.devHistory = new DevHistoryAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.devHistory));
 
     this.articles = new ArticleAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1AiTools));
+    this.http = new BaseAPI(createLaravelModuleConfig(LARAVEL_API_PREFIX.root));
 
   }
 
@@ -106,7 +108,7 @@ class APIService {
       this.itToolsV1, this.inviteCode, this.systemConfig, this.auth,
       this.databaseManager, this.authDebug, this.codeUpdate, this.mediaQuery,
       this.books, this.codeBrowser, this.aiStatus, this.aiManagement,
-      this.wordAudio, this.devHistory, this.articles,
+      this.wordAudio, this.devHistory, this.articles, this.http,
     ];
   }
 
@@ -126,7 +128,6 @@ class APIService {
   setAuthToken(token: string): void {
     const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     setSharedAuthToken(bearerToken);
-    this.modules().forEach((module) => module.setHeader('Authorization', bearerToken));
   }
 
   /**
@@ -134,7 +135,6 @@ class APIService {
    */
   clearAuth(): void {
     setSharedAuthToken(null);
-    this.modules().forEach((module) => module.removeHeader('Authorization'));
   }
 
   /**

@@ -6,6 +6,7 @@ import {
   Clock,
   Trophy,
   RotateCcw,
+  RefreshCw,
   List,
   AlertCircle
 } from 'lucide-react';
@@ -75,7 +76,7 @@ const QuizPanel: React.FC<QuizPanelProps> = ({ userId, libraryId }) => {
     setLoading(true);
     try {
       // Mock quiz generation - replace with actual API call
-      const mockQuestions: QuizQuestion[] = [
+      const allQuestions: QuizQuestion[] = [
         {
           id: 'q1',
           type: 'multiple_choice',
@@ -125,7 +126,8 @@ const QuizPanel: React.FC<QuizPanelProps> = ({ userId, libraryId }) => {
           explanation: 'Loquacious means tending to talk a great deal.',
           word: 'loquacious'
         }
-      ].slice(0, quizSettings.questionCount);
+      ];
+      const mockQuestions = allQuestions.slice(0, quizSettings.questionCount);
 
       setQuizState({
         questions: mockQuestions,

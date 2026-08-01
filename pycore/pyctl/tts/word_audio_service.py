@@ -52,7 +52,7 @@ from pycore.pyutils.laravel.endpoint_manager import (
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
+from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 
 # Larvel word-audio batch surface (proxied so the pycore-manager Queue Center
 # bar edits laravel-owned data through pycore, matching the sentence-audio pattern).
@@ -455,7 +455,7 @@ def _apply_priority_boost(md5: str, lang: str, wake_worker: bool) -> Dict[str, A
             THREAD_BUS.trigger_event("word_audio_priority_boost", {"md5": md5, "lang": lang})
         except Exception as be:  # noqa: BLE001
             ColorPrint.yellow(f"[WordAudio] boost THREAD_BUS broadcast failed: {be}")
-        worker = tts_queue_poller_service
+        worker = laravel_word_audio_worker
         worker.prioritize_word(md5, lang)
         if wake_worker and shared_heartbeat_system.is_callback_enabled("tts_queue_poller"):
             worker.poll_and_process()
@@ -494,7 +494,7 @@ def boost_priority_batch(items):
             timeout=30,
         )
         result = response.json()
-        worker = tts_queue_poller_service
+        worker = laravel_word_audio_worker
         for item in payload:
             worker.prioritize_word(item["md5"], item["lang"])
             THREAD_BUS.trigger_event("word_audio_priority_boost", item)

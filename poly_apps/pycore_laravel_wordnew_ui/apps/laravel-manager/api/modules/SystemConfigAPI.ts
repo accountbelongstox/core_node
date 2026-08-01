@@ -91,8 +91,7 @@ interface ApiInfoCacheEntry {
  */
 export class SystemConfigAPI extends BaseAPI {
   // Shared across instances and keyed by the fully-resolved request URL
-  // (base URL + path + params) so Settings.tsx swapping `baseURL` to a
-  // user-supplied test URL never collides with the default-endpoint cache.
+  // (base URL + path + params), including one-request connection probes.
   private static apiInfoCache = new Map<string, ApiInfoCacheEntry>();
   // Single-flight: concurrent callers for the same resolved URL share one
   // in-flight request instead of each issuing their own.
@@ -103,8 +102,12 @@ export class SystemConfigAPI extends BaseAPI {
    * URL so Settings.tsx (test base URL) and ApiTester.tsx (default base URL)
    * each get correct, de-duplicated results.
    */
-  private async fetchApiInfo(params?: Record<string, any>): Promise<APIResponse<any>> {
-    const key = this.buildURL('/api_info') + (params ? `?${JSON.stringify(params)}` : '');
+  private async fetchApiInfo(
+    params?: Record<string, any>,
+    baseURL?: string,
+    headers?: Record<string, string>,
+  ): Promise<APIResponse<any>> {
+    const key = this.buildURL('/api_info', baseURL) + (params ? `?${JSON.stringify(params)}` : '');
 
     const cached = SystemConfigAPI.apiInfoCache.get(key);
     if (cached && Date.now() - cached.timestamp < API_INFO_TTL_MS) {
@@ -118,7 +121,14 @@ export class SystemConfigAPI extends BaseAPI {
 
     // retry=false: a single api_info call must never become a 3x retry storm
     // against a slow/dead endpoint.
-    const promise = this.get('/api_info', params, false, 300000, false)
+    const promise = this.request<any>({
+      url: '/api_info',
+      baseURL,
+      method: 'GET',
+      params,
+      headers,
+      retry: false,
+    })
       .then((response) => {
         // Only cache successful responses; failures should retry next call.
         if (response.success) {
@@ -143,6 +153,12 @@ export class SystemConfigAPI extends BaseAPI {
    */
   async getApiInfo(): Promise<APIResponse<any>> {
     return this.fetchApiInfo();
+  }
+
+  /** Probe an arbitrary candidate without changing the selected endpoint. */
+  async testApiInfo(baseURL: string, apiKey?: string): Promise<APIResponse<any>> {
+    const headers = apiKey ? { 'X-API-Key': apiKey } : undefined;
+    return this.fetchApiInfo(undefined, baseURL, headers);
   }
 
   /**

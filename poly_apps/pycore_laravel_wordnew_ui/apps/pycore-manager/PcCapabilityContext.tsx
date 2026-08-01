@@ -1,5 +1,5 @@
 /**
- * PcCapabilityContext — keeps the shared capability poll alive for the layout.
+ * PcCapabilityContext — initializes the shared cached capability snapshot.
  * Consumers should call usePycoreCapability() from core (store hook), not React context.
  */
 import React, { useEffect } from 'react';

@@ -45,7 +45,7 @@ let eventSource: EventSource | null = null;
 let eventReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let eventInstanceId = '';
 let eventSeq = 0;
-let retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
+let retryDelayMs: number = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
 
 function diag(level: string, message: string): void {
@@ -84,15 +84,6 @@ function eventStreamUrl(): string {
     since_seq: String(eventSeq),
   });
   return `${rewritePycoreEndpoint(PycorePaths.events)}?${query.toString()}`;
-}
-
-async function acknowledgeEvents(seq: number): Promise<void> {
-  await pycoreMasterClient.postJson(
-    PycorePaths.eventsAck,
-    { client_id: getClientId(), seq },
-    undefined,
-    'events/ack',
-  );
 }
 
 function parseSseData<T>(event: MessageEvent): T | null {
@@ -135,10 +126,8 @@ function handleSseRecord(event: MessageEvent): void {
   const topic = String(record.topic || '');
   const eventId = String(record.event_id || '');
   if (seq > eventSeq) eventSeq = seq;
-  if (topic && rememberEvent(eventId)) pycoreEventBus.dispatch(topic, record.payload);
-  void acknowledgeEvents(eventSeq).catch((error: any) => {
-    diag('warn', error?.message || String(error));
-  });
+  const duplicate = Boolean(topic) && !rememberEvent(eventId);
+  if (topic && !duplicate) pycoreEventBus.dispatch(topic, record.payload);
 }
 
 function scheduleEventReconnect(delayMs: number = retryDelayMs): void {

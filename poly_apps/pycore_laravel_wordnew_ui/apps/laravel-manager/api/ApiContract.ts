@@ -14,13 +14,14 @@ export const LARAVEL_API_PREFIX = {
   databaseManager: '/api/dashboard/db-manager',
   dashboardAuth: '/api/dashboard/auth',
   dashboard: '/api/dashboard',
-  codeBrowser: '/api/code-browser',
+  codeBrowser: '/code-browser',
   localAi: '/api/local/ai',
   localWordAudio: '/api/local/word-audio',
   devHistory: '/api/dev-history',
 } as const;
 
 export const LARAVEL_API_ROUTE = {
+  health: '/api/health',
   auth: {
     login: '/login',
     register: '/register',
@@ -31,16 +32,34 @@ export const LARAVEL_API_ROUTE = {
     preferences: '/user/preferences',
   },
   inviteCodes: {
-    list: '/admin/invite-codes',
     public: '/invite-codes/public',
     validate: '/invite-codes/validate',
     redeemSuperCode: '/user/redeem-super-code',
-    deactivate: (id: number): string => `/admin/invite-codes/${encodeURIComponent(String(id))}/deactivate`,
   },
   articles: {
     list: '/articles',
     batchDelete: '/articles/batch-delete',
     byId: (id: string): string => `/articles/${encodeURIComponent(id)}`,
+  },
+  vocabulary: {
+    export: (format: string): string => `/vocabulary/export/${encodeURIComponent(format)}`,
+  },
+  serverFiles: {
+    browse: '/files/browse',
+    download: '/files/download',
+    info: '/files/info',
+    preview: '/files/preview',
+    write: '/files/write',
+    elevatedAuth: '/files/elevated-auth',
+  },
+  database: {
+    exportTable: (table: string): string => `tables/${encodeURIComponent(table)}/export`,
+    downloadBackup: (id: string): string => `backups/${encodeURIComponent(id)}/download`,
+  },
+  mcp: {
+    screenshotAsset: (id: string, extension: string): string => `/screenshots/${encodeURIComponent(id)}.${encodeURIComponent(extension)}`,
+    placeholderDownload: (id: string): string => `/placeholders/${encodeURIComponent(id)}/download`,
+    staticResourceUpload: '/static-resources/upload',
   },
 } as const;
 

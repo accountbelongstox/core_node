@@ -10,7 +10,7 @@ import type {
 import type { PreviewAddLibraryResult } from '../api/types/api';
 import type { WfNewCachedKind } from '../cache/WfNewContentCache';
 import {
-  getCachedGroups, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
+  getCachedGroups, getCachedGroupIds, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
 } from '../cache/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';

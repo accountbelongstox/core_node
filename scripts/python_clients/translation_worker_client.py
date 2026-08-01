@@ -73,7 +73,7 @@ class TranslationWorkerClient:
             try:
                 # Pull tasks from server
                 response = await self.http_client.get(
-                    f"{self.api_base_url}/api/worker/tasks/pull",
+                    f"{self.api_base_url}/api/worker/tasks/word_translation/pull",
                     params={
                         "worker_id": self.worker_id,
                         "limit": 1
@@ -113,7 +113,7 @@ class TranslationWorkerClient:
         # Accept task
         try:
             response = await self.http_client.post(
-                f"{self.api_base_url}/api/worker/tasks/accept",
+                f"{self.api_base_url}/api/worker/tasks/word_translation/accept",
                 json={
                     "task_id": task_id,
                     "worker_id": self.worker_id
@@ -226,7 +226,7 @@ class TranslationWorkerClient:
         """Report task progress"""
         try:
             response = await self.http_client.post(
-                f"{self.api_base_url}/api/worker/tasks/result",
+                f"{self.api_base_url}/api/worker/tasks/word_translation/result",
                 json={
                     "task_id": task_id,
                     "worker_id": self.worker_id,
@@ -248,7 +248,7 @@ class TranslationWorkerClient:
         """Report task completion"""
         try:
             response = await self.http_client.post(
-                f"{self.api_base_url}/api/worker/tasks/result",
+                f"{self.api_base_url}/api/worker/tasks/word_translation/result",
                 json={
                     "task_id": task_id,
                     "worker_id": self.worker_id,
@@ -273,7 +273,7 @@ class TranslationWorkerClient:
         """Report task failure"""
         try:
             response = await self.http_client.post(
-                f"{self.api_base_url}/api/worker/tasks/result",
+                f"{self.api_base_url}/api/worker/tasks/word_translation/result",
                 json={
                     "task_id": task_id,
                     "worker_id": self.worker_id,

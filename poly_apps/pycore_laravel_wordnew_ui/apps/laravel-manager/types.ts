@@ -7,6 +7,8 @@ export interface APIResponse<T = any> {
   error: string | null;
   status: number;
   message?: string;
+  isTimeout?: boolean;
+  isNetworkError?: boolean;
   /** Raw error body when success is false (e.g. error_code for auth). */
   debugInfo?: { error_code?: string; [key: string]: any };
 }
@@ -16,6 +18,10 @@ export interface APIResponse<T = any> {
  */
 export interface APIRequestConfig {
   url: string;
+  /** One-request target used only by explicit connection probes. */
+  baseURL?: string;
+  /** Skip the module prefix for Laravel web-root routes. */
+  root?: boolean;
   method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
   params?: Record<string, any>;
   data?: any;
@@ -106,9 +112,20 @@ export interface UnifiedUser {
   id: string;
   username: string;
   email: string;
+  nickname?: string;
   avatar?: string;
+  avatar_url?: string;
   rolelevel?: number;
   rolename?: string;
+  role?: string;
+  role_level?: number;
+  role_name?: string;
+  name?: string;
+  bio?: string;
+  location?: string;
+  is_active?: boolean | number;
+  created_at?: string;
+  updated_at?: string;
   preferences?: UserPreferences;
 }
 

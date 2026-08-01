@@ -5,6 +5,7 @@ namespace App\Services\TaskProcessors;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -12,11 +13,15 @@ use Illuminate\Support\Facades\Log;
  *
  * Write-back stage of the batch invalid-word DETECTION lane (word_validity tasks
  * on the dedicated remote_validity execution lane). A chrome web-LLM worker
- * classifies a batch of untranslated+unchecked words as real dictionary words
- * vs nonsense and posts:
- *   { "valid_words":   [ {"word": string, "md5": string}, ... ],
+ * (DeepSeek web by default) classifies a batch of untranslated+unchecked words
+ * as real dictionary words vs nonsense AND translates the valid ones in the
+ * same pass (2.4: validity and translation are ONE feature). It posts:
+ *   { "valid_words":   [ {"word": string, "md5": string, "translation"?: string}, ... ],
  *     "invalid_words": [ {"word": string, "md5": string}, ... ],
  *     "provider": string }
+ * Valid entries with a translation are written through the canonical
+ * AppQyV1WordTranslationWriteback (fill-missing — an existing translation is
+ * never overwritten).
  * (possibly wrapped in a {result:{...}} envelope — chrome workers enrich that
  * way; pycore would post it flat).
  *
@@ -89,10 +94,45 @@ class WordValidityTaskProcessor extends AbstractTaskProcessor
         $stored += $this->mark($langCode, $valid, true);
         $stored += $this->mark($langCode, $invalid, false);
 
+        // One feature end-to-end (2.4): valid words carrying a translation are
+        // written through the CANONICAL translation write-back, which only
+        // fills a MISSING target translation (an existing one is never
+        // overwritten) and also marks those rows valid.
+        $translationsFilled = 0;
+        $translationsToWrite = [];
+        foreach ($valid as $e) {
+            if (!is_array($e)) {
+                continue;
+            }
+            $word = isset($e['word']) && is_string($e['word']) ? trim($e['word']) : '';
+            $translation = isset($e['translation']) && is_string($e['translation']) ? trim($e['translation']) : '';
+            if ($word !== '' && $translation !== '') {
+                $translationsToWrite[] = ['word' => $word, 'translation' => $translation];
+            }
+        }
+        if (!empty($translationsToWrite) && !$isDemoMode) {
+            $targetCode = isset($task->payload['target_language']) && is_string($task->payload['target_language'])
+                && trim($task->payload['target_language']) !== ''
+                ? trim($task->payload['target_language'])
+                : 'zh';
+            $provider = isset($inner['provider']) && is_string($inner['provider']) && $inner['provider'] !== ''
+                ? $inner['provider']
+                : 'word-validity';
+            $writeback = AppQyV1WordTranslationWriteback::apply(
+                $task->task_id,
+                $langCode,
+                $targetCode,
+                $provider,
+                $translationsToWrite
+            );
+            $translationsFilled = (int) ($writeback['processed'] ?? 0);
+        }
+
         $this->lastOutcome = [
             'valid' => count($valid),
             'invalid' => count($invalid),
             'stored' => $stored,
+            'translations_filled' => $translationsFilled,
         ];
 
         Log::info('Word-validity writeback', [
@@ -101,6 +141,7 @@ class WordValidityTaskProcessor extends AbstractTaskProcessor
             'valid' => count($valid),
             'invalid' => count($invalid),
             'stored' => $stored,
+            'translations_filled' => $this->lastOutcome['translations_filled'] ?? 0,
         ]);
 
         // stored_count for the result-trust layer: a 0 here trips the empty_store

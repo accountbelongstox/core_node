@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search } from 'lucide-react';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { DevHistoryIndex, DevHistoryPrompt, DevHistorySessionDetail } from '@/apps/laravel-manager/api';
 import { PAGE_SIZE, toolLabel } from './dev-history/shared';

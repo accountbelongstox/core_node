@@ -13,4 +13,3 @@ export { Modal, ConfirmModal, type ModalProps, type ConfirmModalProps } from './
 export { ToastProvider, useToast, type Toast, type ToastType } from './Toast';
 
 // Admin Management
-export { default as InviteCodeManager } from './InviteCodeManager';

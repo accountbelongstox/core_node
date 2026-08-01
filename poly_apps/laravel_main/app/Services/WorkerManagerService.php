@@ -26,7 +26,8 @@ class WorkerManagerService
         ?string $hostname = null,
         ?string $platform = null,
         array $metadata = [],
-        ?array $capabilities = null
+        ?array $capabilities = null,
+        bool $fromPull = false
     ): Worker {
         $attributes = [
             'worker_name' => $workerName,
@@ -50,12 +51,20 @@ class WorkerManagerService
             $attributes
         );
 
-        Log::info('Worker registered', [
+        $logContext = [
             'worker_id' => $workerId,
             'worker_name' => $workerName,
             'processor_types' => $processorTypes,
             'capabilities' => $capabilities,
-        ]);
+        ];
+
+        if ($fromPull && $worker->wasRecentlyCreated) {
+            Log::info('Worker discovered from queue pull', $logContext);
+        } elseif ($fromPull) {
+            Log::debug('Worker refreshed from queue pull', $logContext);
+        } else {
+            Log::info('Worker registered', $logContext);
+        }
 
         return $worker;
     }

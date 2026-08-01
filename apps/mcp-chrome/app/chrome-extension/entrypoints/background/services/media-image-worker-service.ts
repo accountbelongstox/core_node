@@ -31,6 +31,7 @@ import {
 import type { AssistSubmitPayload } from './outbox/submit-outbox';
 import { generateViaGemini } from './gemini-image-generate';
 import { submitOutbox } from './outbox/submit-outbox';
+import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-library';
 
 const LOG = 'Media Image';
 const ASSIST_CLAIMER = 'mcp-chrome-media-image';
@@ -67,6 +68,11 @@ class MediaImageWorkerService extends SimpleWorkerBase {
 
   protected get workerLabel(): string {
     return LOG;
+  }
+
+  protected get pullTaskTypes(): string[] {
+    // word_media LAST: the high-volume primary, holds the long-poll budget.
+    return [TASK_TYPE_KEYS.poster, TASK_TYPE_KEYS.word_media];
   }
 
   protected handlesTaskType(taskType: string): boolean {
@@ -190,28 +196,28 @@ class MediaImageWorkerService extends SimpleWorkerBase {
 
     if (item.type === 'cover') {
       const name = String(payload.name || '').trim();
-      const prompt = String(payload.prompt || '').trim();
-      // Laravel issues vocabulary-library covers as a GENERATION prompt
-      // (AppQyV1CoverPromptBuilder, incl. size) — fulfil it via Gemini first;
-      // fall back to Google/Bing search when the Gemini tab is unavailable or
-      // the generation fails. Book covers carry no prompt and go straight to
-      // search.
+      const prompt = vocabularyCoverPromptLibrary.compose({
+        id: item.id,
+        name,
+        category: String(payload.category || '').trim(),
+        difficulty: String(payload.difficulty || '').trim(),
+      });
+      // The assist worker owns vocabulary-cover art direction. Laravel sends
+      // semantic metadata only; Gemini receives the locally composed prompt.
       let imageBase64: string | null = null;
       let mime: string | undefined;
       let provider = 'gemini';
       let model: string | undefined = 'gemini-web';
-      if (prompt) {
-        this.assistStats.currentAssistStage = 'gemini_generation';
-        logger.debug(LOG, `Generating library cover#${item.id} with Gemini`, {
-          name,
-          promptLength: prompt.length,
-        });
-        const generated = await generateViaGemini(prompt);
-        if (generated) {
-          imageBase64 = generated.imageBase64;
-          mime = generated.mime;
-          logger.info(LOG, `Gemini generated library cover#${item.id}`, { mime });
-        }
+      this.assistStats.currentAssistStage = 'gemini_generation';
+      logger.debug(LOG, `Generating library cover#${item.id} with Gemini`, {
+        name,
+        promptLength: prompt.length,
+      });
+      const generated = await generateViaGemini(prompt);
+      if (generated) {
+        imageBase64 = generated.imageBase64;
+        mime = generated.mime;
+        logger.info(LOG, `Gemini generated library cover#${item.id}`, { mime });
       }
       if (!imageBase64) {
         const query = buildVocabCoverQuery(name, prompt);

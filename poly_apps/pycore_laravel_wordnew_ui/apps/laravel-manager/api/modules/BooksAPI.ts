@@ -4,7 +4,7 @@ import type {
   PcQueueCategory,
   PcQueueHandler,
   PcQueueWorker,
-} from '../../../../core/api-libs/pycore/QueueCenterContract';
+} from '../../integrations/pycore';
 import type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
 
 export type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';

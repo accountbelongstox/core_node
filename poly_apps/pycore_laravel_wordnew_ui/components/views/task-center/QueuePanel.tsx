@@ -12,7 +12,7 @@
  * props.
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type {
   GlobalTaskItem,

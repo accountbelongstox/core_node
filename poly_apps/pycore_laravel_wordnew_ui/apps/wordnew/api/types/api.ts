@@ -264,6 +264,23 @@ export interface WfNewApi {
     variantKey?: string,
   ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WordNewAudioFileVariant[] }>;
 
+  // ---- Audio prioritization (Laravel owns the queue + worker notification) ----
+  /** Raise TTS priority for ONE sentence by content id (POST /ai_tools/tts/sentence/bump). */
+  bumpSentenceAudio(
+    contentId: string,
+    language: string,
+  ): Promise<{ success: boolean; priority?: number; error?: string }>;
+  /** Raise TTS priority for a batch of visible sentences (POST /ai_tools/tts/sentence/bump-batch). */
+  bumpSentenceAudioBatch(
+    items: Array<{ text: string; language: string }>,
+  ): Promise<{ success: boolean; queued?: number; total?: number; error?: string }>;
+  /** Enqueue + prioritize word-audio generation by word text
+   *  (POST /ai_tools/tts/queue/batch/add, interactive → front of the audio queue). */
+  prioritizeWordAudio(
+    words: string[],
+    language: string,
+  ): Promise<{ success: boolean; queued?: number; error?: string }>;
+
   // ---- Book reading progress (server-side, auth:sanctum) ----
   getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;
   saveBookReadingProgress(

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LaravelSystemInfo as SystemInfoType, AsyncState } from '../../types';
+import { LaravelSystemInfo as SystemInfoType, AsyncState } from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';

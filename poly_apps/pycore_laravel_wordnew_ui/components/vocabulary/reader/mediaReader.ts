@@ -1,4 +1,4 @@
-import { mediaUrl } from '../../../config/constants';
+import { laravelMediaUrl as mediaUrl } from '../../../apps/laravel-manager/network/mediaUrl';
 import type { ReaderSentence } from '@/apps/laravel-manager/api';
 
 /**

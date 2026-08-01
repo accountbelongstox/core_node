@@ -22,7 +22,7 @@ import {
   AlertCircle,
   ChevronRight
 } from 'lucide-react';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { commonClasses } from '../../styles/theme';
 
 // Tool Types

@@ -4,7 +4,7 @@
  * operators can see what pycore's sentence-audio worker should assist.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
 import type { SentenceAudioAutoStatus } from '@/apps/laravel-manager/integrations/pycore';

@@ -1,13 +1,13 @@
 /**
  * Book-reader sentence audio: queued resolve/bump/poll (max concurrent pollers)
- * + priority bumps through pycore, which owns Laravel interaction and worker wakeup.
+ * + priority bumps straight to Laravel, which owns the queue and worker wakeup.
  *
  * All network I/O is funneled through one module-level scheduler so a chapter
  * with dozens of cells cannot open hundreds of parallel connections to :9000.
  */
 import { wfNewApi } from '../api';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 import { absUrl } from '../api/WfNewApiMappers';
+import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
 
 const MAX_ACTIVE_POLLERS = 4;
 const POLL_INTERVAL_MS = 1200;
@@ -57,7 +57,7 @@ async function resolveOnce(text: string, lang: string, variantKey?: string) {
 
 async function bumpOnce(contentId: string, lang: string): Promise<void> {
   try {
-    await pycoreApi.prioritizeSentenceAudioItem(contentId, lang);
+    await wordNewAudioQueueCenter.prioritizeSentence(contentId, lang);
   } catch {
     /* ignore */
   }
@@ -114,7 +114,9 @@ class SentenceAudioScheduler {
     // item). e.bumped dedupes the later tick bump for this stint; requeue()
     // still resets it, so stint/retry caps and per-stint re-bump are unchanged.
     entry.bumped = true;
-    void pycoreApi.prioritizeSentenceAudio([{ text: trimmed, language: lang }]).catch(() => { /* ignore */ });
+    void wordNewAudioQueueCenter.prioritizeSentences([
+      { text: trimmed, language: lang },
+    ]).catch(() => { /* ignore */ });
     this.drain();
   }
 

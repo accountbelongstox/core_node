@@ -208,7 +208,7 @@ const PcSettingsPage: React.FC = () => {
       setAutostart(s);
       if (s.target) setAutostartTarget(s.target);
     }).catch(() => { /* offline */ });
-  }, [loadSettings, loadAssist, loadTtsTuning, loadTaskChains]);
+  }, [loadSettings, loadTtsTuning, loadTaskChains]);
 
   // Persist a settings patch to the backend (optimistic update).
   const patch = useCallback(async (next: Partial<SystemSettings>) => {

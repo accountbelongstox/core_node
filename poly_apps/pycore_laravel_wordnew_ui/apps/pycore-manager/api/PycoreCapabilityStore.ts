@@ -3,13 +3,13 @@
  * for the pycore-manager end.
  *
  * Both PcVoiceSubtitlePage and PcAiStatusPage read the same store so a refresh
- * on either page updates the other. One poll loop, single-flight fetches.
+ * on either page updates the other. One cached snapshot, single-flight fetches.
  * Each probe patches the store as it settles — a slow/failing probe does not
  * block the other panels from leaving Loading.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/api-libs/pycore/PycoreNetwork';
+import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreNetwork';
 import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from '../../../core/api-libs/pycore/pycoreTypes';
 
 export const PYCORE_CAPABILITY_EVENT = PYCORE_BROWSER_EVENTS.capabilityChanged;
@@ -24,7 +24,7 @@ export interface PycoreCapabilityState {
   aiGateway: AiGatewayStatus | null;
   /** True until the first fetch cycle finishes. */
   loading: boolean;
-  /** True while a manual or periodic refresh is in flight. */
+  /** True while a manual refresh is in flight. */
   refreshing: boolean;
   /** At least one fetch cycle has completed. */
   initialized: boolean;
@@ -44,7 +44,6 @@ let state: PycoreCapabilityState = {
 };
 
 let inFlight: Promise<void> | null = null;
-let pollId: ReturnType<typeof setInterval> | null = null;
 let pollRefs = 0;
 
 function notify(): void {
@@ -125,24 +124,17 @@ export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promis
   return inFlight;
 }
 
-/** Start the shared capability poll loop (ref-counted). */
+/** Load the shared capability snapshot once for all mounted consumers. */
 export function startPycoreCapabilityPoll(): void {
   pollRefs += 1;
-  if (pollRefs === 1) {
+  if (pollRefs === 1 && !state.initialized) {
     void refreshPycoreCapabilities();
-    pollId = window.setInterval(() => {
-      void refreshPycoreCapabilities();
-    }, PYCORE_HTTP_DEFAULTS.capabilityPollMs);
   }
 }
 
-/** Stop the poll loop when the last subscriber unmounts. */
+/** Release one consumer; the cached snapshot remains available. */
 export function stopPycoreCapabilityPoll(): void {
   pollRefs = Math.max(0, pollRefs - 1);
-  if (pollRefs === 0 && pollId != null) {
-    window.clearInterval(pollId);
-    pollId = null;
-  }
 }
 
 export interface PycoreCapabilityHook extends PycoreCapabilityState {

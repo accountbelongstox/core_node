@@ -29,7 +29,6 @@ const ITEM_LABEL: Record<WfNewCacheItemId, string> = {
   words: 'cache.totalWords',
   serverResources: 'cache.serverResources',
   audio: 'cache.audio',
-  wordnewTtl: 'cache.wordnewTtl',
 };
 
 export const WfNewCacheManager: React.FC<Props> = ({ open, onClose, trans }) => {

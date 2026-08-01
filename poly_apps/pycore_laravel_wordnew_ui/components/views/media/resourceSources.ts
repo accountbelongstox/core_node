@@ -18,7 +18,7 @@
  * applies only to FileTreePanel/FileViewer/LibraryPanel/MediaHub). All backend
  * shape normalization lives here so those four components stay clean.
  */
-import { FileNode, ResourceSourceId } from '../../../types';
+import { FileNode, ResourceSourceId } from '../../../apps/laravel-manager/uiTypes';
 import { APIResponse } from '@/apps/laravel-manager/types';
 import { api } from '@/apps/laravel-manager/api';
 

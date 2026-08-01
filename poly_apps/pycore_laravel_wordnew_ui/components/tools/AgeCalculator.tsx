@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import BentoCard from '../BentoCard';
 import { Calendar, RefreshCw, Calculator, AlertTriangle, Cloud, Zap } from "lucide-react";
-import { ToolConnectionConfig } from '../../types';
-import { apiClient } from '../../services/api';
+import { ToolConnectionConfig } from '../../apps/laravel-manager/uiTypes';
+import { toolDemoService } from '../../apps/laravel-manager/services/ToolDemoService';
 
 interface AgeCalculatorProps {
   config: ToolConnectionConfig;
@@ -22,7 +22,7 @@ const AgeCalculator: React.FC<AgeCalculatorProps> = ({ config }) => {
     setIsProcessing(true);
     setDataSource(undefined);
 
-    const response = await apiClient.executeToolAction('calc1', 'calc', { birthDate }, config);
+    const response = await toolDemoService.executeToolAction('calc1', 'calc', { birthDate }, config);
 
     setIsProcessing(false);
     if (response.success && response.data && !response.data.error) {

@@ -120,7 +120,7 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-/** App-wide HTTP API hub. Mount once in PcProviders. */
+/** Page-scoped HTTP API hub. Mount once around Queue Center. */
 export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [autoRefresh, setAutoRefreshState] = useState<boolean>(() => readAutoRefreshPref());
   const [hub, setHub] = useState<QueueCenterHubData>(() => {
@@ -136,6 +136,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const requestId = useRef(0);
   const offlineRetryAtRef = useRef(0);
   const consecutiveFailuresRef = useRef(0);
+  const pollInFlightRef = useRef(false);
   const mounted = useRef(true);
 
   const setAutoRefresh = useCallback((enabled: boolean) => {
@@ -149,86 +150,92 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   const poll = useCallback(async (silent = false) => {
-    const currentRequest = ++requestId.current;
-    const now = Date.now();
-    if (now < offlineRetryAtRef.current) {
-      if (!silent) setHub((previous) => ({ ...previous, loading: false }));
-      return;
-    }
-    if (!silent) {
-      setHub((previous) => ({
-        ...previous,
-        loading: true,
-        hubState: previous.hubState === 'idle' ? 'loading' : previous.hubState,
-      }));
-    }
-
+    if (pollInFlightRef.current) return;
+    pollInFlightRef.current = true;
     try {
-      const snapshot: QueueCenterSnapshot = await pycoreApi.getQueueCenterSnapshot();
-      if (!mounted.current || currentRequest !== requestId.current) return;
-      if (snapshot.schema_version !== QUEUE_CENTER_SCHEMA_VERSION) {
-        throw new Error(`Unsupported Queue Center schema ${snapshot.schema_version}`);
+      const currentRequest = ++requestId.current;
+      const now = Date.now();
+      if (now < offlineRetryAtRef.current) {
+        if (!silent) setHub((previous) => ({ ...previous, loading: false }));
+        return;
       }
-      const sectionContracts = normalizeQueueCenterSections(
-        snapshot.section_contracts,
-        snapshot.generated_at,
-      );
-      const snapshotError = Object.entries(snapshot.errors ?? {})
-        .map(([name, value]) => `${name}: ${value}`)
-        .join('; ');
-      const workerApiUrl = snapshot.data.task_center?.remote_queue?.worker?.api_url ?? null;
-      let hubState: QueueCenterHubLifecycle = 'ready';
-      if (snapshot.data.overview?.degraded) {
-        hubState = snapshot.data.overview.source === 'pycore_fallback_stale_cache' ? 'stale' : 'degraded';
+      if (!silent) {
+        setHub((previous) => ({
+          ...previous,
+          loading: true,
+          hubState: previous.hubState === 'idle' ? 'loading' : previous.hubState,
+        }));
       }
-      consecutiveFailuresRef.current = 0;
-      offlineRetryAtRef.current = 0;
 
-      setHub({
-        hubState,
-        diagnostics: snapshot.data.overview?.diagnostics ?? null,
-        pycoreReachable: true,
-        laravelReachable: snapshot.source.laravel_reachable,
-        laravelStoredEndpoint: snapshot.source.laravel_stored_endpoint,
-        laravelActiveEndpoint: snapshot.source.laravel_active_endpoint,
-        workerApiUrl: typeof workerApiUrl === 'string' && workerApiUrl ? workerApiUrl : null,
-        laravelSnapshotAgeS: snapshot.source.laravel_snapshot_age_s,
-        translationPending: snapshot.data.translation?.summary?.pending ?? null,
-        voiceWord: snapshot.data.word_audio,
-        voiceSentence: snapshot.data.sentence_audio,
-        workers: snapshot.data.workers,
-        assist: snapshot.data.assist,
-        tts: snapshot.data.tts,
-        overview: snapshot.data.overview,
-        sentenceQueue: snapshot.data.sentence_queue,
-        recent: snapshot.data.recent,
-        taskCenter: snapshot.data.task_center,
-        translationQueue: snapshot.data.translation,
-        controls: snapshot.controls,
-        sliceErrors: snapshot.errors,
-        timestamp: snapshot.generated_at,
-        loading: false,
-        error: snapshotError || null,
-        sectionContracts,
-      });
+      try {
+        const snapshot: QueueCenterSnapshot = await pycoreApi.getQueueCenterSnapshot();
+        if (!mounted.current || currentRequest !== requestId.current) return;
+        if (snapshot.schema_version !== QUEUE_CENTER_SCHEMA_VERSION) {
+          throw new Error(`Unsupported Queue Center schema ${snapshot.schema_version}`);
+        }
+        const sectionContracts = normalizeQueueCenterSections(
+          snapshot.section_contracts,
+          snapshot.generated_at,
+        );
+        const snapshotError = Object.entries(snapshot.errors ?? {})
+          .map(([name, value]) => `${name}: ${value}`)
+          .join('; ');
+        const workerApiUrl = snapshot.data.task_center?.remote_queue?.worker?.api_url ?? null;
+        let hubState: QueueCenterHubLifecycle = 'ready';
+        if (snapshot.data.overview?.degraded) {
+          hubState = snapshot.data.overview.source === 'pycore_fallback_stale_cache' ? 'stale' : 'degraded';
+        }
+        consecutiveFailuresRef.current = 0;
+        offlineRetryAtRef.current = 0;
 
-      if (snapshot.data.recent) pycoreTaskCenterState.ingestRecent(snapshot.data.recent);
-    } catch (error: unknown) {
-      if (!mounted.current || currentRequest !== requestId.current) return;
-      const failures = consecutiveFailuresRef.current + 1;
-      consecutiveFailuresRef.current = failures;
-      offlineRetryAtRef.current = Date.now() + Math.min(
-        PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
-        2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
-          * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
-      );
-      setHub((previous) => ({
-        ...previous,
-        pycoreReachable: false,
-        loading: false,
-        hubState: 'error',
-        error: errorMessage(error, 'Queue Center unavailable'),
-      }));
+        setHub({
+          hubState,
+          diagnostics: snapshot.data.overview?.diagnostics ?? null,
+          pycoreReachable: true,
+          laravelReachable: snapshot.source.laravel_reachable,
+          laravelStoredEndpoint: snapshot.source.laravel_stored_endpoint,
+          laravelActiveEndpoint: snapshot.source.laravel_active_endpoint,
+          workerApiUrl: typeof workerApiUrl === 'string' && workerApiUrl ? workerApiUrl : null,
+          laravelSnapshotAgeS: snapshot.source.laravel_snapshot_age_s,
+          translationPending: snapshot.data.translation?.summary?.pending ?? null,
+          voiceWord: snapshot.data.word_audio,
+          voiceSentence: snapshot.data.sentence_audio,
+          workers: snapshot.data.workers,
+          assist: snapshot.data.assist,
+          tts: snapshot.data.tts,
+          overview: snapshot.data.overview,
+          sentenceQueue: snapshot.data.sentence_queue,
+          recent: snapshot.data.recent,
+          taskCenter: snapshot.data.task_center,
+          translationQueue: snapshot.data.translation,
+          controls: snapshot.controls,
+          sliceErrors: snapshot.errors,
+          timestamp: snapshot.generated_at,
+          loading: false,
+          error: snapshotError || null,
+          sectionContracts,
+        });
+
+        if (snapshot.data.recent) pycoreTaskCenterState.ingestRecent(snapshot.data.recent);
+      } catch (error: unknown) {
+        if (!mounted.current || currentRequest !== requestId.current) return;
+        const failures = consecutiveFailuresRef.current + 1;
+        consecutiveFailuresRef.current = failures;
+        offlineRetryAtRef.current = Date.now() + Math.min(
+          PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
+          2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
+            * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
+        );
+        setHub((previous) => ({
+          ...previous,
+          pycoreReachable: false,
+          loading: false,
+          hubState: 'error',
+          error: errorMessage(error, 'Queue Center unavailable'),
+        }));
+      }
+    } finally {
+      pollInFlightRef.current = false;
     }
   }, []);
 
@@ -258,25 +265,37 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     return () => window.removeEventListener(PYCORE_BROWSER_EVENTS.laravelApiChanged, handleEndpointChanged);
   }, [poll]);
 
+  const patchSectionEnabled = useCallback((name: QueueCenterControlName, enabled: boolean) => {
+    setHub((previous) => {
+      const contract = previous.sectionContracts[name];
+      if (!contract) return previous;
+      return {
+        ...previous,
+        sectionContracts: {
+          ...previous.sectionContracts,
+          [name]: { ...contract, toggle: { ...contract.toggle, enabled } },
+        },
+      };
+    });
+  }, []);
+
   const setControl = useCallback(async (name: QueueCenterControlName, enabled: boolean) => {
+    patchSectionEnabled(name, enabled);
     try {
       const response = await pycoreApi.setQueueCenterControl(name, enabled, {
         requested_by: 'user',
         reason: 'ui_toggle',
         graceful_stop: !enabled,
-        timeoutMs: 8_000,
+        timeoutMs: 20_000,
       });
       if (!response?.success) throw new Error(response?.error || `Could not update ${name}`);
-      await poll(false);
+      void poll(true);
     } catch (error: unknown) {
-      try {
-        await poll(false);
-      } catch {
-        // Preserve the original control error.
-      }
+      patchSectionEnabled(name, !enabled);
+      void poll(true);
       throw error;
     }
-  }, [poll]);
+  }, [poll, patchSectionEnabled]);
 
   const value = useMemo<QueueCenterHubState>(
     () => ({ ...hub, refreshHub, setControl, autoRefresh, setAutoRefresh }),

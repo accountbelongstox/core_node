@@ -1716,7 +1716,7 @@
     "message": "Validity Word Language"
   },
   "validityWordLanguageHint": {
-    "message": "Only English words are processed by default; select another language to process its backlog instead."
+    "message": "English words are processed by default; select one or more languages to drain their backlogs in one run."
   },
   "otherLanguageCodePlaceholder": {
     "message": "Other language code"

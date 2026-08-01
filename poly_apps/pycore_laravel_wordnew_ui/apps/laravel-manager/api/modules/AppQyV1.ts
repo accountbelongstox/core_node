@@ -1,6 +1,7 @@
 import { BaseAPI } from '../base/BaseAPI';
 import { apiCache } from '../base/APICache';
 import { APIResponse } from '../../types';
+import { LARAVEL_API_ROUTE } from '../ApiContract';
 
 // ========== Vocabulary export (server-side file download) ==========
 
@@ -443,21 +444,6 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/ai_tools/tts/queue/stats', undefined, false); // No cache, real-time data
   }
 
-  /** GET /assist/overview — pycore/chrome worker queue snapshot (SHARED CONTRACT v2). */
-  async getAssistOverview(fresh = false): Promise<APIResponse> {
-    return this.get('/assist/overview', fresh ? { fresh: 1 } : undefined, false);
-  }
-
-  /** GET /assist/overview/items — paginated drill-down for one assist category. */
-  async getAssistCategoryItems(params: {
-    category: string;
-    status?: string;
-    start?: number;
-    limit?: number;
-  }): Promise<APIResponse> {
-    return this.get('/assist/overview/items', params, false);
-  }
-
   async checkTTSQueueStatus(word: string, language: string): Promise<APIResponse> {
     return this.get('/ai_tools/tts/queue/status', { word, language });
   }
@@ -823,14 +809,14 @@ export class AppQyV1API extends BaseAPI {
     format: VocabExportFormat,
     options: VocabExportOptions = {}
   ): Promise<VocabExportResult> {
-    const url = this.buildURL(`/vocabulary/export/${format}`);
+    const url = this.buildURL(LARAVEL_API_ROUTE.vocabulary.export(format));
 
-    const response = await fetch(url, {
+    const response = await this.rawRequest(url, {
       method: 'POST',
-      headers: this.resolveRequestHeaders({
+      headers: {
         'Content-Type': 'application/json',
         Accept: 'application/octet-stream, application/json',
-      }),
+      },
       body: JSON.stringify(options)
     });
 

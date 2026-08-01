@@ -15,6 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\StreamedEvent;
 
@@ -42,6 +43,12 @@ class AppQyV1TranslationStreamController extends Controller
     // lifetime is clamped below Octane's per-request watchdog at runtime (see stream()),
     // otherwise the worker kills the stream mid-flight and the client sees a timeout.
     private const MAX_LIFETIME_SECONDS = 50;
+    // On the single-worker php -S runtime the SSE generator occupies the ONE
+    // worker for its whole lifetime, starving all other requests. Cap the
+    // lifetime hard there so the worker is released every few seconds; the
+    // client reconnects by cursor, turning the stream into a near-short-poll
+    // that lets other requests interleave. No effect on Octane.
+    private const SINGLE_WORKER_LIFETIME_SECONDS = 3;
     // Poll cadence for new outbox rows when idle.
     private const POLL_INTERVAL_MS = 800;
     // Max rows drained per query.
@@ -76,6 +83,13 @@ class AppQyV1TranslationStreamController extends Controller
         $maxLifetime = $maxExec > 0
             ? max(5, min(self::MAX_LIFETIME_SECONDS, $maxExec - 5))
             : self::MAX_LIFETIME_SECONDS;
+
+        // Single-worker php -S: hard-cap the hold so the sole worker is freed
+        // frequently and other requests are not starved (client reconnects by
+        // cursor). Overrides the Octane-oriented budget above on this runtime.
+        if (ServerRuntime::isSingleWorker()) {
+            $maxLifetime = self::SINGLE_WORKER_LIFETIME_SECONDS;
+        }
 
         $response = response()->eventStream(function () use ($cursor, $maxLifetime) {
             $current = $cursor;

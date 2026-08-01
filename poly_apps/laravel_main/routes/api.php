@@ -71,15 +71,9 @@ require_once __DIR__ . '/DashboardRouter/CodeUpdate.php';
 // InviteCode Controller
 use App\Http\Controllers\InviteCodeController;
 
-// Invite Code Routes
+// Registration invite-code validation and start-generated super-code redemption.
 Route::get('/invite-codes/public', [InviteCodeController::class, 'listPublic']);
 Route::post('/invite-codes/validate', [InviteCodeController::class, 'validate']);
-
-Route::middleware('auth:sanctum')->prefix('admin')->group(function () {
-    Route::get('/invite-codes', [InviteCodeController::class, 'index']);
-    Route::post('/invite-codes', [InviteCodeController::class, 'create']);
-    Route::post('/invite-codes/{id}/deactivate', [InviteCodeController::class, 'deactivate']);
-});
 
 // ServerManagerV1 Routes
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1SystemInfoCtl;
@@ -248,9 +242,12 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     Route::prefix('worker')->group(function () {
         Route::post('register', [WorkerController::class, 'register']);
         Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
-        Route::get('tasks/pull', [WorkerController::class, 'pullTasks']);
-        Route::post('tasks/accept', [WorkerController::class, 'acceptTask']);
-        Route::post('tasks/result', [WorkerController::class, 'submitResult']);
+        // Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}.
+        // {taskType} must be a key from config/queue_center_contract.json
+        // task_types (validated in the controller).
+        Route::get('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
+        Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
+        Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
         Route::get('list', [WorkerController::class, 'list']);
         Route::get('stats', [WorkerController::class, 'stats']);
     });
@@ -357,4 +354,17 @@ use App\Http\Controllers\Internal\PycoreLogController;
 
 Route::prefix('internal/pycore')->middleware('pycore.client')->group(function () {
     Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
+});
+
+// Queue Center — centralized audio queues (word_audio, sentence_audio) over
+// global_tasks. Public control plane, same trust level as /api/task/*.
+use App\Http\Controllers\QueueCenterController;
+
+Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
+    Route::get('overview', [QueueCenterController::class, 'overview']);
+    Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
+    Route::post('queues/{queue}/bump', [QueueCenterController::class, 'bump']);
+    Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
+    Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
+    Route::get('stream', [QueueCenterController::class, 'stream']);
 });

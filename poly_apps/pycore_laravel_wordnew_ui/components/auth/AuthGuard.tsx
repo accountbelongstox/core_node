@@ -12,7 +12,7 @@
 
 import React, { ReactNode, useEffect, useRef } from 'react';
 import { useUser } from '../../hooks/useUser';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { isDebugAuthBypass } from '../../config/auth';
 
 interface AuthGuardProps {

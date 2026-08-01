@@ -41,6 +41,11 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
     return LOG;
   }
 
+  protected get pullTaskTypes(): string[] {
+    // word_audio LAST: the primary lane, holds the long-poll budget.
+    return [TASK_TYPE_KEYS.article_audio, TASK_TYPE_KEYS.word_audio];
+  }
+
   protected handlesTaskType(taskType: string): boolean {
     return taskType === TASK_TYPE_KEYS.word_audio || taskType === TASK_TYPE_KEYS.article_audio;
   }

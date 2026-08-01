@@ -47,7 +47,7 @@ from pycore.pyutils.tts.tts_orchestrator import (
 from pycore.pyutils.stt.stt_orchestrator import default_stt_engine_priority
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import dictionary_service
-from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
+from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 
 from pycore.pyutils.tts.tts_service_manager import apply_server_settings
 
@@ -413,7 +413,7 @@ def post_capability_settings(capability: str, priority=None, options=None):
                 # any one applies realtime to synthesize(priority_profile=...).
                 reload_tts_priority()
                 if cap in ("tts", "word_tts"):
-                    tts_queue_poller_service.invalidate_engine_plan()
+                    laravel_word_audio_worker.invalidate_engine_plan()
             if cap == "tts":
                 store = user_data_store
                 chains = dict(store.get_section("task_capability_chains") or {})

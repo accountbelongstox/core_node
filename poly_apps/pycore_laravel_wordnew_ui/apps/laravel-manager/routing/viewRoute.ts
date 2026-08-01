@@ -12,7 +12,7 @@
  * once by the context to install the listener.
  */
 
-import { ViewType } from '../types';
+import { ViewType } from '../uiTypes';
 
 /** ViewType → URL slug. Values are URL-friendly kebab-case. */
 export const VIEW_TO_SLUG: Record<ViewType, string> = {
@@ -30,8 +30,8 @@ export const VIEW_TO_SLUG: Record<ViewType, string> = {
   [ViewType.OCTANE_TASKS]: 'octane',
   [ViewType.GLOBAL_TASKS]: 'global-tasks',
   [ViewType.SERVER_MANAGER]: 'server',
-  [ViewType.AI_TOOLS]: 'ai-tools',
-  [ViewType.INVITE_CODE_MANAGER]: 'invite-codes',
+  [ViewType.AI_MANAGEMENT]: 'ai-management',
+  [ViewType.WORD_AUDIO]: 'word-audio',
   [ViewType.DATABASE_MANAGER]: 'db-manager',
   [ViewType.MOVIES_BOOKS]: 'movies-books'
 };
@@ -58,6 +58,7 @@ SLUG_TO_VIEW['code'] = ViewType.MEDIA_BROWSER;
 // MCP Manager was dismantled (features moved into Task Center / Tools / AI
 // Tools). Old #/mcp bookmarks land on Tools, which hosts the MCP Server panel.
 SLUG_TO_VIEW['mcp'] = ViewType.TOOLS;
+SLUG_TO_VIEW['ai-tools'] = ViewType.TOOLS;
 
 export function viewToSlug(view: ViewType): string {
   return VIEW_TO_SLUG[view] ?? '';

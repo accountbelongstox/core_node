@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import BentoCard from '../../BentoCard';
-import { FileNode, Language, StaticFileContent } from '../../../types';
+import { FileNode, Language, StaticFileContent } from '../../../apps/laravel-manager/uiTypes';
 import { getSource } from './resourceSources';
 import ViewerErrorBoundary from './ViewerErrorBoundary';
 import {

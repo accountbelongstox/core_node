@@ -8,11 +8,11 @@ import {
   AsyncState,
   VocabularyTask,
   VocabularyWord
-} from '../../types';
+} from '../../apps/laravel-manager/uiTypes';
 // Laravel Manager uses its application-owned API boundary.
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../constants';
-import { mediaUrl } from '../../config/constants';
+import { laravelMediaUrl as mediaUrl } from '../../apps/laravel-manager/network/mediaUrl';
 import { commonClasses } from '../../styles/theme';
 import { ensureArray } from '../../utils/arrayUtils';
 import { useAppState } from '../../contexts/AppStateContext';
@@ -33,7 +33,7 @@ import WordDetail from '../vocabulary/words/WordDetail';
 import QueueItemDetailPanel from '../vocabulary/QueueItemDetailPanel';
 import { buildAssistQueueColumns, buildTtsQueueColumns } from '../vocabulary/queueDrillColumns';
 import type { AssistOverviewResponse } from '@/apps/laravel-manager/api';
-import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
+import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../apps/laravel-manager/uiTypes';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
 import { useClipboard } from '../../hooks';

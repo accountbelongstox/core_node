@@ -1700,7 +1700,7 @@
     "message": "有效性检查单词语言"
   },
   "validityWordLanguageHint": {
-    "message": "默认只处理英语单词；可选择其他语言来处理其积压任务。"
+    "message": "默认只处理英语单词；可多选语言，同一次运行中逐个清空其积压任务。"
   },
   "otherLanguageCodePlaceholder": {
     "message": "其他语言代码"

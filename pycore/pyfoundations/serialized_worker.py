@@ -55,6 +55,8 @@ class SerializedWorkerThread(threading.Thread):
 
             response_signal = request.get("response_signal", "")
             response_guard = request.get("response_guard", "")
+            if response_guard and not THREAD_BUS.has_signal(response_guard):
+                continue
             callback = request.get("callback")
             args = request.get("args", ())
             kwargs = request.get("kwargs", {})

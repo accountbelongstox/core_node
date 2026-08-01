@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, PlayCircle, Lock, LockOpen } from 'lucide-react';
-import { ApiInfoParsedEndpoint } from '../../types';
+import { ApiInfoParsedEndpoint } from '../../apps/laravel-manager/uiTypes';
 import JsonParamsEditor from './JsonParamsEditor';
 
 interface CollapsibleApiCardProps {

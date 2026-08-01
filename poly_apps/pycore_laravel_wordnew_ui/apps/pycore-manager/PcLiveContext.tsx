@@ -23,6 +23,7 @@ import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 
 const LOG_CAP = 1000;
+const LOG_FLUSH_MS = 250;
 
 export interface PcLogLine {
   message: string;
@@ -49,8 +50,30 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
   const [httpConnected, setHttpConnected] = useState(false);
   const [latestSettings, setLatestSettings] = useState<Record<string, unknown> | null>(null);
   const settingsHandlers = useRef<Set<SettingsHandler>>(new Set());
+  const pendingLogs = useRef<PcLogLine[]>([]);
+  const logFlushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const clearLogs = useCallback(() => setLogs([]), []);
+  const clearLogs = useCallback(() => {
+    pendingLogs.current = [];
+    setLogs([]);
+  }, []);
+
+  const flushLogs = useCallback(() => {
+    logFlushTimer.current = null;
+    const batch = pendingLogs.current;
+    if (batch.length === 0) return;
+    pendingLogs.current = [];
+    setLogs((prev) => {
+      const next = prev.concat(batch);
+      return next.length > LOG_CAP ? next.slice(next.length - LOG_CAP) : next;
+    });
+  }, []);
+
+  const pushLog = useCallback((line: PcLogLine) => {
+    pendingLogs.current.push(line);
+    if (logFlushTimer.current) return;
+    logFlushTimer.current = setTimeout(flushLogs, LOG_FLUSH_MS);
+  }, [flushLogs]);
 
   const onSystemSettings = useCallback((handler: SettingsHandler) => {
     settingsHandlers.current.add(handler);
@@ -64,11 +87,8 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
     // log panel so a failed connection is visible even with dev-tools off.
     // Subscribe BEFORE connecting so the first "connecting …" line is captured.
     const offDiag = onHttpDiag(({ level, message }) => {
-      setLogs((prev) => {
-        const next = prev.length >= LOG_CAP ? prev.slice(prev.length - LOG_CAP + 1) : prev.slice();
-        next.push({ message: `[http] ${message}`, level, color: '', ts: Date.now() });
-        return next;
-      });
+      if (level === 'debug') return;
+      pushLog({ message: `[http] ${message}`, level, color: '', ts: Date.now() });
     });
 
     connectPycoreHttp();
@@ -80,11 +100,7 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
         color: typeof data?.color === 'string' ? data.color : '',
         ts: Date.now(),
       };
-      setLogs((prev) => {
-        const next = prev.length >= LOG_CAP ? prev.slice(prev.length - LOG_CAP + 1) : prev.slice();
-        next.push(line);
-        return next;
-      });
+      pushLog(line);
     });
 
     const offSettings = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.systemSettingsUpdate, (data: any) => {
@@ -111,8 +127,11 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
-    return () => { offStatus(); offDiag(); offLog(); offSettings(); offLaravelHttp(); };
-  }, []);
+    return () => {
+      offStatus(); offDiag(); offLog(); offSettings(); offLaravelHttp();
+      if (logFlushTimer.current) clearTimeout(logFlushTimer.current);
+    };
+  }, [pushLog]);
 
   const value: PcLiveContextValue = {
     logs, httpConnected, clearLogs, latestSettings, onSystemSettings,

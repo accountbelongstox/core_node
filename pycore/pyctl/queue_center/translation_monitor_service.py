@@ -24,7 +24,7 @@ reads that resolver live on every request so tray/UI endpoint switches apply
 without restart.
 
 ------------------------------------------------------------------------------
-Architecture (mirrors translation_worker_service.py / tts_queue_poller_service.py)
+Architecture (mirrors translation_worker_service.py / laravel_audio_worker.py)
 ------------------------------------------------------------------------------
   - Singleton service registered as a PyHeartbeat callback (interval ~5s, ENABLED
     by default). Pycore UI toggles it only through HTTP
@@ -68,13 +68,10 @@ from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
 from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
-from pycore.pyctl.queue_center.assist_overview import (
-    request_assist_overview_refresh,
-)
-
-
 # Laravel queue-API path prefix (server-side, mirrors /api/worker/*).
 _QUEUE_API_PREFIX = "/api/app_qy_v1/ai_tools/translation/queue"
+_EVENT_RECONCILE_SECONDS = 300.0
+_PENDING_WORDS_REFRESH_SECONDS = 300.0
 
 # THREAD_BUS signal carrying the latest snapshot for cross-thread readers (rule
 # §4: inter-thread data flows over the bus, not shared attributes).
@@ -110,6 +107,7 @@ class QueueMonitorService:
         # Cached snapshot state is owned by one THREAD_BUS-backed worker.
         self._snapshot: Dict[str, Any] = {"summary": {}, "items": []}
         self._snapshot_ts = 0.0          # monotonic time of the last successful poll
+        self._pending_words_ts = 0.0
         self._laravel_reachable = False
         # task_id -> last seen priority (for bump diffing across snapshots).
         self._prev_priority: Dict[Any, float] = {}
@@ -140,10 +138,6 @@ class QueueMonitorService:
             self.on_endpoint_changed
         )
         
-        # Pre-warm on startup
-        self.poll_once()
-        request_assist_overview_refresh()
-            
         ColorPrint.green(
             f"[QueueMonitor] Service initialized "
             f"(base={self._base_url()}, bump_ttl={self._bump_ttl}s)"
@@ -179,10 +173,6 @@ class QueueMonitorService:
         ColorPrint.blue(
             f"[QueueMonitor] Endpoint changed → {new_url!r}; snapshot cleared"
         )
-
-        # Pre-warm on endpoint change
-        self.poll_once()
-        request_assist_overview_refresh()
 
     # -------------------- base URL / HTTP helpers --------------------
 
@@ -365,6 +355,12 @@ class QueueMonitorService:
         try:
             if THREAD_BUS.get_signal(self._poll_running_signal, False):
                 return
+            if (
+                self._event_connected
+                and self._snapshot_ts
+                and time.monotonic() - self._snapshot_ts < _EVENT_RECONCILE_SECONDS
+            ):
+                return
             THREAD_BUS.signal(self._poll_running_signal, True)
             start_bus_task(self._do_poll, thread_name="queue-monitor-poll")
         except Exception as e:
@@ -395,10 +391,15 @@ class QueueMonitorService:
             summary = body.get("summary") or {}
             items = body.get("items") or []
             
-            pending_words_body = self._fetch_pending_words_at(base_url)
-            if pending_words_body:
-                pending_summary = pending_words_body.get("summary") or {}
-                summary["missing_dictionary_words"] = pending_summary.get("pending", 0)
+            previous_summary = self._snapshot.get("summary") or {}
+            if "missing_dictionary_words" in previous_summary:
+                summary["missing_dictionary_words"] = previous_summary["missing_dictionary_words"]
+            if time.monotonic() - self._pending_words_ts >= _PENDING_WORDS_REFRESH_SECONDS:
+                pending_words_body = self._fetch_pending_words_at(base_url)
+                if pending_words_body:
+                    pending_summary = pending_words_body.get("summary") or {}
+                    summary["missing_dictionary_words"] = pending_summary.get("pending", 0)
+                    self._pending_words_ts = time.monotonic()
 
             self._apply_bump_detection(items)
             self._snapshot = {"summary": summary, "items": items}

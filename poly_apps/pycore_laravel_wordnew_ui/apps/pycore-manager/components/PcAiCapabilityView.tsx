@@ -315,7 +315,10 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
   const mergeKeyStatus = useCallback(async () => {
     try {
       const g = await pycoreApi.getAiGateway();
-      const byName = new Map((g?.providers ?? []).map((p) => [p.name, p]));
+      const gatewayProviders = Array.isArray(g?.providers)
+        ? g.providers as Array<{ name: string; key_count?: number; keys?: unknown[]; image_keys?: unknown[] }>
+        : [];
+      const byName = new Map(gatewayProviders.map((provider) => [provider.name, provider]));
       if (byName.size === 0) return;
       setProviders((prev) => {
         if (!prev) return prev;

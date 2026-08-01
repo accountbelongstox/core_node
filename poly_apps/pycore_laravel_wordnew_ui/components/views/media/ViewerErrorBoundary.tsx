@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { Component } from 'react';
 import { AlertCircle, Download } from 'lucide-react';
 
 interface ViewerErrorBoundaryProps {
+  key?: React.Key;
   children: React.ReactNode;
   /** File name shown in the fallback. */
   fileName?: string;
@@ -24,7 +25,11 @@ interface ViewerErrorBoundaryState {
  * Reset is driven by remounting via a `key` on the file id at the call site;
  * componentDidUpdate also clears the error if the file name changes.
  */
-class ViewerErrorBoundary extends React.Component<ViewerErrorBoundaryProps, ViewerErrorBoundaryState> {
+class ViewerErrorBoundary extends Component<ViewerErrorBoundaryProps, ViewerErrorBoundaryState> {
+  declare props: Readonly<ViewerErrorBoundaryProps>;
+  declare setState: (state: Partial<ViewerErrorBoundaryState>) => void;
+  state: ViewerErrorBoundaryState;
+
   constructor(props: ViewerErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { APIResponse } from '../types';
+import type { APIResponse } from '../apps/laravel-manager/types';
 
 export interface UseApiRequestOptions {
   onSuccess?: (data: any) => void;

@@ -74,12 +74,12 @@ interface OutboxBase {
 }
 
 export type OutboxRecord =
-  | (OutboxBase & { kind: 'worker_result'; payload: TaskResult })
+  | (OutboxBase & { kind: 'worker_result'; taskType: string; payload: TaskResult })
   | (OutboxBase & { kind: 'validity_report'; payload: ValidityReportBody })
   | (OutboxBase & { kind: 'assist_submit'; payload: AssistSubmitPayload });
 
 export type OutboxEnqueueInput =
-  | { kind: 'worker_result'; baseUrl: string; payload: TaskResult }
+  | { kind: 'worker_result'; baseUrl: string; taskType: string; payload: TaskResult }
   | { kind: 'validity_report'; baseUrl: string; payload: ValidityReportBody }
   | { kind: 'assist_submit'; baseUrl: string; payload: AssistSubmitPayload };
 
@@ -269,8 +269,13 @@ class SubmitOutbox {
     record: OutboxRecord & { kind: 'worker_result' },
   ): Promise<void> {
     const client = new WorkerApiClient(record.baseUrl);
+    // Records persisted before the typed result route carry no taskType; they
+    // can never be delivered to /api/worker/tasks/{taskType}/result -> drop.
+    if (!record.taskType) {
+      return this.dropTerminal(record, 'missing taskType (pre-typed-route record)');
+    }
     try {
-      const resp = await client.submitResult(record.payload);
+      const resp = await client.submitResult(record.taskType, record.payload);
       if (resp?.success) return this.remove(record.id);
       if (isTerminalMessage(resp?.message)) return this.dropTerminal(record, resp?.message || 'reassigned');
       return this.scheduleRetry(record, resp?.message || 'submit rejected');

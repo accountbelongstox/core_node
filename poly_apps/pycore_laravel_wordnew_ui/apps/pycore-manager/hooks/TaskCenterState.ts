@@ -41,7 +41,7 @@ export class PycoreTaskCenterStateService {
     public recentTypes: Record<CanonicalCompletedTaskType, number> = toCanonicalCounts(undefined);
     public recentResourceCount = 0;
     public recentLastSyncAt: string | null = null;
-    public recentNextOffset: number | null = null;
+    public recentNextCursorId: number | null = null;
     public recentLoading = false;
     public recentSyncing = false;
     public recentErr: string | null = null;
@@ -82,41 +82,45 @@ export class PycoreTaskCenterStateService {
         }
         this.recentResourceCount = data.resource_count ?? 0;
         this.recentLastSyncAt = data.last_sync_at ?? null;
-        if (this.recentRecords.length <= fetched.length) {
-            this.recentNextOffset = data.next_offset ?? null;
+        if (Object.prototype.hasOwnProperty.call(data, 'next_cursor_id')) {
+            this.recentNextCursorId = data.next_cursor_id ?? null;
         }
         this.emit();
     }
 
-    async initialSync(refreshHub: () => Promise<void>) {
+    async initialSync() {
         if (this.initialSyncStarted) return;
         this.initialSyncStarted = true;
+        this.recentLoading = true;
+        this.emit();
         try {
-            const syncResult = await pycoreApi.syncCompletedTasks();
+            const syncResult = await pycoreApi.syncCompletedTasks({ limit: GLOBAL_TASK_LIMITS.history_records });
             if (!syncResult.success) {
                 this.recentErr = syncResult.error || 'Resource synchronization failed; showing the local archive';
             } else if (syncResult.partial) {
                 this.recentErr = `Local archive synchronized; Laravel source unavailable: ${syncResult.laravel_error || 'unknown error'}`;
             }
-            await refreshHub();
+            this.ingestRecent(syncResult);
         } catch (syncError: any) {
             this.recentErr = syncError?.message || 'Resource synchronization failed; showing the local archive';
+        } finally {
+            this.recentLoading = false;
         }
         this.emit();
     }
 
-    async syncArchive(refreshHub: () => Promise<void>) {
+    async syncArchive() {
         if (this.recentSyncing) return;
         this.recentSyncing = true;
         this.recentErr = null;
         this.emit();
         try {
-            const result = await pycoreApi.syncCompletedTasks();
+            const result = await pycoreApi.syncCompletedTasks({ limit: GLOBAL_TASK_LIMITS.history_records });
             if (!result.success) throw new Error(result.error || 'Completed-task synchronization failed');
             if (result.partial) {
                 this.recentErr = `Local archive synchronized; Laravel source unavailable: ${result.laravel_error || 'unknown error'}`;
             }
-            await refreshHub();
+            this.ingestRecent(result);
         } catch (e: any) {
             this.recentErr = e?.message || 'Completed-task synchronization failed';
         } finally {
@@ -126,14 +130,14 @@ export class PycoreTaskCenterStateService {
     }
 
     async loadMoreArchive() {
-        if (this.recentLoading || this.recentNextOffset == null) return;
+        if (this.recentLoading || this.recentNextCursorId == null) return;
         this.recentLoading = true;
         this.recentErr = null;
         this.emit();
         try {
-            const data = await pycoreApi.getCompletedTasks({
-                limit: GLOBAL_TASK_LIMITS.completed,
-                offset: this.recentNextOffset,
+            const data = await pycoreApi.syncCompletedTasks({
+                limit: GLOBAL_TASK_LIMITS.history_records,
+                cursor_id: this.recentNextCursorId,
             });
             const fetched = data.records ?? [];
             const byId = new Map(this.recentRecords.map((record) => [record.archive_id || record.task_id, record]));
@@ -144,7 +148,7 @@ export class PycoreTaskCenterStateService {
             if (data.types && typeof data.types === 'object' && !Array.isArray(data.types)) {
                 this.recentTypes = toCanonicalCounts(data.types as Record<string, number>);
             }
-            this.recentNextOffset = data.next_offset ?? null;
+            this.recentNextCursorId = data.next_cursor_id ?? null;
         } catch (e: any) {
             this.recentErr = e?.message || 'Completed-task archive unavailable';
         } finally {

@@ -7,7 +7,7 @@
  */
 
 import { createContext } from 'react';
-import { ViewType, Language, Theme } from '../../../types';
+import { ViewType, Language, Theme } from '../uiTypes';
 import { UnifiedUser, UserPreferences } from '../types';
 
 /**
@@ -54,6 +54,7 @@ export interface UnifiedAppContextType {
   login: (username: string, password: string) => Promise<boolean>;
   register: (username: string, password: string, email?: string, nickname?: string, registrationCode?: string) => Promise<boolean>;
   logout: () => Promise<boolean>;
+  refreshUser: () => Promise<boolean>;
   updatePreferences: (prefs: Partial<UserPreferences>) => Promise<boolean>;
   addRecentTool: (toolId: string) => void;
   toggleFavorite: (toolId: string) => void;

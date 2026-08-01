@@ -28,7 +28,9 @@ import PcAssistStrip from '../components/PcAssistStrip';
 import PcTtsEnginesStrip from '../components/PcTtsEnginesStrip';
 import PcQueueBumpToasts from '../components/PcQueueBumpToasts';
 import PcCapabilityDrawer from '../components/PcCapabilityDrawer';
-import { useQueueCenterHub, workerEndpointMismatch } from '../hooks/useQueueCenterHub';
+import {
+  QueueCenterHubProvider, useQueueCenterHub, workerEndpointMismatch,
+} from '../hooks/useQueueCenterHub';
 import {
   type QcSection,
   type QcSectionScope,
@@ -128,7 +130,7 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
   );
 };
 
-/** Page body — hub lives in PcProviders (app-wide) so toggles work everywhere. */
+/** Page body — one page-scoped hub drives every Queue Center section. */
 const QueueCenterBody: React.FC = () => {
   const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
@@ -140,9 +142,6 @@ const QueueCenterBody: React.FC = () => {
 
   const [drawerOpen, setDrawerOpen] = useState(() => StorageManager.getRaw(QC_DRAWER_KEY) === '1');
   useEffect(() => { StorageManager.setRaw(QC_DRAWER_KEY, drawerOpen ? '1' : '0'); }, [drawerOpen]);
-
-  // Manual refresh token for child-only secondary reads.
-  const [tick, setTick] = useState(0);
 
   const sectionContracts = hub.sectionContracts;
   const endpointMismatch = workerEndpointMismatch(hub);
@@ -291,7 +290,7 @@ const QueueCenterBody: React.FC = () => {
             {t('queueCenter.auto')} {auto ? t('queueCenter.autoOn') : t('queueCenter.autoOff')}
           </button>
           <button
-            onClick={() => { setTick((n) => n + 1); hub.refreshHub(); }}
+            onClick={() => { void hub.refreshHub(); }}
             disabled={hub.loading}
             className="p-2 rounded-xl pc-glass hover:bg-indigo-500/10 text-indigo-500 transition disabled:opacity-50"
             title={t('queueCenter.refreshActive')}>
@@ -326,8 +325,8 @@ const QueueCenterBody: React.FC = () => {
             : t('queueCenter.sectionsToggle.assistOn'),
         }}>
         <PcAssistStrip />
-        <PcWorkerStatusStrip refreshTick={tick} />
-        <PcQueueOverviewPanel refreshTick={tick} />
+        <PcWorkerStatusStrip />
+        <PcQueueOverviewPanel />
       </QcSectionCard>
 
       <QcSectionCard
@@ -343,7 +342,7 @@ const QueueCenterBody: React.FC = () => {
           onToggle: toggleAssistTranslation,
           title: translationContract.toggle.enabled ? t('queueCenter.sectionsToggle.workerOff') : t('queueCenter.sectionsToggle.workerOn'),
         }}>
-        <PcTranslationQueuePanel refreshTick={tick} />
+        <PcTranslationQueuePanel />
       </QcSectionCard>
 
       <QcSectionCard
@@ -376,14 +375,14 @@ const QueueCenterBody: React.FC = () => {
           onToggle: toggleSentence,
           title: sentenceContract.toggle.enabled ? t('queueCenter.sectionsToggle.sentenceOff') : t('queueCenter.sectionsToggle.sentenceOn'),
         }}>
-        <PcSentenceQueuePanel refreshTick={tick} />
+        <PcSentenceQueuePanel />
       </QcSectionCard>
 
       <QcSectionCard
         section="recent"
         count={null}
         highlight={highlight === 'recent'}>
-        <PcRecentTasksPanel refreshTick={tick} />
+        <PcRecentTasksPanel />
       </QcSectionCard>
 
       <PcCapabilityDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
@@ -391,6 +390,10 @@ const QueueCenterBody: React.FC = () => {
   );
 };
 
-const PcQueueCenterPage: React.FC = () => <QueueCenterBody />;
+const PcQueueCenterPage: React.FC = () => (
+  <QueueCenterHubProvider>
+    <QueueCenterBody />
+  </QueueCenterHubProvider>
+);
 
 export default PcQueueCenterPage;

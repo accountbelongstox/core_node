@@ -24,6 +24,10 @@ from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_
 from pycore.pyctl.translation.worker.worker import (
     translation_worker_service,
 )
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
 
 
 def _monitor():
@@ -104,19 +108,27 @@ def _merge_workers(laravel: List[Dict[str, Any]], local: List[Dict[str, Any]]) -
 
 
 def _workers() -> List[Dict[str, Any]]:
-    status = _worker().get_status()
-    worker_id = status.get("worker_id")
-    if not worker_id:
-        return []
-    return [{
-        "id": worker_id,
-        "kind": "pycore",
-        "name": "pycore-translation-worker",
-        "processor_types": status.get("processor_types", []) or [],
-        "online": bool(status.get("registered", False)),
-        "last_seen": None,
-        "claimed": _number(status.get("inflight_tasks")),
-    }]
+    rows: List[Dict[str, Any]] = []
+    named_workers = (
+        (_worker(), "pycore-translation-worker"),
+        (laravel_word_audio_worker, "pycore-word-audio-worker"),
+        (laravel_sentence_audio_worker, "pycore-sentence-audio-worker"),
+    )
+    for service, name in named_workers:
+        status = service.get_status()
+        worker_id = status.get("worker_id")
+        if not worker_id:
+            continue
+        rows.append({
+            "id": worker_id,
+            "kind": "pycore",
+            "name": name,
+            "processor_types": status.get("processor_types", []) or [],
+            "online": bool(status.get("registered", False)),
+            "last_seen": None,
+            "claimed": _number(status.get("inflight_tasks")),
+        })
+    return rows
 
 
 def _engines() -> Dict[str, Any]:

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Search, ChevronDown, X, Loader2, AlertCircle, Clock, Copy, Check } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
-import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../types';
+import { FullApiInfo, ApiInfo, ApiInfoParsedEndpoint, Language } from '../../apps/laravel-manager/uiTypes';
 import { parseFeatureString, generateExampleParams, extractPathPlaceholders } from '../../utils/apiInfoParser';
 import { logInfo, logError } from '../../core/logstore/logStore';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
@@ -216,7 +216,7 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
       }
 
       const startTime = Date.now();
-      const response = await fetch(url, {
+      const response = await api.http.rawRequest(url, {
         method: endpoint.method,
         headers,
         body
@@ -236,8 +236,6 @@ const ApiTester: React.FC<ApiTesterProps> = ({ lang = 'en' }) => {
         }
       }
 
-      // Raw fetch (deliberately not BaseAPI), so mirror the run into the
-      // global log panel ourselves.
       const summary = `${endpoint.method} ${endpoint.path} → ${response.status} (${latency}ms)`;
       if (response.ok) {
         logInfo('api-tester', summary);

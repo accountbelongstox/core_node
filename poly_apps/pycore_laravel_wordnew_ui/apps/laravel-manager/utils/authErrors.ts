@@ -1,5 +1,5 @@
 import i18n from '../i18n';
-import type { Language } from '../types';
+import type { Language } from '../uiTypes';
 
 /** Auth error codes returned by backend login/register (must match App\\Constants\\AuthErrorCodes). */
 export const AUTH_ERROR_CODES = {

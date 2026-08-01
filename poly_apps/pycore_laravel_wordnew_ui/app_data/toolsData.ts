@@ -1,6 +1,6 @@
 ﻿// Tool registry: categories, default API configs, and UI schemas (split out of constants.tsx).
 import { AlignLeft, ArrowLeftRight, BarChart, Binary, Calculator, Check, CheckCircle, Clock, Code2, Download, Edit3, FileJson, FileText, Globe, Hash, Image as ImageIcon, Key, Link, Lock, Phone, Play, QrCode, RefreshCcw, Search, Shield, Type, Upload, Wifi, Wrench } from "lucide-react";
-import { ToolCategory, ToolConnectionConfig, ToolUISchema } from "../types";
+import { ToolCategory, ToolConnectionConfig, ToolUISchema } from "../apps/laravel-manager/uiTypes";
 
 export const TOOL_CATEGORIES: ToolCategory[] = [
   {

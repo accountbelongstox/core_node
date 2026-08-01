@@ -2,6 +2,7 @@ import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { postJSON } from '../api/WfNewApiTransport';
 import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
@@ -55,7 +56,7 @@ function prioritizeMissing(
     requests.push(pycoreApi.stackQueue(translationWords, language, targetLanguage, 200));
   }
   if (audioWords.length > 0) {
-    requests.push(pycoreApi.prioritizeWordAudioWords(audioWords, language));
+    requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, language));
   }
   if (imageItems.length > 0) {
     requests.push(pycoreApi.prioritizeWordImages(imageItems));

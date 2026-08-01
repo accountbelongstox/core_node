@@ -130,6 +130,9 @@ class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
         $payload = [
             'words' => array_values($words),
             'language' => $langCode,
+            // One-pass validity + translation (2.4): the worker returns a
+            // verdict AND the target-language translation for every valid word.
+            'target_language' => 'zh',
             'word_count' => count($words),
         ];
 

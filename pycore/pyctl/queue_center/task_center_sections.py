@@ -17,6 +17,7 @@ from pycore.pyutils.common.queue_center_contract import (
     QueueCenterToggleEnvelope,
     build_empty_queue_contract,
     category_keys_for_scope,
+    task_execution_type,
 )
 from pycore.pyutils.common.strtools.normalization import to_bool
 
@@ -86,6 +87,11 @@ def _queue(rows: Iterable[Dict[str, Any]]) -> Dict[str, int]:
 def _worker_tokens(scope: QueueCenterScope) -> set[str]:
     keys = set(category_keys_for_scope(scope))
     tokens = set(keys)
+    for key in keys:
+        # Registered workers advertise EXECUTION lanes (remote_*), never the
+        # task-type key itself; map every category key to its contract lane so
+        # worker rows (Laravel-side and local) actually match their scope.
+        tokens.add(task_execution_type(key))
     for definition in QUEUE_CATEGORY_CATALOG:
         if definition.get("key") in keys and definition.get("capability"):
             tokens.add(str(definition["capability"]))

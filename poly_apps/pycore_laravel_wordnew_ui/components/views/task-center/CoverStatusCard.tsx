@@ -13,7 +13,7 @@
  * high-churn queue rows like the rest of the Task Center.
  */
 import React, { useState } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { api } from '@/apps/laravel-manager/api';

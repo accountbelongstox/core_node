@@ -4,7 +4,7 @@ import {
   Language,
   StaticResourcesSummary,
   SystemStorage
-} from '../../../types';
+} from '../../../apps/laravel-manager/uiTypes';
 import { commonClasses } from '../../../styles/theme';
 import { LoadingBlock, AlertBox } from '../../common';
 import StaticSubdirFileBrowser from './StaticSubdirFileBrowser';

@@ -142,7 +142,7 @@ def get_recent_tasks(
 ) -> Dict[str, Any]:
     row_limit = max(1, min(int(limit or 200), 1000))
     manager = task_manager
-    raw = manager.get_recent_tasks(limit=1000)
+    raw = manager.get_recent_tasks(limit=row_limit)
     finished = [
         task for task in raw
         if task.get("status") not in ("pending", "processing")
@@ -186,8 +186,8 @@ def get_recent_tasks(
             })
 
     archived = completed_task_archive.query(
-        task_type=normalize_task_type(task_type),
-        limit=1000,
+        task_type=task_type,
+        limit=row_limit,
         offset=0,
     )
     records.extend(archived.get("records") or [])

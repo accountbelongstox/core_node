@@ -30,10 +30,11 @@ import {
   SystemServiceStatus,
   StaticResourcesSummary,
   ViewType
-} from '../../types';
+} from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
+import { apiManager } from '../../apps/laravel-manager/services/ApiManager';
+import { CenteredPage, CenteredTabBar } from '../shared';
 import { TRANSLATIONS } from '../../constants';
-import { getDefaultBaseURL } from '../../config/constants';
 import { useAppState } from '../../contexts/AppStateContext';
 import { useToast, Modal, ConfirmModal } from '../admin';
 import { logInfo, logSuccess, logError } from '../../core/logstore/logStore';
@@ -243,23 +244,11 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     try {
       // Step 1: Trigger restart
       setRestartProgress('Sending restart command...');
-      const apiBaseUrl = api.systemConfig['baseURL'] || getDefaultBaseURL();
-      const response = await fetch(`${apiBaseUrl}/api/server-manager/restart`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      // Connection dropped is expected during restart
-      if (!response.ok) {
-        setRestartProgress('Server is restarting...');
-      } else {
-        const result = await response.json();
-        if (result.success) {
-          setRestartProgress('Server is restarting...');
-        } else {
-          throw new Error(result.message || result.error || 'Restart failed');
-        }
+      const response = await api.serverManager.restartCurrent();
+      if (!response.success && !response.isNetworkError && !response.isTimeout) {
+        throw new Error(response.error || response.message || 'Restart failed');
       }
+      setRestartProgress('Server is restarting...');
     } catch (error: any) {
       // Fetch error is expected when server goes down
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
@@ -277,12 +266,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
     const checkHealth = async (): Promise<boolean> => {
       try {
-        const apiBaseUrl = api.systemConfig['baseURL'] || getDefaultBaseURL();
-        const healthResponse = await fetch(`${apiBaseUrl}/api/health`, {
-          method: 'GET',
-          cache: 'no-cache'
-        });
-        return healthResponse.ok;
+        const endpoint = apiManager.getCurrentEndpoint();
+        if (!endpoint) return false;
+        const healthResponse = await apiManager.checkEndpoint(endpoint);
+        return healthResponse.isHealthy;
       } catch {
         return false;
       }
@@ -1299,7 +1286,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   ];
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-hidden">
+    <CenteredPage className="h-full flex flex-col p-6 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -1381,21 +1368,12 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeTab === tab.id
-                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            <span className="font-medium">{tab.label}</span>
-          </button>
-        ))}
+      <div className="mb-6">
+        <CenteredTabBar
+          items={tabs.map((tab) => ({ id: tab.id, label: tab.label, icon: <tab.icon className="w-4 h-4" /> }))}
+          activeId={activeTab}
+          onChange={(id) => setActiveTab(id as ServerTab)}
+        />
       </div>
 
       {/* Tab Content */}
@@ -1801,7 +1779,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
         site={editingSite}
         lang={lang}
       />
-    </div>
+    </CenteredPage>
   );
 };
 

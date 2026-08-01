@@ -1,6 +1,6 @@
 import React from 'react';
 import { XCircle } from 'lucide-react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import Portal from '../../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';

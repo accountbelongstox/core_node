@@ -2151,7 +2151,7 @@
     "message": "妥当性テストに失敗しました"
   },
   "validityWordLanguageHint": {
-    "message": "デフォルトでは英単語のみが処理されます。代わりに別の言語を選択してバックログを処理してください。"
+    "message": "デフォルトでは英単語のみ処理されます。複数の言語を選択すると、1回の実行でそれぞれのバックログを処理します。"
   },
   "validityWordLanguageTitle": {
     "message": "有効性の単語の言語"

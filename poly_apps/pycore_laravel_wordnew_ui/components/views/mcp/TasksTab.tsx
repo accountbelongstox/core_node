@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, RefreshCw, HardDrive, Search, X, ListTodo, Edit2, Eye, Trash2
 } from 'lucide-react';
-import { Language, AsyncState, TaskCategory, DispatchTask } from '../../../types';
+import { Language, AsyncState, TaskCategory, DispatchTask } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';

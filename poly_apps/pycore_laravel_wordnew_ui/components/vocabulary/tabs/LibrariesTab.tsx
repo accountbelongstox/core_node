@@ -1,7 +1,7 @@
 import React from 'react';
 import { Sliders, RefreshCw, BookOpen, CircleAlert, Trash2 } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
-import { mediaUrl } from '../../../config/constants';
+import { laravelMediaUrl as mediaUrl } from '../../../apps/laravel-manager/network/mediaUrl';
 import { LoadingBlock, EmptyState } from '../../common';
 import { CollapsibleSection } from '../CollapsibleSection';
 import ExistingBooksPanel from '../ExistingBooksPanel';

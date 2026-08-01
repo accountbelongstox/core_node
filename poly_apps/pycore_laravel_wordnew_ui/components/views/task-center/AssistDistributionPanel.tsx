@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Languages, Play } from 'lucide-react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { useApiResource } from '../../../hooks';
 import type { DevHistoryAssistTask } from '@/apps/laravel-manager/api';

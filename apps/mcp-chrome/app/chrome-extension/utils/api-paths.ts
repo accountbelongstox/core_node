@@ -14,12 +14,17 @@
 export const WORKER_PATHS = {
   REGISTER: '/api/worker/register',
   HEARTBEAT: '/api/worker/heartbeat',
-  TASKS_PULL: '/api/worker/tasks/pull',
-  TASKS_ACCEPT: '/api/worker/tasks/accept',
-  TASKS_RESULT: '/api/worker/tasks/result',
   LIST: '/api/worker/list',
   STATS: '/api/worker/stats',
 } as const;
+
+/** Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}. */
+export type WorkerTaskAction = 'pull' | 'accept' | 'result';
+
+/** Build `/api/worker/tasks/{taskType}/{action}` (taskType percent-encoded). */
+export function workerTaskPath(taskType: string, action: WorkerTaskAction): string {
+  return `/api/worker/tasks/${encodeURIComponent(taskType)}/${action}`;
+}
 
 // ─────────────────────── Global-task plane (/api/task/*) ───────────────────────
 /** Task list route (callers append their own query string). */

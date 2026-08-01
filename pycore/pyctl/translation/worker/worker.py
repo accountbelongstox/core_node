@@ -57,11 +57,9 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     Translation worker (singleton) that drives the Laravel worker-task pipeline.
 
     Lifecycle:
-      - First poll (or get_*): registers with Laravel (/api/worker/register) using a
-        stable hostname-based worker_id. Registration is retried on later polls if
-        it has not yet succeeded (Laravel may not be up at start).
-      - Each heartbeat tick (when enabled): poll_once() sends a heartbeat, pulls
-        tasks, and dispatches each task to a TaskManager background thread so the
+      - Each enabled poll sends the stable worker identity with the queue pull.
+        Laravel discovers or refreshes the worker in that same request.
+      - poll_once() pulls tasks and dispatches each task to a TaskManager background thread so the
         actual translation + result POST never blocks the heartbeat thread.
     """
 
@@ -146,8 +144,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._done_words_cache = DoneWordsCache(ttl=120)
 
         # ---- Unified-task fast lane (2026-06-21) ----
-        # Last advertised processor-type set; re-register fires when it changes
-        # (live toggle of a dedicated lane).
+        # Last processor types and capabilities accepted by a queue pull.
         self._advertised_processor_types: Optional[List[str]] = None
         self._advertised_capabilities: Optional[List[str]] = None
         # Per-backend priority heap + jittered fast-drain burst (reuses
@@ -221,6 +218,26 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     def _effective_processor_types(self) -> List[str]:
         """The lane set advertised this tick (delegates to lane_gating)."""
         return lane_gating.effective_processor_types(self)
+
+    def _effective_task_types(self) -> List[str]:
+        """Task types pulled via the typed pull route, primary LAST.
+
+        Mirrors the lane gates: translation toggle -> prompt_translation +
+        word_translation (word_translation last = holds the long-poll budget),
+        subtitle toggle -> subtitle_search, stt toggle -> the stt lane types.
+        Audio types are intentionally absent: the dedicated audio workers own
+        those routes now.
+        """
+        types: List[str] = []
+        if lane_gating.translation_enabled():
+            types.append(self.PROMPT_TRANSLATION_TASK_TYPE)
+        if lane_gating.subtitle_enabled():
+            types.append(self.SUBTITLE_TASK_TYPE)
+        if lane_gating.stt_enabled():
+            types.extend(self.STT_TASK_TYPES)
+        if lane_gating.translation_enabled():
+            types.append(self.WORD_TRANSLATION_TASK_TYPE)
+        return types
 
     # -------------------- payload hygiene --------------------
 
@@ -515,7 +532,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 
         LIGHT: single-flight guard + hand the poll cycle to a THREAD_BUS task
-        thread. The cycle's network I/O (register/heartbeat/pull) used to run
+        thread. The cycle's network I/O used to run
         on the serialized state-owner thread via @serialized_method; against a
         dead endpoint one poll occupied the owner for >60s, so every concurrent
         get_status and the next heartbeat tick raised 'Serialized operation
@@ -542,32 +559,13 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """
         PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
 
-        Light by design: ensure registration, send heartbeat, pull tasks, dispatch
-        each to a background thread. Idempotent and exception-safe - it must never
+        Light by design: pull tasks with inline worker identity, then dispatch each
+        to a background thread. Idempotent and exception-safe - it must never
         raise into the heartbeat loop.
         """
         try:
-            if not self._register():
-                return  # not registered yet (Laravel down) - try again next tick
-
-            # Live-toggle re-registration: if a dedicated lane was enabled/disabled
-            # since the last register, re-advertise the new processor-type set so
-            # Laravel starts/stops handing those lanes to this worker immediately.
-            processor_types = self._effective_processor_types()
-            capabilities = self._effective_capabilities()
-            if (self._advertised_processor_types is not None
-                    and (processor_types != self._advertised_processor_types
-                         or capabilities != self._advertised_capabilities)):
-                ColorPrint.blue(
-                    "[TranslationWorker] advertised lanes/capabilities changed - re-registering")
-                self._registered = False
-                if not self._register():
-                    return
-
-            self._heartbeat()
-
             # Circuit breaker: while the backend is persistently rejecting results
-            # (HTTP 5xx), keep heartbeating (stay registered) but STOP pulling new
+            # (HTTP 5xx), STOP pulling new
             # work - translating more only burns LLM calls for results the backend
             # cannot store and re-floods it. The cooldown expires on its own so the
             # worker auto-probes; any accepted result resets it (_note_result_*).
@@ -577,8 +575,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             # Pull with wait=0 (immediate). Laravel orders by priority desc; we ALSO
             # fold the batch into the per-backend priority heap and drain highest
             # first so a bumped task processes ahead of older lower-priority ones.
+            tasks = self._pull_tasks(wait=0)
             base = self.api_url
-            tasks = self._pull_tasks(base, wait=0)
             if tasks:
                 ColorPrint.green(f"[TranslationWorker] Pulled {len(tasks)} task(s)")
                 # Every pulled task is already CLAIMED for this worker by Laravel's
@@ -588,7 +586,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 for task in self._task_heap.drain_heap(base):
                     self._dispatch(task)
 
-            # A pending_fast signal (from this pull or the heartbeat) arms a jittered
+            # A pending_fast signal from this pull arms a jittered
             # fast-drain burst so interactive requests are claimed near-instantly.
             self._task_heap.maybe_start_fast_drain(self._pending_fast)
         except Exception as e:

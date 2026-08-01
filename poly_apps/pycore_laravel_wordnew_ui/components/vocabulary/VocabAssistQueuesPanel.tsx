@@ -88,7 +88,7 @@ const CategoryCard: React.FC<{
 }> = ({ category: c, expanded, onToggle, onDrill }) => {
   const hs = handlerStyle(String(c.primary_handler));
   const HIcon = hs.Icon;
-  const langs = c.by_language ? Object.entries(c.by_language).filter(([, n]) => n > 0) : [];
+  const langs = c.by_language ? Object.entries(c.by_language).filter((entry) => Number(entry[1]) > 0) : [];
   const samples = c.sample ?? [];
 
   return (

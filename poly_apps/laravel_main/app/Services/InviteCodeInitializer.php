@@ -2,12 +2,9 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use App\Models\InviteCode;
-use App\Support\InstallationAccessCode;
 
 class InviteCodeInitializer
 {
@@ -80,11 +77,12 @@ class InviteCodeInitializer
             $inviteCodeModel = new InviteCode();
             $inviteCodeModel->setConnection($connection);
             $dbConnection = $inviteCodeModel->getConnection();
-            
+
             $existingCodes = $dbConnection->table('invite_codes')->count();
             if ($existingCodes === 0) {
+                // Super-admin elevation uses InstallationAccessCode (rewritten by
+                // start.sh/ps1) — never seed a super_admin row into invite_codes.
                 $adminCode = 'ADMIN_' . strtoupper(Str::random(20));
-                $elevatedAccessCode = InstallationAccessCode::value();
 
                 $dbConnection->table('invite_codes')->insert([
                     [
@@ -98,34 +96,21 @@ class InviteCodeInitializer
                         'created_at' => now(),
                         'updated_at' => now(),
                     ],
-                    [
-                        'code' => $elevatedAccessCode,
-                        'type' => 'super_admin',
-                        'max_uses' => 1,
-                        'used_count' => 0,
-                        'expires_at' => null,
-                        'is_active' => true,
-                        'description' => 'Super admin invite code (unlimited time, single use)',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]
                 ]);
 
                 $results['default_codes'] = 'created';
                 $results['codes'] = [
                     'admin' => $adminCode,
-                    'super_admin' => $elevatedAccessCode
                 ];
 
-                Log::info('[InviteCodeInitializer] Default invite codes created', [
+                Log::info('[InviteCodeInitializer] Default admin invite code created', [
                     'admin_code' => $adminCode,
-                    'elevated_access_code' => $elevatedAccessCode
                 ]);
             } else {
                 $results['default_codes'] = 'exists';
                 $codes = $dbConnection->table('invite_codes')
                     ->select('code', 'type')
-                    ->whereIn('type', ['admin', 'super_admin'])
+                    ->where('type', 'admin')
                     ->get();
 
                 $results['codes'] = [];
@@ -154,7 +139,7 @@ class InviteCodeInitializer
             $inviteCodeModel = new InviteCode();
             $inviteCodeModel->setConnection($connection);
             $dbConnection = $inviteCodeModel->getConnection();
-            
+
             $stats = [
                 'invite_codes' => [
                     'total' => $dbConnection->table('invite_codes')->count(),

@@ -396,6 +396,12 @@ class PushReceiver:
             try:
                 tmp.write_bytes(content)
                 os.replace(str(tmp), str(target))
+            except PermissionError:
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                target.write_bytes(content)
             except Exception:
                 # Don't leak the half-written temp file on a failed replace.
                 try:

@@ -120,8 +120,8 @@ class Config:
     UI_ENABLE_TRAY = UI_ENABLE_TRAY
 
     # ==================== Translation Worker (Laravel worker-API) ====================
-    # Base URL of the Laravel backend that exposes the worker task API
-    # (/api/worker/register, /heartbeat, /tasks/pull, /tasks/result).
+    # Base URL of the Laravel backend that exposes the worker task API.
+    # Pycore sends worker identity inline with /tasks/pull, then posts /tasks/result.
     # Env-overridable so deployments can point at a different host/port.
     LARAVEL_WORKER_API_URL = LARAVEL_WORKER_API_URL
     # Heartbeat-callback interval (seconds) for the translation worker poll loop.
@@ -148,8 +148,8 @@ class Config:
     )
 
     # ==================== TTS Queue Worker (Laravel word-generation queue) ====================
-    # The TTS worker claims pending word TTS tasks from laravel_main
-    # (/api/app_qy_v1/ai_tools/tts/worker/claim), synthesizes MP3s with the
+    # The TTS worker claims pending word_audio global_tasks from laravel_main
+    # (GET /api/worker/tasks/pull, long-poll), synthesizes MP3s with the
     # pyutils TTS orchestrator and reports them back (/tts/worker/report). Runtime
     # ownership belongs to the Queue Center Word Audio ON/OFF control.
     # Tasks claimed per tick (server caps the claim at 50).
@@ -161,8 +161,8 @@ class Config:
     TTS_WORKER_CONCURRENCY = TTS_WORKER_CONCURRENCY
 
     # ==================== TTS Sentence-Audio Worker (Laravel sentence-library queue) ====================
-    # The sentence-audio worker claims pending SENTENCE TTS tasks from laravel_main
-    # (/api/app_qy_v1/ai_tools/tts/sentence/claim), merges every claimed task into
+    # The sentence-audio worker claims pending sentence_audio global_tasks from
+    # laravel_main (GET /api/worker/tasks/pull, long-poll), merges every claimed
     # ONE in-process priority queue (§5.3), synthesizes MP3s with the pyutils TTS
     # orchestrator and reports them back (/tts/sentence/report).
     # Lifecycle is controlled only by the unified user settings map.

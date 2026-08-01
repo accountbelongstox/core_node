@@ -1,20 +1,16 @@
-import { getDefaultBaseURL } from '../../../config/constants';
-import { getSharedBaseURL } from '@/apps/laravel-manager/api';
+import { laravelMediaUrl } from '../../../apps/laravel-manager/network/mediaUrl';
 import type {
   MediaSourceListItem,
   MediaSegment,
   MediaSentence,
   MediaGrain,
 } from '@/apps/laravel-manager/api';
-import type { FileNode } from '../../../types';
+import type { FileNode } from '../../../apps/laravel-manager/uiTypes';
 
 /** Resolve a possibly-relative media/clip/audio URL against the live API base. */
 export function resolveMediaUrl(url: string | undefined | null): string | undefined {
   if (!url) return undefined;
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const base = getSharedBaseURL() || getDefaultBaseURL();
-  if (url.startsWith('/')) return `${base}${url}`;
-  return `${base}/${url}`;
+  return laravelMediaUrl(url);
 }
 
 /** Format seconds as m:ss (or h:mm:ss). */

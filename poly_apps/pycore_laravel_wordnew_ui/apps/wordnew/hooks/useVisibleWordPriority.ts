@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
 
 const FLUSH_DELAY_MS = 250;
 const VISIBLE_PRIORITY = 200;
@@ -35,7 +36,7 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
   const flushRef = useRef<() => void>(() => {});
   flushRef.current = () => {
     timerRef.current = null;
-    const rows = Array.from(pendingRef.current.values()).slice(0, MAX_BATCH_SIZE);
+    const rows = Array.from<PendingVisibleWord>(pendingRef.current.values()).slice(0, MAX_BATCH_SIZE);
     for (const row of rows) pendingRef.current.delete(row.queueKey);
     if (rows.length === 0) return;
     const translationWords = rows.filter((row) => !row.hasTranslation).map((row) => row.word);
@@ -53,7 +54,7 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       ));
     }
     if (audioWords.length > 0) {
-      requests.push(pycoreApi.prioritizeWordAudioWords(audioWords, languageRef.current));
+      requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, languageRef.current));
     }
     if (imageItems.length > 0) requests.push(pycoreApi.prioritizeWordImages(imageItems));
     void Promise.allSettled(requests).finally(() => {

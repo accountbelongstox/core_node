@@ -12,6 +12,7 @@ import {
   WORKER_PATHS,
   TRANSLATION_QUEUE_PATHS,
   taskPath,
+  workerTaskPath,
 } from '@/utils/api-paths';
 import {
   PRIORITY_FAST,
@@ -97,6 +98,7 @@ export class WorkerApiClient extends BaseApiClient {
    * whether to fire an immediate fast re-poll.
    */
   async pullTasks(
+    taskType: string,
     workerId?: string,
     options: {
       limit?: number;
@@ -122,7 +124,7 @@ export class WorkerApiClient extends BaseApiClient {
     const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
 
     return this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
-      WORKER_PATHS.TASKS_PULL,
+      workerTaskPath(taskType, 'pull'),
       {
         worker_id: id,
         // Always send wait; a missing wait uses Laravel's central long-poll limit.
@@ -140,7 +142,7 @@ export class WorkerApiClient extends BaseApiClient {
   /**
    * Accept a task
    */
-  async acceptTask(taskId: string, workerId?: string): Promise<ApiResponse<null>> {
+  async acceptTask(taskType: string, taskId: string, workerId?: string): Promise<ApiResponse<null>> {
     const id = workerId || this.workerId;
 
     if (!id) {
@@ -148,7 +150,7 @@ export class WorkerApiClient extends BaseApiClient {
     }
 
     return this.post<null>(
-      WORKER_PATHS.TASKS_ACCEPT,
+      workerTaskPath(taskType, 'accept'),
       { task_id: taskId, worker_id: id },
       CONTROL_RPC_OPTS,
     );
@@ -157,7 +159,7 @@ export class WorkerApiClient extends BaseApiClient {
   /**
    * Submit task result
    */
-  async submitResult(result: TaskResult): Promise<ApiResponse<WorkerSubmitOutcome | null>> {
+  async submitResult(taskType: string, result: TaskResult): Promise<ApiResponse<WorkerSubmitOutcome | null>> {
     // Ensure worker_id is set
     if (!result.worker_id && this.workerId) {
       result.worker_id = this.workerId;
@@ -168,7 +170,7 @@ export class WorkerApiClient extends BaseApiClient {
     }
 
     return this.post<WorkerSubmitOutcome | null>(
-      WORKER_PATHS.TASKS_RESULT,
+      workerTaskPath(taskType, 'result'),
       result,
       // Configurable timeout (keep retries:0 — the outbox owns durable retry).
       { retries: 0, timeout: getCachedBackendTimeoutMs() },

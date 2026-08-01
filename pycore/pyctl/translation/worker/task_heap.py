@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyctl.tts.sentence_worker_support import SentencePriorityQueue
+from pycore.pyutils.tts.sentence_priority_queue import SentencePriorityQueue
 
 
 class TaskHeap:

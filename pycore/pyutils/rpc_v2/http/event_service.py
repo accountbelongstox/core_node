@@ -319,6 +319,20 @@ class HttpEventService:
 
         stream_events.__annotations__["request"] = self.fastapi.Request
 
+        async def poll_events(
+            client_id: str,
+            since_seq: int = 0,
+            timeout_s: float = SSE_EVENT_WAIT_SECONDS,
+            topics: Optional[str] = None,
+        ) -> Any:
+            result = await self.events.poll(
+                client_id=client_id,
+                since_seq=since_seq,
+                timeout_seconds=timeout_s,
+                topics=topics.split(",") if topics else None,
+            )
+            return self.json_response_type(self.json_encoder(result))
+
         async def acknowledge_events(
             payload: Dict[str, Any] = ack_body,
         ) -> Any:
@@ -333,6 +347,14 @@ class HttpEventService:
             stream_events,
             methods=["GET"],
             name="sse_event_stream",
+        )
+        # Bounded JSON long-poll variant for stdlib HTTP clients that read the
+        # full body (the SSE stream above never reaches EOF).
+        self.app.add_api_route(
+            f"{self.event_path}/poll",
+            poll_events,
+            methods=["GET"],
+            name="sse_event_poll",
         )
         self.app.add_api_route(
             f"{self.event_path}/ack",

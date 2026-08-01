@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ImagePlus, HardDrive, Calendar, Clock, Wand2, Copy, Download, RefreshCw, Trash2 } from 'lucide-react';
-import { Language, AsyncState, PlaceholderResponse, PlaceholderGenerateRequest } from '../../../types';
+import { Language, AsyncState, PlaceholderResponse, PlaceholderGenerateRequest } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
@@ -412,7 +412,7 @@ const PlaceholderTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
                 </div>
                 <div className="flex items-center gap-1">
                   <a
-                    href={`/api/mcp/v1/placeholders/${item.uuid}/download`}
+                    href={api.mcpV1.placeholderDownloadUrl(item.uuid)}
                     download
                     className="flex-1 p-1.5 rounded text-center text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50"
                     onClick={(e) => e.stopPropagation()}

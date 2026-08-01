@@ -1,5 +1,5 @@
 import React from 'react';
-import { NginxSite, Language } from '../../../types';
+import { NginxSite, Language } from '../../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
 import { Shield, Power, PowerOff, Settings, Eye, Trash2, Clock, FolderX } from 'lucide-react';

@@ -4,7 +4,7 @@ import {
   Upload, RefreshCw, Clock, Trash2, Grid, List as ListIcon, Image, HardDrive,
   Calendar, Search, X, Eye, Download, Copy
 } from 'lucide-react';
-import { Language, AsyncState, Screenshot } from '../../../types';
+import { Language, AsyncState, Screenshot } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { TRANSLATIONS } from '../../../constants';
 import { commonClasses } from '../../../styles/theme';
@@ -253,9 +253,6 @@ const ScreenshotsTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
 
   // Build image URL from screenshot ID using Laravel MCP API
   const getImageUrl = (screenshot: Screenshot): string => {
-    // Get the base URL from the API config
-    const baseUrl = api.mcpV1['baseURL'] || '';
-
     // Extract file extension from mime_type or original_name
     let ext = 'png'; // default
     if (screenshot.mime_type) {
@@ -277,7 +274,7 @@ const ScreenshotsTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
 
     // Use MCP API route with extension for better AI compatibility
     // GET /api/mcp/v1/screenshots/{id}.{ext}
-    return `${baseUrl}/api/mcp/v1/screenshots/${screenshot.id}.${ext}`;
+    return api.mcpV1.screenshotAssetUrl(String(screenshot.id), ext);
   };
 
   const handleViewScreenshot = (screenshot: Screenshot) => {

@@ -9,6 +9,7 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Models\LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
+use App\Services\QueueCenter\QueueCenterService;
 use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 
@@ -574,11 +575,33 @@ class AppQyV1SentenceAudioService
             if ($sentence->has_audio || $sentence->audio !== null) {
                 $sentence->has_audio = false;
                 $sentence->audio = null;
-                $sentence->save();
             }
-            // Priority bump only — pycore tts_sentence_worker claims via tts_priority.
-            // Skip GlobalTask here to avoid racing translation_worker sentence_audio.
-            $this->bumpPriority($resolvedHash, $resolvedLang, false, true, $textTrimmed !== '' ? $textTrimmed : null);
+            // Keep the row state consistent for the report flow / claim
+            // fallback, then let the queue center own ordering: pycore claims
+            // sentence_audio via global_tasks (the old "skip GlobalTask to
+            // avoid racing" workaround is gone).
+            $sentence->tts_requested_at = now();
+            if ($sentence->tts_status !== 'processing') {
+                $sentence->tts_status = 'pending';
+            }
+            $sentence->save();
+            try {
+                app(QueueCenterService::class)->moveToHead(
+                    QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                    QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_SENTENCE_AUDIO, $resolvedLang, $resolvedHash),
+                    [
+                        'text' => (string) $sentence->text,
+                        'language' => $resolvedLang,
+                        'content_id' => $resolvedHash,
+                    ]
+                );
+            } catch (\Throwable $e) {
+                Log::warning('[SentenceAudio] queue-center moveToHead failed', [
+                    'content_id' => $resolvedHash,
+                    'language' => $resolvedLang,
+                    'error' => $e->getMessage(),
+                ]);
+            }
 
             return [
                 'success' => true,

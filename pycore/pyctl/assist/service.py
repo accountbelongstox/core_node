@@ -18,12 +18,11 @@ from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
 from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_service
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyctl.translation.worker.worker import translation_worker_service
-from pycore.pyctl.tts.word_queue_poller_service import tts_queue_poller_service
-from pycore.pyctl.tts.sentence_worker_service import tts_sentence_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
+from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
 
 _LARAVEL_STATUS_TIMEOUT = 6.0
 _RUNTIME_CALLBACKS = (
-    "global_task_worker",
     "translation_worker",
     "translation_queue_monitor",
     "translation_http_event_client",
@@ -158,13 +157,13 @@ def assist_cycle() -> Dict[str, Any]:
             errors.append(f"translation: {exc}")
     if caps.get("tts"):
         try:
-            tts_queue_poller_service.poll_and_process()
+            laravel_word_audio_worker.poll_and_process()
             triggered += 1
         except Exception as exc:  # noqa: BLE001
             errors.append(f"word_audio: {exc}")
     if caps.get("sentence_audio"):
         try:
-            tts_sentence_worker_service.poll_and_process()
+            laravel_sentence_audio_worker.poll_and_process()
             triggered += 1
         except Exception as exc:  # noqa: BLE001
             errors.append(f"sentence_audio: {exc}")

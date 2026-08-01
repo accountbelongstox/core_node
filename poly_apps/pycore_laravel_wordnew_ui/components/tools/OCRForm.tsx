@@ -16,6 +16,7 @@ import { AI_TOOLS } from '../../config/tools.config';
 import ToolWrapper from '../universal/ToolWrapper';
 import HistoryList from '../universal/HistoryList';
 import { commonClasses } from '../../styles/theme';
+import { api } from '@/apps/laravel-manager/api';
 import {
   AI_BODY,
   AI_GRID_2,
@@ -96,7 +97,7 @@ const OCRForm: React.FC = () => {
       // real binary reaches the endpoint.
       let imageFile: File | null = selectedImage;
       if (uploadMode === 'url') {
-        const response = await fetch(imageUrl.trim());
+        const response = await api.http.rawRequest(imageUrl.trim(), { method: 'GET' }, false);
         if (!response.ok) {
           setExtractedText('Could not load the image from that URL.');
           return;

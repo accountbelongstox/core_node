@@ -320,7 +320,7 @@ export const WfNewAdminWords: React.FC<WfNewAdminWordsProps> = ({ activeTheme, t
   };
 
   const runBatch = async (action: WfNewAdminBatchAction): Promise<void> => {
-    const md5s = Array.from(selected);
+    const md5s = Array.from<string>(selected);
     if (md5s.length === 0 || batchBusy) return;
     if (action === 'delete' && !window.confirm(trans('admin.w.batchAsk', { n: md5s.length }))) return;
     setBatchBusy(action);

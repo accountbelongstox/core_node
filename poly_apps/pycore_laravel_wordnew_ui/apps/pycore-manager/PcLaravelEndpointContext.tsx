@@ -104,37 +104,12 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     window.dispatchEvent(new CustomEvent(PYCORE_BROWSER_EVENTS.laravelApiChanged, { detail: { url } }));
   }, []);
 
-  // One-shot follow-up re-list (cached, probe:false) to pick up the fresh
-  // health rows after the server-side background sweep that every list(probe)
-  // kicks off. Guarded so overlapping reloads never stack timers.
-  const sweepFollowUpRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scheduleSweepFollowUp = useCallback(() => {
-    if (sweepFollowUpRef.current) clearTimeout(sweepFollowUpRef.current);
-    sweepFollowUpRef.current = setTimeout(() => {
-      sweepFollowUpRef.current = null;
-      const preparedRows = buildPcPreparedLaravelEndpoints();
-      pycoreLaravelApi.list({
-        probe: false,
-        frontendEndpoints: buildPcPreparedLaravelEndpointUrls(),
-      })
-        .then((r2) => {
-          if (r2 && Array.isArray(r2.endpoints)) {
-            const mergedRows = mergeEndpointRows(r2.endpoints, preparedRows);
-            const nextCurrent = resolveDisplayedCurrent(r2.current || '', mergedRows);
-            setEndpoints(mergedRows);
-            setCurrent(nextCurrent);
-            if (r2.current) writeFeEndpoint(nextCurrent);
-          }
-        })
-        .catch(() => { /* follow-up refresh is best-effort */ });
-    }, 4500);
-  }, []);
-
   const reload = useCallback(async (): Promise<boolean> => {
     setLoading(true);
     try {
       const preparedRows = buildPcPreparedLaravelEndpoints();
       const r = await pycoreLaravelApi.list({
+        probe: false,
         frontendEndpoints: buildPcPreparedLaravelEndpointUrls(),
       });
       if (r && Array.isArray(r.endpoints)) {
@@ -145,7 +120,6 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
         if (r.current) writeFeEndpoint(nextCurrent);
         setError(null);
         setFallback(false);
-        scheduleSweepFollowUp();
         return true;
       }
       throw new Error(r?.error || 'laravel_api.list: malformed response');
@@ -164,7 +138,7 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     } finally {
       setLoading(false);
     }
-  }, [scheduleSweepFollowUp]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,8 +149,13 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      if (sweepFollowUpRef.current) { clearTimeout(sweepFollowUpRef.current); sweepFollowUpRef.current = null; }
     };
+  }, [reload]);
+
+  useEffect(() => {
+    const handlePreparedEndpointsChanged = () => { void reload(); };
+    window.addEventListener('api-endpoints-changed', handlePreparedEndpointsChanged);
+    return () => window.removeEventListener('api-endpoints-changed', handlePreparedEndpointsChanged);
   }, [reload]);
 
   // Subscribe to the server-side broadcast: `laravel_api.select` emits a

@@ -3,6 +3,7 @@
  * worker control; this panel owns engine priority, concurrency and live logs.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactElement } from 'react';
 import { pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '@/apps/pycore-manager/api';
 import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
@@ -11,7 +12,7 @@ import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 const LOG_LIMIT = 1000;
 
-export function PcWordAudioPanel(): JSX.Element {
+export function PcWordAudioPanel(): ReactElement {
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [engine, setEngine] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_ENGINE) || 'edge');

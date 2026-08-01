@@ -93,21 +93,76 @@ SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager
 SELF="${SCRIPT_DIR}/start.sh"
 SERVICE_EXEC_CMD=""
 ARG=""
+HELP_REQUESTED="no"
+SHOW_SUPER_CODE="no"
+STORED_SUPER_CODE=""
 
 # Optional: also bring the nexus-dash UI up as its own background service when this
 # service is registered (idempotent; the UI script owns its own systemd registration).
 INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 
-# Parse service-related arguments (the orchestrator passes these so it never re-prompts).
+print_usage() {
+    echo "Usage: bash ${SELF} [options]"
+    echo ""
+    echo "Options:"
+    echo "  --help, -h          Show this help message and exit."
+    echo "  --show-super-code   Show the last generated super code and exit."
+    echo "  --service           Register and start the background service."
+    echo "  --no-service        Run without registering the background service."
+    echo "  --with-ui           Include the dashboard background service."
+    echo "  --no-ui             Do not include the dashboard background service."
+}
+
+read_stored_super_code() {
+    local stored_code=""
+    if [ ! -f "$INSTALLATION_ACCESS_CODE_FILE" ]; then
+        echo "ERROR: Super code file not found: $INSTALLATION_ACCESS_CODE_FILE" >&2
+        return 1
+    fi
+    stored_code="$(awk '
+        /return[[:space:]]/ { capture = 1 }
+        capture {
+            line = $0
+            while (match(line, /\047[^\047]*\047/)) {
+                code = code substr(line, RSTART + 1, RLENGTH - 2)
+                line = substr(line, RSTART + RLENGTH)
+            }
+            if (index($0, ";")) {
+                print code
+                exit
+            }
+        }
+    ' "$INSTALLATION_ACCESS_CODE_FILE")"
+    if [ -z "$stored_code" ]; then
+        echo "ERROR: Super code could not be read from: $INSTALLATION_ACCESS_CODE_FILE" >&2
+        return 1
+    fi
+    STORED_SUPER_CODE="$stored_code"
+}
+
+# Parse startup arguments (the orchestrator passes service options so it never re-prompts).
 for ARG in "$@"; do
     case "$ARG" in
+        --help|-h) HELP_REQUESTED="yes" ;;
+        --show-super-code) SHOW_SUPER_CODE="yes" ;;
         --service) AS_SERVICE="yes" ;;
         --no-service) AS_SERVICE="no" ;;
         --with-ui) INCLUDE_UI="yes" ;;
         --no-ui) INCLUDE_UI="no" ;;
     esac
 done
+
+if [ "$HELP_REQUESTED" = "yes" ]; then
+    print_usage
+    exit 0
+fi
+
+if [ "$SHOW_SUPER_CODE" = "yes" ]; then
+    read_stored_super_code || exit 1
+    echo "Super code: $STORED_SUPER_CODE"
+    exit 0
+fi
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR" && echo "" && echo "Installation access value: ${GENERATED_ACCESS_CODE}"' EXIT

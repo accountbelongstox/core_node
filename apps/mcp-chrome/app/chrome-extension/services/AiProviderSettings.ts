@@ -32,21 +32,34 @@ export async function setValidityProvider(provider: AiWebProvider): Promise<void
   await localStorage.set(STORAGE_KEYS.AI_VALIDITY_PROVIDER, provider);
 }
 
-/**
- * Language whose unchecked words the validity runner drains. Default 'en'
- * (EN-only per spec); other language codes are opt-in via Settings.
- */
-export async function getValidityLanguage(): Promise<string> {
-  const stored = await localStorage.get<unknown>(STORAGE_KEYS.VALIDITY_LANGUAGE, 'en');
-  return typeof stored === 'string' && /^[a-z]{2,3}(-[a-zA-Z]{2,})?$/i.test(stored.trim())
-    ? stored.trim().toLowerCase()
-    : 'en';
+const LANG_PATTERN = /^[a-z]{2,3}(-[a-z]{2,})?$/;
+
+function normalizeValidityLanguages(value: unknown): string[] {
+  const raw = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
+  const out: string[] = [];
+  for (const item of raw) {
+    const code = String(item || '').trim().toLowerCase();
+    if (LANG_PATTERN.test(code) && !out.includes(code)) out.push(code);
+  }
+  return out;
 }
 
-export async function setValidityLanguage(language: string): Promise<void> {
-  const normalized = String(language || '').trim().toLowerCase();
-  if (!/^[a-z]{2,3}(-[a-z]{2,})?$/.test(normalized)) {
-    throw new Error(`Unsupported validity language: ${language}`);
-  }
-  await localStorage.set(STORAGE_KEYS.VALIDITY_LANGUAGE, normalized);
+/**
+ * Languages whose unchecked words the validity runner drains. MULTI-select
+ * (default ['en'] — EN-only per spec; other codes opt-in via Settings).
+ * Migrates the legacy single-language VALIDITY_LANGUAGE value when present.
+ */
+export async function getValidityLanguages(): Promise<string[]> {
+  const stored = await localStorage.get<unknown>(STORAGE_KEYS.VALIDITY_LANGUAGES, null);
+  const list = normalizeValidityLanguages(stored);
+  if (list.length > 0) return list;
+  const legacy = await localStorage.get<unknown>(STORAGE_KEYS.VALIDITY_LANGUAGE, 'en');
+  const migrated = normalizeValidityLanguages(legacy);
+  return migrated.length > 0 ? migrated : ['en'];
+}
+
+export async function setValidityLanguages(languages: string[]): Promise<void> {
+  const list = normalizeValidityLanguages(languages);
+  if (list.length === 0) throw new Error('Select at least one validity language');
+  await localStorage.set(STORAGE_KEYS.VALIDITY_LANGUAGES, list);
 }

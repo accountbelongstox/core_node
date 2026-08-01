@@ -11,7 +11,7 @@ import { EmptyState } from '../../common';
 import {
   TTSGenerateResponse,
   AsyncState
-} from '../../../types';
+} from '../../../apps/laravel-manager/uiTypes';
 
 interface TtsPlayerPanelProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;

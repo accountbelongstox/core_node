@@ -17,7 +17,7 @@
 import React, { useState } from 'react';
 import { Clapperboard, BookOpen, Film, Code2, RefreshCw, LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { Language, FileNode } from '../../types';
+import type { Language, FileNode } from '../../apps/laravel-manager/uiTypes';
 import type { Segment, Selection } from './media/mbShared';
 import LibraryPanel from './media/LibraryPanel';
 import MbSourceDetail from './media/MbSourceDetail';

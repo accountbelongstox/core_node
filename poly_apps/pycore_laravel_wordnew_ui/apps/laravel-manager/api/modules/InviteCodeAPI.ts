@@ -29,13 +29,6 @@ export interface InviteCodeUsage {
   };
 }
 
-export interface CreateInviteCodeRequest {
-  type: 'admin' | 'super_admin' | 'moderator' | 'user';
-  max_uses: number;
-  expires_at?: string;
-  description?: string;
-}
-
 export interface ValidateInviteCodeResponse {
   valid: boolean;
   data?: {
@@ -47,28 +40,14 @@ export interface ValidateInviteCodeResponse {
 }
 
 export class InviteCodeAPI extends BaseAPI {
-  async list(): Promise<InviteCode[]> {
-    const response = await this.get(LARAVEL_API_ROUTE.inviteCodes.list);
-    return response.data;
-  }
-
   async listPublic(): Promise<InviteCode[]> {
-    const response = await this.get(LARAVEL_API_ROUTE.inviteCodes.public);
-    return response.data;
-  }
-
-  async create(data: CreateInviteCodeRequest): Promise<InviteCode> {
-    const response = await this.post(LARAVEL_API_ROUTE.inviteCodes.list, data);
-    return response.data;
-  }
-
-  async deactivate(id: number): Promise<InviteCode> {
-    const response = await this.post(LARAVEL_API_ROUTE.inviteCodes.deactivate(id));
-    return response.data;
+    const response = await this.get<InviteCode[]>(LARAVEL_API_ROUTE.inviteCodes.public);
+    return response.data ?? [];
   }
 
   async validate(code: string): Promise<ValidateInviteCodeResponse> {
-    const response = await this.post(LARAVEL_API_ROUTE.inviteCodes.validate, { code });
+    const response = await this.post<ValidateInviteCodeResponse>(LARAVEL_API_ROUTE.inviteCodes.validate, { code });
+    if (!response.data) throw new Error(response.error || 'Invite code validation failed');
     return response.data;
   }
 

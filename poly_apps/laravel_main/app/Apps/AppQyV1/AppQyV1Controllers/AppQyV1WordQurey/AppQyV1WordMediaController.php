@@ -16,6 +16,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
+use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -215,21 +216,46 @@ class AppQyV1WordMediaController extends BaseController
                     [$md5]
                 );
                 $row = $updated > 0
-                    ? $conn->selectOne("SELECT tts_priority FROM {$table} WHERE md5 = ?", [$md5])
+                    ? $conn->selectOne("SELECT id, content, tts_priority FROM {$table} WHERE md5 = ?", [$md5])
                     : null;
                 return [
                     'updated' => $updated,
                     'priority' => (int) ($row->tts_priority ?? 0),
+                    'row_id' => (int) ($row->id ?? 0),
+                    'content' => (string) ($row->content ?? ''),
                 ];
             });
             if ($boost['updated'] > 0) {
-                AppQyV1TranslationEventModel::emit('word_audio.priority', [
-                    'md5' => $md5,
-                    'language' => $langCode,
-                    'priority' => $boost['priority'],
-                ]);
+                // Ordering + the word_audio.priority outbox event are owned by
+                // the queue center now (no local emit — that would double-emit).
+                // The row tts_priority ticket above stays: the row-based claim
+                // fallback still orders by it.
+                try {
+                    app(QueueCenterService::class)->moveToHead(
+                        QueueCenterService::QUEUE_WORD_AUDIO,
+                        QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $langCode, $md5),
+                        [
+                            'word' => $boost['content'],
+                            'language' => $langCode,
+                            'md5' => $md5,
+                            'dict_row_id' => $boost['row_id'],
+                        ],
+                        true,
+                        array_filter([
+                            'dict_row_id' => $boost['row_id'] > 0 ? $boost['row_id'] : null,
+                            'dict_language' => $langCode,
+                            'dict_row_table' => $table,
+                        ])
+                    );
+                } catch (\Throwable $e) {
+                    Log::warning('[WordMedia] queue-center boost failed: ' . $e->getMessage());
+                }
             }
-            return response()->json(['success' => true] + $boost);
+            return response()->json([
+                'success' => true,
+                'updated' => $boost['updated'],
+                'priority' => $boost['priority'],
+            ]);
         } catch (\Throwable $e) {
             Log::warning('[WordMedia] boostPriority failed: ' . $e->getMessage());
             return response()->json([
@@ -260,7 +286,14 @@ class AppQyV1WordMediaController extends BaseController
                     continue;
                 }
                 $conn = $dictModel->getConnection();
-                $rows = $conn->transaction(function () use ($conn, $table, $md5s, $language): array {
+                // Prefetch row identity once per language so each boosted item
+                // can be handed to the queue center without per-item selects.
+                $placeholders = implode(',', array_fill(0, count($md5s), '?'));
+                $rowMap = [];
+                foreach ($conn->select("SELECT id, md5, content FROM {$table} WHERE md5 IN ({$placeholders})", $md5s) as $mapRow) {
+                    $rowMap[$mapRow->md5] = $mapRow;
+                }
+                $rows = $conn->transaction(function () use ($conn, $table, $md5s, $language, $rowMap): array {
                     AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
                     $head = $conn->selectOne("SELECT COALESCE(MAX(tts_priority), 0) AS priority FROM {$table}");
                     $ticket = (int) ($head->priority ?? 0) + count($md5s);
@@ -272,7 +305,14 @@ class AppQyV1WordMediaController extends BaseController
                             [$priority, $md5]
                         );
                         if ($updated > 0) {
-                            $result[] = ['md5' => $md5, 'language' => $language, 'priority' => $priority];
+                            $result[] = [
+                                'md5' => $md5,
+                                'language' => $language,
+                                'priority' => $priority,
+                                'row_id' => (int) ($rowMap[$md5]->id ?? 0),
+                                'content' => (string) ($rowMap[$md5]->content ?? ''),
+                                'row_table' => $table,
+                            ];
                         }
                     }
                     return $result;
@@ -280,16 +320,50 @@ class AppQyV1WordMediaController extends BaseController
                 $boosted = array_merge($boosted, $rows);
             }
             if (!empty($boosted)) {
+                // Queue center owns ordering now: move each boosted word to the
+                // head of word_audio (per-item outbox events suppressed so a
+                // batch cannot storm the outbox), then ONE aggregate wake event.
+                $queueCenter = app(QueueCenterService::class);
+                foreach ($boosted as $item) {
+                    try {
+                        $queueCenter->moveToHead(
+                            QueueCenterService::QUEUE_WORD_AUDIO,
+                            QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $item['language'], $item['md5']),
+                            [
+                                'word' => $item['content'],
+                                'language' => $item['language'],
+                                'md5' => $item['md5'],
+                                'dict_row_id' => $item['row_id'],
+                            ],
+                            false,
+                            array_filter([
+                                'dict_row_id' => $item['row_id'] > 0 ? $item['row_id'] : null,
+                                'dict_language' => $item['language'],
+                                'dict_row_table' => $item['row_table'],
+                            ])
+                        );
+                    } catch (\Throwable $e) {
+                        Log::warning('[WordMedia] queue-center batch boost item failed', [
+                            'md5' => $item['md5'],
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                }
+                $publicItems = array_map(static fn (array $i): array => [
+                    'md5' => $i['md5'],
+                    'language' => $i['language'],
+                    'priority' => $i['priority'],
+                ], $boosted);
                 AppQyV1TranslationEventModel::emit('word_audio.priority', [
                     'batch' => true,
                     'count' => count($boosted),
-                    'items' => $boosted,
+                    'items' => $publicItems,
                 ]);
             }
             return response()->json([
                 'success' => true,
                 'count' => count($boosted),
-                'items' => $boosted,
+                'items' => $publicItems ?? [],
             ]);
         } catch (\Throwable $e) {
             Log::warning('[WordMedia] boostPriorityBatch failed: ' . $e->getMessage());

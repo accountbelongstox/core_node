@@ -8,3 +8,5 @@ export type { LoadingSpinnerProps } from './LoadingSpinner';
 export { default as GlobalLogPanel } from './GlobalLogPanel';
 export { default as LaravelLogPanel } from './LaravelLogPanel';
 export { default as Portal } from './Portal';
+export { CenteredPage, CenteredTabBar } from './CenteredPageLayout';
+export type { CenteredTabItem } from './CenteredPageLayout';

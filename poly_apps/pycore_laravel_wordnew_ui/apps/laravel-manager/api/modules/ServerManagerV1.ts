@@ -1,5 +1,7 @@
 import { BaseAPI } from '../base/BaseAPI';
-import { APIResponse, NginxSite } from '../../types';
+import { APIResponse } from '../../types';
+import type { NginxSite } from '../../uiTypes';
+import { LARAVEL_API_ROUTE } from '../ApiContract';
 
 type NginxSiteType = NginxSite['site_type'];
 
@@ -18,7 +20,7 @@ const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
   }
 
   return {
-    ...(site as NginxSite),
+    ...(site as unknown as NginxSite),
     site_name: siteName,
     domain: String(site.domain ?? serverNames[0] ?? siteName),
     site_type: siteType,
@@ -114,7 +116,7 @@ export class ServerManagerV1API extends BaseAPI {
     // Accept either a bare path or a { path } object (the generic UnifiedToolsPage
     // renderer passes a single object built from the tool's inputSchema).
     const path = (arg !== null && typeof arg === 'object') ? arg.path : arg;
-    const response = await this.get('/files/browse', { path });
+    const response = await this.get(LARAVEL_API_ROUTE.serverFiles.browse, { path });
     const data = response.data as any;
     if (response.success && data && Array.isArray(data.items)) {
       data.items = data.items.map((item: any) => ({
@@ -127,15 +129,15 @@ export class ServerManagerV1API extends BaseAPI {
 
   // Backend reads `file_path` for download/info/preview (only /files/browse reads `path`).
   async downloadFile(path: string): Promise<APIResponse> {
-    return this.get('/files/download', { file_path: path });
+    return this.get(LARAVEL_API_ROUTE.serverFiles.download, { file_path: path });
   }
 
   async getFileInfo(path: string): Promise<APIResponse> {
-    return this.get('/files/info', { file_path: path });
+    return this.get(LARAVEL_API_ROUTE.serverFiles.info, { file_path: path });
   }
 
   async previewFile(path: string, options?: { forEdit?: boolean; maxLines?: number }): Promise<APIResponse> {
-    return this.get('/files/preview', {
+    return this.get(LARAVEL_API_ROUTE.serverFiles.preview, {
       file_path: path,
       for_edit: options?.forEdit ? 1 : undefined,
       max_lines: options?.maxLines,
@@ -149,7 +151,7 @@ export class ServerManagerV1API extends BaseAPI {
     encoding?: string
   ): Promise<APIResponse> {
     return this.request({
-      url: '/files/write',
+      url: LARAVEL_API_ROUTE.serverFiles.write,
       method: 'POST',
       data: { file_path: path, content, encoding: encoding || undefined },
       headers: elevatedToken ? { 'X-Elevated-Token': elevatedToken } : undefined,
@@ -157,24 +159,24 @@ export class ServerManagerV1API extends BaseAPI {
   }
 
   async elevatedAuth(password: string): Promise<APIResponse> {
-    return this.post('/files/elevated-auth', { password });
+    return this.post(LARAVEL_API_ROUTE.serverFiles.elevatedAuth, { password });
   }
 
   async revokeElevatedAuth(token?: string | null): Promise<APIResponse> {
     return this.request({
-      url: '/files/elevated-auth',
+      url: LARAVEL_API_ROUTE.serverFiles.elevatedAuth,
       method: 'DELETE',
       headers: token ? { 'X-Elevated-Token': token } : undefined,
     });
   }
 
   async downloadFileBlob(path: string): Promise<Blob> {
-    const url = this.addQueryParams(this.buildURL('/files/download'), { file_path: path });
-    const response = await fetch(url, {
+    const url = this.addQueryParams(this.buildURL(LARAVEL_API_ROUTE.serverFiles.download), { file_path: path });
+    const response = await this.rawRequest(url, {
       method: 'GET',
-      headers: this.resolveRequestHeaders({
+      headers: {
         'Cache-Control': 'no-cache',
-      }),
+      },
     });
 
     if (!response.ok) {

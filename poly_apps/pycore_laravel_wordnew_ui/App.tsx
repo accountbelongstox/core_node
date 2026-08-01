@@ -5,10 +5,8 @@ import MediaHub from './components/views/MediaHub';
 import { UnifiedToolsPage } from './components/views/UnifiedToolsPage';
 import ApiTester from './components/views/ApiTester';
 import VocabularyLearning from './components/views/VocabularyLearning';
-import AITools from './components/views/AITools';
 import AiManagement from './components/views/AiManagement';
 import WordAudioCapability from './components/views/WordAudioCapability';
-import DevHistory from './components/views/DevHistory';
 import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
 import DatabaseManager from './components/views/DatabaseManager';
@@ -16,20 +14,18 @@ import Settings from './components/views/Settings';
 import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
 import { HtmlErrorModal } from './components/HtmlErrorModal';
-import { ApiConfigProvider } from './contexts/ApiConfigContext';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
-import { ToastProvider, InviteCodeManager } from './components/admin';
+import { ToastProvider } from './components/admin';
 import { api } from '@/apps/laravel-manager/api';
 import { userModel } from './apps/laravel-manager/models/UserModel';
 import { useUser } from './hooks/useUser';
-import { ViewType } from './types';
+import { ViewType } from './apps/laravel-manager/uiTypes';
 import { useTranslation } from 'react-i18next';
-import { APP_NAME } from './constants';
 import { getRequireLoginMessage, isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import i18n from './apps/laravel-manager/i18n';
-import { htmlErrorManager, HtmlErrorEvent } from './services/HtmlErrorManager';
-import { apiManager } from './services/ApiManager';
-import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './services/ApiHealthRecheck';
+import { htmlErrorManager, HtmlErrorEvent } from './apps/laravel-manager/services/HtmlErrorManager';
+import { apiManager } from './apps/laravel-manager/services/ApiManager';
+import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './apps/laravel-manager/services/ApiHealthRecheck';
 import { OfflineBanner, GlobalLogPanel, LaravelLogPanel } from './components/shared';
 import { subscribeGlobalLoginRequest } from './apps/laravel-manager/auth/loginModalBridge';
 
@@ -224,8 +220,6 @@ const AppContent: React.FC = () => {
     );
   };
 
-  const inviteCodesTitle = t('header.titles.invite_codes');
-
   const renderView = () => {
     switch (activeView) {
       // Unified "Resources" hub: Movies & Books (#/movies-books) + Files
@@ -249,14 +243,10 @@ const AppContent: React.FC = () => {
         return <ApiTester lang={lang} />;
       case ViewType.VOCABULARY:
         return <VocabularyLearning />;
-      case ViewType.AI_TOOLS:
-        return <AITools />;
       case ViewType.AI_MANAGEMENT:
         return <AiManagement />;
       case ViewType.WORD_AUDIO:
         return <WordAudioCapability />;
-      case ViewType.DEV_HISTORY:
-        return <DevHistory lang={lang} />;
       // MCP Manager was dismantled; its features moved into Tools / Task Center
       // / AI Tools. #/mcp redirects to Tools (viewRoute); this is a safety net.
       case ViewType.MCP_MANAGER:
@@ -272,8 +262,6 @@ const AppContent: React.FC = () => {
         return wrapWithAuthGuard(ViewType.SERVER_MANAGER, <ServerManager lang={lang} />);
       case ViewType.SETTINGS:
         return wrapWithAuthGuard(ViewType.SETTINGS, <Settings lang={lang} />);
-      case ViewType.INVITE_CODE_MANAGER:
-        return wrapWithAuthGuard(ViewType.INVITE_CODE_MANAGER, <InviteCodeManager lang={lang} />);
       case ViewType.DATABASE_MANAGER:
         return wrapWithAuthGuard(ViewType.DATABASE_MANAGER, <DatabaseManager lang={lang} />);
       default:
@@ -283,31 +271,6 @@ const AppContent: React.FC = () => {
              <p>Module Not Initialized</p>
           </div>
         );
-    }
-  };
-
-  const getPageTitle = () => {
-    switch (activeView) {
-      case ViewType.MEDIA_BROWSER:
-      case ViewType.MOVIES_BOOKS:
-      case ViewType.CODE_BROWSER: return t('header.titles.media');
-      case ViewType.TOOLS: return t('header.titles.tools');
-      case ViewType.API_TESTER: return t('header.titles.api');
-      case ViewType.VOCABULARY: return t('header.titles.vocabulary');
-      case ViewType.AI_TOOLS: return t('header.titles.ai_tools');
-      case ViewType.AI_MANAGEMENT: return t('header.titles.ai_management');
-      case ViewType.WORD_AUDIO: return t('header.titles.word_audio');
-      case ViewType.DEV_HISTORY: return t('header.titles.dev_history');
-      case ViewType.MCP_MANAGER: return t('header.titles.tools');
-      case ViewType.TASK_CENTER:
-      case ViewType.OCTANE_TASKS:
-      case ViewType.GLOBAL_TASKS:
-        return t('header.titles.task_center');
-      case ViewType.SERVER_MANAGER: return t('header.titles.server');
-      case ViewType.INVITE_CODE_MANAGER: return inviteCodesTitle;
-      case ViewType.DATABASE_MANAGER: return t('header.titles.db_manager');
-      case ViewType.SETTINGS: return t('header.titles.settings');
-      default: return APP_NAME;
     }
   };
 
@@ -349,7 +312,6 @@ const AppContent: React.FC = () => {
         {/* Right area: offset by fixed sidebar width; only this column scrolls (header sticky, content scrolls) */}
         <main className="flex-1 flex flex-col min-w-0 min-h-0 pl-14 md:pl-16 bg-transparent relative overflow-x-hidden">
           <TopHeader
-            pageTitle={getPageTitle()}
             isLoggedIn={isLoggedIn}
             onAuthClick={handleAuthAction}
           />
@@ -393,15 +355,13 @@ const AppContent: React.FC = () => {
   );
 };
 
-// Main App Component with AppStateProvider, ApiConfigProvider and ToastProvider
+// Main App Component with the Laravel Manager state and notification providers.
 const App: React.FC = () => {
   return (
     <AppStateProvider>
-      <ApiConfigProvider>
-        <ToastProvider>
-          <AppContent />
-        </ToastProvider>
-      </ApiConfigProvider>
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </AppStateProvider>
   );
 };

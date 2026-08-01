@@ -1,4 +1,4 @@
-import { ApiInfoEndpoint, ApiInfoParsedEndpoint, ApiInfoParam, ApiInfoResponse } from '../types';
+import { ApiInfoEndpoint, ApiInfoParsedEndpoint, ApiInfoParam, ApiInfoResponse } from '../apps/laravel-manager/uiTypes';
 
 /**
  * Parse feature string format:

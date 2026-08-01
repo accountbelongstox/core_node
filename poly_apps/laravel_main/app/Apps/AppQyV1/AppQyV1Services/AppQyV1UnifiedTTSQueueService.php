@@ -393,9 +393,61 @@ class AppQyV1UnifiedTTSQueueService
 
         $status = $this->markRowPending($dictEntry, $position);
 
-        // Phase 5 dual-write: mirror the pending audio row as a linked GlobalTask
-        // (flag-gated, best-effort) so the unified task system tracks it.
-        $this->maybeCreateGlobalAudioTask($dictEntry, $language, 'word_audio', $position === 'beginning');
+        // The queue center owns the word_audio global task now (deduped by
+        // group_key); the flag-gated Phase 5 dual-write is superseded for
+        // word_audio. Best-effort — never breaks the enqueue path.
+        try {
+            $queueCenter = app(\App\Services\QueueCenter\QueueCenterService::class);
+            $dedupKey = \App\Services\QueueCenter\QueueCenterService::dedupKeyFor(
+                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                $language,
+                $contentHash
+            );
+            $queuePayload = [
+                'word' => $content,
+                'language' => $language,
+                'md5' => $contentHash,
+                'dict_row_id' => (int) $dictEntry->id,
+            ];
+            $queueLinks = [
+                'dict_row_id' => (int) $dictEntry->id,
+                'dict_language' => $language,
+                'dict_row_table' => $dictEntry->getTable(),
+            ];
+            if ($position === 'beginning') {
+                $queueResult = $queueCenter->moveToHead(
+                    \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                    $dedupKey,
+                    $queuePayload,
+                    true,
+                    $queueLinks
+                );
+                $queueTaskId = (string) ($queueResult['task_id'] ?? '');
+            } else {
+                $queueResult = $queueCenter->enqueue(
+                    \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                    $queuePayload,
+                    $dedupKey,
+                    false,
+                    $queueLinks,
+                    min((int) ($dictEntry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
+                    300
+                );
+                $queueTaskId = (string) $queueResult['task']->task_id;
+            }
+            if ($queueTaskId !== '') {
+                // Link the canonical row to its queue-center task (same column
+                // the retired dual-write maintained).
+                $dictEntry->tts_global_task_id = $queueTaskId;
+                $dictEntry->save();
+            }
+        } catch (\Throwable $e) {
+            Log::warning('[AppQyV1UnifiedTTSQueueService] queue-center word_audio ensure failed', [
+                'dict_row_id' => $dictEntry->id ?? null,
+                'language' => $language,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $this->clearQueueCache();
 
@@ -567,9 +619,13 @@ class AppQyV1UnifiedTTSQueueService
      * path's syncToDictRow() projects status back (fill-missing), and double
      * synthesis is guarded by TaskManagerService::claimAudioLock().
      *
+     * word_audio no longer uses this path — the queue center
+     * (App\Services\QueueCenter\QueueCenterService) owns word-audio tasks;
+     * article_audio still dual-writes here.
+     *
      * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
      * @param string $language Language code
-     * @param string $taskType 'word_audio' | 'article_audio'
+     * @param string $taskType 'article_audio' (word_audio moved to the queue center)
      */
     private function maybeCreateGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
     {
@@ -580,17 +636,18 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Create an idempotent word_audio/article_audio GlobalTask linked to a
-     * canonical row. Pycore or the enabled Chrome Qwen3-TTS worker may consume
-     * the shared audio lane. Ungated variant of maybeCreateGlobalAudioTask:
-     * used by the timer's API-miss delegation path, where Laravel MUST drive the
-     * task unconditionally (Laravel drives, pycore generates). Best-effort and
-     * idempotent - skips when an active linked task already exists and never
-     * throws into the caller.
+     * Create an idempotent article_audio GlobalTask linked to a canonical row.
+     * Pycore or the enabled Chrome Qwen3-TTS worker may consume the shared
+     * audio lane. Ungated variant of maybeCreateGlobalAudioTask. Best-effort
+     * and idempotent - skips when an active linked task already exists and
+     * never throws into the caller.
+     *
+     * word_audio no longer passes through here — the queue center
+     * (App\Services\QueueCenter\QueueCenterService) owns word-audio tasks.
      *
      * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
      * @param string $language Language code
-     * @param string $taskType 'word_audio' | 'article_audio'
+     * @param string $taskType 'article_audio' (word_audio moved to the queue center)
      */
     private function ensureGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
     {
@@ -1454,11 +1511,45 @@ class AppQyV1UnifiedTTSQueueService
                     // API miss: drive the pycore word_audio lane and release the
                     // claim. This is a delegation, not a failure - the retry
                     // budget is NOT consumed and tts_status returns to pending so
-                    // pycore (or a later API hit) can own the row.
+                    // pycore (or a later API hit) can own the row. The queue
+                    // center owns the word_audio global task (deduped by
+                    // group_key); the old direct ensureGlobalAudioTask dual-write
+                    // is superseded for word_audio.
                     if (!$knownMiss) {
                         Cache::put($missCacheKey, true, now()->addMinutes(30));
                     }
-                    $this->ensureGlobalAudioTask($entry, $lang, 'word_audio', false);
+                    try {
+                        $missQueueResult = app(\App\Services\QueueCenter\QueueCenterService::class)->enqueue(
+                            \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                            [
+                                'word' => (string) ($entry->content ?? ''),
+                                'language' => $lang,
+                                'md5' => (string) ($entry->md5 ?? ''),
+                                'dict_row_id' => (int) $entry->id,
+                            ],
+                            \App\Services\QueueCenter\QueueCenterService::dedupKeyFor(
+                                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                                $lang,
+                                (string) ($entry->md5 ?? '')
+                            ),
+                            false,
+                            [
+                                'dict_row_id' => (int) $entry->id,
+                                'dict_language' => $lang,
+                                'dict_row_table' => $entry->getTable(),
+                            ],
+                            min((int) ($entry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
+                            300
+                        );
+                        $entry->tts_global_task_id = (string) $missQueueResult['task']->task_id;
+                        $entry->save();
+                    } catch (\Throwable $e) {
+                        Log::warning('[UnifiedTTSQueue] queue-center word_audio delegation failed', [
+                            'dict_row_id' => $entry->id ?? null,
+                            'language' => $lang,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
                     $this->releaseWordProcessingClaim($entry);
 
                     if ($knownMiss) {

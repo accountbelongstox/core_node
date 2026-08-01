@@ -1,12 +1,14 @@
 /**
  * Priority-boost hooks for wordnew reader / shelf / library surfaces.
- * Fire-and-forget POSTs to Laravel bump-batch / translation stack — failures
- * never block the UI (per-cell / per-word pollers still cover missing media).
+ * Audio priority goes through the shared queue center straight to Laravel,
+ * which owns the queue and notifies the pycore worker itself. Translation
+ * stacking remains a direct Laravel command. Failures never block the UI.
  */
 import { useEffect, useRef } from 'react';
 import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { postJSON } from '../api/WfNewApiTransport';
 import { wfNewSettings } from '../WfNewSettingsStore';
+import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
 
 const READER_DEBOUNCE_MS = 150;
 const DEFAULT_STACK_PRIORITY = 100;
@@ -48,10 +50,7 @@ export function useReaderPriorityBoost(
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       lastSigRef.current = sig;
-      void postJSON(WfNewApiPaths.sentenceBumpBatch, {
-        items,
-        interactive: true,
-      }).catch((e) => {
+      void wordNewAudioQueueCenter.prioritizeSentences(items).catch((e) => {
         console.warn('[wordnew] sentence bump-batch failed', e);
       });
     }, READER_DEBOUNCE_MS);
@@ -103,10 +102,7 @@ export function useShelfPriorityBoost(
     bumpedKeyRef.current = sig;
 
     if (items.length) {
-      void postJSON(WfNewApiPaths.sentenceBumpBatch, {
-        items,
-        interactive: true,
-      }).catch((e) => {
+      void wordNewAudioQueueCenter.prioritizeSentences(items).catch((e) => {
         console.warn('[wordnew] shelf sentence bump-batch failed', e);
       });
     }

@@ -1,4 +1,4 @@
-import { Language, Theme } from '../../../types';
+import { Language, Theme } from '../uiTypes';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
 

@@ -32,9 +32,16 @@ def register_local_task_history_routes(server):
         
     server.post(path=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler)
 
+    def sync_completed_archive_handler(params, request_id, context):
+        return completed_task_archive.sync_page(
+            limit=params.get("limit", 200),
+            cursor_id=params.get("cursor_id", 0),
+            task_type=params.get("task_type"),
+        )
+
     server.post(
         path=UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
-        handler=completed_task_archive.sync_all,
+        handler=sync_completed_archive_handler,
     )
 
     def completed_archive_resource_handler(params, request_id, context):

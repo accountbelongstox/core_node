@@ -102,6 +102,10 @@ $npxCmd = $null
 $InstallationAccessCodeFile = Join-Path $LaravelDir "app\Support\InstallationAccessCode.php"
 $GeneratedAccessCode = $null
 $AccessCodeWriteError = $null
+$Argument = $null
+$HelpRequested = $false
+$ShowSuperCode = $false
+$StoredSuperCode = $null
 # Laravel runtime directories that MUST exist and be writable. Git does not track
 # empty dirs, so a fresh checkout/restore can miss these -> package:discover fails
 # with "bootstrap/cache directory must be present and writable".
@@ -115,6 +119,63 @@ $LaravelRuntimeDirs = @(
     "storage\app\public",
     "storage\app\private"
 )
+
+function Show-Usage {
+    Write-Host "Usage: powershell -File `"$SelfScript`" [options]"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  --help, -h          Show this help message and exit."
+    Write-Host "  --show-super-code   Show the last generated super code and exit."
+}
+
+function Get-StoredInstallationAccessCode {
+    param(
+        [Parameter(Mandatory = $true)][string]$FilePath
+    )
+    $source = $null
+    $returnMatch = $null
+    $literalMatches = $null
+    $accessCode = $null
+
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        throw "Super code file not found: $FilePath"
+    }
+    $source = [System.IO.File]::ReadAllText($FilePath)
+    $returnMatch = [regex]::Match($source, 'return\s+(?<expression>.*?);', [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $returnMatch.Success) {
+        throw "Super code return expression not found in: $FilePath"
+    }
+    $literalMatches = [regex]::Matches($returnMatch.Groups["expression"].Value, "'(?<value>[^']*)'")
+    if ($literalMatches.Count -eq 0) {
+        throw "Super code could not be read from: $FilePath"
+    }
+    $accessCode = ($literalMatches | ForEach-Object { $_.Groups["value"].Value }) -join ""
+    return $accessCode
+}
+
+foreach ($Argument in $args) {
+    switch ($Argument) {
+        "--help" { $HelpRequested = $true }
+        "-h" { $HelpRequested = $true }
+        "--show-super-code" { $ShowSuperCode = $true }
+    }
+}
+
+if ($HelpRequested) {
+    Show-Usage
+    exit 0
+}
+
+if ($ShowSuperCode) {
+    try {
+        $StoredSuperCode = Get-StoredInstallationAccessCode -FilePath $InstallationAccessCodeFile
+        Write-Host "Super code: $StoredSuperCode" -ForegroundColor Yellow
+        exit 0
+    } catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+}
 
 # Shared native PostgreSQL manager (single source of truth with the DevInstaller
 # Step17_InstallPostgreSQL.ps1). Provides Ensure-Postgresql + Test-PgPortOpen.

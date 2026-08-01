@@ -2,8 +2,8 @@
 import React, { useState } from 'react';
 import BentoCard from '../BentoCard';
 import { RefreshCw, Copy, Check, Cloud, Zap } from "lucide-react";
-import { ToolConnectionConfig } from '../../types';
-import { apiClient } from '../../services/api';
+import { ToolConnectionConfig } from '../../apps/laravel-manager/uiTypes';
+import { toolDemoService } from '../../apps/laravel-manager/services/ToolDemoService';
 
 interface PasswordGeneratorProps {
   config: ToolConnectionConfig;
@@ -22,7 +22,7 @@ const PasswordGenerator: React.FC<PasswordGeneratorProps> = ({ config }) => {
 
   const generatePassword = async () => {
     setIsProcessing(true);
-    const res = await apiClient.executeToolAction('ut4', 'gen', {
+    const res = await toolDemoService.executeToolAction('ut4', 'gen', {
         length, upper: includeUpper, lower: includeLower, numbers: includeNumbers, symbols: includeSymbols
     }, config);
     setIsProcessing(false);

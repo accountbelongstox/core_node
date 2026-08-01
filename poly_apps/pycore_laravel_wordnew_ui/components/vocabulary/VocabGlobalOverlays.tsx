@@ -6,7 +6,7 @@ import PaginatedListModal, { type PaginatedListColumn, type PaginatedListFetcher
 import Portal from '../shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../styles/overlay';
 import { ConfirmModal } from '../admin';
-import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../types';
+import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../apps/laravel-manager/uiTypes';
 
 /** Drill-down descriptor shared by every clickable stat (see container). */
 interface StatDrill {

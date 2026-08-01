@@ -8,7 +8,7 @@ import {
 } from '../WfNewApiTransport';
 import {
   toPost, toComment, toLive, toLiveMsg, toMessage, toNotification,
-  asArray, decorate, toWord, fetchGroups, logContentFallback, normPresence,
+  absUrl, asArray, decorate, toWord, fetchGroups, logContentFallback, normPresence,
 } from '../WfNewApiMappers';
 import type {
   WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity,

@@ -1,18 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useApiConfig } from '../../contexts/ApiConfigContext';
+import { useLaravelApiConfig } from '@/apps/laravel-manager/stores/LaravelApiConfigStore';
 import { useAppState } from '../../contexts/AppStateContext';
-import { Language } from '../../types';
+import { Language } from '../../apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '../../constants';
 import { Settings as SettingsIcon, Save, RotateCcw, CheckCircle, AlertCircle, Globe, Key, Shield, User, Server, Database, Code, Info, Mail, HardDrive, Clock, Lock, Bell, Palette, Languages, Upload, Eye, EyeOff, Trash2, Download, Plus, RefreshCw, Moon, Sun } from 'lucide-react';
 import { commonClasses } from '../../styles/theme';
 import { InlineSpinner, LoadingBlock, AlertBox, Field } from '../common';
 import { useUser } from '../../hooks/useUser';
 import { useUserRole } from '../../hooks/useUserRole';
+import { normalizeLaravelUser, resolveRoleLevel, resolveRoleName } from '@/apps/laravel-manager/auth/UserIdentity';
 import { api } from '@/apps/laravel-manager/api';
 import { ServerConfig, EnvironmentInfo } from '@/apps/laravel-manager/api';
+import { userModel } from '@/apps/laravel-manager/models/UserModel';
 import { getOriginUrl } from '../../config/constants';
-import { apiManager, HealthCheckResult } from '../../services/ApiManager';
-import { recheckApiEndpointsNow } from '../../services/ApiHealthRecheck';
+import { apiManager, HealthCheckResult } from '../../apps/laravel-manager/services/ApiManager';
+import { recheckApiEndpointsNow } from '../../apps/laravel-manager/services/ApiHealthRecheck';
+import { CenteredPage, CenteredTabBar } from '../shared';
 import {
   BackendApiEndpoint, addCustomEndpoint, removeCustomEndpoint, isCustomEndpoint, buildApiUrl,
 } from '../../config/api-endpoints';
@@ -23,10 +26,28 @@ interface SettingsProps {
 
 type SettingsTab = 'server' | 'user' | 'api' | 'other';
 
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const AVATAR_ACCEPT = 'image/png,image/jpeg,image/jpg,image/webp';
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error('Failed to read image'));
+    };
+    reader.onerror = () => reject(new Error('Failed to read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
 const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const { lang, theme, setLang, setTheme } = useAppState();
-  const { config, updateConfig, resetConfig } = useApiConfig();
-  const { user, refreshState } = useUser();
+  const { config, updateConfig, resetConfig } = useLaravelApiConfig();
+  const { user, refreshUser } = useUser();
   const { isAdmin, isSuperAdmin, roleLevel, roleName } = useUserRole();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('user');
@@ -112,7 +133,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       port: addPort.trim() ? Number(addPort) : undefined,
       description: addDesc,
     });
-    if (!res.ok) { setAddError(res.error); return; }
+    if (res.ok === false) { setAddError(res.error); return; }
     setAddUrl(''); setAddDesc(''); setAddError(null);
     window.dispatchEvent(new CustomEvent('api-endpoints-changed'));
     reloadEndpoints();
@@ -155,6 +176,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarUploadStatus, setAvatarUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [avatarError, setAvatarError] = useState<string | null>(null);
   
   // Other Settings State
   // theme / setTheme come from useAppState() above (global app theme); a local
@@ -175,7 +197,45 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
     saved: 'Settings saved successfully',
     reset_success: 'Settings reset to default',
     test_success: 'Connection successful',
-    test_error: 'Connection failed'
+    test_error: 'Connection failed',
+    profile: {
+      title: 'User Profile',
+      avatar: 'Avatar',
+      upload_avatar: 'Upload Avatar',
+      change_avatar: 'Change Avatar',
+      avatar_hint: 'JPG, PNG or WebP. Max 5 MB.',
+      avatar_updated: 'Avatar updated successfully',
+      avatar_failed: 'Failed to update avatar',
+      avatar_too_large: 'Image must be 5 MB or smaller',
+      avatar_invalid_type: 'Unsupported image type',
+      current_password: 'Current Password',
+      new_password: 'New Password',
+      confirm_password: 'Confirm Password',
+      change_password: 'Change Password',
+      password_changed: 'Password changed successfully',
+      password_failed: 'Failed to change password',
+      password_mismatch: 'New passwords do not match',
+      password_required: 'All password fields are required'
+    }
+  };
+  const tp = t.profile || {
+    title: 'User Profile',
+    avatar: 'Avatar',
+    upload_avatar: 'Upload Avatar',
+    change_avatar: 'Change Avatar',
+    avatar_hint: 'JPG, PNG or WebP. Max 5 MB.',
+    avatar_updated: 'Avatar updated successfully',
+    avatar_failed: 'Failed to update avatar',
+    avatar_too_large: 'Image must be 5 MB or smaller',
+    avatar_invalid_type: 'Unsupported image type',
+    current_password: 'Current Password',
+    new_password: 'New Password',
+    confirm_password: 'Confirm Password',
+    change_password: 'Change Password',
+    password_changed: 'Password changed successfully',
+    password_failed: 'Failed to change password',
+    password_mismatch: 'New passwords do not match',
+    password_required: 'All password fields are required'
   };
 
   useEffect(() => {
@@ -253,13 +313,14 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         throw new Error(prefsRes.error || prefsRes.message || 'Failed to load preferences');
       }
 
-      if (profileRes.data?.user) {
-        setUserProfile(profileRes.data.user);
+      const profile = normalizeLaravelUser(profileRes.data);
+      if (profile) {
+        setUserProfile(profile);
         setUserProfileForm({
-          nickname: profileRes.data.user.nickname || '',
-          name: profileRes.data.user.name || '',
-          bio: profileRes.data.user.bio || '',
-          location: profileRes.data.user.location || '',
+          nickname: profile.nickname || '',
+          name: profile.name || '',
+          bio: profile.bio || '',
+          location: profile.location || '',
         });
       }
 
@@ -311,6 +372,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       ]);
 
       if (profileRes.success && prefsRes.success) {
+        await refreshUser();
         setUserSaveStatus('success');
         await loadUserProfile();
         setTimeout(() => setUserSaveStatus('idle'), 2000);
@@ -321,6 +383,113 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       setUserSaveStatus('error');
       setTimeout(() => setUserSaveStatus('idle'), 2000);
     }
+  };
+
+  const handleChangePassword = async () => {
+    const currentPassword = passwordForm.currentPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const confirmPassword = passwordForm.confirmPassword.trim();
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError(tp.password_required);
+      setPasswordSaveStatus('error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError(tp.password_mismatch);
+      setPasswordSaveStatus('error');
+      return;
+    }
+
+    setPasswordSaveStatus('saving');
+    setPasswordError(null);
+
+    try {
+      const response = await api.auth.changePassword({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || response.message || tp.password_failed);
+      }
+
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setPasswordSaveStatus('success');
+      setTimeout(() => setPasswordSaveStatus('idle'), 2000);
+    } catch (error: any) {
+      setPasswordError(error?.message || tp.password_failed);
+      setPasswordSaveStatus('error');
+    }
+  };
+
+  const handleAvatarFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+    if (!file) return;
+
+    const mime = (file.type || '').toLowerCase();
+    const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    if (!allowed.includes(mime)) {
+      setAvatarUploadStatus('error');
+      setAvatarError(tp.avatar_invalid_type);
+      return;
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      setAvatarUploadStatus('error');
+      setAvatarError(tp.avatar_too_large);
+      return;
+    }
+
+    try {
+      const preview = await readFileAsDataUrl(file);
+      setAvatarFile(file);
+      setAvatarPreview(preview);
+      setAvatarUploadStatus('idle');
+      setAvatarError(null);
+    } catch {
+      setAvatarUploadStatus('error');
+      setAvatarError(tp.avatar_failed);
+    }
+  };
+
+  const handleUploadAvatar = async () => {
+    if (!avatarFile || !avatarPreview || avatarUploadStatus === 'uploading') return;
+
+    setAvatarUploadStatus('uploading');
+    setAvatarError(null);
+
+    try {
+      const response = await api.auth.updateUserProfile({
+        avatar_base64: avatarPreview,
+        avatar_filename: avatarFile.name,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || response.message || tp.avatar_failed);
+      }
+
+      if (response.data?.user) {
+        setUserProfile(normalizeLaravelUser({ user: response.data.user }) || response.data.user);
+        await refreshUser();
+      }
+
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      setAvatarUploadStatus('success');
+      setTimeout(() => setAvatarUploadStatus('idle'), 2000);
+    } catch (error: any) {
+      setAvatarUploadStatus('error');
+      setAvatarError(error?.message || tp.avatar_failed);
+    }
+  };
+
+  const handleClearAvatarSelection = () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarUploadStatus('idle');
+    setAvatarError(null);
   };
 
   const handleRedeemSuperCode = async () => {
@@ -334,22 +503,49 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       if (!response.success) {
         throw new Error(response.error || response.message || 'Unable to redeem super-admin code');
       }
+
+      const granted = normalizeLaravelUser(response.data)
+        || normalizeLaravelUser({ user: response.data?.user })
+        || null;
+      if (granted) {
+        userModel.applyProfileUser({ user: granted });
+        setUserProfile((prev: any) => ({
+          ...(prev || {}),
+          ...granted,
+          rolelevel: granted.rolelevel,
+          rolename: granted.rolename,
+        }));
+      }
+
+      await refreshUser();
+      await loadUserProfile();
+
       setSuperCodeStatus('success');
       setSuperCodeMessage(response.message || 'Super-admin access granted');
       setSuperCode('');
-      await loadUserProfile();
-      await refreshState();
     } catch (error: any) {
       setSuperCodeStatus('error');
       setSuperCodeMessage(error?.message || 'Unable to redeem super-admin code');
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     try {
       const hostname = baseUrl.trim().replace(/^https?:\/\//, '').replace(/:\d+$/, '');
       const protocol = baseUrl.trim().startsWith('https') ? 'https' : 'http';
       const finalUrl = `${protocol}://${hostname}:${port}`;
+
+      let endpoint = apiManager.getAllEndpoints().find((candidate) => buildApiUrl(candidate) === finalUrl);
+      if (!endpoint) {
+        const added = addCustomEndpoint({ url: hostname, protocol, port, description: hostname });
+        if (added.ok === false) throw new Error(added.error);
+        endpoint = added.endpoint;
+      }
+
+      const switched = await apiManager.switchEndpoint(endpoint.id);
+      if (!switched.ok) {
+        throw new Error(switched.result?.error || 'Endpoint health check failed');
+      }
 
       updateConfig({
         baseUrl: finalUrl,
@@ -357,6 +553,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         port: port
       });
       setBaseUrl(finalUrl);
+      reloadEndpoints();
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
@@ -392,16 +589,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
     setTestStatus('testing');
     try {
       const testUrl = baseUrl.trim() || config.baseUrl;
-      const oldBaseURL = api.systemConfig['baseURL'];
-
-      api.systemConfig['baseURL'] = testUrl;
-      if (apiKey.trim()) {
-        api.systemConfig.setHeader('X-API-Key', apiKey.trim());
-      }
-
-      const response = await api.systemConfig.getApiInfo();
-
-      api.systemConfig['baseURL'] = oldBaseURL;
+      const response = await api.systemConfig.testApiInfo(testUrl, apiKey.trim() || undefined);
 
       if (response.success) {
         setTestStatus('success');
@@ -430,7 +618,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
   });
 
   return (
-    <div className="h-full flex flex-col p-6 overflow-hidden">
+    <CenteredPage className="h-full flex flex-col p-6 overflow-hidden">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -442,17 +630,27 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         </p>
       </div>
 
-      {/* User Role Info */}
-      {user && (
+      {/* User Role Info — hidden on user tab (profile card covers identity) */}
+      {user && activeTab !== 'user' && (
         <div className={`${commonClasses.card} p-4 mb-6`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-                {isSuperAdmin ? <Shield className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />}
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center overflow-hidden ring-2 ring-indigo-500/20">
+                {(user.avatar_url || user.avatar) ? (
+                  <img
+                    src={user.avatar_url || user.avatar}
+                    alt={user.username}
+                    className="w-full h-full object-cover"
+                  />
+                ) : isSuperAdmin ? (
+                  <Shield className="w-5 h-5 text-white" />
+                ) : (
+                  <User className="w-5 h-5 text-white" />
+                )}
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 dark:text-white">{user.username}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email}</p>
+                <h3 className="font-semibold text-slate-900 dark:text-white">{user.nickname || user.username}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{user.email || user.username}</p>
               </div>
             </div>
             <div className="text-right">
@@ -462,7 +660,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               <div className="text-xs text-slate-500 dark:text-slate-400">
                 Level: {roleLevel}
                 {isAdmin && <span className="ml-2 text-indigo-500">• Admin</span>}
-                {isSuperAdmin && <span className="ml-2 text-purple-500">• Super Admin</span>}
+                {isSuperAdmin && <span className="ml-2 text-violet-500">• Super Admin</span>}
               </div>
             </div>
           </div>
@@ -470,21 +668,8 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
       )}
 
       {/* Tab Navigation */}
-      <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 text-sm font-medium flex items-center gap-2 transition-colors border-b-2 ${
-              activeTab === tab.id
-                ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-6">
+        <CenteredTabBar items={visibleTabs} activeId={activeTab} onChange={(id) => setActiveTab(id as SettingsTab)} />
       </div>
 
       {/* Tab Content */}
@@ -634,12 +819,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               </div>
             </div>
 
-            {/* API Configuration Section (advanced / manual override) */}
+            {/* API Configuration Section */}
             <div className={`${commonClasses.card} p-6`}>
               <div className="flex items-center gap-2 mb-4">
                 <Globe className="w-5 h-5 text-indigo-500" />
                 <h2 className="text-lg font-semibold">{t.api_config}</h2>
-                <span className="text-xs text-slate-400">(manual override)</span>
+                <span className="text-xs text-slate-400">(shared endpoint)</span>
               </div>
 
               <div className="space-y-4">
@@ -649,7 +834,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="http://43.163.112.77:9000"
+                    placeholder="http://api-host:9000"
                     className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
                   />
                 </Field>
@@ -1151,10 +1336,12 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
         )}
 
         {activeTab === 'user' && (
-          <div className="space-y-6">
+          <div className="w-full max-w-[1920px] mx-auto space-y-5">
             {!user && !userProfile && !userProfileLoading ? (
-              <div className={`${commonClasses.card} p-6 text-center`}>
-                <User className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+              <div className={`${commonClasses.card} p-10 text-center`}>
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-700/60">
+                  <User className="w-7 h-7 text-slate-400" />
+                </div>
                 <p className="text-slate-600 dark:text-slate-400">
                   Please login to view and edit your profile settings.
                 </p>
@@ -1175,54 +1362,116 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
               </div>
             ) : userProfile ? (
               <>
-                {/* User Profile Form */}
-                <div className={`${commonClasses.card} p-6`}>
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      <User className="w-5 h-5 text-indigo-500" />
-                      <h2 className="text-lg font-semibold">User Profile</h2>
-                    </div>
-                    <button
-                      onClick={handleSaveUserProfile}
-                      disabled={userSaveStatus === 'saving'}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium flex items-center gap-2"
-                    >
-                      {userSaveStatus === 'saving' ? (
-                        <>
-                          <InlineSpinner size={16} />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" />
-                          Save Changes
-                        </>
-                      )}
-                    </button>
+                {/* Identity + profile */}
+                <div className={`${commonClasses.card} overflow-hidden`}>
+                  <div className="relative h-24 bg-gradient-to-r from-indigo-600 via-indigo-500 to-violet-500">
+                    <div className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_20%_50%,white,transparent_45%)]" />
                   </div>
-
-                  {userSaveStatus === 'success' && (
-                    <div className="mb-4 flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
-                      <CheckCircle className="w-4 h-4" />
-                      Profile updated successfully
+                  <div className="px-6 pb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-end gap-4 -mt-12 mb-6">
+                      <div className="relative shrink-0">
+                        <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center overflow-hidden ring-4 ring-white dark:ring-slate-800 shadow-lg">
+                          {(avatarPreview || userProfile.avatar_url || userProfile.avatar) ? (
+                            <img
+                              src={avatarPreview || userProfile.avatar_url || userProfile.avatar}
+                              alt={userProfile.username || 'avatar'}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <User className="w-10 h-10 text-white" />
+                          )}
+                        </div>
+                        <label className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full bg-indigo-600 text-white shadow-md hover:bg-indigo-500 transition-colors">
+                          <Upload className="w-3.5 h-3.5" />
+                          <input
+                            type="file"
+                            accept={AVATAR_ACCEPT}
+                            className="hidden"
+                            onChange={handleAvatarFileChange}
+                          />
+                        </label>
+                      </div>
+                      <div className="flex-1 min-w-0 pt-2 sm:pt-0 sm:pb-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h2 className="text-xl font-semibold text-slate-900 dark:text-white truncate">
+                            {userProfileForm.nickname || userProfile.username}
+                          </h2>
+                          <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700/80 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+                            {resolveRoleName(userProfile)} · L{resolveRoleLevel(userProfile)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                          @{userProfile.username}
+                          {userProfile.email ? ` · ${userProfile.email}` : ''}
+                        </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">{tp.avatar_hint}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 sm:pb-1">
+                        {avatarFile && (
+                          <>
+                            <button
+                              onClick={handleUploadAvatar}
+                              disabled={avatarUploadStatus === 'uploading'}
+                              className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium flex items-center gap-1.5"
+                            >
+                              {avatarUploadStatus === 'uploading' ? <InlineSpinner size={14} /> : <Save className="w-3.5 h-3.5" />}
+                              {t.save}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleClearAvatarSelection}
+                              className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={handleSaveUserProfile}
+                          disabled={userSaveStatus === 'saving'}
+                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm"
+                        >
+                          {userSaveStatus === 'saving' ? <InlineSpinner size={16} /> : <Save className="w-4 h-4" />}
+                          Save profile
+                        </button>
+                      </div>
                     </div>
-                  )}
 
-                  {userSaveStatus === 'error' && (
-                    <div className="mb-4 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
-                      <AlertCircle className="w-4 h-4" />
-                      Failed to update profile
-                    </div>
-                  )}
+                    {avatarFile && (
+                      <p className="mb-3 text-xs text-slate-500 dark:text-slate-400 truncate">{avatarFile.name}</p>
+                    )}
+                    {avatarUploadStatus === 'success' && (
+                      <div className="mb-3 flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        {tp.avatar_updated}
+                      </div>
+                    )}
+                    {(avatarUploadStatus === 'error' || avatarError) && (
+                      <div className="mb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        {avatarError || tp.avatar_failed}
+                      </div>
+                    )}
+                    {userSaveStatus === 'success' && (
+                      <div className="mb-3 flex items-center gap-2 text-green-600 dark:text-green-400 text-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        Profile updated successfully
+                      </div>
+                    )}
+                    {userSaveStatus === 'error' && (
+                      <div className="mb-3 flex items-center gap-2 text-red-600 dark:text-red-400 text-sm">
+                        <AlertCircle className="w-4 h-4" />
+                        Failed to update profile
+                      </div>
+                    )}
 
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <Field label="Username" hint="Username cannot be changed">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Field label="Username" hint="Cannot be changed">
                         <input
                           type="text"
                           value={userProfile.username || ''}
                           disabled
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 cursor-not-allowed text-sm"
                         />
                       </Field>
                       <Field label="Email">
@@ -1230,7 +1479,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           type="email"
                           value={userProfile.email || ''}
                           disabled
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 cursor-not-allowed"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 cursor-not-allowed text-sm"
                         />
                       </Field>
                       <Field label="Nickname">
@@ -1238,7 +1487,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           type="text"
                           value={userProfileForm.nickname || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, nickname: e.target.value })}
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
                         />
                       </Field>
                       <Field label="Full Name">
@@ -1246,15 +1495,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           type="text"
                           value={userProfileForm.name || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, name: e.target.value })}
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                        />
-                      </Field>
-                      <Field label="Bio" className="col-span-2">
-                        <textarea
-                          value={userProfileForm.bio || ''}
-                          onChange={(e) => setUserProfileForm({ ...userProfileForm, bio: e.target.value })}
-                          rows={3}
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
                         />
                       </Field>
                       <Field label="Location">
@@ -1262,101 +1503,165 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
                           type="text"
                           value={userProfileForm.location || ''}
                           onChange={(e) => setUserProfileForm({ ...userProfileForm, location: e.target.value })}
-                          className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
+                        />
+                      </Field>
+                      {userPreferences && (
+                        <>
+                          <Field label="Theme">
+                            <select
+                              value={userPrefsForm.theme || 'dark'}
+                              onChange={(e) => setUserPrefsForm({ ...userPrefsForm, theme: e.target.value })}
+                              className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
+                            >
+                              <option value="light">Light</option>
+                              <option value="dark">Dark</option>
+                            </select>
+                          </Field>
+                          <Field label="Language" className="sm:col-span-2">
+                            <input
+                              type="text"
+                              value={userPrefsForm.language || 'en'}
+                              onChange={(e) => setUserPrefsForm({ ...userPrefsForm, language: e.target.value })}
+                              className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
+                            />
+                          </Field>
+                        </>
+                      )}
+                      <Field label="Bio" className="sm:col-span-2">
+                        <textarea
+                          value={userProfileForm.bio || ''}
+                          onChange={(e) => setUserProfileForm({ ...userProfileForm, bio: e.target.value })}
+                          rows={3}
+                          className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition resize-y min-h-[5rem]"
                         />
                       </Field>
                     </div>
                   </div>
                 </div>
 
-                <div className={`${commonClasses.card} p-6`}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <Shield className="w-5 h-5 text-indigo-500" />
-                    <h2 className="text-lg font-semibold">Account Information</h2>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {/* Password */}
+                  <div className={`${commonClasses.card} p-5`}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-900/30">
+                        <Lock className="w-4 h-4 text-indigo-500" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">{tp.change_password}</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Update your account password</p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      {([
+                        ['current', 'currentPassword', tp.current_password],
+                        ['new', 'newPassword', tp.new_password],
+                        ['confirm', 'confirmPassword', tp.confirm_password],
+                      ] as const).map(([key, field, label]) => (
+                        <Field key={field} label={label}>
+                          <div className="relative">
+                            <input
+                              type={showPasswords[key] ? 'text' : 'password'}
+                              value={passwordForm[field]}
+                              onChange={(e) => setPasswordForm({ ...passwordForm, [field]: e.target.value })}
+                              className="w-full px-3.5 py-2.5 pr-10 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 outline-none transition"
+                              autoComplete={key === 'current' ? 'current-password' : 'new-password'}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPasswords({ ...showPasswords, [key]: !showPasswords[key] })}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                            >
+                              {showPasswords[key] ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </Field>
+                      ))}
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                      <button
+                        onClick={handleChangePassword}
+                        disabled={passwordSaveStatus === 'saving'}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-lg text-sm font-medium flex items-center gap-2"
+                      >
+                        {passwordSaveStatus === 'saving' ? <InlineSpinner size={16} /> : <Key className="w-4 h-4" />}
+                        {tp.change_password}
+                      </button>
+                      {passwordSaveStatus === 'success' && (
+                        <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm">
+                          <CheckCircle className="w-4 h-4" />
+                          {tp.password_changed}
+                        </span>
+                      )}
+                      {passwordSaveStatus === 'error' && (
+                        <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400 text-sm">
+                          <AlertCircle className="w-4 h-4" />
+                          {passwordError || tp.password_failed}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+
+                  {/* Super-admin */}
+                  <div className={`${commonClasses.card} p-5 border-amber-200/60 dark:border-amber-800/40`}>
+                    <div className="flex items-center gap-2.5 mb-4">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 dark:bg-amber-900/30">
+                        <Shield className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900 dark:text-white">Super-Admin Access</h2>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">Installation access value from start</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+                      Paste the current installation access value. It is checked in memory against InstallationAccessCode and can be used until start rotates it.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <input
+                        type="password"
+                        value={superCode}
+                        onChange={(e) => setSuperCode(e.target.value)}
+                        placeholder="NEXU-····-····-····-····"
+                        className="flex-1 px-3.5 py-2.5 border border-slate-200 dark:border-slate-600 rounded-xl bg-white dark:bg-slate-700/50 text-slate-900 dark:text-white text-sm font-mono focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 outline-none transition"
+                      />
+                      <button
+                        onClick={handleRedeemSuperCode}
+                        disabled={!superCode.trim() || superCodeStatus === 'submitting'}
+                        className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-xl text-sm font-medium whitespace-nowrap"
+                      >
+                        {superCodeStatus === 'submitting' ? 'Checking...' : 'Upgrade Access'}
+                      </button>
+                    </div>
+                    {superCodeMessage && (
+                      <div className={`mt-3 text-sm ${superCodeStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {superCodeMessage}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Compact account meta */}
+                <div className={`${commonClasses.card} px-5 py-4`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Info className="w-4 h-4 text-slate-400" />
+                    <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Account details</h2>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 text-sm">
                     {[
-                      ['User ID', userProfile.id],
-                      ['Username', userProfile.username],
-                      ['Email', userProfile.email],
-                      ['Role', userProfile.rolename ?? (userProfile as any).role_name],
-                      ['Role Level', userProfile.rolelevel ?? (userProfile as any).role_level],
+                      ['ID', userProfile.id],
+                      ['Role', resolveRoleName(userProfile)],
+                      ['Level', resolveRoleLevel(userProfile)],
                       ['Active', userProfile.is_active ? 'Yes' : 'No'],
-                      ['Created', userProfile.created_at],
-                      ['Updated', userProfile.updated_at],
-                      ['Avatar', userProfile.avatar],
-                      ['Avatar URL', userProfile.avatar_url],
+                      ['Created', userProfile.created_at ? String(userProfile.created_at).slice(0, 10) : '—'],
+                      ['Updated', userProfile.updated_at ? String(userProfile.updated_at).slice(0, 10) : '—'],
                     ].map(([label, value]) => (
-                      <div key={String(label)} className="rounded-lg bg-slate-50 dark:bg-slate-900/50 p-3">
-                        <div className="text-slate-500 dark:text-slate-400">{label}</div>
-                        <div className="mt-1 break-all text-slate-900 dark:text-white">{value || '—'}</div>
+                      <div key={String(label)}>
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{label}</div>
+                        <div className="mt-0.5 text-slate-800 dark:text-slate-100 truncate">{value ?? '—'}</div>
                       </div>
                     ))}
                   </div>
                 </div>
-
-                <div className={`${commonClasses.card} p-6`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Key className="w-5 h-5 text-amber-500" />
-                    <h2 className="text-lg font-semibold">Super-Admin Access</h2>
-                  </div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-                    Enter a valid super-admin code to upgrade this account. The code is verified and consumed by the server.
-                  </p>
-                  <div className="flex gap-3">
-                    <input
-                      type="password"
-                      value={superCode}
-                      onChange={(e) => setSuperCode(e.target.value)}
-                      placeholder="Super-admin code"
-                      className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                    />
-                    <button
-                      onClick={handleRedeemSuperCode}
-                      disabled={!superCode.trim() || superCodeStatus === 'submitting'}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white rounded-lg text-sm font-medium"
-                    >
-                      {superCodeStatus === 'submitting' ? 'Checking...' : 'Upgrade Access'}
-                    </button>
-                  </div>
-                  {superCodeMessage && (
-                    <div className={`mt-3 text-sm ${superCodeStatus === 'success' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {superCodeMessage}
-                    </div>
-                  )}
-                </div>
-
-                {/* User Preferences */}
-                {userPreferences && (
-                  <div className={`${commonClasses.card} p-6`}>
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                      <SettingsIcon className="w-5 h-5 text-indigo-500" />
-                      User Preferences
-                    </h2>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <Field label="Theme">
-                          <select
-                            value={userPrefsForm.theme || 'dark'}
-                            onChange={(e) => setUserPrefsForm({ ...userPrefsForm, theme: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                          >
-                            <option value="light">Light</option>
-                            <option value="dark">Dark</option>
-                          </select>
-                        </Field>
-                        <Field label="Language">
-                          <input
-                            type="text"
-                            value={userPrefsForm.language || 'en'}
-                            onChange={(e) => setUserPrefsForm({ ...userPrefsForm, language: e.target.value })}
-                            className="w-full px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             ) : null}
           </div>
@@ -1426,7 +1731,7 @@ const Settings: React.FC<SettingsProps> = ({ lang: langProp }) => {
           </div>
         )}
       </div>
-    </div>
+    </CenteredPage>
   );
 };
 

@@ -112,6 +112,9 @@ export abstract class SimpleWorkerBase {
   // Set true once a terminal (completed/failed) result is posted for the task
   // currently being dispatched; lets dispatchOne fail-safe a silent handler.
   private terminalPosted = false;
+  // task_type of the task currently being dispatched — the typed result route
+  // (/api/worker/tasks/{taskType}/result) needs it at submit time.
+  private currentTaskType: string | null = null;
 
   protected stats: SimpleWorkerStats = {
     pending: 0,
@@ -152,6 +155,11 @@ export abstract class SimpleWorkerBase {
 
   /** True if this worker handles the given backend task_type. */
   protected abstract handlesTaskType(taskType: string): boolean;
+
+  /** Task types pulled via the typed pull route (/api/worker/tasks/{type}/pull).
+   * PRIMARY LAST: it holds the long-poll budget; earlier types are quick-polled
+   * wait=0 so their waits never stack. */
+  protected abstract get pullTaskTypes(): string[];
 
   /** Shared processor adapters delegate here instead of duplicating task rules. */
   public canHandleTaskType(taskType: string): boolean {
@@ -535,6 +543,38 @@ export abstract class SimpleWorkerBase {
    *    immediate jittered+coalesced wait=0 re-poll.
    * 3. Sort the claimed tasks by priority desc and dispatch each.
    */
+  /**
+   * Pull across this worker's declared task types via the typed pull route.
+   * The primary type (LAST in pullTaskTypes) holds the long-poll budget;
+   * earlier types are quick-polled wait=0 so their waits never stack. The
+   * merged response mirrors one Laravel pull body; pending_fast/pending_urgent
+   * come from the last type pulled (it owns the wait budget).
+   */
+  private async pullTasksAcrossTypes(options: { limit: number; wait: number }) {
+    const types = this.pullTaskTypes.filter((t) => typeof t === 'string' && t.length > 0);
+    if (!this.workerClient || types.length === 0) {
+      return {
+        success: true,
+        data: { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] },
+      };
+    }
+    const merged: Task[] = [];
+    let lastData = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
+    for (let i = 0; i < types.length; i++) {
+      const typeWait = i === types.length - 1 ? options.wait : 0;
+      const resp = await this.workerClient.pullTasks(types[i], undefined, {
+        limit: options.limit,
+        wait: typeWait,
+      });
+      if (!resp.success || !resp.data) return resp;
+      lastData = resp.data;
+      if (Array.isArray(resp.data.tasks)) merged.push(...resp.data.tasks);
+      if (merged.length >= options.limit) break;
+    }
+    lastData = { ...lastData, tasks: merged, count: merged.length };
+    return { success: true, data: lastData };
+  }
+
   protected async cycle(wait: number): Promise<void> {
     // Serialize: never run two cycles concurrently. A fast re-poll firing while
     // a long-poll cycle is in flight would interleave two dispatchOne calls on
@@ -554,7 +594,7 @@ export abstract class SimpleWorkerBase {
 
       this.stats.lastRun = Date.now();
 
-      const resp = await this.workerClient.pullTasks(undefined, {
+      const resp = await this.pullTasksAcrossTypes({
         limit: this.config.batchSize,
         wait,
       });
@@ -635,6 +675,7 @@ export abstract class SimpleWorkerBase {
     // claimed batch, skip dispatch (the backend reclaims it on timeout).
     if (!this.isRunning) return;
 
+    this.currentTaskType = task.task_type;
     if (!this.handlesTaskType(task.task_type)) {
       // CHROME-CAP-1: release-by-failure, never a silent skip.
       try {
@@ -670,6 +711,7 @@ export abstract class SimpleWorkerBase {
       // no separate increment here to avoid double-counting.
     } finally {
       this.stats.currentTaskId = null;
+      this.currentTaskType = null;
     }
   }
 
@@ -699,7 +741,7 @@ export abstract class SimpleWorkerBase {
     // backend interruption" fix). A TERMINAL failure (409 / task reassigned) can
     // never be accepted, so it is dropped, not enqueued.
     try {
-      await this.workerClient.submitResult(payload);
+      await this.workerClient.submitResult(this.currentTaskType || '', payload);
       // Backend proved reachable — opportunistically flush queued retries.
       submitOutbox.drainNow();
     } catch (error) {
@@ -713,6 +755,7 @@ export abstract class SimpleWorkerBase {
         await submitOutbox.enqueue({
           kind: 'worker_result',
           baseUrl: this.config?.apiUrl || this.workerClient.getBaseUrl(),
+          taskType: this.currentTaskType || '',
           payload,
         });
         logger.warn(this.workerLabel, 'Result submit failed — queued to outbox for retry', error);

@@ -548,6 +548,12 @@ export const pcEn = {
       loading: 'Loading recent tasks…',
       unavailable: 'Recent tasks unavailable — pycore (:59000) may be offline.',
       empty: 'No tasks recorded yet.',
+      refreshPage: 'Refresh page',
+      refreshingPage: 'Refreshing…',
+      refreshPageHint: 'Fetch only the newest completed-task page.',
+      lastRefresh: 'last refresh',
+      never: 'never',
+      loadMore: 'Load more ({{loaded}}/{{total}})',
       // summary row
       total: 'total',
       success: 'success',

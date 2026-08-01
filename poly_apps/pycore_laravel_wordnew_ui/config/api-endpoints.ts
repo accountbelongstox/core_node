@@ -121,7 +121,7 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
   // Default ALL-Offline retry interval for this end (laravel-manager). While
   // every endpoint is Offline the end re-probes at this cadence and stops as
   // soon as one recovers; a healthy backend is never polled. Overridable per
-  // browser in the endpoint switcher UI (services/ApiHealthRecheck.ts).
+  // browser in the endpoint switcher UI.
   healthCheckInterval: 60000, // 1 minute
   // 3s, not 1s: the Laravel backend under Octane can have first-byte latency
   // (cold worker / reload) above 1s, which made a healthy localhost probe abort

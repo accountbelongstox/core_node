@@ -11,7 +11,7 @@
  * from TaskCenter as props (same contract as QueuePanel / WorkersPanel).
  */
 import React, { useState, useEffect, useRef } from 'react';
-import { Language } from '../../../types';
+import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import type { AssistRequestItem } from '@/apps/laravel-manager/api';
 import { usePersistentTask } from '../../../core/tasks/usePersistentTask';

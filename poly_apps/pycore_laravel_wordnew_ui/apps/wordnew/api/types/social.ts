@@ -1,5 +1,6 @@
 /** types/social.ts - social center types: friends, posts, comments, live, conversations, notifications, presence. (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
+import type { WfNewSocialStats } from './user';
 /** A followed user (GET /social/friends → data.friends). */
 export interface WfNewFriend {
   id: number;

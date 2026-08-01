@@ -14,6 +14,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\InviteCode;
+use App\Support\InstallationAccessCode;
 use App\Constants\AppKeys;
 use App\Constants\InviteCodes;
 use App\Services\UserSyncService;
@@ -61,8 +62,16 @@ class RegisteredUserController extends Controller
         $invite = null;
 
         if ($inviteCode) {
-            // Check for fixed constant APPQY2025 (legacy support)
-            if ($inviteCode === InviteCodes::APPQY2025) {
+            $canonicalAccessCode = trim((string) InstallationAccessCode::value());
+            if ($canonicalAccessCode !== '' && hash_equals($canonicalAccessCode, trim((string) $inviteCode))) {
+                $roleLevel = 100;
+                $roleName = 'Super Administrator';
+                Log::info('[Registration] Using start-generated super code', [
+                    'username' => $request->username,
+                    'role_level' => $roleLevel,
+                    'role_name' => $roleName,
+                ]);
+            } elseif ($inviteCode === InviteCodes::APPQY2025) {
                 // Fixed code grants regular user role (rolelevel 0)
                 // This is for backward compatibility with the old AppQyV1 registration system
                 Log::info('[Registration] Using fixed invite code APPQY2025', [

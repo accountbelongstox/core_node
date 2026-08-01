@@ -703,6 +703,18 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
+  async bumpSentenceAudio(_contentId: string, _language: string) {
+    return delay({ success: true, priority: 1, error: undefined });
+  },
+
+  async bumpSentenceAudioBatch(items: Array<{ text: string; language: string }>) {
+    return delay({ success: true, queued: items.length, total: items.length, error: undefined });
+  },
+
+  async prioritizeWordAudio(words: string[], _language: string) {
+    return delay({ success: true, queued: words.length, error: undefined });
+  },
+
   async getBookReadingProgress(sourceKey: string) {
     return delay(null);
   },

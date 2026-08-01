@@ -10,7 +10,6 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1MemberAdminController;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1SuperCodeAdminController;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1RechargeAdminController;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1BindingAdminController;
 
@@ -21,8 +20,8 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin\DingDuoDuoV1
 |
 | require_once'd from routes/api.php, so these carry the /api prefix:
 | /api/ding_duo_duo_v1/admin/*. Guarded by 'custom.authenticate' (Sanctum
-| bearer token). Member management / expiry / permissions, super-code issuing,
-| recharge-API settings and cross-PDD-user bindings.
+| bearer token). Member management / expiry / permissions, recharge-API settings,
+| and cross-PDD-user bindings.
 |
 */
 
@@ -36,12 +35,6 @@ Route::prefix('ding_duo_duo_v1/admin')->middleware(['custom.authenticate'])->gro
     Route::post('members/{id}/expiry', [DingDuoDuoV1MemberAdminController::class, 'setExpiry'])->whereNumber('id');
     Route::post('members/{id}/permissions', [DingDuoDuoV1MemberAdminController::class, 'setPermissions'])->whereNumber('id');
     Route::post('members/{id}/tier', [DingDuoDuoV1MemberAdminController::class, 'setTier'])->whereNumber('id');
-
-    // Super codes.
-    Route::get('super-codes', [DingDuoDuoV1SuperCodeAdminController::class, 'index']);
-    Route::post('super-codes', [DingDuoDuoV1SuperCodeAdminController::class, 'issue']);
-    Route::get('super-codes/{id}', [DingDuoDuoV1SuperCodeAdminController::class, 'show'])->whereNumber('id');
-    Route::post('super-codes/{id}/revoke', [DingDuoDuoV1SuperCodeAdminController::class, 'revoke'])->whereNumber('id');
 
     // Recharge-API settings.
     Route::get('recharge-config', [DingDuoDuoV1RechargeAdminController::class, 'getConfig']);

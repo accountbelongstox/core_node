@@ -172,7 +172,7 @@ export function ToastProvider({
 /**
  * ToastItem Component
  */
-function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
+function ToastItem({ toast, onClose }: { key?: React.Key; toast: Toast; onClose: () => void }) {
   const { type, message, title } = toast;
 
   const styles = {

@@ -3,18 +3,7 @@ import { api } from '../api';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys as StorageKeys } from '../persistence/LaravelManagerStorageKeys';
 import { getAuthToken } from '../../../core/auth/AuthSession';
-
-interface AuthUserPayload {
-  id?: string | number | null;
-  username?: string | null;
-  email?: string | null;
-  avatar?: string | null;
-  rolelevel?: number | string | null;
-  role_level?: number | string | null;
-  rolename?: string | null;
-  role_name?: string | null;
-  preferences?: UserPreferences;
-}
+import { normalizeLaravelUser } from '../auth/UserIdentity';
 
 function extractResponseData(data: any): any {
   return data?.data ?? data;
@@ -26,24 +15,7 @@ function extractAuthToken(data: any): string | null {
 }
 
 function extractUnifiedUser(data: any): UnifiedUser | null {
-  const payload = extractResponseData(data);
-  const raw = (payload?.user ?? payload?.UnifiedUser) as AuthUserPayload | undefined;
-  const roleLevel = raw?.rolelevel ?? raw?.role_level;
-  const roleName = raw?.rolename ?? raw?.role_name;
-
-  if (raw?.id === undefined || raw.id === null || typeof raw.username !== 'string' || raw.username === '') {
-    return null;
-  }
-
-  return {
-    id: String(raw.id),
-    username: raw.username,
-    email: typeof raw.email === 'string' ? raw.email : '',
-    avatar: typeof raw.avatar === 'string' ? raw.avatar : undefined,
-    rolelevel: roleLevel !== undefined && roleLevel !== null ? Number(roleLevel) : undefined,
-    rolename: typeof roleName === 'string' ? roleName : undefined,
-    preferences: raw.preferences,
-  };
+  return normalizeLaravelUser(extractResponseData(data));
 }
 
 /**
@@ -88,6 +60,8 @@ export class UserModel {
     this.UnifiedUser = UnifiedUser;
     api.setAuthToken(token);
 
+    await this.refreshProfile();
+
     this.save();
 
     await this.loadPreferences();
@@ -128,6 +102,8 @@ export class UserModel {
     this.UnifiedUser = UnifiedUser;
     api.setAuthToken(token);
 
+    await this.refreshProfile();
+
     this.save();
 
     await this.loadPreferences();
@@ -164,6 +140,39 @@ export class UserModel {
 
   hasStoredToken(): boolean {
     return getAuthToken() !== null;
+  }
+
+  async refreshProfile(): Promise<UnifiedUser | null> {
+    const response = await api.auth.getUserProfile();
+    const user = response.success ? extractUnifiedUser(response.data) : null;
+    if (user) {
+      this.UnifiedUser = user;
+      this.save();
+    }
+    return user;
+  }
+
+  /**
+   * Merge a profile/redeem payload into the local session (storage + memory).
+   */
+  applyProfileUser(raw: unknown): UnifiedUser | null {
+    const next = extractUnifiedUser(raw) ?? normalizeLaravelUser(raw);
+    if (!next) {
+      return this.UnifiedUser;
+    }
+
+    this.UnifiedUser = {
+      ...this.UnifiedUser,
+      ...next,
+      preferences: next.preferences ?? this.UnifiedUser?.preferences,
+    };
+    this.save();
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('UnifiedUser-session-changed'));
+    }
+
+    return this.UnifiedUser;
   }
 
   /**

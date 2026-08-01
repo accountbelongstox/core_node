@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
-import type { FilePreview, Language, ServerFileNode } from '../../../types';
+import type { FilePreview, Language, ServerFileNode } from '../../../apps/laravel-manager/uiTypes';
 import { LoadingBlock, AlertBox } from '../../common';
 import { commonClasses } from '../../../styles/theme';
 import { Modal } from '../../admin';

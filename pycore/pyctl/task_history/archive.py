@@ -1,16 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Persistent Laravel terminal-task archive with local resource mirroring."""
+"""Bounded completed-task metadata cache with cursor pagination."""
 
-import base64
 import hashlib
 import json
-import mimetypes
 import os
-import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.parse import unquote, urlsplit
+from typing import Any, Dict, Iterable, List, Optional
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
@@ -32,91 +28,16 @@ from pycore.pyutils.common.queue_center_contract import (
 
 _HISTORY_PATH = "/api/task-center/completed"
 _PAGE_LIMIT = GLOBAL_TASK_LIMITS["completed"]
-_RESOURCE_MAX_BYTES = 256 * 1024 * 1024
-_RESOURCE_KEY_HINTS = (
-    "audio", "image", "video", "subtitle", "poster", "cover", "file",
-    "download", "document", "archive", "media", "path", "url",
-)
-_SKIP_RESOURCE_KEYS = frozenset({"synth_command", "command", "cmd"})
-_RESOURCE_EXTENSIONS = {
-    ".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac",
-    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg",
-    ".mp4", ".webm", ".mkv", ".mov",
-    ".srt", ".vtt", ".ass", ".ssa", ".sub",
-    ".pdf", ".zip", ".json", ".txt", ".md", ".epub",
-}
-_ALLOWED_MIME_PREFIXES = ("audio/", "image/", "video/", "text/")
-_ALLOWED_MIME_TYPES = {
-    "application/pdf", "application/zip", "application/json",
-    "application/octet-stream", "application/epub+zip",
-}
-
-
+_DEFAULT_PAGE_LIMIT = GLOBAL_TASK_LIMITS["history_records"]
+_ARCHIVE_RECORD_LIMIT = 2000
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _display_source(source: str) -> str:
-    return "[inline data]" if source.startswith("data:") else source
 
 
 def _atomic_json(path: Path, value: Any) -> None:
     temp = path.with_suffix(path.suffix + ".tmp")
     temp.write_text(json.dumps(value, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(temp, path)
-
-
-def _safe_extension(source: str, mime: Optional[str] = None) -> str:
-    suffix = Path(unquote(urlsplit(source).path)).suffix.lower()
-    if suffix in _RESOURCE_EXTENSIONS:
-        return suffix
-    guessed = mimetypes.guess_extension((mime or "").split(";", 1)[0].strip())
-    return guessed if guessed in _RESOURCE_EXTENSIONS else ".bin"
-
-
-def _resource_string(key: str, value: str) -> bool:
-    lowered_key = key.lower()
-    if lowered_key in _SKIP_RESOURCE_KEYS:
-        return False
-    # CLI / display strings (e.g. edge-tts --write-media …mp3) are never resources.
-    if " " in value or '"' in value or "'" in value:
-        if not value.startswith(("http://", "https://", "data:")) and not _is_local_file(value):
-            return False
-    url_or_local = (
-        value.startswith(("http://", "https://", "/", "data:"))
-        or _is_local_file(value)
-    )
-    if not url_or_local:
-        return False
-    lowered_value = value.lower().split("?", 1)[0]
-    hinted = any(hint in lowered_key for hint in _RESOURCE_KEY_HINTS)
-    extension = Path(lowered_value).suffix in _RESOURCE_EXTENSIONS
-    return extension or hinted
-
-
-def _is_local_file(value: str) -> bool:
-    if value.startswith(("http://", "https://", "data:")):
-        return False
-    try:
-        return Path(value).is_file()
-    except OSError:
-        return False
-
-
-def _walk_resources(value: Any, key: str = "") -> Iterable[Tuple[str, str]]:
-    if isinstance(value, dict):
-        for child_key, child in value.items():
-            yield from _walk_resources(child, str(child_key))
-    elif isinstance(value, list):
-        for child in value:
-            yield from _walk_resources(child, key)
-    elif isinstance(value, str):
-        lowered_key = key.lower()
-        if "base64" in lowered_key and len(value) > 64 and not value.startswith("data:"):
-            mime = "audio/mpeg" if "audio" in lowered_key else "image/png" if "image" in lowered_key else "application/octet-stream"
-            yield key, f"data:{mime};base64,{value}"
-        elif _resource_string(key, value):
-            yield key, value
 
 
 def _compact_inline_resources(value: Any, key: str = "") -> Any:
@@ -130,8 +51,16 @@ def _compact_inline_resources(value: Any, key: str = "") -> Any:
         return [_compact_inline_resources(child, key) for child in value]
     if isinstance(value, str) and len(value) > 64:
         if "base64" in key.lower() or value.startswith("data:"):
-            return "[cached resource]"
+            return "[resource omitted]"
     return value
+
+
+def _task_type_counts(rows: Iterable[Dict[str, Any]]) -> Dict[str, int]:
+    raw_counts: Dict[str, int] = {}
+    for row in rows:
+        task_type = str(row.get("task_type") or "assist")
+        raw_counts[task_type] = raw_counts.get(task_type, 0) + 1
+    return aggregate_task_counts(raw_counts)
 
 
 class CompletedTaskArchive:
@@ -148,7 +77,7 @@ class CompletedTaskArchive:
             self,
             "completed_task_archive.state",
             "CompletedTaskArchiveState",
-            timeout=300.0,
+            timeout=10.0,
         )
 
     def _manifest(self) -> Dict[str, Any]:
@@ -163,87 +92,6 @@ class CompletedTaskArchive:
     def _record_path(self, archive_id: str) -> Path:
         digest = hashlib.sha256(archive_id.encode("utf-8")).hexdigest()
         return self.records_dir / f"{digest}.json"
-
-    def _cache_data_url(self, source: str) -> Dict[str, Any]:
-        header, encoded = source.split(",", 1)
-        mime = header[5:].split(";", 1)[0] or "application/octet-stream"
-        payload = base64.b64decode(encoded) if ";base64" in header else unquote(encoded).encode("utf-8")
-        digest = hashlib.sha256(payload).hexdigest()
-        filename = digest + _safe_extension("", mime)
-        destination = self.resources_dir / filename
-        if not destination.is_file():
-            destination.write_bytes(payload)
-        return self._resource_row(source, filename, mime, len(payload))
-
-    def _resource_row(self, source: str, filename: str, mime: str, size: int) -> Dict[str, Any]:
-        return {
-            "source": _display_source(source),
-            "cache_key": filename,
-            "local_url": f"/api/local/tasks/completed/resources/{filename}",
-            "mime": mime,
-            "size": size,
-            "cached": True,
-        }
-
-    def _cache_local_file(self, source: str) -> Dict[str, Any]:
-        path = Path(source).resolve()
-        digest = hashlib.sha256(str(path).encode("utf-8")).hexdigest()
-        filename = digest + _safe_extension(str(path))
-        destination = self.resources_dir / filename
-        if not destination.is_file() or destination.stat().st_size != path.stat().st_size:
-            shutil.copy2(path, destination)
-        mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        return self._resource_row(source, filename, mime, destination.stat().st_size)
-
-    def _cache_remote_file(self, source: str, base_url: str) -> Dict[str, Any]:
-        absolute = source if source.startswith(("http://", "https://")) else base_url.rstrip("/") + "/" + source.lstrip("/")
-        digest = hashlib.sha256(absolute.encode("utf-8")).hexdigest()
-        existing = list(self.resources_dir.glob(f"{digest}.*"))
-        if existing:
-            path = existing[0]
-            mime = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-            return self._resource_row(source, path.name, mime, path.stat().st_size)
-        response = laravel_client.get(absolute, timeout=30, stream=True)
-        mime = (response.headers.get("Content-Type") or "application/octet-stream").split(";", 1)[0]
-        allowed = mime.startswith(_ALLOWED_MIME_PREFIXES) or mime in _ALLOWED_MIME_TYPES
-        if response.status_code != 200 or not allowed:
-            return {"source": _display_source(source), "cached": False, "error": f"HTTP {response.status_code} {mime}"}
-        filename = digest + _safe_extension(absolute, mime)
-        destination = self.resources_dir / filename
-        temp = destination.with_suffix(destination.suffix + ".tmp")
-        size = 0
-        try:
-            with temp.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 256):
-                    if not chunk:
-                        continue
-                    size += len(chunk)
-                    if size > _RESOURCE_MAX_BYTES:
-                        raise ValueError("resource exceeds 256 MiB cache limit")
-                    handle.write(chunk)
-            os.replace(temp, destination)
-            return self._resource_row(source, filename, mime, size)
-        except Exception as exc:  # noqa: BLE001
-            temp.unlink(missing_ok=True)
-            return {"source": _display_source(source), "cached": False, "error": str(exc)}
-
-    def _cache_resources(self, record: Dict[str, Any], base_url: str) -> List[Dict[str, Any]]:
-        resources: List[Dict[str, Any]] = []
-        seen = set()
-        for _key, source in _walk_resources(record):
-            if source in seen:
-                continue
-            seen.add(source)
-            try:
-                if source.startswith("data:"):
-                    resources.append(self._cache_data_url(source))
-                elif _is_local_file(source):
-                    resources.append(self._cache_local_file(source))
-                else:
-                    resources.append(self._cache_remote_file(source, base_url))
-            except Exception as exc:  # noqa: BLE001
-                resources.append({"source": _display_source(source), "cached": False, "error": str(exc)})
-        return resources
 
     @staticmethod
     def _title(record: Dict[str, Any]) -> str:
@@ -262,7 +110,7 @@ class CompletedTaskArchive:
         }
         payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
         result = raw.get("result") if isinstance(raw.get("result"), dict) else {}
-        resources = self._cache_resources(raw, base_url)
+        resources: List[Dict[str, Any]] = []
         detail = _compact_inline_resources(dict(payload))
         detail.update(_compact_inline_resources(result))
         detail["resources"] = resources
@@ -293,7 +141,7 @@ class CompletedTaskArchive:
         result = raw.get("result") if isinstance(raw.get("result"), dict) else {}
         task_id = str(raw.get("task_id") or "")
         source = {"payload": payload, "result": result, "task_id": task_id}
-        resources = self._cache_resources(source, base_url)
+        resources: List[Dict[str, Any]] = []
         detail = _compact_inline_resources(dict(payload))
         detail.update(_compact_inline_resources(result))
         detail["resources"] = resources
@@ -323,7 +171,7 @@ class CompletedTaskArchive:
     def _normalize_history_record(self, raw: Dict[str, Any], base_url: str) -> Dict[str, Any]:
         detail = raw.get("detail") if isinstance(raw.get("detail"), dict) else {}
         source = {"payload": detail, "result": {}}
-        resources = self._cache_resources(source, base_url)
+        resources: List[Dict[str, Any]] = []
         compact = _compact_inline_resources(dict(detail))
         compact["resources"] = resources
         identity_source = json.dumps({
@@ -368,98 +216,134 @@ class CompletedTaskArchive:
         }
 
     @serialized_method
-    def sync_all(self) -> Dict[str, Any]:
-        base_url = laravel_endpoint_manager.get_active_base_url() or ""
+    def _commit_page(
+        self,
+        records: List[Dict[str, Any]],
+        remote_types: Optional[Dict[str, Any]],
+        next_cursor_id: Optional[int],
+    ) -> Dict[str, Any]:
+        """Commit one already-fetched page without holding the owner during I/O."""
         manifest = self._manifest()
-        rows = {str(row.get("archive_id")): row for row in manifest.get("records", []) if row.get("archive_id")}
-        cursor = 0
-        synced = 0
+        rows = {
+            str(row.get("archive_id")): row
+            for row in manifest.get("records", [])
+            if row.get("archive_id")
+        }
+        for record in records:
+            self._store_record(record, rows)
+
+        ordered = sorted(
+            rows.values(),
+            key=lambda row: str(row.get("ts") or ""),
+            reverse=True,
+        )
+        expired = ordered[_ARCHIVE_RECORD_LIMIT:]
+        ordered = ordered[:_ARCHIVE_RECORD_LIMIT]
+        for row in expired:
+            self._record_path(str(row.get("archive_id") or "")).unlink(missing_ok=True)
+
+        types = (
+            aggregate_task_counts(remote_types)
+            if isinstance(remote_types, dict)
+            else manifest.get("types") or _task_type_counts(ordered)
+        )
+        next_manifest = {
+            "records": ordered,
+            "types": types,
+            "resource_count": int(manifest.get("resource_count") or 0),
+            "last_sync_at": _now_iso(),
+            "next_cursor_id": next_cursor_id,
+        }
+        _atomic_json(self.manifest_path, next_manifest)
+        return next_manifest
+
+    def sync_page(
+        self,
+        limit: int = _DEFAULT_PAGE_LIMIT,
+        cursor_id: int = 0,
+        task_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetch and cache exactly one bounded completed-task page."""
+        base_url = laravel_endpoint_manager.get_active_base_url() or ""
+        page_limit = max(1, min(int(limit or _DEFAULT_PAGE_LIMIT), _PAGE_LIMIT))
+        cursor = max(0, int(cursor_id or 0))
+        remote_limit = page_limit if cursor > 0 else max(1, page_limit * 3 // 4)
+        local_limit = max(0, page_limit - remote_limit)
+        records: List[Dict[str, Any]] = []
+        remote_types: Optional[Dict[str, Any]] = None
+        next_cursor_id: Optional[int] = None
         laravel_error: Optional[str] = None
         if base_url:
             try:
-                while True:
-                    response = laravel_client.get(
-                        _HISTORY_PATH,
-                        base_url=base_url,
-                        params={"limit": _PAGE_LIMIT, "cursor_id": cursor},
-                        timeout=30,
-                    )
-                    if response.status_code != 200:
-                        laravel_error = f"Laravel HTTP {response.status_code}"
-                        break
+                params: Dict[str, Any] = {
+                    "limit": remote_limit,
+                    "cursor_id": cursor,
+                    "include_types": cursor == 0,
+                }
+                if task_type:
+                    params["task_type"] = task_type
+                response = laravel_client.get(
+                    _HISTORY_PATH,
+                    base_url=base_url,
+                    params=params,
+                    timeout=15,
+                )
+                if response.status_code != 200:
+                    laravel_error = f"Laravel HTTP {response.status_code}"
+                else:
                     envelope = response.json()
                     data = envelope.get("data") if isinstance(envelope, dict) else None
-                    records = data.get("records") if isinstance(data, dict) else None
-                    if not isinstance(records, list):
+                    remote_records = data.get("records") if isinstance(data, dict) else None
+                    if not isinstance(remote_records, list):
                         laravel_error = "Invalid Laravel completed-history response"
-                        break
-                    for raw in records:
-                        if not isinstance(raw, dict):
-                            continue
-                        record = self._normalize(raw, base_url)
-                        self._store_record(record, rows)
-                        synced += 1
-                    next_cursor = data.get("next_cursor_id") if isinstance(data, dict) else None
-                    if not next_cursor or not records:
-                        break
-                    cursor = int(next_cursor)
-            except Exception as exc:  # noqa: BLE001 - local archive must still sync
+                    else:
+                        records.extend(
+                            self._normalize(raw, base_url)
+                            for raw in remote_records
+                            if isinstance(raw, dict)
+                        )
+                        raw_cursor = data.get("next_cursor_id")
+                        next_cursor_id = int(raw_cursor) if raw_cursor else None
+                        types_value = data.get("types")
+                        remote_types = types_value if isinstance(types_value, dict) else None
+            except Exception as exc:  # noqa: BLE001 - return the bounded local page
                 laravel_error = str(exc)
         else:
             laravel_error = "Laravel endpoint unavailable"
 
-        for raw in task_manager.get_all_tasks():
-            if raw.get("status") in ("pending", "processing"):
-                continue
-            self._store_record(self._normalize_local_task(raw, base_url), rows)
-            synced += 1
+        if cursor == 0:
+            local_task_limit = local_limit // 2
+            history_limit = local_limit - local_task_limit
+            local_tasks = task_manager.get_recent_tasks(limit=local_task_limit)
+            records.extend(
+                self._normalize_local_task(raw, base_url)
+                for raw in local_tasks
+                if raw.get("status") not in ("pending", "processing")
+            )
+            history = query_records(limit=history_limit)
+            records.extend(
+                self._normalize_history_record(raw, base_url)
+                for raw in history.get("entries") or []
+                if isinstance(raw, dict)
+            )
 
-        history = query_records(limit=1000)
-        for raw in history.get("entries") or []:
-            if not isinstance(raw, dict):
-                continue
-            self._store_record(self._normalize_history_record(raw, base_url), rows)
-            synced += 1
-        now = datetime.now(timezone.utc)
-        cutoff_ts = now.timestamp() - 7 * 24 * 3600
-        
-        valid_rows = []
-        for row in rows.values():
-            ts_str = str(row.get("ts") or "")
-            try:
-                # Handle Z suffix for UTC
-                if ts_str.endswith("Z"):
-                    ts_str = ts_str[:-1] + "+00:00"
-                row_ts = datetime.fromisoformat(ts_str).timestamp()
-                if row_ts >= cutoff_ts:
-                    valid_rows.append(row)
-                else:
-                    # Delete expired record file
-                    archive_id = str(row.get("archive_id"))
-                    record_path = self._record_path(archive_id)
-                    if record_path.is_file():
-                        record_path.unlink(missing_ok=True)
-            except (ValueError, TypeError):
-                valid_rows.append(row)
-
-        ordered = sorted(valid_rows, key=lambda row: str(row.get("ts") or ""), reverse=True)
-        types = aggregate_task_counts({str(row.get("task_type") or "assist"): 1 for row in ordered})
-        manifest = {
-            "records": ordered,
-            "types": types,
-            "resource_count": len(list(self.resources_dir.iterdir())),
-            "last_sync_at": _now_iso(),
-        }
-        _atomic_json(self.manifest_path, manifest)
+        manifest = self._commit_page(records, remote_types, next_cursor_id)
+        ordered_page = sorted(
+            records,
+            key=lambda row: str(row.get("ts") or ""),
+            reverse=True,
+        )[:page_limit]
         return {
             "success": True,
             "partial": laravel_error is not None,
             "laravel_error": laravel_error,
-            "synced": synced,
+            "synced": len(records),
+            "records": ordered_page,
+            "count": len(ordered_page),
+            "next_cursor_id": next_cursor_id,
             **{key: manifest[key] for key in ("types", "resource_count", "last_sync_at")},
         }
 
-    @serialized_method
     def query(self, task_type: Optional[str] = None, limit: int = 200, offset: int = 0) -> Dict[str, Any]:
         manifest = self._manifest()
         rows = list(manifest.get("records") or [])
@@ -484,7 +368,7 @@ class CompletedTaskArchive:
             "records": records,
             "count": len(records),
             "total": total,
-            "types": aggregate_task_counts({row.get("task_type") or "assist": 1 for row in rows}),
+            "types": manifest.get("types") or _task_type_counts(rows),
             "resource_count": int(manifest.get("resource_count") or 0),
             "last_sync_at": manifest.get("last_sync_at"),
             "offset": start,
@@ -492,7 +376,6 @@ class CompletedTaskArchive:
             "next_offset": start + len(records) if start + len(records) < total else None,
         }
 
-    @serialized_method
     def resource_path(self, cache_key: str) -> Optional[Path]:
         safe = Path(cache_key).name
         path = (self.resources_dir / safe).resolve()

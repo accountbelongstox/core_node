@@ -19,7 +19,11 @@ class LaravelCodeLastModifiedService
     /** Polled per open UI tab - cache the probe so each poll skips the shell scan. */
     private const PROBE_CACHE_KEY = 'dashboard:code_last_modified';
 
-    private const PROBE_CACHE_TTL_SEC = 10;
+    private const PROBE_CACHE_FRESH_SEC = 60;
+
+    private const PROBE_CACHE_STALE_SEC = 600;
+
+    private const PROBE_REFRESH_LOCK_SEC = 5;
 
     /** Relative roots under base_path() that hold application code. */
     private const SCAN_DIRS = [
@@ -61,7 +65,12 @@ class LaravelCodeLastModifiedService
      */
     public function probe(): array
     {
-        return Cache::remember(self::PROBE_CACHE_KEY, self::PROBE_CACHE_TTL_SEC, fn () => $this->probeUncached());
+        return Cache::store('file')->flexible(
+            self::PROBE_CACHE_KEY,
+            [self::PROBE_CACHE_FRESH_SEC, self::PROBE_CACHE_STALE_SEC],
+            fn () => $this->probeUncached(),
+            ['seconds' => self::PROBE_REFRESH_LOCK_SEC]
+        );
     }
 
     private function probeUncached(): array
@@ -111,6 +120,14 @@ class LaravelCodeLastModifiedService
     private function probeUnix(string $base): ?array
     {
         $roots = [];
+        $nameClauses = [];
+        $excludeClauses = [];
+        $command = '';
+        $line = '';
+        $space = false;
+        $mtime = 0;
+        $path = '';
+
         foreach (self::SCAN_DIRS as $dir) {
             $full = $base . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
             if (is_dir($full)) {
@@ -122,67 +139,45 @@ class LaravelCodeLastModifiedService
             return null;
         }
 
-        $nameExpr = ['('];
-        foreach (self::CODE_EXTENSIONS as $index => $ext) {
-            if ($index > 0) {
-                $nameExpr[] = '-o';
-            }
-            $nameExpr[] = '-name';
-            $nameExpr[] = '*.' . $ext;
+        foreach (self::CODE_EXTENSIONS as $ext) {
+            $nameClauses[] = '-name ' . escapeshellarg('*.' . $ext);
         }
-        $nameExpr[] = ')';
-
-        $args = array_merge(
-            $roots,
-            ['-type', 'f'],
-            $nameExpr,
-            ['!', '-path', '*/bootstrap/cache/*']
-        );
 
         foreach (self::EXCLUDE_MARKERS as $marker) {
             $normalized = str_replace('\\', '/', $marker);
-            $args[] = '!';
-            $args[] = '-path';
-            $args[] = '*/' . $normalized . '/*';
+            $excludeClauses[] = '! -path ' . escapeshellarg('*/' . $normalized . '/*');
         }
 
-        $args[] = '-printf';
-        $args[] = '%T@ %p\n';
+        $command = 'LC_ALL=C find '
+            . implode(' ', array_map('escapeshellarg', $roots))
+            . ' -type f \( ' . implode(' -o ', $nameClauses) . ' \) '
+            . implode(' ', $excludeClauses)
+            . ' -printf ' . escapeshellarg('%T@ %p\n')
+            . " | awk 'BEGIN { max = -1 } \$1 > max { max = \$1; line = \$0 } END { if (line != \"\") print line }'";
 
-        $result = ServerManagerV1Utils::executeCommand('find', $args, self::SCAN_TIMEOUT_SEC);
+        $result = ServerManagerV1Utils::executeCommand(
+            'sh',
+            ['-c', $command],
+            self::SCAN_TIMEOUT_SEC
+        );
 
         if (!$result['success'] || trim($result['output']) === '') {
             return null;
         }
 
-        $bestMtime = null;
-        $bestPath = null;
-
-        foreach (explode("\n", trim($result['output'])) as $line) {
-            $line = trim($line);
-            if ($line === '') {
-                continue;
-            }
-
-            $space = strpos($line, ' ');
-            if ($space === false) {
-                continue;
-            }
-
-            $mtime = (int) floor((float) substr($line, 0, $space));
-            $path = substr($line, $space + 1);
-
-            if ($bestMtime === null || $mtime > $bestMtime) {
-                $bestMtime = $mtime;
-                $bestPath = $path;
-            }
-        }
-
-        if ($bestMtime === null || $bestPath === null) {
+        $line = trim(explode("\n", trim($result['output']))[0]);
+        $space = strpos($line, ' ');
+        if ($space === false) {
             return null;
         }
 
-        return ['mtime' => $bestMtime, 'path' => $bestPath];
+        $mtime = (int) floor((float) substr($line, 0, $space));
+        $path = substr($line, $space + 1);
+        if ($mtime <= 0 || $path === '') {
+            return null;
+        }
+
+        return ['mtime' => $mtime, 'path' => $path];
     }
 
     /**
@@ -191,6 +186,11 @@ class LaravelCodeLastModifiedService
     private function probeWindows(string $base): ?array
     {
         $dirList = [];
+        $includeList = '';
+        $excludeList = '';
+        $dirLiteral = '';
+        $script = '';
+
         foreach (self::SCAN_DIRS as $dir) {
             $full = $base . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
             if (is_dir($full)) {
@@ -213,12 +213,15 @@ class LaravelCodeLastModifiedService
         $dirLiteral = implode(',', array_map(static fn (string $p): string => "'" . $p . "'", $dirList));
 
         $script = '$exclude=@(' . $excludeList . ');'
-            . '$items=Get-ChildItem -LiteralPath @(' . $dirLiteral . ') -Recurse -File -Include @(' . $includeList . ') -ErrorAction SilentlyContinue |'
-            . 'Where-Object { $p=$_.FullName; -not ($exclude | Where-Object { $p -like $_ }) } |'
-            . 'Sort-Object LastWriteTime -Descending | Select-Object -First 1;'
-            . 'if ($null -eq $items) { exit 0 };'
-            . '$ts=[DateTimeOffset]::new($items.LastWriteTime.ToUniversalTime()).ToUnixTimeSeconds();'
-            . 'Write-Output (' . "'{0}|{1}'" . ' -f $ts, $items.FullName)';
+            . '$latest=$null;'
+            . 'Get-ChildItem -LiteralPath @(' . $dirLiteral . ') -Recurse -File -Include @(' . $includeList . ') -ErrorAction SilentlyContinue | ForEach-Object {'
+            . '$item=$_;$path=$item.FullName;$skip=$false;'
+            . 'foreach($marker in $exclude){if($path -like $marker){$skip=$true;break}};'
+            . 'if(-not $skip -and ($null -eq $latest -or $item.LastWriteTimeUtc -gt $latest.LastWriteTimeUtc)){$latest=$item}'
+            . '};'
+            . 'if ($null -eq $latest) { exit 0 };'
+            . '$ts=[DateTimeOffset]::new($latest.LastWriteTimeUtc).ToUnixTimeSeconds();'
+            . 'Write-Output (' . "'{0}|{1}'" . ' -f $ts, $latest.FullName)';
 
         $result = ServerManagerV1Utils::executeCommand(
             'powershell',

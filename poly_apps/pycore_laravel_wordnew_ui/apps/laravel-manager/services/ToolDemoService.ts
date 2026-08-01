@@ -1,6 +1,6 @@
 ﻿
-import { ToolConnectionConfig, ApiResponse } from "../types";
-import { MockService } from "./mockData";
+import { ToolConnectionConfig, ApiResponse } from '../uiTypes';
+import { MockService } from './ToolMockService';
 
 /**
  * MOCK tool-execution client (demo flows only).
@@ -15,16 +15,16 @@ import { MockService } from "./mockData";
  * `setGlobalConfig` / `fetchEndpoint` were dead code — never read or called —
  * and risked being mistaken for a live, but stale, endpoint source).
  */
-class ApiClient {
-    private static instance: ApiClient;
+class ToolDemoService {
+    private static instance: ToolDemoService;
 
     private constructor() {}
 
-    public static getInstance(): ApiClient {
-        if (!ApiClient.instance) {
-            ApiClient.instance = new ApiClient();
+    public static getInstance(): ToolDemoService {
+        if (!ToolDemoService.instance) {
+            ToolDemoService.instance = new ToolDemoService();
         }
-        return ApiClient.instance;
+        return ToolDemoService.instance;
     }
 
     /**
@@ -40,7 +40,7 @@ class ApiClient {
         payload: any, 
         config: ToolConnectionConfig
     ): Promise<ApiResponse> {
-        console.log(`[API] Executing ${toolId}:${actionId}`, payload);
+        console.log(`[Tool Demo] Executing ${toolId}:${actionId}`, payload);
         const start = Date.now();
 
         // 1. Direct Local Mock
@@ -59,12 +59,8 @@ class ApiClient {
             return { success: true, data, latency: Date.now() - start, dataSource: 'mock' };
         }
 
-        // 3. Try Real Request
+        // 3. Simulate a configured remote mode without issuing network requests.
         try {
-            // Simulate Network Request
-            // In a real app: const res = await fetch(`${targetUrl}/${toolId}/${actionId}`, ...);
-            
-            // Simulating a random network failure to demonstrate fallback
             if (Math.random() > 0.8) throw new Error("Network Unreachable");
 
             await new Promise(r => setTimeout(r, 800)); // Fake network latency
@@ -96,5 +92,5 @@ class ApiClient {
     }
 }
 
-export const apiClient = ApiClient.getInstance();
+export const toolDemoService = ToolDemoService.getInstance();
 

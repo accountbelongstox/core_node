@@ -16,8 +16,8 @@ from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.assist_settings import load_assist_settings, save_assist_settings
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 
-from pycore.pyctl.tts.word_queue_poller_service import (
-    tts_queue_poller_service,
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_word_audio_worker,
 )
 from pycore.pyutils.common.endpoint_scoped_cache import EndpointScopedCache
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -49,7 +49,7 @@ def _laravel_queue_summary() -> Dict[str, Any]:
         return {}
     return _LARAVEL_SUMMARY_CACHE.get_or_refresh(
         endpoint,
-        lambda: tts_queue_poller_service.fetch_queue_summary() or {},
+        lambda: laravel_word_audio_worker.fetch_queue_summary() or {},
     )
 
 
@@ -72,7 +72,7 @@ def get_config() -> Dict[str, Any]:
 def restore_persisted_auto_start() -> None:
     """Apply persisted concurrency after callback registration."""
     try:
-        tts_queue_poller_service.set_concurrency(get_config()["concurrency"])
+        laravel_word_audio_worker.set_concurrency(get_config()["concurrency"])
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[WordTtsAuto] restore concurrency failed ({exc})")
 
@@ -100,7 +100,7 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
 
     if concurrency is not None:
         try:
-            tts_queue_poller_service.set_concurrency(max(0, int(concurrency)))
+            laravel_word_audio_worker.set_concurrency(max(0, int(concurrency)))
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordTtsAuto] live concurrency apply failed ({exc})")
 
@@ -110,7 +110,7 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     if enabled:
         try:
             start_bus_task(
-                tts_queue_poller_service.poll_and_process,
+                laravel_word_audio_worker.poll_and_process,
                 thread_name="word-tts-auto-poll",
             )
         except Exception as exc:  # noqa: BLE001
@@ -128,7 +128,7 @@ def get_status() -> Dict[str, Any]:
     worker_status: Dict[str, Any] = {}
     heartbeat_enabled = False
     try:
-        worker_status = tts_queue_poller_service.get_status()
+        worker_status = laravel_word_audio_worker.get_status()
     except Exception:
         pass
     try:
@@ -139,7 +139,7 @@ def get_status() -> Dict[str, Any]:
         pass
     concurrency_status: Dict[str, Any] = {}
     try:
-        concurrency_status = tts_queue_poller_service.concurrency_status()
+        concurrency_status = laravel_word_audio_worker.concurrency_status()
     except Exception:
         pass
     return {

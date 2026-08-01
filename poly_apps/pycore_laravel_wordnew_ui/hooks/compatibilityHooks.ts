@@ -58,7 +58,7 @@ export function useUser() {
 
   return {
     // State
-    user: unified.user,
+    user: unified.UnifiedUser,
     preferences: unified.preferences,
     isLoggedIn: unified.isLoggedIn,
     loading: unified.loading,
@@ -68,6 +68,7 @@ export function useUser() {
     login: unified.login,
     register: unified.register,
     logout: unified.logout,
+    refreshUser: unified.refreshUser,
     updatePreferences: unified.updatePreferences,
     addRecentTool: unified.addRecentTool,
     toggleFavorite: unified.toggleFavorite,

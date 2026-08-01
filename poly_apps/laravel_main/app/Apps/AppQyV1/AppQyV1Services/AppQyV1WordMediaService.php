@@ -333,9 +333,10 @@ class AppQyV1WordMediaService
      *   - word_media / remote_fast (mcp-chrome): created for missing images.
      *   - word_translation / remote_translation (pycore): created for missing
      *     target translations and processed by the Google-first worker chain.
-     * Word audio is not duplicated as a GlobalTask. Its canonical dictionary
-     * row and tts_priority are owned by AppQyV1UnifiedTTSQueueService and claimed
-     * only through the dedicated Pycore TTS worker endpoint.
+     * Word audio is NOT created here: it is owned by the queue center
+     * (App\Services\QueueCenter\QueueCenterService) and enqueued/bumped through
+     * AppQyV1UnifiedTTSQueueService::addTask (the enqueueTts path), which keeps
+     * the canonical dict row pending AND the deduped word_audio global task.
      *
      * A word missing multiple resources gets independent tasks whose write-back
      * remains fill-missing and idempotent.
