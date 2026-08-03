@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Queue Center — single definition for queue operations over global_tasks.
@@ -119,7 +120,10 @@ class QueueCenterService
             $taskType,
             (string) (QueueCenterContract::taskTypeExecution($taskType) ?? ''),
             $payload,
-            $timeoutSeconds ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120),
+            $timeoutSeconds ?? (int) (
+                QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$taskType]
+                ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120)
+            ),
             $priority ?? GlobalTask::priority('default'),
             3,
             $interactive,
@@ -156,6 +160,13 @@ class QueueCenterService
         $bump = 'bumped';
         if (!$result['created']) {
             $bump = $this->taskManager->bumpTaskPriority((string) $task->task_id);
+        } else {
+            // bumpTaskPriority promotes the head ID page for existing tasks; a
+            // fresh task skips that path, so record it on the head page here.
+            (new DiffIdPageCatalog())->promote(
+                'global_tasks:queue:' . $taskType,
+                (string) $task->task_id
+            );
         }
 
         if ($emitEvent) {
@@ -190,12 +201,31 @@ class QueueCenterService
 
         $query = GlobalTask::query()->where('task_type', $queueKey);
         $total = (int) (clone $query)->count();
-        $tasks = $query
+        $orderedQuery = $query
             ->orderByRaw("CASE WHEN status IN ({$liveList}) THEN 0 ELSE 1 END")
             ->orderByDesc('priority')
             ->orderBy('created_at')
-            ->forPage($page, $limit)
-            ->get();
+            ->forPage($page, $limit);
+        $scope = 'global_tasks:queue:' . $queueKey;
+        $catalog = new DiffIdPageCatalog();
+        $idPage = $catalog->snapshotPage($scope, $page, clone $orderedQuery, 'task_id');
+        $taskIds = $idPage['ids'];
+        $tasks = $catalog->materialize(
+            $scope,
+            $idPage['segment'],
+            $taskIds,
+            static function (array $ids): array {
+                $indexed = GlobalTask::query()
+                    ->whereIn('task_id', $ids)
+                    ->get()
+                    ->keyBy('task_id');
+
+                return array_values(array_filter(array_map(
+                    static fn ($id) => $indexed->get($id),
+                    $ids
+                )));
+            }
+        );
 
         $items = [];
         foreach ($tasks as $task) {
@@ -203,6 +233,7 @@ class QueueCenterService
             $record['group_key'] = $task->group_key;
             $items[] = $record;
         }
+        $catalog->compactSegment($scope, $idPage['segment'], $taskIds);
 
         return [
             'queue' => $queueKey,
@@ -213,6 +244,190 @@ class QueueCenterService
                 'total' => $total,
                 'total_pages' => $limit > 0 ? (int) ceil($total / $limit) : 0,
             ],
+        ];
+    }
+
+    /**
+     * Paginated live-task view for lightweight queue monitors.
+     *
+     * @return array{total:int,page:int,per_page:int,items:array<int,array<string,mixed>>,languages:array<string,int>}
+     */
+    public function listLiveQueue(
+        string $queueKey,
+        int $page = 1,
+        int $limit = 20,
+        ?string $language = null
+    ): array {
+        $this->assertSupportedQueue($queueKey);
+        $page = max(1, $page);
+        $limit = max(1, min($limit, QueueCenterContract::taskLimit('list')));
+        $language = $language !== null ? strtolower(trim($language)) : null;
+        $liveStatuses = QueueCenterContract::taskStatuses('live');
+        $baseQuery = GlobalTask::query()
+            ->where('task_type', $queueKey)
+            ->whereIn('status', $liveStatuses);
+
+        if ($language !== null && $language !== '') {
+            $baseQuery->where('payload->language', $language);
+        }
+
+        $total = (int) (clone $baseQuery)->count();
+        $tasks = (clone $baseQuery)
+            ->orderByDesc('priority')
+            ->orderBy('created_at')
+            ->forPage($page, $limit)
+            ->get([
+                'task_id', 'status', 'priority', 'progress', 'payload', 'result',
+                'assigned_to', 'assigned_at', 'created_at', 'updated_at',
+            ]);
+
+        $languages = [];
+        foreach ((clone $baseQuery)->select('payload')->cursor() as $row) {
+            $payload = is_array($row->payload) ? $row->payload : [];
+            $key = strtolower(trim((string) ($payload['language'] ?? '')));
+            if ($key !== '') {
+                $languages[$key] = (int) ($languages[$key] ?? 0) + 1;
+            }
+        }
+
+        return [
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $limit,
+            'items' => array_map(static fn (GlobalTask $task): array => [
+                'task_id' => (string) $task->task_id,
+                'status' => (string) $task->status,
+                'priority' => (int) $task->priority,
+                'progress' => (float) $task->progress,
+                'stage' => is_array($task->result)
+                    ? (string) ($task->result['stage'] ?? $task->status)
+                    : (string) $task->status,
+                'backend_uploaded' => is_array($task->result)
+                    ? (bool) ($task->result['backend_uploaded'] ?? false)
+                    : false,
+                'payload' => is_array($task->payload) ? $task->payload : [],
+                'assigned_to' => $task->assigned_to,
+                'assigned_at' => $task->assigned_at,
+                'created_at' => $task->created_at,
+                'updated_at' => $task->updated_at,
+            ], $tasks->all()),
+            'languages' => $languages,
+        ];
+    }
+
+    /**
+     * High-water diff ID page table for the UI pump (rule 1/2: IDs + status
+     * metadata only, never full rows). Tasks with a primary id above $cursor
+     * are returned in bounded ID pages; the realtime revision lets the client
+     * align incrementally, and head_ids carries priority-promoted tasks.
+     *
+     * @return array<string,mixed>
+     */
+    public function idPages(string $queueKey, int $cursor = 0, ?int $maxPages = null): array
+    {
+        $this->assertSupportedQueue($queueKey);
+        $delivery = QueueCenterContract::diffDelivery();
+        $idPageLimit = max(1, (int) ($delivery['id_page_limit'] ?? 64));
+        $idLimit = max(1, (int) ($delivery['id_limit'] ?? 4096));
+        $pageSize = max(1, intdiv($idLimit, $idPageLimit));
+        $maxPages = max(1, min($maxPages ?? $idPageLimit, $idPageLimit));
+        $rowLimit = min($idLimit, $pageSize * $maxPages);
+
+        $cursor = max(0, $cursor);
+        $rows = GlobalTask::query()
+            ->where('task_type', $queueKey)
+            ->where('id', '>', $cursor)
+            ->orderBy('id')
+            ->limit($rowLimit)
+            ->get(['id', 'task_id', 'status', 'priority']);
+
+        $highWater = $cursor;
+        $entries = [];
+        foreach ($rows as $row) {
+            $highWater = max($highWater, (int) $row->id);
+            $entries[] = [
+                'task_id' => (string) $row->task_id,
+                'status' => (string) $row->status,
+                'priority' => (int) $row->priority,
+            ];
+        }
+
+        $pages = [];
+        foreach (array_chunk($entries, $pageSize) as $index => $chunk) {
+            $pages[] = ['page' => $index + 1, 'ids' => $chunk];
+        }
+
+        return [
+            'queue' => $queueKey,
+            'revision' => app(QueueCenterRealtimeService::class)->revision(),
+            'cursor' => $highWater,
+            'head_ids' => (new DiffIdPageCatalog())->headIds('global_tasks:queue:' . $queueKey),
+            'page_size' => $pageSize,
+            'id_page_limit' => $idPageLimit,
+            'id_limit' => $idLimit,
+            'pages' => $pages,
+        ];
+    }
+
+    /**
+     * Lazily materialize the real rows of one requested ID page for the UI
+     * pump (rule 4: full rows load only on request and the segment compacts
+     * back to ID metadata once the response is built). Bounded by the
+     * contract data_segment_limit; items use the worker_pull wire shape so
+     * the pump can dispatch the payload directly.
+     *
+     * @param array<int,string> $taskIds
+     * @return array<string,mixed>
+     */
+    public function pageData(string $queueKey, array $taskIds): array
+    {
+        $this->assertSupportedQueue($queueKey);
+        $segmentLimit = max(
+            1,
+            (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128)
+        );
+
+        $ids = array_values(array_unique(array_filter(array_map(
+            static fn ($id): string => trim((string) $id),
+            $taskIds
+        ), static fn (string $id): bool => $id !== '')));
+        $ids = array_slice($ids, 0, $segmentLimit);
+
+        $scope = 'global_tasks:queue:' . $queueKey;
+        $catalog = new DiffIdPageCatalog();
+        $segment = 'request:' . sha1(implode(',', $ids));
+        $items = $ids === [] ? [] : $catalog->materialize(
+            $scope,
+            $segment,
+            $ids,
+            static function (array $pageIds) use ($queueKey): array {
+                $columns = QueueCenterContract::taskWireShape('worker_pull');
+                $indexed = GlobalTask::query()
+                    ->where('task_type', $queueKey)
+                    ->whereIn('task_id', $pageIds)
+                    ->get($columns)
+                    ->keyBy('task_id');
+
+                return array_values(array_filter(array_map(
+                    static function ($id) use ($indexed): ?array {
+                        $task = $indexed->get($id);
+                        return $task === null
+                            ? null
+                            : QueueCenterContract::projectTask($task, 'worker_pull');
+                    },
+                    $pageIds
+                )));
+            }
+        );
+        if ($ids !== []) {
+            $catalog->compactSegment($scope, $segment, $ids);
+        }
+
+        return [
+            'queue' => $queueKey,
+            'data_segment_limit' => $segmentLimit,
+            'count' => count($items),
+            'items' => $items,
         ];
     }
 
@@ -245,12 +460,12 @@ class QueueCenterService
         $types = $queueKey !== null
             ? [$this->assertSupportedQueue($queueKey)]
             : self::SUPPORTED_QUEUES;
-
-        $grouped = GlobalTask::query()
+        $cacheKey = 'queue_center:stats:' . implode(',', $types);
+        $grouped = Cache::remember($cacheKey, 30, static fn () => GlobalTask::query()
             ->whereIn('task_type', $types)
             ->groupBy('task_type', 'status')
             ->selectRaw('task_type, status, count(*) as aggregate')
-            ->get();
+            ->get());
 
         $perQueue = [];
         foreach ($types as $type) {
@@ -356,7 +571,17 @@ class QueueCenterService
             'language' => $language,
             'content_id' => $contentId,
         ];
-        foreach (['variant_key', 'accent', 'engine_profile', 'preferred_engine'] as $optional) {
+        foreach ([
+            'variant_key',
+            'accent',
+            'engine_profile',
+            'preferred_engine',
+            'target_kind',
+            'article_id',
+            'article_md5',
+            'audio_relative_path',
+            'source',
+        ] as $optional) {
             if (isset($in[$optional])) {
                 $out[$optional] = $in[$optional];
             }

@@ -54,6 +54,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_AI_KEY,
+    status_snapshot_cache,
+)
 from pycore.pyctl.ai.ai_keys import (
     PROVIDERS, PROVIDER_ORDER, active_image_secret, active_secret, all_image_secrets,
     first_secret, has_image_key, image_key_rate_ok, image_key_status, image_ready_now,
@@ -466,12 +470,12 @@ def generate_image(
     return last or _no_image_provider()
 
 
-def gateway_status() -> Dict[str, Any]:
+def _build_gateway_status(refresh: bool = False) -> Dict[str, Any]:
     """
     Full gateway snapshot for the UI: per-provider tier/quota/usage/cooldown and
     the recent task records (which AI handled what, newest first).
     """
-    avail = {p["name"]: p for p in _all_probed_providers()}
+    avail = {p["name"]: p for p in _all_probed_providers(refresh)}
     now = time.time()
     providers = []
     for name in PROVIDER_ORDER:
@@ -493,7 +497,7 @@ def gateway_status() -> Dict[str, Any]:
             "paused": paused,
             "key_masked": probed.get("key_masked"),
             "models": probed.get("models") or [],
-            "quota": get_quota(name),
+            "quota": get_quota(name, refresh=refresh),
             "calls": st["calls"],
             "ok": st["ok"],
             "failed": st["failed"],
@@ -508,6 +512,15 @@ def gateway_status() -> Dict[str, Any]:
     providers.sort(key=_sort_key)
     records = list(reversed(get_recent_records()))
     return {"success": True, "providers": providers, "records": records}
+
+
+def gateway_status(refresh: bool = False) -> Dict[str, Any]:
+    """Return cached local AI state; network quota probes require explicit refresh."""
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_AI_KEY,
+        lambda: _build_gateway_status(refresh),
+        refresh=refresh,
+    )
 
 
 __all__ = [

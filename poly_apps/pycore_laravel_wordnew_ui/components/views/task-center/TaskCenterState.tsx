@@ -7,6 +7,8 @@ import type {
     AssistRequestItem,
 } from '@/apps/laravel-manager/api';
 import type { GlobalTasksSnapshot } from './shared';
+import { GLOBAL_TASK_LIMITS } from '@/core/contracts/QueueCenterContract';
+import { diffQueueContext } from '@/core/tasks/DiffQueueContext';
 
 export interface TaskCenterState {
     overview: TaskCenterOverview | null;
@@ -16,6 +18,7 @@ export interface TaskCenterState {
     loading: boolean;
     error: string | null;
     refreshNow: () => void;
+    promoteTask: (taskId: string, priority: number) => void;
     autoRefresh: boolean;
     setAutoRefresh: (val: boolean) => void;
     refreshIntervalSec: number;
@@ -53,7 +56,7 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const [overviewRes, statsRes, listRes, workersRes, workerStatsRes, octaneRes, assistRes] = await Promise.all([
                 api.serverManager.getTaskCenterOverview(),
                 api.serverManager.getGlobalTaskStats(),
-                api.serverManager.getGlobalTaskList({ limit: 500 }),
+                api.serverManager.getGlobalTaskList({ limit: GLOBAL_TASK_LIMITS.list_default }),
                 api.serverManager.getWorkerList(),
                 api.serverManager.getWorkerStats(),
                 api.serverManager.getOctaneTasksStatus(),
@@ -113,6 +116,19 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         fetchAll();
     }, [fetchAll]);
 
+    const promoteTask = useCallback((taskId: string, priority: number) => {
+        diffQueueContext.touch('laravel-manager:global-tasks:priority', [taskId]);
+        setGlobalTasks((previous) => {
+            if (!previous) return previous;
+            const tasks = previous.tasks
+                .map((task) => task.task_id === taskId
+                    ? { ...task, priority: Math.max(task.priority ?? 0, priority), is_fast_tier: true }
+                    : task)
+                .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
+            return { ...previous, tasks, timestamp: new Date().toLocaleString() };
+        });
+    }, []);
+
     return (
         <TaskCenterContext.Provider
             value={{
@@ -123,6 +139,7 @@ export const TaskCenterProvider: React.FC<{ children: React.ReactNode }> = ({ ch
                 loading,
                 error,
                 refreshNow,
+                promoteTask,
                 autoRefresh,
                 setAutoRefresh,
                 refreshIntervalSec,

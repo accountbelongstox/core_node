@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
-import { pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '@/apps/pycore-manager/api';
+import { laravelApi, pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '@/apps/pycore-manager/api';
 import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
@@ -115,7 +115,7 @@ export function PcWordAudioPanel(): ReactElement {
     if (!row.text || !row.lang) return;
     setActionError(null);
     try {
-      const source = await pycoreApi.getWordAudioMediaDataUrl(row.text, row.lang);
+      const source = await laravelApi.getWordAudioMediaDataUrl(row.text, row.lang);
       await new Audio(source).play();
     } catch (error: unknown) {
       setActionError(error instanceof Error ? error.message : 'Word audio playback failed');

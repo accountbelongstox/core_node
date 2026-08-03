@@ -5,6 +5,8 @@ import { rewritePycoreEndpoint } from './pycoreTarget';
 import {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
+  PYCORE_HTTP_PATHS,
+  PYCORE_HEALTH_DEFAULTS,
 } from './PycoreNetwork';
 
 type ReachabilityHandler = (reachable: boolean) => void;
@@ -21,8 +23,8 @@ export class PycoreHttpError extends Error {
 
 export class PycoreMasterClient extends MasterApiClient {
   private browserId: string | null = null;
-  private tabId: string | null = null;
   private clientId: string | null = null;
+  private clientIdFlight: Promise<string> | null = null;
   private reachable = false;
   private readonly reachabilityHandlers = new Set<ReachabilityHandler>();
 
@@ -50,8 +52,33 @@ export class PycoreMasterClient extends MasterApiClient {
 
   getClientId(): string {
     if (this.clientId) return this.clientId;
-    this.clientId = `${this.getBrowserId()}:${this.getTabId()}`;
-    return this.clientId;
+    const stored = StorageManager.getRaw(StorageKeys.PYCORE_HTTP_CLIENT_ID);
+    if (stored) {
+      this.clientId = stored;
+      return stored;
+    }
+    const legacy = StorageManager.getSessionRaw(StorageKeys.PYCORE_HTTP_CLIENT_ID);
+    if (legacy) {
+      StorageManager.setRaw(StorageKeys.PYCORE_HTTP_CLIENT_ID, legacy);
+      StorageManager.removeSession(StorageKeys.PYCORE_HTTP_CLIENT_ID);
+      this.clientId = legacy;
+      return legacy;
+    }
+    return `pending:${this.getBrowserId()}`;
+  }
+
+  async ensureClientId(): Promise<string> {
+    if (this.clientId) return this.clientId;
+    const stored = this.getClientId();
+    if (!stored.startsWith('pending:')) {
+      this.clientId = stored;
+      return stored;
+    }
+    if (this.clientIdFlight) return this.clientIdFlight;
+    this.clientIdFlight = this.allocateClientId().finally(() => {
+      this.clientIdFlight = null;
+    });
+    return this.clientIdFlight;
   }
 
   async getJson<T>(path: string, ceilingMs?: number, label: string = path): Promise<T> {
@@ -80,21 +107,19 @@ export class PycoreMasterClient extends MasterApiClient {
     options: MasterRequestOptions,
     label: string,
   ): Promise<T> {
+    await this.ensureClientId();
     const method = String(options.method || 'GET').toUpperCase();
     const requestId = method === 'GET' ? '' : this.newRequestId();
-    const headers = method === 'GET'
-      ? {
-          [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-          ...((options.headers as Record<string, string> | undefined) ?? {}),
-        }
-      : {
-          [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-          [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
-          [PYCORE_HTTP_HEADER_NAMES.requestId]: requestId,
-          [PYCORE_HTTP_HEADER_NAMES.clientId]: this.getClientId(),
-          [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
-          ...((options.headers as Record<string, string> | undefined) ?? {}),
-        };
+    const headers = {
+      [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+      [PYCORE_HTTP_HEADER_NAMES.clientId]: this.getClientId(),
+      [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+      ...(method === 'GET' ? {} : {
+        [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+        [PYCORE_HTTP_HEADER_NAMES.requestId]: requestId,
+      }),
+      ...((options.headers as Record<string, string> | undefined) ?? {}),
+    };
     let response: Response;
     try {
       response = await this.request(normalizePycorePath(path), { ...options, headers });
@@ -128,12 +153,31 @@ export class PycoreMasterClient extends MasterApiClient {
     this.reachabilityHandlers.forEach((handler) => handler(reachable));
   }
 
-  private getTabId(): string {
-    if (this.tabId) return this.tabId;
-    const stored = StorageManager.getSessionRaw(StorageKeys.PYCORE_HTTP_TAB_ID);
-    this.tabId = stored || this.mintId('tab');
-    if (!stored) StorageManager.setSessionRaw(StorageKeys.PYCORE_HTTP_TAB_ID, this.tabId);
-    return this.tabId;
+  private async allocateClientId(): Promise<string> {
+    const provisionalId = `pending:${this.getBrowserId()}`;
+    const response = await this.request(
+      normalizePycorePath(PYCORE_HTTP_PATHS.clientId),
+      {
+        method: 'POST',
+        ceilingMs: PYCORE_HEALTH_DEFAULTS.pingTimeoutMs,
+        headers: {
+          [PYCORE_HTTP_HEADER_NAMES.accept]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+          [PYCORE_HTTP_HEADER_NAMES.contentType]: PYCORE_HTTP_JSON_CONTENT_TYPE,
+          [PYCORE_HTTP_HEADER_NAMES.browserId]: this.getBrowserId(),
+        },
+        body: JSON.stringify({
+          browser_id: this.getBrowserId(),
+        }),
+      },
+    );
+    if (!response.ok) {
+      return provisionalId;
+    }
+    const payload = await response.json() as { client_id?: string };
+    const assignedId = String(payload.client_id || provisionalId);
+    this.clientId = assignedId;
+    StorageManager.setRaw(StorageKeys.PYCORE_HTTP_CLIENT_ID, assignedId);
+    return assignedId;
   }
 
   private newRequestId(): string {

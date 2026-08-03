@@ -18,7 +18,7 @@ from pycore.pyutils.codesync.runtime import log as ColorPrint
 
 # TODO(sync-logs): consolidate this per-file client log ring with the manager's
 # `_sync_logs` ring (manager.py, push/receive events served via
-# `get_sync_logs(limit)` -> http_server `/code-sync/sync-logs`). Both keep a
+# `get_sync_logs(limit, page, since_revision)` -> HTTP compatibility route). Both keep a
 # newest-last list trimmed to a cap; merging them into one shared ring would
 # give the UI a single unified activity feed. Deferred - leaving behaviour
 # identical for now.

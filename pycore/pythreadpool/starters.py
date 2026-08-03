@@ -38,6 +38,7 @@ from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.network_constants import (
     PYCORE_HTTP_PORT,
     HTTP_API_PREFIX,
+    HTTP_STATUS_PATH,
 )
 
 from pycore.pyheartbeat.heartbeat import initialize_heartbeat_system
@@ -259,7 +260,13 @@ def start_ui(config: Dict[str, Any]) -> Any:
     app_id = config.get('app_id', 'pycore_ui')
     app_user_model_id = config.get('app_user_model_id')  # Optional custom AppUserModelID
     window_size = config.get('window_size', (1000, 180))
-    webview_url = config.get('webview_url', f'http://localhost:{PYCORE_HTTP_PORT}')
+    # Fallback when no UI URL is configured: load the RPC status route instead
+    # of the bare root so the webview never issues anomalous `GET /` calls
+    # against the RPC port (the server has no root handler).
+    webview_url = config.get(
+        'webview_url',
+        f'http://localhost:{PYCORE_HTTP_PORT}{HTTP_STATUS_PATH}',
+    )
     show_on_start = config.get('show_on_start', True)
     frameless = config.get('frameless', False)
     # When the embedded web draws its own (simulated) title bar, disable the Qt

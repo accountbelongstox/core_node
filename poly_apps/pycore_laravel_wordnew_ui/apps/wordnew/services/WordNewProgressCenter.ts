@@ -31,7 +31,16 @@ import type {
   WordNewGroupProgressUpdate,
   WordNewProgressEntry,
 } from '../api';
+import { isQueuedError } from '../../../core/api-libs/base';
 import { wordNewEventBus } from './WordNewEventBus';
+import { markSentenceWordsPlayed } from './WordNewSentenceWordTable';
+
+const PROGRESS_FLUSH_MS = 5000;
+
+interface PendingSentenceRead {
+  word: string;
+  count: number;
+}
 
 /** One due/recent list row: the word id with its expanded progress entry. */
 export interface WordNewProgressWordRef {
@@ -62,6 +71,10 @@ const lastStudiedAt = (e: WordNewProgressEntry): number => {
 class WordNewProgressCenterClass {
   /** Group ids seen by this domain center, used only for scoped invalidation. */
   private knownGids = new Set<string>();
+  private pendingGroupUpdates = new Map<string, WordNewGroupProgressUpdate[]>();
+  private pendingSentenceReads = new Map<string, Map<string, PendingSentenceRead>>();
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushChain: Promise<void> = Promise.resolve();
 
   constructor() {
     // Any reported answer makes cached progress stale; a group-content
@@ -73,6 +86,11 @@ class WordNewProgressCenterClass {
     wordNewEventBus.on('group-sources-changed', (payload?: { gid?: string }) =>
       void this.invalidate(payload?.gid)
     );
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', () => {
+        void this.flushNow();
+      });
+    }
   }
 
   /**
@@ -209,13 +227,13 @@ class WordNewProgressCenterClass {
     gid: string | undefined,
     updates: WordNewGroupProgressUpdate[]
   ): Promise<any> {
-    if (!updates || updates.length === 0) return null;
-    const result = await wfNewApi.updateGroupProgress(
-      gid ? { gid, updates } : { updates }
-    );
-    await this.invalidate(gid);
-    wordNewEventBus.emit('learning-stats-updated', { gid, batch: updates.length });
-    return result;
+    if (!updates || updates.length === 0 || !wfNewApi.isAuthenticated()) return null;
+    const key = gid ?? '';
+    const pending = this.pendingGroupUpdates.get(key) ?? [];
+    pending.push(...updates);
+    this.pendingGroupUpdates.set(key, pending);
+    this.scheduleFlush();
+    return null;
   }
 
   /**
@@ -231,16 +249,104 @@ class WordNewProgressCenterClass {
     wordId: string | number,
     playTimeSeconds: number,
   ): Promise<any> {
-    const payload: { gid?: string; word_id: string | number; action: 'read'; play_time: number } = {
+    const update: WordNewGroupProgressUpdate = {
       word_id: wordId,
       action: 'read',
       play_time: playTimeSeconds,
     };
-    if (gid) payload.gid = gid;
-    const result = await wfNewApi.updateGroupProgress(payload);
-    await this.invalidate(gid);
-    wordNewEventBus.emit('learning-stats-updated', { gid, read: 1 });
-    return result;
+    return this.reportAnswers(gid, [update]);
+  }
+
+  /** Cache sentence-player reads and submit one request per language every five seconds. */
+  reportSentenceReads(words: string[], language = 'en'): void {
+    if (words.length === 0 || !wfNewApi.isAuthenticated()) return;
+    const languageKey = language.trim().toLowerCase() || 'en';
+    const pending = this.pendingSentenceReads.get(languageKey) ?? new Map<string, PendingSentenceRead>();
+    for (const rawWord of words) {
+      const word = rawWord.trim();
+      const key = word.toLocaleLowerCase();
+      if (!word || !key) continue;
+      const current = pending.get(key);
+      pending.set(key, { word: current?.word ?? word, count: (current?.count ?? 0) + 1 });
+    }
+    if (pending.size === 0) return;
+    this.pendingSentenceReads.set(languageKey, pending);
+    this.scheduleFlush();
+  }
+
+  /** Flush all cached read/review events in serialized batches. */
+  flushNow(): Promise<void> {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    this.flushChain = this.flushChain
+      .then(() => this.flushPending())
+      .catch(() => undefined);
+    return this.flushChain;
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flushNow();
+    }, PROGRESS_FLUSH_MS);
+  }
+
+  private async flushPending(): Promise<void> {
+    const groupBatches = this.pendingGroupUpdates;
+    const sentenceBatches = this.pendingSentenceReads;
+    this.pendingGroupUpdates = new Map<string, WordNewGroupProgressUpdate[]>();
+    this.pendingSentenceReads = new Map<string, Map<string, PendingSentenceRead>>();
+
+    for (const [gidKey, updates] of groupBatches) {
+      const gid = gidKey || undefined;
+      try {
+        await wfNewApi.updateGroupProgress(gid ? { gid, updates } : { updates });
+      } catch (error) {
+        if (isQueuedError(error) || this.isAuthFailure(error)) continue;
+        const current = this.pendingGroupUpdates.get(gidKey) ?? [];
+        this.pendingGroupUpdates.set(gidKey, [...updates, ...current]);
+        continue;
+      }
+      await this.invalidate(gid).catch(() => undefined);
+      wordNewEventBus.emit('learning-stats-updated', { gid, batch: updates.length });
+    }
+
+    for (const [language, reads] of sentenceBatches) {
+      const words: string[] = [];
+      for (const item of reads.values()) {
+        for (let index = 0; index < item.count; index += 1) words.push(item.word);
+      }
+      try {
+        await markSentenceWordsPlayed(words, language);
+        wordNewEventBus.emit('learning-stats-updated', {
+          sentenceWords: words.length,
+          language,
+        });
+      } catch (error) {
+        if (isQueuedError(error) || this.isAuthFailure(error)) continue;
+        const current = this.pendingSentenceReads.get(language) ?? new Map<string, PendingSentenceRead>();
+        for (const [key, item] of reads) {
+          const existing = current.get(key);
+          current.set(key, {
+            word: existing?.word ?? item.word,
+            count: (existing?.count ?? 0) + item.count,
+          });
+        }
+        this.pendingSentenceReads.set(language, current);
+      }
+    }
+
+    if (this.pendingGroupUpdates.size > 0 || this.pendingSentenceReads.size > 0) {
+      this.scheduleFlush();
+    }
+  }
+
+  private isAuthFailure(error: unknown): boolean {
+    const status = (error as { status?: number } | null)?.status;
+    return status === 401 || status === 403;
   }
 
   /**

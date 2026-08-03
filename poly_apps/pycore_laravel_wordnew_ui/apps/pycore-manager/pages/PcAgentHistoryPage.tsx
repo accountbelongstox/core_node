@@ -1,8 +1,10 @@
 /**
  * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
- * Sessions/prompts hydrate from the flat-store HTTP routes and refresh on store invalidation.
+ * DIFF read surface: ID page tables (IDs + status metadata only) are cached in
+ * the frontend store and aligned by revision; only the visible page is
+ * materialized. No full loads.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
@@ -10,10 +12,15 @@ import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type {
-  AgentHistoryIndex,
   AgentHistoryPrompt,
+  AgentHistoryPromptIdItem,
   AgentHistorySessionDetail,
+  AgentHistorySessionIdItem,
+  AgentHistorySessionSummary,
 } from '@/apps/pycore-manager/api';
+import {
+  agentHistoryPageTableStore,
+} from '@/core/tasks/AgentHistoryPageTableStore';
 import { PAGE_SIZE, toolLabel } from '../../../components/views/dev-history/shared';
 import SessionRow from '../../../components/views/dev-history/SessionRow';
 import SessionDetailView from '../../../components/views/dev-history/SessionDetailView';
@@ -23,16 +30,28 @@ import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
 
 type TabId = 'sessions' | 'prompts';
 
+type HeaderState = {
+  generatedAt: string;
+  tools: string[];
+  users: string[];
+  counts: Record<string, number>;
+};
+
 const PcAgentHistoryPage: React.FC = () => {
   const { t } = useTranslation('pc');
-  const tk = (k: string): string => t(`agentHistory.${k}`);
+  const tk = useCallback((k: string): string => t(`agentHistory.${k}`), [t]);
 
-  const [index, setIndex] = useState<AgentHistoryIndex | null>(null);
+  const [header, setHeader] = useState<HeaderState>({ generatedAt: '', tools: [], users: [], counts: {} });
+  const [sessionRows, setSessionRows] = useState<AgentHistorySessionSummary[]>([]);
+  const [sessionTotal, setSessionTotal] = useState(0);
+  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const [prompts, setPrompts] = useState<AgentHistoryPrompt[]>([]);
   const [promptTotal, setPromptTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [promptPage, setPromptPage] = useState(1);
+  const [promptLoading, setPromptLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [live, setLive] = useState(true);
 
   const [tab, setTab] = useState<TabId>('sessions');
@@ -40,78 +59,175 @@ const PcAgentHistoryPage: React.FC = () => {
   const [filterUser, setFilterUser] = useState('');
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
   const [selectedId, setSelectedId] = useState('');
   const [detail, setDetail] = useState<AgentHistorySessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const sessionMaterializedKey = useRef('');
+  const promptMaterializedKey = useRef('');
 
-  const [promptPage, setPromptPage] = useState(1);
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const hydrateHistory = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
+  const loadSessionPage = useCallback(async () => {
+    setSessionLoading(true);
     setError(null);
+    const scope = `sessions|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|page=${sessionPage}`;
     try {
-      const res = await pycoreApi.getAgentHistoryIndex();
-      if (res.success && res.data) {
-        setIndex(res.data);
-      } else if (!silent) {
-        setError(res.error || t('agentHistory.loadError'));
-      }
-    } catch (e) {
-      if (!silent) {
-        setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
-      }
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [t]);
-
-  const loadPromptPage = useCallback(async () => {
-    try {
-      const promptsRes = await pycoreApi.getAgentHistoryPrompts({
+      const cached = agentHistoryPageTableStore.read<AgentHistorySessionIdItem>(scope);
+      const res = await pycoreApi.getAgentHistorySessionIdPages({
         tool: filterTool || undefined,
         user: filterUser || undefined,
         q: debouncedSearch || undefined,
-        tools: filterTool ? undefined : enabledTools,
-        page: promptPage,
+        page: sessionPage,
         pageSize: PAGE_SIZE,
+        sinceRevision: cached?.revision,
       });
-      if (promptsRes.success && promptsRes.data) {
-        setPrompts(promptsRes.data.items || []);
-        setPromptTotal(promptsRes.data.total || 0);
+      if (!res.success || !res.data) {
+        setError(res.error || t('agentHistory.loadError'));
+        return;
+      }
+      if (!res.data.unchanged) {
+        const nextHeader = {
+          generatedAt: res.data.generated_at || '',
+          tools: res.data.tools || [],
+          users: res.data.users || [],
+          counts: res.data.counts || {},
+        };
+        setHeader(nextHeader);
+      }
+      let table = cached;
+      if (!res.data.unchanged || !table) {
+        table = {
+          revision: res.data.revision,
+          total: res.data.total,
+          items: res.data.items || [],
+          meta: {
+            generatedAt: res.data.generated_at || '',
+            tools: res.data.tools || [],
+            users: res.data.users || [],
+            counts: res.data.counts || {},
+          },
+          updatedAt: Date.now(),
+        };
+        agentHistoryPageTableStore.write(scope, table);
+      } else if (table.meta) {
+        setHeader({
+          generatedAt: String(table.meta.generatedAt || ''),
+          tools: Array.isArray(table.meta.tools) ? table.meta.tools.map(String) : [],
+          users: Array.isArray(table.meta.users) ? table.meta.users.map(String) : [],
+          counts: (table.meta.counts || {}) as Record<string, number>,
+        });
+      }
+      setSessionTotal(table.total);
+      const materializedKey = `${scope}|${table.revision}`;
+      if (res.data.unchanged && sessionMaterializedKey.current === materializedKey) {
+        return;
+      }
+      const ids = table.items.map((item) => item.id);
+      if (ids.length === 0) {
+        setSessionRows([]);
+        sessionMaterializedKey.current = materializedKey;
+        return;
+      }
+      const rows = await pycoreApi.getAgentHistorySessionPage(ids);
+      if (rows.success && rows.data) {
+        setSessionRows(rows.data.items || []);
+        sessionMaterializedKey.current = materializedKey;
       } else {
-        setError(promptsRes.error || t('agentHistory.loadError'));
+        setError(rows.error || t('agentHistory.loadError'));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
+    } finally {
+      setSessionLoading(false);
+    }
+  }, [debouncedSearch, filterTool, filterUser, sessionPage, t]);
+
+  const loadPromptPage = useCallback(async () => {
+    setPromptLoading(true);
+    setError(null);
+    const tools = filterTool ? undefined : enabledTools;
+    const scope = `prompts|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|tools=${(tools || []).join(',')}|page=${promptPage}`;
+    try {
+      const cached = agentHistoryPageTableStore.read<AgentHistoryPromptIdItem>(scope);
+      const res = await pycoreApi.getAgentHistoryPromptIdPages({
+        tool: filterTool || undefined,
+        user: filterUser || undefined,
+        q: debouncedSearch || undefined,
+        tools,
+        page: promptPage,
+        pageSize: PAGE_SIZE,
+        sinceRevision: cached?.revision,
+      });
+      if (!res.success || !res.data) {
+        setError(res.error || t('agentHistory.loadError'));
+        return;
+      }
+      let table = cached;
+      if (!res.data.unchanged || !table) {
+        table = { revision: res.data.revision, total: res.data.total, items: res.data.items || [], updatedAt: Date.now() };
+        agentHistoryPageTableStore.write(scope, table);
+      }
+      setPromptTotal(table.total);
+      const materializedKey = `${scope}|${table.revision}`;
+      if (res.data.unchanged && promptMaterializedKey.current === materializedKey) {
+        return;
+      }
+      const ids = table.items.map((item) => item.id);
+      if (ids.length === 0) {
+        setPrompts([]);
+        promptMaterializedKey.current = materializedKey;
+        return;
+      }
+      const rows = await pycoreApi.getAgentHistoryPromptPage(ids);
+      if (rows.success && rows.data) {
+        setPrompts(rows.data.items || []);
+        promptMaterializedKey.current = materializedKey;
+      } else {
+        setError(rows.error || t('agentHistory.loadError'));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
+    } finally {
+      setPromptLoading(false);
     }
   }, [debouncedSearch, enabledTools, filterTool, filterUser, promptPage, t]);
 
   useEffect(() => {
     connectPycoreHttp();
-    void hydrateHistory(false);
-  }, [hydrateHistory]);
+  }, []);
+
+  useEffect(() => {
+    if (tab === 'sessions') void loadSessionPage();
+  }, [tab, loadSessionPage]);
+
+  useEffect(() => {
+    if (tab === 'prompts') void loadPromptPage();
+  }, [tab, loadPromptPage]);
 
   useEffect(() => {
     if (!live) return undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const off = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, () => {
-      void hydrateHistory(true);
-      if (tab === 'prompts') void loadPromptPage();
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        if (tab === 'prompts') void loadPromptPage();
+        else void loadSessionPage();
+      }, 250);
     });
-    return () => { off(); };
-  }, [live, tab, hydrateHistory, loadPromptPage]);
+    return () => {
+      if (refreshTimer !== null) clearTimeout(refreshTimer);
+      off();
+    };
+  }, [live, tab, loadSessionPage, loadPromptPage]);
 
   useEffect(() => {
     const h = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(h);
   }, [search]);
 
-  useEffect(() => { setPromptPage(1); }, [debouncedSearch, enabledTools, filterTool, filterUser]);
-
-  useEffect(() => {
-    if (tab === 'prompts') void loadPromptPage();
-  }, [tab, loadPromptPage]);
+  useEffect(() => { setSessionPage(1); setPromptPage(1); }, [debouncedSearch, enabledTools, filterTool, filterUser]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -121,8 +237,8 @@ const PcAgentHistoryPage: React.FC = () => {
       if (!res.success) {
         setError(res.error || t('agentHistory.loadError'));
       }
-      await hydrateHistory(false);
       if (tab === 'prompts') await loadPromptPage();
+      else await loadSessionPage();
     } catch (e) {
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
@@ -159,19 +275,8 @@ const PcAgentHistoryPage: React.FC = () => {
     }
   };
 
-  const filteredSessions = useMemo(() => {
-    const list = index?.sessions || [];
-    const q = search.trim().toLowerCase();
-    return list.filter((s) => {
-      if (filterTool && s.tool !== filterTool) return false;
-      if (filterUser && s.os_user !== filterUser) return false;
-      if (!q) return true;
-      const hay = `${s.title} ${s.project} ${s.tool} ${s.os_user}`.toLowerCase();
-      return hay.includes(q);
-    });
-  }, [index, filterTool, filterUser, search]);
-
-  const totalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
+  const sessionTotalPages = Math.max(1, Math.ceil(sessionTotal / PAGE_SIZE));
+  const promptTotalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
 
   const promptLabels = {
     copy: tk('copy'),
@@ -181,6 +286,28 @@ const PcAgentHistoryPage: React.FC = () => {
     cancel: tk('cancel'),
     edited: tk('edited'),
   };
+
+  const renderPager = (page: number, totalPages: number, setPage: (next: number) => void) => (
+    <div className="flex items-center justify-center gap-2 pt-2">
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={() => setPage(Math.max(1, page - 1))}
+        className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+      >
+        {tk('prev')}
+      </button>
+      <span className="text-xs text-slate-500">{page} / {totalPages}</span>
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={() => setPage(Math.min(totalPages, page + 1))}
+        className="px-3 py-1 rounded border text-sm disabled:opacity-40"
+      >
+        {tk('next')}
+      </button>
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col gap-4 p-4 sm:p-6">
@@ -214,13 +341,13 @@ const PcAgentHistoryPage: React.FC = () => {
         </div>
       </header>
 
-      {index?.generated_at && (
+      {header.generatedAt && (
         <div className="text-xs font-mono text-slate-400">
-          {tk('updated')}: {index.generated_at}
+          {tk('updated')}: {header.generatedAt}
           <span className="ml-3">
-            {index.counts?.sessions ?? index.sessions?.length ?? 0} {tk('sessionCount')}
+            {header.counts?.sessions ?? sessionTotal} {tk('sessionCount')}
             {' · '}
-            {index.counts?.prompts ?? promptTotal} {tk('promptCount')}
+            {header.counts?.prompts ?? promptTotal} {tk('promptCount')}
           </span>
         </div>
       )}
@@ -245,7 +372,7 @@ const PcAgentHistoryPage: React.FC = () => {
           className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
         >
           <option value="">{tk('allTools')}</option>
-          {(index?.tools || []).map((tool) => (
+          {header.tools.map((tool) => (
             <option key={tool} value={tool}>{toolLabel(tool)}</option>
           ))}
         </select>
@@ -255,7 +382,7 @@ const PcAgentHistoryPage: React.FC = () => {
           className="px-3 py-2 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm"
         >
           <option value="">{tk('allUsers')}</option>
-          {(index?.users || []).map((u) => (
+          {header.users.map((u) => (
             <option key={u} value={u}>{u}</option>
           ))}
         </select>
@@ -279,26 +406,29 @@ const PcAgentHistoryPage: React.FC = () => {
         ))}
       </div>
 
-      {loading && !index ? (
-        <div className="text-sm text-slate-500 py-8 text-center">{tk('loading')}</div>
-      ) : error ? (
+      {error && sessionRows.length === 0 && prompts.length === 0 ? (
         <div className="text-sm text-red-500 py-8 text-center">{error}</div>
       ) : tab === 'sessions' ? (
         <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-          <div className="overflow-auto space-y-2 pr-1">
-            {filteredSessions.length === 0 ? (
-              <div className="text-sm text-slate-500 py-8 text-center">{tk('empty')}</div>
-            ) : (
-              filteredSessions.map((s) => (
-                <SessionRow
-                  key={s.id}
-                  s={s as any}
-                  active={selectedId === s.id}
-                  subagentLabel={tk('subagent')}
-                  onClick={() => handleSelect(s.id)}
-                />
-              ))
-            )}
+          <div className="flex flex-col min-h-0">
+            <div className="flex-1 overflow-auto space-y-2 pr-1">
+              {sessionLoading && sessionRows.length === 0 ? (
+                <div className="text-sm text-slate-500 py-8 text-center">{tk('loading')}</div>
+              ) : sessionRows.length === 0 ? (
+                <div className="text-sm text-slate-500 py-8 text-center">{tk('empty')}</div>
+              ) : (
+                sessionRows.map((s) => (
+                  <SessionRow
+                    key={s.id}
+                    s={s as any}
+                    active={selectedId === s.id}
+                    subagentLabel={tk('subagent')}
+                    onClick={() => handleSelect(s.id)}
+                  />
+                ))
+              )}
+            </div>
+            {sessionTotalPages > 1 && renderPager(sessionPage, sessionTotalPages, setSessionPage)}
           </div>
           <div className="overflow-auto rounded-xl border border-slate-200 dark:border-white/10 bg-white/50 dark:bg-white/[0.02] p-4 min-h-[240px]">
             {detailLoading ? (
@@ -318,7 +448,9 @@ const PcAgentHistoryPage: React.FC = () => {
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
           <div className="flex-1 overflow-auto space-y-3 pr-1">
-            {prompts.length === 0 ? (
+            {promptLoading && prompts.length === 0 ? (
+              <div className="text-sm text-slate-500 py-8 text-center">{tk('loading')}</div>
+            ) : prompts.length === 0 ? (
               <div className="text-sm text-slate-500 py-8 text-center">{tk('empty')}</div>
             ) : (
               prompts.map((p) => (
@@ -326,27 +458,7 @@ const PcAgentHistoryPage: React.FC = () => {
               ))
             )}
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              <button
-                type="button"
-                disabled={promptPage <= 1}
-                onClick={() => setPromptPage((n) => Math.max(1, n - 1))}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-              >
-                {tk('prev')}
-              </button>
-              <span className="text-xs text-slate-500">{promptPage} / {totalPages}</span>
-              <button
-                type="button"
-                disabled={promptPage >= totalPages}
-                onClick={() => setPromptPage((n) => n + 1)}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-              >
-                {tk('next')}
-              </button>
-            </div>
-          )}
+          {promptTotalPages > 1 && renderPager(promptPage, promptTotalPages, setPromptPage)}
         </div>
       )}
     </div>

@@ -28,6 +28,8 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::get('/review-queue', [AppQyV1LearningController::class, 'getReviewQueue']);
         Route::post('/progress', [AppQyV1LearningController::class, 'updateProgress']);
         Route::get('/stats', [AppQyV1LearningController::class, 'getLearningStats']);
+        Route::post('/sentence-words', [AppQyV1SentenceWordTableController::class, 'resolve']);
+        Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed']);
 
         Route::post('/upload', [AppQyV1VocabularyUploadController::class, 'uploadDocument']);
         Route::delete('/libraries/{library_id}', [AppQyV1VocabularyUploadController::class, 'deleteLibrary']);
@@ -48,12 +50,9 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
     Route::any('/user/stats/retention', [AppQyV1UserStatsController::class, 'retention']);
 });
 
-// Public learning routes - no authentication required.
-// Anonymous users get is_selected=false; logged-in users (sanctum token) get real flags.
+// Public recommendation route.
 Route::prefix($apiVersionPrefix)->group(function () {
     Route::prefix('learning')->group(function () {
         Route::get('/recommendations', [AppQyV1VocabularyRecommendationController::class, 'getRecommendations']);
-        Route::post('/sentence-words', [AppQyV1SentenceWordTableController::class, 'resolve']);
-        Route::post('/sentence-words/played', [AppQyV1SentenceWordTableController::class, 'markPlayed']);
     });
 });

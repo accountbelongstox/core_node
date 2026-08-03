@@ -6,7 +6,7 @@
  * system-settings (pycoreApi.getSystemSettings/setSystemSettings —
  * monitorClipboard, scheduledScreenshot, screenshotInterval, notebooklmAutoConvert),
  * the Laravel endpoint selection (PcLaravelEndpointSwitcher — pycore-owned
- * `laravel_api.*` HTTPs), task engine tuning, and
+ * the shared browser LaravelAPI), task engine tuning, and
  * auto-start on boot (pycoreApi.getAutostart/setAutostart). Every backend call
  * is guarded; an inline "pycore unreachable" state is shown when the backend
  * (:59000) is offline. Local React state, pycoreApi, lucide-react and

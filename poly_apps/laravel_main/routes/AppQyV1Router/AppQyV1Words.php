@@ -54,7 +54,7 @@ Route::prefix('words/public')->group(function () {
 
 });
 
-// Word-media on-demand resolution (P2). No auth — pycore + FE consume it; the
+// Word-media on-demand resolution (P2). No auth — browser UI and workers consume it; the
 // same public trust level as words/public. FILE-FIRST: image_url/audio_url only
 // when on disk, else enqueue + bump the word_media task and report 'pending'.
 //   GET /api/app_qy_v1/word/{lang}/{word}/media
@@ -80,9 +80,7 @@ Route::post('/word/fix-text', [AppQyV1WordMediaController::class, 'fixWordText']
 
 // Boost a word's tts_priority to move it to the front of the audio queue.
 // Move-to-front ticket (MAX+1, atomic): the newest boost always sorts strictly
-// ahead of every other row. Called from the wordnew library UI; pycore
-// re-broadcasts via WS so the batch bar re-orders its in-flight pending list
-// immediately.
+// ahead of every other row. Called directly from the browser UI.
 //   POST /api/app_qy_v1/word/boost-priority  { md5, lang }
 Route::post('/word/boost-priority', [AppQyV1WordMediaController::class, 'boostPriority']);
 Route::post('/word/boost-priority/batch', [AppQyV1WordMediaController::class, 'boostPriorityBatch']);

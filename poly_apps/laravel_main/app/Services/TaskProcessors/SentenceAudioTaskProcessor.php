@@ -5,6 +5,8 @@ namespace App\Services\TaskProcessors;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleAudioWriteback;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -41,11 +43,19 @@ class SentenceAudioTaskProcessor extends AbstractTaskProcessor
     protected TaskManagerService $taskManager;
 
     protected AppQyV1SentenceAudioService $sentenceAudioService;
+    protected AppQyV1ArticleSentenceAudioService $articleSentenceAudioService;
+    protected AppQyV1ArticleAudioWriteback $articleAudioWriteback;
 
-    public function __construct(TaskManagerService $taskManager, ?AppQyV1SentenceAudioService $sentenceAudioService = null)
-    {
+    public function __construct(
+        TaskManagerService $taskManager,
+        ?AppQyV1SentenceAudioService $sentenceAudioService = null,
+        ?AppQyV1ArticleSentenceAudioService $articleSentenceAudioService = null,
+        ?AppQyV1ArticleAudioWriteback $articleAudioWriteback = null
+    ) {
         $this->taskManager = $taskManager;
         $this->sentenceAudioService = $sentenceAudioService ?: new AppQyV1SentenceAudioService();
+        $this->articleSentenceAudioService = $articleSentenceAudioService ?: new AppQyV1ArticleSentenceAudioService();
+        $this->articleAudioWriteback = $articleAudioWriteback ?: new AppQyV1ArticleAudioWriteback();
     }
 
     protected function taskTypeRoles(): array
@@ -126,6 +136,31 @@ class SentenceAudioTaskProcessor extends AbstractTaskProcessor
                 'language' => $language,
             ]);
             return 0;
+        }
+
+        $targetKind = self::strOrNull($payload['target_kind'] ?? null);
+        if ($targetKind === AppQyV1ArticleSentenceAudioService::TARGET_DAILY_ARTICLE) {
+            $stored = $this->articleSentenceAudioService->storeArticleAudio(
+                $payload,
+                $audioBinary,
+                is_string($provider) ? $provider : null,
+                self::strOrNull($inner['mime'] ?? ($result['mime'] ?? null))
+            );
+            return $stored ? 1 : 0;
+        }
+        if ($targetKind === AppQyV1ArticleSentenceAudioService::TARGET_ARTICLE_LIBRARY) {
+            $articleMd5 = self::strOrNull($payload['article_md5'] ?? null);
+            if ($articleMd5 === null) {
+                return 0;
+            }
+            $stored = $this->articleAudioWriteback->store(
+                $language,
+                $articleMd5,
+                $audioBinary,
+                is_string($provider) && $provider !== '' ? $provider : 'qwen3tts',
+                self::strOrNull($inner['mime'] ?? ($result['mime'] ?? null))
+            );
+            return $stored ? 1 : 0;
         }
 
         // DELEGATE to the existing sentence-audio writeback: validate MP3 + write

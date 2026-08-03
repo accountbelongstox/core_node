@@ -1,23 +1,25 @@
 # -*- coding: utf-8 -*-
 """
-TranslationWorkerService (slimmed) + shared instance.
+TranslationWorkerService (compute-only) + shared instance.
 
-The concrete Laravel-pulled translation worker. Split out of the former
-translation_worker_service.py monolith (2252 lines) per the AGENTS.md Modular rule.
-Only the worker-specific glue lives here; the shared Laravel scaffold is in
-base_laravel_worker.py, lane gating in lane_gating.py, the word-dedup cache in
-done_words_cache.py, the per-backend heap + fast-drain in task_heap.py, and the
-per-lane task processing in handlers/. No engine logic moved.
+The concrete translation worker. Split out of the former
+translation_worker_service.py monolith (2252 lines) per the AGENTS.md Modular
+rule. Only the worker-specific glue lives here; the shared Laravel result-upload
+scaffold is in base_laravel_worker.py, lane gating in lane_gating.py, the
+word-dedup cache in done_words_cache.py, and the per-lane task processing in
+handlers/. No engine logic moved.
 
-Public API (preserved verbatim - consumed across callmodule_main, event_handlers,
-assist_router, queue_overview_router, task_center_router, queue_monitor_service,
-translation_http_event_client_service):
+Exchange-hub architecture (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
+pycore never pulls, claims, or heartbeats Laravel. The UI pump accepts tasks
+from Laravel and dispatches them to pycore over RPC (accept_task); pycore
+processes them and uploads ONLY the result (status + payload) through
+base_laravel_worker._post_result.
+
+Public API:
   TranslationWorkerService, translation_worker_service,
-  poll_once, get_status, get_queue_status, mark_words_done, partition_words,
-  done_words_count.
+  accept_task, get_status, mark_words_done, partition_words, done_words_count.
 """
 
-import os
 import socket
 import time
 from typing import Any, Dict, List, Optional
@@ -25,7 +27,6 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.serialized_worker import (
-    init_serialized_owner,
     serialized_method,
     start_bus_task,
 )
@@ -35,7 +36,6 @@ from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manage
 from pycore.pyctl.translation.worker.base_laravel_worker import BaseLaravelWorkerService
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
 from pycore.pyctl.translation.worker.done_words_cache import DoneWordsCache
-from pycore.pyctl.translation.worker.task_heap import TaskHeap
 import pycore.pyctl.translation.worker.handlers.ai_translate as h_ai_translate
 import pycore.pyctl.translation.worker.handlers.audio as h_audio
 import pycore.pyctl.translation.worker.handlers.media as h_media
@@ -49,18 +49,21 @@ from pycore.pyutils.common.queue_center_contract import (
     task_local_label,
     task_types_for_execution,
 )
-from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
+from pycore.pyutils.common.service_config import (
+    LARAVEL_WORKER_API_URL,
+    PYCORE_WORKER_INSTANCE,
+)
 
 
 class TranslationWorkerService(BaseLaravelWorkerService):
     """
-    Translation worker (singleton) that drives the Laravel worker-task pipeline.
+    Translation worker (singleton) processing UI-dispatched tasks.
 
     Lifecycle:
-      - Each enabled poll sends the stable worker identity with the queue pull.
-        Laravel discovers or refreshes the worker in that same request.
-      - poll_once() pulls tasks and dispatches each task to a TaskManager background thread so the
-        actual translation + result POST never blocks the heartbeat thread.
+      - The UI pump accepts a task from Laravel and calls accept_task() over RPC.
+      - accept_task() records the task type/endpoint for the typed result route
+        and dispatches the task to a TaskManager background thread so the
+        actual translation + result POST never blocks the RPC thread.
     """
 
     # These values come from config/queue_center_contract.json through the
@@ -71,7 +74,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     PROMPT_TRANSLATION_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["prompt_translation"]["key"]
     SUBTITLE_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["subtitle_search"]["key"]
     WORD_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
-    ARTICLE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["article_audio"]["key"]
     SENTENCE_AUDIO_TASK_TYPE = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
     TRANSLATION_FAST_PROCESSOR_TYPE = task_execution_type("word_media")
     TRANSLATION_PROCESSOR_TYPE = task_execution_type(WORD_TRANSLATION_TASK_TYPE)
@@ -81,17 +83,12 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     STT_EXECUTION_TYPE = task_execution_type("stt")
     STT_TASK_TYPES = task_types_for_execution(STT_EXECUTION_TYPE)
 
-    # Base processor types always advertised (fast + legacy translation). The
-    # dedicated lanes are appended live by _effective_processor_types() when their
-    # Config kill-switch AND layered user-data/assist toggle are on.
+    # Base processor types (fast + legacy translation). The dedicated lanes are
+    # appended live by _effective_processor_types() when their Config kill-switch
+    # AND layered user-data/assist toggle are on.
     PROCESSOR_TYPES = [TRANSLATION_FAST_PROCESSOR_TYPE, TRANSLATION_PROCESSOR_TYPE]
 
     DEFAULT_PROVIDER = "google"
-
-    # Fast-drain burst cadence (overridden from Config at init).
-    TRANSLATION_FAST_POLL_INTERVAL = 0.5
-    TRANSLATION_FAST_DRAIN_WINDOW = 4.0
-    TRANSLATION_FAST_POLL_JITTER = 0.25
 
     @staticmethod
     def _build_worker_id() -> str:
@@ -101,18 +98,15 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         ``pycore-translate-`` prefix so existing Laravel-side worker_id
         accounting is unchanged.
 
-        MULTI-INSTANCE NOTE: Laravel keys claims/heartbeats by worker_id, so two
-        pycore processes on the SAME host must not share one. Atomic task claim
-        still prevents double work either way, but a shared id corrupts per-worker
-        accounting (current_task_id, completed/failed counters) and offline
-        detection. When running more than one pycore per host, set
-        PYCORE_WORKER_INSTANCE to a stable per-instance tag (e.g. its rpc port);
-        it is appended to the id. Single-instance hosts need no env and keep the
-        old stable id.
+        MULTI-INSTANCE NOTE: Laravel keys results by worker_id, so two pycore
+        processes on the SAME host must not share one. For multiple pycore
+        processes on one host, configure PYCORE_WORKER_INSTANCE with a stable
+        per-instance tag; it is appended to the id. Single-instance hosts keep
+        the original stable id.
         """
         host = socket.gethostname() or "host"
         safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-        instance = (os.getenv("PYCORE_WORKER_INSTANCE") or "").strip()
+        instance = PYCORE_WORKER_INSTANCE.strip()
         if instance:
             safe_instance = "".join(
                 c if (c.isalnum() or c in "-_") else "-" for c in instance
@@ -131,7 +125,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             return
 
         # Shared Laravel-worker scaffold (candidates, api_url, worker_id,
-        # registration/conn-fail/circuit/inflight state, _http_timeout).
+        # circuit/inflight state).
         self._init_base_laravel(laravel_api_url)
         self.worker_name = f"pycore-translation-{self.worker_id}"
         self._log_prefix = "[TranslationWorker]"
@@ -143,39 +137,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         # ---- Multi-pycore WORD-LEVEL coordination (Phase C) ----
         self._done_words_cache = DoneWordsCache(ttl=120)
 
-        # ---- Unified-task fast lane (2026-06-21) ----
-        # Last processor types and capabilities accepted by a queue pull.
-        self._advertised_processor_types: Optional[List[str]] = None
-        self._advertised_capabilities: Optional[List[str]] = None
-        # Per-backend priority heap + jittered fast-drain burst (reuses
-        # SentencePriorityQueue, extended to per-backend routing by TaskHeap).
-        self._task_heap = TaskHeap(self)
-        # Latest fast/urgent counters parsed from pull/heartbeat responses.
-        self._pending_fast = 0
-        self._pending_urgent = 0
-        # Pull fast-poll knobs from Config (fall back to class defaults).
-        try:
-            self.TRANSLATION_FAST_POLL_INTERVAL = float(
-                os.getenv(
-                    "PYCORE_TRANSLATION_FAST_POLL_INTERVAL",
-                    str(self.TRANSLATION_FAST_POLL_INTERVAL),
-                )
-            )
-            self.TRANSLATION_FAST_DRAIN_WINDOW = float(
-                os.getenv(
-                    "PYCORE_TRANSLATION_FAST_DRAIN_WINDOW",
-                    str(self.TRANSLATION_FAST_DRAIN_WINDOW),
-                )
-            )
-            self.TRANSLATION_FAST_POLL_JITTER = float(
-                os.getenv(
-                    "PYCORE_TRANSLATION_FAST_POLL_JITTER",
-                    str(self.TRANSLATION_FAST_POLL_JITTER),
-                )
-            )
-        except Exception:
-            pass
-
         self._initialized = True
         ColorPrint.green(
             f"[TranslationWorker] Service initialized "
@@ -183,8 +144,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         )
 
     # -------------------- word-level coordination (multi-pycore) --------------------
-    # Public API: delegated to DoneWordsCache (consumed by the HTTP event client +
-    # get_status). Kept as methods so the public surface is unchanged.
+    # Public API: delegated to DoneWordsCache. Kept as methods so the public
+    # surface is unchanged.
 
     def mark_words_done(
         self,
@@ -212,32 +173,12 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     # -------------------- capability / lane gating (live toggles) --------------------
 
     def _effective_capabilities(self) -> List[str]:
-        """Capabilities advertised on register AND status (delegates to lane_gating)."""
+        """Capabilities this worker can process (delegates to lane_gating)."""
         return lane_gating.effective_capabilities()
 
     def _effective_processor_types(self) -> List[str]:
-        """The lane set advertised this tick (delegates to lane_gating)."""
+        """The lane set this worker can process (delegates to lane_gating)."""
         return lane_gating.effective_processor_types(self)
-
-    def _effective_task_types(self) -> List[str]:
-        """Task types pulled via the typed pull route, primary LAST.
-
-        Mirrors the lane gates: translation toggle -> prompt_translation +
-        word_translation (word_translation last = holds the long-poll budget),
-        subtitle toggle -> subtitle_search, stt toggle -> the stt lane types.
-        Audio types are intentionally absent: the dedicated audio workers own
-        those routes now.
-        """
-        types: List[str] = []
-        if lane_gating.translation_enabled():
-            types.append(self.PROMPT_TRANSLATION_TASK_TYPE)
-        if lane_gating.subtitle_enabled():
-            types.append(self.SUBTITLE_TASK_TYPE)
-        if lane_gating.stt_enabled():
-            types.extend(self.STT_TASK_TYPES)
-        if lane_gating.translation_enabled():
-            types.append(self.WORD_TRANSLATION_TASK_TYPE)
-        return types
 
     # -------------------- payload hygiene --------------------
 
@@ -250,23 +191,39 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """
         return h_translation.normalize_words(raw_words)
 
+    # -------------------- RPC accept entry --------------------
+
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
+        """RPC accept entry: take ONE UI-dispatched task and process it.
+
+        The UI pump has already accepted (claimed) the task from Laravel; this
+        worker only processes it and uploads the result. The task type and the
+        Laravel base URL are recorded for the typed result route.
+        """
+        if not isinstance(task, dict) or task.get("task_id") in (None, ""):
+            return {"success": False, "error": "task with task_id is required"}
+        endpoint = (base_url or "").strip() or self.api_url
+        self._remember_task_types([task], endpoint)
+        self._dispatch(task)
+        return {"success": True, "task_id": task.get("task_id")}
+
     # -------------------- task processing --------------------
 
     def _start_lease_keepalive(self, task: Dict[str, Any], lease_seconds: int) -> None:
         """Ping 'processing' while a task executes so Laravel's lease tracks real work.
 
-        d.txt 7: a long task (cold TTS engine start, a large word batch) can
-        outlive the ``timeout_at`` lease; the reaper then reassigns it and the
-        late result is rejected 409 ('task reassigned / not ours'), wasting the
-        work. The ping carries NO progress field — the backend leaves the
-        stored progress untouched and only extends the lease.
+        A long task (cold TTS engine start, a large word batch) can outlive the
+        ``timeout_at`` lease; the reaper then reassigns it and the late result
+        is rejected 409 ('task reassigned / not ours'), wasting the work. The
+        ping carries NO progress field - the backend leaves the stored progress
+        untouched and only extends the lease.
         """
         task_id = task.get("task_id")
         interval = max(15.0, min(120.0, float(lease_seconds) / 3.0))
 
         def _keepalive() -> None:
             while not task.get("_lease_stop"):
-                # Condition-based wait on a never-signalled name — a pure
+                # Condition-based wait on a never-signalled name - a pure
                 # cancellable timer, no sleep-poll (threading standard).
                 THREAD_BUS.wait_signal(
                     "translation.worker.lease_keepalive", timeout=interval
@@ -290,15 +247,15 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     def _process_task(self, task: Dict[str, Any]) -> None:
         """
-        Process one claimed task and POST its result. Runs on a TaskManager
-        background thread (off the heartbeat thread). Any failure -> POST 'failed'
+        Process one dispatched task and POST its result. Runs on a TaskManager
+        background thread (off the RPC thread). Any failure -> POST 'failed'
         so Laravel re-routes/re-pends; nothing is ever silently dropped.
 
         Dispatch order (unified client) - delegates to the per-lane handlers:
           - capability == 'ai_translate'  -> ai_translate.ai_translate_words
           - task_type == 'subtitle_search'-> media.process_subtitle_search_task
           - task_type == 'prompt_translation' -> prompt_translate.process_prompt_translation_task
-          - task_type word_audio/article_audio -> audio.process_audio_task
+          - task_type == 'word_audio' -> audio.process_audio_task
           - task_type == 'sentence_audio' -> audio.process_audio_task
           - task_type in STT_TASK_TYPES   -> stt.process_stt_task
           - task_type word_translation/'' -> translation.process_word_translation
@@ -323,7 +280,6 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 return
             if task_type in (
                 self.WORD_AUDIO_TASK_TYPE,
-                self.ARTICLE_AUDIO_TASK_TYPE,
                 self.SENTENCE_AUDIO_TASK_TYPE,
             ):
                 h_audio.process_audio_task(self, task)
@@ -332,10 +288,10 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 h_stt.process_stt_task(self, task)
                 return
 
-            # The pull claims by execution_type, so a mis-tagged task of another
-            # task_type can land here. Translating it would post a result shape
-            # its real processor does not understand - report failed instead so
-            # Laravel retries it toward the right consumer.
+            # A mis-tagged task of another task_type can land here. Translating
+            # it would post a result shape its real processor does not
+            # understand - report failed instead so Laravel retries it toward
+            # the right consumer.
             if task_type not in (None, "", self.WORD_TRANSLATION_TASK_TYPE):
                 ColorPrint.yellow(
                     f"[TranslationWorker] Task {task_id} has unsupported "
@@ -405,7 +361,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     @staticmethod
     def _local_task_label(task: Dict[str, Any]) -> str:
-        """Map a pulled task to the local TaskManager lane label for the UI.
+        """Map a dispatched task to the local TaskManager lane label for the UI.
 
         Each new unified task_type gets its own lane so the local task-center UI can
         distinguish them; ai_translate keeps the translation lane (task_type stays
@@ -417,11 +373,10 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """Drop inflight entries whose deadline has passed.
 
         A hung executor (semaphore block or stalled engine) would otherwise keep a
-        task_id blacklisted forever, so a re-offered task (after Laravel's lease
-        timeout) could never be re-claimed by this worker until restart.
+        task_id blacklisted forever, so a re-dispatched task could never be
+        accepted by this worker until restart.
 
         State-owner serialization keeps the scan and removals in one operation.
-        The name remains for the existing task_heap.py call site.
         """
         expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
         for tid in expired:
@@ -432,21 +387,10 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         self._inflight.pop(task_id, None)
 
     @serialized_method
-    def _fast_drain_snapshot(self) -> Dict[str, Any]:
-        return {
-            "registered": self._registered,
-            "api_url": self.api_url,
-            "pending_fast": self._pending_fast,
-            "poll_interval": self.TRANSLATION_FAST_POLL_INTERVAL,
-            "drain_window": self.TRANSLATION_FAST_DRAIN_WINDOW,
-            "poll_jitter": self.TRANSLATION_FAST_POLL_JITTER,
-        }
-
-    @serialized_method
     def _dispatch(self, task: Dict[str, Any]) -> None:
         """
         Hand a task to a background thread via the pyctl desktop TaskManager so the
-        heartbeat thread is never blocked by network + translation latency. Mirrors
+        RPC thread is never blocked by network + translation latency. Mirrors
         VideoExtractController.start()'s use of execute_task.
         """
         task_id = task.get("task_id")
@@ -456,7 +400,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         deadline = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
         task["_lease_stop"] = False
         self._start_lease_keepalive(task, max(ttl, self.INFLIGHT_DEFAULT_TTL))
-        # The state owner makes the duplicate claim check and update indivisible.
+        # The state owner makes the duplicate dispatch check and update indivisible.
         existing = self._inflight.setdefault(task_id, deadline)
         if existing is not deadline:
             if existing > now:
@@ -514,9 +458,8 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
             tm.execute_task(local_task_id, executor)
         except Exception as e:
-            # If the TaskManager is unavailable, fall back to a plain daemon thread so
-            # the worker still functions (heartbeat thread stays unblocked either way).
-            # The fallback task and its payload are delivered through THREAD_BUS.
+            # If the TaskManager is unavailable, fall back to a plain bus task so
+            # the worker still functions (RPC thread stays unblocked either way).
             ColorPrint.yellow(
                 f"[TranslationWorker] TaskManager dispatch failed ({e}); using thread fallback"
             )
@@ -526,118 +469,23 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 thread_name=f"TranslateTask-{task_id}-Thread",
             )
 
-    # -------------------- heartbeat callback --------------------
-
-    def poll_once(self) -> None:
-        """PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
-
-        LIGHT: single-flight guard + hand the poll cycle to a THREAD_BUS task
-        thread. The cycle's network I/O used to run
-        on the serialized state-owner thread via @serialized_method; against a
-        dead endpoint one poll occupied the owner for >60s, so every concurrent
-        get_status and the next heartbeat tick raised 'Serialized operation
-        timed out: translation.worker.state.*'. Now neither the heartbeat
-        thread nor the state owner blocks on network.
-        """
-        if THREAD_BUS.get_signal("translation.worker.poll_running", False):
-            return
-        THREAD_BUS.signal("translation.worker.poll_running", True)
-
-        def _guarded_cycle():
-            try:
-                self._poll_cycle()
-            finally:
-                THREAD_BUS.signal("translation.worker.poll_running", False)
-
-        try:
-            start_bus_task(_guarded_cycle, thread_name="translation-worker-poll")
-        except Exception as e:
-            THREAD_BUS.signal("translation.worker.poll_running", False)
-            ColorPrint.red(f"[TranslationWorker] poll_once error: {e}")
-
-    def _poll_cycle(self) -> None:
-        """
-        PyHeartbeat callback (invoked every ~interval seconds WHEN ENABLED).
-
-        Light by design: pull tasks with inline worker identity, then dispatch each
-        to a background thread. Idempotent and exception-safe - it must never
-        raise into the heartbeat loop.
-        """
-        try:
-            # Circuit breaker: while the backend is persistently rejecting results
-            # (HTTP 5xx), STOP pulling new
-            # work - translating more only burns LLM calls for results the backend
-            # cannot store and re-floods it. The cooldown expires on its own so the
-            # worker auto-probes; any accepted result resets it (_note_result_*).
-            if self._circuit_is_open():
-                return
-
-            # Pull with wait=0 (immediate). Laravel orders by priority desc; we ALSO
-            # fold the batch into the per-backend priority heap and drain highest
-            # first so a bumped task processes ahead of older lower-priority ones.
-            tasks = self._pull_tasks(wait=0)
-            base = self.api_url
-            if tasks:
-                ColorPrint.green(f"[TranslationWorker] Pulled {len(tasks)} task(s)")
-                # Every pulled task is already CLAIMED for this worker by Laravel's
-                # atomic assign - enqueue everything; _process_task answers
-                # unsupported types with 'failed' so they re-route, never leak.
-                self._task_heap.enqueue_tasks(base, tasks)
-                for task in self._task_heap.drain_heap(base):
-                    self._dispatch(task)
-
-            # A pending_fast signal from this pull arms a jittered
-            # fast-drain burst so interactive requests are claimed near-instantly.
-            self._task_heap.maybe_start_fast_drain(self._pending_fast)
-        except Exception as e:
-            ColorPrint.red(f"[TranslationWorker] poll_once error: {e}")
-
     # -------------------- introspection --------------------
 
     def get_status(self) -> Dict[str, Any]:
-        """Service status snapshot (read-only)."""
+        """Service status snapshot (read-only, pycore-local state only)."""
         inflight = len(self._inflight)
         return {
             "service": "Translation Worker",
-            "api_url": self.api_url,
             "worker_id": self.worker_id,
             "processor_types": self._effective_processor_types(),
             "capabilities": self._effective_capabilities(),
             "provider": self.DEFAULT_PROVIDER,
-            "registered": self._registered,
             "inflight_tasks": inflight,
             "done_words_cached": self.done_words_count(),
             "initialized": self._initialized,
             # Circuit breaker: open while the backend persistently rejects results.
             "circuit_open": self._circuit_is_open(),
             "result_5xx_streak": self._result_5xx_streak,
-            # Fast-lane signal snapshot.
-            "pending_fast": self._pending_fast,
-            "pending_urgent": self._pending_urgent,
-            "heap_depth": self._task_heap.depth(),
-        }
-
-    def get_queue_status(self) -> Dict[str, Any]:
-        """Fast-lane / queue snapshot for routers + local UI.
-
-        Surfaces the latest pending_fast / pending_urgent counters (from pull +
-        heartbeat), the per-backend claimed-task heap depth, the fast-drain burst
-        state, and the advertised lanes/capabilities - so the task-center overview is
-        not blind to the interactive fast lane.
-        """
-        per_backend = self._task_heap.per_backend_depth()
-        inflight = len(self._inflight)
-        return {
-            "api_url": self.api_url,
-            "registered": self._registered,
-            "pending_fast": self._pending_fast,
-            "pending_urgent": self._pending_urgent,
-            "heap_depth": sum(per_backend.values()),
-            "heap_per_backend": per_backend,
-            "fast_drain_active": self._task_heap.is_fast_drain_active(),
-            "inflight_tasks": inflight,
-            "processor_types": self._effective_processor_types(),
-            "capabilities": self._effective_capabilities(),
         }
 
 

@@ -8,52 +8,26 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
-from pycore.pyctl.assist.assist_settings import ASSIST_API_PREFIX, load_assist_settings, save_assist_settings
+from pycore.pyctl.assist.assist_settings import load_assist_settings, save_assist_settings
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
     TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
-from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
-from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_service
-from pycore.pyutils.laravel.client import laravel_client
+from pycore.pyctl.assist.wiring import (
+    bind_selected_endpoint_for_workers,
+    resolve_selected_endpoint_for_ui,
+)
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 from pycore.pyctl.tts.laravel_audio_worker import laravel_sentence_audio_worker
 
-_LARAVEL_STATUS_TIMEOUT = 6.0
 _RUNTIME_CALLBACKS = (
     "translation_worker",
-    "translation_queue_monitor",
-    "translation_http_event_client",
-    "sentence_queue_monitor",
     "tts_queue_poller",
     "tts_sentence_worker",
     "subtitle_search_worker",
 )
-
-
-def _laravel_reachable_from_monitor() -> bool:
-    try:
-        snap = queue_monitor_service.get_snapshot(refresh=False)
-        return bool(snap.get("laravel_reachable"))
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _fetch_laravel_status(base_url: str) -> Optional[Dict[str, Any]]:
-    try:
-        resp = laravel_client.get(
-            f"{ASSIST_API_PREFIX}/status",
-            base_url=base_url,
-            timeout=_LARAVEL_STATUS_TIMEOUT,
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            return data if isinstance(data, dict) else None
-    except Exception:  # noqa: BLE001
-        pass
-    return None
 
 
 def _runtime_running() -> bool:
@@ -67,28 +41,34 @@ def _runtime_running() -> bool:
     return False
 
 
-def assist_status(include_laravel: bool = True) -> Dict[str, Any]:
+def assist_status(include_laravel: bool = False) -> Dict[str, Any]:
     try:
         settings = load_assist_settings()
-        laravel_reachable = _laravel_reachable_from_monitor()
-        endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=laravel_reachable)
-        laravel_status = (
-            _fetch_laravel_status(endpoint["base_url"])
-            if include_laravel and laravel_reachable and endpoint and endpoint.get("base_url")
-            else None
+        translation_status = translation_worker_service.get_status()
+        word_status = laravel_word_audio_worker.get_status()
+        sentence_status = laravel_sentence_audio_worker.get_status()
+        worker_statuses = (translation_status, word_status, sentence_status)
+        endpoint = resolve_selected_endpoint_for_ui(monitor_reachable=False)
+        processor_enabled = bool(
+            settings["enabled"] and any(settings["capabilities"].values())
         )
         return {
             "enabled": settings["enabled"],
             "capabilities": settings["capabilities"],
             "endpoint": endpoint,
-            "laravel_reachable": laravel_reachable,
             "running": _runtime_running(),
+            "processor_enabled": processor_enabled,
             "circuit": {"open": False, "cooldown_s": 0},
-            "counters": {"claimed": 0, "submitted": 0, "released": 0, "failures": 0},
+            "counters": {
+                "claimed": sum(int(item.get("total_claimed") or 0) for item in worker_statuses),
+                "submitted": sum(int(item.get("total_succeeded") or 0) for item in worker_statuses),
+                "released": 0,
+                "failures": sum(int(item.get("total_failed") or 0) for item in worker_statuses),
+            },
             "last_error": None,
             "last_cycle_at": None,
             "claimer": None,
-            "laravel_status": laravel_status,
+            "laravel_status": None,
         }
     except Exception as exc:  # noqa: BLE001
         tb = traceback.format_exc()
@@ -99,6 +79,7 @@ def assist_status(include_laravel: bool = True) -> Dict[str, Any]:
             "endpoint": None,
             "laravel_reachable": False,
             "running": False,
+            "processor_enabled": False,
             "circuit": {"open": False, "cooldown_s": 0},
             "counters": {},
             "last_error": f"status error: {exc}",
@@ -111,6 +92,15 @@ def assist_status(include_laravel: bool = True) -> Dict[str, Any]:
 
 def assist_config(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     req = params or {}
+    endpoint = str(req.get("laravel_endpoint") or "").strip()
+    if endpoint:
+        endpoint_result = bind_selected_endpoint_for_workers(endpoint)
+        if not endpoint_result.get("success"):
+            return {
+                "success": False,
+                "ok": False,
+                "error": endpoint_result.get("error") or "LARAVEL_ENDPOINT_BIND_FAILED",
+            }
     patch: Dict[str, Any] = {}
     if req.get("enabled") is not None:
         patch["enabled"] = bool(req["enabled"])
@@ -136,42 +126,28 @@ def assist_config(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return result
 
 
-def assist_cycle() -> Dict[str, Any]:
+def assist_cycle(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    req = params or {}
+    endpoint_result = bind_selected_endpoint_for_workers(
+        str(req.get("laravel_endpoint") or "")
+    )
+    if not endpoint_result.get("success"):
+        return {
+            "success": False,
+            "ok": False,
+            "error": endpoint_result.get("error") or "LARAVEL_ENDPOINT_BIND_FAILED",
+        }
     settings = load_assist_settings()
     if not settings["enabled"]:
         return {"success": False, "error": "queue processing is disabled — enable it first"}
 
-    caps = settings.get("capabilities") or {}
-    triggered = 0
-    errors = []
-    if (
-        caps.get("translation")
-        or caps.get("ai_translate")
-        or caps.get("subtitle")
-        or caps.get("stt")
-    ):
-        try:
-            translation_worker_service.poll_once()
-            triggered += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"translation: {exc}")
-    if caps.get("tts"):
-        try:
-            laravel_word_audio_worker.poll_and_process()
-            triggered += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"word_audio: {exc}")
-    if caps.get("sentence_audio"):
-        try:
-            laravel_sentence_audio_worker.poll_and_process()
-            triggered += 1
-        except Exception as exc:  # noqa: BLE001
-            errors.append(f"sentence_audio: {exc}")
-
+    # Pycore no longer runs its own pull cycles: the UI task pump fetches and
+    # accepts tasks from Laravel and dispatches them to pycore over RPC.
     return {
-        "ok": not errors,
-        "processed": triggered,
+        "ok": True,
+        "processed": 0,
         "submitted": 0,
         "released": 0,
-        "errors": errors,
+        "errors": [],
+        "note": "processing is UI-pump driven; pycore runs no pull cycle",
     }

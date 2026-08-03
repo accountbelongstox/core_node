@@ -20,7 +20,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { translate } from '../../WfNewLocales';
-import { resolveAudioSync } from '../../cache/WfNewAudioCache';
+import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 
 export interface WfNewAudioFile {
   url?: string;

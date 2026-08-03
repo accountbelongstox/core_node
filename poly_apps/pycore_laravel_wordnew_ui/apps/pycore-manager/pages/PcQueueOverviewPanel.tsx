@@ -25,7 +25,7 @@ const PcQueueOverviewPanel: React.FC<QueueCenterPanelProps> = () => {
   const data: PcQueueOverview | null =
     (raw && raw.success !== false && Array.isArray(raw.categories)) ? raw : null;
   const loading = hub.loading;
-  const err = hub.sliceErrors.overview ?? (!hub.pycoreReachable ? hub.error : null);
+  const err = hub.sliceErrors.overview ?? null;
 
   /*
    * [gpt-5.3-codex-spark:LEGACY-START]

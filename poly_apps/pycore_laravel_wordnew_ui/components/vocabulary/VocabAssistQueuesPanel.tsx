@@ -6,7 +6,7 @@ import { commonClasses } from '../../styles/theme';
 import { LoadingBlock, EmptyState } from '../common';
 import type {
   AssistOverviewResponse, AssistQueueCategory, AssistQueueWorker,
-} from '@/apps/laravel-manager/api';
+} from '@/core/api-libs/laravel';
 
 type DrillStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'leased';
 

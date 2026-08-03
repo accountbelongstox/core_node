@@ -3,13 +3,13 @@
  * the real in-flight learning/processing work. The laravel-manager Learning
  * Tasks panel is presentational/mock, so this surfaces the assist overview
  * instead (categories with pending/processing/leased counts + drill-down rows).
- * Proxied through pycore.
+ * Loaded directly from Laravel.
  *
- * Params mirror BooksAPI.getAssistCategoryItems (category/status/start/limit).
+ * Params mirror LaravelAPI.getQueueOverviewItems (category/status/start/limit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabAssistCategory } from '@/apps/pycore-manager/api';
 import { GLOBAL_TASK_LIMITS } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
@@ -41,7 +41,7 @@ export default function VocabLearningTasksPanel() {
     setLoading(true);
     setError(null);
     try {
-      const r = await pycoreApi.getVocabAssistOverview();
+      const r = await laravelApi.getQueueOverview();
       const p = vp<any>(r);
       setCats(p?.categories || []);
       setWorkers((p?.workers || []) as Record<string, unknown>[]);
@@ -155,7 +155,7 @@ function CategoryItems({ cat, onBack }: { cat: VocabAssistCategory; onBack: () =
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    pycoreApi.getVocabAssistOverviewItems({ category: cat.key || '', start, limit })
+    laravelApi.getQueueOverviewItems({ category: cat.key || '', start, limit })
       .then((r) => { if (!cancelled) setItems(toArray(vp<any>(r))); })
       .catch(() => { if (!cancelled) setItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });

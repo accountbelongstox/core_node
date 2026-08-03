@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
 import type { PcTaskRecord, PycoreGlobalTaskDetail } from '@/apps/pycore-manager/api';
 import { TypedEventEmitter } from '../../../core/events/TypedEventEmitter';
 import {
@@ -9,9 +9,12 @@ import {
 } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 export type CanonicalCompletedTaskType = (typeof GLOBAL_TASK_HISTORY_BUCKETS)[number];
 export type CompletedTaskType = 'all' | CanonicalCompletedTaskType;
+
+const SENTENCE_CONCURRENCY_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.consumer_batch_limits.sentence_audio;
 
 const normalizeCompletedTaskType = (rawType: string): CanonicalCompletedTaskType => {
     return normalizeGlobalTaskHistoryType(rawType);
@@ -54,8 +57,6 @@ export class PycoreTaskCenterStateService {
     public translationDetailLoading = false;
     public translationTaskDetail: PycoreGlobalTaskDetail | null = null;
 
-    // --- Sentence Queue State ---
-    public sentenceBusy = false;
     public sentenceActionErr: string | null = null;
 
     on(fn: () => void): () => void {
@@ -94,13 +95,30 @@ export class PycoreTaskCenterStateService {
         this.recentLoading = true;
         this.emit();
         try {
-            const syncResult = await pycoreApi.syncCompletedTasks({ limit: GLOBAL_TASK_LIMITS.history_records });
-            if (!syncResult.success) {
-                this.recentErr = syncResult.error || 'Resource synchronization failed; showing the local archive';
-            } else if (syncResult.partial) {
-                this.recentErr = `Local archive synchronized; Laravel source unavailable: ${syncResult.laravel_error || 'unknown error'}`;
+            const results = await Promise.allSettled([
+                laravelApi.getCompletedTaskHistory({
+                    limit: GLOBAL_TASK_LIMITS.history_records,
+                    cursor_id: 0,
+                    include_types: true,
+                }),
+                pycoreApi.getRecentTasks({ limit: GLOBAL_TASK_LIMITS.history_records }),
+            ]);
+            const laravelResult = results[0];
+            const localResult = results[1];
+            if (laravelResult.status === 'rejected' && localResult.status === 'rejected') {
+                throw laravelResult.reason;
+            }
+            const syncResult = laravelResult.status === 'fulfilled'
+                ? laravelResult.value
+                : localResult.status === 'fulfilled' ? localResult.value : null;
+            if (!syncResult) return;
+            if (laravelResult.status === 'fulfilled' && localResult.status === 'fulfilled') {
+                syncResult.records = [...(syncResult.records ?? []), ...(localResult.value.records ?? [])];
             }
             this.ingestRecent(syncResult);
+            if (laravelResult.status === 'rejected') {
+                this.recentErr = 'Laravel task history unavailable; showing local tasks';
+            }
         } catch (syncError: any) {
             this.recentErr = syncError?.message || 'Resource synchronization failed; showing the local archive';
         } finally {
@@ -115,11 +133,11 @@ export class PycoreTaskCenterStateService {
         this.recentErr = null;
         this.emit();
         try {
-            const result = await pycoreApi.syncCompletedTasks({ limit: GLOBAL_TASK_LIMITS.history_records });
-            if (!result.success) throw new Error(result.error || 'Completed-task synchronization failed');
-            if (result.partial) {
-                this.recentErr = `Local archive synchronized; Laravel source unavailable: ${result.laravel_error || 'unknown error'}`;
-            }
+            const result = await laravelApi.getCompletedTaskHistory({
+                limit: GLOBAL_TASK_LIMITS.history_records,
+                cursor_id: 0,
+                include_types: true,
+            });
             this.ingestRecent(result);
         } catch (e: any) {
             this.recentErr = e?.message || 'Completed-task synchronization failed';
@@ -135,7 +153,7 @@ export class PycoreTaskCenterStateService {
         this.recentErr = null;
         this.emit();
         try {
-            const data = await pycoreApi.syncCompletedTasks({
+            const data = await laravelApi.getCompletedTaskHistory({
                 limit: GLOBAL_TASK_LIMITS.history_records,
                 cursor_id: this.recentNextCursorId,
             });
@@ -160,20 +178,24 @@ export class PycoreTaskCenterStateService {
     // --- Translation Queue Methods ---
     async fetchTranslationQueue(refresh: boolean, refreshHub: () => Promise<void>) {
         try {
-            if (refresh) await pycoreApi.queueTranslation(true);
+            if (refresh) await laravelApi.getTranslationQueue();
         } finally {
             await refreshHub();
         }
     }
 
-    async changeTranslationPriority(taskId: string, next: number, refreshHub: () => Promise<void>) {
+    async changeTranslationPriority(
+        taskId: string,
+        next: number,
+        promoteTask: (taskId: string, priority: number) => void,
+    ) {
         this.translationBusyTask = taskId;
         this.emit();
         try {
-            const r = await pycoreApi.setQueuePriority(taskId, next);
+            const r = await laravelApi.setQueuePriority(taskId, next);
             if (r?.success === false) throw new Error(r?.error || 'Action failed');
             this.translationNotice = 'Priority updated';
-            await this.fetchTranslationQueue(true, refreshHub);
+            promoteTask(taskId, next);
         } catch (e: any) {
             this.translationNotice = `Action failed: ${e?.message || ''}`.trim();
         } finally {
@@ -191,7 +213,7 @@ export class PycoreTaskCenterStateService {
         this.translationStacking = true;
         this.emit();
         try {
-            const r = await pycoreApi.stackQueue(words, lang.trim() || 'en', target.trim() || 'zh');
+            const r = await laravelApi.stackQueue(words, lang.trim() || 'en', target.trim() || 'zh');
             if (r?.success === false) throw new Error(r?.error || 'Action failed');
             this.translationNotice = 'Words stacked at high priority';
             await this.fetchTranslationQueue(true, refreshHub);
@@ -208,7 +230,7 @@ export class PycoreTaskCenterStateService {
         this.translationTaskDetail = initialTaskDetail;
         this.emit();
         try {
-            const r = await pycoreApi.getTranslationTaskDetail(taskId);
+            const r = await laravelApi.getTranslationTaskDetail(taskId);
             if (r?.success && r.task) {
                 this.translationTaskDetail = r.task;
             }
@@ -231,33 +253,49 @@ export class PycoreTaskCenterStateService {
         this.emit();
     }
 
-    // --- Sentence Queue Methods ---
-    async runSentenceAudioOnce(refreshHub: () => Promise<void>) {
-        this.sentenceBusy = true;
-        this.sentenceActionErr = null;
-        this.emit();
-        try {
-            const result = await pycoreApi.runSentenceAudioOnce();
-            if (!result?.ok) throw new Error(result?.error || 'run-once rejected');
-            await refreshHub();
-        } catch (e: any) {
-            this.sentenceActionErr = e?.message || 'run-once failed';
-        } finally {
-            this.sentenceBusy = false;
-            this.emit();
-        }
-    }
 
-    async setSentenceAudioConcurrency(raw: string, autoStart: boolean, refreshHub: () => Promise<void>) {
+    async setSentenceAudioConcurrency(
+        raw: string,
+        autoStart: boolean,
+        refreshHub: () => Promise<void>,
+        fallbackError: string,
+    ) {
         StorageManager.set(StorageKeys.PYCORE_SENTENCE_WORKER_CONCURRENCY, raw);
-        const n = Math.min(8, Math.max(0, parseInt(raw, 10) || 0));
+        const n = Math.min(SENTENCE_CONCURRENCY_LIMIT, Math.max(0, parseInt(raw, 10) || 0));
         this.sentenceActionErr = null;
         this.emit();
         try {
             await pycoreApi.setSentenceAudioConcurrency(n, autoStart);
             await refreshHub();
         } catch (e: any) {
-            this.sentenceActionErr = e?.message || 'concurrency save failed';
+            this.sentenceActionErr = e?.message || fallbackError;
+            this.emit();
+        }
+    }
+
+    async setSentenceAudioSpeaker(
+        speaker: string,
+        autoStart: boolean,
+        concurrencyRaw: string,
+        refreshHub: () => Promise<void>,
+        fallbackError: string,
+    ) {
+        StorageManager.set(StorageKeys.PYCORE_SENTENCE_QWEN_SPEAKER, speaker);
+        const concurrency = Math.min(
+            SENTENCE_CONCURRENCY_LIMIT,
+            Math.max(0, parseInt(concurrencyRaw, 10) || 0),
+        );
+        this.sentenceActionErr = null;
+        this.emit();
+        try {
+            await pycoreApi.setSentenceAudioRuntimeConfig({
+                auto_start: autoStart,
+                concurrency,
+                speaker,
+            });
+            await refreshHub();
+        } catch (e: any) {
+            this.sentenceActionErr = e?.message || fallbackError;
             this.emit();
         }
     }

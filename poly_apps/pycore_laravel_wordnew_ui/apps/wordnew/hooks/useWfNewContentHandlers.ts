@@ -8,14 +8,14 @@ import type {
   WfNewHomeContent, WfNewStatistics, WfNewLanguage,
 } from '../api';
 import type { PreviewAddLibraryResult } from '../api/types/api';
-import type { WfNewCachedKind } from '../cache/WfNewContentCache';
+import type { WfNewCachedKind } from '../runtime-store/WfNewContentCache';
 import {
   getCachedGroups, getCachedGroupIds, putCachedGroups, getCachedWords, putCachedWords, dedupGroups,
-} from '../cache/WfNewContentCache';
+} from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
-import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
+import { isDefaultVocabularyGroup } from '../api';
 import { wfNewPageHeader, type WordNewTab } from './useWfNewAppState';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
@@ -118,7 +118,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
       // panel, so the shelf card reads synced target/read/memorized state.
       // Best-effort: offline or logged-out keeps local-only progress.
       if (Array.isArray(groups) && wfNewApi.isAuthenticated()) {
-        const defaultGroup = groups.find((g) => g.name === DEFAULT_VOCAB_GROUP_NAME) ?? groups[0];
+        const defaultGroup = groups.find(isDefaultVocabularyGroup) ?? groups[0];
         if (defaultGroup?.id) {
           const gid = String(defaultGroup.id);
           wordNewProgressCenter

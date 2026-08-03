@@ -22,23 +22,10 @@ from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyutils.codesync.manager import get_code_sync_manager
 from pycore.pyctl.runtime.callmodule_config import Config
 import pycore.pylauncher.platform.system_service_manager as ssm
-from pycore.pyctl.assist.assist_settings import assist_callback_states
 from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
-from pycore.pyctl.translation.worker.worker import translation_worker_service
-from pycore.pyctl.queue_center.translation_monitor_service import queue_monitor_service
-from pycore.pyctl.translation.http_event_client_service import (
-    translation_http_event_client,
-)
-from pycore.pyctl.assist.wiring import register_assist_runtime
-from pycore.pyctl.tts.heartbeat import (
-    register_sentence_queue_monitor,
-    register_tts_queue_poller,
-    register_tts_sentence_worker,
-)
 from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
-from pycore.pyctl.assist.heartbeat_worker_prefs import restore_persisted_heartbeat_prefs
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.pylauncher.tray_menu import (
@@ -338,41 +325,13 @@ def register_runtime_workers() -> None:
     """
     Register pycore's periodic PyHeartbeat workers (idempotent).
 
-    Registers TTS word/sentence workers, the translation WORKER, the translation
-    QUEUE MONITOR, and the sentence-audio monitor on the active launcher path
-    (`pycore_module_caller.py`). Toggle at runtime via POST
-    /api/heartbeat/{enable,disable}/<callback> or Queue Center assist toggles.
+    Queue workers (translation / TTS audio) are NOT registered here anymore:
+    pycore never starts its own pull loop — the UI pump dispatches tasks to
+    pycore over RPC (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md).
     """
     heartbeat = shared_heartbeat_system
     if not heartbeat.is_running():
         heartbeat.start()
-
-    try:
-        register_tts_queue_poller()
-        register_tts_sentence_worker()
-        register_sentence_queue_monitor()
-    except Exception as e:
-        ColorPrint.red(f"[EventHandlers] Failed to register TTS/sentence heartbeat workers: {e}")
-
-    try:
-        heartbeat = shared_heartbeat_system
-        callback_states = assist_callback_states()
-        worker = translation_worker_service
-        translation_enabled = callback_states["translation_worker"]
-        heartbeat.register_callback(
-            name='translation_worker',
-            callback=worker.poll_once,
-            interval=Config.TRANSLATION_WORKER_INTERVAL,
-            enabled=translation_enabled,
-        )
-        ColorPrint.green(
-            f"[EventHandlers] Registered translation_worker callback "
-            f"(interval={Config.TRANSLATION_WORKER_INTERVAL}s, "
-            f"enabled={translation_enabled} (user settings), "
-            f"api={Config.LARAVEL_WORKER_API_URL})"
-        )
-    except Exception as e:
-        ColorPrint.red(f"[EventHandlers] Failed to register translation_worker: {e}")
 
     # Agent-history extraction worker (backfill -> live article pipeline):
     # previously registered ONLY on the native_ui path (callmodule_main), so
@@ -381,56 +340,6 @@ def register_runtime_workers() -> None:
         register_agent_history_extraction()
     except Exception as e:
         ColorPrint.red(f"[EventHandlers] Failed to register agent_history_extraction: {e}")
-
-    try:
-        heartbeat = shared_heartbeat_system
-        callback_states = assist_callback_states()
-        # Shares the worker's discovered Laravel base URL (same LARAVEL_WORKER_API_URL).
-        monitor = queue_monitor_service
-        heartbeat.register_callback(
-            name='translation_queue_monitor',
-            callback=monitor.poll_once,
-            interval=Config.TRANSLATION_QUEUE_MONITOR_INTERVAL,
-            enabled=callback_states["translation_queue_monitor"],
-        )
-        ColorPrint.green(
-            f"[EventHandlers] Registered translation_queue_monitor callback "
-            f"(interval={Config.TRANSLATION_QUEUE_MONITOR_INTERVAL}s, "
-            f"enabled={callback_states['translation_queue_monitor']} (user settings), "
-            f"bump_ttl={Config.TRANSLATION_QUEUE_BUMP_TTL_SECONDS}s)"
-        )
-    except Exception as e:
-        ColorPrint.red(f"[EventHandlers] Failed to register translation_queue_monitor: {e}")
-
-    try:
-        heartbeat = shared_heartbeat_system
-        callback_states = assist_callback_states()
-        # Phase C: HTTP event client (real-time queue events + multi-pycore word
-        # coordination). Connects to Laravel's HTTP event endpoint.
-        # The supervise callback only keeps the background SSE thread alive (no
-        # network I/O on the heartbeat thread). Registered HERE — the active
-        # launcher path — so Phase C real-time actually starts under
-        # pycore_module_caller.py (callmodule_main registers it on the native_ui path).
-        event_client = translation_http_event_client
-        heartbeat.register_callback(
-            name='translation_http_event_client',
-            callback=event_client.supervise,
-            interval=Config.TRANSLATION_EVENT_SUPERVISOR_INTERVAL,
-            enabled=callback_states["translation_http_event_client"],
-        )
-        ColorPrint.green(
-            f"[EventHandlers] Registered translation_http_event_client callback "
-            f"(interval={Config.TRANSLATION_EVENT_SUPERVISOR_INTERVAL}s, "
-            f"enabled={callback_states['translation_http_event_client']} (user settings))"
-        )
-    except Exception as e:
-        ColorPrint.red(
-            f"[EventHandlers] Failed to register "
-            f"translation_http_event_client: {e}"
-        )
-
-    # Apply the in-memory control plane only after every queue callback exists.
-    register_assist_runtime()
 
     rate_interval = 30
     raw_interval = os.environ.get("PYCORE_AI_RATE_RESET_INTERVAL", "").strip()
@@ -444,7 +353,6 @@ def register_runtime_workers() -> None:
         enabled=rate_enabled not in ("0", "false", "no"),
     )
     try:
-        restore_persisted_heartbeat_prefs()
         apply_persisted_system_settings()
     except Exception as e:
         ColorPrint.yellow(f"[EventHandlers] Worker prefs / system_settings restore: {e}")

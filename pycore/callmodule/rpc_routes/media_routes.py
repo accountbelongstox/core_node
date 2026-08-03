@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Register Laravel media controllers on HTTP API."""
 
-from pycore.callmodule.rpc_routes.route_names import BOOK_SYNC_SOURCE, MEDIA_ENRICH
+from pycore.callmodule.rpc_routes.route_names import BOOK_SYNC_SOURCE
 import pycore.pyctl.laravel.media_service as laravel_media_service
 
 
@@ -13,9 +13,3 @@ def register_media_routes(server) -> None:
         handler=laravel_media_service.sync_book,
         description="Idempotently ingest books into the sentence library",
     )
-    server.post(
-        path=MEDIA_ENRICH,
-        handler=laravel_media_service.enrich,
-        description="Trigger sentence-library enrichment",
-    )
-

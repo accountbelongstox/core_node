@@ -3,7 +3,7 @@ import { BookOpen, ChevronLeft, ChevronRight, RefreshCw, Trash2, Volume2 } from 
 import { api } from '@/apps/laravel-manager/api';
 import type { APIResponse } from '../../../apps/laravel-manager/types';
 import type { ArticleBatchDeleteResult, ArticleDeleteResult, ArticleItem } from '@/apps/laravel-manager/api';
-import { requestGlobalLogin } from '../../../apps/laravel-manager/auth/loginModalBridge';
+import { requestGlobalLogin } from '../../../core/api-libs/laravel/transport/LoginRequestBridge';
 import { commonClasses } from '../../../styles/theme';
 import { useAppState } from '../../../contexts/AppStateContext';
 import { useUserRole } from '../../../hooks/useUserRole';

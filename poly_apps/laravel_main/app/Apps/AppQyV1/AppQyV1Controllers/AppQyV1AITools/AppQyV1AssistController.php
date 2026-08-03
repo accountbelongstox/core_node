@@ -479,7 +479,7 @@ class AppQyV1AssistController extends Controller
     /**
      * GET /api/app_qy_v1/assist/overview
      *
-     * Single rich aggregate snapshot consumed by pycore's Queue Center overview
+     * Single rich aggregate snapshot consumed directly by Queue Center clients
      * (SHARED CONTRACT v2). Returns every assist category (word_translation,
      * word_media, word_audio, sentence_audio, subtitle_lang, book_lang, cover,
      * poster) with pending/processing/leased/total + by_language + sample rows,

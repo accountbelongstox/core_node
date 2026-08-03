@@ -14,7 +14,6 @@ import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.callmodule.rpc_routes.route_names import (
-    UI_TTS_STATUS_STATUS,
     UI_TTS_STATUS_TEST,
     UI_TTS_STATUS_GET_SETTINGS,
     UI_TTS_STATUS_POST_SETTINGS,
@@ -29,12 +28,6 @@ from pycore.callmodule.services.tts_status_service import (
 
 
 def register_local_tts_status_routes(server):
-    async def status_handler(params, request_id, context):
-        params = params or {}
-        return await asyncio.to_thread(tts.status, int(params.get("refresh") or 0))
-
-    server.route(name=UI_TTS_STATUS_STATUS, handler=status_handler, sync=False)
-
     async def test_handler(params, request_id, context):
         params = params or {}
         req = _TtsTestReq(
@@ -76,18 +69,12 @@ __all__ = ["register_local_tts_status_routes"]
 import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import UI_STT_STATUS_STATUS, UI_STT_STATUS_TEST
+from pycore.callmodule.rpc_routes.route_names import UI_STT_STATUS_TEST
 import pycore.callmodule.services.stt_status_service as stt
 from pycore.callmodule.services.stt_status_service import _SttTestReq
 
 
 def register_local_stt_status_routes(server):
-    async def status_handler(params, request_id, context):
-        params = params or {}
-        return await asyncio.to_thread(stt.status, int(params.get("refresh") or 0))
-
-    server.route(name=UI_STT_STATUS_STATUS, handler=status_handler, sync=False)
-
     async def test_handler(params, request_id, context):
         params = params or {}
         req = _SttTestReq(
@@ -170,17 +157,12 @@ __all__ = ["register_local_llm_status_routes"]
 import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import UI_OCR_STATUS_STATUS, UI_OCR_STATUS_TEST
+from pycore.callmodule.rpc_routes.route_names import UI_OCR_STATUS_TEST
 import pycore.callmodule.services.ocr_status_service as ocr
 from pycore.callmodule.services.ocr_status_service import _OcrTestReq
 
 
 def register_local_ocr_status_routes(server):
-    async def status_handler(params, request_id, context):
-        return await asyncio.to_thread(ocr.status)
-
-    server.route(name=UI_OCR_STATUS_STATUS, handler=status_handler, sync=False)
-
     async def test_handler(params, request_id, context):
         params = params or {}
         req = _OcrTestReq(
@@ -382,41 +364,6 @@ def register_local_speech_history_routes(server):
 
 
 __all__ = ["register_local_speech_history_routes"]
-''',
-    "local_heartbeat_workers_routes.py": '''# -*- coding: utf-8 -*-
-"""RPC Routes for heartbeat_workers."""
-
-import asyncio
-
-from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.callmodule.rpc_routes.route_names import (
-    UI_HEARTBEAT_WORKERS_STATUS,
-    UI_HEARTBEAT_WORKERS_CONFIG,
-)
-import pycore.callmodule.services.heartbeat_workers_service as hb
-
-
-def register_local_heartbeat_workers_routes(server):
-    async def status_handler(params, request_id, context):
-        return await asyncio.to_thread(hb.status)
-
-    server.route(name=UI_HEARTBEAT_WORKERS_STATUS, handler=status_handler, sync=False)
-
-    async def config_handler(params, request_id, context):
-        params = params or {}
-        if "enabled" not in params:
-            return {"success": False, "error": "enabled is required"}
-        return await asyncio.to_thread(
-            hb.config,
-            str(params.get("callback_name") or ""),
-            bool(params["enabled"]),
-        )
-
-    server.route(name=UI_HEARTBEAT_WORKERS_CONFIG, handler=config_handler, sync=False)
-    ColorPrint.green("[ConfigBuilder] Registered heartbeat_workers RPC routes")
-
-
-__all__ = ["register_local_heartbeat_workers_routes"]
 ''',
     "local_system_resources_routes.py": '''# -*- coding: utf-8 -*-
 """RPC Routes for system_resources."""

@@ -111,7 +111,7 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
 
         // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the
         // "N voices per sentence/word" default; count is dynamic via
-        // variantsForLanguage(). pycore proxies these via /api/local/sentence-audio/variants.
+        // variantsForLanguage(). Browser UI and pycore workers share this API.
         Route::get('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'index']);
         Route::post('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'store']);
         Route::delete('/variant-specs', [AppQyV1TtsVariantSpecController::class, 'destroy']);
@@ -148,8 +148,8 @@ Route::prefix('app_qy_v1/ai_tools')->middleware('auth:sanctum')->group(function 
     });
 });
 
-// Translation-queue CONTROL plane (Phase-B contract, consumed by pycore's queue
-// monitor). pycore is a server-side caller with no user token, so these mirror
+// Translation-queue CONTROL plane (Phase-B contract, consumed directly by the
+// browser UI and by pycore workers). Workers have no user token, so these mirror
 // the /api/worker/* approach: NO-AUTH (only Sanctum stateful boot is stripped to
 // keep them cheap). list/priority/stack operate over the same word_translation
 // global_tasks substrate as batch/add. Reachable at

@@ -711,6 +711,10 @@ export const wfNewApiMock: WfNewApi = {
     return delay({ success: true, queued: items.length, total: items.length, error: undefined });
   },
 
+  async boostWordAudioPriority(_md5: string, _language: string) {
+    return delay({ success: true, priority: 1, error: undefined });
+  },
+
   async prioritizeWordAudio(words: string[], _language: string) {
     return delay({ success: true, queued: words.length, error: undefined });
   },

@@ -40,7 +40,7 @@ class _RunGate:
 _run_gate = _RunGate()
 
 # A failed pipeline item is retried until this many attempts, then stays failed
-# (transient TTS / network errors must not silently drop the whole article).
+# (transient model / network errors must not silently drop the whole article).
 # One attempt per 10s tick, so 30 attempts ≈ 5 minutes of retry — long enough
 # for a cold-loading local TTS engine, bounded enough to drop a poison batch.
 MAX_ITEM_ATTEMPTS = 30
@@ -141,7 +141,7 @@ def tick_pipeline() -> None:
         event_service = operation_event_service
 
         # Best-effort: one deferred Laravel upload per tick. A generated
-        # article must eventually reach laravel even if the first upload
+        # article must eventually reach Laravel even if the first upload
         # failed (network reset, endpoint down) — never regenerated.
         _retry_pending_upload()
 
@@ -253,7 +253,7 @@ def _retry_pending_upload() -> None:
     """Re-upload one locally saved article that never reached Laravel.
 
     Upload failure at stage 5 is best-effort (the item still succeeds), so
-    without this retry a generated bilingual article + audio could stay local
+    without this retry a generated bilingual article could stay local
     forever. Retried from the saved record — no regeneration, no extra
     OpenRouter request.
     """
@@ -283,7 +283,7 @@ def _retry_pending_upload() -> None:
             audio,
             "",
         )
-        records.mark_uploaded(record_id)
+        records.mark_uploaded(record_id, laravel_data)
         ColorPrint.green(
             f"[AgentHistoryPipeline] deferred upload succeeded for record {record_id}: "
             f"{laravel_data.get('article_id')}"
@@ -321,11 +321,12 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         checkpoint["translation_engine"] = engine
         op_service.transition_item(item.id, "running", "synthesizing_audio", 0.5, checkpoint_json=checkpoint)
         
-    # Stage 3: synthesizing_audio
+    # Stage 3: synthesize the full article locally before Laravel submission.
+    # Laravel also queues every parsed sentence independently for missing-audio
+    # completion through the central sentence_audio lane.
     if item.stage == "synthesizing_audio":
         op_service.transition_item(item.id, "running", "synthesizing_audio", 0.5, message="Synthesizing audio")
-        audio = synthesize_audio(checkpoint["article_en"]["article_en"])
-        checkpoint["audio"] = audio
+        checkpoint["audio"] = synthesize_audio(checkpoint["article_en"]["article_en"])
         op_service.transition_item(item.id, "running", "saving_local_result", 0.7, checkpoint_json=checkpoint)
         
     # Stage 4: saving_local_result
@@ -333,7 +334,9 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         op_service.transition_item(item.id, "running", "saving_local_result", 0.7, message="Saving local record")
         article_en_data = checkpoint["article_en"]
         article_cn_data = checkpoint["article_cn"]
-        audio_data = checkpoint["audio"]
+        audio_data = checkpoint.get("audio") or {}
+        audio_base64 = str(audio_data.get("audio_base64") or "")
+        audio_bytes = base64.b64decode(audio_base64) if audio_base64 else b""
         
         record = records.save_record({
             "id": str(uuid.uuid4()),
@@ -345,7 +348,7 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
             "word_count": count_words(article_en_data.get("article_en", "")),
             "openrouter_model": article_cn_data.get("used_model"),
             "translation_engine": checkpoint.get("translation_engine"),
-        }, base64.b64decode(audio_data["audio_base64"]))
+        }, audio_bytes)
         
         checkpoint["record_id"] = record["id"]
         op_service.transition_item(item.id, "running", "uploading_laravel", 0.8, checkpoint_json=checkpoint)
@@ -362,10 +365,10 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
                     "article_en": checkpoint["article_en"].get("article_en"),
                     "word_count": count_words(checkpoint["article_en"].get("article_en", "")),
                 },
-                checkpoint["audio"],
+                checkpoint.get("audio") or {},
                 raw_text,
             )
-            records.mark_uploaded(checkpoint["record_id"])
+            records.mark_uploaded(checkpoint["record_id"], laravel_data)
             checkpoint["laravel_data"] = laravel_data
         except Exception as e:
             # Upload is best-effort, we don't fail the item

@@ -30,7 +30,7 @@
           @click="toggleCenter"
           :disabled="!isRunning && !config.apiUrl"
         >
-          {{ isRunning ? getMessage('taskCenterCancelReadyAction') : readinessAction }}
+          {{ isRunning || isStarting ? getMessage('taskCenterCancelReadyAction') : readinessAction }}
         </button>
       </div>
     </div>
@@ -161,6 +161,7 @@ const {
   config,
   state,
   error,
+  isStarting,
   startTaskCenter,
   stopTaskCenter,
   setCapability,
@@ -250,7 +251,7 @@ const onStop = async () => {
 };
 
 const toggleCenter = async () => {
-  if (isRunning.value) {
+  if (isRunning.value || isStarting.value) {
     await onStop();
   } else {
     await onStart();

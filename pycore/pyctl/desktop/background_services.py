@@ -369,6 +369,20 @@ class VoiceSubtitleBackgroundServices:
 
     # ========== Status ==========
 
+    def get_monitor_status(self) -> dict:
+        """Return both monitor states from one immutable THREAD_BUS snapshot."""
+        state = self._state()
+        return {
+            'clipboard': {
+                'enabled': bool(state.get('clipboard_enabled')),
+            },
+            'screenshot': {
+                'enabled': bool(state.get('screenshot_enabled')),
+                'interval': int(state.get('screenshot_interval', 60)),
+                'lang': state.get('screenshot_lang', 'en') or 'en',
+            },
+        }
+
     def is_clipboard_enabled(self) -> bool:
         """Check if clipboard monitoring is enabled"""
         return bool(self._state().get('clipboard_enabled'))

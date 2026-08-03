@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Log;
 
 class WorkerManagerService
 {
+    private const PULL_HEARTBEAT_REFRESH_SECONDS = 30;
+
     /**
      * Register a new worker or update existing one
      *
@@ -29,14 +31,13 @@ class WorkerManagerService
         ?array $capabilities = null,
         bool $fromPull = false
     ): Worker {
+        $worker = null;
         $attributes = [
             'worker_name' => $workerName,
             'processor_types' => $processorTypes,
             'hostname' => $hostname,
             'platform' => $platform,
             'metadata' => $metadata,
-            'status' => Worker::STATUS_ONLINE,
-            'last_heartbeat_at' => now(),
         ];
 
         // Only overwrite capabilities when the caller actually sent them, so a
@@ -46,10 +47,33 @@ class WorkerManagerService
             $attributes['capabilities'] = array_values(array_filter($capabilities, 'is_string'));
         }
 
-        $worker = Worker::updateOrCreate(
-            ['worker_id' => $workerId],
-            $attributes
-        );
+        if ($fromPull) {
+            $worker = Worker::where('worker_id', $workerId)->first();
+        }
+
+        if ($worker === null) {
+            $worker = Worker::updateOrCreate(
+                ['worker_id' => $workerId],
+                array_merge($attributes, [
+                    'status' => Worker::STATUS_ONLINE,
+                    'last_heartbeat_at' => now(),
+                ])
+            );
+        } else {
+            $worker->fill($attributes);
+            if ($worker->status === Worker::STATUS_OFFLINE) {
+                $worker->status = Worker::STATUS_ONLINE;
+            }
+            if (
+                $worker->last_heartbeat_at === null
+                || $worker->last_heartbeat_at->lte(now()->subSeconds(self::PULL_HEARTBEAT_REFRESH_SECONDS))
+            ) {
+                $worker->last_heartbeat_at = now();
+            }
+            if ($worker->isDirty()) {
+                $worker->save();
+            }
+        }
 
         $logContext = [
             'worker_id' => $workerId,

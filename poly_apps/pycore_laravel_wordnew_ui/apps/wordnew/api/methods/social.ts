@@ -4,7 +4,7 @@
 import { wfNewEndpoints } from '../WfNewEndpoints';
 import { WfNewApiPaths } from '../WfNewApiPaths';
 import {
-  getJSON, authedGetJSON, postJSON, queryPostJSON, postMultipart, deleteJSON, authToken, unwrapEnvelope,
+  getJSON, authedGetJSON, postJSON, authedQueryPostJSON, postMultipart, deleteJSON, authToken, unwrapEnvelope,
 } from '../WfNewApiTransport';
 import {
   toPost, toComment, toLive, toLiveMsg, toMessage, toNotification,
@@ -442,7 +442,7 @@ export const socialMethods = {
     };
     if (opts?.unread_only) body.unread_only = true;
     if (opts?.limit != null && opts.limit > 0) body.limit = opts.limit;
-    const res = await queryPostJSON<any>(WfNewApiPaths.groupGetWords, body);
+    const res = await authedQueryPostJSON<any>(WfNewApiPaths.groupGetWords, body);
     const data = unwrapEnvelope(res) ?? {};
     return {
       words: asArray(data, 'words').map(toWord),

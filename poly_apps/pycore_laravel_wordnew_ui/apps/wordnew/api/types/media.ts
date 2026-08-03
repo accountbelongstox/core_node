@@ -28,6 +28,10 @@ export interface WfNewAgentArticle {
   source_key?: string | null;
   article_id?: string | null;
   audio_url?: string | null;
+  audio_ready?: boolean;
+  audio_status?: string | null;
+  language?: string | null;
+  tts_generated?: boolean;
   word_count?: number | null;
   published_at?: string | null;
   reading_date?: string | null;

@@ -12,6 +12,8 @@ export interface QueueResponse {
   items?: QueueItem[];
   currentIndex?: number;
   enabled?: boolean;
+  total?: number;
+  nextOffset?: number | null;
   error?: string;
 }
 
@@ -35,32 +37,37 @@ function mapCategory(c: string): QueueItem['category'] {
  */
 export function mapQueueSnapshot(data: any): QueueResponse {
   const raw: any[] = Array.isArray(data?.queue) ? data.queue : [];
-  const items: QueueItem[] = raw.map((it: any, i: number) => ({
-    id: `item_${i}`,
-    index: i,
-    text: it?.text || '',
-    category: mapCategory(it?.category),
-    playCount: it?.play_count || 0,
-    created: it?.created_at || '',
-    // The pipeline fills audio_path when TTS synthesis finished; until then the
-    // item is still being processed (no more hardcoded "completed").
-    status: it?.audio_path ? 'completed' : 'processing',
-    audioUrl: it?.audio_path
-      ? rewritePycoreEndpoint(`/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`)
-      : undefined,
-    metadata: {
-      lang: it?.lang,
-      // Which AI produced this item's text (gateway attribution), if any.
-      ai: it?.ai_provider
-        ? `${it.ai_provider}${it.ai_model ? `/${it.ai_model}` : ''}`
+  const items: QueueItem[] = raw.map((it: any, i: number) => {
+    const itemIndex = typeof it?.index === 'number' ? it.index : i;
+    return {
+      id: `item_${itemIndex}`,
+      index: itemIndex,
+      text: it?.text || '',
+      category: mapCategory(it?.category),
+      playCount: it?.play_count || 0,
+      created: it?.created_at || '',
+      // The pipeline fills audio_path when TTS synthesis finished; until then the
+      // item is still being processed (no more hardcoded "completed").
+      status: it?.audio_path ? 'completed' : 'processing',
+      audioUrl: it?.audio_path
+        ? rewritePycoreEndpoint(`/voice-subtitle/audio?path=${encodeURIComponent(it.audio_path)}`)
         : undefined,
-    },
-  }));
+      metadata: {
+        lang: it?.lang,
+        // Which AI produced this item's text (gateway attribution), if any.
+        ai: it?.ai_provider
+          ? `${it.ai_provider}${it.ai_model ? `/${it.ai_model}` : ''}`
+          : undefined,
+      },
+    };
+  });
   return {
     success: data?.success !== false,
     items,
     currentIndex: typeof data?.current_index === 'number' ? data.current_index : 0,
     enabled: data?.enabled === true,
+    total: typeof data?.total === 'number' ? data.total : items.length,
+    nextOffset: typeof data?.next_offset === 'number' ? data.next_offset : null,
   };
 }
 

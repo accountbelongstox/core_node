@@ -1,13 +1,12 @@
 /**
- * PcTranslationQueuePanel — Laravel translation queue from the shared Queue
- * Center snapshot, with mutations proxied through pycore.
+ * PcTranslationQueuePanel — Laravel translation queue read and mutated through
+ * the browser-owned Laravel API boundary.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ListOrdered, RefreshCcw, AlertTriangle, CheckCircle2, WifiOff, Wifi, Radio,
   Clock, Languages, ChevronUp, ChevronsUp, ChevronDown, Flame, Zap, User,
 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { TranslationQueueItem, TranslationQueueSummary, PycoreGlobalTaskDetail } from '@/apps/pycore-manager/api';
 import {
   GLOBAL_TASK_STATUSES_BY_ROLE,
@@ -71,7 +70,7 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = () => {
   }, [state, hub]);
 
   const changePriority = useCallback(async (it: TranslationQueueItem, next: number) => {
-    await state.changeTranslationPriority(it.task_id, next, hub.refreshHub);
+    await state.changeTranslationPriority(it.task_id, next, hub.promoteTranslationTask);
   }, [state, hub]);
 
   const submitStack = useCallback(async () => {

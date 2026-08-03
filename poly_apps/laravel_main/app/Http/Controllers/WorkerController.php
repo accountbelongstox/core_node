@@ -239,14 +239,15 @@ class WorkerController extends Controller
         // Notify signal in the pull response too: the urgent backlog STILL waiting
         // after this pull (other high-priority tasks of this type beyond the
         // returned batch).
-        $capabilities = $this->taskManager->workerCapabilities($workerId);
-        $pendingUrgent = $this->taskManager->countUrgentPendingForType($taskType);
-        $pendingFast = $this->taskManager->countFastPendingForType($taskType, $capabilities);
+        $capabilities = isset($validated['capabilities_present'])
+            ? ($validated['capabilities'] ?? [])
+            : $this->taskManager->workerCapabilities($workerId);
+        $pendingSignals = $this->taskManager->pendingSignalsForType($taskType, $capabilities);
 
         return $this->success([
             'count' => count($tasks),
-            'pending_urgent' => $pendingUrgent,
-            'pending_fast' => $pendingFast,
+            'pending_urgent' => $pendingSignals['pending_urgent'],
+            'pending_fast' => $pendingSignals['pending_fast'],
             // The worker_pull field list is shared with the Pycore and
             // mcp-chrome worker models through the central JSON contract.
             'tasks' => array_map(
@@ -318,6 +319,7 @@ class WorkerController extends Controller
         $validated = $request->validate([
             'task_id' => 'required|string',
             'worker_id' => 'required|string',
+            'attempt' => 'nullable|integer|min:0',
             'status' => ['required', 'string', Rule::in(GlobalTask::statuses('worker_reportable'))],
             'progress' => 'nullable|numeric|min:0|max:100',
             'result' => 'nullable|array',
@@ -359,6 +361,7 @@ class WorkerController extends Controller
             $progress,
             $result,
             $error,
+            $validated['attempt'] ?? null,
             $outcome
         );
 

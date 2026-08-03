@@ -40,7 +40,7 @@ export const PcAssistStrip: React.FC = () => {
     setRunningCycle(true);
     setMessage(null);
     try {
-      const response = await pycoreApi.runAssistCycle();
+      const response = await pycoreApi.runAssistCycle(hub.laravelActiveEndpoint || '');
       if (!mounted.current) return;
       setMessage(response.ok
         ? `Triggered ${response.processed ?? 0} enabled worker(s).`
@@ -60,7 +60,7 @@ export const PcAssistStrip: React.FC = () => {
     try {
       await pycoreApi.setAssistConfig({
         capabilities: { [capability]: !status.capabilities[capability] },
-      });
+      }, !status.capabilities[capability] ? hub.laravelActiveEndpoint : null);
       await hub.refreshHub();
     } catch (error: any) {
       if (mounted.current) setMessage(`Toggle failed: ${error?.message || 'Pycore unreachable'}`);

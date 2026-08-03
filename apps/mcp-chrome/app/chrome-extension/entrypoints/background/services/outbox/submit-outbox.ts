@@ -7,9 +7,9 @@
  * which are dropped because they can never succeed.
  *
  * Idempotency contract (BACKEND_WORKER_API.md + TaskManagerService.php):
- *   - worker_result re-delivery is SAFE, but gated by worker ownership: a 409 or
- *     a "not assigned" / "reassigned" message means the task was reclaimed and a
- *     re-delivery can NEVER be accepted -> TERMINAL, drop the record.
+ *   - worker_result re-delivery is keyed by task attempt. Laravel acknowledges
+ *     stale attempts without mutating the current lease; a remaining 409 means
+ *     this exact attempt belongs to another worker and is terminal.
  *   - assist submit is fill-missing/idempotent (already_done=true on repeat) and
  *     validity report is md5-keyed upsert -> both safe to retry forever.
  *
@@ -86,10 +86,9 @@ export type OutboxEnqueueInput =
 // ─────────────────────────── Terminal-error rule ───────────────────────────
 
 /**
- * TERMINAL worker_result error: the task was reclaimed/reassigned so a
- * re-delivery can never be accepted (HTTP 409 or a "not assigned"/"reassigned"
- * message). Exported so SimpleWorkerBase applies the exact same rule at the
- * enqueue site (single definition).
+ * TERMINAL worker_result error: this exact task attempt is not owned by the
+ * reporting worker. Stale older attempts are acknowledged by Laravel, so a 409
+ * remains terminal. Exported so SimpleWorkerBase uses the same rule.
  */
 export function isTerminalWorkerResultError(error: unknown): boolean {
   const e = error as any;
@@ -124,7 +123,7 @@ function md5Signature(results: Array<{ md5?: string; word?: string }>): string {
 function computeId(input: OutboxEnqueueInput): string {
   switch (input.kind) {
     case 'worker_result':
-      return `worker_result:${input.payload.task_id}:${input.payload.status}`;
+      return `worker_result:${input.payload.task_id}:${input.payload.attempt ?? 'legacy'}:${input.payload.status}`;
     case 'validity_report':
       return `validity_report:${input.payload.language}:${md5Signature(input.payload.results as any)}`;
     case 'assist_submit': {

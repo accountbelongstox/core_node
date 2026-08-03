@@ -1505,7 +1505,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  WXT開発サーバーを起動しています（監視モード）..."
+    "message": "  シェル管理の開発監視を開始しています..."
   },
   "startLocation": {
     "message": "    場所: $path$",
@@ -1803,7 +1803,7 @@
     "message": "NotebookLM 生成タスクの実行"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "未チェックまたは未翻訳の単語を排出し、Web AI および Bing 翻訳ワーカーを有効にします。"
+    "message": "バックエンドの単語ライブラリから未確認または未翻訳の単語を取得し、DeepSeek で処理します。"
   },
   "taskCenterCapability_validity_label": {
     "message": "単語の有効性と翻訳のタスクを実行する"

@@ -6,17 +6,27 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_ASSIST_ASSIST_CONFIG,
     UI_ASSIST_ASSIST_CYCLE,
     UI_ASSIST_ASSIST_STATUS,
+    UI_ASSIST_BIND_LARAVEL_ENDPOINT,
 )
 import pycore.pyctl.assist.service as assist
+from pycore.pyctl.assist.wiring import bind_selected_endpoint_for_workers
 
 
 def register_local_assist_routes(server):
     def assist_status_handler(params, request_id, context):
-        include = params.get("include_laravel", True)
+        include = params.get("include_laravel", False)
         return assist.assist_status(bool(include))
+
+    def assist_cycle_handler(params, request_id, context):
+        return assist.assist_cycle(params)
+
+    def bind_laravel_endpoint_handler(params, request_id, context):
+        return bind_selected_endpoint_for_workers(
+            str(params.get("laravel_endpoint") or "")
+        )
 
     server.post(path=UI_ASSIST_ASSIST_STATUS, handler=assist_status_handler)
 
     server.post(path=UI_ASSIST_ASSIST_CONFIG, handler=assist.assist_config)
-    server.post(path=UI_ASSIST_ASSIST_CYCLE, handler=assist.assist_cycle)
-
+    server.post(path=UI_ASSIST_ASSIST_CYCLE, handler=assist_cycle_handler)
+    server.post(path=UI_ASSIST_BIND_LARAVEL_ENDPOINT, handler=bind_laravel_endpoint_handler)

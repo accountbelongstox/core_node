@@ -23,7 +23,7 @@ import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCar
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { laravelApi } from '@/core/api-libs/laravel';
 
 interface WfNewHomeContentProps {
   content: WfNewHomeContentData;
@@ -45,14 +45,6 @@ interface WfNewHomeContentProps {
   onNeedMore?: (kind: WfNewContentKind) => Promise<boolean>;
   /** Add a vocabulary library to the default study group (library kind only). */
   onAddToStudy?: (group: WfNewContentGroup) => void;
-  /**
-   * The pinned Default Vocabulary Group (built by WfNewHomeTab from the live
-   * word groups). Rendered ONCE as the FIRST card of the WORD GROUPS rail —
-   * with the live stats cover (see WfNewContentGroupCard's isDefaultWordGroup)
-   * — ahead of any word groups the user added; deduped by id when the backend
-   * list already contains it.
-   */
-  defaultWordGroup?: WfNewContentGroup;
 }
 
 const SECTIONS: Array<{
@@ -195,7 +187,6 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
   onMore,
   onNeedMore,
   onAddToStudy,
-  defaultWordGroup,
 }) => {
   const imagePriorityRef = useRef(new Set<string>());
 
@@ -219,8 +210,8 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
         posterItems.push({ media_type: mediaType, id });
       }
     }
-    if (coverIds.length > 0) void pycoreApi.prioritizeCovers(coverIds).catch(() => undefined);
-    if (posterItems.length > 0) void pycoreApi.prioritizePosters(posterItems).catch(() => undefined);
+    if (coverIds.length > 0) void laravelApi.prioritizeCovers(coverIds).catch(() => undefined);
+    if (posterItems.length > 0) void laravelApi.prioritizePosters(posterItems).catch(() => undefined);
   }, [content.books, content.libraries, content.subtitles]);
 
   const scrollToSection = (kind: WfNewContentKind) => {
@@ -270,12 +261,6 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
       {/* Content sections, one per category */}
       {SECTIONS.map(({ kind, key, Icon }) => {
         const groups = content[key];
-        // WORD GROUPS only: the pinned Default Vocabulary Group leads the rail
-        // (deduped by id when the backend list already carries it); the card
-        // with the matching id renders the live stats cover.
-        const railGroups = kind === 'word' && defaultWordGroup
-          ? [defaultWordGroup, ...groups.filter((g) => g.id !== defaultWordGroup.id)]
-          : groups;
         const style = WFNEW_KIND_STYLES[kind];
         const isGrid = GRID_KINDS.has(kind);
         return (
@@ -289,7 +274,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
                 {trans(`content.section.${kind}`)}
               </h4>
               {!loading && (
-                <span className="text-[10px] font-mono text-zinc-500">({railGroups.length})</span>
+                <span className="text-[10px] font-mono text-zinc-500">({groups.length})</span>
               )}
               {isGrid && !loading && groups.length > 0 && (
                 <button
@@ -323,7 +308,7 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
                   <WfNewLoadingDots label={trans('content.loading')} className={style.accent} size="md" />
                 </div>
               </div>
-            ) : railGroups.length === 0 ? (
+            ) : groups.length === 0 ? (
               <div className="mx-1 p-4 rounded-2xl border border-dashed border-white/10 bg-white/2 text-center">
                 <p className="text-[11px] font-mono text-zinc-500">{trans('content.empty')}</p>
               </div>
@@ -331,26 +316,16 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
               <HomeGridSection kind={kind} groups={groups} theme={theme} trans={trans} onOpen={onOpen} onNeedMore={onNeedMore} onAddToStudy={kind === 'library' ? onAddToStudy : undefined} />
             ) : (
               <div className="flex gap-3 sm:gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory px-1 pb-2 -mx-1">
-                {railGroups.map((g) => {
-                  // WORD GROUPS layout: the pinned Default Vocabulary Group card
-                  // fills the whole container; every following group card takes
-                  // half the width (two per row as you scroll).
-                  const isDefaultCard = kind === 'word' && g.id === defaultWordGroup?.id;
-                  const widthClass =
-                    kind === 'word' ? (isDefaultCard ? 'w-full shrink-0' : 'w-1/2 shrink-0') : '';
-                  return (
-                    <div key={`${g.kind}-${g.id}`} className={`snap-start ${widthClass}`}>
-                      <WfNewContentGroupCard
-                        group={g}
-                        theme={theme}
-                        trans={trans}
-                        onClick={() => onOpen(g)}
-                        fullWidth={kind === 'word'}
-                        isDefaultWordGroup={isDefaultCard}
-                      />
-                    </div>
-                  );
-                })}
+                {groups.map((g) => (
+                  <div key={`${g.kind}-${g.id}`} className="snap-start">
+                    <WfNewContentGroupCard
+                      group={g}
+                      theme={theme}
+                      trans={trans}
+                      onClick={() => onOpen(g)}
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </section>

@@ -8,6 +8,7 @@ import App from './App.vue';
 import { loadUserLocale } from '../../utils/i18n';
 
 const startupParams = new URLSearchParams(window.location.search);
+const shouldReloadExtension = startupParams.get('reloadExtension') === '1';
 const shouldReconnectNative = startupParams.get('reconnectNative') === '1';
 
 async function reconnectNativeAfterBuild(): Promise<void> {
@@ -29,7 +30,12 @@ async function reconnectNativeAfterBuild(): Promise<void> {
 // Preload the user-selected locale BEFORE mounting so synchronous getMessage()
 // calls in templates render in the chosen language (chrome.i18n alone ignores
 // the in-app choice). Mount regardless of outcome — falls back to English.
-loadUserLocale().finally(() => {
-  createApp(App).mount('#app');
-  void reconnectNativeAfterBuild();
-});
+if (shouldReloadExtension) {
+  chrome.runtime.reload();
+  window.close();
+} else {
+  loadUserLocale().finally(() => {
+    createApp(App).mount('#app');
+    void reconnectNativeAfterBuild();
+  });
+}

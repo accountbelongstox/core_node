@@ -1,12 +1,42 @@
 {
-  "schema_version": 4,
+  "schema_version": 10,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
+  "realtime": {
+    "transport": "websocket",
+    "channel": "queue-center",
+    "event": "queue.changed"
+  },
+  "diff_delivery": {
+    "version": 1,
+    "cursor_store": "Persistent revision and high-water metadata only.",
+    "id_page_store": "Bounded ID pages; priority promotion updates this layer without loading rows.",
+    "data_segment_store": "Full records are materialized only on a UI or consumer request and compacted after consumption.",
+    "id_page_limit": 64,
+    "id_limit": 4096,
+    "data_segment_limit": 128,
+    "consumer_batch_limits": {
+      "sentence_audio": 8
+    },
+    "consumer_task_timeout_seconds": {
+      "word_audio": 300,
+      "sentence_audio": 900
+    },
+    "consumer_upload_retry": {
+      "initial_seconds": 2,
+      "maximum_seconds": 30
+    },
+    "consumer_log_tags": {
+      "sentence_audio": ["[SentenceAudioWorker]", "[SentenceAudioAuto]", "[qwen3tts]", "[managed]"]
+    },
+    "ready_ttl_seconds": 300,
+    "consumed_ttl_seconds": 86400
+  },
   "metric_semantics": {
     "pending": "Ready work that has not been claimed.",
     "leased": "Claimed or assigned work that has not started processing.",
     "processing": "Work actively being processed.",
-    "total": "All records in the category source population, including terminal records when the source retains them."
+    "total": "All records represented by the section; live queue sections sum pending, leased, and processing only."
   },
   "control_names": [
     "assist_translation",
@@ -45,11 +75,6 @@
     "stt": ["pycore"]
   },
   "section_scopes": {
-    "heartbeat": {
-      "category": "heartbeat_workers",
-      "category_keys": [],
-      "queue_metrics": false
-    },
     "assist_translation": {
       "category": "assist_translation",
       "category_keys": [
@@ -137,9 +162,17 @@
       "fast": 100,
       "maximum": 1000
     },
+    "progress_stages": {
+      "accepted": 1,
+      "synthesizing": 10,
+      "uploading": 80,
+      "finalizing": 95,
+      "completed": 100
+    },
     "limits": {
       "list_default": 20,
       "list": 200,
+      "monitor": 100,
       "worker_pull_default": 5,
       "worker_pull": 50,
       "completed": 500,
@@ -189,8 +222,8 @@
       "validity": {
         "storage_key": "tkCapValidity",
         "label": "执行单词有效性与翻译任务",
-        "hint": "Drains unchecked or untranslated words and enables the Web-AI and Bing translation workers",
-        "processors": ["web_ai_translate", "bing_dictionary"],
+        "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
+        "processors": [],
         "uses_validity_runner": true
       },
       "notebooklm": {
@@ -216,7 +249,7 @@
       ],
       "worker_pull": [
         "task_id", "app_name", "task_type", "execution_type", "status", "payload",
-        "timeout_seconds", "priority", "capability", "is_fast_tier", "created_at"
+        "timeout_seconds", "retry_count", "priority", "capability", "is_fast_tier", "created_at"
       ],
       "status": [
         "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
@@ -241,7 +274,7 @@
       "worker_registration": [
         "worker_id", "worker_name", "processor_types", "capabilities", "hostname", "platform", "metadata"
       ],
-      "worker_result": ["task_id", "worker_id", "status", "progress", "result", "error"]
+      "worker_result": ["task_id", "worker_id", "attempt", "status", "progress", "result", "error"]
     },
     "task_types": [
       {

@@ -1,10 +1,10 @@
 /**
  * Statistics tab - vocabulary summary, per-language breakdown, and the static
- * resource storage summary. Proxied through pycore.
+ * resource storage summary. Loaded directly from Laravel.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Database, Languages, BookOpen, Volume2 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, humanInt, humanBytes, vp, toArray } from './vocabShared';
 
 const L = {
@@ -47,9 +47,9 @@ export default function VocabStatisticsTab() {
     setLoading(true);
     setError(null);
     const results = await Promise.allSettled([
-      pycoreApi.getVocabStatistics({}),
-      pycoreApi.getVocabLanguageBreakdown({}),
-      pycoreApi.getVocabStorageSummary(),
+      laravelApi.getVocabStatistics({}),
+      laravelApi.getVocabLanguageBreakdown({}),
+      laravelApi.getVocabStorageSummary(),
     ]);
     let anyOk = false;
     const s = results[0];

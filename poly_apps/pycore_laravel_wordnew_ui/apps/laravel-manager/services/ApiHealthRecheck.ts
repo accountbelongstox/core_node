@@ -8,7 +8,7 @@
  * The interval comes from apiManager.getRecheckIntervalMs() (config default,
  * overridable in the endpoint switcher UI) and is read fresh on every tick.
  */
-import { apiManager } from './ApiManager';
+import { apiManager } from '../../../core/api-libs/laravel/ApiManager';
 import { api } from '@/apps/laravel-manager/api';
 import { OfflineRecheckScheduler } from '../../../core/health/OfflineRecheckScheduler';
 

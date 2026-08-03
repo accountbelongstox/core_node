@@ -23,7 +23,6 @@ import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
 import PcQueueOverviewPanel from './PcQueueOverviewPanel';
 import PcRecentTasksPanel from './PcRecentTasksPanel';
-import PcWorkerStatusStrip from '../components/PcWorkerStatusStrip';
 import PcAssistStrip from '../components/PcAssistStrip';
 import PcTtsEnginesStrip from '../components/PcTtsEnginesStrip';
 import PcQueueBumpToasts from '../components/PcQueueBumpToasts';
@@ -244,19 +243,13 @@ const QueueCenterBody: React.FC = () => {
       {pycoreUp === false && (
         <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>{t('queueCenter.overview.unavailable')}</span>
+          <span>{t('queueCenter.errors.pycoreRuntimeUnavailable')}</span>
         </section>
       )}
       {toggleError && (
         <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{toggleError}</span>
-        </section>
-      )}
-      {hub.error && pycoreUp !== false && (
-        <section className="pc-glass p-3 text-xs text-amber-500 flex items-start gap-2">
-          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-          <span>Queue Center partial snapshot: {hub.error}</span>
         </section>
       )}
       {endpointMismatch && (
@@ -325,7 +318,6 @@ const QueueCenterBody: React.FC = () => {
             : t('queueCenter.sectionsToggle.assistOn'),
         }}>
         <PcAssistStrip />
-        <PcWorkerStatusStrip />
         <PcQueueOverviewPanel />
       </QcSectionCard>
 

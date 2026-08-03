@@ -37,6 +37,7 @@ import { pycoreApiAi } from './PycoreApiAi';
 import { pycoreApiSpeech } from './PycoreApiSpeech';
 import { pycoreApiLocal } from './PycoreApiLocal';
 import { PycorePaths } from './pycoreEndpoints';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../contracts/QueueCenterContract';
 
 export type {
   QueueResponse, RuntimeInfo, SystemSettingsResponse,
@@ -55,8 +56,14 @@ export { mapQueueSnapshot } from './PycoreApiBooksTypes';
 
 export const pycoreApi = {
   // --- queue (pycore /voice-subtitle, mapped via mapQueueSnapshot) --------- #
-  getQueue: async (): Promise<QueueResponse> =>
-    mapQueueSnapshot(await requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetQueue, {})),
+  getQueue: async (
+    offset = 0,
+    limit = QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit,
+  ): Promise<QueueResponse> =>
+    mapQueueSnapshot(await requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetQueue, {
+      offset,
+      limit: Math.min(limit, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit),
+    })),
   clearQueue: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleClearQueue, {}),
   removeQueueItems: (indices: number[]) =>
@@ -88,6 +95,8 @@ export const pycoreApi = {
   // enqueued the same way.
   getClipboardMonitorStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetClipboardMonitorStatus, {}),
+  getMonitorStatus: () =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetMonitorStatus, {}),
   startClipboardMonitor: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleStartClipboardMonitor, {}),
   stopClipboardMonitor: () =>
@@ -273,6 +282,12 @@ export const pycoreApi = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncResetSyncSettings, {}),
   getSyncLogs: (limit = 100) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetSyncLogs, { limit }),
+  getCodeSyncRuntime: (req: { page?: number; pageSize?: number; sinceRevision?: string } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncRuntimeGet, {
+      page: req.page ?? 1,
+      page_size: req.pageSize ?? 100,
+      since_revision: req.sinceRevision ?? '',
+    }),
 
   // --- code sync file structure (live tree of the synced set) ------------- #
   getFileTree: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.codeSyncGetFileTree, {}),

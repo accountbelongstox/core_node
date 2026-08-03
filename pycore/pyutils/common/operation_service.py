@@ -36,6 +36,7 @@ def _now_iso() -> str:
 
 def _event_payload(event: OperationEvent, scope: Optional[str] = None) -> Dict[str, Any]:
     status: str = str(event.event_type)
+    detail = dict(event.payload_json or {})
     if status.startswith("item."):
         status = status.split(".", 1)[1]
 
@@ -58,7 +59,10 @@ def _event_payload(event: OperationEvent, scope: Optional[str] = None) -> Dict[s
         "operation_event_seq": event.seq,
         "event_type": event.event_type,
         "status": status,
-        "stage": stage,
+        "stage": detail.get("stage") or stage,
+        "progress": detail.get("progress"),
+        "item_status": detail.get("status"),
+        "totals": detail.get("totals"),
         "level": event.level,
         "message": event.message,
         "created_at": event.created_at,
@@ -400,6 +404,12 @@ class OperationService:
         result_json: Optional[Dict[str, Any]] = None,
         error_json: Optional[Dict[str, Any]] = None,
     ) -> None:
+        event.payload_json = {
+            **dict(event.payload_json or {}),
+            "status": item_status,
+            "stage": item_stage,
+            "progress": progress,
+        }
         items = self.repo.get_operation_items(op.id)
         totals = self._totals_from_items([
             OperationItem(
@@ -418,6 +428,7 @@ class OperationService:
             )
             for row in items
         ])
+        event.payload_json["totals"] = totals
         now = _now_iso()
         ts = dict(op.timestamps or {})
         ts["updated_at"] = now
@@ -599,6 +610,18 @@ class OperationService:
         )
         events = self.repo.get_events(op.id, limit=60)
         events.sort(key=lambda e: e.seq, reverse=True)
+        current_item = None
+        for event in events:
+            detail = event.payload_json or {}
+            if event.item_id and detail.get("stage"):
+                current_item = {
+                    "id": event.item_id,
+                    "status": detail.get("status"),
+                    "stage": detail.get("stage"),
+                    "progress": detail.get("progress"),
+                    "updated_at": event.created_at,
+                }
+                break
 
         terminal = ("completed", "failed", "cancelled")
         available_actions: List[str] = []
@@ -643,11 +666,13 @@ class OperationService:
                     "message": e.message,
                     "item_id": e.item_id,
                     "revision": e.revision,
+                    "payload": e.payload_json,
                     "created_at": e.created_at,
                 }
                 for e in events
             ],
             "event_seq": events[0].seq if events else 0,
+            "current_item": current_item,
             "available_actions": available_actions,
         }
 
@@ -711,6 +736,11 @@ class OperationService:
             f"item.{status}",
             message or f"Item transitioned to {status} ({stage})",
             item_id=item_id,
+            payload_json={
+                "status": status,
+                "stage": stage,
+                "progress": progress,
+            },
             level="error" if status == "failed" else "info",
         )
         self._commit_item_transition(

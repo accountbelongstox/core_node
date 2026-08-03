@@ -129,6 +129,7 @@ class Worker extends Model
     {
         $this->current_task_id = $taskId;
         $this->status = self::STATUS_BUSY;
+        $this->last_heartbeat_at = now();
         $this->save();
     }
 

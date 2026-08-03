@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Models\LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
+use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Support\Facades\Log;
 
 trait AppQyV1SentenceAudioLookupTrait
@@ -19,117 +20,44 @@ trait AppQyV1SentenceAudioLookupTrait
     {
         $page = max(1, $page);
         $perPage = max(1, min(100, $perPage));
+        $queue = app(QueueCenterService::class)->listLiveQueue(
+            QueueCenterService::QUEUE_SENTENCE_AUDIO,
+            $page,
+            $perPage,
+            $language
+        );
         $items = [];
-        $total = 0;
-        $langTotals = [];
-        $reconciled = 0;
-
-        foreach ($this->languagesFor($language) as $lang) {
-            if (!$this->tableExists($lang)) {
-                continue;
-            }
-            $langTotal = $this->pendingCountForLanguage($lang);
-            $langTotals[$lang] = $langTotal;
-            $total += $langTotal;
-        }
-
-        $skip = ($page - 1) * $perPage;
-        $languages = $this->languagesFor($language);
-        $langCount = count($languages);
-        $quota = $langCount > 1 ? max(1, (int) ceil($perPage / $langCount)) : $perPage;
-        $perLangSkip = $langCount > 1 ? intdiv($skip, $langCount) : $skip;
-        $collectedByLang = [];
-
-        foreach ($languages as $lang) {
-            if (count($items) >= $perPage) {
-                break;
-            }
-            $take = min($quota, $perPage - count($items));
-            $collectedByLang[$lang] = $this->collectMissingItemsForLanguage(
-                $lang, $perLangSkip, $take, $items, $reconciled
-            );
-        }
-        foreach ($languages as $lang) {
-            if (count($items) >= $perPage) {
-                break;
-            }
-            $take = $perPage - count($items);
-            $this->collectMissingItemsForLanguage(
-                $lang,
-                $perLangSkip + (int) ($collectedByLang[$lang] ?? 0),
-                $take,
-                $items,
-                $reconciled
-            );
+        foreach ($queue['items'] as $task) {
+            $payload = is_array($task['payload'] ?? null) ? $task['payload'] : [];
+            $variantKey = trim((string) ($payload['variant_key'] ?? ''));
+            $items[] = [
+                'task_id' => (string) ($task['task_id'] ?? ''),
+                'content_id' => (string) ($payload['content_id'] ?? ''),
+                'text' => (string) ($payload['text'] ?? ($payload['content'] ?? '')),
+                'language' => (string) ($payload['language'] ?? ''),
+                'tts_priority' => (int) ($task['priority'] ?? 0),
+                'tts_status' => (string) ($task['status'] ?? 'pending'),
+                'progress' => (float) ($task['progress'] ?? 0),
+                'stage' => (string) ($task['stage'] ?? ($task['status'] ?? 'pending')),
+                'backend_uploaded' => (bool) ($task['backend_uploaded'] ?? false),
+                'tts_locked_by' => $task['assigned_to'] ?? null,
+                'assigned_at' => $task['assigned_at'] ?? null,
+                'updated_at' => $task['updated_at'] ?? null,
+                'occurrence_count' => 0,
+                'missing_variants' => $variantKey !== '' ? [$variantKey] : [],
+            ];
         }
 
         return [
-            'total' => $total,
+            'total' => $queue['total'],
             'page' => $page,
             'per_page' => $perPage,
             'items' => $items,
             'summary' => [
-                'languages' => $langTotals,
-                'reconciled' => $reconciled,
+                'languages' => $queue['languages'],
+                'reconciled' => 0,
             ],
         ];
-    }
-
-    /** @param array<int,array<string,mixed>> $items */
-    private function collectMissingItemsForLanguage(
-        string $lang,
-        int $skip,
-        int $take,
-        array &$items,
-        int &$reconciled
-    ): int {
-        if ($take <= 0 || !$this->tableExists($lang)) {
-            return 0;
-        }
-        $rows = LangSentence::onLang($lang)
-            ->where(function ($query) {
-                $query->where('has_audio', false)
-                    ->orWhereIn('tts_status', ['pending', 'failed']);
-            })
-            ->orderByDesc('tts_priority')
-            ->orderByDesc('occurrence_count')
-            ->orderBy('id')
-            ->skip($skip)
-            ->take($take)
-            ->get(['content_id', 'text', 'language', 'tts_priority', 'tts_status', 'tts_locked_by', 'occurrence_count', 'has_audio', 'audio_files']);
-        $collected = 0;
-        foreach ($rows as $row) {
-            if ($collected >= $take) {
-                break;
-            }
-            $missing = $this->missingRegisteredVariants($lang, $row);
-            $items[] = [
-                'content_id' => (string) $row->content_id,
-                'text' => (string) $row->text,
-                'language' => $lang,
-                'tts_priority' => (int) ($row->tts_priority ?? 0),
-                'tts_status' => (string) ($row->tts_status ?? 'pending'),
-                'tts_locked_by' => $row->tts_locked_by,
-                'occurrence_count' => (int) ($row->occurrence_count ?? 0),
-                'missing_variants' => array_map(fn ($variant) => $variant['key'] ?? '', $missing),
-            ];
-            $collected++;
-        }
-        return $collected;
-    }
-
-    /** @return array<int,array{key:string,accent:?string,gender:string}> */
-    private function missingRegisteredVariants(string $lang, LangSentence $sentence): array
-    {
-        $missing = [];
-        foreach ($this->variantsForLanguage($lang) as $spec) {
-            $key = (string) ($spec['key'] ?? '');
-            if (AppQyV1SentenceAudioFiles::hasVariantWithFile($sentence, $key)) {
-                continue;
-            }
-            $missing[] = $spec;
-        }
-        return $missing;
     }
 
     /** @return array<int,array<string,mixed>> */

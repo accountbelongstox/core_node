@@ -3,20 +3,19 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationTaskService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
-use Illuminate\Support\Facades\Log;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Support\QueueCenterContract;
 
 /**
  * Automatic Dictionary Translation Task Creator
  *
- * Automatically scans ALL language dictionaries via Octane Timer (heartbeat center)
- * and creates translation tasks for untranslated words found in ANY language.
+ * Advances a persistent ID cursor across each available language dictionary and
+ * creates translation tasks only after one bounded ID page is requested.
  * Executes every 30 seconds.
  *
  * Key Features:
- * - Auto-Discovery: Scans all 91 supported language tables automatically
+ * - Auto-Discovery: Uses the cached available-language catalog
  * - Smart Filtering: Only processes languages with actual data in database
  * - Real Data: Backend always returns REAL untranslated words from database
  * - Worker Control: Frontend Worker decides demo mode or production mode
@@ -24,20 +23,14 @@ use Illuminate\Support\Facades\Log;
  *
  * Implementation:
  * 1. Calls AppQyV1DictionaryService::scanAvailableLanguages()
- * 2. Gets statistics for each language with data
- * 3. Creates translation tasks for languages with untranslated words
+ * 2. Reads one persistent DIFF ID page per language with available capacity
+ * 3. Materializes only that page and creates tasks for untranslated words
  * 4. Distributes tasks to Worker queue for processing
  */
-class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
+class AppQyV1DictionaryTranslationTask extends DiffQueueFeederTaskAbstract
 {
-    private $taskManager;
-    private $translationService;
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-        $this->translationService = new AppQyV1TranslationTaskService($this->taskManager);
-    }
+    private const BATCH_SIZE = 10;
+    private const MAX_TASKS_PER_LANGUAGE = 2;
 
     /**
      * Timer interval in seconds
@@ -56,80 +49,52 @@ class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         $totalCreated = 0;
-        $languagesProcessed = 0;
-
-        $allLanguageStats = AppQyV1DictionaryService::getAllLanguageStatistics();
-
-        if (empty($allLanguageStats)) {
-            $this->logDebug('No language dictionaries with data found');
+        $languages = AppQyV1DictionaryService::scanAvailableLanguages();
+        if ($languages === []) {
             return;
         }
 
-        $this->logInfo('Starting auto task creation cycle', [
-            'available_languages' => count($allLanguageStats),
-        ]);
-
-        foreach ($allLanguageStats as $langCode => $stats) {
-            if ($stats['untranslated'] == 0) {
+        foreach ($languages as $langCode) {
+            $pendingCount = $this->countPendingForLanguage($langCode);
+            if ($pendingCount >= self::MAX_TASKS_PER_LANGUAGE) {
                 continue;
             }
 
-            $languagesProcessed++;
-
-            $languageName = $this->getLanguageNameFromStats($stats);
-
-            $this->logInfo('Found untranslated words', [
-                'lang_code' => $langCode,
-                'language_name' => $languageName,
-                'untranslated_count' => $stats['untranslated'],
-                'total_words' => $stats['total_words'],
-                'progress' => $stats['translation_progress'] . '%',
-            ]);
-
-            $batchSize = 10;
-            $maxTasksPerLanguage = 2;
-            $createdCount = 0;
-
-            // Do not pile up: these dictionary_explanation tasks are consumed
-            // only by the browser-side remote_client worker, which may be
-            // offline for long stretches. Without this cap the 30s tick keeps
-            // appending tasks forever (the mis-routed remote_translation
-            // consumers used to drain them by failing them, masking this).
-            $pendingCount = $this->countPendingForLanguage($languageName);
-            if ($pendingCount >= $maxTasksPerLanguage) {
-                continue;
-            }
-
-            for ($i = 0; $i < $maxTasksPerLanguage; $i++) {
-                $result = $this->translationService->createDictionaryExplanationTask(
-                    $languageName,
-                    $batchSize
-                );
-
-                if ($result['status'] === 'no_words_needed') {
-                    break;
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
+            $scope = 'dictionary_explanation:' . $langCode . ':' . $model->getTable();
+            $limit = self::BATCH_SIZE * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
+            $page = $this->rowsForPendingPage(
+                $scope,
+                $model->newQuery(),
+                $limit,
+                static function (array $ids) use ($model): array {
+                    return $model->newQuery()
+                        ->whereIn('id', $ids)
+                        ->where('has_translation', false)
+                        ->where('is_valid', true)
+                        ->orderByDesc('query_count')
+                        ->get(['id', 'content', 'md5', 'query_count'])
+                        ->map(static fn ($row): array => [
+                            'word' => (string) ($row->content ?? ''),
+                            'md5' => (string) ($row->md5 ?? ''),
+                            'query_count' => (int) ($row->query_count ?? 0),
+                        ])
+                        ->filter(static fn (array $row): bool => $row['word'] !== '')
+                        ->values()
+                        ->all();
                 }
+            );
 
-                $createdCount++;
-                $totalCreated++;
-
-                $this->logInfo('Translation task created', [
-                    'lang_code' => $langCode,
-                    'language_name' => $languageName,
-                    'task_id' => $result['task_id'],
-                    'word_count' => $result['word_count'],
-                ]);
-
-                if ($stats['untranslated'] <= $batchSize * $createdCount) {
-                    break;
+            try {
+                foreach (array_chunk($page['rows'], self::BATCH_SIZE) as $words) {
+                    $this->createTask($langCode, $words);
+                    $totalCreated++;
                 }
-            }
-
-            if ($createdCount > 0) {
-                $this->logInfo('Language task creation completed', [
-                    'lang_code' => $langCode,
-                    'tasks_created' => $createdCount,
-                    'remaining_untranslated' => max(0, $stats['untranslated'] - ($batchSize * $createdCount)),
+                $this->consumePendingPage($scope, $page);
+            } catch (\Throwable $e) {
+                $this->logWarning('Dictionary explanation page failed', [
+                    'language' => $langCode,
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -137,46 +102,41 @@ class AppQyV1DictionaryTranslationTask extends OctaneTimerTaskAbstract
         if ($totalCreated > 0) {
             $this->logInfo('Auto task creation cycle completed', [
                 'total_tasks_created' => $totalCreated,
-                'languages_processed' => $languagesProcessed,
-            ]);
-        } else {
-            $this->logDebug('No tasks created in this cycle', [
-                'available_languages' => count($allLanguageStats),
             ]);
         }
     }
 
     /**
-     * Count PENDING dictionary_explanation tasks for one language so the tick
+     * Count LIVE dictionary_explanation tasks for one language so the tick
      * tops the queue up to the cap instead of growing it unboundedly.
-     * createDictionaryExplanationTask stores the language NAME in the payload,
-     * so match on that (json column predicate on the index-backed subset).
+     * The task payload stores the normalized language code.
      */
-    private function countPendingForLanguage(string $languageName): int
+    private function countPendingForLanguage(string $languageCode): int
     {
         return GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
-            ->where('status', GlobalTask::status('pending'))
-            ->where('payload->language', $languageName)
+            ->whereIn('status', QueueCenterContract::taskStatuses('live'))
+            ->where('payload->language', $languageCode)
             ->count();
     }
 
-    /**
-     * Extract language name from statistics array
-     * @param array $stats Statistics array
-     * @return string Language name
-     */
-    private function getLanguageNameFromStats(array $stats): string
+    private function createTask(string $language, array $words): void
     {
-        if (isset($stats['language'])) {
-            return $stats['language'];
-        }
-
-        if (isset($stats['language_code'])) {
-            return $stats['language_code'];
-        }
-
-        return 'unknown';
+        $taskType = (string) QueueCenterContract::taskTypeKey('dictionary_explanation');
+        $timeoutSeconds = min(600, 60 + (count($words) * 3));
+        $this->taskManager->createTask(
+            'AppQyV1',
+            $taskType,
+            (string) QueueCenterContract::taskTypeExecution($taskType),
+            [
+                'words' => array_values($words),
+                'language' => $language,
+                'word_count' => count($words),
+            ],
+            $timeoutSeconds,
+            QueueCenterContract::taskPriority('manual'),
+            3
+        );
     }
 }

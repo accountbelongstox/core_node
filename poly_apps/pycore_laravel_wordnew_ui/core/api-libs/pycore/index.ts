@@ -6,6 +6,8 @@ export { pycoreApi, mapQueueSnapshot } from './PycoreApi';
 export { PYCORE_HTTP_ROUTES, VORTEX_PYCORE_HTTP_ROUTES } from './PycoreHttpRoutes';
 export type { PycoreHttpRoute } from './PycoreHttpRoutes';
 export { PycoreHttpError, PycoreMasterClient, pycoreMasterClient } from './PycoreClient';
+export { pycoreRouteRecoveryStore } from './PycoreRouteRecoveryStore';
+export type { PycoreRouteRecoveryEntry } from './PycoreRouteRecoveryStore';
 export { PycoreEventBus, pycoreEventBus } from './PycoreEventBus';
 export type {
   PycoreEventHandler,
@@ -61,14 +63,6 @@ export {
 } from './pycoreEndpoints';
 
 export {
-  pycoreLaravelApi,
-} from './PycoreLaravelApi';
-export type {
-  PycoreLaravelApi, LaravelApiEndpoint, LaravelApiListResponse,
-  LaravelApiMutateResponse, LaravelApiListOptions,
-} from './PycoreLaravelApi';
-
-export {
   PYCORE_HEALTH_EVENT, PYCORE_HEALTH_DEFAULTS,
   getPycoreHealth, checkPycoreNow, recheckPycoreNow,
   getPycoreRecheckIntervalMs, setPycoreRecheckIntervalMs,
@@ -77,6 +71,5 @@ export {
 export type { PycoreHealthState } from './PycoreHealth';
 
 export * from './pycoreTypes';
-export * from './QueueCenterContract';
+export * from '../../contracts/QueueCenterContract';
 export * from './ttsEngineState';
-export * from './PycoreVocabTypes';

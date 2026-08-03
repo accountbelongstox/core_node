@@ -42,6 +42,7 @@ const TASK_CENTER_RUNTIME_KEY = STORAGE_KEYS.TASK_CENTER_RUNTIME;
 const TASK_CENTER_WATCHDOG_ALARM = STORAGE_KEYS.TASK_CENTER_WATCHDOG_ALARM;
 const BING_WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
 const WATCHDOG_PERIOD_MINUTES = 1;
+const TASK_VALIDITY_PROVIDER: AiWebProvider = 'deepseek';
 
 /**
  * Last successful start config, so a live `set_capability` toggle can start a
@@ -136,25 +137,31 @@ async function performRuntimeRestore(): Promise<void> {
   const runtime = stored[TASK_CENTER_RUNTIME_KEY] as PersistedTaskCenterRuntime | undefined;
   if (!intent.running) {
     await persistTaskCenterRuntime(false, null);
-    await bingDictionaryWorkerService.stopAndClear();
+    await bingDictionaryWorkerService.stopAndClear(true);
     return;
   }
+  const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
+  const enabledProcessors = processorsForCapabilities(activeCapabilities);
   if (!runtime?.running || !runtime.config?.apiUrl) {
     await persistTaskCenterRuntime(false, null);
-    await bingDictionaryWorkerService.resume();
+    if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
+      await bingDictionaryWorkerService.resume();
+    } else {
+      await bingDictionaryWorkerService.stopAndClear(true);
+    }
     return;
   }
 
-  const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
-  const enabledProcessors = processorsForCapabilities(activeCapabilities);
   const usesValidity = activeCapabilities.some((key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner);
 
   const processors = { ...(runtime.config.processors || {}) };
-  processors[LANES.BING_DICTIONARY] = {
-    ...(processors[LANES.BING_DICTIONARY] || { apiUrl: runtime.config.apiUrl }),
-    apiUrl: runtime.config.apiUrl,
-    surface: false,
-  };
+  if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
+    processors[LANES.BING_DICTIONARY] = {
+      ...(processors[LANES.BING_DICTIONARY] || { apiUrl: runtime.config.apiUrl }),
+      apiUrl: runtime.config.apiUrl,
+      surface: false,
+    };
+  }
   const config = {
     ...runtime.config,
     processors,
@@ -176,7 +183,10 @@ async function performRuntimeRestore(): Promise<void> {
       return;
     }
     if (usesValidity && !validityWasRunning) {
-      await wordValidityRunnerService.start({ apiUrl: config.apiUrl });
+      await wordValidityRunnerService.start({
+        apiUrl: config.apiUrl,
+        provider: TASK_VALIDITY_PROVIDER,
+      });
       validityStarted = true;
     }
     if (restoreEpoch !== runtimeEpoch) {
@@ -244,7 +254,7 @@ async function runStopAction(sendResponse: (response: any) => void): Promise<voi
   // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
   // so the crawler can NEVER resurrect after Stop (even if its processor
   // was not running in this SW instance).
-  await bingDictionaryWorkerService.stopAndClear();
+  await bingDictionaryWorkerService.stopAndClear(true);
   await clearRunIntent();
   await persistTaskCenterRuntime(false, null);
   lastStartConfig = null;
@@ -450,12 +460,24 @@ async function handleStart(
   const centerWasRunning = taskCenter.isTaskCenterRunning();
   const validityWasRunning = wordValidityRunnerService.getStatus().running;
   try {
+    if (usesValidity && !enabledProcessors.includes(LANES.BING_DICTIONARY)) {
+      await bingDictionaryWorkerService.stopAndClear(true);
+    }
     await taskCenter.startAll(config);
+
+    if (startEpoch !== runtimeEpoch) {
+      taskCenter.stopAll();
+      sendResponse({ success: false, error: 'Start superseded by Stop' });
+      return;
+    }
 
     // Start the client-driven validity runner when a validity-runner capability is
     // active (independent of the global-task lane).
     if (usesValidity) {
-      await wordValidityRunnerService.start({ apiUrl: config.apiUrl });
+      await wordValidityRunnerService.start({
+        apiUrl: config.apiUrl,
+        provider: TASK_VALIDITY_PROVIDER,
+      });
     }
   } catch (error) {
     if (!validityWasRunning) wordValidityRunnerService.stop();
@@ -589,8 +611,14 @@ async function handleSetCapability(
 
   try {
     await taskCenter.syncProcessors(enabledProcessors, nextConfig);
+    if (capEpoch !== runtimeEpoch) {
+      taskCenter.stopAll();
+      wordValidityRunnerService.stop();
+      sendResponse({ success: false, error: 'Capability change superseded by Stop' });
+      return;
+    }
     if (usesValidity && !previousValidityRunning) {
-      await wordValidityRunnerService.start({ apiUrl });
+      await wordValidityRunnerService.start({ apiUrl, provider: TASK_VALIDITY_PROVIDER });
     } else if (!usesValidity && previousValidityRunning) {
       wordValidityRunnerService.stop();
     }
@@ -598,7 +626,7 @@ async function handleSetCapability(
     try {
       await taskCenter.syncProcessors(previousProcessors, previousConfig);
       if (previousValidityRunning && !wordValidityRunnerService.getStatus().running) {
-        await wordValidityRunnerService.start({ apiUrl });
+        await wordValidityRunnerService.start({ apiUrl, provider: TASK_VALIDITY_PROVIDER });
       } else if (!previousValidityRunning) {
         wordValidityRunnerService.stop();
       }

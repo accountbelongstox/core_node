@@ -31,9 +31,15 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.user_data_store import user_data_store
-from pycore.pyctl.capabilities import resolve_static_dir
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_CAPABILITY_SETTINGS_KEY,
+    status_snapshot_cache,
+)
+from pycore.pyctl.capabilities import capabilities_status, resolve_static_dir
 from pycore.pyfoundations.system_launcher import open_dir
-from pycore.pyutils.tts.tts_orchestrator import tts_status
+from pycore.pyctl.ai.ai_gateway import gateway_status
+from pycore.pyctl.tts.status_service import status as tts_api_status
+from pycore.pyutils.ocr_cluster.ocr.ocr_orchestrator import ocr_status
 from pycore.pyutils.stt.stt_orchestrator import stt_status
 from pycore.pyutils.tts.edge.client import get_synth_timeout, set_synth_timeout
 from pycore.pyutils.tts.tts_orchestrator import (
@@ -41,13 +47,18 @@ from pycore.pyutils.tts.tts_orchestrator import (
     default_sentence_tts_priority,
     default_word_tts_priority,
     get_edge_cooldown_seconds,
+    invalidate_tts_status_cache,
     reload_tts_priority,
     set_edge_cooldown_seconds,
+    tts_status as orchestrator_tts_status,
 )
 from pycore.pyutils.stt.stt_orchestrator import default_stt_engine_priority
 from pycore.pyctl.ai.ai_keys import PROVIDERS, is_configured
 from pycore.pyutils.translator.dictionary import dictionary_service
-from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
 
 from pycore.pyutils.tts.tts_service_manager import apply_server_settings
 
@@ -65,8 +76,6 @@ _CAP_SECTION = "capability_priorities"
 _CAP_KEYS = ("stt", "tts", "sentence_tts", "word_tts", "image", "translation")
 # TTS tuning shares the same user_data section the tts router persists to.
 _TTS_SECTION = "tts"
-_CAP_BLOCKS_CACHE_SIGNAL = 'callmodule.capabilities.blocks_cache'
-_CAP_BLOCKS_TTL_S = 3.0
 _ENGINE_PROBE_TIMEOUT_S = 8.0
 
 
@@ -129,7 +138,7 @@ def _probe_engine_status(status_fn) -> Dict[str, Dict[str, Any]]:
             continue
         result[name] = {
             "available": bool(engine.get("available")),
-            "installed": bool(engine.get("installed")),
+            "installed": bool(engine.get("installed", engine.get("available"))),
             "disabled_reason": engine.get("disabled_reason"),
         }
     return result
@@ -288,7 +297,7 @@ def _capability_blocks() -> Dict[str, Dict[str, Any]]:
     # engine set is identical); only the default ORDER differs (qwen3tts-first /
     # edge-first). live_order pins that default so an unsaved profile shows its
     # own chain, not the global tts order.
-    tts_engines = _engines_from_orchestrator(tts_status, tts_known)
+    tts_engines = _engines_from_orchestrator(orchestrator_tts_status, tts_known)
     return {
         "stt": _block(
             "stt",
@@ -321,26 +330,18 @@ def _capability_blocks() -> Dict[str, Dict[str, Any]]:
     }
 
 
-def _cached_capability_blocks() -> Dict[str, Dict[str, Any]]:
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_CAP_BLOCKS_CACHE_SIGNAL, {}) or {}
-    cached = cache.get("data")
-    cached_at = float(cache.get("ts") or 0)
-    if (
-        isinstance(cached, dict)
-        and now - cached_at < _CAP_BLOCKS_TTL_S
-    ):
-        return cached
-    blocks = _capability_blocks()
-    THREAD_BUS.signal(_CAP_BLOCKS_CACHE_SIGNAL, {
-        "ts": now,
-        "data": blocks,
-    })
-    return blocks
+def _cached_capability_blocks(
+    refresh: bool = False,
+) -> Dict[str, Dict[str, Any]]:
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_CAPABILITY_SETTINGS_KEY,
+        _capability_blocks,
+        refresh=refresh,
+    )
 
 
 def _invalidate_capability_cache() -> None:
-    THREAD_BUS.clear_signal(_CAP_BLOCKS_CACHE_SIGNAL)
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_CAPABILITY_SETTINGS_KEY)
 
 
 def _save_priority(cap: str, priority: List[str]) -> None:
@@ -370,6 +371,7 @@ def _apply_tts_options(options: Dict[str, Any]) -> None:
     server_patch = {k: options[k] for k in server_keys if k in options}
     if server_patch:
         apply_server_settings(server_patch)
+    invalidate_tts_status_cache()
 
 
 def open_directory(key: str):
@@ -389,13 +391,30 @@ def open_directory(key: str):
     return {"success": False, "error": f"Failed to open {path}"}
 
 
-def get_capability_settings():
+def get_capability_settings(refresh: bool = False):
     """All four capability blocks (stt/tts/image/translation) the Queue Center
     drawer edits: live engine availability + options + the persisted custom
     priority order. Reads in-process orchestrator probes — no network I/O."""
     reload_tts_priority()
-    blocks = _cached_capability_blocks()
+    blocks = _cached_capability_blocks(refresh)
     return {"success": True, **blocks}
+
+
+def get_capability_status(refresh: bool = False) -> Dict[str, Any]:
+    """One UI exchange containing every cached local capability status slice."""
+    tts = tts_api_status(int(refresh))
+    tts_engines = {
+        str(engine.get("name") or ""): engine
+        for engine in tts.get("engines") or []
+        if isinstance(engine, dict) and engine.get("name")
+    }
+    return {
+        **capabilities_status(tts_engines),
+        "tts": tts,
+        "stt": stt_status(),
+        "ocr": ocr_status(),
+        "ai_gateway": gateway_status(refresh=refresh),
+    }
 
 
 def post_capability_settings(capability: str, priority=None, options=None):
@@ -412,8 +431,11 @@ def post_capability_settings(capability: str, priority=None, options=None):
                 # reload_tts_priority() rebinds ALL THREE profiles, so a save to
                 # any one applies realtime to synthesize(priority_profile=...).
                 reload_tts_priority()
+                invalidate_tts_status_cache()
                 if cap in ("tts", "word_tts"):
                     laravel_word_audio_worker.invalidate_engine_plan()
+                if cap in ("tts", "sentence_tts"):
+                    laravel_sentence_audio_worker.invalidate_engine_plan()
             if cap == "tts":
                 store = user_data_store
                 chains = dict(store.get_section("task_capability_chains") or {})

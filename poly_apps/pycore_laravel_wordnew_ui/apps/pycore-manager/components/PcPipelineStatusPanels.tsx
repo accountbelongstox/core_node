@@ -1,6 +1,6 @@
 /**
  * Shared OCR / AI gateway / TTS pipeline status panels with loading + retry.
- * Used by PcVoiceSubtitlePage and PcAiStatusPage — data comes from usePcCapability().
+ * Shared pipeline status panels backed by the centralized capability store.
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';

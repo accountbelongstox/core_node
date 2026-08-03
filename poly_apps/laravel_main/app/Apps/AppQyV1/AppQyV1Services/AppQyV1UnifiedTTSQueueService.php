@@ -487,8 +487,19 @@ class AppQyV1UnifiedTTSQueueService
 
         $status = $this->markRowPending($article, $position);
 
-        // Phase 5 dual-write (flag-gated, best-effort).
-        $this->maybeCreateGlobalAudioTask($article, $language, 'article_audio', $position === 'beginning');
+        try {
+            (new AppQyV1ArticleSentenceAudioService())->enqueueLibraryArticle(
+                $article,
+                $language,
+                $position === 'beginning'
+            );
+        } catch (\Throwable $e) {
+            Log::warning('[UnifiedTTSQueue] article sentence-audio enqueue failed', [
+                'language' => $language,
+                'md5' => $contentHash,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $this->clearQueueCache();
 

@@ -2,31 +2,37 @@
 """
 BaseLaravelWorkerService
 
-Shared scaffold for pycore workers that integrate with the Laravel backend's
-generic worker task API (tasks/{taskType}/pull with inline identity, then tasks/{taskType}/result).
+Shared scaffold for pycore workers that upload task RESULTS to the Laravel
+backend's generic worker task API (tasks/{taskType}/result).
 
-Extracted verbatim (behavior-preserving) from the former translation_worker_service.py
-monolith. Holds the parts that are IDENTICAL across the Laravel-pulled workers:
+Exchange-hub architecture (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
+pycore is a compute-only end. The UI pump fetches/accepts tasks from Laravel
+directly and dispatches payloads to pycore over RPC; pycore never pulls,
+claims, heartbeats, or reads Laravel. The ONLY remaining pycore -> Laravel
+traffic is result upload (task result status + audio binaries), and it goes
+through this base's _post_result (plus the domain report endpoints in the
+audio worker).
+
+Holds the parts that are IDENTICAL across the result-uploading workers:
 
   - THREAD_BUS-backed mutable worker state.
   - Stable hostname-based worker_id + candidate Laravel base-URL discovery.
   - Lazy third-party ``requests`` accessor + noisy-exception condenser.
-  - One-shot "no reachable Laravel" connection-failure hint.
-  - inline worker discovery on pull + _post_result retry and circuit breaker.
+  - task_id -> task_type / endpoint registry (fed by the RPC accept entry,
+    needed by the typed result route).
+  - _post_result retry and circuit breaker.
 
 The concrete subclass (TranslationWorkerService) supplies:
   - worker_name, _log_prefix (set in __init__ before any base HTTP method runs)
   - _effective_processor_types() / _effective_capabilities() (lane gating)
-  - _effective_task_types() (typed pull route scope, primary type last)
   - the lane-specific task processing
 
 The word/sentence audio workers (pyctl/tts/laravel_audio_worker.py) also build
-on this base: typed pull route claims, audio bytes uploaded via domain report
-endpoints before results. Shared Laravel transport still goes through
-LaravelClient; every generic /api/worker/* consumer belongs in this base.
+on this base: audio bytes uploaded via domain report endpoints before results.
+Shared Laravel transport still goes through LaravelClient; every generic
+/api/worker/* result consumer belongs in this base.
 """
 
-import os
 import platform
 import socket
 import time
@@ -34,22 +40,24 @@ from typing import Any, Dict, List, Optional
 
 # ColorPrint is the only allowed logger in pycore processors/services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-# requests is a third-party dep - always obtained through the lazy accessor.
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
 )
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_STATUSES_BY_ROLE,
+    GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
 )
+from pycore.pyutils.common.service_config import PYCORE_WORKER_INSTANCE
 
 
 class BaseLaravelWorkerService:
     """
-    Base class for Laravel-pulled pycore workers (pull/result).
+    Base class for result-uploading pycore workers (accept + result only).
 
     Concrete singleton construction is handled by a THREAD_BUS-backed provider.
     """
@@ -70,14 +78,9 @@ class BaseLaravelWorkerService:
     # ---- Backend circuit breaker ----
     # A persistent SERVER-SIDE result-POST failure (HTTP 5xx every attempt) means
     # the backend cannot accept results AT ALL - e.g. a missing/broken table after
-    # a half-finished DB migration. Without a breaker the worker keeps pulling and
-    # re-translating every tick, burning LLM calls and flooding the broken backend
-    # for results it can never store (the words never get marked done, so the
-    # Laravel scanner re-enqueues them forever - an unbounded spiral that exhausted
-    # the box once). After N consecutive server-side give-ups the breaker OPENS:
-    # poll_once stops PULLING (still heartbeats to stay registered) for a cooldown,
-    # then probes again. ANY accepted result resets it. 4xx/409 never trip it
-    # (those are per-task, not backend-wide).
+    # a half-finished DB migration. After N consecutive server-side give-ups the
+    # breaker OPENS for a cooldown; ANY accepted result resets it. 4xx/409 never
+    # trip it (those are per-task, not backend-wide).
     CIRCUIT_FAIL_THRESHOLD = 3
     CIRCUIT_COOLDOWN_SECONDS = 120
 
@@ -85,6 +88,7 @@ class BaseLaravelWorkerService:
     # the historical key; sibling workers (pyctl/tts/laravel_audio_worker.py)
     # MUST override both so each singleton owns a distinct state queue.
     STATE_OWNER_KEY = "translation.worker.state"
+    RESULT_HTTP_TIMEOUT = 60
     STATE_OWNER_NAME = "TranslationWorkerState"
     # Serialized state-owner timeout (seconds). The audio workers override with
     # 180s: their on-owner engine probe (tts_status) can outlive 60s on a cold box.
@@ -102,7 +106,7 @@ class BaseLaravelWorkerService:
         """
         # Candidate Laravel base URLs from LaravelEndpointManager (same source as
         # the pycore-manager Laravel endpoint UI). Stored-first resolve() picks the
-        # user's selection; the full candidate list is the first-pull sweep.
+        # user's selection; the full candidate list is the sweep order.
         self._candidates: List[str] = []
         self.api_url = self._sync_laravel_endpoint(laravel_api_url)
         self.worker_id = self._build_worker_id()
@@ -110,10 +114,6 @@ class BaseLaravelWorkerService:
         self.platform = platform.platform()
 
         self._registered = False
-        # Connection-failure bookkeeping so we emit ONE clear "no reachable
-        # Laravel" hint instead of a stack trace on every heartbeat tick.
-        self._conn_fail_streak = 0
-        self._conn_unreachable_warned = False
         # Backend circuit breaker state (see CIRCUIT_* constants). Streak counts
         # CONSECUTIVE server-side (HTTP 5xx) result-POST give-ups; the circuit is
         # open while monotonic time() < _circuit_open_until.
@@ -122,20 +122,18 @@ class BaseLaravelWorkerService:
         self._circuit_warned = False
         # Guards against dispatching the same task to two background threads while
         # an earlier dispatch is still in flight.
-        # task_id -> monotonic deadline. A hung executor (semaphore block or a
-        # stalled engine) used to leak the entry forever, so after Laravel's lease
-        # timeout re-offered the task THIS worker skipped it until restart. Now
-        # each entry carries a deadline (now + task.timeout_seconds, default
-        # INFLIGHT_DEFAULT_TTL) and expired entries are purged before the skip
-        # check, so a re-offered task can be claimed again.
+        # task_id -> monotonic deadline. Each entry carries a deadline (now +
+        # task.timeout_seconds, default INFLIGHT_DEFAULT_TTL) and expired entries
+        # are purged before the skip check, so a re-dispatched task can be
+        # accepted again even if an earlier executor hung.
         self._inflight: Dict[str, float] = {}
-        # task_id -> task_type, recorded on every successful pull. The typed
+        # task_id -> task_type, recorded on every accepted dispatch. The typed
         # result route (/api/worker/tasks/{taskType}/result) needs the type at
         # result time; keeping it here spares every handler call site from
         # passing it through. Bounded in _remember_task_types.
         self._task_type_by_id: Dict[str, str] = {}
+        self._task_endpoint_by_id: Dict[str, str] = {}
         # The serialized worker owns every mutation of this store.
-        self._http_timeout = 8  # seconds for pull/result calls
 
         # Log prefix - subclass overrides (e.g. "[TranslationWorker]"). Default
         # keeps base-only usage legible.
@@ -147,27 +145,23 @@ class BaseLaravelWorkerService:
             timeout=self.STATE_OWNER_TIMEOUT,
         )
         # Register for immediate notification when the user switches endpoint in
-        # the UI so the next pull uses it instead of waiting
-        # for the worker to naturally detect the URL change.
+        # the UI so the next result upload targets it.
         laravel_endpoint_manager.register_endpoint_change_listener(
             self.on_endpoint_changed
         )
 
     def on_endpoint_changed(self, new_url: str) -> None:
-        """Immediately reset registration state when the Laravel endpoint changes.
+        """Immediately reset endpoint state when the Laravel endpoint changes.
 
         Called synchronously by LaravelEndpointManager.select() the moment the user
-        confirms a new endpoint. The next pull sends the full worker identity to
-        ``new_url`` and refreshes the worker record there.
+        confirms a new endpoint. Subsequent result uploads resolve against
+        ``new_url``.
         """
         prev = self.api_url
         self.api_url = new_url.rstrip("/")
         self._registered = False
-        self._conn_fail_streak = 0
-        self._conn_unreachable_warned = False
         ColorPrint.blue(
-            f"{self._log_prefix} Endpoint changed {prev!r} → {new_url!r}; "
-            "next pull will advertise worker identity"
+            f"{self._log_prefix} Endpoint changed {prev!r} -> {new_url!r}"
         )
 
     # -------------------- identity --------------------
@@ -177,14 +171,11 @@ class BaseLaravelWorkerService:
         """
         Stable, hostname-based worker id (same across restarts on a host).
 
-        MULTI-INSTANCE NOTE: Laravel keys claims/heartbeats by worker_id, so two
-        pycore processes on the SAME host must not share one. Atomic task claim
-        still prevents double work either way, but a shared id corrupts per-worker
-        accounting (current_task_id, completed/failed counters) and offline
-        detection. When running more than one pycore per host, set
-        PYCORE_WORKER_INSTANCE to a stable per-instance tag (e.g. its rpc port);
-        it is appended to the id. Single-instance hosts need no env and keep the
-        old stable id.
+        MULTI-INSTANCE NOTE: Laravel keys results by worker_id, so two pycore
+        processes on the SAME host must not share one. For multiple pycore
+        processes on one host, configure PYCORE_WORKER_INSTANCE with a stable
+        per-instance tag; it is appended to the id. Single-instance hosts keep
+        the original stable id.
 
         NOTE: the concrete TranslationWorkerService overrides this to prefix the
         id with "pycore-translate-"; the base form here is the generic fallback
@@ -192,7 +183,7 @@ class BaseLaravelWorkerService:
         """
         host = socket.gethostname() or "host"
         safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-        instance = (os.getenv("PYCORE_WORKER_INSTANCE") or "").strip()
+        instance = PYCORE_WORKER_INSTANCE.strip()
         if instance:
             safe_instance = "".join(
                 c if (c.isalnum() or c in "-_") else "-" for c in instance
@@ -200,43 +191,11 @@ class BaseLaravelWorkerService:
             return f"pycore-worker-{safe}-{safe_instance}"
         return f"pycore-worker-{safe}"
 
-    @staticmethod
-    def _local_ipv4s() -> List[str]:
-        """Best-effort list of this machine's non-loopback IPv4 addresses, used to
-        decide whether a hardcoded LAN fallback is reachable (same subnet) before
-        adding it as a candidate. Never raises."""
-        ips = set()
-        try:
-            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-                addr = (info[4] or [None])[0]
-                if addr and not addr.startswith("127."):
-                    ips.add(addr)
-        except Exception:
-            pass
-        return sorted(ips)
-
-    @staticmethod
-    def _host_of(url: str) -> str:
-        """Bare host (no scheme / port / path) from a URL."""
-        host = (url or "").split("://", 1)[-1].split("/", 1)[0]
-        return host.rsplit(":", 1)[0] if ":" in host else host
-
-    @classmethod
-    def _on_local_subnet(cls, url: str, local_ips: List[str]) -> bool:
-        """True when the URL's IPv4 host shares a /24 with one of this machine's
-        local addresses - i.e. the LAN fallback's environment actually exists."""
-        parts = cls._host_of(url).split(".")
-        if len(parts) != 4 or not all(p.isdigit() for p in parts):
-            return False
-        prefix = ".".join(parts[:3]) + "."
-        return any(ip.startswith(prefix) for ip in local_ips)
-
     def _sync_laravel_endpoint(self, fallback: str = "") -> str:
         """Refresh candidate list + resolved base from LaravelEndpointManager.
 
-        Returns the resolved base URL (no trailing slash). When not yet
-        registered, ``api_url`` is primed to this value so monitors that read
-        the worker see the UI-selected endpoint immediately.
+        Pure local resolution (no network): reads the stored endpoint catalog.
+        Returns the resolved base URL (no trailing slash).
         """
         mgr = laravel_endpoint_manager
         base = (mgr.resolve() or "").rstrip("/")
@@ -262,32 +221,13 @@ class BaseLaravelWorkerService:
             self.api_url = ordered[0]
         return ordered[0]
 
-    @classmethod
-    def _build_candidates(cls, primary: str) -> List[str]:
-        """Deprecated: use LaravelEndpointManager via _sync_laravel_endpoint()."""
-        mgr = laravel_endpoint_manager
-        base = (mgr.resolve() or primary or "").rstrip("/")
-        state = mgr._load()
-        ordered: List[str] = []
-        if base:
-            ordered.append(base)
-        for u in state.get("endpoints") or []:
-            u = (u or "").rstrip("/")
-            if u and u not in ordered:
-                ordered.append(u)
-        return ordered or ["http://127.0.0.1:9000"]
-
     # -------------------- HTTP helpers --------------------
-
-    def _requests(self):
-        """Lazily obtain the third-party requests module (pycore rule)."""
-        return get_third_package_requests()
 
     @staticmethod
     def _short_err(exc: Exception) -> str:
         """
         Condense a noisy requests/urllib3 exception into a one-line reason, so we
-        never dump a multi-line HTTPConnectionPool stack into the heartbeat log.
+        never dump a multi-line HTTPConnectionPool stack into the log.
         """
         name = type(exc).__name__
         text = str(exc)
@@ -302,149 +242,39 @@ class BaseLaravelWorkerService:
             return "host not resolvable"
         return text.splitlines()[0][:120] if text else name
 
-    # -------------------- Laravel worker API --------------------
+    # -------------------- dispatched-task registry --------------------
 
-    def _note_fast_signals(self, body: Optional[Dict[str, Any]]) -> None:
-        """Record pending_fast / pending_urgent counters from a pull body.
-
-        These steer the jittered fast-drain burst (pending_fast>0) and surface in
-        get_queue_status() for routers/local. The concrete subclass initializes
-        _pending_fast / _pending_urgent (the fast lane is translation-specific).
-        """
-        if not isinstance(body, dict):
-            return
-        try:
-            self._pending_fast = int(body.get("pending_fast") or 0)
-        except (TypeError, ValueError):
-            self._pending_fast = 0
-        try:
-            self._pending_urgent = int(body.get("pending_urgent") or 0)
-        except (TypeError, ValueError):
-            self._pending_urgent = 0
-
-    def _effective_task_types(self) -> List[str]:
-        """Task types this worker pulls via the typed pull route
-        (/api/worker/tasks/{taskType}/pull). PRIMARY TYPE LAST: it holds the
-        long-poll budget, earlier types are quick-polled wait=0 so their waits
-        never stack. Subclasses override; empty list = nothing to pull."""
-        return []
-
-    def _remember_task_types(self, tasks: List[Dict[str, Any]]) -> None:
-        """Record task_id -> task_type from a pulled batch for the typed result
+    def _remember_task_types(
+        self,
+        tasks: List[Dict[str, Any]],
+        base_url: str,
+    ) -> None:
+        """Record task_id -> task_type from a dispatched batch for the typed result
         route (bounded: oldest entries dropped past 1000)."""
         for task in tasks:
             task_id = str(task.get("task_id") or "")
             task_type = str(task.get("task_type") or "")
             if task_id and task_type:
+                # Refresh insertion order so an accepted task that is about to
+                # run cannot be evicted behind already completed backlog rows.
+                self._task_type_by_id.pop(task_id, None)
+                self._task_endpoint_by_id.pop(task_id, None)
                 self._task_type_by_id[task_id] = task_type
+                self._task_endpoint_by_id[task_id] = base_url.rstrip("/")
         while len(self._task_type_by_id) > 1000:
-            self._task_type_by_id.pop(next(iter(self._task_type_by_id)))
+            oldest_task_id = next(iter(self._task_type_by_id))
+            self._task_type_by_id.pop(oldest_task_id)
+            self._task_endpoint_by_id.pop(oldest_task_id, None)
 
-    def _pull_timeout(self, wait: int) -> int:
-        """HTTP timeout for one pull: a long-poll ``wait`` must outlive the
-        server hold (otherwise the client times out first and every long-poll
-        looks like a transient error). wait=0 keeps the historical 8s timeout."""
-        return self._http_timeout + max(0, int(wait))
+    def _task_base_url(self, task_id: Any) -> str:
+        return self._task_endpoint_by_id.get(str(task_id), self.api_url)
 
-    def _pull_tasks(self, base: Optional[str] = None, wait: int = 0) -> List[Dict[str, Any]]:
-        """GET pending tasks for this worker. Returns [] on any error.
+    def _forget_task_endpoint(self, task_id: Any) -> None:
+        key = str(task_id)
+        self._task_type_by_id.pop(key, None)
+        self._task_endpoint_by_id.pop(key, None)
 
-        NOT a @serialized_method: this performs network I/O (up to
-        ``_http_timeout`` seconds against a dead endpoint). Running it on the
-        serialized state-owner thread used to occupy the owner for the whole
-        HTTP window, so every concurrent status read / heartbeat tick raised
-        'Serialized operation timed out: translation.worker.state.*'. It only
-        mutates plain scalars (_registered, _pending_fast/_pending_urgent via
-        _note_fast_signals), which is safe from the single-flight poll/drain
-        threads.
-
-        ``wait`` MUST be sent (0 = immediate return; if omitted Laravel long-polls
-        ~20s while the client's 8s HTTP timeout fires first). The fast-drain burst and
-        the heartbeat tick both call this with wait=0 so a pull never blocks the loop.
-
-        PRIORITY-SYNC NOTE: Laravel returns tasks in ``priority desc`` order, but the
-        unified client ALSO folds every claimed task into a per-backend priority heap
-        (so a bumped task drains first even if it arrived in an earlier pull). The pull
-        response's pending_fast / pending_urgent counters are recorded to arm the
-        jittered fast-drain burst, and the QueueMonitorService still surfaces bumps to
-        the UI (`recently_bumped`). No task-processing logic is duplicated.
-
-        Hardening (2026-06-22): only a real ConnectionError de-registers (forces
-        re-discovery). A transient Timeout / other error just logs and stays
-        registered - the next tick retries against the same pinned backend.
-        """
-        self._sync_laravel_endpoint()
-        candidates = [base or self.api_url] if self._registered else list(self._candidates)
-        processor_types = self._effective_processor_types()
-        capabilities = self._effective_capabilities()
-        task_types = [t for t in self._effective_task_types() if t]
-        if not task_types:
-            return []
-        last_error: Optional[Exception] = None
-        for candidate in candidates:
-            try:
-                merged: List[Dict[str, Any]] = []
-                body: Dict[str, Any] = {}
-                for index, task_type in enumerate(task_types):
-                    # The primary type (LAST) holds the long-poll budget; the
-                    # others are quick-polled wait=0 so waits never stack.
-                    type_wait = wait if index == len(task_types) - 1 else 0
-                    resp = laravel_client.get(
-                        f"/api/worker/tasks/{task_type}/pull",
-                        base_url=candidate,
-                        params={
-                            "worker_id": self.worker_id,
-                            "worker_name": self.worker_name,
-                            "processor_types[]": processor_types,
-                            "capabilities[]": capabilities,
-                            "capabilities_present": 1,
-                            "hostname": self.hostname,
-                            "platform": self.platform,
-                            "wait": type_wait,
-                        },
-                        timeout=self._pull_timeout(type_wait),
-                    )
-                    if resp.status_code != 200:
-                        raise RuntimeError(f"pull HTTP {resp.status_code}")
-                    data = resp.json() or {}
-                    body = data.get("data") if isinstance(data.get("data"), dict) else data
-                    merged.extend((body or {}).get("tasks", []) or [])
-                self.api_url = candidate
-                self._registered = True
-                self._advertised_processor_types = list(processor_types)
-                self._advertised_capabilities = list(capabilities)
-                self._conn_fail_streak = 0
-                self._conn_unreachable_warned = False
-                self._note_fast_signals(body)
-                self._remember_task_types(merged)
-                return merged
-            except Exception as e:
-                last_error = e
-                continue
-
-        if last_error is not None:
-            # Distinguish a hard connection failure (backend gone -> re-discover)
-            # from a transient blip (timeout / read error -> keep registration).
-            conn_error_cls = None
-            try:
-                conn_error_cls = self._requests().exceptions.ConnectionError
-            except Exception:
-                conn_error_cls = None
-            if conn_error_cls is not None and isinstance(last_error, conn_error_cls):
-                self._registered = False
-                self._conn_fail_streak += 1
-                if not self._conn_unreachable_warned:
-                    self._conn_unreachable_warned = True
-                    ColorPrint.yellow(
-                        f"{self._log_prefix} No reachable Laravel queue API across "
-                        f"{candidates} ({self._short_err(last_error)}); will retry quietly"
-                    )
-            else:
-                ColorPrint.yellow(
-                    f"{self._log_prefix} Pull transient error "
-                    f"({self._short_err(last_error)}); will retry next tick"
-                )
-        return []
+    # -------------------- Laravel worker result API --------------------
 
     def _post_result(
         self,
@@ -454,14 +284,15 @@ class BaseLaravelWorkerService:
         error: Optional[str] = None,
         progress: Optional[int] = None,
         attempts: Optional[int] = None,
+        attempt: Optional[int] = None,
     ) -> bool:
         """
         POST a task result (processing/completed/failed) back to Laravel.
 
         NOT a @serialized_method: the retry loop below can hold for
-        RESULT_POST_ATTEMPTS x _http_timeout + backoff against a dead endpoint
-        (~27s). On the serialized state-owner thread that blocked every status
-        read and heartbeat tick ('Serialized operation timed out'). The breaker
+        RESULT_POST_ATTEMPTS x RESULT_HTTP_TIMEOUT + backoff against a dead endpoint.
+        On the serialized state-owner thread that blocked every status
+        read ('Serialized operation timed out'). The breaker
         bookkeeping it touches is plain scalars, safe from executor threads.
 
         Retries transient failures (connection errors / HTTP 5xx) a few times
@@ -482,6 +313,8 @@ class BaseLaravelWorkerService:
             "worker_id": self.worker_id,
             "status": status,
         }
+        if attempt is not None:
+            body["attempt"] = max(0, int(attempt))
         if progress is not None:
             body["progress"] = progress
         if result is not None:
@@ -490,10 +323,20 @@ class BaseLaravelWorkerService:
             body["error"] = error
 
         # Typed result route (/api/worker/tasks/{taskType}/result): the type
-        # comes from the pull-time registry, so handler call sites stay
-        # unchanged. A missing type means the task predates this process —
-        # drop the result; Laravel re-queues the task at lease timeout.
-        task_type = self._task_type_by_id.get(str(task_id))
+        # normally comes from the dispatch-time registry. A dedicated worker
+        # may declare RESULT_TASK_TYPE as a safe fallback for legacy queued
+        # items; shared multi-type workers still reject unknown routing.
+        task_key = str(task_id)
+        task_type = self._task_type_by_id.get(task_key)
+        if not task_type:
+            task_type = str(getattr(self, "RESULT_TASK_TYPE", "") or "").strip()
+            if task_type:
+                self._task_type_by_id[task_key] = task_type
+                self._task_endpoint_by_id.setdefault(task_key, self.api_url.rstrip("/"))
+                ColorPrint.yellow(
+                    f"{self._log_prefix} Restored missing task_type for task "
+                    f"{task_id} as {task_type}"
+                )
         if not task_type:
             ColorPrint.red(
                 f"{self._log_prefix} Result for task {task_id} has no recorded "
@@ -501,21 +344,34 @@ class BaseLaravelWorkerService:
             )
             return False
         result_url = f"/api/worker/tasks/{task_type}/result"
+        result_base_url = self._task_base_url(task_id)
+        terminal_result = status in GLOBAL_TASK_TERMINAL_STATUSES
 
         last_note = ""
         last_was_5xx = False
         max_attempts = self.RESULT_POST_ATTEMPTS if attempts is None else max(1, int(attempts))
         for attempt in range(1, max_attempts + 1):
+            if THREAD_BUS.is_shutdown_requested() and not terminal_result:
+                ColorPrint.yellow(
+                    f"{self._log_prefix} Result POST for task {task_id} cancelled during shutdown"
+                )
+                return False
             try:
                 resp = laravel_client.post(
                     result_url,
-                    base_url=self.api_url,
+                    base_url=result_base_url,
                     json=body,
-                    timeout=self._http_timeout,
+                    timeout=self.RESULT_HTTP_TIMEOUT,
                 )
                 if resp.status_code in (200, 201):
                     ColorPrint.green(f"{self._log_prefix} Posted '{status}' for task {task_id}")
                     self._note_result_accepted()
+                    if status in GLOBAL_TASK_TERMINAL_STATUSES:
+                        diff_task_segment_store.consume(
+                            self._diff_segment_scope(result_base_url),
+                            task_id,
+                        )
+                        self._forget_task_endpoint(task_id)
                     return True
                 if resp.status_code == 409:
                     # Task reassigned (we lost the claim, e.g. after a timeout
@@ -524,6 +380,11 @@ class BaseLaravelWorkerService:
                         f"{self._log_prefix} Result for task {task_id} rejected (409: "
                         f"task reassigned / not ours) - dropping"
                     )
+                    diff_task_segment_store.consume(
+                        self._diff_segment_scope(result_base_url),
+                        task_id,
+                    )
+                    self._forget_task_endpoint(task_id)
                     return False
                 if 400 <= resp.status_code < 500:
                     ColorPrint.yellow(
@@ -538,6 +399,11 @@ class BaseLaravelWorkerService:
                 last_was_5xx = False  # transport error, not a backend 5xx
 
             if attempt < max_attempts:
+                if THREAD_BUS.is_shutdown_requested() and not terminal_result:
+                    ColorPrint.yellow(
+                        f"{self._log_prefix} Result retry for task {task_id} cancelled during shutdown"
+                    )
+                    return False
                 delay = self.RESULT_POST_BACKOFF_SECONDS[
                     min(attempt - 1, len(self.RESULT_POST_BACKOFF_SECONDS) - 1)
                 ]
@@ -556,10 +422,13 @@ class BaseLaravelWorkerService:
             )
         # Only a real budgeted attempt that ended on a backend 5xx counts toward
         # the breaker. Best-effort single-shot pings (attempts=1) and transport
-        # errors do not - the latter are already handled by the conn-fail hint.
+        # errors do not.
         if max_attempts > 1 and last_was_5xx:
             self._note_result_server_error()
         return False
+
+    def _diff_segment_scope(self, base: str) -> str:
+        return f"{self.worker_name}:{self.worker_id}:{base}"
 
     # -------------------- backend circuit breaker --------------------
 
@@ -579,13 +448,12 @@ class BaseLaravelWorkerService:
             if not self._circuit_warned:
                 ColorPrint.red(
                     f"{self._log_prefix} Backend rejecting results "
-                    f"({self._result_5xx_streak}x HTTP 5xx) - opening circuit: pausing "
-                    f"task pulls for {self.CIRCUIT_COOLDOWN_SECONDS}s to stop burning "
-                    f"translations the backend cannot store. Will probe again after cooldown."
+                    f"({self._result_5xx_streak}x HTTP 5xx) - opening circuit for "
+                    f"{self.CIRCUIT_COOLDOWN_SECONDS}s. Will probe again after cooldown."
                 )
                 self._circuit_warned = True
 
     @serialized_method
     def _circuit_is_open(self) -> bool:
-        """True while the cooldown is active (skip pulling new work)."""
+        """True while the cooldown is active."""
         return time.monotonic() < self._circuit_open_until

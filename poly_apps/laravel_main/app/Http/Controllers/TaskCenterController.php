@@ -108,7 +108,7 @@ class TaskCenterController extends Controller
 
     /**
      * GET /api/task-center/completed
-     * Cursor-paginated terminal GlobalTask records for pycore's local archive.
+     * Cursor-paginated terminal GlobalTask records for direct UI consumption.
      */
     public function completed(Request $request): JsonResponse
     {

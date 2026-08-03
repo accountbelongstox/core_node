@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -38,7 +39,13 @@ class _ExtractGate:
 
 
 class _PipelineGate:
-    """Serialized article pipeline pass — independent of extract."""
+    """Serialized article pipeline pass — independent of extract.
+
+    A single pass may legitimately run for minutes (cold-loading a local TTS
+    engine is budgeted at ~5 minutes in worker.py), so the serialized timeout
+    must cover that budget; heartbeat ticks that arrive mid-run are skipped by
+    AgentHistoryTickService before they ever reach this queue.
+    """
 
     def __init__(self, owner: "AgentHistoryTickService") -> None:
         self._owner = owner
@@ -46,7 +53,7 @@ class _PipelineGate:
             self,
             "agent_history.pipeline",
             "AgentHistoryPipeline",
-            timeout=300.0,
+            timeout=600.0,
         )
 
     @serialized_method
@@ -61,6 +68,12 @@ class AgentHistoryTickService:
         self._extract_count = 0
         self._pipeline_count = 0
         self._last_summary: Dict[str, Any] = {}
+        # Busy flags: a heartbeat tick that arrives while a pass is still running
+        # is skipped outright instead of queueing on the serialized gate (queued
+        # ticks would each wait out the gate timeout and surface as spurious
+        # "Serialized operation timed out" callback errors).
+        self._extract_busy = threading.Event()
+        self._pipeline_busy = threading.Event()
         # Snapshot for UI polls — plain attribute reads, never waits on extract/pipeline.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
@@ -97,12 +110,24 @@ class AgentHistoryTickService:
         }
 
     def tick_extract(self) -> None:
-        """Heartbeat: incremental history extract only."""
-        self._extract_gate.run()
+        """Heartbeat: incremental history extract only (skipped while busy)."""
+        if self._extract_busy.is_set():
+            return
+        self._extract_busy.set()
+        try:
+            self._extract_gate.run()
+        finally:
+            self._extract_busy.clear()
 
     def tick_pipeline(self) -> None:
-        """Heartbeat: at most one article batch."""
-        self._pipeline_gate.run()
+        """Heartbeat: at most one article batch (skipped while busy)."""
+        if self._pipeline_busy.is_set():
+            return
+        self._pipeline_busy.set()
+        try:
+            self._pipeline_gate.run()
+        finally:
+            self._pipeline_busy.clear()
 
     def tick(self) -> None:
         """Compatibility: run extract then pipeline (each on its own lock)."""

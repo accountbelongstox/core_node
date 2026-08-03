@@ -381,7 +381,13 @@ class AppQyV1SentenceAudioService
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
             $sentence->save();
-            return ['ok' => true, 'status' => 'completed', 'already_done' => true, 'http_status' => 200];
+            return [
+                'ok' => true,
+                'status' => 'completed',
+                'already_done' => true,
+                'audio_url' => AppQyV1SentenceAudioUrl::forRelative($relativePath),
+                'http_status' => 200,
+            ];
         }
 
         // --- Validate the payload (never trust the wire) ---
@@ -452,7 +458,12 @@ class AppQyV1SentenceAudioService
             'path' => $relativePath,
         ]);
 
-        return ['ok' => true, 'status' => 'completed', 'http_status' => 200];
+        return [
+            'ok' => true,
+            'status' => 'completed',
+            'audio_url' => AppQyV1SentenceAudioUrl::forRelative($relativePath),
+            'http_status' => 200,
+        ];
     }
 
     // ------------------------------------------------------------------

@@ -1,7 +1,7 @@
-import { BaseAPI } from '../base/BaseAPI';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type { NginxSite } from '../../uiTypes';
-import { LARAVEL_API_ROUTE } from '../ApiContract';
+import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
 
 type NginxSiteType = NginxSite['site_type'];
 

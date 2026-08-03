@@ -1142,7 +1142,7 @@
     "message": "Execute word validity and translation tasks"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "Drains unchecked or untranslated words and enables the web AI and Bing translation workers"
+    "message": "Pulls unchecked or untranslated words from the backend vocabulary library and processes them with DeepSeek"
   },
   "taskCenterCapability_notebooklm_label": {
     "message": "Execute NotebookLM generation tasks"
@@ -1559,7 +1559,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  Launching WXT dev server (watch mode)..."
+    "message": "  Starting shell-managed development watch..."
   },
   "startAutomaticRebuilds": {
     "message": "  File changes trigger automatic rebuilds."

@@ -2,8 +2,8 @@
 """
 Article-record primitives for agent-history consumers.
 
-Persists every generated article as an individual JSON record plus its audio
-mp3 under ``<local_data_dir>/cache/agent_history/`` (see
+Persists every generated article as an individual JSON record and optionally
+caches its audio under ``<local_data_dir>/cache/agent_history/`` (see
 ``system_paths.get_local_data_dir``), with an ``index.json`` (newest first):
 
   index.json          {"records": [<record>, ...]}
@@ -76,31 +76,73 @@ def load_index() -> Dict[str, Any]:
     return {"records": [r for r in rows if isinstance(r, dict)]}
 
 
+RECORD_BODY_FIELDS = ("article_en", "reference_cn")
+
+
+def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(row)
+    rid = str(out.get("id") or "")
+    local_audio = bool(rid) and (audio_dir() / f"{rid}.mp3").is_file()
+    out["audio_available"] = local_audio or bool(out.get("audio_url"))
+    out["audio_status"] = "ready" if local_audio else str(out.get("audio_status") or "queued")
+    out["uploaded"] = bool(out.get("uploaded"))
+    return out
+
+
+def records_revision() -> str:
+    """Revision marker for the records index (changes on every index write)."""
+    try:
+        stat = _index_path().stat()
+        return f"{stat.st_mtime_ns}:{stat.st_size}"
+    except OSError:
+        return "0:0"
+
+
+def list_record_metadata(limit: int = 100) -> List[Dict[str, Any]]:
+    """ID-page rows, newest first: full metadata minus the heavy text bodies."""
+    rows = load_index()["records"]
+    out: List[Dict[str, Any]] = []
+    for r in rows[: max(1, min(int(limit or 100), _INDEX_CAP))]:
+        row = _decorate_row(r)
+        for field in RECORD_BODY_FIELDS:
+            row.pop(field, None)
+        out.append(row)
+    return out
+
+
+def get_records(record_ids: List[str], cap: int = 50) -> List[Dict[str, Any]]:
+    """Lazily materialize full records (bodies included) for the given IDs."""
+    out: List[Dict[str, Any]] = []
+    for record_id in record_ids[: max(1, min(int(cap or 50), 100))]:
+        record = get_record(str(record_id or ""))
+        if record is not None:
+            out.append(_decorate_row(record))
+    return out
+
+
 def list_records(limit: int = 100) -> List[Dict[str, Any]]:
     """Index records, newest first, with audio availability attached."""
     rows = load_index()["records"]
     out: List[Dict[str, Any]] = []
     for r in rows[: max(1, min(int(limit or 100), _INDEX_CAP))]:
-        row = dict(r)
-        rid = str(row.get("id") or "")
-        row["audio_available"] = bool(rid) and (audio_dir() / f"{rid}.mp3").is_file()
-        row["uploaded"] = bool(row.get("uploaded"))
-        out.append(row)
+        out.append(_decorate_row(r))
     return out
 
 
 def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
-    """Write <id>.json + audio/<id>.mp3 and prepend the record to the index."""
+    """Write <id>.json, optional audio, and prepend the record to the index."""
     # Rule §4: no lock — writes land via atomic os.replace; the index is
     # rebuilt as a new list and swapped in with one atomic write.
     rid = str(record.get("id") or "")
     if not rid or not _ID_RE.match(rid):
         raise ValueError("invalid record id")
     record["reference_cn"] = str(record.get("reference_cn") or "").strip()[:2000]
-    record["audio_file"] = f"audio/{rid}.mp3"
+    record["audio_file"] = f"audio/{rid}.mp3" if audio_bytes else None
+    record["audio_status"] = "ready" if audio_bytes else "pending_upload"
     record["uploaded"] = bool(record.get("uploaded"))
     record["uploaded_at"] = record.get("uploaded_at") or None
-    (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
+    if audio_bytes:
+        (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
     _atomic_write_json(records_dir() / f"{rid}.json", record)
     rows = [r for r in load_index()["records"] if r.get("id") != rid]
     rows.insert(0, record)
@@ -126,7 +168,7 @@ def get_record(record_id: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def mark_uploaded(record_id: str) -> Optional[Dict[str, Any]]:
+def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
     # Rule §4: no lock — build the updated record/index, then commit each
     # with a single atomic os.replace write.
     rec = get_record(record_id)
@@ -134,12 +176,19 @@ def mark_uploaded(record_id: str) -> Optional[Dict[str, Any]]:
         return None
     rec["uploaded"] = True
     rec["uploaded_at"] = datetime.now(timezone.utc).isoformat()
+    if isinstance(laravel_data, dict):
+        rec["laravel_article_id"] = laravel_data.get("article_id")
+        rec["audio_url"] = laravel_data.get("audio_url")
+        rec["audio_status"] = laravel_data.get("audio_status") or "queued"
     _atomic_write_json(records_dir() / f"{rec['id']}.json", rec)
     rows = load_index()["records"]
     for r in rows:
         if r.get("id") == rec["id"]:
             r["uploaded"] = True
             r["uploaded_at"] = rec["uploaded_at"]
+            r["laravel_article_id"] = rec.get("laravel_article_id")
+            r["audio_url"] = rec.get("audio_url")
+            r["audio_status"] = rec.get("audio_status")
     _atomic_write_json(_index_path(), {"records": rows})
     return rec
 
@@ -171,3 +220,25 @@ def read_audio(record_id: str) -> Optional[bytes]:
         return path.read_bytes()
     except OSError:
         return None
+
+
+def cache_audio(record_id: str, audio_bytes: bytes) -> bool:
+    """Cache remotely generated article audio for subsequent UI reads."""
+    rid = str(record_id or "")
+    if not rid or not _ID_RE.match(rid) or get_record(rid) is None or not audio_bytes:
+        return False
+    try:
+        (audio_dir() / f"{rid}.mp3").write_bytes(audio_bytes)
+        rec = get_record(rid) or {}
+        rec["audio_file"] = f"audio/{rid}.mp3"
+        rec["audio_status"] = "ready"
+        _atomic_write_json(records_dir() / f"{rid}.json", rec)
+        rows = load_index()["records"]
+        for row in rows:
+            if row.get("id") == rid:
+                row["audio_file"] = rec["audio_file"]
+                row["audio_status"] = "ready"
+        _atomic_write_json(_index_path(), {"records": rows})
+        return True
+    except OSError:
+        return False

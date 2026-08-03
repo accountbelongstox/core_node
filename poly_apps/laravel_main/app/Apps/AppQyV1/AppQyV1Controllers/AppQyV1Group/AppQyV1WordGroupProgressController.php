@@ -66,9 +66,9 @@ class AppQyV1WordGroupProgressController
      *
      * Legacy single shape: {gid, word_id, action: read|review,
      * proficiency?, is_correct?} - response unchanged.
-     * Batch shape: {gid, updates: [{word_id, correct}]} - every update is a
-     * review outcome (proficiency +5/-10 clamped 0-100, review_count + next
-     * review recompute). Either way the call performs ONE JSON write.
+     * Batch shape: {gid, updates: [{word_id, action, correct?, play_time?}]}.
+     * Missing action preserves the legacy review-outcome contract. Either
+     * shape performs one JSON write.
      */
     public function updateProgress(Request $request): JsonResponse
     {
@@ -83,7 +83,9 @@ class AppQyV1WordGroupProgressController
             'play_time' => 'nullable|numeric|min:0',
             'updates' => 'sometimes|array|min:1',
             'updates.*.word_id' => 'required_with:updates|integer',
-            'updates.*.correct' => 'required_with:updates|boolean',
+            'updates.*.action' => 'nullable|in:read,review',
+            'updates.*.correct' => 'required_unless:updates.*.action,read|boolean',
+            'updates.*.play_time' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -235,6 +237,8 @@ class AppQyV1WordGroupProgressController
 
             $updated = 0;
             $skipped = 0;
+            $reads = 0;
+            $reviews = 0;
             $progressByWordId = [];
             foreach ($updates as $update) {
                 $batchWordId = (int) $update['word_id'];
@@ -242,7 +246,15 @@ class AppQyV1WordGroupProgressController
                     $skipped++;
                     continue;
                 }
-                $entry = $progressRow->applyReviewResult($batchWordId, (bool) $update['correct']);
+                $batchAction = $update['action'] ?? 'review';
+                if ($batchAction === 'read') {
+                    $playTime = isset($update['play_time']) ? (float) $update['play_time'] : null;
+                    $entry = $progressRow->recordRead($batchWordId, $playTime);
+                    $reads++;
+                } else {
+                    $entry = $progressRow->applyReviewResult($batchWordId, (bool) $update['correct']);
+                    $reviews++;
+                }
                 $progressByWordId[$batchWordId] = self::entryToProgressArray($entry);
                 $updated++;
             }
@@ -255,6 +267,8 @@ class AppQyV1WordGroupProgressController
                 'batch' => true,
                 'updated' => $updated,
                 'skipped' => $skipped,
+                'reads' => $reads,
+                'reviews' => $reviews,
                 'progress' => $progressByWordId,
             ], 'Progress batch updated successfully');
         });

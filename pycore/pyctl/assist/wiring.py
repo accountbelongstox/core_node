@@ -4,11 +4,14 @@
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyctl.assist.assist_settings import load_assist_settings
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
 )
-from pycore.pyctl.assist.capability_sync import apply_assist_runtime
+from pycore.pyctl.translation.worker.worker import translation_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
 
 
 def resolve_selected_endpoint_for_ui(*, monitor_reachable: bool = False) -> Optional[Dict[str, Any]]:
@@ -30,14 +33,15 @@ def resolve_selected_endpoint_for_ui(*, monitor_reachable: bool = False) -> Opti
         return None
 
 
-def register_assist_runtime() -> None:
-    """Apply the in-memory user settings after callback registration."""
-    try:
-        settings = load_assist_settings()
-        apply_assist_runtime(settings)
-        ColorPrint.blue(
-            f"[AssistWiring] Queue runtime applied "
-            f"(enabled={settings['enabled']}, capabilities={settings['capabilities']})"
-        )
-    except Exception as e:  # noqa: BLE001 — startup must not be torn down by this
-        ColorPrint.red(f"[AssistWiring] Failed to apply queue runtime: {e}")
+def bind_selected_endpoint_for_workers(base_url: str) -> Dict[str, Any]:
+    """Persist a frontend-selected endpoint and update local worker state."""
+    normalized = str(base_url or "").strip().rstrip("/")
+    if not normalized:
+        return {"success": False, "error": "LARAVEL_ENDPOINT_REQUIRED"}
+    selected = laravel_endpoint_manager.select(normalized, probe=False)
+    if not selected.get("success"):
+        return selected
+    translation_worker_service.on_endpoint_changed(normalized)
+    laravel_word_audio_worker.on_endpoint_changed(normalized)
+    laravel_sentence_audio_worker.on_endpoint_changed(normalized)
+    return {"success": True, "endpoint": normalized}

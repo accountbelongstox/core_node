@@ -1,5 +1,5 @@
 import { getDefaultBaseURL } from '../../../config/constants';
-import { getSharedBaseURL } from '../api/base/BaseAPI';
+import { getSharedBaseURL } from '../../../core/api-libs/laravel/transport/BaseAPI';
 
 /** Resolve Laravel-owned media against the currently selected API endpoint. */
 export function laravelMediaUrl(value?: string | null): string {

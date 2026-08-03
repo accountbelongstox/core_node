@@ -20,9 +20,12 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 
 
 _QUEUE_STATE_QUEUE = 'pyctl.desktop.voice_subtitle_queue.state'
+_QUEUE_SNAPSHOT_SIGNAL = 'pyctl.desktop.voice_subtitle_queue.snapshot'
+_QUEUE_PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY['data_segment_limit'])
 _QUEUE_STATE_WORKER = SerializedWorkerThread(
     _QUEUE_STATE_QUEUE,
     'VoiceSubtitleQueueStateThread',
@@ -79,14 +82,40 @@ class VoiceSubtitleQueue:
 
     def _load_queue(self):
         """Load queue from disk"""
-        if not self._storage_file.exists():
-            return
+        if self._storage_file.exists():
+            with open(self._storage_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                self._queue = [VoiceSubtitleItem(**item) for item in data.get('queue', [])]
+                self._current_index = data.get('current_index', 0)
+                self._enabled = data.get('enabled', False)
+        self._publish_fast_snapshot()
 
-        with open(self._storage_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            self._queue = [VoiceSubtitleItem(**item) for item in data.get('queue', [])]
-            self._current_index = data.get('current_index', 0)
-            self._enabled = data.get('enabled', False)
+    def _build_snapshot(self, offset: int, limit: int) -> Dict:
+        """Build one bounded queue page on the state-owner thread."""
+        total = len(self._queue)
+        page_offset = max(0, min(int(offset or 0), total))
+        page_limit = max(1, min(int(limit or _QUEUE_PAGE_LIMIT), _QUEUE_PAGE_LIMIT))
+        page_end = min(total, page_offset + page_limit)
+        rows = []
+        for index in range(page_offset, page_end):
+            row = asdict(self._queue[index])
+            row['index'] = index
+            rows.append(row)
+        return {
+            'queue': rows,
+            'current_index': self._current_index,
+            'enabled': self._enabled,
+            'total': total,
+            'offset': page_offset,
+            'limit': page_limit,
+            'next_offset': page_end if page_end < total else None,
+        }
+
+    def _publish_fast_snapshot(self) -> Dict:
+        """Publish the default UI page as an immutable non-blocking snapshot."""
+        snapshot = self._build_snapshot(0, _QUEUE_PAGE_LIMIT)
+        THREAD_BUS.signal(_QUEUE_SNAPSHOT_SIGNAL, snapshot)
+        return snapshot
 
     def _save_queue(self):
         """Save queue to disk and broadcast the new snapshot"""
@@ -99,13 +128,12 @@ class VoiceSubtitleQueue:
         with open(self._storage_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-        # Every mutation funnels through here, so this is the single live-update
-        # point: the rpc_v2 server publishes the event to its HTTP event journal
-        # in callmodule config), keeping the dashboard queue pages in sync.
-        # Payload shape == GET /voice-subtitle/queue response (minus 'success').
+        snapshot = self._publish_fast_snapshot()
+        # Every mutation publishes only the bounded default page. Full persisted
+        # queue data stays on disk and is materialized one page at a time.
         THREAD_BUS.trigger_event(
             BusSignals.VOICE_SUBTITLE_QUEUE_UPDATE,
-            data,
+            snapshot,
             async_mode=True,
         )
 
@@ -264,11 +292,34 @@ class VoiceSubtitleQueue:
         Returns:
             List[Dict]: Queue items
         """
-        return call_serialized(_QUEUE_STATE_QUEUE, self._get_queue)
+        return list(self.get_snapshot().get('queue') or [])
 
     def _get_queue(self) -> List[Dict]:
         """Build a queue snapshot on the queue-owner thread."""
-        return [asdict(item) for item in self._queue]
+        return list(self._build_snapshot(0, _QUEUE_PAGE_LIMIT)['queue'])
+
+    def get_snapshot(self, offset: int = 0, limit: int = _QUEUE_PAGE_LIMIT) -> Dict:
+        """Return one bounded page; the default page never waits on disk writes."""
+        page_offset = max(0, int(offset or 0))
+        page_limit = max(1, min(int(limit or _QUEUE_PAGE_LIMIT), _QUEUE_PAGE_LIMIT))
+        if page_offset == 0:
+            cached = THREAD_BUS.get_signal(_QUEUE_SNAPSHOT_SIGNAL, {}) or {}
+            if isinstance(cached, dict) and cached:
+                rows = [dict(item) for item in list(cached.get('queue') or [])[:page_limit]]
+                total = int(cached.get('total') or 0)
+                page_end = len(rows)
+                return {
+                    **cached,
+                    'queue': rows,
+                    'limit': page_limit,
+                    'next_offset': page_end if page_end < total else None,
+                }
+        return call_serialized(
+            _QUEUE_STATE_QUEUE,
+            self._build_snapshot,
+            page_offset,
+            page_limit,
+        )
 
     def get_current_index(self) -> int:
         """Get current index"""

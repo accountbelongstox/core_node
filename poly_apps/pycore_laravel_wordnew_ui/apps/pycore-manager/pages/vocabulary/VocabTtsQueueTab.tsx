@@ -1,12 +1,12 @@
 /**
  * TTS Queue tab - queue stats (by status / by type) + a paginated items table
- * filterable by status and type. Proxied through pycore.
+ * filterable by status and type. Loaded directly from Laravel.
  *
  * Params mirror BooksAPI.getTtsQueueItems (status/type/start/limit).
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, humanInt, vp, toArray } from './vocabShared';
 
 const STATUSES = ['pending', 'processing', 'completed', 'failed', 'leased'] as const;
@@ -40,7 +40,7 @@ export default function VocabTtsQueueTab() {
   const loadStats = useCallback(async () => {
     setLoadingStats(true);
     try {
-      const r = await pycoreApi.getVocabTtsQueueStats();
+      const r = await laravelApi.getVocabTtsQueueStats();
       setStats(vp<any>(r));
       setOffline(false);
     } catch {
@@ -56,7 +56,7 @@ export default function VocabTtsQueueTab() {
       const params: Record<string, unknown> = { start, limit: PAGE_SIZE };
       if (status) params.status = status;
       if (type) params.type = type;
-      const r = await pycoreApi.getVocabTtsQueueItems(params);
+      const r = await laravelApi.getVocabTtsQueueItems(params);
       const p = vp<any>(r);
       setItems(toArray(p));
       setTotal(Number(p?.total || 0));

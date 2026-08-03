@@ -71,6 +71,15 @@ Route::get('/static/app_qy_v1/post_videos/{path}', function (\Illuminate\Http\Re
 // catch-all below serves — without this dedicated route every article audio URL
 // 404s under bare Octane. Registered BEFORE the catch-all so it wins the match.
 // (Production nginx maps this prefix the same way.)
+Route::get(
+    '/static/app_qy_v1/audio/{scope}/{language}/{filename}',
+    [StaticFileController::class, 'serveArticleAudio']
+)
+    ->where('scope', 'daily|agent_history')
+    ->where('language', '[A-Za-z][A-Za-z0-9_-]*')
+    ->where('filename', '[A-Za-z0-9._-]+\.mp3')
+    ->name('static.appqyv1.article_audio');
+
 Route::get('/static/app_qy_v1/audio/{path}', function (\Illuminate\Http\Request $request, string $path) {
     return app(StaticFileController::class)->serveLaravelStatic($request, 'app_qy_v1/audio/' . $path);
 })->where('path', '.*')->name('static.appqyv1.audio');

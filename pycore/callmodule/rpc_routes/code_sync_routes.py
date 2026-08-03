@@ -7,6 +7,7 @@ from pycore.pyfoundations.http_sse import (
     SSE_CONTENT_TYPE,
     SSE_RESPONSE_HEADERS,
 )
+from pycore.pyfoundations.serialized_worker import await_bus_task
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 import pycore.pyutils.codesync.routes as code_sync_http_routes
 from pycore.pyutils.codesync.sse_transport import (
@@ -16,14 +17,28 @@ from pycore.pyutils.codesync.sse_transport import (
 
 
 fastapi_module = get_third_package_fastapi()
+Request = fastapi_module.Request
 
 
 def register_code_sync_routes(server):
     streaming_response_type = fastapi_module.responses.StreamingResponse
     frame_body = fastapi_module.Body(default={})
+    peer_config_body = fastapi_module.Body(default={})
+    peer_heartbeat_body = fastapi_module.Body(default={})
 
     def get_sync_logs(params, _request_id, _context):
-        return cs.get_sync_logs(int(params.get("limit") or 100))
+        return cs.get_sync_logs(
+            int(params.get("page_size") or params.get("pageSize") or params.get("limit") or 100),
+            int(params.get("page") or 1),
+            str(params.get("since_revision") or params.get("sinceRevision") or ""),
+        )
+
+    def get_ui_runtime(params, _request_id, _context):
+        return cs.get_ui_runtime(
+            int(params.get("page") or 1),
+            int(params.get("page_size") or params.get("pageSize") or 100),
+            str(params.get("since_revision") or params.get("sinceRevision") or ""),
+        )
 
     def get_peer_file_tree(params, _request_id, _context):
         return cs.get_peer_file_tree(str(params.get("peer_id") or ""))
@@ -56,6 +71,28 @@ def register_code_sync_routes(server):
             status_code=status,
         )
 
+    async def get_peer_status():
+        return await await_bus_task(
+            cs.peer_status,
+            thread_name="CodeSyncPeerStatusRoute",
+        )
+
+    async def receive_peer_config(payload=peer_config_body):
+        return await await_bus_task(
+            cs.peer_config,
+            payload,
+            thread_name="CodeSyncPeerConfigRoute",
+        )
+
+    async def receive_peer_heartbeat(request: Request, payload=peer_heartbeat_body):
+        client = getattr(request, "client", None)
+        return await await_bus_task(
+            cs.peer_heartbeat,
+            payload,
+            client_ip=getattr(client, "host", None),
+            thread_name="CodeSyncPeerHeartbeatRoute",
+        )
+
     routes = (
         (rn.UI_CODE_SYNC_PING, cs.ping),
         (rn.UI_CODE_SYNC_GET_STATUS, cs.get_status),
@@ -67,6 +104,7 @@ def register_code_sync_routes(server):
         (rn.UI_CODE_SYNC_SET_SYNC_SETTINGS, cs.set_sync_settings),
         (rn.UI_CODE_SYNC_RESET_SYNC_SETTINGS, cs.reset_sync_settings),
         (rn.UI_CODE_SYNC_GET_SYNC_LOGS, get_sync_logs),
+        (rn.UI_CODE_SYNC_RUNTIME_GET, get_ui_runtime),
         (rn.UI_CODE_SYNC_GET_FILE_TREE, cs.get_file_tree),
         (rn.UI_CODE_SYNC_GET_PEER_FILE_TREE, get_peer_file_tree),
         (rn.UI_CODE_SYNC_ADD_PEER, cs.add_peer),
@@ -94,4 +132,22 @@ def register_code_sync_routes(server):
         receive_frame,
         methods=["POST"],
         name="code_sync_sse_frame",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.PEER_STATUS_PATH,
+        get_peer_status,
+        methods=["GET"],
+        name="code_sync_peer_status",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.PEER_CONFIG_PATH,
+        receive_peer_config,
+        methods=["POST"],
+        name="code_sync_peer_config",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.PEER_HEARTBEAT_PATH,
+        receive_peer_heartbeat,
+        methods=["POST"],
+        name="code_sync_peer_heartbeat",
     )

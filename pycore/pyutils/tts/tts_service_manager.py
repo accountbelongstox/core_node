@@ -493,6 +493,11 @@ def _register_services() -> None:
             health=lambda e=e: _http_healthy(e),
             on_started=lambda e=e: _on_server_started(e),
             on_stopped=lambda e=e: _on_server_stopped(e),
+            adopt_foreign=(
+                (lambda: qwen_engine.get_queue_status() is not None)
+                if e == "qwen3tts"
+                else None
+            ),
             stop_foreign=lambda e=e: _stop_foreign_server(e),
         ))
     for e in _MODEL_ENGINES:
@@ -580,21 +585,25 @@ def record_server_use(engine: str) -> None:
 
 
 def get_server_settings() -> Dict[str, Any]:
-    return managed_services.get_settings("tts")
+    return managed_services.peek_settings("tts")
 
 
 def apply_server_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     return managed_services.apply_settings("tts", patch)
 
 
-def server_runtime_status(engine: str) -> Dict[str, Any]:
+def server_runtime_status(engine: str, refresh: bool = True) -> Dict[str, Any]:
     """Per-engine runtime state for the status payload. Server engines keep the
     legacy `server_*` fields (UI controls); model engines report `model_loaded`
     + `model_idle_remaining_s` with `server_engine=False` (no controls)."""
     spec = managed_services.spec(engine)
     if spec is None:
         return {}
-    st = managed_services.runtime_status(engine)
+    st = (
+        managed_services.runtime_status(engine)
+        if refresh
+        else managed_services.peek_runtime_status(engine)
+    )
     if spec.kind == "server":
         status = {
             "server_engine": True,
@@ -604,7 +613,7 @@ def server_runtime_status(engine: str) -> Dict[str, Any]:
             "server_idle_remaining_s": st["idle_remaining_s"],
             "server_url": st.get("ready_url"),
         }
-        if engine == "qwen3tts" and st["running"]:
+        if engine == "qwen3tts" and st["running"] and refresh:
             status["server_url"] = status["server_url"] or qwen_engine.base_url()
             queue = qwen_engine.get_queue_status()
             if queue is not None:

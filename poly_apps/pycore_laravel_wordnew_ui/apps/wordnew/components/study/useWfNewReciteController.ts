@@ -20,7 +20,7 @@ import type { Word } from '../../api';
 import { wfNewSettings } from '../../WfNewSettingsStore';
 import { accentToBcp47, mapUiAccent, resolvePracticeVoice } from '../../hooks/wordNewWordAudioFallback';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
-import { resolveAudioSync } from '../../cache/WfNewAudioCache';
+import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 
 interface ReciteOptions {
   gid: string;

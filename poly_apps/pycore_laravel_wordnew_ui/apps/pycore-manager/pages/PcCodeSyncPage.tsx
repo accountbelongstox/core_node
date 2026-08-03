@@ -6,8 +6,9 @@
  * receives). Dev distribution and client skip-update toggles persist in
  * `<cache>/pycore/codesync/runtime_prefs.json` (same backend path as the tray).
  * The peer list shows reachability + live status, fed by the backend
- * `code_sync_update` HTTP event with a low-frequency reconciliation poll
- * fallback against the code-sync peers HTTP (PycoreApi.getPeers).
+ * `code_sync_update` and `code_sync_log` HTTP events. One shared runtime store
+ * restores the last route page by global Pycore ID and reconciles only after
+ * replay loss, server restart, or an explicit state-changing action.
  *
  * No dependency on the original app's AppContext / LiveContext / UI — local React
  * state, PycoreApi, HTTP helpers, lucide icons and Tailwind / `.pc-glass` only.
@@ -24,15 +25,16 @@ import {
   GitCompare, FileMinus, FilePlus, FileWarning, Feather,
 } from 'lucide-react';
 import {
-  pycoreApi, connectPycoreHttp, onHttpStatus, PYCORE_HTTP_DEFAULTS, PYCORE_PORT,
+  pycoreApi, onHttpStatus, PYCORE_PORT,
+  getCodeSyncRuntimeState, refreshCodeSyncRuntime,
+  setCodeSyncMesh, setCodeSyncSettings,
+  useCodeSyncRuntime,
 } from '@/apps/pycore-manager/api';
 import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
 import type {
   CodeSyncRole, SelfStatus, PeerStatus, CodeSyncCandidate, CodeStats,
   SyncSettings, SyncLogEntry, FileTreeNode, PycoreFileTreeResponse, PeerFileTreeResponse,
 } from '@/apps/pycore-manager/api';
-import { usePersistentTask } from '../../../core/tasks/usePersistentTask';
-import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
@@ -164,21 +166,18 @@ const FileTreeRows: React.FC<{
   </ul>
 );
 
-// Backend-owned peer-mesh snapshot kept alive across navigation/reload by the
-// global task layer. All the discover/add/edit UI below stays page-local.
-interface MeshSnapshot { self: SelfStatus | null; peers: PeerStatus[]; }
-
 const PcCodeSyncPage: React.FC = () => {
+  const runtime = useCodeSyncRuntime();
   const [busy, setBusy] = useState(false);
   const [httpConnected, setHttpConnected] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // filter settings + sync log
-  const [filters, setFilters] = useState<SyncSettings | null>(null);
-  const [filtersOverridden, setFiltersOverridden] = useState(false);
+  const [filters, setFilters] = useState<SyncSettings | null>(() => runtime.settings);
+  const [filtersOverridden, setFiltersOverridden] = useState(() => runtime.settingsOverridden);
   const [filtersDirty, setFiltersDirty] = useState(false);
-  const [syncLogs, setSyncLogs] = useState<SyncLogEntry[]>([]);
+  const syncLogs: SyncLogEntry[] = runtime.logs;
   // Activity-chart time range (default 1h).
   const [chartRange, setChartRange] = useState<ChartRangeId>('1h');
 
@@ -200,32 +199,17 @@ const PcCodeSyncPage: React.FC = () => {
   const [driftTab, setDriftTab] = useState<'missing' | 'changed' | 'extra' | 'tree'>('missing');
   const [driftTreeDirs, setDriftTreeDirs] = useState<Record<string, boolean>>({});
 
-  // Continuous-poll view: snapshot + poll loop live in the global provider above
-  // the router (survive navigation; reload re-polls the peers HTTP).
-  const mesh = usePersistentTask<MeshSnapshot>('pycore.code-sync', {
-    intervalMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs,
-    poll: () => pycoreApi.getPeers()
-      .then((r: any) => {
-        setUnreachable(false);
-        if (r?.success) return { self: r.self ?? null, peers: Array.isArray(r.peers) ? r.peers : [] };
-        return null; // keep last snapshot when the call did not succeed
-      })
-      .catch(() => { setUnreachable(true); return null; /* offline: keep last snapshot */ }),
-  });
-
-  const self = mesh.data?.self ?? null;
-  const peers = mesh.data?.peers ?? [];
-  // Local setters that write through to the shared snapshot so action handlers
-  // (role change, distribute, add/remove/edit peer) keep their original code.
+  const self = runtime.mesh.self;
+  const peers = runtime.mesh.peers;
   const setSelf = useCallback((next: SelfStatus | null | ((s: SelfStatus | null) => SelfStatus | null)) => {
-    const cur = mesh.data ?? { self: null, peers: [] };
-    const value = typeof next === 'function' ? (next as (s: SelfStatus | null) => SelfStatus | null)(cur.self) : next;
-    mesh.set({ self: value, peers: cur.peers });
-  }, [mesh]);
+    const value = typeof next === 'function'
+      ? (next as (s: SelfStatus | null) => SelfStatus | null)(runtime.mesh.self)
+      : next;
+    setCodeSyncMesh({ self: value, peers: runtime.mesh.peers });
+  }, [runtime.mesh]);
   const setPeers = useCallback((next: PeerStatus[]) => {
-    const cur = mesh.data ?? { self: null, peers: [] };
-    mesh.set({ self: cur.self, peers: next });
-  }, [mesh]);
+    setCodeSyncMesh({ self: runtime.mesh.self, peers: next });
+  }, [runtime.mesh]);
 
   // discover / add / edit UI state
   const [discovering, setDiscovering] = useState(false);
@@ -241,59 +225,22 @@ const PcCodeSyncPage: React.FC = () => {
     window.setTimeout(() => setNotice((n) => (n === msg ? null : n)), 3500);
   }, []);
 
-  // --- one-shot refresh used by action handlers ------------------------- #
-  // (The continuous poll itself is owned by the global task layer below.)
+  // --- one-shot combined reconciliation used only by action handlers ----- #
   const loadPeers = useCallback(async () => {
-    const r = await pycoreApi.getPeers().catch(() => { setUnreachable(true); return null as any; });
-    if (r?.success) {
-      mesh.set({ self: r.self ?? null, peers: Array.isArray(r.peers) ? r.peers : [] });
-      setUnreachable(false);
-    }
-  }, [mesh]);
-
-  // Start the continuous poll on first mount (idempotent if already running).
-  useEffect(() => {
-    if (!mesh.running) mesh.begin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    await refreshCodeSyncRuntime();
+    setUnreachable(Boolean(getCodeSyncRuntimeState().error));
   }, []);
 
-  // Live HTTP event wins over the poll: merge the snapshot as it arrives.
   useEffect(() => {
-    connectPycoreHttp();
     const offStatus = onHttpStatus(setHttpConnected);
-    const offSync = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.codeSyncUpdate, (data: any) => {
-      const cur = mesh.data ?? { self: null, peers: [] };
-      mesh.set({
-        self: data?.self ? data.self : cur.self,
-        peers: Array.isArray(data?.peers) ? data.peers : cur.peers,
-      });
-    });
-    return () => { offStatus(); offSync(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { offStatus(); };
   }, []);
 
-  // --- filter settings + sync log: load on mount, poll logs every 5s ----- #
-  const loadFilters = useCallback(async () => {
-    try {
-      const r = await pycoreApi.getSyncSettings();
-      if (r?.success) {
-        setFilters((prev) => (filtersDirty && prev ? prev : r.settings));
-        setFiltersOverridden(!!r.overridden);
-      }
-    } catch { /* offline */ }
-  }, [filtersDirty]);
-  const loadLogs = useCallback(async () => {
-    try {
-      const r = await pycoreApi.getSyncLogs(100);
-      if (r?.success && Array.isArray(r.logs)) setSyncLogs(r.logs);
-    } catch { /* offline */ }
-  }, []);
-  useEffect(() => { loadFilters(); loadLogs(); }, [loadFilters, loadLogs]);
-  useTopicDrivenRefresh(
-    [PYCORE_EVENT_TOPICS.codeSyncUpdate, PYCORE_EVENT_TOPICS.operationChanged],
-    loadLogs,
-    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
-  );
+  useEffect(() => {
+    if (!runtime.settings || filtersDirty) return;
+    setFilters(runtime.settings);
+    setFiltersOverridden(runtime.settingsOverridden);
+  }, [filtersDirty, runtime.settings, runtime.settingsOverridden]);
 
   // --- synced file tree: lazy-load + poll only while the panel is open ----- #
   const loadTree = useCallback(async () => {
@@ -320,9 +267,9 @@ const PcCodeSyncPage: React.FC = () => {
     loadTree();
   }, [treeOpen, loadTree]);
   useTopicDrivenRefresh(
-    [PYCORE_EVENT_TOPICS.codeSyncUpdate, PYCORE_EVENT_TOPICS.operationChanged],
+    [PYCORE_EVENT_TOPICS.codeSyncLog],
     loadTree,
-    { fallbackMs: treeOpen ? 60_000 : 0, enabled: treeOpen },
+    { enabled: treeOpen },
   );
 
   // --- dev-side drift: fetch a client's received tree + diff -------------- #
@@ -357,7 +304,13 @@ const PcCodeSyncPage: React.FC = () => {
     setBusy(true);
     try {
       const r = await pycoreApi.setSyncSettings(filters);
-      if (r?.success) { setFilters(r.settings); setFiltersDirty(false); setFiltersOverridden(true); flash('Filter settings saved'); }
+      if (r?.success) {
+        setFilters(r.settings);
+        setFiltersDirty(false);
+        setFiltersOverridden(true);
+        setCodeSyncSettings(r.settings, true);
+        flash('Filter settings saved');
+      }
       else flash(r?.error || 'Request failed');
     } catch (e: any) { flash(`Request failed: ${e.message}`); }
     finally { setBusy(false); }
@@ -366,7 +319,13 @@ const PcCodeSyncPage: React.FC = () => {
     setBusy(true);
     try {
       const r = await pycoreApi.resetSyncSettings();
-      if (r?.success) { setFilters(r.settings); setFiltersDirty(false); setFiltersOverridden(false); flash('Filters reset to defaults'); }
+      if (r?.success) {
+        setFilters(r.settings);
+        setFiltersDirty(false);
+        setFiltersOverridden(false);
+        setCodeSyncSettings(r.settings, false);
+        flash('Filters reset to defaults');
+      }
       else flash(r?.error || 'Request failed');
     } catch (e: any) { flash(`Request failed: ${e.message}`); }
     finally { setBusy(false); }
@@ -396,7 +355,7 @@ const PcCodeSyncPage: React.FC = () => {
     try {
       const r = await pycoreApi.setRole(next);
       if (r?.success) {
-        mesh.set({
+        setCodeSyncMesh({
           self: r.self ?? null,
           peers: Array.isArray(r.peers) ? r.peers : [],
         });
@@ -454,7 +413,9 @@ const PcCodeSyncPage: React.FC = () => {
     try {
       const r = await pycoreApi.setSyncSettings({ scan_lan: enabled });
       if (r?.success) {
-        setFilters((f) => (f ? { ...f, scan_lan: enabled } : f));
+        const nextSettings = r.settings || (filters ? { ...filters, scan_lan: enabled } : null);
+        setFilters(nextSettings);
+        if (nextSettings) setCodeSyncSettings(nextSettings, true);
         if (!enabled) setCandidates([]);
         flash(enabled ? 'LAN scanning enabled' : 'LAN scanning disabled');
       } else flash(r?.error || 'Request failed');

@@ -8,7 +8,7 @@ import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { AuthAPI } from './modules/AuthAPI';
 import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
 import { CodeUpdateAPI } from './modules/CodeUpdateAPI';
-import { MediaQueryAPI } from './modules/MediaQueryAPI';
+import { MediaQueryAPI } from '../../../core/api-libs/laravel/transport/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
 import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
@@ -16,8 +16,13 @@ import { AiManagementAPI } from './modules/AiManagementAPI';
 import { WordAudioAPI } from './modules/WordAudioAPI';
 import { DevHistoryAPI } from './modules/DevHistoryAPI';
 import { ArticleAPI } from './modules/ArticleAPI';
-import { BaseAPI, setSharedAuthToken, setSharedBaseURL } from './base/BaseAPI';
-import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from './ApiContract';
+import {
+  BaseAPI,
+  getSharedBaseURL,
+  setSharedAuthToken,
+  setSharedBaseURL,
+} from '../../../core/api-libs/laravel/transport/BaseAPI';
+import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from '../../../core/api-libs/laravel/transport/ApiContract';
 
 /**
  * Laravel backend implementation used only through the Laravel Manager API
@@ -52,7 +57,11 @@ class APIService {
     // serverManager / systemConfig, which the old recreate-list forgot)
     // resolves the same endpoint from the very first request, even before
     // App.tsx's preselect runs.
-    setSharedBaseURL(createLaravelModuleConfig(LARAVEL_API_PREFIX.root).baseURL);
+    // Never overwrite the localStorage-backed endpoint already selected by
+    // ApiManager during module evaluation or Vite HMR.
+    if (getSharedBaseURL() === null) {
+      setSharedBaseURL(createLaravelModuleConfig(LARAVEL_API_PREFIX.root).baseURL);
+    }
 
     // Initialize all API modules
     this.appQyV1 = new AppQyV1API(createLaravelModuleConfig(LARAVEL_API_PREFIX.appQyV1));

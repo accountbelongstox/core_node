@@ -35,6 +35,17 @@ from pycore.pyfoundations.serialized_worker import (
 )
 
 PROMPTS_CAP = 8000
+MATERIALIZE_CAP = 100
+ID_PAGE_SIZE_CAP = 1000
+SESSION_ID_FIELDS = (
+    "id",
+    "tool",
+    "os_user",
+    "started_ts",
+    "ended_ts",
+    "prompt_count",
+    "has_subagent",
+)
 SESSION_SUMMARY_FIELDS = (
     "id",
     "raw_id",
@@ -45,6 +56,7 @@ SESSION_SUMMARY_FIELDS = (
     "started_at",
     "ended_at",
     "started_ts",
+    "ended_ts",
     "prompt_count",
     "message_count",
     "has_subagent",
@@ -122,6 +134,12 @@ class AgentHistoryService:
             ArkCliExtractor(),
             GenericAgentExtractor(),
         ]
+        self._index_catalog_cache: Dict[str, Any] = {
+            "revision": "",
+            "data": {},
+            "by_id": {},
+        }
+        self._prompt_catalog_cache: Dict[str, Any] = {"revision": "", "items": []}
 
     def is_dev_machine(self) -> bool:
         for home in user_homes():
@@ -142,6 +160,7 @@ class AgentHistoryService:
             for idx, extractor in enumerate(self._extractors):
                 for d in extractor.discover(home, user):
                     out[d["path"]] = {
+                        "source_id": self._source_id(d["path"]),
                         "mtime": d["mtime"],
                         "bytes": d["bytes"],
                         "extractor": idx,
@@ -151,8 +170,15 @@ class AgentHistoryService:
         return out
 
     @staticmethod
+    def _source_id(path: str) -> str:
+        return hashlib.md5(str(path or "").encode("utf-8")).hexdigest()
+
+    @staticmethod
     def _signature(sources: Dict[str, Dict[str, Any]]) -> str:
-        parts = [f"{p}:{i['mtime']}:{i['bytes']}" for p, i in sources.items()]
+        parts = [
+            f"{i.get('source_id') or AgentHistoryService._source_id(p)}:{i['mtime']}:{i['bytes']}"
+            for p, i in sources.items()
+        ]
         parts.sort()
         return hashlib.md5("|".join(parts).encode()).hexdigest()
 
@@ -178,8 +204,12 @@ class AgentHistoryService:
             signature = self._signature(current)
 
             state = txt.read_state()
-            index = txt.read_index()
             prev_sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
+            prev_sources_by_id = {
+                str(info.get("source_id") or self._source_id(path)): {"path": path, **info}
+                for path, info in prev_sources.items()
+                if isinstance(info, dict)
+            }
 
             if not force and state.get("signature") == signature and state.get("generated_at"):
                 summary = {"unchanged": True, "is_dev_machine": is_dev}
@@ -187,6 +217,7 @@ class AgentHistoryService:
                 THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
                 return summary
 
+            index = txt.read_index()
             edits = txt.read_edits()
             summaries: Dict[str, Dict[str, Any]] = {}
             for s in index.get("sessions") or []:
@@ -199,11 +230,19 @@ class AgentHistoryService:
             else:
                 changed_paths = []
                 for path, info in current.items():
-                    prev = prev_sources.get(path)
+                    prev = prev_sources_by_id.get(str(info.get("source_id") or ""))
                     if not prev or prev.get("mtime") != info["mtime"] or prev.get("bytes") != info["bytes"]:
                         changed_paths.append(path)
 
-            removed_paths = set(prev_sources.keys()) - set(current.keys())
+            current_source_ids = {
+                str(info.get("source_id") or self._source_id(path))
+                for path, info in current.items()
+            }
+            removed_paths = {
+                str(info.get("path") or "")
+                for source_id, info in prev_sources_by_id.items()
+                if source_id not in current_source_ids and info.get("path")
+            }
             changed_ids: List[str] = []
             removed_ids: List[str] = []
             append_prompts: List[Dict[str, Any]] = []
@@ -263,6 +302,7 @@ class AgentHistoryService:
                     removed_ids.append(gone)
 
                 new_sources[path] = {
+                    "source_id": info["source_id"],
                     "mtime": info["mtime"],
                     "bytes": info["bytes"],
                     "extractor": info["extractor"],
@@ -331,7 +371,7 @@ class AgentHistoryService:
         return out
 
     def read_index(self) -> Dict[str, Any]:
-        index = txt.read_index()
+        index = self._index_catalog()
         counts = txt.read_state().get("counts") or {}
         if not isinstance(counts, dict):
             counts = {}
@@ -391,6 +431,213 @@ class AgentHistoryService:
             "limit": limit,
             "offset": offset,
         }
+
+    # --- DIFF read surface (ID page tables + lazy per-page materialization) -- #
+    # Mirrors the queue-center contract: ID pages carry IDs + status metadata
+    # only and are aligned by a revision marker; full rows are materialized
+    # lazily for the requested page. No full loads cross the wire.
+
+    @staticmethod
+    def _file_revision(path: Path) -> str:
+        try:
+            stat = path.stat()
+            return f"{stat.st_mtime_ns}:{stat.st_size}"
+        except OSError:
+            return "0:0"
+
+    @staticmethod
+    def _paginate(items: List[Dict[str, Any]], page: int, page_size: int) -> Dict[str, Any]:
+        page_size = max(1, min(int(page_size or 50), ID_PAGE_SIZE_CAP))
+        total = len(items)
+        page_count = max(1, -(-total // page_size))
+        page = max(1, min(int(page or 1), page_count))
+        start = (page - 1) * page_size
+        return {
+            "total": total,
+            "page": page,
+            "page_count": page_count,
+            "items": items[start:start + page_size],
+        }
+
+    def _store_header(self, index: Dict[str, Any]) -> Dict[str, Any]:
+        counts = txt.read_state().get("counts") or {}
+        if not isinstance(counts, dict):
+            counts = {}
+        if not counts.get("sessions"):
+            counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
+        return {
+            "is_dev_machine": index.get("is_dev_machine", self.is_dev_machine()),
+            "generated_at": index.get("generated_at", ""),
+            "tools": index.get("tools") or [],
+            "users": index.get("users") or [],
+            "langs": index.get("langs") or [],
+            "counts": counts,
+        }
+
+    def _prompt_catalog(self) -> List[Dict[str, Any]]:
+        """Prompts parsed once per store revision; text stays backend-side."""
+        path = txt.store_dir() / "prompts.txt"
+        revision = self._file_revision(path)
+        cache = self._prompt_catalog_cache
+        if cache.get("revision") != revision:
+            cache["items"] = txt.read_prompts()
+            cache["revision"] = revision
+        return cache["items"]
+
+    def _index_catalog(self) -> Dict[str, Any]:
+        """Session summaries parsed once per persistent index revision."""
+        path = txt.store_dir() / "index.txt"
+        revision = self._file_revision(path)
+        cache = self._index_catalog_cache
+        if cache.get("revision") != revision:
+            data = txt.read_index()
+            cache["data"] = data
+            cache["by_id"] = {
+                session.get("id"): _session_summary(session)
+                for session in (data.get("sessions") or [])
+                if isinstance(session, dict) and session.get("id")
+            }
+            cache["revision"] = revision
+        return cache["data"]
+
+    @staticmethod
+    def _filter_prompts(
+        prompts: List[Dict[str, Any]],
+        tool: Optional[str] = None,
+        user: Optional[str] = None,
+        q: Optional[str] = None,
+        tools: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        needle = (q or "").strip().lower()
+        allowed_tools = {
+            str(item).strip().lower()
+            for item in (tools or [])
+            if str(item).strip()
+        }
+        filtered = []
+        for p in prompts:
+            if tool and p.get("tool") != tool:
+                continue
+            if not tool and allowed_tools and str(p.get("tool") or "").lower() not in allowed_tools:
+                continue
+            if user and p.get("os_user") != user:
+                continue
+            if needle and needle not in (p.get("text") or "").lower():
+                continue
+            filtered.append(p)
+        return filtered
+
+    def read_session_id_pages(
+        self,
+        tool: Optional[str] = None,
+        user: Optional[str] = None,
+        q: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 50,
+        since_revision: str = "",
+    ) -> Dict[str, Any]:
+        revision = self._file_revision(txt.store_dir() / "index.txt")
+        if since_revision and since_revision == revision:
+            return {"revision": revision, "unchanged": True}
+        index = self._index_catalog()
+        needle = (q or "").strip().lower()
+        filtered = []
+        for s in index.get("sessions") or []:
+            if not isinstance(s, dict):
+                continue
+            if tool and s.get("tool") != tool:
+                continue
+            if user and s.get("os_user") != user:
+                continue
+            if needle:
+                hay = f"{s.get('title') or ''} {s.get('project') or ''} {s.get('tool') or ''} {s.get('os_user') or ''}".lower()
+                if needle not in hay:
+                    continue
+            filtered.append(s)
+        result = self._store_header(index)
+        result["revision"] = revision
+        result.update(self._paginate(filtered, page, page_size))
+        result["items"] = [
+            {field: s.get(field) for field in SESSION_ID_FIELDS}
+            for s in result["items"]
+        ]
+        return result
+
+    def read_session_page(self, ids: List[str]) -> Dict[str, Any]:
+        wanted = [str(value) for value in (ids or []) if str(value or "")][:MATERIALIZE_CAP]
+        self._index_catalog()
+        by_id = self._index_catalog_cache["by_id"]
+        items = [by_id[sid] for sid in wanted if sid in by_id]
+        return {"items": items, "total": len(items)}
+
+    def read_prompt_id_pages(
+        self,
+        tool: Optional[str] = None,
+        user: Optional[str] = None,
+        q: Optional[str] = None,
+        tools: Optional[List[str]] = None,
+        page: int = 1,
+        page_size: int = 50,
+        since_revision: str = "",
+    ) -> Dict[str, Any]:
+        revision = self._file_revision(txt.store_dir() / "prompts.txt")
+        if since_revision and since_revision == revision:
+            return {"revision": revision, "unchanged": True}
+        filtered = self._filter_prompts(self._prompt_catalog(), tool, user, q, tools)
+        result = {"revision": revision}
+        result.update(self._paginate(filtered, page, page_size))
+        result["items"] = [
+            {key: value for key, value in p.items() if key != "text"}
+            for p in result["items"]
+        ]
+        return result
+
+    def read_prompt_page(self, ids: List[str]) -> Dict[str, Any]:
+        """Materialize prompt text for one page from the per-session txt files."""
+        wanted = [str(value) for value in (ids or []) if str(value or "")][:MATERIALIZE_CAP]
+        edits = txt.read_edits()
+        session_ids = []
+        for pid in wanted:
+            sid = pid.rsplit("#", 1)[0] if "#" in pid else pid
+            if sid not in session_ids:
+                session_ids.append(sid)
+        blocks: Dict[str, Dict[str, Any]] = {}
+        metas: Dict[str, Dict[str, Any]] = {}
+        for sid in session_ids:
+            detail = txt.read_session(sid)
+            if not detail:
+                continue
+            metas[sid] = detail
+            for p in detail.get("prompts") or []:
+                if p.get("id"):
+                    blocks[str(p["id"])] = p
+        items: List[Dict[str, Any]] = []
+        for pid in wanted:
+            block = blocks.get(pid)
+            if block is None:
+                continue
+            sid = pid.rsplit("#", 1)[0] if "#" in pid else pid
+            meta = metas.get(sid) or {}
+            text = str(block.get("text") or "")
+            edited = bool(block.get("edited"))
+            edit = edits.get(pid)
+            if edit and edit.get("text") is not None:
+                text = edit["text"]
+                edited = True
+            ts = int(block.get("ts") or 0)
+            items.append({
+                "id": pid,
+                "tool": meta.get("tool") or "",
+                "os_user": meta.get("os_user") or "",
+                "project": meta.get("project") or "",
+                "session_id": sid,
+                "ts": ts,
+                "time": datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S") if ts else "",
+                "text": text,
+                "lang": _detect_lang(text),
+                "edited": edited,
+            })
+        return {"items": items, "total": len(items)}
 
     def update_prompt(self, prompt_id: str, text: str) -> Optional[Dict[str, Any]]:
         m = re.match(r"^(.+)#(\d+)$", prompt_id)

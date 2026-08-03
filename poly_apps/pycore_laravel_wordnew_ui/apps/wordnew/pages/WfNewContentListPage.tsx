@@ -18,7 +18,7 @@ import { wfNewPageSize, WFNEW_LIST_ROWS } from '../api';
 import { WFNEW_KIND_STYLES } from '../components/WfNewContentGroupCard';
 import { WfNewContentGrid } from '../components/WfNewContentGrid';
 import { WfNewLoadingDots } from '../components/WfNewLoadingDots';
-import { dedupGroups } from '../cache/WfNewContentCache';
+import { dedupGroups } from '../runtime-store/WfNewContentCache';
 
 interface WfNewContentListPageProps {
   kind: WfNewContentKind;

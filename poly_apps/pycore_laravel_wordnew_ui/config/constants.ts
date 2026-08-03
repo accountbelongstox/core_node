@@ -2,9 +2,8 @@
  * Application Constants
  *
  * The SINGLE place for frontend configuration. All values are FIXED constants
- * written here in code — the frontend never reads environment variables
- * (no `import.meta.env` / `process.env`). Runtime config that the host (pycore)
- * controls, such as language, is passed to the app via URL parameters instead.
+ * written here in code. Runtime config that the host (pycore) controls, such as
+ * language, is passed to the app via URL parameters instead.
  */
 
 /**
@@ -17,6 +16,13 @@ export const DEFAULT_API_PORT = 9000;
  * Vite `--port` CLI flag.
  */
 export const DEFAULT_FRONTEND_PORT = 13054;
+
+/** Browser-facing Vite host. Fixed so HTTP and HMR use the same loopback identity. */
+export const DEFAULT_FRONTEND_HOST = '127.0.0.1';
+
+/** Unified UI build configuration. Runtime settings come from persisted user data. */
+export const FRONTEND_BUILD_TARGET: string = 'web';
+export const FRONTEND_APP_FLAVOR: string = 'shell';
 
 /**
  * Default API timeout in milliseconds

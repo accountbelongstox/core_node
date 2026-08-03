@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { WfNewApiPaths } from '../api/WfNewApiPaths';
+import { postJSON } from '../api/WfNewApiTransport';
 import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
 
 const FLUSH_DELAY_MS = 250;
@@ -46,17 +47,23 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       .map((row) => ({ word: row.word, language: row.language }));
     const requests: Promise<unknown>[] = [];
     if (translationWords.length > 0) {
-      requests.push(pycoreApi.stackQueue(
-        translationWords,
-        languageRef.current,
-        targetLanguageRef.current,
-        VISIBLE_PRIORITY,
-      ));
+      requests.push(postJSON(WfNewApiPaths.translationQueueStack, {
+        words: translationWords,
+        language: languageRef.current,
+        target_language: targetLanguageRef.current,
+        priority: VISIBLE_PRIORITY,
+      }));
     }
     if (audioWords.length > 0) {
       requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, languageRef.current));
     }
-    if (imageItems.length > 0) requests.push(pycoreApi.prioritizeWordImages(imageItems));
+    if (imageItems.length > 0) {
+      requests.push(postJSON(WfNewApiPaths.wordImageQueueAdd, {
+        words: imageItems,
+        priority: 'front',
+        interactive: true,
+      }));
+    }
     void Promise.allSettled(requests).finally(() => {
       if (pendingRef.current.size > 0 && timerRef.current === null) {
         timerRef.current = setTimeout(() => flushRef.current(), FLUSH_DELAY_MS);

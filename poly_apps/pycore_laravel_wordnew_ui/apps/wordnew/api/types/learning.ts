@@ -35,10 +35,21 @@ export interface WordNewGroupProgressBlob {
   words: Record<string, WordNewProgressEntryShort>;
 }
 
-export interface WordNewGroupProgressUpdate {
+export interface WordNewGroupReviewProgressUpdate {
   word_id: string | number;
+  action?: 'review';
   correct: boolean;
 }
+
+export interface WordNewGroupReadProgressUpdate {
+  word_id: string | number;
+  action: 'read';
+  play_time?: number;
+}
+
+export type WordNewGroupProgressUpdate =
+  | WordNewGroupReviewProgressUpdate
+  | WordNewGroupReadProgressUpdate;
 
 export interface GroupProgressStats {
   total_words: number;

@@ -8,6 +8,8 @@
 import { wfNewApi } from '../api';
 import { absUrl } from '../api/WfNewApiMappers';
 import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 
 const MAX_ACTIVE_POLLERS = 4;
 const POLL_INTERVAL_MS = 1200;
@@ -69,9 +71,9 @@ class SentenceAudioScheduler {
   private activeCount = 0;
   private destroyed = false;
 
-  request(text: string, lang: string, opts?: WaitSentenceAudioOpts & { bumpOnly?: boolean }): void {
+  request(text: string, lang: string, opts?: WaitSentenceAudioOpts & { bumpOnly?: boolean }): boolean {
     const trimmed = text.trim();
-    if (!trimmed || this.destroyed) return;
+    if (!trimmed || this.destroyed) return false;
     const key = cellKey(trimmed, lang, opts?.variantKey);
     const existing = this.entries.get(key);
     if (existing && existing.state !== 'settled') {
@@ -85,8 +87,9 @@ class SentenceAudioScheduler {
         this.queue.unshift(key);
       }
       this.drain();
-      return;
+      return true;
     }
+    if (this.entries.size >= QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit) return false;
     const entry: PollEntry = {
       key,
       text: trimmed,
@@ -106,6 +109,7 @@ class SentenceAudioScheduler {
       waiters: [],
     };
     this.entries.set(key, entry);
+    diffQueueContext.touch('wordnew:sentence-audio:consumer', [key]);
     if (entry.urgent) this.queue.unshift(key);
     else this.queue.push(key);
     // Bump immediately at enqueue: content_id is only known after the first
@@ -118,6 +122,7 @@ class SentenceAudioScheduler {
       { text: trimmed, language: lang },
     ]).catch(() => { /* ignore */ });
     this.drain();
+    return true;
   }
 
   waitForUrl(text: string, lang: string, opts?: WaitSentenceAudioOpts): Promise<string | null> {
@@ -142,13 +147,14 @@ class SentenceAudioScheduler {
         this.drain();
         return;
       }
-      this.request(trimmed, lang, {
+      const accepted = this.request(trimmed, lang, {
         ...opts,
         onSettled: (url) => {
           opts?.onSettled?.(url);
           resolve(url);
         },
       });
+      if (!accepted) resolve(null);
     });
   }
 
@@ -158,12 +164,14 @@ class SentenceAudioScheduler {
 
   reset(): void {
     this.destroyed = true;
+    const keys = Array.from(this.entries.keys());
     for (const e of this.entries.values()) {
       if (e.timer) clearTimeout(e.timer);
       for (const w of e.waiters) w(null);
       e.onSettled?.(null);
     }
     this.entries.clear();
+    diffQueueContext.consume('wordnew:sentence-audio:consumer', keys);
     this.queue = [];
     this.activeCount = 0;
     this.destroyed = false;
@@ -198,6 +206,7 @@ class SentenceAudioScheduler {
     for (const w of e.waiters) w(url);
     e.waiters.length = 0;
     this.entries.delete(e.key);
+    diffQueueContext.consume('wordnew:sentence-audio:consumer', [e.key]);
     this.drain();
   }
 

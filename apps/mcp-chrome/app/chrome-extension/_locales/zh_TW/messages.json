@@ -1635,7 +1635,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  正在啟動 WXT 開發伺服器（監看模式）..."
+    "message": "  正在啟動由 Shell 管理的開發監看..."
   },
   "startLocation": {
     "message": "    位置：$path$",
@@ -1940,7 +1940,7 @@
     "message": "執行 NotebookLM 生成任務"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "處理未檢查或未翻譯的單詞，並啟用網頁 AI 與 Bing 翻譯處理器"
+    "message": "從後端單詞庫拉取未檢查或未翻譯的單詞，並使用 DeepSeek 處理"
   },
   "taskCenterCapability_validity_label": {
     "message": "執行單詞有效性與翻譯任務"

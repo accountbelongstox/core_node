@@ -1,5 +1,10 @@
 import { BaseApiClient } from '@/entrypoints/background/api/BaseApiClient';
-import { ASSIST_PATHS, TASK_CENTER_OVERVIEW_PATH, TASK_LIST_PATH } from '@/utils/api-paths';
+import {
+  ASSIST_PATHS,
+  TASK_CENTER_OVERVIEW_PATH,
+  TASK_LIST_PATH,
+  VALIDITY_PATHS,
+} from '@/utils/api-paths';
 import type { QueueLiveCounts, TaskRow, TaskStatus } from '@/utils/queue-center-contract';
 
 interface TaskListPayload {
@@ -11,11 +16,44 @@ interface TaskCenterOverviewPayload {
     by_type?: Record<string, QueueLiveCounts>;
     summary_by_type?: Record<string, QueueLiveCounts>;
   };
+  realtime?: QueueCenterRealtimeConfig;
+}
+
+export interface QueueCenterRealtimeConfig {
+  transport: 'websocket';
+  app_key: string;
+  host: string;
+  port: number;
+  scheme: string;
+  channel: string;
+  event: string;
+  revision: number;
 }
 
 export interface TaskCenterSnapshot {
   tasks: TaskRow[];
   summaryByType: Record<string, QueueLiveCounts> | null;
+  realtime: QueueCenterRealtimeConfig | null;
+}
+
+export interface ValidityQueueItem {
+  id: number | string;
+  word: string;
+  md5?: string;
+  language: string;
+  query_count: number;
+  needs_validity: boolean;
+  needs_translation: boolean;
+}
+
+export interface ValidityQueuePage {
+  languages: string[];
+  count: number;
+  total: number;
+  start: number;
+  limit: number;
+  revision: number;
+  words: ValidityQueueItem[];
 }
 
 export interface AssistCategoryItem {
@@ -58,11 +96,44 @@ export class TaskCenterApiClient extends BaseApiClient {
   }
 
   async snapshot(limit: number): Promise<TaskCenterSnapshot> {
-    const [tasks, summaryByType] = await Promise.all([
+    const [tasks, overview] = await Promise.all([
       this.listTasks(limit),
-      this.summaryByType(),
+      this.overview(),
     ]);
-    return { tasks, summaryByType };
+    return {
+      tasks,
+      summaryByType: overview.summaryByType,
+      realtime: overview.realtime,
+    };
+  }
+
+  async listValidityQueue(
+    languages: string[],
+    start: number,
+    limit: number,
+    search: string,
+  ): Promise<ValidityQueuePage> {
+    const response = await this.get<ValidityQueuePage>(
+      VALIDITY_PATHS.PENDING,
+      {
+        languages: languages.join(','),
+        start,
+        limit,
+        q: search || undefined,
+        include_total: true,
+      },
+      READ_OPTIONS,
+    );
+    const page = response.data;
+    return {
+      languages: Array.isArray(page?.languages) ? page.languages : languages,
+      count: Number(page?.count ?? 0),
+      total: Number(page?.total ?? 0),
+      start: Number(page?.start ?? start),
+      limit: Number(page?.limit ?? limit),
+      revision: Number(page?.revision ?? 0),
+      words: Array.isArray(page?.words) ? page.words : [],
+    };
   }
 
   async listCategoryItems(
@@ -95,7 +166,10 @@ export class TaskCenterApiClient extends BaseApiClient {
     };
   }
 
-  private async summaryByType(): Promise<Record<string, QueueLiveCounts> | null> {
+  private async overview(): Promise<{
+    summaryByType: Record<string, QueueLiveCounts> | null;
+    realtime: QueueCenterRealtimeConfig | null;
+  }> {
     try {
       const response = await this.get<TaskCenterOverviewPayload>(
         TASK_CENTER_OVERVIEW_PATH,
@@ -103,9 +177,12 @@ export class TaskCenterApiClient extends BaseApiClient {
         READ_OPTIONS,
       );
       const queue = response.data?.queue;
-      return queue?.summary_by_type ?? queue?.by_type ?? null;
+      return {
+        summaryByType: queue?.summary_by_type ?? queue?.by_type ?? null,
+        realtime: response.data?.realtime ?? null,
+      };
     } catch {
-      return null;
+      return { summaryByType: null, realtime: null };
     }
   }
 }

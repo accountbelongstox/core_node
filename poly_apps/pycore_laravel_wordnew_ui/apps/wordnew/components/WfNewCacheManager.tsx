@@ -12,7 +12,7 @@ import { Database, Trash2, RefreshCw, Loader2, X, CheckSquare, Square } from 'lu
 import {
   listWfNewCacheItems, clearWfNewCacheItems, WFNEW_CACHE_ITEM_IDS,
   type WfNewCacheItemId, type WfNewCacheOverview,
-} from '../cache/WfNewCacheRegistry';
+} from '../runtime-store/WfNewCacheRegistry';
 
 interface Props {
   open: boolean;

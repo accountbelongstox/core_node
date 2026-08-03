@@ -85,6 +85,9 @@ class AppQyV1ArticleManagementService
     {
         $metadata = [];
         $category = '';
+        $audioUrl = null;
+        $audioReady = false;
+        $audioStatus = 'queued';
 
         $metadata = is_array($article->metadata) ? $article->metadata : [];
         $category = $this->categoryFromValues(
@@ -92,6 +95,13 @@ class AppQyV1ArticleManagementService
             $article->source,
             (bool) $article->is_daily_reading
         );
+        $audioUrl = isset($metadata['audio_url']) && is_string($metadata['audio_url'])
+            ? $metadata['audio_url']
+            : null;
+        $audioReady = $this->articleAudioExists($audioUrl);
+        $audioStatus = $audioReady
+            ? 'ready'
+            : (is_string($metadata['audio_status'] ?? null) ? $metadata['audio_status'] : 'queued');
 
         return [
             'id' => $article->article_id,
@@ -111,9 +121,11 @@ class AppQyV1ArticleManagementService
             'unique_word_count' => (int) $article->unique_word_count,
             'sentence_count' => (int) $article->sentence_count,
             'is_daily_reading' => (bool) $article->is_daily_reading,
-            'tts_generated' => (bool) $article->tts_generated,
+            'tts_generated' => $audioReady,
             'task_id' => $article->task_id,
-            'audio_url' => $metadata['audio_url'] ?? null,
+            'audio_url' => $audioUrl,
+            'audio_ready' => $audioReady,
+            'audio_status' => $audioStatus,
             'document_id' => $metadata['document_id'] ?? null,
             'reading_date' => $article->reading_date ? $article->reading_date->toDateString() : null,
             'created_at' => $article->created_at ? $article->created_at->toIso8601String() : null,
@@ -211,5 +223,30 @@ class AppQyV1ArticleManagementService
             $dailyDirectory . DIRECTORY_SEPARATOR . $filename,
             $legacyDirectory . DIRECTORY_SEPARATOR . $filename,
         ];
+    }
+
+    private function articleAudioExists(?string $audioUrl): bool
+    {
+        $urlPath = '';
+        $prefix = '/static/app_qy_v1/audio/';
+        $relativePath = '';
+        $fullPath = '';
+
+        if ($audioUrl === null || trim($audioUrl) === '') {
+            return false;
+        }
+
+        $urlPath = parse_url($audioUrl, PHP_URL_PATH);
+        if (!is_string($urlPath) || !str_starts_with($urlPath, $prefix)) {
+            return false;
+        }
+
+        $relativePath = ltrim(substr($urlPath, strlen($prefix)), '/');
+        if (!preg_match('#^(daily|agent_history)/[A-Za-z][A-Za-z0-9_-]*/[A-Za-z0-9._-]+\.mp3$#', $relativePath)) {
+            return false;
+        }
+
+        $fullPath = PathMapper::getAppQyV1AudioBaseDir($relativePath);
+        return FileSystemManager::exists($fullPath);
     }
 }

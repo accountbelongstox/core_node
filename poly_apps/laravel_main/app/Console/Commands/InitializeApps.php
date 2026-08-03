@@ -9,6 +9,7 @@ use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1BookReadingProgressTableService;
 use App\Apps\AppQyV1\Services\AppQyV1ClientDeviceSettingsTableService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Services\OctaneTaskStatusService;
 use App\Services\SystemDependencyInitializer;
 use App\Services\AI\UnifiedAIRouter;
@@ -442,6 +443,11 @@ class InitializeApps extends Command
             $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
             $this->line("  {$icon} {$table}: {$status}");
         }
+        $this->newLine();
+
+        $this->info('Ensuring per-user default vocabulary groups...');
+        $defaultGroupResults = AppQyV1LanguageStudyGroupService::ensureAllUserLanguageGroups();
+        $this->line("  ✅ Users: {$defaultGroupResults['users']}; groups: {$defaultGroupResults['groups']}");
         $this->newLine();
 
         $this->info('Creating AppQyV1 book reading progress tables...');

@@ -1,10 +1,5 @@
-import { BaseAPI } from '../base/BaseAPI';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
-import type {
-  PcQueueCategory,
-  PcQueueHandler,
-  PcQueueWorker,
-} from '../../integrations/pycore';
 import type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
 
 export type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
@@ -253,31 +248,6 @@ export interface TtsQueueItemsResponse {
   error?: string;
 }
 
-// ========== Assist / worker queue overview (GET /assist/overview) ==========
-
-export type AssistQueueHandler = PcQueueHandler;
-export type AssistQueueCategory = PcQueueCategory;
-export type AssistQueueWorker = PcQueueWorker;
-
-export interface AssistOverviewResponse {
-  success: boolean;
-  generated_at?: string;
-  categories: AssistQueueCategory[];
-  workers: AssistQueueWorker[];
-  error?: string;
-}
-
-export interface AssistCategoryItemsResponse {
-  success: boolean;
-  category: string;
-  status?: string | null;
-  total: number;
-  start: number;
-  limit: number;
-  items: any[];
-  error?: string;
-}
-
 // ========== Vocabulary stat drill-down: language breakdown ==========
 
 export interface LanguageBreakdownRow {
@@ -424,21 +394,6 @@ export class BooksAPI extends BaseAPI {
     limit?: number;
   }): Promise<APIResponse<TtsQueueItemsResponse>> {
     return this.get<TtsQueueItemsResponse>('/tts/queue/items', params, false);
-  }
-
-  /** GET /assist/overview — worker queue categories (pycore / chrome / ai lanes). */
-  async getAssistOverview(fresh = false): Promise<APIResponse<AssistOverviewResponse>> {
-    return this.get<AssistOverviewResponse>('/assist/overview', fresh ? { fresh: 1 } : undefined, false);
-  }
-
-  /** GET /assist/overview/items — paginated rows for one assist category. */
-  async getAssistCategoryItems(params: {
-    category: string;
-    status?: TtsQueueItemStatus;
-    start?: number;
-    limit?: number;
-  }): Promise<APIResponse<AssistCategoryItemsResponse>> {
-    return this.get<AssistCategoryItemsResponse>('/assist/overview/items', params, false);
   }
 
   /** GET /vocabulary/language-breakdown — per-language word/translation/audio/invalid counts. */

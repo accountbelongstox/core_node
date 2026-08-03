@@ -665,16 +665,12 @@ class LaravelEndpointManager:
                 "current": current}
 
     @serialized_method
-    def select(self, url: str) -> Dict[str, Any]:
+    def select(self, url: str, probe: bool = True) -> Dict[str, Any]:
         """Persist ``url`` as the user's stored choice (adds it when missing).
 
-        State mutation (persist + invalidate) happens here on the owner
-        thread - instant. The health probe and the endpoint-change listener
-        fan-out run on a background bus task (_finish_select): network I/O
-        on the state-owner thread stalled every other manager caller behind
-        it. The response therefore carries LAST KNOWN health in ``selected``;
-        the FE re-lists after mutating (PycoreLaravelApi contract) and picks
-        up the fresh probe on that pass.
+        State mutation is instant. Normal manager callers probe in a background
+        bus task. ``probe=False`` trusts a browser-verified endpoint notification
+        and performs no network I/O.
         """
         u = _normalize(url)
         if not u:
@@ -692,8 +688,12 @@ class LaravelEndpointManager:
             backend_endpoints = state["backend_endpoints"]
         self._save(backend_endpoints, state["frontend_endpoints"], u)
         self.invalidate()
-        start_bus_task(lambda: self._finish_select(u), thread_name="laravel-endpoint-select")
-        ColorPrint.green(f"[LaravelEndpoints] Selected {u} (probe in background)")
+        if probe:
+            start_bus_task(lambda: self._finish_select(u), thread_name="laravel-endpoint-select")
+            ColorPrint.green(f"[LaravelEndpoints] Selected {u} (probe in background)")
+        else:
+            self._resolved = u
+            ColorPrint.green(f"[LaravelEndpoints] Selected verified UI endpoint {u}")
         return {"success": True,
                 "endpoints": self._endpoint_rows(endpoints, state["frontend_endpoints"]),
                 "current": u,
@@ -722,7 +722,7 @@ class LaravelEndpointManager:
 
         Refreshes run in the BACKGROUND (never on the state-owner thread);
         the response carries last-known health immediately and callers
-        re-list to pick up fresh results (see laravel_api_routes).
+        re-list to pick up fresh results.
         """
         if url and str(url).strip():
             target = str(url)

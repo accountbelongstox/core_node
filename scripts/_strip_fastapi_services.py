@@ -15,7 +15,6 @@ FILES = [
     "ai_keys_service.py",
     "ai_probe_service.py",
     "speech_history_service.py",
-    "heartbeat_workers_service.py",
     "code_sync_service.py",
     "vocabulary_service.py",
     "voice_subtitle_service.py",

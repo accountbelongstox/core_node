@@ -1,6 +1,6 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Server, Check, RefreshCw, AlertTriangle } from 'lucide-react';
-import { apiManager, HealthCheckResult } from '../apps/laravel-manager/services/ApiManager';
+import { apiManager, HealthCheckResult } from '../core/api-libs/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '../apps/laravel-manager/services/ApiHealthRecheck';
 import { BackendApiEndpoint } from '../config/api-endpoints';
 import { Portal } from './shared';

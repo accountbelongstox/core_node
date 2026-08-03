@@ -13,7 +13,7 @@
  * - Single source of truth: all "must be logged in" views are listed here.
  * - Used by App.tsx to wrap content with AuthGuard and by any code that needs to
  *   know if a view is protected (e.g. analytics, routing).
- * - Login modal is shown only over the right (main) area, not full screen; sidebar stays visible so user can navigate away.
+ * - Protected views remain mounted while the application shell shows the shared login modal.
  * - Message copy is kept in TRANSLATIONS (constants.tsx); this module uses i18n.t(key, { lng })
  *   so no language branching and no direct TRANSLATIONS access.
  *
@@ -29,7 +29,7 @@ import { ViewType } from '../apps/laravel-manager/uiTypes';
 import type { Language } from '../apps/laravel-manager/uiTypes';
 import i18n from '../apps/laravel-manager/i18n';
 
-/** All view types that require the user to be logged in. No prompt, no content until authenticated. */
+/** All view types that require the user to be logged in for protected operations. */
 export const REQUIRE_LOGIN_VIEWS: ViewType[] = [
   ViewType.SERVER_MANAGER,
   ViewType.SETTINGS,

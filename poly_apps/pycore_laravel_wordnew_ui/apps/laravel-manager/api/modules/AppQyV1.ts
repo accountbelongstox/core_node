@@ -1,7 +1,7 @@
-import { BaseAPI } from '../base/BaseAPI';
-import { apiCache } from '../base/APICache';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { apiCache } from '../../../../core/api-libs/laravel/transport/APICache';
 import { APIResponse } from '../../types';
-import { LARAVEL_API_ROUTE } from '../ApiContract';
+import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
 
 // ========== Vocabulary export (server-side file download) ==========
 

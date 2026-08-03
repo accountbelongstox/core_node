@@ -2,11 +2,6 @@
 const PREFIX = 'nexus_' as const;
 
 export const LaravelManagerStorageKeys = {
-  API_CURRENT_ENDPOINT: 'api_current_endpoint',
-  API_AUTO_DETECTED_ENDPOINT: 'api_auto_detected',
-  API_USER_MODIFIED_ENDPOINT: 'api_user_modified',
-  API_RECHECK_INTERVAL_MS: 'api_recheck_interval_ms',
-  API_CUSTOM_ENDPOINTS: 'api_custom_endpoints',
   API_CONFIG: 'dashboard_api_config',
   APP_STATE: `${PREFIX}app_state`,
   SETTINGS: `${PREFIX}settings`,

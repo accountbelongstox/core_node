@@ -16,8 +16,8 @@ trait AppQyV1AssistOverview
 
     /**
      * Laravel supplies metrics; config/queue_center_contract.json supplies all
-     * category, claimant, and handler definitions. Pycore consumes this over
-     * HTTP and exposes the normalized result to the UI through RPC v2.
+     * category, claimant, and handler definitions. Browser clients consume the
+     * snapshot directly while pycore workers use their own task interfaces.
      */
     public function overviewSnapshot(bool $fresh = false): array
     {

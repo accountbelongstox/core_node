@@ -16,8 +16,7 @@ applyFlavorDocument(FLAVOR);
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    {/* VITE_APP_FLAVOR selects the build: the full multi-app shell (default), or
-        a single sub-app mounted standalone as the homepage. */}
+    {/* Central code configuration selects the full shell or standalone app. */}
     {IS_STANDALONE ? <StandaloneApp flavor={FLAVOR} /> : <ShellApp />}
   </React.StrictMode>
 );

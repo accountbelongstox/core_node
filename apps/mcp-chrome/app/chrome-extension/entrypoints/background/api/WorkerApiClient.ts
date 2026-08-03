@@ -8,6 +8,7 @@
 
 import { BaseApiClient, ApiResponse } from './BaseApiClient';
 import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
+import { diffTaskSegmentStore } from '@/utils/diff-task-segments';
 import {
   WORKER_PATHS,
   TRANSLATION_QUEUE_PATHS,
@@ -16,6 +17,7 @@ import {
 } from '@/utils/api-paths';
 import {
   PRIORITY_FAST,
+  TASK_STATUS_BY_ROLE,
   TASK_LIMITS,
   type ProcessorType,
   type Task,
@@ -50,6 +52,7 @@ const CONTROL_RPC_OPTS = { retries: 0, timeout: CONTROL_RPC_FAILFAST_TIMEOUT_MS 
 
 export class WorkerApiClient extends BaseApiClient {
   private workerId: string | null = null;
+  private readonly taskSegmentScopes = new Map<string, string>();
 
   /**
    * Register worker
@@ -123,7 +126,18 @@ export class WorkerApiClient extends BaseApiClient {
     const safeWait = Math.max(0, Math.min(TASK_LIMITS.long_poll_seconds, Math.floor(wait)));
     const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
 
-    return this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
+    const scope = `${this.getBaseUrl()}:${id}:${taskType}`;
+    const recovered = await diffTaskSegmentStore.pending(scope);
+    if (recovered.length > 0) {
+      for (const task of recovered) this.taskSegmentScopes.set(task.task_id, scope);
+      return {
+        success: true,
+        message: 'Recovered locally owned task segment',
+        data: { count: recovered.length, pending_urgent: 0, pending_fast: 0, tasks: recovered },
+      };
+    }
+
+    const response = await this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
       workerTaskPath(taskType, 'pull'),
       {
         worker_id: id,
@@ -137,6 +151,15 @@ export class WorkerApiClient extends BaseApiClient {
         retries: 0, // Don't retry long polling requests
       },
     );
+    if (!response.success || !response.data || !Array.isArray(response.data.tasks)) {
+      return response;
+    }
+    const tasks = await diffTaskSegmentStore.stage(scope, response.data.tasks);
+    for (const task of tasks) this.taskSegmentScopes.set(task.task_id, scope);
+    return {
+      ...response,
+      data: { ...response.data, count: tasks.length, tasks },
+    };
   }
 
   /**
@@ -169,12 +192,19 @@ export class WorkerApiClient extends BaseApiClient {
       throw new Error('Worker ID not set in result. Call register() first or provide worker_id');
     }
 
-    return this.post<WorkerSubmitOutcome | null>(
+    const response = await this.post<WorkerSubmitOutcome | null>(
       workerTaskPath(taskType, 'result'),
       result,
       // Configurable timeout (keep retries:0 — the outbox owns durable retry).
       { retries: 0, timeout: getCachedBackendTimeoutMs() },
     );
+    if (response.success && (
+      result.status === TASK_STATUS_BY_ROLE.completed
+      || result.status === TASK_STATUS_BY_ROLE.failed
+    )) {
+      await this.compactTask(result.task_id);
+    }
+    return response;
   }
 
   /**
@@ -203,10 +233,19 @@ export class WorkerApiClient extends BaseApiClient {
     taskId: string,
     priority: number = PRIORITY_FAST,
   ): Promise<ApiResponse<{ task_id: string; priority: number }>> {
-    return this.post<{ task_id: string; priority: number }>(
+    const response = await this.post<{ task_id: string; priority: number }>(
       taskPath(taskId, 'bump'),
       { priority },
     );
+    if (response.success) await diffTaskSegmentStore.promote(taskId, priority);
+    return response;
+  }
+
+  async compactTask(taskId: string): Promise<void> {
+    const scope = this.taskSegmentScopes.get(taskId);
+    if (!scope) return;
+    await diffTaskSegmentStore.consume(scope, taskId);
+    this.taskSegmentScopes.delete(taskId);
   }
 
   /**

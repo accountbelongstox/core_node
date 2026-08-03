@@ -1,12 +1,10 @@
 /**
  * Translate tab - source/target language, detect-and-translate, and TTS playback
- * of the result. Proxied through pycore: translateVocab / generateVocabTts /
- * getVocabTranslationLanguages. Local state only; never crashes when offline.
+ * of the result. Laravel data calls use the direct Laravel API boundary.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Languages, Volume2, Loader2, ArrowRightLeft, Copy, Check } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
-import { fetchPycoreBlobUrl } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabLanguageInfo } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, vp, toArray } from './vocabShared';
 
@@ -47,7 +45,7 @@ export default function VocabTranslateTab() {
   const loadLanguages = useCallback(async () => {
     setLoadingLangs(true);
     try {
-      const r = await pycoreApi.getVocabTranslationLanguages();
+      const r = await laravelApi.getVocabTranslationLanguages();
       setLanguages(toArray<VocabLanguageInfo>(vp(r)));
       setOffline(false);
     } catch {
@@ -74,7 +72,7 @@ export default function VocabTranslateTab() {
     setDetected('');
     setAudioUrl(null);
     try {
-      const r = await pycoreApi.translateVocab({
+      const r = await laravelApi.translateVocab({
         text,
         source_language: source === 'auto' ? 'auto' : source,
         target_language: target,
@@ -104,13 +102,13 @@ export default function VocabTranslateTab() {
     setTtsError(null);
     setAudioUrl(null);
     try {
-      const r = await pycoreApi.generateVocabTts({ text, language: target });
+      const r = await laravelApi.generateVocabTts({ text, language: target });
       const p = vp<any>(r);
       if (p && (p.audio_url || p.audio_base64)) {
         const url = p.audio_base64
           ? `data:${p.mime || 'audio/mpeg'};base64,${p.audio_base64}`
-          : await fetchPycoreBlobUrl(String(p.audio_url || ''));
-        if (!url) throw new Error('TTS audio bytes are unavailable over HTTP API');
+          : laravelApi.getVocabResourceUrl(String(p.audio_url || ''));
+        if (!url) throw new Error('TTS audio is unavailable over HTTP API');
         setAudioUrl(url);
         setOffline(false);
         const audio = new Audio(url);

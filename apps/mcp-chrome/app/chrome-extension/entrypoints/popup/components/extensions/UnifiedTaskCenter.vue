@@ -233,7 +233,12 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { apiManager, getApiBase } from '@/services/ApiManager';
 import { TaskCenterApiClient } from '@/services/TaskCenterApiClient';
-import type { AssistCategoryItem } from '@/services/TaskCenterApiClient';
+import type {
+  AssistCategoryItem,
+  QueueCenterRealtimeConfig,
+  ValidityQueuePage,
+} from '@/services/TaskCenterApiClient';
+import { getValidityLanguages } from '@/services/AiProviderSettings';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { getMessage } from '@/utils/i18n';
 import type { QueueLiveCounts, TaskRow } from '@/utils/queue-center-contract';
@@ -321,10 +326,17 @@ const categorySearch = ref('');
 const categoryStatus = ref('pending');
 const categoryLoading = ref(false);
 const categoryError = ref('');
+const validityLanguages = ref<string[]>(['en']);
+const validityFirstPage = ref<ValidityQueuePage | null>(null);
 const CATEGORY_PAGE_SIZE = 20;
 
-let pollTimer: ReturnType<typeof setInterval> | null = null;
 let taskCenterApi: TaskCenterApiClient | null = null;
+let realtimeSocket: WebSocket | null = null;
+let realtimeSignature = '';
+let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+let realtimeRetry = 0;
+let componentMounted = false;
 
 const apiBase = getApiBase;
 const apiClient = (): TaskCenterApiClient => {
@@ -484,6 +496,33 @@ const loadCategoryPage = async (): Promise<void> => {
   categoryLoading.value = true;
   categoryError.value = '';
   try {
+    if (selectedCategory.value.type === 'word_validity'
+      && (categoryStatus.value === 'pending' || categoryStatus.value === 'all')) {
+      const page = categoryStart.value === 0 && categorySearch.value === '' && validityFirstPage.value
+        ? validityFirstPage.value
+        : await apiClient().listValidityQueue(
+          validityLanguages.value,
+          categoryStart.value,
+          CATEGORY_PAGE_SIZE,
+          categorySearch.value,
+        );
+      categoryItems.value = page.words.map((word) => ({
+        id: word.id,
+        category: 'word_validity',
+        task_type: 'word_validity',
+        status: 'pending',
+        priority: 0,
+        content_text: word.word,
+        language: word.language,
+      }));
+      categoryTotal.value = page.total;
+      return;
+    }
+    if (selectedCategory.value.type === 'word_validity') {
+      categoryItems.value = [];
+      categoryTotal.value = 0;
+      return;
+    }
     const page = await apiClient().listCategoryItems(
       selectedCategory.value.type,
       categoryStatus.value,
@@ -549,9 +588,25 @@ const refresh = async (): Promise<void> => {
   loading.value = true;
   error.value = '';
   try {
-    const snapshot = await apiClient().snapshot(TASK_LIMITS.list);
+    validityLanguages.value = await getValidityLanguages();
+    const [snapshot, validityPage] = await Promise.all([
+      apiClient().snapshot(TASK_LIMITS.list),
+      apiClient().listValidityQueue(validityLanguages.value, 0, CATEGORY_PAGE_SIZE, ''),
+    ]);
+    const summaryByType = { ...(snapshot.summaryByType || {}) };
+    const existingValidity = summaryByType.word_validity;
+    summaryByType.word_validity = {
+      pending: validityPage.total,
+      leased: existingValidity?.leased || 0,
+      processing: existingValidity?.processing || 0,
+    };
     rows.value = snapshot.tasks;
-    serverByType.value = snapshot.summaryByType;
+    serverByType.value = summaryByType;
+    validityFirstPage.value = validityPage;
+    connectRealtime(snapshot.realtime);
+    if (selectedCategory.value?.type === 'word_validity') {
+      await loadCategoryPage();
+    }
   } catch (e: any) {
     error.value = e?.message || getMessage('taskCenterLoadError');
   } finally {
@@ -572,6 +627,7 @@ const loadAll = async (): Promise<void> => {
     const existing = new Map(rows.value.map((r) => [r.task_id, r]));
     for (const t of all) existing.set(t.task_id, t);
     rows.value = [...existing.values()];
+    await refresh();
     loadAllMsg.value = getMessage('taskCenterLoadSummary', [
       String(all.length),
       String(chromeHandled.length),
@@ -584,14 +640,94 @@ const loadAll = async (): Promise<void> => {
   }
 };
 
+const normalizeRealtimeHost = (config: QueueCenterRealtimeConfig): string => {
+  const configured = String(config.host || '').trim();
+  if (configured !== '' && configured !== '0.0.0.0' && configured !== '::') return configured;
+  return new URL(apiBase()).hostname;
+};
+
+const realtimeUrl = (config: QueueCenterRealtimeConfig): string => {
+  const protocol = config.scheme === 'https' ? 'wss' : 'ws';
+  const host = normalizeRealtimeHost(config);
+  const port = config.port > 0 ? `:${config.port}` : '';
+  return `${protocol}://${host}${port}/app/${encodeURIComponent(config.app_key)}?protocol=7&client=js&version=8.4.0&flash=false`;
+};
+
+const scheduleRealtimeRefresh = (): void => {
+  if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+  realtimeRefreshTimer = setTimeout(() => {
+    realtimeRefreshTimer = null;
+    void refresh();
+  }, 250);
+};
+
+const scheduleRealtimeReconnect = (config: QueueCenterRealtimeConfig): void => {
+  if (!componentMounted || realtimeReconnectTimer) return;
+  const delay = Math.min(30000, 1000 * (2 ** realtimeRetry));
+  realtimeRetry = Math.min(realtimeRetry + 1, 5);
+  realtimeReconnectTimer = setTimeout(() => {
+    realtimeReconnectTimer = null;
+    connectRealtime(config, true);
+  }, delay);
+};
+
+const connectRealtime = (config: QueueCenterRealtimeConfig | null, force = false): void => {
+  if (!config || config.transport !== 'websocket' || config.app_key === '') return;
+  const signature = `${realtimeUrl(config)}|${config.channel}|${config.event}`;
+  if (!force && realtimeSignature === signature
+    && realtimeSocket
+    && (realtimeSocket.readyState === WebSocket.OPEN || realtimeSocket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  realtimeSocket?.close();
+  realtimeSignature = signature;
+  const socket = new WebSocket(realtimeUrl(config));
+  realtimeSocket = socket;
+
+  socket.onmessage = (message) => {
+    let frame: { event?: string; data?: unknown } = {};
+    try {
+      frame = JSON.parse(String(message.data));
+    } catch {
+      return;
+    }
+    if (frame.event === 'pusher:connection_established') {
+      realtimeRetry = 0;
+      socket.send(JSON.stringify({
+        event: 'pusher:subscribe',
+        data: { channel: config.channel },
+      }));
+      return;
+    }
+    if (frame.event === 'pusher:ping') {
+      socket.send(JSON.stringify({ event: 'pusher:pong', data: {} }));
+      return;
+    }
+    if (frame.event === config.event) scheduleRealtimeRefresh();
+  };
+  socket.onerror = () => socket.close();
+  socket.onclose = () => {
+    if (realtimeSocket !== socket) return;
+    realtimeSocket = null;
+    scheduleRealtimeReconnect(config);
+  };
+};
+
 onMounted(async () => {
+  componentMounted = true;
   await apiManager.initialize({ autoDetect: false }).catch(() => {});
   await refresh();
-  pollTimer = setInterval(refresh, 5000);
 });
 
 onUnmounted(() => {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  componentMounted = false;
+  if (realtimeReconnectTimer) clearTimeout(realtimeReconnectTimer);
+  if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
+  realtimeReconnectTimer = null;
+  realtimeRefreshTimer = null;
+  realtimeSocket?.close();
+  realtimeSocket = null;
 });
 
 // Let the parent (TaskCenterPanel Start button) trigger a full lane load so

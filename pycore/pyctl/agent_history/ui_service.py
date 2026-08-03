@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Agent History workflows exposed to the Pycore UI."""
 
-import base64
 from typing import Any, Dict
 
 import pycore.pyutils.agent_history.article_records as article_record_store
@@ -16,6 +15,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
 )
 from pycore.pyctl.agent_history.pipeline.worker import start_backfill
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
+from pycore.pyutils.common.operation_service import operation_service
 
 
 def index(_params: Any, _request_id: str) -> Dict[str, Any]:
@@ -53,6 +53,54 @@ def session_detail(params: Any, _request_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "not found"}
     return {"success": True, "data": detail}
 
+
+def _id_page_args(request: Dict[str, Any]) -> Dict[str, Any]:
+    raw_tools = request.get("tools") or []
+    return {
+        "tool": request.get("tool") or None,
+        "user": request.get("user") or None,
+        "q": request.get("q") or None,
+        "tools": [str(item) for item in raw_tools] if isinstance(raw_tools, list) else [],
+        "page": int(request.get("page") or 1),
+        "page_size": int(request.get("page_size") or request.get("pageSize") or 50),
+        "since_revision": str(request.get("since_revision") or request.get("sinceRevision") or ""),
+    }
+
+
+def _id_list(request: Dict[str, Any]) -> Any:
+    ids = request.get("ids")
+    if isinstance(ids, list):
+        return [str(item) for item in ids]
+    return []
+
+
+def session_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    args = _id_page_args(request)
+    data = agent_history_service.read_session_id_pages(
+        args["tool"], args["user"], args["q"], args["page"], args["page_size"], args["since_revision"],
+    )
+    return {"success": True, "data": data}
+
+
+def session_page(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    return {"success": True, "data": agent_history_service.read_session_page(_id_list(request))}
+
+
+def prompt_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    args = _id_page_args(request)
+    data = agent_history_service.read_prompt_id_pages(
+        args["tool"], args["user"], args["q"], args["tools"], args["page"], args["page_size"], args["since_revision"],
+    )
+    return {"success": True, "data": data}
+
+
+def prompt_page(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    return {"success": True, "data": agent_history_service.read_prompt_page(_id_list(request))}
+
 def refresh(_params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.extract(force=True)}
 
@@ -79,8 +127,20 @@ def status(_params: Any, _request_id: str) -> Dict[str, Any]:
         },
     }
 
-def article_config_get(_params: Any, _request_id: str) -> Dict[str, Any]:
-    return {"success": True, "data": get_config()}
+def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
+    """One combined UI bootstrap exchange for config and operation state."""
+    operation = operation_service.get_snapshot(
+        scope="agent_history",
+        include_items=False,
+        include_results=False,
+    )
+    return {
+        "success": True,
+        "data": {
+            "article_config": get_config(),
+            "operation_snapshot": operation,
+        },
+    }
 
 def article_config_post(params: Any, request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -118,22 +178,36 @@ def article_records(params: Any, _request_id: str) -> Dict[str, Any]:
     rows = article_record_store.list_records(int(request.get("limit") or 100))
     return {"success": True, "data": {"records": rows}}
 
-def article_audio(params: Any, _request_id: str) -> Dict[str, Any]:
+def article_record_id_pages(params: Any, _request_id: str) -> Dict[str, Any]:
+    """DIFF ID page table: record IDs + status metadata only (no text bodies)."""
     request = params if isinstance(params, dict) else {}
-    record_id = str(request.get("record_id") or request.get("id") or "")
-    if not record_id:
-        return {"success": False, "error": "missing record_id"}
-    audio = article_record_store.read_audio(record_id)
-    if audio is None:
-        return {"success": False, "error": "not found"}
-    return {
-        "success": True,
-        "data": {
-            "record_id": record_id,
-            "mime": "audio/mpeg",
-            "audio_base64": base64.b64encode(audio).decode("ascii"),
-        },
+    page_size = max(1, min(int(request.get("page_size") or request.get("pageSize") or 50), 500))
+    revision = article_record_store.records_revision()
+    since_revision = str(request.get("since_revision") or request.get("sinceRevision") or "")
+    if since_revision and since_revision == revision:
+        return {
+            "success": True,
+            "data": {"revision": revision, "unchanged": True},
+        }
+    rows = article_record_store.list_record_metadata(500)
+    total = len(rows)
+    page_count = max(1, -(-total // page_size))
+    page = max(1, min(int(request.get("page") or 1), page_count))
+    start = (page - 1) * page_size
+    data: Dict[str, Any] = {
+        "revision": revision,
+        "total": total,
+        "page": page,
+        "page_count": page_count,
     }
+    data["items"] = rows[start:start + page_size]
+    return {"success": True, "data": data}
+
+def article_record_page(params: Any, _request_id: str) -> Dict[str, Any]:
+    """Lazily materialize full records (bodies included) for the given IDs."""
+    request = params if isinstance(params, dict) else {}
+    rows = article_record_store.get_records(_id_list(request))
+    return {"success": True, "data": {"items": rows, "total": len(rows)}}
 
 def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -143,4 +217,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "refresh", "update_prompt", "status", "article_config_get", "article_config_post", "article_start", "article_list", "article_logs", "article_records", "article_audio", "test_extract"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_start", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "test_extract"]

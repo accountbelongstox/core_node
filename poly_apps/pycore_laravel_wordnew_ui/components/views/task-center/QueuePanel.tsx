@@ -117,7 +117,7 @@ const renderResultMedia = (result: any): React.ReactNode => {
 const QueuePanel: React.FC<QueuePanelProps> = ({
   lang,
 }) => {
-  const { globalTasks: snapshot, loading, error, refreshNow } = useTaskCenterState();
+  const { globalTasks: snapshot, loading, error, refreshNow, promoteTask } = useTaskCenterState();
   const [statusFilter, setStatusFilter] = useState<TaskStatusFilter>('all');
   // Client-side task_type filter ('all' = every type). The list endpoint is
   // server-filtered by STATUS only, so type filtering is applied locally.
@@ -255,8 +255,8 @@ const QueuePanel: React.FC<QueuePanelProps> = ({
       const response = await api.serverManager.bumpTaskPriority(taskId, 100);
       if (response.success && response.data) {
         setNotice(`${t.detail.bumped_ok} ${response.data.priority}: ${shortId(taskId)}`);
+        promoteTask(taskId, response.data.priority);
         void refreshDetailTask(taskId);
-        refreshNow();
       } else {
         setNotice(`${t.detail.bump_failed}: ${response.error || ''}`.trim());
       }

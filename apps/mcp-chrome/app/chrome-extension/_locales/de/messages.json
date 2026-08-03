@@ -1635,7 +1635,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  WXT-Entwicklungsserver wird gestartet (Überwachungsmodus)..."
+    "message": "  Shell-gesteuerte Entwicklungsüberwachung wird gestartet..."
   },
   "startLocation": {
     "message": "    Speicherort: $path$",
@@ -1940,7 +1940,7 @@
     "message": "Führen Sie NotebookLM-Generierungsaufgaben aus"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "Entleert ungeprüfte oder nicht übersetzte Wörter und aktiviert die Web-KI und Bing-Übersetzungsarbeiter"
+    "message": "Ruft ungeprüfte oder nicht übersetzte Wörter aus der Backend-Wortbibliothek ab und verarbeitet sie mit DeepSeek"
   },
   "taskCenterCapability_validity_label": {
     "message": "Führen Sie Wortgültigkeits- und Übersetzungsaufgaben aus"

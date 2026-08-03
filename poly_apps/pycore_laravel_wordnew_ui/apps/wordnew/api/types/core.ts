@@ -31,6 +31,7 @@ export interface WordGroup {
   progress?: number;
   type?: string;
   description?: string;
+  isLanguageDefault?: boolean;
 }
 
 /**
@@ -41,6 +42,11 @@ export interface WordGroup {
  * (WfNewApiMappers.toGroup reads raw.gname).
  */
 export const DEFAULT_VOCAB_GROUP_NAME = 'Default Vocabulary Group';
+
+export function isDefaultVocabularyGroup(group: Pick<WordGroup, 'name' | 'language' | 'isLanguageDefault'>): boolean {
+  return group.name === DEFAULT_VOCAB_GROUP_NAME
+    || (group.isLanguageDefault === true && (group.language ?? 'en') === 'en');
+}
 
 /**
  * A WordGroup enriched with the decorative fields the home "bento" grid needs.

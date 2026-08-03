@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { getDefaultBaseURL, DEFAULT_API_PORT } from '../../../config/constants';
-import { apiManager, API_HEALTH_EVENT } from '../services/ApiManager';
+import { apiManager, API_HEALTH_EVENT } from '../../../core/api-libs/laravel/ApiManager';
 import { buildApiUrl } from '../../../config/api-endpoints';
 import { StorageManager } from '../../../core/persistence';
 import { LaravelManagerStorageKeys } from '../persistence/LaravelManagerStorageKeys';

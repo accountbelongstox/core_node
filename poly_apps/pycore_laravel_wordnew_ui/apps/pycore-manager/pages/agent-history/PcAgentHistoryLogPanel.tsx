@@ -1,59 +1,15 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { Radio } from 'lucide-react';
-import { requestPycoreHttp, connectPycoreHttp } from '@/apps/pycore-manager/api';
-import { pycoreEventBus } from '@/apps/pycore-manager/api';
-import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
 
-const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
-
-/** Live pipeline log panel; hydrates from ui/operation/snapshot and follows operation.changed. */
+/** Live pipeline log panel backed by the shared Agent History runtime store. */
 const PcAgentHistoryLogPanel: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
-  const [data, setData] = useState<Record<string, any> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [stale, setStale] = useState(false);
-  const mounted = useRef(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.operationSnapshot, {
-        scope: 'agent_history',
-        include_items: false,
-      });
-      if (!mounted.current) return;
-      if (res?.success && res.data) {
-        setData(res.data as Record<string, any>);
-        setLoadError(null);
-        setStale(false);
-      } else {
-        setLoadError(res?.error || 'Failed to load agent history logs.');
-        setStale(true);
-      }
-    } catch (e) {
-      if (!mounted.current) return;
-      // Keep prior data; mark stale instead of wiping the panel.
-      setLoadError(e instanceof Error ? e.message : 'Failed to load agent history logs.');
-      setStale(true);
-    } finally {
-      if (mounted.current) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    mounted.current = true;
-    connectPycoreHttp();
-    void load();
-    const off = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.operationChanged, (payload: any) => {
-      const scope = String(payload?.operation_scope || '');
-      if (scope && !PIPELINE_SCOPES.has(scope)) return;
-      void load();
-    });
-    return () => {
-      mounted.current = false;
-      off();
-    };
-  }, [load]);
+  const {
+    operationSnapshot: data,
+    operationLoading: loading,
+    operationError: loadError,
+  } = useAgentHistoryRuntime();
+  const stale = Boolean(loadError && data);
 
   const events: any[] = Array.isArray((data as any)?.recent_events) ? (data as any).recent_events : [];
   const progress = (data as any)?.operation || {};

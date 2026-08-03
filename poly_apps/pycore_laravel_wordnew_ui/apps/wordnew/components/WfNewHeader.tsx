@@ -8,6 +8,7 @@ import type { WfNewSuperAdminStatus } from '../api';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';
 import { WfNewAvatarView } from './WfNewAvatarView';
+import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 interface WfNewHeaderProps {
   activeTheme: ElementTheme;
@@ -119,7 +120,13 @@ export const WfNewHeader: React.FC<WfNewHeaderProps> = (props) => {
 
           {/* Individual Profile Console / Login bubble */}
           <button
-            onClick={() => setActiveTab(currentUser.isLoggedIn ? 'profile' : 'auth')}
+            onClick={() => {
+              if (currentUser.isLoggedIn) {
+                setActiveTab('profile');
+                return;
+              }
+              requestAuthLogin({ source: 'wordnew-header', reason: 'login-action' });
+            }}
             className={`flex items-center p-1.5 rounded-full border bg-white/5 transition-all cursor-pointer ${
               activeTab === 'profile' || activeTab === 'auth' ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300' : 'text-zinc-300 hover:bg-white/10 border-white/5'
             }`}

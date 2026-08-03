@@ -90,10 +90,9 @@ export function applyFlavorDocument(flavor: FlavorConfig): void {
 }
 
 /**
- * Build-time flavor id. Replaced by Vite `define` (__APP_FLAVOR__, set from the
- * VITE_APP_FLAVOR env var by build_app.ps1). The project convention is to avoid
- * import.meta.env — a define constant keeps config in plain JS. Guarded so tsc /
- * non-Vite contexts fall back to the full shell.
+ * Build-time flavor id. Replaced by Vite `define` from the central code
+ * configuration. Guarded so tsc and non-Vite contexts fall back to the full
+ * shell.
  */
 declare const __APP_FLAVOR__: string;
 const selectedId = typeof __APP_FLAVOR__ !== 'undefined' ? __APP_FLAVOR__ : 'shell';

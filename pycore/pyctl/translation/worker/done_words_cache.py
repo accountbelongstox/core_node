@@ -12,7 +12,7 @@ tasks/pycores.
 Thread-safe; expired entries are pruned opportunistically. The worker delegates its
 public ``mark_words_done`` / ``partition_words`` / ``done_words_count`` methods to an
 instance of this class (those methods are part of the public API consumed by
-translation_http_event_client_service + get_status).
+get_status).
 """
 
 import time

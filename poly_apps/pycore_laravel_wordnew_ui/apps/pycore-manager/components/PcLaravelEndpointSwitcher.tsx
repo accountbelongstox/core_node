@@ -4,7 +4,7 @@
  * State lives in PcLaravelEndpointContext so the global top-bar chip and the
  * Settings page share one list/current/health view. Mirrors laravel-manager's
  * ApiEndpointSwitcher UX (health dot + latency, click-to-switch, add/remove,
- * manual re-probe) but targets the pycore `laravel_api.*` HTTPs.
+ * manual re-probe) through the shared browser LaravelAPI library.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

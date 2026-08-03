@@ -42,6 +42,10 @@ from pycore.pyutils.common.model_tiers import (
     runtime_faster_whisper_model,
     runtime_whisper_model,
 )
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_STT_KEY,
+    status_snapshot_cache,
+)
 
 import json as _json
 
@@ -105,13 +109,13 @@ def _faster_whisper_available() -> bool:
 
 
 def _whisper_available() -> bool:
-    return get_third_package_whisper() is not None
+    return importlib.util.find_spec("whisper") is not None
 
 
 def _vosk_available() -> bool:
     # Vosk needs both the package AND a model dir (env VOSK_MODEL_DIR or a default
     # cache). Without a model it cannot recognize, so report it unavailable.
-    if get_third_package_vosk() is None:
+    if importlib.util.find_spec("vosk") is None:
         return False
     return _vosk_model_dir() is not None
 
@@ -192,7 +196,7 @@ def _quota(name: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def stt_status() -> Dict[str, Any]:
+def _build_stt_status() -> Dict[str, Any]:
     """Availability snapshot for the UI (no recognition run)."""
     engines: List[Dict[str, Any]] = []
     for i, name in enumerate(_priority()):
@@ -227,6 +231,11 @@ def stt_status() -> Dict[str, Any]:
         "available_count": len(avail),
         "engines": engines,
     }
+
+
+def stt_status() -> Dict[str, Any]:
+    """Return the shared cached STT availability snapshot."""
+    return status_snapshot_cache.get(STATUS_SNAPSHOT_STT_KEY, _build_stt_status)
 
 
 # --- transcription --------------------------------------------------------- #

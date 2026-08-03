@@ -24,6 +24,8 @@ Route::withoutMiddleware([
     $response = response()->json([
         'status' => 'healthy',
         'service' => 'Laravel API',
+        'api_role' => 'primary',
+        'ui_direct' => true,
         'timestamp' => now()->toIso8601String(),
         'version' => app()->version()
     ]);
@@ -363,6 +365,9 @@ use App\Http\Controllers\QueueCenterController;
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
     Route::get('overview', [QueueCenterController::class, 'overview']);
     Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
+    // UI pump reads: high-water ID page table + lazy page data materialization.
+    Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
+    Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
     Route::post('queues/{queue}/bump', [QueueCenterController::class, 'bump']);
     Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
     Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);

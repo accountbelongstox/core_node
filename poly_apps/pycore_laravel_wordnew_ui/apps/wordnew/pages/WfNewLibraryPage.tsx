@@ -39,7 +39,6 @@ import { buildWordCell } from '../utils/WordNewLibraryWordCell';
 import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNewLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
 import { useLibraryPriorityBoost } from '../hooks/usePriorityBoost';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
 
 type LibraryView = 'dash' | 'table';
 
@@ -85,7 +84,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (boostStatus[md5] === 'boosting') return;
     setBoostStatus((prev) => ({ ...prev, [md5]: 'boosting' }));
     try {
-      await pycoreApi.boostWordAudioPriority(md5, lang);
+      const result = await wfNewApi.boostWordAudioPriority(md5, lang);
+      if (!result.success) throw new Error(result.error || 'WORD_AUDIO_PRIORITY_FAILED');
       setBoostStatus((prev) => ({ ...prev, [md5]: 'done' }));
     } catch {
       setBoostStatus((prev) => ({ ...prev, [md5]: 'idle' }));

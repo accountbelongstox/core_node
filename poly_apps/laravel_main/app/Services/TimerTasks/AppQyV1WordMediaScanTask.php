@@ -3,9 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Schema;
 
@@ -30,22 +28,16 @@ use Illuminate\Support\Facades\Schema;
  * (sys:init wires it in). The mcp-chrome task checkbox controls task claiming;
  * this bounded scanner only keeps the queue populated.
  */
-class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
+class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
 {
     private const PRIORITY_LOW = 0;
     private const TARGET_LANGUAGE = 'zh';
     private const WORDS_PER_TASK = 40;
     private const MAX_TASKS_PER_LANGUAGE = 2;
 
-    private $taskManager;
     // image_status existence is host-dependent; probed lazily per language table.
     private array $imageStatusColumnCache = [];
     private array $imageMcpColumnCache = [];
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-    }
 
     public function getName(): string
     {
@@ -64,14 +56,14 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
 
     public function exec(): void
     {
-        $allLanguageStats = AppQyV1DictionaryService::getAllLanguageStatistics();
-        if (empty($allLanguageStats)) {
+        $languages = AppQyV1DictionaryService::scanAvailableLanguages();
+        if ($languages === []) {
             return;
         }
 
         $totalCreated = 0;
 
-        foreach ($allLanguageStats as $langCode => $stats) {
+        foreach ($languages as $langCode) {
             // Don't pile up: skip languages that already have enough pending
             // background word_media tasks.
             $pendingCount = $this->countPendingForLanguage($langCode);
@@ -80,15 +72,28 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
             }
 
             $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
-            $words = $this->translatedWordsMissingImages(
-                $langCode,
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
+            $scope = 'word_media:' . $langCode . ':' . $model->getTable();
+            $page = $this->rowsForPendingPage(
+                $scope,
+                $model->newQuery(),
                 $limit,
-                $this->pendingWordMd5ForLanguage($langCode)
+                fn (array $ids): array => $this->translatedWordsMissingImages($langCode, $ids)
             );
-
-            foreach (array_chunk($words, self::WORDS_PER_TASK) as $chunk) {
-                $this->createTask($langCode, $chunk);
-                $totalCreated++;
+            if ($page['rows'] === [] && ($page['page'] ?? 0) === 0) {
+                continue;
+            }
+            try {
+                foreach (array_chunk($page['rows'], self::WORDS_PER_TASK) as $chunk) {
+                    $this->createTask($langCode, $chunk);
+                    $totalCreated++;
+                }
+                $this->consumePendingPage($scope, $page);
+            } catch (\Throwable $e) {
+                $this->logWarning('Background word_media page failed', [
+                    'language' => $langCode,
+                    'error' => $e->getMessage(),
+                ]);
             }
         }
 
@@ -103,18 +108,16 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
      * Translated, valid words without an mcp-chrome submission marker.
      * Returns [{word,md5}].
      */
-    private function translatedWordsMissingImages(string $langCode, int $limit, array $excludedMd5): array
+    private function translatedWordsMissingImages(string $langCode, array $ids): array
     {
         $hasStatus = $this->hasImageStatusColumn($langCode);
         $hasMcpMarker = $this->hasImageMcpColumn($langCode);
         $out = [];
 
         $qa = AppQyV1LangDictionaryModel::forLanguage($langCode)
+            ->whereIn('id', $ids)
             ->where('has_translation', true)
             ->where('is_valid', true);
-        if (!empty($excludedMd5)) {
-            $qa->whereNotIn('md5', $excludedMd5);
-        }
         if ($hasMcpMarker) {
             $qa->whereNull('image_mcp_submitted_at');
         } else {
@@ -131,56 +134,10 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
                 });
             }
         }
-        foreach ($qa->orderByDesc('query_count')->limit($limit)->get(['content', 'md5']) as $row) {
+        foreach ($qa->orderByDesc('query_count')->get(['content', 'md5']) as $row) {
             $word = $row->content ?? null;
             if (is_string($word) && $word !== '') {
                 $out[] = ['word' => $word, 'md5' => $row->md5 ?? md5($word)];
-            }
-        }
-
-        // Repair mcp-submitted rows whose local file was removed. Clearing the
-        // marker makes the row claimable again and lets mcp-chrome replace it.
-        if (($hasMcpMarker || $hasStatus) && count($out) < $limit) {
-            $media = new AppQyV1WordMediaService();
-            $candidateQuery = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                ->where('has_translation', true)
-                ->where('is_valid', true)
-                ->whereNotNull('image_files');
-            if (!empty($excludedMd5)) {
-                $candidateQuery->whereNotIn('md5', $excludedMd5);
-            }
-            if ($hasMcpMarker) {
-                $candidateQuery->whereNotNull('image_mcp_submitted_at');
-            } elseif ($hasStatus) {
-                $candidateQuery->where('image_status', 'completed');
-            }
-            $candidates = $candidateQuery->orderByDesc('query_count')->limit($limit)->get();
-            foreach ($candidates as $row) {
-                if (count($out) >= $limit) {
-                    break;
-                }
-                if ($media->resolveImageUrl($row) !== null) {
-                    continue;
-                }
-                $word = $row->content ?? null;
-                if (!is_string($word) || $word === '') {
-                    continue;
-                }
-                $row->image_files = null;
-                if ($hasStatus) {
-                    $row->image_status = null;
-                    $row->image_completed_at = null;
-                }
-                if ($hasMcpMarker) {
-                    $row->image_mcp_submitted_at = null;
-                }
-                try {
-                    $row->save();
-                } catch (\Throwable $e) {
-                    continue;
-                }
-                $md5 = $row->md5 ?? md5($word);
-                $out[] = ['word' => $word, 'md5' => $md5];
             }
         }
 
@@ -219,39 +176,7 @@ class AppQyV1WordMediaScanTask extends OctaneTimerTaskAbstract
 
     private function countPendingForLanguage(string $langCode): int
     {
-        return GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_media')
-            ->where('status', GlobalTask::status('pending'))
-            ->where('payload->language', $langCode)
-            ->count();
-    }
-
-    private function pendingWordMd5ForLanguage(string $langCode): array
-    {
-        $seen = [];
-        $tasks = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_media')
-            ->where('status', GlobalTask::status('pending'))
-            ->where('payload->language', $langCode)
-            ->get(['payload']);
-        foreach ($tasks as $task) {
-            $payload = is_array($task->payload) ? $task->payload : [];
-            $items = is_array($payload['words'] ?? null)
-                ? $payload['words']
-                : [$payload['content'] ?? null];
-            foreach ($items as $item) {
-                $word = is_array($item) ? ($item['word'] ?? null) : $item;
-                $md5 = is_array($item) ? ($item['md5'] ?? null) : null;
-                if (is_string($md5) && $md5 !== '') {
-                    $seen[$md5] = true;
-                } elseif (is_string($word) && $word !== '') {
-                    $seen[md5($word)] = true;
-                }
-            }
-        }
-        return array_keys($seen);
+        return $this->liveTaskCount('word_media', $langCode);
     }
 
     private function createTask(string $langCode, array $words): void

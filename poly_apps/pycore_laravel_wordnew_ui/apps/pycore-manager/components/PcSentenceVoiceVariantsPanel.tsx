@@ -1,6 +1,6 @@
 /**
  * PcSentenceVoiceVariantsPanel - per-language sentence-audio voice variant editor.
- * HTTP API sentence-audio variant routes (pycore performs Laravel HTTP internally).
+ * Voice variants are Laravel-owned and use the direct Laravel API boundary.
  *
  * Renders a table of variant specs (variant_key, accent, gender, is_primary).
  * Rows are edited locally; the Save button POSTs the full spec list for the
@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AudioLines, RefreshCw, AlertTriangle, Loader2, Plus, Trash2, Save,
 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { SentenceVoiceVariant } from '@/apps/pycore-manager/api';
 
 const LANG_OPTIONS = ['en', 'zh', 'ja', 'ko'];
@@ -58,7 +58,7 @@ export const PcSentenceVoiceVariantsPanel: React.FC<{ lang?: string }> = ({
     setErr(null);
     setNotice(null);
     try {
-      const r = await pycoreApi.getSentenceVoiceVariants(l);
+      const r = await laravelApi.getSentenceVoiceVariants(l);
       if (!mounted.current) return;
       const list = Array.isArray(r) ? r : [];
       if (list.length) {
@@ -117,7 +117,7 @@ export const PcSentenceVoiceVariantsPanel: React.FC<{ lang?: string }> = ({
         gender: s.gender,
         is_primary: !!s.is_primary,
       }));
-      const r = await pycoreApi.saveSentenceVoiceVariants(lang, payload);
+      const r = await laravelApi.saveSentenceVoiceVariants(lang, payload);
       if (!mounted.current) return;
       if (r && r.success !== false) {
         const saved = Array.isArray(r.specs) ? r.specs : [];

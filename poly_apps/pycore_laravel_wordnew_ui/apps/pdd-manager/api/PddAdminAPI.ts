@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../laravel-manager/api/base/BaseAPI';
+import { BaseAPI } from '../../../core/api-libs/laravel/transport/BaseAPI';
 
 /**
  * PddAdminAPI

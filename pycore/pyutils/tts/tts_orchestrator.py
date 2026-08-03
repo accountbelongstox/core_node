@@ -54,6 +54,12 @@ import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.edge.client import edge_tts_client
 from pycore.pyutils.common.model_tiers import runtime_engine_model
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_CAPABILITIES_KEY,
+    STATUS_SNAPSHOT_TTS_ENGINE_PREFIX,
+    STATUS_SNAPSHOT_TTS_KEY,
+    status_snapshot_cache,
+)
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
 from pycore.pyutils.tts.tts_service_manager import (
     invalidate_server_engine_cache,
@@ -84,6 +90,7 @@ import pycore.pyutils.tts.voxcpm2_engine as voxcpm2_engine
 # packages (qwen-tts / melo) live in their isolated venvs, not the main interpreter,
 # so probing importlib.metadata here would report nothing (or a stray/wrong copy).
 # See spec §5-§6.
+_TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
 _ENGINE_VERSIONS = {
     "sherpa": "sherpa-onnx",
     "kokoro": "sherpa-onnx",
@@ -202,9 +209,10 @@ def _model_load_ctx(name: str):
     )
 
 
-def _engine_disabled_reason(name: str) -> Optional[str]:
+def _engine_disabled_reason(name: str, available: Optional[bool] = None) -> Optional[str]:
     """UI hint when an engine is off (not installed, needs config, or server down)."""
-    if engine_available(name):
+    is_available = engine_available(name) if available is None else available
+    if is_available:
         return None
     return engine_unavailable_reason(name)
 
@@ -216,39 +224,80 @@ def best_engine() -> Optional[str]:
     return None
 
 
-def tts_status() -> Dict[str, Any]:
-    """Availability snapshot for the UI (no synthesis run)."""
+def _build_tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
+    """Build one engine row; normal UI reads never run server health commands."""
+    installed = engine_installed(name)
+    managed = is_server_engine(name)
+    runtime = server_runtime_status(name, refresh=refresh) if managed else {}
+    if refresh:
+        available = engine_available(name)
+    elif managed:
+        available = bool(
+            installed
+            or runtime.get("server_running")
+            or runtime.get("model_loaded")
+        )
+    elif name == "edge":
+        available = installed
+    else:
+        available = engine_available(name)
+    entry: Dict[str, Any] = {
+        "name": name,
+        "available": available,
+        "installed": installed,
+        "note": _ENGINE_NOTES.get(name, ""),
+        "concurrency": _ENGINE_CONCURRENCY.get(name, "unknown"),
+        **runtime,
+    }
+    dist = _ENGINE_VERSIONS.get(name)
+    if dist and available:
+        entry["version"] = _dist_version(dist)
+    if name in _TIER_ENGINES:
+        tier_model = runtime_engine_model(name)
+        if tier_model:
+            entry["model"] = tier_model
+    if refresh:
+        reason = _engine_disabled_reason(name, available)
+        if reason:
+            entry["disabled_reason"] = reason
+    return entry
+
+
+def _tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
+    cache_key = f"{STATUS_SNAPSHOT_TTS_ENGINE_PREFIX}{name}"
+    return status_snapshot_cache.get(
+        cache_key,
+        lambda: _build_tts_engine_status(name, refresh),
+        refresh=refresh,
+        ttl_seconds=_TTS_ENGINE_STATUS_TTL_SECONDS,
+    )
+
+
+def invalidate_tts_status_cache(engine: Optional[str] = None) -> None:
+    """Invalidate the aggregate plus one or all per-engine TTS snapshots."""
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_TTS_KEY)
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_CAPABILITIES_KEY)
+    if engine:
+        status_snapshot_cache.invalidate(
+            f"{STATUS_SNAPSHOT_TTS_ENGINE_PREFIX}{engine}"
+        )
+        return
+    status_snapshot_cache.invalidate_prefix(STATUS_SNAPSHOT_TTS_ENGINE_PREFIX)
+
+
+def tts_status(refresh: bool = False) -> Dict[str, Any]:
+    """Availability snapshot; live health probes run only on explicit refresh."""
     edge_cooldown = edge_cooldown_remaining()
     se_cooldown = streamelements_engine.cooldown_remaining()
     engines: List[Dict[str, Any]] = []
     for i, name in enumerate(_priority()):
-        avail = engine_available(name)
-        installed = engine_installed(name)
-        entry: Dict[str, Any] = {
-            "name": name,
-            "priority": i + 1,
-            "available": avail,
-            "installed": installed,
-            "note": _ENGINE_NOTES.get(name, ""),
-            "concurrency": _ENGINE_CONCURRENCY.get(name, "unknown"),
-        }
-        if is_server_engine(name):
-            entry.update(server_runtime_status(name))
+        entry = _tts_engine_status(name, refresh)
+        entry["priority"] = i + 1
         if name == "edge":
             # When cooling down, synthesize() skips edge regardless of availability.
             entry["cooldown_remaining"] = edge_cooldown
         if name == "streamelements":
             entry["cooldown_remaining"] = se_cooldown
-        dist = _ENGINE_VERSIONS.get(name)
-        if dist and avail:
-            entry["version"] = _dist_version(dist)
-        if name in _TIER_ENGINES:
-            tier_model = runtime_engine_model(name)
-            if tier_model:
-                entry["model"] = tier_model
-        reason = _engine_disabled_reason(name)
-        if reason:
-            entry["disabled_reason"] = reason
         engines.append(entry)
     avail = [e for e in engines if e["available"]]
     # Derive `best` and `active` from the availability we ALREADY computed above
@@ -398,8 +447,12 @@ def synthesize(
     accent: Optional[str] = None,
     gender: Optional[str] = None,
     priority_profile: str = "auto",
+    required_engine: Optional[str] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
+    client_job_id: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Synthesize text with the first available engine in the selected profile."""
+    """Synthesize text with one required engine or the selected fallback profile."""
     cleaned = (text or "").strip()
     if not cleaned:
         return {"success": False, "engine": None, "accent": None,
@@ -413,7 +466,8 @@ def synthesize(
         profile = "word" if is_word_text(cleaned) else "sentence"
 
     # Resolve the engine order once (the sentence profile applies the GPU gate).
-    engine_order = _priority(profile)
+    engine_name = (required_engine or "").strip().lower()
+    engine_order = (engine_name,) if engine_name else _priority(profile)
     # Sentence-audio cache: an identical sentence request (same text/lang/voice/
     # engine/format) returns the previously-synthesized file WITHOUT re-synth.
     # Word audio is intentionally not cached here (short, edge-first, cheap).
@@ -423,6 +477,10 @@ def synthesize(
         cache_speaker, cache_instruct, cache_model = _sentence_cache_identity(
             want_accent, gender
         )
+        if (speaker or "").strip():
+            cache_speaker = str(speaker).strip()
+        if (instruct or "").strip():
+            cache_instruct = str(instruct).strip()
         for cand in engine_order:
             hit = sentence_audio_cache.lookup_or_none(
                 text=cleaned, lang=language or "en", speaker=cache_speaker,
@@ -475,7 +533,17 @@ def synthesize(
         tried.append(name)
         try:
             with managed_services.using(name), _model_load_ctx(name):
-                if name == "edge":
+                if name == "qwen3tts":
+                    ok = qwen_engine.synthesize(
+                        cleaned,
+                        language or "en",
+                        output_path,
+                        speed=_rate_to_speed(rate),
+                        speaker=speaker,
+                        instruct=instruct,
+                        client_job_id=client_job_id,
+                    )
+                elif name == "edge":
                     ok = _synth_edge(cleaned, language, output_path, rate, want_accent, gender)
                 else:
                     ok = synth(cleaned, language, output_path, rate, want_accent)

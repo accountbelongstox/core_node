@@ -40,11 +40,11 @@ import {
   Layers, Play, Settings2, RotateCcw, GraduationCap, RefreshCw,
 } from 'lucide-react';
 import type { Word, WordGroup, ElementTheme } from '../../WfNewTypes';
-import { wfNewApi, DEFAULT_VOCAB_GROUP_NAME } from '../../api';
+import { wfNewApi, isDefaultVocabularyGroup } from '../../api';
 import { wfNewSettings } from '../../WfNewSettingsStore';
 import { wfNewNotify } from '../../WfNewNotify';
 import { wordNewProgressCenter } from '../../services';
-import { resolveAudioSync } from '../../cache/WfNewAudioCache';
+import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewStudyStatsBar } from './WfNewStudyStatsBar';
@@ -120,7 +120,7 @@ export const WfNewGroupStudyPanel: React.FC<WfNewGroupStudyPanelProps> = ({
   // read the backend resets it to unread in a fresh shuffled order (review
   // order untouched) so reading simply continues. Other groups page through
   // all words.
-  const isDefaultGroup = group.name === DEFAULT_VOCAB_GROUP_NAME;
+  const isDefaultGroup = isDefaultVocabularyGroup(group);
   const dailyGoal = Math.max(1, Number(wfNewSettings.get('dailyGoal')) || 20);
   const pagerOpts = isDefaultGroup ? { unreadOnly: true } : undefined;
 

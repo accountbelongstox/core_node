@@ -11,6 +11,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
@@ -71,6 +72,10 @@ class AppQyV1LearningController extends Controller
         }
 
         $user->save();
+        AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
+            (int) $user->id,
+            $request->input('learning_languages')
+        );
 
         return response()->json([
             'success' => true,

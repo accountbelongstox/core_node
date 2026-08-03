@@ -141,7 +141,7 @@ class HeartbeatCallbackThread(threading.Thread):
         except Exception as exc:
             error = repr(exc)
             ColorPrint.red(
-                f"[Heartbeat] Callback '{callback_name}' error: {exc}"
+                f"[Scheduler] Callback '{callback_name}' error: {exc}"
             )
 
         THREAD_BUS.send_message(_CALLBACK_RESULT_QUEUE, {
@@ -209,7 +209,7 @@ class HeartbeatPusherThread(threading.Thread):
             priority=100,
             name="heartbeat"
         )
-        ColorPrint.blue("[Heartbeat] Registered THREAD_BUS shutdown handler (priority=100)")
+        ColorPrint.blue("[Scheduler] Registered THREAD_BUS shutdown handler (priority=100)")
 
     @property
     def tick_interval(self) -> float:
@@ -250,7 +250,7 @@ class HeartbeatPusherThread(threading.Thread):
         )
         THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
         ColorPrint.green(
-            f"[Heartbeat] Registered callback: {name} (interval={interval}s)"
+            f"[Scheduler] Registered callback: {name} (interval={interval}s)"
         )
 
     def unregister_callback(self, name: str):
@@ -260,7 +260,7 @@ class HeartbeatPusherThread(threading.Thread):
             return
         callbacks.pop(name, None)
         THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
-        ColorPrint.blue(f"[Heartbeat] Unregistered callback: {name}")
+        ColorPrint.blue(f"[Scheduler] Unregistered callback: {name}")
 
     def enable_callback(self, name: str) -> bool:
         """Enable a callback. Returns False when the name is not registered."""
@@ -300,13 +300,13 @@ class HeartbeatPusherThread(threading.Thread):
         THREAD_BUS.signal(self._running_signal, True)
         self._start_time = time.time()
 
-        ColorPrint.green(f"[Heartbeat] Started (tick={self.tick_interval}s)")
+        ColorPrint.green(f"[Scheduler] Started (tick={self.tick_interval}s)")
 
         while not THREAD_BUS.get_signal(self._stop_signal, False):
             # THREAD_BUS Integration: Check if global shutdown was requested
             # This allows clean shutdown even if stop() wasn't called directly
             if THREAD_BUS.is_shutdown_requested():
-                ColorPrint.yellow("[Heartbeat] THREAD_BUS shutdown detected, stopping...")
+                ColorPrint.yellow("[Scheduler] THREAD_BUS shutdown detected, stopping...")
                 break
 
             tick_start = time.time()
@@ -329,12 +329,7 @@ class HeartbeatPusherThread(threading.Thread):
                 }, async_mode=True)  # async to avoid blocking heartbeat loop
 
             except Exception as e:
-                ColorPrint.red(f"[Heartbeat] Tick error: {e}")
-
-            # Log heartbeat (every 10 ticks = 10 seconds)
-            if self._total_ticks % 10 == 0:
-                current_time_str = time.strftime("%Y-%m-%d %H:%M:%S")
-                ColorPrint.blue(f"[Heartbeat] Tick #{self._total_ticks}, Time: {current_time_str}")
+                ColorPrint.red(f"[Scheduler] Tick error: {e}")
 
             self._publish_stats()
 
@@ -347,7 +342,7 @@ class HeartbeatPusherThread(threading.Thread):
 
         THREAD_BUS.signal(self._running_signal, False)
         self._publish_stats()
-        ColorPrint.blue("[Heartbeat] Stopped")
+        ColorPrint.blue("[Scheduler] Stopped")
 
     def _execute_callbacks(self):
         """
@@ -421,7 +416,7 @@ class HeartbeatPusherThread(threading.Thread):
         handlers = self._thread_pool.get_handlers_for_task_type(task.task_type)
 
         if not handlers:
-            ColorPrint.yellow(f"[Heartbeat] No handler for task: {task.task_type}")
+            ColorPrint.yellow(f"[Scheduler] No handler for task: {task.task_type}")
             task.mark_failed(f"No handler for task_type: {task.task_type}")
             self._tasks_failed += 1
             return
@@ -439,7 +434,7 @@ class HeartbeatPusherThread(threading.Thread):
                     return
 
             except Exception as e:
-                ColorPrint.red(f"[Heartbeat] Handler error ('{thread_info.name}'): {e}")
+                ColorPrint.red(f"[Scheduler] Handler error ('{thread_info.name}'): {e}")
                 continue
 
         # No handler accepted, requeue
@@ -457,7 +452,7 @@ class HeartbeatPusherThread(threading.Thread):
         This ensures heartbeat continues running while other services are shutting down,
         allowing them to use task queue processing during their cleanup.
         """
-        ColorPrint.yellow("[Heartbeat] Stopping...")
+        ColorPrint.yellow("[Scheduler] Stopping...")
         THREAD_BUS.signal(self._stop_signal, True)
 
     def is_running(self) -> bool:
@@ -542,13 +537,13 @@ class HeartbeatSystem:
             tick_interval: Heartbeat tick interval (default: 1.0s)
         """
         if THREAD_BUS.get_signal(self._running_signal, False):
-            ColorPrint.yellow("[HeartbeatSystem] Already running")
+            ColorPrint.yellow("[Scheduler] Already running")
             return
 
         if tick_interval is not None:
             self._config['tick_interval'] = tick_interval
 
-        ColorPrint.green("[HeartbeatSystem] Starting...")
+        ColorPrint.green("[Scheduler] Starting...")
 
         self._heartbeat_pusher = HeartbeatPusherThread(
             tick_interval=self._config['tick_interval'],
@@ -558,7 +553,7 @@ class HeartbeatSystem:
 
         THREAD_BUS.signal(self._running_signal, True)
 
-        ColorPrint.green("[HeartbeatSystem] Started successfully")
+        ColorPrint.green("[Scheduler] Started successfully")
 
     @serialized_method
     def stop(self):
@@ -566,7 +561,7 @@ class HeartbeatSystem:
         if not THREAD_BUS.get_signal(self._running_signal, False):
             return
 
-        ColorPrint.yellow("[HeartbeatSystem] Stopping...")
+        ColorPrint.yellow("[Scheduler] Stopping...")
 
         if self._heartbeat_pusher:
             self._heartbeat_pusher.stop()
@@ -574,7 +569,7 @@ class HeartbeatSystem:
 
         THREAD_BUS.signal(self._running_signal, False)
 
-        ColorPrint.blue("[HeartbeatSystem] Stopped")
+        ColorPrint.blue("[Scheduler] Stopped")
 
     def is_running(self) -> bool:
         """Read the published runtime state without entering the owner queue."""
@@ -603,7 +598,7 @@ class HeartbeatSystem:
         if self._heartbeat_pusher:
             self._heartbeat_pusher.register_callback(name, callback, interval, enabled)
         else:
-            ColorPrint.yellow("[HeartbeatSystem] Not started, cannot register callback")
+            ColorPrint.yellow("[Scheduler] Not started, cannot register callback")
 
     @serialized_method
     def unregister_callback(self, name: str):
@@ -680,8 +675,8 @@ def initialize_heartbeat_system() -> HeartbeatSystem:
     """
     system = heartbeat_system
 
-    ColorPrint.blue("[Heartbeat] Initialized")
-    ColorPrint.blue("[Heartbeat] Use system.start() to begin operation")
+    ColorPrint.blue("[Scheduler] Initialized")
+    ColorPrint.blue("[Scheduler] Use system.start() to begin operation")
 
     return system
 

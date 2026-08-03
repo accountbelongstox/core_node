@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Support\QueueCenterContract;
+use App\Services\QueueCenter\QueueCenterRealtimeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -60,6 +61,25 @@ class GlobalTask extends Model
         'dict_row_id' => 'integer',
         'sync_to_dict_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::saved(static function (GlobalTask $task): void {
+            app(QueueCenterRealtimeService::class)->publish(
+                'global_task',
+                $task->dict_language,
+                $task->task_id
+            );
+        });
+
+        static::deleted(static function (GlobalTask $task): void {
+            app(QueueCenterRealtimeService::class)->publish(
+                'global_task',
+                $task->dict_language,
+                $task->task_id
+            );
+        });
+    }
 
     /**
      * Global-task vocabulary facade.

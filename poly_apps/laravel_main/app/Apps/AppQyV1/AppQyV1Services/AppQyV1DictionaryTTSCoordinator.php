@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
@@ -403,6 +404,7 @@ class AppQyV1DictionaryTTSCoordinator
             'success' => true,
             'status' => self::STATUS_COMPLETED,
             'audio_path' => $relativePath,
+            'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
         ];
     }
 

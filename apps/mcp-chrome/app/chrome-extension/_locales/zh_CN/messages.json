@@ -1142,7 +1142,7 @@
     "message": "执行单词有效性与翻译任务"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "处理未检查或未翻译的单词，并启用网页 AI 与 Bing 翻译处理器"
+    "message": "从后端单词库拉取未检查或未翻译的单词，并使用 DeepSeek 处理"
   },
   "taskCenterCapability_notebooklm_label": {
     "message": "执行 NotebookLM 生成任务"
@@ -1543,7 +1543,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  正在启动 WXT 开发服务器（监视模式）..."
+    "message": "  正在启动由 Shell 管理的开发监视..."
   },
   "startAutomaticRebuilds": {
     "message": "  文件更改会触发自动重新构建。"

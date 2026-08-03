@@ -19,6 +19,7 @@ Stdlib only: logging / events / shutdown / root path via `.runtime`.
 import os
 import socket
 import time
+import uuid
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -111,6 +112,8 @@ class CodeSyncManager:
         # caller that passes no channel lands in the "_local" channel.
         self._peer_phases: Dict[str, Dict[str, Any]] = {}
         self._sync_logs = []  # ring of recent push/receive events (newest last)
+        self._sync_log_epoch = uuid.uuid4().hex
+        self._sync_log_revision = 0
         # Construct both the receiver and the sender (so the HTTP endpoint and the
         # back-compat surface keep working), but a light client never STARTS the
         # sender supervisor — it neither pushes nor receives code.
@@ -517,11 +520,14 @@ class CodeSyncManager:
         size string and signed byte delta for the richer UI log panel, and
         `peer`/`direction` attribute each entry to the other end and the flow
         ("push" on the dev side, "receive" on the client side)."""
-        entry = {"action": action, "file_path": file_path, "reason": reason,
-                 "details": details, "size": int(size), "diff": int(diff),
-                 "peer": peer or "", "direction": direction or "",
-                 "timestamp": time.time()}
         with self._sync_scope:
+            self._sync_log_revision += 1
+            revision = f"{self._sync_log_epoch}:{self._sync_log_revision}"
+            entry = {"id": revision, "revision": revision,
+                     "action": action, "file_path": file_path, "reason": reason,
+                     "details": details, "size": int(size), "diff": int(diff),
+                     "peer": peer or "", "direction": direction or "",
+                     "timestamp": time.time()}
             self._sync_logs.append(entry)
             if len(self._sync_logs) > self._sync_log_max:
                 self._sync_logs = self._sync_logs[-self._sync_log_max:]
@@ -531,13 +537,44 @@ class CodeSyncManager:
             pass
 
     @serialized_method
-    def get_sync_logs(self, limit: int = 100) -> dict:
-        """Recent push/receive activity for the UI's log panel.
-        (dev 'sent' + client 'received'/'skipped'/'error'), newest last."""
+    def get_sync_logs(
+        self,
+        limit: int = 100,
+        page: int = 1,
+        since_revision: str = "",
+    ) -> dict:
+        """Return one DIFF log page, newest page first and rows oldest first."""
         with self._sync_scope:
+            revision = f"{self._sync_log_epoch}:{self._sync_log_revision}"
+            if since_revision and since_revision == revision:
+                return {"success": True, "revision": revision, "unchanged": True}
             logs = list(self._sync_logs)
+        page_size = max(1, min(int(limit or 100), 100))
+        total = len(logs)
+        page_count = max(1, -(-total // page_size))
+        normalized_page = max(1, min(int(page or 1), page_count))
+        end = max(0, total - ((normalized_page - 1) * page_size))
+        start = max(0, end - page_size)
         return {"success": True, "role": self.role, "phase": self.get_sync_phase(),
-                "logs": logs[-int(limit or 100):]}
+                "revision": revision, "page": normalized_page,
+                "page_size": page_size, "total": total,
+                "logs": logs[start:end]}
+
+    def get_ui_runtime(
+        self,
+        page: int = 1,
+        page_size: int = 100,
+        since_revision: str = "",
+    ) -> dict:
+        """One UI bootstrap exchange for mesh, settings, and one log ID page."""
+        return {
+            "success": True,
+            "data": {
+                "mesh": self.get_peers(),
+                "settings": self.get_sync_settings(),
+                "log_page": self.get_sync_logs(page_size, page, since_revision),
+            },
+        }
 
     def discover(self) -> dict:
         # A client is passive: it never scans the network. LAN discovery is a
@@ -556,16 +593,19 @@ class CodeSyncManager:
     def get_local_peer_status(self) -> dict:
         """Lightweight self status served at /code-sync/peer/status (probed often)."""
         me = self.config.get_self()
+        hostname = socket.gethostname()
+        distributing = self.is_distributing()
+        code_stats = self.local_code_stats()
         watcher_metrics = {}
         summary: Dict[str, Any] = {
             "role": self.role,
-            "distributing": self.is_distributing(),
+            "distributing": distributing,
             "skip_update": self._skip_update,
             "light": self.light,
-            "code": self.local_code_stats(),
+            "code": code_stats,
         }
         try:
-            if self.role == "dev" and self.distributing:
+            if self.role == "dev" and distributing:
                 summary["clients"] = int(
                     self.push_sender.get_status().get("connected_clients", 0)
                 )
@@ -579,15 +619,15 @@ class CodeSyncManager:
             watcher_metrics = get_watch_manager().get_metrics()
         return {
             "id": self.config.machine_id,
-            "name": me.get("name") or socket.gethostname(),
+            "name": me.get("name") or hostname,
             "role": self.role,
-            "hostname": socket.gethostname(),
+            "hostname": hostname,
             "lan_ip": _local_lan_ip(),
-            "distributing": self.is_distributing(),
+            "distributing": distributing,
             "skip_update": self._skip_update,
             "light": self.light,
             "config_version": self.config.version(),
-            "code": self.local_code_stats(),
+            "code": code_stats,
             "watch_root": str(self.sync_target_root()),
             "watch_dirs": self.watch_dirs(),
             "sync_phase": self.get_sync_phase(),

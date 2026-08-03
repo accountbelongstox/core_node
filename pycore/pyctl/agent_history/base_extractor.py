@@ -125,6 +125,7 @@ class BaseExtractor(ABC):
             "started_ts": first,
             "started_at": datetime.fromtimestamp(first).strftime("%Y-%m-%d %H:%M:%S") if first > 0 else "",
             "ended_at": datetime.fromtimestamp(last).strftime("%Y-%m-%d %H:%M:%S") if last > 0 else "",
+            "ended_ts": last,
             "prompt_count": len(parts.get("prompts") or []),
             "message_count": len(parts.get("turns") or []),
             "has_subagent": bool(parts.get("hasSubagent")),

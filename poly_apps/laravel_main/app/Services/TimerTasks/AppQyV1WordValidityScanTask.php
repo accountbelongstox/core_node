@@ -3,7 +3,6 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 
@@ -26,18 +25,11 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider
  * (sys:init wires it in). Default OFF — flip APPQYV1_VALIDITY_SCAN=true to enable.
  */
-class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
+class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 {
     private const PRIORITY_LOW = 0;
     private const WORDS_PER_TASK = 200;
     private const MAX_RETRIES = 3;
-
-    private $taskManager;
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-    }
 
     public function getName(): string
     {
@@ -69,13 +61,44 @@ class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
                 continue;
             }
 
-            $words = $this->untranslatedUncheckedWords($langCode, self::WORDS_PER_TASK);
-            if (empty($words)) {
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
+            $scope = 'word_validity:' . $langCode . ':' . $model->getTable();
+            $page = $this->rowsForPendingPage(
+                $scope,
+                $model->newQuery(),
+                self::WORDS_PER_TASK,
+                static function (array $ids) use ($model): array {
+                    return $model->newQuery()
+                        ->whereIn('id', $ids)
+                        ->where('has_translation', false)
+                        ->whereNull('validity_checked_at')
+                        ->orderByDesc('query_count')
+                        ->get(['id', 'content', 'md5'])
+                        ->map(static fn ($row): array => [
+                            'word' => (string) ($row->content ?? ''),
+                            'md5' => (string) ($row->md5 ?? ''),
+                        ])
+                        ->filter(static fn (array $row): bool => $row['word'] !== '')
+                        ->values()
+                        ->all();
+                }
+            );
+            if ($page['rows'] === [] && ($page['page'] ?? 0) === 0) {
                 continue;
             }
 
-            $this->createTask($langCode, $words);
-            $totalCreated++;
+            try {
+                if ($page['rows'] !== []) {
+                    $this->createTask($langCode, $page['rows']);
+                    $totalCreated++;
+                }
+                $this->consumePendingPage($scope, $page);
+            } catch (\Throwable $e) {
+                $this->logWarning('Background word_validity page failed', [
+                    'language' => $langCode,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
 
         if ($totalCreated > 0) {
@@ -83,32 +106,6 @@ class AppQyV1WordValidityScanTask extends OctaneTimerTaskAbstract
                 'total_tasks' => $totalCreated,
             ]);
         }
-    }
-
-    /**
-     * Untranslated, not-yet-validity-checked words, ranked by query_count.
-     * Returns [{word, md5}] — md5 rides through so the writeback keys on the
-     * STORED md5 (never md5($returnedWord), which an LLM re-casing would miss).
-     */
-    private function untranslatedUncheckedWords(string $langCode, int $limit): array
-    {
-        $out = [];
-        $rows = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('has_translation', false)
-            ->validityUnchecked()
-            ->orderByDesc('query_count')
-            ->limit($limit)
-            ->get(['content', 'md5']);
-
-        foreach ($rows as $row) {
-            $word = $row->content ?? null;
-            if (!is_string($word) || $word === '') {
-                continue;
-            }
-            $out[] = ['word' => $word, 'md5' => $row->md5 ?? md5($word)];
-        }
-
-        return $out;
     }
 
     private function countPendingForLanguage(string $langCode): int

@@ -99,12 +99,8 @@ def assist_callback_states(
     subtitle = enabled and bool(capabilities.get("subtitle"))
     stt = enabled and bool(capabilities.get("stt"))
     translation_worker = translation or ai_translate or subtitle or stt
-    transport = translation_worker or word_audio or sentence_audio
     return {
         "translation_worker": translation_worker,
-        "translation_queue_monitor": translation or ai_translate,
-        "translation_http_event_client": transport,
-        "sentence_queue_monitor": sentence_audio,
         "tts_queue_poller": word_audio,
         "tts_sentence_worker": sentence_audio,
         "subtitle_search_worker": subtitle,

@@ -32,7 +32,7 @@ import {
   ViewType
 } from '../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
-import { apiManager } from '../../apps/laravel-manager/services/ApiManager';
+import { apiManager } from '../../core/api-libs/laravel/ApiManager';
 import { CenteredPage, CenteredTabBar } from '../shared';
 import { TRANSLATIONS } from '../../constants';
 import { useAppState } from '../../contexts/AppStateContext';

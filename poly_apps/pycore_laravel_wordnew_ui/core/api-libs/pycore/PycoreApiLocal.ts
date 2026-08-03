@@ -1,8 +1,8 @@
 /**
- * Local bridge / queue / translate / subtitle / vocab HTTP surface for pycoreApi.
+ * Local runtime, queue-worker, translation, and subtitle surface for pycoreApi.
  */
 import type {
-  LocalTaskDetailResponse, PycoreGlobalTaskDetailResponse,
+  LocalTaskDetailResponse,
   AssistConfigPatch,
   TranslateStatus, TranslateResponse, TranslateAiResponse,
   SubtitleSearchStatus, SubtitleSearchProbe, SubtitleSearchOptions, SubtitleSearchResponse,
@@ -15,45 +15,25 @@ import type {
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   AgentHistoryArticleRecordsResponse,
   AgentHistoryTestExtractResponse,
-  PcQueueOverview, PcCapabilitySettings, PcCapabilityKey,
-  PcTaskCenterResponse, QueueCenterControlName, QueueCenterControlResponse,
-  QueueCenterSnapshot,
+  AgentHistorySessionIdPagesResponse, AgentHistorySessionPageResponse,
+  AgentHistoryPromptIdPagesResponse, AgentHistoryPromptPageResponse,
+  AgentHistoryArticleRecordIdPagesResponse, AgentHistoryArticleRecordPageResponse,
+  PcCapabilitySettings, PcCapabilityKey,
+  QueueCenterControlName, QueueCenterControlResponse,
   PcCapabilitySaveResponse, PcCapabilityOptions,
-  PcTaskRecentResponse, PcTaskClearResponse, PcCompletedTaskArchiveResponse,
-  PcCompletedTaskSyncResponse,
-  SentenceVoiceVariant,
+  PcTaskRecentResponse, PcTaskClearResponse,
   AutostartStatus, AutostartTarget,
 } from './pycoreTypes';
-import type {
-  VocabTranslateRequest,
-  VocabTtsGenerateRequest,
-} from './PycoreVocabTypes';
 import {
   requestPycoreHttp, PYCORE_HTTP_ROUTES,
 } from './PycoreApiTransport';
-import { GLOBAL_TASK_LIMITS } from './QueueCenterContract';
+import { GLOBAL_TASK_LIMITS } from '../../contracts/QueueCenterContract';
+import type { GlobalTaskWorkerRecord } from '../../contracts/QueueCenterContract';
 
 export const pycoreApiLocal = {
-  // --- translation queue (Laravel pending queue, steered via pycore) ------ #
-  queueTranslation: (refresh = false) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueSnapshot, { refresh: refresh ? 1 : 0 }),
-  setQueuePriority: (task_id: string, priority: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueSetPriority, { task_id, priority }),
-  stackQueue: (words: string[], language: string, target_language: string, priority?: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueStack,
-      { words, language, target_language, ...(priority != null ? { priority } : {}) }),
-
   /** Full pyctl TaskManager record — Task Queue tab detail modal. */
   getLocalTaskDetail: (taskId: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetLocalTaskDetail, { task_id: taskId }) as Promise<LocalTaskDetailResponse>,
-
-  /** Laravel global_tasks row — proxied via QueueMonitorService (UI-selected Laravel base). */
-  getTranslationTaskDetail: (taskId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.translationQueueGetTaskDetail, { task_id: taskId }),
-
-  /** Richer Laravel bundle (task + events + phase) — task-center detail proxy. */
-  getRemoteGlobalTaskDetail: (taskId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetRemoteTaskDetail, { task_id: taskId }) as Promise<PycoreGlobalTaskDetailResponse>,
 
   // --- Pycore → Laravel queue capability control plane ------------------- #
   // Status includes the worker loop state, circuit breaker, counters and the
@@ -61,10 +41,19 @@ export const pycoreApiLocal = {
   // the provided fields change). Cycle runs one claim→process→submit pass now.
   getAssistStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistStatus, {}),
-  setAssistConfig: (config: AssistConfigPatch) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistConfig, config),
-  runAssistCycle: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistCycle, {}),
+  setAssistConfig: (config: AssistConfigPatch, laravelEndpoint?: string | null) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistConfig, {
+      ...config,
+      laravel_endpoint: laravelEndpoint ?? null,
+    }),
+  runAssistCycle: (laravelEndpoint: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistAssistCycle, {
+      laravel_endpoint: laravelEndpoint,
+    }),
+  bindLaravelWorkerEndpoint: (laravelEndpoint: string) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.assistBindLaravelEndpoint, {
+      laravel_endpoint: laravelEndpoint,
+    }),
 
   // --- Recent tasks (unified cross-end task history: pycore + chrome) ------- #
   // Newest-first log of finished task units across both ends, with roll-up
@@ -72,26 +61,14 @@ export const pycoreApiLocal = {
   // the FE also filters client-side for the chip UI. Clear wipes the ring + the
   // on-disk text log.
   getRecentTasks: (params: { limit?: number; end?: string; worker?: string; task_type?: string } = {}) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetRecentTasks, {
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetRecentLocalTasks, {
       limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
       end: params.end,
       worker: params.worker,
       task_type: params.task_type,
     }) as Promise<PcTaskRecentResponse>,
   clearRecentTasks: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
-  getCompletedTasks: (params: { limit?: number; offset?: number; task_type?: string } = {}) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryGetCompletedArchive, {
-      limit: params.limit ?? GLOBAL_TASK_LIMITS.completed,
-      offset: params.offset ?? 0,
-      task_type: params.task_type,
-    }) as Promise<PcCompletedTaskArchiveResponse>,
-  syncCompletedTasks: (params: { limit?: number; cursor_id?: number; task_type?: string } = {}) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistorySyncCompletedArchive, {
-      limit: params.limit ?? GLOBAL_TASK_LIMITS.history_records,
-      cursor_id: params.cursor_id ?? 0,
-      task_type: params.task_type,
-    }) as Promise<PcCompletedTaskSyncResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
   getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
     const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCompletedArchiveResource, {
       cache_key: cacheKey,
@@ -188,29 +165,6 @@ export const pycoreApiLocal = {
   testWordAudio: (word: string, lang = 'en') =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioTest, { word, lang }) as Promise<WordAudioTestResponse>,
 
-  // Move a word to the front of Laravel's canonical audio queue and wake the
-  // dedicated Pycore word-audio worker.
-  boostWordAudioPriority: (md5: string, lang: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioBoostPriority, { md5, lang }) as Promise<
-      { success: boolean; laravel_updated?: boolean; error?: string }
-    >,
-  boostWordAudioPriorities: (items: Array<{ md5: string; lang: string }>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioBoostPriorityBatch, { items }) as Promise<
-      { success: boolean; count: number; results?: Array<Record<string, unknown>>; error?: string }
-    >,
-  prioritizeWordImages: (items: Array<{ word: string; language: string }>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeWordImages, { items }) as Promise<
-      { success: boolean; count?: number; error?: string }
-    >,
-  prioritizeCovers: (ids: number[], all = false) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizeCovers, { ids, all }) as Promise<
-      { success: boolean; reset?: number; priority?: number; error?: string }
-    >,
-  prioritizePosters: (items: Array<{ media_type: 'book' | 'subtitle'; id: number }>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queuePriorityPrioritizePosters, { items }) as Promise<
-      { success: boolean; promoted?: number; error?: string }
-    >,
-
   // --- translate history (Google / AI translate usage records) ------------ #
   getTranslateHistory: (limit = 50) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.translateHistory, { limit }) as Promise<TranslateHistoryResponse>,
@@ -231,6 +185,47 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPrompts, params ?? {}) as Promise<AgentHistoryPromptsResponse>,
   getAgentHistorySession: (id: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistorySessionDetail, { session_id: id, id }) as Promise<AgentHistorySessionResponse>,
+  // --- Agent history DIFF reads (ID page tables + lazy materialization) --- #
+  // ID pages carry IDs + status metadata only, aligned by `revision`; pass
+  // `sinceRevision` from the cached page table to skip re-shipping unchanged
+  // tables. Page routes materialize full rows for the visible page only.
+  getAgentHistorySessionIdPages: (params: {
+    tool?: string; user?: string; q?: string;
+    page?: number; pageSize?: number; sinceRevision?: string;
+  } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistorySessionIdPages, {
+      tool: params.tool,
+      user: params.user,
+      q: params.q,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+      since_revision: params.sinceRevision ?? '',
+    }) as Promise<AgentHistorySessionIdPagesResponse>,
+  getAgentHistorySessionPage: (ids: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistorySessionPage, { ids }) as Promise<AgentHistorySessionPageResponse>,
+  getAgentHistoryPromptIdPages: (params: {
+    tool?: string; user?: string; q?: string; tools?: string[];
+    page?: number; pageSize?: number; sinceRevision?: string;
+  } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptIdPages, {
+      tool: params.tool,
+      user: params.user,
+      q: params.q,
+      tools: params.tools,
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+      since_revision: params.sinceRevision ?? '',
+    }) as Promise<AgentHistoryPromptIdPagesResponse>,
+  getAgentHistoryPromptPage: (ids: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryPromptPage, { ids }) as Promise<AgentHistoryPromptPageResponse>,
+  getAgentHistoryArticleRecordIdPages: (params: { page?: number; pageSize?: number; sinceRevision?: string } = {}) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleRecordIdPages, {
+      page: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+      since_revision: params.sinceRevision ?? '',
+    }) as Promise<AgentHistoryArticleRecordIdPagesResponse>,
+  getAgentHistoryArticleRecordPage: (ids: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleRecordPage, { ids }) as Promise<AgentHistoryArticleRecordPageResponse>,
   refreshAgentHistory: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRefresh, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
@@ -239,10 +234,15 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryUpdatePrompt, { id, text }) as Promise<
       { success: boolean; data?: { id: string; text: string; edited: boolean }; error?: string | null }
     >,
-  getAgentHistoryArticleConfig: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigGet, {}) as Promise<
-      { success: boolean; data?: Record<string, unknown>; error?: string | null }
-    >,
+  getAgentHistoryRuntime: () =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet, {}) as Promise<{
+      success: boolean;
+      data?: {
+        article_config?: Record<string, unknown>;
+        operation_snapshot?: Record<string, unknown> | null;
+      };
+      error?: string | null;
+    }>,
   saveAgentHistoryArticleConfig: (body: Record<string, unknown>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigPost, body) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
@@ -264,27 +264,6 @@ export const pycoreApiLocal = {
   /** Probe one tool: parse its newest history source and return the latest prompt. */
   testAgentHistoryToolExtract: (tool: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryTestExtract, { tool }) as Promise<AgentHistoryTestExtractResponse>,
-  /** Fetch article audio as a data: URL via HTTP (base64 + MIME). */
-  getAgentHistoryArticleAudioDataUrl: async (recordId: string | number): Promise<string> => {
-    const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleAudio, {
-      record_id: String(recordId),
-      id: String(recordId),
-    }) as { success?: boolean; data?: { mime?: string; audio_base64?: string }; error?: string };
-    if (!res?.success || !res.data?.audio_base64) {
-      throw new Error(res?.error || 'Audio not found');
-    }
-    const mime = res.data.mime || 'audio/mpeg';
-    return `data:${mime};base64,${res.data.audio_base64}`;
-  },
-  // --- Queue Center: unified overview (contract A) ------------------------ #
-  // pycore is the hub: it fans out to the selected Laravel endpoint for the
-  // per-category counts + worker registry and merges its own engine status. All
-  // Every category in config/queue_center_contract.json is always present;
-  // laravel_reachable:false
-  // means the counts are zeroed but the categories + local engines still report.
-  getQueueOverview: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueOverviewGetQueueOverview, {}) as Promise<PcQueueOverview>,
-
   // --- Sentence-audio auto-start (Queue Center strip) --------------------- #
   getSentenceAudioAutoStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioStatus, {}),
@@ -293,33 +272,19 @@ export const pycoreApiLocal = {
   // Backend config model requires auto_start, so the current value goes along.
   setSentenceAudioConcurrency: (concurrency: number, autoStart: boolean) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, { auto_start: autoStart, concurrency }),
-  runSentenceAudioOnce: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioRunOnce, {}),
-  getSentenceAudioQueue: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioQueueSnapshot, {}),
-
-  // --- Sentence-audio voice variants (per-language accent/gender specs) ----- #
-  // The UI calls pycore through HTTP API. Pycore may use Laravel HTTP internally
-  // to read, replace, or remove variant specs.
-  getSentenceVoiceVariants: async (lang: string): Promise<SentenceVoiceVariant[]> => {
-    const r = await requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsIndex, { lang }) as {
-      success: boolean; specs: SentenceVoiceVariant[];
-    };
-    return r?.specs ?? [];
-  },
-  saveSentenceVoiceVariants: (
-    lang: string,
-    specs: Array<{ variant_key: string; accent: string | null; gender: string; is_primary: boolean }>,
-  ) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsStore, { lang, specs }) as Promise<
-      { success: boolean; specs: SentenceVoiceVariant[] }
-    >,
-  deleteSentenceVoiceVariant: (lang: string, variant_key: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioVariantsDestroy, { lang, variant_key }) as Promise<
-      { success: boolean }
-    >,
-  getQueueBumps: (limit = 30) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueBumpsListBumps, { limit }),
+  setSentenceAudioRuntimeConfig: (config: {
+    auto_start: boolean;
+    concurrency?: number;
+    speaker?: string;
+  }) => requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, config),
+  /**
+   * UI-pump dispatch entry: hands ONE claimed task payload to pycore
+   * (in-memory only, never persisted by pycore). Pycore routes it by
+   * task_type/capability to the owning worker lane, processes it, and
+   * uploads the result straight to Laravel; the pump awaits this RPC.
+   */
+  acceptQueueCenterTask: (payload: { task: GlobalTaskWorkerRecord; laravel_endpoint?: string | null }) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAcceptTask, payload),
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),
@@ -345,18 +310,7 @@ export const pycoreApiLocal = {
   // Backend config model requires auto_start, so the current value goes along.
   setWordTtsConcurrency: (concurrency: number, autoStart: boolean) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsConfig, { auto_start: autoStart, concurrency }),
-  runWordTtsOnce: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.wordTtsRunOnce, {}),
 
-  // --- Heartbeat workers overview (Queue Center worker strip) ------------- #
-  getHeartbeatWorkersStatus: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.heartbeatWorkersStatus, {}),
-  setHeartbeatWorkerConfig: (callbackName: string, enabled: boolean) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.heartbeatWorkersConfig, { callback_name: callbackName, enabled }),
-  getTaskCenter: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGet, {}) as Promise<PcTaskCenterResponse>,
-  getQueueCenterSnapshot: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskCenterGetQueueCenterSnapshot, {}) as Promise<QueueCenterSnapshot>,
   setQueueCenterControl: (
     control: QueueCenterControlName,
     enabled: boolean,
@@ -364,6 +318,7 @@ export const pycoreApiLocal = {
       requested_by?: string | null;
       reason?: string | null;
       graceful_stop?: boolean;
+      laravel_endpoint?: string | null;
       /** Dedicated short timeout for toggles (default 8s). */
       timeoutMs?: number;
     },
@@ -374,18 +329,8 @@ export const pycoreApiLocal = {
       requested_by: options?.requested_by ?? null,
       reason: options?.reason ?? null,
       graceful_stop: options?.graceful_stop ?? false,
+      laravel_endpoint: options?.laravel_endpoint ?? null,
     }, options?.timeoutMs ?? 8_000) as Promise<QueueCenterControlResponse>,
-  getWordAudioMediaDataUrl: async (word: string, language = 'en'): Promise<string> => {
-    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.wordAudioWordAudioMedia, {
-      word,
-      language,
-    }) as { success?: boolean; media_type?: string; content_base64?: string; error?: string };
-    if (!response?.success || !response.content_base64) {
-      throw new Error(response?.error || 'Word audio not found');
-    }
-    return `data:${response.media_type || 'audio/mpeg'};base64,${response.content_base64}`;
-  },
-
   // --- Queue Center: capability settings (contract B) --------------------- #
   // Read all four capability blocks (priority + availability + options).
   getCapabilitySettings: () =>
@@ -417,65 +362,5 @@ export const pycoreApiLocal = {
   // preference, so a bare enable keeps the historical behavior.
   setAutostart: (enabled: boolean, target?: AutostartTarget, mechanism?: string) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.controlSetAutostart, { enabled, target, mechanism }) as Promise<AutostartStatus>,
-
-  // --- Vocabulary service proxy ------------------------------------------- #
-  // Pure passthrough for the shared backend vocabulary contract.
-  getVocabTranslationLanguages: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationLanguages, {}),
-  translateVocab: (payload: VocabTranslateRequest) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationTranslate, payload),
-  queueVocabTranslationBatch: (payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTranslationQueueBatchAdd, payload),
-  generateVocabTts: (payload: VocabTtsGenerateRequest) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsGenerate, payload),
-  queueVocabTtsBatchQuery: (items: Record<string, unknown>[]) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueBatchQuery, { items }),
-  getVocabSentenceAudio: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsSentenceAudio, params),
-  getVocabTtsQueueStats: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueStats, {}),
-  getVocabTtsQueueItems: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabTtsQueueItems, params),
-  getVocabAssistOverview: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabAssistOverview, {}),
-  getVocabAssistOverviewItems: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabAssistOverviewItems, params),
-  retryVocabCover: (payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabCoverRetry, payload),
-  getVocabLibraries: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLibraries, params),
-  getVocabResourceDataUrl: async (url: string): Promise<string> => {
-    const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyResource, { url }) as {
-      success?: boolean; content_base64?: string; mime?: string;
-    };
-    return response?.success && response.content_base64
-      ? `data:${response.mime || 'application/octet-stream'};base64,${response.content_base64}`
-      : '';
-  },
-  getVocabLibraryWords: (libraryId: number, params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLibraryWords, { library_id: libraryId, ...params }),
-  deleteVocabLibrary: (libraryId: number) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDeleteLibrary, { library_id: libraryId }),
-  getVocabStatistics: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabStatistics, params),
-  getVocabLanguageBreakdown: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabLanguageBreakdown, params),
-  getVocabDictionaryWords: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDictionaryWords, params),
-  createVocabDictionaryWord: (payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabCreateDictionaryWord, payload),
-  // Updates remain HTTP API; pycore chooses the required Laravel HTTP verb.
-  updateVocabDictionaryWord: (md5: string, payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabUpdateDictionaryWord, { md5, ...payload }),
-  deleteVocabDictionaryWord: (md5: string, params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDeleteDictionaryWord, { md5, ...params }),
-  batchVocabDictionaryWords: (payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabBatchDictionaryWords, payload),
-  getVocabDictionarySentences: (params: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabDictionarySentences, params),
-  reportVocabValidity: (payload: Record<string, unknown>) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabValidityReport, payload),
-  getVocabStorageSummary: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyVocabStorageSummary, {}),
 
 };

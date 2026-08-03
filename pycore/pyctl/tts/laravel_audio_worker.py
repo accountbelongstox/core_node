@@ -1,26 +1,21 @@
 # -*- coding: utf-8 -*-
 """
-Laravel-pulled TTS audio workers (word_audio + sentence_audio).
+Dispatch-driven TTS audio workers (word_audio + sentence_audio).
 
-These two singleton workers replace the retired domain-claim workers
-(``word_queue_poller_service.py`` / ``sentence_worker_service.py``): instead of
-claiming rows through the dedicated ``/ai_tools/tts/worker/claim`` and
-``/ai_tools/tts/sentence/claim`` endpoints, they claim global_tasks through the
-generic worker API (``/api/worker/tasks/{taskType}/pull`` with long-poll) exactly like the
-translation worker, synthesize locally with the shared TTS orchestrator, upload
-the MP3 through the EXISTING report endpoints, and complete the global task.
+Exchange-hub architecture (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
+pycore is a compute-only end. These two singleton workers no longer pull,
+claim, or heartbeat Laravel — the UI pump accepts tasks from Laravel directly
+and dispatches the payloads to pycore over RPC (``accept_task``). The worker
+synthesizes locally with the shared TTS orchestrator, then uploads the result
+through the EXISTING report endpoints and completes the global task — the ONLY
+remaining pycore -> Laravel traffic (result upload exemption).
 
 ------------------------------------------------------------------------------
-Laravel contract (laravel_main queue center — Phase A)
+Laravel contract (result upload only)
 ------------------------------------------------------------------------------
-  Claim:   GET  /api/worker/tasks/{taskType}/pull?worker_id=&wait=30   (long-poll)
-           word lane:     processor_types [remote_audio, remote_fast],
-                          capability "audio"          (task_type word_audio)
-           sentence lane: processor_types [remote_sentence_audio, remote_fast],
-                          capability "sentence_audio" (task_type sentence_audio)
   Result:  POST /api/worker/tasks/{taskType}/result   (processing/completed/failed)
 
-  Task payloads (global_task.payload):
+  Task payloads (global_task.payload, delivered by the UI pump):
     word_audio:     {word, content(alias), language, md5, audio_relative_path,
                      accent?, dict_row_id?}
     sentence_audio: {text, content(alias), language, content_id, variant_key?,
@@ -46,26 +41,20 @@ Laravel contract (laravel_main queue center — Phase A)
   even when a domain report endpoint cannot be addressed.
 
 ------------------------------------------------------------------------------
-Architecture (mirrors translation worker + retired TTS worker conventions)
+Architecture (compute-only kernel)
 ------------------------------------------------------------------------------
-  * Singleton per lane on top of BaseLaravelWorkerService (pull with inline
-    worker identity / result with retry + circuit breaker + conn-fail
-    single-hint logging).
-  * The heartbeat callback (poll_and_process) stays LIGHT: it hands ONE
-    claim+drain cycle to a background bus thread (non-reentrant via a
-    THREAD_BUS signal). Pulled tasks are merged into ONE shared priority heap
-    (server returns priority DESC; the heap preserves that across batches);
-    serial engines drain on one lane, parallel-safe engines fan out to bounded
-    lanes via map_bus_tasks (retired-worker pattern).
+  * Singleton per lane on top of BaseLaravelWorkerService (result upload with
+    retry + circuit breaker).
+  * accept_task() (RPC entry) records the task type/endpoint, pushes the task
+    into ONE shared priority heap, and starts ONE background drain cycle
+    (non-reentrant via a THREAD_BUS signal). Serial engines drain on one lane,
+    parallel-safe engines fan out to bounded lanes via map_bus_tasks
+    (retired-worker pattern).
   * Local caches are honored BEFORE synthesis: word cache
     (pyutils/tts/word_audio_cache.py) and the persistent sentence cache
     (<app_cache>/sentence_audio/<lang>/<content_id>[_variant].mp3 — the local
     retained copy, never deleted). Fresh output is validated with the shared
     validate_mp3 mirror of the server checks and saved to the cache.
-  * Bump wakes (SSE word_audio.priority / sentence.priority routed by
-    pyctl/translation/http_event_client_service.py, and the queue-priority
-    commands) call prioritize_word / notify_bump / notify_batch_bump, which
-    re-key the local heap where possible and spawn an immediate cycle.
   * Logging only via ColorPrint. Networking via laravel_client (lazy
     third-party requests). All imports at file top (PYTHON_PYCORE.md).
 """
@@ -84,7 +73,6 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
-    init_serialized_owner,
     map_bus_tasks,
     serialized_method,
     start_bus_task,
@@ -92,22 +80,20 @@ from pycore.pyfoundations.serialized_worker import (
 # Rule §4: all inter-thread data exchange goes through the global bus.
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-# Live enable flag (the UI toggle lives on the heartbeat callback).
-from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 # Unified pycore->Laravel HTTP gateway (times + logs + records every request).
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
-    TTS_SENTENCE_WORKER_BATCH,
+    PYCORE_WORKER_INSTANCE,
     TTS_SENTENCE_WORKER_CONCURRENCY,
-    TTS_WORKER_BATCH,
     TTS_WORKER_CONCURRENCY,
 )
-from pycore.pyutils.common.endpoint_scoped_cache import EndpointScopedCache
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_CAPABILITIES_BY_ROLE,
     GLOBAL_TASK_EXECUTION_TYPES_BY_ROLE,
+    GLOBAL_TASK_PROGRESS_STAGES,
     GLOBAL_TASK_TYPES_BY_KEY,
+    QUEUE_CENTER_DIFF_DELIVERY,
     task_execution_type,
 )
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
@@ -125,23 +111,15 @@ from pycore.pyutils.tts.tts_concurrency import (
 )
 from pycore.pyutils.tts.word_audio_cache import get_cache_path, save_to_cache
 from pycore.pyutils.tts.audio_validation import validate_mp3
+from pycore.pyutils.tts.qwen.config import ENGINE_NAME as QWEN3TTS_ENGINE
 from pycore.pyutils.tts.sentence_priority_queue import SentencePriorityQueue
 
 
 # --------------------------------------------------------------------------- #
 # Constants                                                                    #
 # --------------------------------------------------------------------------- #
-# Long-poll hold for /api/worker/tasks/{taskType}/pull (contract long_poll_seconds: 30).
-_LONG_POLL_SECONDS = 30
-
 # Report uploads carry a small MP3; give them room (retired-worker value).
 _REPORT_TIMEOUT = 60
-_QUEUE_OVERVIEW_TIMEOUT = 10
-
-# ONE shared /api/queue-center/overview cache for BOTH lanes (word + sentence):
-# the payload is global, so a single 30s cache replaces the per-caller private
-# caches that fetched the same endpoint twice per Queue Center snapshot.
-_QUEUE_OVERVIEW_CACHE = EndpointScopedCache(ttl_s=30.0, stale_max_s=300.0)
 
 # Hard caps so a stuck engine fails the task and frees the lane instead of
 # wedging the cycle thread forever (_cycle_signal would never clear otherwise).
@@ -151,13 +129,26 @@ _TASK_TIMEOUT_GRACE_SECONDS = 30.0
 # Bound for ONE parallel synth-lane wait (map_bus_tasks timeout).
 _SYNTH_LANE_TIMEOUT_SECONDS = 300.0
 
-# Server hard cap on a claim batch (contract: limit <= 50). Status display only —
-# the generic pull API sizes the batch server-side.
-_MAX_BATCH = 50
-
 # TTL for the cached engine probe (tts_status() probes EVERY engine; far too
 # expensive per task). Retired-worker value.
 _ENGINE_PROBE_TTL_S = 60.0
+
+_SENTENCE_CONCURRENCY_LIMIT = max(
+    1,
+    int(QUEUE_CENTER_DIFF_DELIVERY["consumer_batch_limits"]["sentence_audio"]),
+)
+_SENTENCE_TASK_TIMEOUT_SECONDS = max(
+    1,
+    int(QUEUE_CENTER_DIFF_DELIVERY["consumer_task_timeout_seconds"]["sentence_audio"]),
+)
+_UPLOAD_RETRY_INITIAL_SECONDS = max(
+    1.0,
+    float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["initial_seconds"]),
+)
+_UPLOAD_RETRY_MAX_SECONDS = max(
+    _UPLOAD_RETRY_INITIAL_SECONDS,
+    float(QUEUE_CENTER_DIFF_DELIVERY["consumer_upload_retry"]["maximum_seconds"]),
+)
 
 # Report task_id codec — MUST mirror
 # AppQyV1DictionaryTTSCoordinator::encodeTaskId (append-only registries).
@@ -203,14 +194,13 @@ def _run_single_claimed(payload: Dict[str, Any]) -> bool:
 
 
 class BaseLaravelAudioWorker(BaseLaravelWorkerService):
-    """Shared word/sentence audio worker on the generic Laravel worker API.
+    """Shared word/sentence audio worker (dispatch-driven, result upload only).
 
     Lane-specific config lives in class attributes; the two concrete singletons
-    at the bottom differ ONLY in those attributes. Lifecycle per heartbeat tick
-    (when enabled):
-      poll_and_process() -> spawn ONE background cycle thread (skipped while the
-      previous cycle runs) -> long-poll pull with identity -> push all
-      tasks into the shared priority heap -> drain by priority (one serial lane
+    at the bottom differ ONLY in those attributes. Lifecycle:
+      accept_task() (RPC entry) -> record type/endpoint + push the task into
+      the shared priority heap -> start ONE background drain cycle (skipped
+      while the previous cycle runs) -> drain by priority (one serial lane
       or bounded parallel lanes) -> per task: cache check -> synthesize ->
       validate -> domain report upload -> global task result.
     """
@@ -221,7 +211,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     CAPABILITY = "audio"
     EXTRA_TASK_TYPES: Tuple[str, ...] = ()
     PRIORITY_PROFILE = "word"
-    HEARTBEAT_CALLBACK = "tts_queue_poller"
+    REQUIRED_ENGINE: Optional[str] = None
     ASSIST_CAPABILITY = "tts"
     WORKER_ID_PREFIX = "pycore"
     WORKER_NAME_TAG = "word-audio"
@@ -230,8 +220,10 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     STATE_OWNER_NAME = "WordAudioWorkerState"
     STATE_OWNER_TIMEOUT = 180.0
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
-    BATCH_DEFAULT = TTS_WORKER_BATCH
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
+    CONCURRENCY_LIMIT = 8
+    TASK_TIMEOUT_MIN_SECONDS = 0
+    BOUNDED_PROCESSING = True
 
     def __init__(self, laravel_api_url: str = ""):
         """Initialize the worker (idempotent — safe to call repeatedly)."""
@@ -239,35 +231,22 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             return
 
         # Shared Laravel-worker scaffold (candidates, api_url, worker_id,
-        # registration/conn-fail/circuit/inflight state, _http_timeout).
+        # circuit/inflight state).
         self._init_base_laravel(laravel_api_url or LARAVEL_WORKER_API_URL)
         self.worker_name = f"pycore-{self.WORKER_NAME_TAG}-{self.worker_id}"
         self._log_prefix = self.LOG_PREFIX
 
-        # Batch/concurrency remain deployment defaults; lifecycle comes from the
-        # live user-settings map and its heartbeat callback.
-        self.batch_size = max(1, min(_MAX_BATCH, self.BATCH_DEFAULT))
         # 0 = use the per-engine recommended value (pyutils/tts/tts_concurrency).
         self._concurrency = max(0, self.CONCURRENCY_DEFAULT)
+        self._speaker = ""
 
-        # ONE shared priority queue across ALL pull batches (retired §5.3 model):
-        # a high-priority task pulled later still outranks lower-priority leftovers.
+        # ONE shared priority queue across ALL dispatched tasks: a high-priority
+        # task dispatched later still outranks lower-priority leftovers.
         self._queue = SentencePriorityQueue()
 
-        # ONE cycle at a time; lifecycle state is exchanged through THREAD_BUS.
+        # ONE drain cycle at a time; lifecycle state is exchanged through THREAD_BUS.
         self._cycle_signal = f"laravel_audio_worker.cycle_running.{self.LANE}"
         THREAD_BUS.signal(self._cycle_signal, False)
-        # Set when a wake arrives mid-cycle; the cycle finally-block starts ONE
-        # follow-up cycle so the wake is not dropped behind the next heartbeat.
-        self._repoll_signal = f"laravel_audio_worker.repoll_needed.{self.LANE}"
-        THREAD_BUS.signal(self._repoll_signal, False)
-
-        # Last advertised lane set (the pull refreshes it on success).
-        self._advertised_processor_types: Optional[List[str]] = None
-        self._advertised_capabilities: Optional[List[str]] = None
-        # Fast-lane counters parsed from pull/heartbeat bodies.
-        self._pending_fast = 0
-        self._pending_urgent = 0
 
         # Engine probe cache (60s TTL) — see _planned_engine().
         self._engine_probe_cache: Optional[str] = None
@@ -292,7 +271,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         self._initialized = True
         ColorPrint.green(
             f"{self._log_prefix} Service initialized (worker_id={self.worker_id}, "
-            f"batch={self.batch_size}, "
             f"enabled={assist_capability_enabled(self.ASSIST_CAPABILITY)})"
         )
 
@@ -302,14 +280,14 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _build_worker_id(cls) -> str:
         """Stable, hostname-based worker id (per-lane prefix).
 
-        Laravel keys claims/heartbeats by worker_id; two pycore processes on the
-        SAME host should set PYCORE_WORKER_INSTANCE (same env the translation
-        worker honours) so their ids do not collide.
+        Laravel keys claims/heartbeats by worker_id. Configure
+        PYCORE_WORKER_INSTANCE when multiple pycore processes share one host so
+        their ids do not collide.
         """
         prefix = getattr(cls, "WORKER_ID_PREFIX", "pycore-worker")
         host = socket.gethostname() or "host"
         safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-        instance = (os.getenv("PYCORE_WORKER_INSTANCE") or "").strip()
+        instance = PYCORE_WORKER_INSTANCE.strip()
         if instance:
             safe_instance = "".join(
                 c if (c.isalnum() or c in "-_") else "-" for c in instance
@@ -327,20 +305,12 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _effective_capabilities(self) -> List[str]:
         return [GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]]
 
-    def _effective_task_types(self) -> List[str]:
-        """Typed pull route types: extras first (quick-polled), the lane's own
-        QUEUE_KEY last so it holds the long-poll budget."""
-        return [*self.EXTRA_TASK_TYPES, self.QUEUE_KEY]
-
     def _is_enabled(self) -> bool:
-        """Live enable state: the PyHeartbeat callback flag (UI toggle) with the
-        user setting as fallback when the heartbeat is unavailable."""
-        try:
-            return bool(
-                shared_heartbeat_system.is_callback_enabled(self.HEARTBEAT_CALLBACK)
-            )
-        except Exception:  # noqa: BLE001 — heartbeat not up yet
-            return assist_capability_enabled(self.ASSIST_CAPABILITY)
+        """Lane enable state: the persisted assist capability (UI toggle).
+
+        The UI pump only dispatches while the toggle is on; this is a
+        defense-in-depth guard on the accept entry."""
+        return assist_capability_enabled(self.ASSIST_CAPABILITY)
 
     # -------------------- engine probe / concurrency --------------------
 
@@ -352,13 +322,15 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         stall synthesis on sequential availability checks, so the result is
         cached for _ENGINE_PROBE_TTL_S seconds (retired-worker pattern).
         """
+        if self.REQUIRED_ENGINE:
+            return self.REQUIRED_ENGINE
         now = time.monotonic()
         if (
             self._engine_probe_cache is not None
             and now - self._engine_probe_ts < _ENGINE_PROBE_TTL_S
         ):
             return self._engine_probe_cache or None
-        status = tts_orchestrator.tts_status()
+        status = tts_orchestrator.tts_status(refresh=True)
         entries = {
             str(row.get("name") or ""): row
             for row in status.get("engines", [])
@@ -388,15 +360,23 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         """(effective fan-out, planned engine). Serial engines always give 1."""
         engine = self._planned_engine() or ""
         kind = self._engine_concurrency_class(engine)
-        return effective_concurrency(kind, self.get_concurrency()), engine
+        concurrency = effective_concurrency(kind, self.get_concurrency())
+        return min(self.CONCURRENCY_LIMIT, concurrency), engine
 
     def concurrency_status(self) -> Dict[str, Any]:
         """Return cached planning data without probing engines on a status RPC."""
-        engine = self._engine_probe_cache or ""
+        engine = self.REQUIRED_ENGINE or self._engine_probe_cache or ""
         kind = self._engine_concurrency_class(engine)
         return {
-            "concurrency": effective_concurrency(kind, self._concurrency),
-            "concurrency_recommended": recommended_concurrency(kind),
+            "concurrency": min(
+                self.CONCURRENCY_LIMIT,
+                effective_concurrency(kind, self._concurrency),
+            ),
+            "concurrency_recommended": min(
+                self.CONCURRENCY_LIMIT,
+                recommended_concurrency(kind),
+            ),
+            "concurrency_limit": self.CONCURRENCY_LIMIT,
             "concurrency_engine": engine or None,
             "concurrency_class": kind,
         }
@@ -407,6 +387,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     def get_concurrency(self) -> int:
         return self._concurrency
+
+    @serialized_method
+    def set_speaker(self, speaker: str) -> None:
+        self._speaker = str(speaker or "").strip()
+
+    def get_speaker(self) -> str:
+        return self._speaker
 
     @serialized_method
     def invalidate_engine_plan(self) -> None:
@@ -432,6 +419,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             text = (info.get("text") or info.get("word") or "").strip()
             if text:
                 entry["text_preview"] = text[:80]
+            started = float(info.get("_started_monotonic") or 0.0)
+            if started > 0:
+                entry["elapsed_seconds"] = round(max(0.0, time.monotonic() - started), 2)
+            if "backend_uploaded" in info:
+                entry["backend_uploaded"] = bool(info.get("backend_uploaded"))
+            if "backend_result_accepted" in info:
+                entry["backend_result_accepted"] = bool(info.get("backend_result_accepted"))
         self._events.appendleft(entry)
 
         label = f"{self._log_prefix} {kind}"
@@ -447,13 +441,54 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     @serialized_method
     def _mark_task_started(self, task_id: Any, info: Dict[str, Any]) -> None:
-        self._current_tasks[task_id] = dict(info)
+        current = dict(info)
+        current["_started_monotonic"] = time.monotonic()
+        current["stage"] = "accepted"
+        current["progress"] = GLOBAL_TASK_PROGRESS_STAGES["accepted"]
+        current["backend_uploaded"] = False
+        current["backend_result_accepted"] = False
+        info["_started_monotonic"] = current["_started_monotonic"]
+        current_key = self._current_task_key(task_id, info.get("attempt"))
+        self._current_tasks[current_key] = current
         self._processing += 1
 
     @serialized_method
-    def _mark_task_finished(self, task_id: Any) -> None:
-        self._current_tasks.pop(task_id, None)
+    def _mark_task_progress(
+        self,
+        task_id: Any,
+        stage: str,
+        progress: int,
+        provider: str = "",
+        attempt: Optional[int] = None,
+    ) -> None:
+        current = self._current_tasks.get(self._current_task_key(task_id, attempt))
+        if current is None:
+            return
+        current["stage"] = stage
+        current["progress"] = progress
+        current["backend_uploaded"] = stage in ("finalizing", "completed")
+        if provider:
+            current["current_provider"] = provider
+
+    @serialized_method
+    def _mark_backend_result(
+        self,
+        task_id: Any,
+        accepted: bool,
+        attempt: Optional[int] = None,
+    ) -> None:
+        current = self._current_tasks.get(self._current_task_key(task_id, attempt))
+        if current is not None:
+            current["backend_result_accepted"] = bool(accepted)
+
+    @serialized_method
+    def _mark_task_finished(self, task_id: Any, attempt: Optional[int] = None) -> None:
+        self._current_tasks.pop(self._current_task_key(task_id, attempt), None)
         self._processing = max(0, self._processing - 1)
+
+    @staticmethod
+    def _current_task_key(task_id: Any, attempt: Optional[int]) -> str:
+        return f"{task_id}:{max(0, int(attempt or 0))}"
 
     @serialized_method
     def _record_cycle(self, processed: int, succeeded: int, failed: int) -> Dict[str, Any]:
@@ -471,7 +506,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _state_snapshot(self) -> Dict[str, Any]:
         """Read the current counters without entering the worker queue."""
         try:
-            current_tasks = [dict(task) for task in list(self._current_tasks.values())]
+            current_tasks = []
+            now = time.monotonic()
+            for task in list(self._current_tasks.values()):
+                current = dict(task)
+                started = float(current.pop("_started_monotonic", 0.0) or 0.0)
+                current["elapsed_seconds"] = round(max(0.0, now - started), 2) if started else 0.0
+                current_tasks.append(current)
         except RuntimeError:
             current_tasks = []
         return {
@@ -499,16 +540,25 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         expired = [tid for tid, dl in list(self._inflight.items()) if dl <= now]
         for tid in expired:
             self._inflight.pop(tid, None)
-        task_id = task.get("task_id")
-        if task_id in self._inflight:
+        task_key = self._task_execution_key(task)
+        if task_key in self._inflight:
             return False
         ttl = int(task.get("timeout_seconds") or self.INFLIGHT_DEFAULT_TTL)
-        self._inflight[task_id] = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
+        self._inflight[task_key] = now + max(ttl, self.INFLIGHT_DEFAULT_TTL)
         return True
 
     @serialized_method
-    def _release_inflight(self, task_id: Any) -> None:
-        self._inflight.pop(task_id, None)
+    def _release_inflight(self, task: Dict[str, Any]) -> None:
+        self._inflight.pop(self._task_execution_key(task), None)
+
+    @staticmethod
+    def _task_attempt(task: Dict[str, Any]) -> int:
+        raw_attempt = task.get("retry_count")
+        return max(0, int(raw_attempt)) if isinstance(raw_attempt, int) else 0
+
+    @classmethod
+    def _task_execution_key(cls, task: Dict[str, Any]) -> str:
+        return f"{task.get('task_id')}:{cls._task_attempt(task)}"
 
     # -------------------- payload normalization --------------------
 
@@ -530,6 +580,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         info: Dict[str, Any] = {
             "task_id": task.get("task_id"),
             "task_type": task_type,
+            "attempt": self._task_attempt(task),
             "priority": task.get("priority"),
             "language": language,
         }
@@ -549,6 +600,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 "gender": "female",
                 "engine_profile": str(payload.get("engine_profile") or "").strip() or None,
                 "preferred_engine": str(payload.get("preferred_engine") or "").strip() or None,
+                "speaker": str(payload.get("speaker") or self._speaker or "").strip() or None,
             })
             if not text:
                 info["error"] = "sentence_audio payload carried no text"
@@ -597,13 +649,18 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     # -------------------- cache + synthesis --------------------
 
     def _sentence_cache_path(self, info: Dict[str, Any]) -> str:
-        """Persistent cache path: <cache_dir>/<lang>/<content_id>[_variant].mp3
-        (mirrors the laravel on-disk layout so a cache hit maps 1:1 to a server
-        file). The file is the local retained copy; never deleted."""
+        """Persistent cache path scoped by content, variant, and required engine."""
         key = (info.get("content_id") or "audio").strip()
         vkey = (info.get("variant_key") or "").strip()
         suffix = f"_{vkey}" if vkey else ""
-        return os.path.join(self._cache_dir, info["language"], f"{key}{suffix}.mp3")
+        engine_suffix = f"_{self.REQUIRED_ENGINE}" if self.REQUIRED_ENGINE else ""
+        speaker = str(info.get("speaker") or "").strip()
+        speaker_suffix = f"_{hashlib.sha1(speaker.encode('utf-8')).hexdigest()[:10]}" if speaker else ""
+        return os.path.join(
+            self._cache_dir,
+            info["language"],
+            f"{key}{suffix}{engine_suffix}{speaker_suffix}.mp3",
+        )
 
     def _resolve_audio(self, info: Dict[str, Any]) -> Tuple[bool, str, str, str, bool]:
         """Generate (or reuse) one task's MP3.
@@ -624,7 +681,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
                 ok_cache, _why = validate_mp3(out_path)
                 if ok_cache:
-                    return True, out_path, "cache", "", False
+                    return True, out_path, self.REQUIRED_ENGINE or "cache", "", False
             result = tts_orchestrator.synthesize(
                 info["text"],
                 language,
@@ -632,6 +689,11 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 accent=accent,
                 gender=info.get("gender") or None,
                 priority_profile=self.PRIORITY_PROFILE,
+                required_engine=self.REQUIRED_ENGINE,
+                speaker=info.get("speaker"),
+                client_job_id=(
+                    f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
+                ),
             )
             provider = result.get("engine") or ((result.get("tried") or ["none"])[-1])
             if not result.get("success"):
@@ -721,12 +783,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         """POST this lane's report endpoint (multipart upload on success,
         fields-only on failure). Returns ``(accepted, detail)``; never raises."""
         fields = self._report_fields(info, success, provider, error)
+        report_base_url = self._task_base_url(info.get("task_id"))
         try:
             if success:
                 with open(audio_path, "rb") as fh:
                     resp = laravel_client.post(
                         self.REPORT_PATH,
-                        base_url=self.api_url,
+                        base_url=report_base_url,
                         data=fields,
                         files={"audio": (os.path.basename(audio_path), fh, "audio/mpeg")},
                         timeout=_REPORT_TIMEOUT,
@@ -734,7 +797,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             else:
                 resp = laravel_client.post(
                     self.REPORT_PATH,
-                    base_url=self.api_url,
+                    base_url=report_base_url,
                     data=fields,
                     timeout=_REPORT_TIMEOUT,
                 )
@@ -760,6 +823,121 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         if info["kind"] != "word" or not info.get("dict_row_id"):
             return None
         return self._post_report(info, True, provider, audio_path=audio_path)
+
+    def _report_progress(
+        self,
+        task_id: Any,
+        stage: str,
+        provider: str = "",
+        attempt: Optional[int] = None,
+    ) -> bool:
+        progress = int(GLOBAL_TASK_PROGRESS_STAGES[stage])
+        self._mark_task_progress(task_id, stage, progress, provider, attempt)
+        result = {
+            "stage": stage,
+            "engine": provider or self.REQUIRED_ENGINE or self._planned_engine(),
+            "backend_uploaded": stage in ("finalizing", "completed"),
+        }
+        if self.LANE == "sentence" and self._speaker:
+            result["speaker"] = self._speaker
+        return self._post_result(
+            task_id,
+            "processing",
+            result=result,
+            progress=progress,
+            attempts=1,
+            attempt=attempt,
+        )
+
+    def _upload_report_until_accepted(
+        self,
+        info: Dict[str, Any],
+        provider: str,
+        audio_path: str,
+    ) -> Tuple[bool, str]:
+        """Retry the durable backend audio upload until accepted or shutdown."""
+        attempt = 0
+        delay = _UPLOAD_RETRY_INITIAL_SECONDS
+        while not THREAD_BUS.is_shutdown_requested():
+            attempt += 1
+            uploaded = self._upload_report(info, provider, audio_path)
+            if uploaded is None:
+                info["backend_uploaded"] = True
+                return True, "not_required"
+            if uploaded[0]:
+                info["backend_uploaded"] = True
+                self._log_event(
+                    "upload_done",
+                    f"backend accepted audio (attempt={attempt})",
+                    info,
+                )
+                return True, uploaded[1]
+            info["backend_uploaded"] = False
+            self._log_event(
+                "upload_retry",
+                f"attempt={attempt} retry_in={delay:.0f}s error={uploaded[1]}",
+                info,
+            )
+            self._report_progress(
+                info.get("task_id"),
+                "uploading",
+                provider,
+                info.get("attempt"),
+            )
+            time.sleep(delay)
+            delay = min(_UPLOAD_RETRY_MAX_SECONDS, delay * 2)
+        return False, "shutdown requested before backend upload completed"
+
+    def _post_completed_until_accepted(
+        self,
+        info: Dict[str, Any],
+        result: Dict[str, Any],
+        provider: str,
+    ) -> bool:
+        """Retry the terminal Queue Center result until accepted or ownership is lost."""
+        task_id = info.get("task_id")
+        delay = _UPLOAD_RETRY_INITIAL_SECONDS
+        attempt = 0
+        while not THREAD_BUS.is_shutdown_requested():
+            attempt += 1
+            if self._post_result(
+                task_id,
+                "completed",
+                result=result,
+                progress=100,
+                attempt=info.get("attempt"),
+            ):
+                info["backend_result_accepted"] = True
+                self._mark_backend_result(task_id, True, info.get("attempt"))
+                self._log_event(
+                    "result_done",
+                    f"backend accepted completed result (attempt={attempt})",
+                    info,
+                )
+                return True
+            info["backend_result_accepted"] = False
+            self._mark_backend_result(task_id, False, info.get("attempt"))
+            if str(task_id) not in self._task_type_by_id:
+                self._log_event(
+                    "result_reassigned",
+                    "completed result stopped because task ownership changed",
+                    info,
+                )
+                return False
+            self._log_event(
+                "result_retry",
+                f"attempt={attempt} retry_in={delay:.0f}s",
+                info,
+            )
+            self._report_progress(
+                task_id,
+                "finalizing",
+                provider,
+                info.get("attempt"),
+            )
+            time.sleep(delay)
+            delay = min(_UPLOAD_RETRY_MAX_SECONDS, delay * 2)
+        return False
 
     def _report_failure(self, info: Optional[Dict[str, Any]], provider: str, error: str) -> None:
         """Best-effort domain failure report so the canonical row fails fast
@@ -799,6 +977,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 value = info.get(field)
                 if value:
                     result[field] = value
+            if info.get("speaker"):
+                result["speaker"] = info["speaker"]
             return result
 
         if info["kind"] == "article":
@@ -832,7 +1012,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         try:
             return self._process_task(task)
         finally:
-            self._release_inflight(task.get("task_id"))
+            self._release_inflight(task)
 
     def _process_task(self, task: Dict[str, Any]) -> bool:
         """Synthesize + upload + complete ONE claimed task. Runs on a lane
@@ -842,6 +1022,15 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         info: Optional[Dict[str, Any]] = None
         local_id: Optional[str] = None
         try:
+            if self.LANE == "sentence" and not str(task.get("task_type") or "").strip():
+                task["task_type"] = self.QUEUE_KEY
+            # The UI may dispatch a backlog larger than the bounded registry.
+            # Re-register at execution time from the queued task itself so all
+            # progress and terminal posts always retain their typed route.
+            task_base_url = str(
+                task.get("_laravel_base_url") or self._task_base_url(task_id)
+            ).strip()
+            self._remember_task_types([task], task_base_url)
             if not self._accepts_task(task):
                 ColorPrint.yellow(
                     f"{self._log_prefix} Task {task_id} has unsupported "
@@ -855,13 +1044,19 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                         f"pycore {self.LANE} audio worker only processes "
                         f"{self.QUEUE_KEY} tasks (got task_type={task.get('task_type')!r})"
                     ),
+                    attempt=self._task_attempt(task),
                 )
                 return False
 
             info = self._normalize(task)
             if info.get("error"):
                 self._report_failure(info, "none", info["error"])
-                self._post_result(task_id, "failed", error=info["error"])
+                self._post_result(
+                    task_id,
+                    "failed",
+                    error=info["error"],
+                    attempt=info.get("attempt"),
+                )
                 self._log_event("synth_fail", info["error"], info)
                 return False
 
@@ -869,22 +1064,43 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             self._log_event("synth_start", f"priority={task.get('priority')}", info)
             if self.LANE == "sentence":
                 local_id = self._begin_local_task(info)
+            self._report_progress(
+                task_id,
+                "synthesizing",
+                self.REQUIRED_ENGINE or "",
+                info.get("attempt"),
+            )
 
             ok, audio_path, provider, err, cleanup = self._resolve_audio(info)
             try:
                 if not ok:
                     self._report_failure(info, provider, err)
-                    self._post_result(task_id, "failed", error=err)
+                    self._post_result(
+                        task_id,
+                        "failed",
+                        error=err,
+                        attempt=info.get("attempt"),
+                    )
                     self._log_event("synth_fail", err, info)
                     ColorPrint.yellow(f"{self._log_prefix} Task {task_id} failed: {err}")
                     self._finish_local_task(local_id, False, provider=provider, error=err)
                     return False
 
-                uploaded = self._upload_report(info, provider, audio_path)
-                if uploaded is not None and not uploaded[0]:
-                    detail = uploaded[1]
+                self._report_progress(
+                    task_id,
+                    "uploading",
+                    provider,
+                    info.get("attempt"),
+                )
+                uploaded, detail = self._upload_report_until_accepted(info, provider, audio_path)
+                if not uploaded:
                     self._report_failure(info, provider, f"audio upload rejected: {detail}")
-                    self._post_result(task_id, "failed", error=f"audio upload failed: {detail}")
+                    self._post_result(
+                        task_id,
+                        "failed",
+                        error=f"audio upload failed: {detail}",
+                        attempt=info.get("attempt"),
+                    )
                     self._log_event("report_reject", detail, info)
                     ColorPrint.yellow(
                         f"{self._log_prefix} Task {task_id} upload rejected ({detail})"
@@ -892,9 +1108,19 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     self._finish_local_task(local_id, False, provider=provider, error=detail)
                     return False
 
+                self._report_progress(
+                    task_id,
+                    "finalizing",
+                    provider,
+                    info.get("attempt"),
+                )
                 result = self._build_success_result(info, provider, audio_path)
-                posted = self._post_result(task_id, "completed", result=result, progress=100)
-                self._log_event("synth_done", f"via {provider}", info)
+                posted = self._post_completed_until_accepted(info, result, provider)
+                self._log_event(
+                    "synth_done",
+                    f"via {provider}; backend_upload=ok; result={'ok' if posted else 'not_accepted'}",
+                    info,
+                )
                 ColorPrint.green(
                     f"{self._log_prefix} Task {task_id} "
                     f"'{(info.get('text') or '')[:30]}' done via {provider}"
@@ -913,12 +1139,17 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                         pass
         except Exception as e:  # noqa: BLE001 — one task must not kill the cycle
             ColorPrint.red(f"{self._log_prefix} Task {task_id} error: {e}")
-            self._post_result(task_id, "failed", error=str(e))
+            self._post_result(
+                task_id,
+                "failed",
+                error=str(e),
+                attempt=self._task_attempt(task),
+            )
             self._finish_local_task(local_id, False, error=str(e))
             return False
         finally:
             if info is not None:
-                self._mark_task_finished(task_id)
+                self._mark_task_finished(task_id, info.get("attempt"))
 
     # -------------------- TaskManager / history (sentence lane, UI parity) --------------------
 
@@ -1007,11 +1238,70 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         except Exception:  # noqa: BLE001
             pass
 
-    # -------------------- heartbeat callback / cycle --------------------
+    # -------------------- RPC accept entry / drain cycle --------------------
 
-    @staticmethod
-    def _task_time_cap(task: Dict[str, Any]) -> float:
-        """Hard cap for ONE claimed task: the server-side timeout_seconds
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
+        """RPC accept entry: take ONE UI-dispatched task and queue it for synthesis.
+
+        The UI pump has already accepted (claimed) the task from Laravel; this
+        worker only processes it and uploads the result. The task type and the
+        Laravel base URL are recorded for the typed result route. Exception-safe
+        — it must never raise into the RPC handler.
+        """
+        if not isinstance(task, dict) or task.get("task_id") in (None, ""):
+            return {"success": False, "error": "task with task_id is required"}
+        if not self._is_enabled():
+            return {"success": False, "error": f"{self.LANE} audio lane is disabled"}
+        try:
+            endpoint = (base_url or "").strip() or self.api_url
+            queued_task = dict(task)
+            if self.LANE == "sentence" and not str(queued_task.get("task_type") or "").strip():
+                queued_task["task_type"] = self.QUEUE_KEY
+            if self._queue.contains(queued_task):
+                return {
+                    "success": True,
+                    "task_id": task.get("task_id"),
+                    "duplicate": True,
+                }
+            concurrency, _engine = self._effective_concurrency()
+            local_load = len(self._queue) + max(0, int(self._processing))
+            if local_load >= concurrency:
+                return {
+                    "success": False,
+                    "retryable": True,
+                    "error": f"{self.LANE} audio worker is at configured concurrency capacity",
+                    "capacity": concurrency,
+                    "queued": len(self._queue),
+                    "processing": max(0, int(self._processing)),
+                }
+            queued_task["_laravel_base_url"] = endpoint
+            self._remember_task_types([queued_task], endpoint)
+            queued = self._queue.push(queued_task)
+            self._start_drain()
+            return {
+                "success": True,
+                "task_id": task.get("task_id"),
+                "duplicate": not queued,
+            }
+        except Exception as e:  # noqa: BLE001 — RPC entry must never raise
+            ColorPrint.red(f"{self._log_prefix} accept_task error: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _start_drain(self) -> None:
+        """Spawn ONE background drain cycle (non-reentrant via the cycle signal)."""
+        if THREAD_BUS.is_shutdown_requested():
+            return
+        if THREAD_BUS.get_signal(self._cycle_signal, False):
+            return  # previous cycle still in flight — it drains the whole heap
+        THREAD_BUS.signal(self._cycle_signal, True)
+        try:
+            start_bus_task(self._drain_cycle, thread_name=f"{self.LANE}-audio-worker-cycle")
+        except Exception as e:  # noqa: BLE001
+            THREAD_BUS.signal(self._cycle_signal, False)
+            ColorPrint.red(f"{self._log_prefix} drain start error: {e}")
+
+    def _task_time_cap(self, task: Dict[str, Any]) -> float:
+        """Hard cap for ONE queued task: the server-side timeout_seconds
         (bounded to a sane ceiling) plus a small grace for the result upload."""
         try:
             server_cap = float((task or {}).get("timeout_seconds") or 0)
@@ -1019,14 +1309,17 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             server_cap = 0.0
         if server_cap <= 0:
             server_cap = _TASK_TIMEOUT_DEFAULT_SECONDS
+        server_cap = max(server_cap, float(self.TASK_TIMEOUT_MIN_SECONDS))
         return min(server_cap, _TASK_TIMEOUT_MAX_SECONDS) + _TASK_TIMEOUT_GRACE_SECONDS
 
     def _process_claimed_bounded(self, task: Dict[str, Any]) -> bool:
-        """Process ONE claimed task on a bus thread under a hard time cap.
+        """Process ONE queued task on a bus thread under a hard time cap.
 
         A stuck engine must fail the task and free the lane — an unbounded
         inline call would wedge the cycle thread and _cycle_signal would never
         clear, killing the lane until restart."""
+        if not self.BOUNDED_PROCESSING:
+            return self._process_claimed(task)
         cap = self._task_time_cap(task)
         try:
             results = map_bus_tasks(
@@ -1044,49 +1337,12 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             return False
         return bool(results and results[0])
 
-    def poll_and_process(self) -> None:
-        """PyHeartbeat callback (every configured interval WHEN ENABLED).
-
-        LIGHT by design: spawn one background cycle thread; skip the tick when
-        the previous cycle is still running. Exception-safe — it must never
-        raise into the heartbeat loop.
-        """
-        try:
-            if THREAD_BUS.get_signal(self._cycle_signal, False):
-                return  # previous cycle still in flight
-            THREAD_BUS.signal(self._cycle_signal, True)
-            start_bus_task(self._run_cycle, thread_name=f"{self.LANE}-audio-worker-cycle")
-        except Exception as e:  # noqa: BLE001 — heartbeat must never see a raise
-            THREAD_BUS.signal(self._cycle_signal, False)
-            ColorPrint.red(f"{self._log_prefix} poll_and_process error: {e}")
-
-    def _run_cycle(self) -> None:
-        """One long-poll pull + priority-drain cycle. Runs on a
+    def _drain_cycle(self) -> None:
+        """One priority-drain cycle over the local dispatch heap. Runs on a
         background bus thread and is fully exception-safe."""
         processed = succeeded = failed = 0
         try:
-            # Circuit breaker: while the backend persistently rejects results,
-            # stop claiming new work until the cooldown expires.
-            if not self._circuit_is_open():
-                # Leftovers drain first: only long-poll when the local priority
-                # queue is empty, so a bumped task is never stuck behind a hold.
-                wait = 0 if len(self._queue) > 0 else _LONG_POLL_SECONDS
-                tasks = self._pull_tasks(wait=wait)
-                for task in tasks:
-                    self._queue.push(task)
-                if tasks:
-                    self._log_event("claimed", f"count={len(tasks)} from {self.api_url}")
-                    ColorPrint.blue(
-                        f"{self._log_prefix} Claimed {len(tasks)} task(s) from "
-                        f"{self.api_url} (queue depth now {len(self._queue)})"
-                    )
-
             if len(self._queue) == 0:
-                # Throttled idle event so the FE sees the worker IS cycling.
-                now = time.time()
-                if now - self._last_idle_event_ts >= 60:
-                    self._last_idle_event_ts = now
-                    self._log_event("idle", "queue empty — nothing pending")
                 return
 
             concurrency, engine = self._effective_concurrency()
@@ -1129,108 +1385,15 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             ColorPrint.red(f"{self._log_prefix} Cycle error: {e}")
         finally:
             THREAD_BUS.signal(self._cycle_signal, False)
-            if THREAD_BUS.get_signal(self._repoll_signal, False):
-                # A wake arrived mid-cycle — run ONE follow-up cycle instead of
-                # dropping the wake behind the next heartbeat tick. Clear the
-                # flag FIRST so the follow-up cannot retrigger itself forever.
-                THREAD_BUS.signal(self._repoll_signal, False)
-                self._wake_if_idle()
-
-    # -------------------- priority-bump wake (SSE / queue-priority commands) --------------------
-
-    def prioritize_word(self, md5: str, language: str) -> None:
-        """Word-audio bump: the server already re-ordered its queue, so a wake
-        suffices (no local re-key — pulled tasks are priority-ordered)."""
-        try:
-            self._wake_if_idle()
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"{self._log_prefix} prioritize_word error: {e}")
-
-    def notify_bump(self, content_id: str, language: str, priority: int) -> None:
-        """Sentence bump: re-key the matching queued task (if still in the
-        heap) and wake an idle worker. Exception-safe — a bump must never
-        break the caller (SSE loop)."""
-        try:
-            if self._queue.bump(content_id, language, priority):
-                ColorPrint.blue(
-                    f"{self._log_prefix} Re-keyed queued sentence "
-                    f"{language}:{content_id} -> priority {priority}"
-                )
-            self._wake_if_idle()
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"{self._log_prefix} notify_bump error: {e}")
-
-    def notify_batch_bump(self) -> None:
-        """Aggregate bump (no per-row payload) — wake only. The next pull
-        already selects priority DESC server-side, so no re-key."""
-        try:
-            self._wake_if_idle()
-        except Exception as e:  # noqa: BLE001
-            ColorPrint.yellow(f"{self._log_prefix} notify_batch_bump error: {e}")
-
-    def _wake_if_idle(self) -> None:
-        """Spawn a poll_and_process cycle on a bus thread when the worker is
-        enabled and no cycle is in flight (poll_and_process is non-reentrant).
-        A wake arriving mid-cycle sets the repoll flag instead of being
-        dropped; the running cycle's finally-block starts ONE follow-up."""
-        if not self._is_enabled():
-            return
-        if THREAD_BUS.get_signal(self._cycle_signal, False):
-            THREAD_BUS.signal(self._repoll_signal, True)
-            return
-        start_bus_task(self.poll_and_process, thread_name=f"{self.LANE}-audio-worker-bump")
-
-    # -------------------- queue summary (FE status) --------------------
-
-    def _fetch_queue_overview(self) -> Dict[str, Any]:
-        """Raw /api/queue-center/overview payload (shared by both lanes)."""
-        try:
-            resp = laravel_client.get(
-                "/api/queue-center/overview",
-                base_url=self.api_url,
-                timeout=_QUEUE_OVERVIEW_TIMEOUT,
-            )
-        except Exception:
-            return {}
-        if resp.status_code != 200:
-            return {}
-        try:
-            body = resp.json() or {}
-        except ValueError:
-            return {}
-        data = body.get("data") if isinstance(body.get("data"), dict) else body
-        return data if isinstance(data, dict) else {}
-
-    def fetch_queue_summary(self) -> Dict[str, Any]:
-        """Laravel pending/leased counts for this lane's queue
-        (GET /api/queue-center/overview, global_tasks tallies).
-
-        The overview payload is global, so BOTH lanes read it through ONE
-        shared module-level cache (~30s TTL, background refresh) — no more
-        duplicate fetches through per-caller private caches."""
-        base = self.api_url
-        if not base:
-            return {}
-        data = _QUEUE_OVERVIEW_CACHE.get_or_refresh(base, self._fetch_queue_overview)
-        queues = data.get("queues") if isinstance(data, dict) else None
-        row = (queues or {}).get(self.QUEUE_KEY) or {}
-        if not isinstance(row, dict):
-            return {}
-        return {
-            "pending": int(row.get("pending") or 0),
-            "leased": int(row.get("assigned") or 0) + int(row.get("processing") or 0),
-            "count": int(row.get("total") or 0),
-        }
+            if len(self._queue) > 0:
+                # Tasks dispatched mid-cycle remain queued — run ONE follow-up
+                # drain so they are not stuck behind the next RPC dispatch.
+                self._start_drain()
 
     # -------------------- introspection --------------------
 
     def get_status(self) -> Dict[str, Any]:
-        """Service status snapshot (read-only).
-
-        Key superset of the retired word/sentence worker shapes so the Queue
-        Center UI keeps working unchanged (batch_running == cycle_running;
-        last_tick == last_cycle; queued == leased == priority-heap depth).
-        """
+        """Service status snapshot (read-only, pycore-local worker state only)."""
         running = bool(THREAD_BUS.get_signal(self._cycle_signal, False))
         state = self._state_snapshot()
         current_tasks = state["current_tasks"]
@@ -1246,20 +1409,14 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         queued = len(self._queue)
         return {
             "service": f"Laravel {self.LANE.title()}-Audio Worker",
-            "api_url": self.api_url,
             "worker_id": self.worker_id,
             "worker_name": self.worker_name,
+            "selected_speaker": self._speaker or None,
             "processor_types": self._effective_processor_types(),
             "capabilities": self._effective_capabilities(),
-            "registered": self._registered,
-            "enabled_on_start": assist_capability_enabled(self.ASSIST_CAPABILITY),
-            # Live enable flag from the heartbeat callback (UI toggle).
-            "heartbeat_enabled": self._is_enabled(),
-            "batch_size": self.batch_size,
-            "batch_running": running,
+            "enabled": self._is_enabled(),
             "cycle_running": running,
             "queued": queued,
-            "leased": queued,
             "processing": int(state["processing"]),
             "current_task": current,
             "current_keys": current_keys,
@@ -1267,13 +1424,10 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "total_claimed": state["total_claimed"],
             "total_succeeded": state["total_succeeded"],
             "total_failed": state["total_failed"],
-            "last_tick": state["last_cycle"],
             "last_cycle": state["last_cycle"],
             "inflight_tasks": len(self._inflight),
             "circuit_open": self._circuit_is_open(),
             "result_5xx_streak": self._result_5xx_streak,
-            "pending_fast": self._pending_fast,
-            "pending_urgent": self._pending_urgent,
             "initialized": self._initialized,
         }
 
@@ -1284,9 +1438,8 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     LANE = "word"
     QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["word_audio"]["key"]
     CAPABILITY = "audio"
-    EXTRA_TASK_TYPES = (GLOBAL_TASK_TYPES_BY_KEY["article_audio"]["key"],)
+    EXTRA_TASK_TYPES = ()
     PRIORITY_PROFILE = "word"
-    HEARTBEAT_CALLBACK = "tts_queue_poller"
     ASSIST_CAPABILITY = "tts"
     WORKER_NAME_TAG = "word-audio"
     LOG_PREFIX = "[WordAudioWorker]"
@@ -1294,7 +1447,6 @@ class LaravelWordAudioWorker(BaseLaravelAudioWorker):
     STATE_OWNER_NAME = "WordAudioWorkerState"
     STATE_OWNER_TIMEOUT = 180.0
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/worker/report"
-    BATCH_DEFAULT = TTS_WORKER_BATCH
     CONCURRENCY_DEFAULT = TTS_WORKER_CONCURRENCY
 
 
@@ -1303,10 +1455,11 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
 
     LANE = "sentence"
     QUEUE_KEY = GLOBAL_TASK_TYPES_BY_KEY["sentence_audio"]["key"]
+    RESULT_TASK_TYPE = QUEUE_KEY
     CAPABILITY = "sentence_audio"
     EXTRA_TASK_TYPES = ()
     PRIORITY_PROFILE = "sentence"
-    HEARTBEAT_CALLBACK = "tts_sentence_worker"
+    REQUIRED_ENGINE = QWEN3TTS_ENGINE
     ASSIST_CAPABILITY = "sentence_audio"
     WORKER_ID_PREFIX = "pycore-sentence"
     WORKER_NAME_TAG = "sentence-audio"
@@ -1314,8 +1467,10 @@ class LaravelSentenceAudioWorker(BaseLaravelAudioWorker):
     STATE_OWNER_KEY = "tts.sentence_audio_worker.state"
     STATE_OWNER_NAME = "SentenceAudioWorkerState"
     REPORT_PATH = "/api/app_qy_v1/ai_tools/tts/sentence/report"
-    BATCH_DEFAULT = TTS_SENTENCE_WORKER_BATCH
     CONCURRENCY_DEFAULT = TTS_SENTENCE_WORKER_CONCURRENCY
+    CONCURRENCY_LIMIT = _SENTENCE_CONCURRENCY_LIMIT
+    TASK_TIMEOUT_MIN_SECONDS = _SENTENCE_TASK_TIMEOUT_SECONDS
+    BOUNDED_PROCESSING = False
 
 
 laravel_word_audio_worker = LaravelWordAudioWorker(LARAVEL_WORKER_API_URL)

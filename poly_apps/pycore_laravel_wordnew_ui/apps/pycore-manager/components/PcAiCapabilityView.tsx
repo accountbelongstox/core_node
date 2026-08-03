@@ -13,7 +13,7 @@
  * Everything else (live meters, sort, per-provider availability test, OCR/TTS,
  * free libraries, constants & static dirs) is preserved from the original page.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   BrainCircuit, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle, Timer, KeyRound,
@@ -26,7 +26,7 @@ import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
 import type { AiChatMessage } from '../../../shell/shellTypes';
 import type {
-  AiProvider, AiProviderRate, AiKeySlot,
+  AiGatewayStatus, AiProvider, AiProviderRate, AiKeySlot,
   SystemResourcesResponse, SystemInfo,
 } from '@/apps/pycore-manager/api';
 import { usePycoreCapability } from '@/apps/pycore-manager/api';
@@ -47,6 +47,31 @@ const TIER_CLS: Record<string, string> = {
 
 type ProviderSortField = 'original' | 'name' | 'availability' | 'speed';
 type ProviderSortDir = 'asc' | 'desc';
+
+function mergeGatewayKeyStatus(
+  providers: AiProvider[],
+  gateway: AiGatewayStatus | null,
+): AiProvider[] {
+  const gatewayProviders = Array.isArray(gateway?.providers)
+    ? gateway.providers as Array<Pick<
+        AiProvider,
+        'name' | 'key_count' | 'keys' | 'image_keys'
+      >>
+    : [];
+  const byName = new Map(gatewayProviders.map((provider) => [provider.name, provider]));
+  if (byName.size === 0) return providers;
+  return providers.map((provider) => {
+    const gatewayProvider = byName.get(provider.name);
+    return gatewayProvider
+      ? {
+          ...provider,
+          key_count: gatewayProvider.key_count,
+          keys: gatewayProvider.keys,
+          image_keys: gatewayProvider.image_keys,
+        }
+      : provider;
+  });
+}
 
 function availabilityRank(p: AiProvider): number {
   if (!p.configured) return 4;
@@ -300,7 +325,14 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
   const [sortDir, setSortDir] = useState<ProviderSortDir>('asc');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const { caps, retry: retryCapabilityStatus, refreshing: capabilityRefreshing } = usePycoreCapability();
+  const {
+    aiGateway,
+    caps,
+    refresh: refreshCapabilityStatus,
+    retry: retryCapabilityStatus,
+    refreshing: capabilityRefreshing,
+  } = usePycoreCapability();
+  const aiGatewayRef = useRef<AiGatewayStatus | null>(aiGateway);
   const { openTest } = usePcTestPopup();
 
   const [res, setRes] = useState<SystemResourcesResponse | null>(null);
@@ -310,26 +342,6 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
 
   const fetchResources = useCallback(async () => {
     try { const r = await pycoreApi.getSystemResources(); if (r && r.success !== false) setRes(r); } catch { /* keep last */ }
-  }, []);
-
-  const mergeKeyStatus = useCallback(async () => {
-    try {
-      const g = await pycoreApi.getAiGateway();
-      const gatewayProviders = Array.isArray(g?.providers)
-        ? g.providers as Array<{ name: string; key_count?: number; keys?: unknown[]; image_keys?: unknown[] }>
-        : [];
-      const byName = new Map(gatewayProviders.map((provider) => [provider.name, provider]));
-      if (byName.size === 0) return;
-      setProviders((prev) => {
-        if (!prev) return prev;
-        return prev.map((p) => {
-          const gp = byName.get(p.name);
-          return gp
-            ? { ...p, key_count: gp.key_count, keys: gp.keys, image_keys: gp.image_keys }
-            : p;
-        });
-      });
-    } catch { /* keep last */ }
   }, []);
 
   const fetchSysInfo = useCallback(async () => {
@@ -354,7 +366,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     try {
       const r = await pycoreApi.getAiCatalog();
       if (Array.isArray(r?.providers)) {
-        setProviders(r.providers);
+        setProviders(mergeGatewayKeyStatus(r.providers, aiGatewayRef.current));
         setError(r?.error ?? null);
         setUnreachable(false);
       } else {
@@ -376,8 +388,8 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
       setLoading(false);
       setRefreshing(false);
     }
-    fetchResources(); fetchSysInfo(); void mergeKeyStatus();
-  }, [fetchResources, fetchSysInfo, mergeKeyStatus]);
+    fetchResources(); fetchSysInfo();
+  }, [fetchResources, fetchSysInfo]);
 
   const mergeProvider = useCallback((rec: AiProvider) => {
     setProviders((prev) => {
@@ -435,7 +447,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
         });
         setNotice(t('ai.imageTestOk', { ms: Math.round(r.latency_ms ?? 0) }));
         logSuccess(LOG_SRC, `Image test passed on ${name} (${Math.round(r.latency_ms ?? 0)} ms).`);
-        void mergeKeyStatus();
+        void refreshCapabilityStatus();
       } else {
         const msg = r?.error || t('ai.imageTestFailed');
         setNotice(`${t('ai.imageTestFailed')}: ${msg}`);
@@ -448,7 +460,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     } finally {
       setImageTesting((s) => { const n = new Set(s); n.delete(name); return n; });
     }
-  }, [t, mergeKeyStatus]);
+  }, [t, refreshCapabilityStatus]);
 
   // Clear one key's cooldown so it can be used again. New backend endpoint
   // /ai/keys/reset-cooldown.
@@ -466,7 +478,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
       if (r?.success) {
         setNotice(t('ai.cooldownReset'));
         logSuccess(LOG_SRC, `Cleared cooldown on ${provider} ${slotKey}.`);
-        await mergeKeyStatus();
+        await refreshCapabilityStatus();
       } else {
         setNotice(r?.error || t('ai.cooldownResetFailed'));
         logError(LOG_SRC, r?.error || `Could not clear cooldown on ${provider} ${slotKey}.`);
@@ -483,7 +495,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
         return next;
       });
     }
-  }, [t, mergeKeyStatus]);
+  }, [t, refreshCapabilityStatus]);
 
   const refreshRates = useCallback(async () => {
     try {
@@ -502,6 +514,13 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
 
   useEffect(() => { loadCatalog(false); }, [loadCatalog]);
 
+  useEffect(() => {
+    aiGatewayRef.current = aiGateway;
+    setProviders((current) => current
+      ? mergeGatewayKeyStatus(current, aiGateway)
+      : current);
+  }, [aiGateway]);
+
   // External refresh signal from the page header (PcAiPage Refresh button).
   useEffect(() => {
     if (refreshSignal === undefined) return;
@@ -515,7 +534,7 @@ const PcAiCapabilityView: React.FC<{ refreshSignal?: number }> = ({ refreshSigna
     async () => {
       fetchResources();
       await refreshRates();
-      await mergeKeyStatus();
+      await refreshCapabilityStatus();
     },
     { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
   );

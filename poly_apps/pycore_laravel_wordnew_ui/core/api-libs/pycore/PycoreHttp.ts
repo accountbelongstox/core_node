@@ -6,6 +6,7 @@ import { PycorePaths } from './pycoreEndpoints';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
+import { StorageKeys, StorageManager } from '../../persistence';
 import { pycoreEventBus, type PycoreEventHandler } from './PycoreEventBus';
 import {
   PYCORE_BROWSER_EVENTS,
@@ -32,6 +33,14 @@ interface HttpEventState {
   cursor_ahead?: boolean;
 }
 
+interface PersistedEventCursor {
+  instanceId: string;
+  seq: number;
+  updatedAt: number;
+}
+
+type PersistedEventCursors = Record<string, PersistedEventCursor>;
+
 const statusHandlers = new Set<StatusHandler>();
 const diagHandlers = new Set<DiagHandler>();
 const processedEvents = new Set<string>();
@@ -43,8 +52,10 @@ let started = false;
 let suspended = false;
 let eventSource: EventSource | null = null;
 let eventReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let eventCursorPersistTimer: ReturnType<typeof setTimeout> | null = null;
 let eventInstanceId = '';
 let eventSeq = 0;
+let eventCursorClientId = '';
 let retryDelayMs: number = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
 let httpLogEnabled = false;
 
@@ -78,6 +89,41 @@ function rememberEvent(eventId: string): boolean {
   return true;
 }
 
+function restoreEventCursor(): void {
+  const clientId = getClientId();
+  if (!clientId || clientId.startsWith('pending:') || eventCursorClientId === clientId) return;
+  const cursors = StorageManager.get<PersistedEventCursors>(StorageKeys.PYCORE_HTTP_EVENT_CURSORS, {});
+  const cursor = cursors[clientId];
+  eventCursorClientId = clientId;
+  eventInstanceId = String(cursor?.instanceId || '');
+  eventSeq = Math.max(0, Number(cursor?.seq || 0));
+}
+
+function persistEventCursor(): void {
+  const clientId = getClientId();
+  if (!clientId || clientId.startsWith('pending:')) return;
+  const cursors = StorageManager.get<PersistedEventCursors>(StorageKeys.PYCORE_HTTP_EVENT_CURSORS, {});
+  cursors[clientId] = {
+    instanceId: eventInstanceId,
+    seq: eventSeq,
+    updatedAt: Date.now(),
+  };
+  const bounded = Object.fromEntries(
+    Object.entries(cursors)
+      .sort(([, left], [, right]) => right.updatedAt - left.updatedAt)
+      .slice(0, 2),
+  );
+  StorageManager.set(StorageKeys.PYCORE_HTTP_EVENT_CURSORS, bounded);
+}
+
+function scheduleEventCursorPersist(): void {
+  if (eventCursorPersistTimer !== null) clearTimeout(eventCursorPersistTimer);
+  eventCursorPersistTimer = setTimeout(() => {
+    eventCursorPersistTimer = null;
+    persistEventCursor();
+  }, 250);
+}
+
 function eventStreamUrl(): string {
   const query = new URLSearchParams({
     client_id: getClientId(),
@@ -103,6 +149,7 @@ function handleSseState(event: MessageEvent): void {
     eventInstanceId = nextInstanceId;
     eventSeq = 0;
     processedEvents.clear();
+    scheduleEventCursorPersist();
     pycoreEventBus.dispatch(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, { instance_id: nextInstanceId });
     eventSource?.close();
     eventSource = null;
@@ -113,6 +160,7 @@ function handleSseState(event: MessageEvent): void {
   if (!state.replay_lost) return;
   const earliestSeq = Number(state.earliest_seq || 1);
   eventSeq = Math.max(0, earliestSeq - 1);
+  scheduleEventCursorPersist();
   pycoreEventBus.dispatch(PYCORE_BROWSER_EVENTS.httpEventReplayLost, {
     instance_id: eventInstanceId,
     earliest_seq: earliestSeq,
@@ -126,6 +174,7 @@ function handleSseRecord(event: MessageEvent): void {
   const topic = String(record.topic || '');
   const eventId = String(record.event_id || '');
   if (seq > eventSeq) eventSeq = seq;
+  if (seq > 0) scheduleEventCursorPersist();
   const duplicate = Boolean(topic) && !rememberEvent(eventId);
   if (topic && !duplicate) pycoreEventBus.dispatch(topic, record.payload);
 }
@@ -134,8 +183,18 @@ function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
   if (!started || suspended || eventReconnectTimer) return;
   eventReconnectTimer = setTimeout(() => {
     eventReconnectTimer = null;
-    openEventStream();
+    prepareEventStream();
   }, delayMs);
+}
+
+function prepareEventStream(): void {
+  if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
+  void pycoreMasterClient.ensureClientId()
+    .then(() => {
+      restoreEventCursor();
+      openEventStream();
+    })
+    .catch(() => scheduleEventReconnect(PYCORE_HTTP_DEFAULTS.reconnectMinMs));
 }
 
 function openEventStream(): void {
@@ -263,7 +322,7 @@ export function connectPycoreHttp(): void {
   started = true;
   if (suspended) return;
   diag('info', 'starting HTTP controller and SSE event transport');
-  openEventStream();
+  prepareEventStream();
 }
 
 export function setPycoreActive(active: boolean): void {
@@ -279,5 +338,5 @@ export function setPycoreActive(active: boolean): void {
     return;
   }
   retryDelayMs = PYCORE_HTTP_DEFAULTS.reconnectMinMs;
-  if (started) openEventStream();
+  if (started) prepareEventStream();
 }

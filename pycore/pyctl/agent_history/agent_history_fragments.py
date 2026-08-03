@@ -4,10 +4,11 @@
 from __future__ import annotations
 
 import re
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.text_parsing import tokenize_words
 import pycore.pyctl.agent_history.agent_history_txt as txt
+from pycore.pyfoundations.text_parsing import tokenize_words
 
 _CODE_TOKEN_RE = re.compile(r"\[\[CODE_\d+\]\]")
 _FENCE_RE = re.compile(r"```[\s\S]*?```|`[^`]+`")
@@ -16,6 +17,16 @@ _WS_RE = re.compile(r"\s+")
 
 # session_id -> (mtime, events). Invalidated when the session .txt mtime changes.
 _SESSION_EVENTS_CACHE: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
+
+
+def _summary_last_ts(summary: Dict[str, Any]) -> int:
+    ended_ts = int(summary.get("ended_ts") or 0)
+    if ended_ts > 0:
+        return ended_ts
+    ended_at = str(summary.get("ended_at") or "").strip()
+    if ended_at:
+        return int(datetime.strptime(ended_at, "%Y-%m-%d %H:%M:%S").timestamp())
+    return int(summary.get("started_ts") or 0)
 
 
 def sanitize_fragment_text(text: str) -> str:
@@ -109,6 +120,8 @@ def collect_fragments(
     for summary in sessions:
         session_tool = str(summary.get("tool") or "").lower()
         if tool and session_tool != str(tool).lower():
+            continue
+        if _summary_last_ts(summary) < after_ts:
             continue
         sid = str(summary.get("id") or "")
         if not sid:

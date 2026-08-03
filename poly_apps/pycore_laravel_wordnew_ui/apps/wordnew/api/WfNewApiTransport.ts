@@ -9,12 +9,13 @@ import {
   mirrorServerResponse,
   queryServerResource,
   requestVariant,
-} from '../cache/WfNewServerMirror';
+} from '../runtime-store/WfNewServerMirror';
 import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { coordinateRequest } from '../../../core/network/RequestCoordinator';
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
+import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 // --- auth token ------------------------------------------------------------ #
 
@@ -41,6 +42,20 @@ export function setToken(token: string | null): void {
   authToken = setAuthToken(token);
   // A fresh, real token re-arms the one-shot expiry notifier for the new session.
   if (token) expiredNotified = false;
+}
+
+/** Stop protected writes before transport when no authenticated session exists. */
+export function requireAuthToken(): string {
+  syncPersistedToken();
+  if (authToken) return authToken;
+  requestAuthLogin({ source: 'wordnew-api', reason: 'protected-request' });
+  const error = new Error('AUTHENTICATION_REQUIRED') as Error & {
+    status: number;
+    code: string;
+  };
+  error.status = 401;
+  error.code = 'AUTHENTICATION_REQUIRED';
+  throw error;
 }
 
 /** Backend success/error bodies can carry repeated UTF-8 BOMs — strip them all. */
@@ -91,6 +106,7 @@ export function handleMaybe401(status: number, expectedToken?: string | null): b
   if (hadToken) setToken(null);
   if (hadToken && !expiredNotified) {
     expiredNotified = true;
+    requestAuthLogin({ source: 'wordnew-api', reason: 'session-expired' });
     notifyAuthExpired();
   }
   return true;
@@ -211,6 +227,12 @@ export async function postJSON<T>(path: string, body: Record<string, any>): Prom
   return requestPostJSON<T>(path, body, false);
 }
 
+/** POST an auth-required endpoint without issuing a logged-out request. */
+export async function authedPostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  requireAuthToken();
+  return requestPostJSON<T>(path, body, false);
+}
+
 /** POST a replay-safe write through the shared persistent offline queue. */
 export async function queueablePostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
   const requestToken = authToken;
@@ -237,8 +259,20 @@ export async function queueablePostJSON<T>(path: string, body: Record<string, an
   return parsed as T;
 }
 
+/** Queueable POST guarded by the shared authenticated-session gate. */
+export async function authedQueueablePostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  requireAuthToken();
+  return queueablePostJSON<T>(path, body);
+}
+
 /** Read-only POST whose response participates in the local-first resource package. */
 export async function queryPostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  return requestPostJSON<T>(path, body, true);
+}
+
+/** Read-only POST guarded by the shared authenticated-session gate. */
+export async function authedQueryPostJSON<T>(path: string, body: Record<string, any>): Promise<T> {
+  requireAuthToken();
   return requestPostJSON<T>(path, body, true);
 }
 

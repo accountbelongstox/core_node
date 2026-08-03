@@ -14,11 +14,20 @@ from pycore.pyutils.llm.llm_service_manager import (
     start_server,
     stop_server,
 )
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_LLM_KEY,
+    status_snapshot_cache,
+)
 
 
-def status():
+def status(params: Optional[Dict[str, Any]] = None):
     """LLM engine availability snapshot."""
-    return orchestrator_status()
+    req = params or {}
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_LLM_KEY,
+        orchestrator_status,
+        refresh=bool(req.get("refresh")),
+    )
 
 
 def test(params: Optional[Dict[str, Any]] = None):
@@ -33,6 +42,7 @@ def test(params: Optional[Dict[str, Any]] = None):
     )
     result["latency_ms"] = int((time.monotonic() - started) * 1000)
     result["text"] = (result.get("text") or "")[:500]
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_LLM_KEY)
     return result
 
 
@@ -61,6 +71,7 @@ def post_settings(params: Optional[Dict[str, Any]] = None):
     if req.get("llm_enabled") is not None:
         server_patch["llm_enabled"] = req["llm_enabled"]
     srv = apply_server_settings(server_patch) if server_patch else get_server_settings()
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_LLM_KEY)
     return {
         "success": True,
         "llm_auto_manage": srv.get("llm_auto_manage"),
@@ -78,11 +89,14 @@ def post_server_action(params: Optional[Dict[str, Any]] = None):
         return {"success": False, "error": f"Unknown LLM engine: {req.get('engine')}"}
     try:
         if req.get("enabled") is not None:
-            return set_engine_enabled(engine, bool(req["enabled"]), start_now=bool(req.get("start")))
-        if req.get("start") is True:
-            return start_server(engine)
-        if req.get("start") is False:
-            return stop_server(engine)
-        return get_server_settings()
+            result = set_engine_enabled(engine, bool(req["enabled"]), start_now=bool(req.get("start")))
+        elif req.get("start") is True:
+            result = start_server(engine)
+        elif req.get("start") is False:
+            result = stop_server(engine)
+        else:
+            result = get_server_settings()
+        status_snapshot_cache.invalidate(STATUS_SNAPSHOT_LLM_KEY)
+        return result
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": str(e)}

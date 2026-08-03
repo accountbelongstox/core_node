@@ -51,17 +51,33 @@ def upload_to_laravel(
     
     resp = client.post(
         "/api/app_qy_v1/ai_tools/article/worker/submit",
-        json_data=payload,
+        json=payload,
         timeout=30,
     )
-    
-    if not resp.get("success"):
-        err = str(resp.get("error") or "laravel upload failed")
+
+    try:
+        response_data = resp.json()
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Laravel upload returned HTTP {resp.status_code} with invalid JSON"
+        ) from exc
+
+    if resp.status_code >= 400 or not isinstance(response_data, dict) or not response_data.get("success"):
+        err = str(
+            response_data.get("error") or response_data.get("message") or "laravel upload failed"
+            if isinstance(response_data, dict)
+            else "laravel upload failed"
+        )
         raise RuntimeError(f"Laravel upload failed: {err}")
-        
-    data = resp.get("data") or {}
+
+    data = response_data.get("data") or {}
+    article_id = data.get("article_id")
+    audio_url = data.get("audio_url")
+    if not audio_url and article_id:
+        audio_url = f"/static/app_qy_v1/audio/agent_history/en/{article_id}.mp3"
     return {
-        "article_id": data.get("article_id"),
+        "article_id": article_id,
         "source_key": data.get("source_key"),
-        "audio_url": data.get("audio_url"),
+        "audio_url": audio_url,
+        "audio_status": data.get("audio_status") or ("ready" if audio_url else "queued"),
     }

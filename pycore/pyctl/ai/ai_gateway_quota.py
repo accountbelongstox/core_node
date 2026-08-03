@@ -20,6 +20,11 @@ from typing import Any, Dict, List
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_AI_KEY,
+    STATUS_SNAPSHOT_CAPABILITIES_KEY,
+    status_snapshot_cache,
+)
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER, first_secret, limits_note, is_configured
 from pycore.pyctl.ai.ai_probe import (
     _PROBE_BY_NAME,
@@ -30,9 +35,7 @@ from pycore.pyctl.ai.ai_probe import (
     probe_skip_reason,
 )
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
-from pycore.pyctl.ai.ai_gateway_state import (
-    _PROBE_TTL_S, _QUOTA_TTL_S, _in_cooldown,
-)
+from pycore.pyctl.ai.ai_gateway_state import _PROBE_TTL_S, _in_cooldown
 
 
 _PROBE_CACHE_SIGNAL = 'pyctl.ai.gateway.probe_cache'
@@ -146,6 +149,8 @@ def invalidate_probe_cache() -> None:
     })
     THREAD_BUS.clear_signal(_QUOTA_CACHE_SIGNAL)
     THREAD_BUS.clear_signal(_VISION_CACHE_SIGNAL)
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_AI_KEY)
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_CAPABILITIES_KEY)
 
 
 def _quota_openrouter(key: str) -> Dict[str, Any]:
@@ -199,12 +204,16 @@ def get_quota(provider: str, refresh: bool = False) -> Dict[str, Any]:
     """
     quota_cache = THREAD_BUS.get_signal(_QUOTA_CACHE_SIGNAL, {}) or {}
     cached = quota_cache.get(provider)
-    if cached and not refresh and (time.time() - cached["ts"]) < _QUOTA_TTL_S:
+    if cached and not refresh:
         return cached["quota"]
 
     key = first_secret(provider)
     if not key:
         quota: Dict[str, Any] = {"kind": "none", "note": "No API key configured"}
+    elif not refresh and provider == "openrouter":
+        quota = {"kind": "key-usage", "cached": False}
+    elif not refresh and provider == "deepseek":
+        quota = {"kind": "balance", "cached": False}
     elif provider == "openrouter":
         try:
             quota = _quota_openrouter(key)

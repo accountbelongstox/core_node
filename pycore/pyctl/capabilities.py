@@ -37,6 +37,11 @@ from pycore.pyutils.common.model_tiers import (
     tier_summary_lines,
 )
 from pycore.pyutils.common.managed_service import managed_services
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_CAPABILITIES_KEY,
+    STATUS_SNAPSHOT_SYSTEM_INFO_KEY,
+    status_snapshot_cache,
+)
 from pycore.pyutils.tts.tts_orchestrator import default_tts_engine_priority
 from pycore.pyutils.tts.tts_engine_probe import engine_installed
 
@@ -121,14 +126,14 @@ def _dist_version(dist: str) -> Optional[str]:
 
 
 def _tts_engine_available(name: str) -> bool:
-    """Cheap snapshot: managed running, else installed. No HTTP health probes.
+    """Cheap snapshot: known managed state, else installed. No health probes.
 
     Live readiness stays on dedicated TTS status endpoints; this registry must
     stay side-effect-free for the capability panel.
     """
     try:
         if managed_services.spec(name) is not None:
-            return bool(managed_services.is_running(name))
+            return bool(managed_services.peek_running(name))
     except Exception:
         pass
     return _tts_engine_installed(name)
@@ -184,16 +189,28 @@ def _library_entry(
     return entry
 
 
-def libraries_status() -> List[Dict[str, Any]]:
+def libraries_status(
+    tts_engines: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
     """Pycore library registry: pip packages + neural TTS engines with model tiers."""
+    cached_tts = tts_engines or {}
     out: List[Dict[str, Any]] = []
     for lib in _PIP_LIBS:
         module = lib["module"]
         probe = lib.get("probe_engine")
         pip_ok = _spec_available(module)
         if probe:
-            avail = _tts_engine_available(probe)
-            inst = _tts_engine_installed(probe)
+            cached = cached_tts.get(probe)
+            avail = (
+                bool(cached.get("available"))
+                if isinstance(cached, dict)
+                else _tts_engine_available(probe)
+            )
+            inst = (
+                bool(cached.get("installed"))
+                if isinstance(cached, dict)
+                else _tts_engine_installed(probe)
+            )
         else:
             avail = pip_ok
             inst = pip_ok
@@ -204,10 +221,20 @@ def libraries_status() -> List[Dict[str, Any]]:
         ))
     for lib in _API_TTS_LIBS:
         probe = lib.get("probe_engine") or lib["name"]
-        inst = _tts_engine_installed(probe)
+        cached = cached_tts.get(probe)
+        inst = (
+            bool(cached.get("installed"))
+            if isinstance(cached, dict)
+            else _tts_engine_installed(probe)
+        )
+        available = (
+            bool(cached.get("available"))
+            if isinstance(cached, dict)
+            else _tts_engine_available(probe)
+        )
         out.append(_library_entry(
             lib["name"], lib["category"], lib["note"],
-            _tts_engine_available(probe), inst, None,
+            available, inst, None,
             kind="api", tier_engine=lib.get("tier_engine"),
         ))
     return out
@@ -235,17 +262,29 @@ def cuda_status() -> Dict[str, Any]:
     }
 
 
-def capabilities_status() -> Dict[str, Any]:
+def _build_capabilities_status(
+    tts_engines: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     """Full capability snapshot for the UI: CUDA block + pycore library registry."""
     return {
         "success": True,
         "cuda": cuda_status(),
-        "libraries": libraries_status(),
+        "libraries": libraries_status(tts_engines),
         "model_tiers": [
             {"engine": key, **row}
             for key, row in TIER_TABLE.items()
         ],
     }
+
+
+def capabilities_status(
+    tts_engines: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Return the cached local capability registry without live engine probes."""
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_CAPABILITIES_KEY,
+        lambda: _build_capabilities_status(tts_engines),
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -331,13 +370,22 @@ def pycore_constants() -> List[Dict[str, Any]]:
     ]
 
 
-def system_info() -> Dict[str, Any]:
+def _build_system_info() -> Dict[str, Any]:
     """Read-only constants + static directories for the Settings / Status UI."""
     return {
         "success": True,
         "constants": pycore_constants(),
         "directories": static_directories(),
     }
+
+
+def system_info(refresh: bool = False) -> Dict[str, Any]:
+    """Return the cached read-only system information snapshot."""
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_SYSTEM_INFO_KEY,
+        _build_system_info,
+        refresh=refresh,
+    )
 
 
 __all__ = [

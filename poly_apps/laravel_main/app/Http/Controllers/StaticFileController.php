@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -89,6 +90,31 @@ class StaticFileController extends Controller
         }
 
         return $this->respondFile($request, $resolved);
+    }
+
+    public function serveArticleAudio(
+        Request $request,
+        string $scope,
+        string $language,
+        string $filename,
+        AppQyV1ArticleSentenceAudioService $articleAudioService
+    ): Response {
+        $relativePath = $scope . '/' . $language . '/' . $filename;
+        $fullPath = PathMapper::getAppQyV1AudioBaseDir($relativePath);
+        if (is_file($fullPath)) {
+            return $this->serveLaravelStatic($request, 'app_qy_v1/audio/' . $relativePath);
+        }
+
+        $queued = $articleAudioService->enqueueMissingPath($scope, $language, $filename);
+        if ($queued === null || !($queued['ok'] ?? false)) {
+            abort(404);
+        }
+
+        return response('', 202, [
+            'Cache-Control' => 'no-store',
+            'Retry-After' => '3',
+            'X-Audio-Status' => 'queued',
+        ]);
     }
 
     /** Shared conditional-GET + content-type file responder. */

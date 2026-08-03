@@ -49,6 +49,16 @@ final class QueueCenterContract
         return array_values(self::document()['control_names'] ?? []);
     }
 
+    public static function diffDelivery(): array
+    {
+        return self::document()['diff_delivery'] ?? [];
+    }
+
+    public static function realtime(): array
+    {
+        return self::document()['realtime'] ?? [];
+    }
+
     public static function queueMetricDefaults(): array
     {
         return self::document()['section_contract_defaults']['queue'] ?? [];

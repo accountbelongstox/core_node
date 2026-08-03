@@ -41,8 +41,8 @@ import type { Word } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
-import { getCachedWords, putCachedWords } from '../cache/WfNewContentCache';
-import { collectAudioUrls, preloadAudio } from '../cache/WfNewAudioCache';
+import { getCachedWords, putCachedWords } from '../runtime-store/WfNewContentCache';
+import { collectAudioUrls, preloadAudio } from '../runtime-store/WfNewAudioCache';
 
 export interface WfNewPracticePager {
   /** The current page's words, ordered least-recently-read. */

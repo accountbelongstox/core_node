@@ -22,6 +22,7 @@ use App\Services\TaskProcessors\SentenceAudioTaskProcessor;
 use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
 use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
+use App\Services\QueueCenter\DiffIdPageCatalog;
 
 class TaskManagerService
 {
@@ -38,14 +39,13 @@ class TaskManagerService
     private const TRANSACTION_ATTEMPTS = 3;
 
     /**
-     * Short-TTL cache for the hot, unbounded status tally (getTaskStats). The
-     * overview shell poll and /api/task/stats both hit it every ~5s; a 3s TTL
-     * collapses that to at most one full-table GROUP BY per interval regardless
-     * of how many pollers/tabs are open, which is load-bearing on the
-     * single-worker php -S runtime.
+     * Stale-while-revalidate cache for the hot, unbounded status tally. Pollers
+     * share one snapshot and only one worker refreshes it after the fresh TTL.
      */
     private const STATS_CACHE_KEY = 'globaltasks:status_counts';
-    private const STATS_CACHE_TTL_SECONDS = 3;
+    private const STATS_CACHE_FRESH_SECONDS = 15;
+    private const STATS_CACHE_STALE_SECONDS = 60;
+    private const STATS_CACHE_LOCK_SECONDS = 10;
     // Use the FILE store, not the configured default: CACHE_STORE=database here
     // but no migration provisions the `cache` table, so the database store may
     // not exist. The file store is always available and persists across the
@@ -538,39 +538,40 @@ class TaskManagerService
     }
 
     /**
-     * Count PENDING tasks of one type with priority >= $minPriority — the typed
-     * pull route's `pending_urgent` signal.
-     */
-    public function countUrgentPendingForType(string $taskType, ?int $minPriority = null): int
-    {
-        $minPriority = $minPriority ?? QueueCenterContract::taskPriority('fast');
-
-        return (int) GlobalTask::pending()
-            ->where('task_type', $taskType)
-            ->where('priority', '>=', $minPriority)
-            ->count();
-    }
-
-    /**
-     * Count PENDING fast-tier tasks of one type claimable by these capabilities —
-     * the typed pull route's `pending_fast` signal.
+     * Return typed-pull backlog signals with one conditional aggregate query.
      *
      * @param array<int,string> $capabilities
+     * @return array{pending_urgent:int,pending_fast:int}
      */
-    public function countFastPendingForType(string $taskType, array $capabilities): int
-    {
+    public function pendingSignalsForType(
+        string $taskType,
+        array $capabilities,
+        ?int $minPriority = null
+    ): array {
+        $minPriority = $minPriority ?? QueueCenterContract::taskPriority('fast');
         $capabilities = array_values(array_filter($capabilities, 'is_string'));
+        $capabilityClause = 'capability IS NULL';
+        $bindings = [$minPriority, GlobalTask::executionType('remote_fast')];
 
-        return (int) GlobalTask::pending()
+        if ($capabilities !== []) {
+            $placeholders = implode(',', array_fill(0, count($capabilities), '?'));
+            $capabilityClause .= " OR capability IN ({$placeholders})";
+            $bindings = array_merge($bindings, $capabilities);
+        }
+
+        $row = GlobalTask::pending()
             ->where('task_type', $taskType)
-            ->where('execution_type', GlobalTask::executionType('remote_fast'))
-            ->where(function ($q) use ($capabilities) {
-                $q->whereNull('capability');
-                if (!empty($capabilities)) {
-                    $q->orWhereIn('capability', $capabilities);
-                }
-            })
-            ->count();
+            ->selectRaw(
+                'SUM(CASE WHEN priority >= ? THEN 1 ELSE 0 END) AS pending_urgent, '
+                    . 'SUM(CASE WHEN execution_type = ? AND (' . $capabilityClause . ') THEN 1 ELSE 0 END) AS pending_fast',
+                $bindings
+            )
+            ->first();
+
+        return [
+            'pending_urgent' => (int) ($row->pending_urgent ?? 0),
+            'pending_fast' => (int) ($row->pending_fast ?? 0),
+        ];
     }
 
     /**
@@ -670,7 +671,8 @@ class TaskManagerService
     public function bumpTaskPriority(string $taskId, ?int $newPriority = null): string
     {
         $newPriority = $newPriority ?? GlobalTask::priority('fast');
-        return $this->db()->transaction(function () use ($taskId, $newPriority) {
+        $taskType = null;
+        $result = $this->db()->transaction(function () use ($taskId, $newPriority, &$taskType) {
             $task = GlobalTask::where('task_id', $taskId)
                 ->lockForUpdate()
                 ->first();
@@ -682,6 +684,8 @@ class TaskManagerService
             if ($task->status !== GlobalTask::status('pending')) {
                 return 'not_pending';
             }
+
+            $taskType = (string) $task->task_type;
 
             $target = max((int) $task->priority, $newPriority);
             // "Task-top" is the shared FAST LANE, not merely a higher number: a
@@ -710,6 +714,12 @@ class TaskManagerService
 
             return 'bumped';
         }, self::TRANSACTION_ATTEMPTS);
+
+        if ($result === 'bumped' && $taskType !== null) {
+            (new DiffIdPageCatalog())->promote('global_tasks:queue:' . $taskType, $taskId);
+        }
+
+        return $result;
     }
 
     /**
@@ -816,9 +826,23 @@ class TaskManagerService
                 return 'not_found';
             }
 
+            $configuredTimeout = (int) (
+                QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$task->task_type]
+                ?? 0
+            );
+            if ($configuredTimeout > (int) $task->timeout_seconds) {
+                $task->timeout_seconds = $configuredTimeout;
+                $task->save();
+            }
+
             // Already ours (the normal case after an atomic pull) — idempotent.
             if ($task->assigned_to === $workerId
                 && in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
+                $worker->heartbeat();
+                if ($task->timeout_seconds) {
+                    $task->timeout_at = now()->addSeconds($task->timeout_seconds);
+                    $task->save();
+                }
                 return 'accepted';
             }
 
@@ -967,6 +991,7 @@ class TaskManagerService
      * @param float $progress Progress percentage
      * @param array|null $result Result data
      * @param string|null $error Error message
+     * @param int|null $attempt Worker execution attempt (global_tasks.retry_count)
      * @param array|null $outcome OUT: result-trust summary
      *        ['status' => final task status string, 'stored_count' => int,
      *         'failed_count' => int]. Lets the controller return
@@ -982,13 +1007,14 @@ class TaskManagerService
         ?float $progress = null,
         ?array $result = null,
         ?string $error = null,
+        ?int $attempt = null,
         ?array &$outcome = null
     ): bool {
         // Default outcome surfaced even on the early-false paths the controller
         // maps to 409, so the response shape is always consistent.
         $outcome = ['status' => $status, 'stored_count' => 0, 'failed_count' => 0];
 
-        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, &$outcome) {
+        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, $attempt, &$outcome) {
             // LOCK ORDER: worker first, then task — the same order
             // pullAndAssignTasksForWorker uses. Locking task->worker here while a
             // concurrent pull locked worker->tasks was a classic lock-ordering
@@ -1019,6 +1045,27 @@ class TaskManagerService
                     'worker_id' => $workerId,
                 ]);
                 return false;
+            }
+
+            // A retry may be assigned again before the previous HTTP response
+            // reaches its worker. A late result from that older retry must not
+            // mutate or release the current lease, even when the worker_id is
+            // unchanged. Acknowledge it as a consumed stale delivery.
+            if ($attempt !== null && (int) $task->retry_count !== $attempt) {
+                $outcome = [
+                    'status' => $task->status,
+                    'stored_count' => 0,
+                    'failed_count' => 0,
+                    'stale_attempt' => true,
+                    'attempt' => (int) $task->retry_count,
+                ];
+                Log::info('Stale task result ignored after retry reassignment', [
+                    'task_id' => $taskId,
+                    'worker_id' => $workerId,
+                    'reported_attempt' => $attempt,
+                    'current_attempt' => (int) $task->retry_count,
+                ]);
+                return true;
             }
 
             // Check if this worker is assigned to this task
@@ -1172,6 +1219,7 @@ class TaskManagerService
                     ]);
                 }
             } elseif ($status === GlobalTask::status('processing')) {
+                $worker->heartbeat();
                 $task->status = GlobalTask::status('processing');
                 // A NULL progress is a lease keep-alive ping (d.txt 7): extend
                 // the lease without clobbering the stored progress with 0.
@@ -1420,29 +1468,33 @@ class TaskManagerService
         // It is polled hot: the Task Center shell (/api/task-center/overview) and
         // /api/task/stats both call it every ~5s. On the single-worker php -S
         // runtime one such scan serializes ahead of EVERY other request (even the
-        // DB-free /api/health), so it is memoized for a few seconds — concurrent
-        // pollers then share ONE scan and read a cheap single-row cache entry
-        // instead. Invalidated implicitly by the short TTL (see STATS_CACHE_KEY /
-        // forgetTaskStatsCache() for explicit busting on state transitions).
-        return Cache::store(self::STATS_CACHE_STORE)->remember(self::STATS_CACHE_KEY, self::STATS_CACHE_TTL_SECONDS, static function (): array {
-            // ONE grouped query instead of seven full-table counts; the response
-            // covers the complete status vocabulary (incl. cancelled) so every
-            // consumer (dashboard, pycore monitor) sees the same set.
-            $grouped = GlobalTask::query()
-                ->groupBy('status')
-                ->selectRaw('status, count(*) as total')
-                ->pluck('total', 'status');
+        // DB-free /api/health). A shared stale-while-revalidate snapshot lets
+        // pollers read immediately while one cache-locked refresh performs the
+        // scan. See forgetTaskStatsCache() for explicit invalidation.
+        return Cache::store(self::STATS_CACHE_STORE)->flexible(
+            self::STATS_CACHE_KEY,
+            [self::STATS_CACHE_FRESH_SECONDS, self::STATS_CACHE_STALE_SECONDS],
+            static function (): array {
+                // ONE grouped query instead of seven full-table counts; the response
+                // covers the complete status vocabulary (incl. cancelled) so every
+                // consumer (dashboard, pycore monitor) sees the same set.
+                $grouped = GlobalTask::query()
+                    ->groupBy('status')
+                    ->selectRaw('status, count(*) as total')
+                    ->pluck('total', 'status');
 
-            $count = static function (string $status) use ($grouped): int {
-                return (int) ($grouped[$status] ?? 0);
-            };
+                $count = static function (string $status) use ($grouped): int {
+                    return (int) ($grouped[$status] ?? 0);
+                };
 
-            $stats = ['total' => (int) $grouped->sum()];
-            foreach (QueueCenterContract::taskStatuses('all') as $status) {
-                $stats[$status] = $count($status);
-            }
-            return QueueCenterContract::projectTask($stats, 'stats');
-        });
+                $stats = ['total' => (int) $grouped->sum()];
+                foreach (QueueCenterContract::taskStatuses('all') as $status) {
+                    $stats[$status] = $count($status);
+                }
+                return QueueCenterContract::projectTask($stats, 'stats');
+            },
+            ['seconds' => self::STATS_CACHE_LOCK_SECONDS]
+        );
     }
 
     /**

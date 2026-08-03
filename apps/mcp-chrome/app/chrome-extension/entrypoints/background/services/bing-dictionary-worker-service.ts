@@ -16,6 +16,7 @@ import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-
 import { logger } from '@/utils/logger';
 import { BingTabPool, MAX_BING_TABS, isRecoverableTabError } from './bing-tab-pool';
 import {
+  DIFF_DELIVERY,
   TASK_CAPABILITY_BY_ROLE,
   TASK_STATUS_BY_ROLE,
   TASK_TYPE_KEYS,
@@ -375,14 +376,20 @@ class BingDictionaryWorkerService {
    * after a Stop/uncheck — even if the SW was terminated and the in-memory
    * isRunning=false while a stale session run-intent + armed alarm survive.
    */
-  async stopAndClear(): Promise<void> {
+  async stopAndClear(closeTabs = false): Promise<void> {
     if (this.isRunning) {
       // stop() already clears persisted intent + disarms the watchdog.
       this.stop();
-      return;
+    } else {
+      await this.persistRuntime(false);
+      await this.clearWatchdog();
     }
-    await this.persistRuntime(false);
-    await this.clearWatchdog();
+    if (closeTabs) {
+      await this.pool.closeAll();
+      this.stats.activeTabs = 0;
+      this.stats.tabActivity = [];
+      tabController.clearManagedTabs();
+    }
   }
 
   /** Report the current pool tab ids to the shared TabController (self-recovery). */
@@ -1516,7 +1523,7 @@ class BingDictionaryWorkerService {
       const resp = await this.workerClient.enqueuePending({
         language: this.config.sourceLanguage,
         target_language: this.config.targetLanguage,
-        limit: 500,
+        limit: DIFF_DELIVERY.data_segment_limit,
       });
       if (resp.success && resp.data) {
         logger.info(

@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserInitializationModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Models\User;
 
 class AppQyV1UserInitializationService
@@ -48,6 +49,10 @@ class AppQyV1UserInitializationService
             $user->native_language = $payload['native_language'];
         }
         $user->save();
+        AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
+            (int) $user->id,
+            $learningLanguages
+        );
 
         $profile = AppQyV1UserInitializationModel::query()->updateOrCreate(
             ['user_id' => $user->id],

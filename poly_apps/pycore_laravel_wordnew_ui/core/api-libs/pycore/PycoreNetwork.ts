@@ -1,5 +1,6 @@
 /** Canonical Pycore HTTP and Server-Sent Events constants. */
 const PYCORE_HTTP_API_PREFIX = '/api';
+const PYCORE_HTTP_CLIENT_ID_PATH = `${PYCORE_HTTP_API_PREFIX}/client-id`;
 const PYCORE_HTTP_EVENTS_PATH = `${PYCORE_HTTP_API_PREFIX}/events`;
 
 export const PYCORE_HTTP_PORT = 59000;
@@ -7,6 +8,7 @@ export const PYCORE_HTTP_JSON_CONTENT_TYPE = 'application/json';
 
 export const PYCORE_HTTP_PATHS = {
   apiPrefix: PYCORE_HTTP_API_PREFIX,
+  clientId: PYCORE_HTTP_CLIENT_ID_PATH,
   status: `${PYCORE_HTTP_API_PREFIX}/status`,
   info: `${PYCORE_HTTP_API_PREFIX}/info`,
   routes: `${PYCORE_HTTP_API_PREFIX}/routes`,
@@ -46,7 +48,6 @@ export const PYCORE_BROWSER_EVENTS = {
   engineLoadChanged: 'pycore-engine-load-changed',
   httpEventReplayLost: 'http_event_replay_lost',
   httpEventServerRestarted: 'http_event_server_restarted',
-  laravelApiChanged: 'pycore:laravel-api-changed',
 } as const;
 
 export const PYCORE_SSE_EVENTS = {

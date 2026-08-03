@@ -30,7 +30,7 @@ import {
 import { ElementTheme } from '../../WfNewTypes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
 import { wfNewAdminApi } from '../../api';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { laravelApi } from '@/core/api-libs/laravel';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 
@@ -178,7 +178,7 @@ export const WfNewAdminLibraries: React.FC<WfNewAdminLibrariesProps> = ({
     if (busy.has(key)) return;
     withBusy(key, true);
     try {
-      await pycoreApi.prioritizeCovers([Number(lib.id)]);
+      await laravelApi.prioritizeCovers([Number(lib.id)]);
       if (!aliveRef.current) return;
       addToast(trans('admin.lib.coverQueued'), 'success');
       load();

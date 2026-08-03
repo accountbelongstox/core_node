@@ -38,6 +38,10 @@ from pycore.pyfoundations.third_party.api import get_third_package_easyocr
 
 from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
 from pycore.pyutils.common.ocr.manager import ocr_manager
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_OCR_KEY,
+    status_snapshot_cache,
+)
 
 from pycore.pyutils.common.ocr.cnocr_engine import CnOCREngine
 
@@ -94,7 +98,7 @@ def best_engine() -> Optional[str]:
     return None
 
 
-def ocr_status() -> Dict[str, Any]:
+def _build_ocr_status() -> Dict[str, Any]:
     """
     Availability snapshot for the UI (no OCR run, no install triggered).
 
@@ -118,12 +122,18 @@ def ocr_status() -> Dict[str, Any]:
             "note": notes.get(name, ""),
         })
     avail = [e for e in engines if e["available"]]
+    best = next((entry["name"] for entry in engines if entry["available"]), None)
     return {
         "success": True,
-        "best": best_engine(),
+        "best": best,
         "available_count": len(avail),
         "engines": engines,
     }
+
+
+def ocr_status() -> Dict[str, Any]:
+    """Return the shared cached OCR availability snapshot."""
+    return status_snapshot_cache.get(STATUS_SNAPSHOT_OCR_KEY, _build_ocr_status)
 
 
 # --------------------------------------------------------------------------- #

@@ -3,6 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordValidityQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Http\Controllers\Controller;
@@ -27,19 +28,31 @@ class AppQyV1VocabularyValidityController extends Controller
 {
     use ApiResponse;
 
+    private AppQyV1WordValidityQueueService $queueService;
+
+    public function __construct(AppQyV1WordValidityQueueService $queueService)
+    {
+        $this->queueService = $queueService;
+    }
+
     /**
      * GET /vocabulary/validity/pending
      *
      * Return words that no third-party check has touched yet, so the client can
      * verify them online and report back. Most-queried words come first.
      *
-     * Query params: language (code or name, default en), limit (1..1000, default 100).
+     * Query params: language/languages, start, limit, q, include_total.
      */
     public function getPending(Request $request): JsonResponse
     {
+        $rawLanguages = trim((string) $request->query('languages', ''));
         $languageCode = $this->resolveLanguageCode($request->query('language'));
-
+        $languages = $rawLanguages !== '' ? explode(',', $rawLanguages) : [$languageCode];
+        $start = max(0, (int) $request->query('start', 0));
         $limit = (int) $request->query('limit', 100);
+        $search = mb_substr(trim((string) $request->query('q', '')), 0, 120);
+        $includeTotal = $request->boolean('include_total', false);
+
         if ($limit < 1) {
             $limit = 1;
         }
@@ -47,50 +60,13 @@ class AppQyV1VocabularyValidityController extends Controller
             $limit = 1000;
         }
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
-
-        if (!$hasTable) {
-            return $this->success([
-                'language' => $languageCode,
-                'count' => 0,
-                'words' => [],
-            ]);
-        }
-
-        // Give-data idempotency + full coverage: hand out a word while EITHER
-        // side of the merged task is unfinished — never validity-checked OR
-        // (valid but missing a translation) (8.0/8.3: 没有翻译的单词和没有有效
-        // 性的单词都由 AI 处理一遍). A checked INVALID word without translation
-        // is terminal (nothing to translate) and never comes back; a checked
-        // AND translated word likewise.
-        $words = $dictModel->query()
-            ->where(function ($query) {
-                $query->whereNull('validity_checked_at')
-                    ->orWhere(function ($untranslated) {
-                        $untranslated->where('has_translation', false)
-                            ->where('is_valid', true);
-                    });
-            })
-            ->orderByDesc('query_count')
-            ->orderBy('id')
-            ->limit($limit)
-            ->get(['id', 'content', 'md5'])
-            ->map(function ($row) {
-                return [
-                    'id' => (int) $row->id,
-                    'word' => $row->content,
-                    'md5' => $row->md5,
-                ];
-            })
-            ->values()
-            ->all();
-
-        return $this->success([
-            'language' => $languageCode,
-            'count' => count($words),
-            'words' => $words,
-        ]);
+        return $this->success($this->queueService->pendingPage(
+            $languages,
+            $start,
+            $limit,
+            $search,
+            $includeTotal
+        ));
     }
 
     /**
@@ -227,6 +203,8 @@ class AppQyV1VocabularyValidityController extends Controller
             );
             $translated = (int) $outcome['processed'];
         }
+
+        $this->queueService->notifyChanged($languageCode);
 
         return $this->success([
             'language' => $languageCode,

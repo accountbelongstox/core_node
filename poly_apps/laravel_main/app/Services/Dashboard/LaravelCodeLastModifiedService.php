@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\Cache;
  */
 class LaravelCodeLastModifiedService
 {
-    private const SCAN_TIMEOUT_SEC = 3;
+    private const SCAN_TIMEOUT_SEC = 2;
+
+    private const FALLBACK_SCAN_BUDGET_SEC = 1.0;
 
     /** Polled per open UI tab - cache the probe so each poll skips the shell scan. */
     private const PROBE_CACHE_KEY = 'dashboard:code_last_modified';
@@ -65,12 +67,28 @@ class LaravelCodeLastModifiedService
      */
     public function probe(): array
     {
-        return Cache::store('file')->flexible(
+        $cache = Cache::store('file');
+        $probe = fn (): array => $cache->flexible(
             self::PROBE_CACHE_KEY,
             [self::PROBE_CACHE_FRESH_SEC, self::PROBE_CACHE_STALE_SEC],
             fn () => $this->probeUncached(),
             ['seconds' => self::PROBE_REFRESH_LOCK_SEC]
         );
+
+        if (!$cache->has(self::PROBE_CACHE_KEY)) {
+            try {
+                return $cache->withoutOverlapping(
+                    self::PROBE_CACHE_KEY . ':cold',
+                    $probe,
+                    self::PROBE_REFRESH_LOCK_SEC,
+                    1
+                );
+            } catch (\Illuminate\Contracts\Cache\LockTimeoutException) {
+                return $this->emptyProbe('scan_busy');
+            }
+        }
+
+        return $probe();
     }
 
     private function probeUncached(): array
@@ -256,6 +274,7 @@ class LaravelCodeLastModifiedService
     {
         $bestMtime = null;
         $bestPath = null;
+        $deadline = microtime(true) + self::FALLBACK_SCAN_BUDGET_SEC;
 
         foreach (self::SCAN_DIRS as $dir) {
             $fullDir = $base . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $dir);
@@ -269,6 +288,9 @@ class LaravelCodeLastModifiedService
             );
 
             foreach ($iterator as $file) {
+                if (microtime(true) >= $deadline) {
+                    break 2;
+                }
                 if (!$file->isFile()) {
                     continue;
                 }
@@ -296,6 +318,18 @@ class LaravelCodeLastModifiedService
         }
 
         return ['mtime' => $bestMtime, 'path' => $bestPath];
+    }
+
+    private function emptyProbe(string $method): array
+    {
+        return [
+            'last_modified_at' => null,
+            'last_modified_unix' => null,
+            'latest_file' => null,
+            'scanned_at' => now()->toIso8601String(),
+            'scan_ms' => 0,
+            'method' => $method,
+        ];
     }
 
     private function isExcludedPath(string $path): bool

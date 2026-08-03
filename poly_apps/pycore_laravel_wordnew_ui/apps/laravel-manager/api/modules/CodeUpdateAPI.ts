@@ -1,4 +1,4 @@
-import { BaseAPI } from '../base/BaseAPI';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 
 export interface CodeLastModifiedStatus {
   last_modified_at: string | null;

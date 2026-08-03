@@ -2,7 +2,12 @@ import path from 'path';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { DEFAULT_FRONTEND_PORT } from './config/constants';
+import {
+  DEFAULT_FRONTEND_HOST,
+  DEFAULT_FRONTEND_PORT,
+  FRONTEND_APP_FLAVOR,
+  FRONTEND_BUILD_TARGET,
+} from './config/constants';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
 // the direct pycore HTTP transport (no Vite reverse proxy).
@@ -10,7 +15,7 @@ export default defineConfig(() => {
     const capacitorShim = (name: string) =>
       path.resolve(__dirname, 'shared/capacitor-web-shims', name + '.ts');
 
-    const useNativeCapacitor = process.env.VITE_BUILD_TARGET === 'native';
+    const useNativeCapacitor = FRONTEND_BUILD_TARGET === 'native';
     const capacitorAliases = useNativeCapacitor ? {} : {
       '@capacitor/core': capacitorShim('core'),
       '@capacitor/preferences': capacitorShim('preferences'),
@@ -39,11 +44,16 @@ export default defineConfig(() => {
 
     return {
       define: {
-        __APP_FLAVOR__: JSON.stringify(process.env.VITE_APP_FLAVOR || 'shell'),
+        __APP_FLAVOR__: JSON.stringify(FRONTEND_APP_FLAVOR),
       },
       server: {
         port: DEFAULT_FRONTEND_PORT,
         host: '0.0.0.0',
+        strictPort: true,
+        hmr: {
+          host: DEFAULT_FRONTEND_HOST,
+          clientPort: DEFAULT_FRONTEND_PORT,
+        },
       },
       plugins: [
         react(),

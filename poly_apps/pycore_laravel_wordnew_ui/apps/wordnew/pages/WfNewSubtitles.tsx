@@ -14,7 +14,7 @@ import {
   type WfNewDictWord,
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { resolveAudioSync } from '../cache/WfNewAudioCache';
+import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;

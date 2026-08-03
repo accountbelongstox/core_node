@@ -79,7 +79,7 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
         && (task.payload as any).target_language.trim()
         ? (task.payload as any).target_language.trim()
         : 'zh';
-      classification = await runWordValidityClassification(words, undefined, targetLanguage);
+      classification = await runWordValidityClassification(words, 'deepseek', targetLanguage);
     } catch (error: any) {
       logger.warn(LOG, `Web provider failed for ${task.task_id}`, error);
       await this.submitResult(task.task_id, 'failed', undefined, {

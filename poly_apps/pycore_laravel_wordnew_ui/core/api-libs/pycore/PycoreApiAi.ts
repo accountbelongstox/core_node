@@ -46,7 +46,10 @@ export const pycoreApiAi = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.localAiChat, { provider: 'auto', messages, model, source }),
 
   // --- AI gateway status (tiers, quotas, cooldowns, task records) ---------- #
-  getAiGateway: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.localAiStatus, {}),
+  getAiGateway: (refresh = false) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.localAiStatus,
+    { refresh },
+  ),
 
   // --- AI key management (indexed secret-store key files) ------------------ #
   // List every provider's key base + per-slot rotation status (KEY1/KEY2…),

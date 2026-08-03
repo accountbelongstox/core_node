@@ -2,10 +2,9 @@
  * PcSentenceAudioPanel - generate TTS audio for every sentence in the shared
  * library, with persistent progress.
  *
- * Connects DIRECTLY to the pycore backend (pyservice.ps1 -> :59000) over the
- * existing `media.enrich` HTTP controller, which forwards to Laravel's
- * SentenceEnrichmentService. That service is the authoritative "generate audio
- * for all sentences" engine and already satisfies every requirement here:
+ * Connects directly to Laravel's SentenceEnrichmentService. That service is
+ * the authoritative sentence-audio generation engine and already satisfies
+ * every requirement here:
  *
  *   - IDEMPOTENT: fill-missing only, never clobber. A row that already carries
  *     audio (or all AI fields) is skipped by the selection query, so re-running
@@ -32,7 +31,7 @@
  * synced to Laravel yet (Analyze -> Sync books to Laravel first).
  *
  * Local React state only; every call is guarded and the UI never crashes when
- * the backend (:59000) is offline. Hardcoded-English copy is centralized in `L`
+ * Laravel is offline. Hardcoded-English copy is centralized in `L`
  * (zh kept as comments - the pycore-manager pages have no `t` object).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -40,9 +39,9 @@ import {
   Volume2, RefreshCw, Play, Square, CheckCircle2, AlertTriangle, WifiOff,
   BookOpen, Sparkles,
 } from 'lucide-react';
-import { requestPycoreHttp, onHttpStatus } from '@/apps/pycore-manager/api';
-import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { BookSourceState } from '@/apps/pycore-manager/api';
+import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
@@ -102,7 +101,7 @@ const L = {
   noBooks: 'No book sources yet.',                  // 暂无书籍来源
   sentences: 'sentences',                           // 句
   notSynced: 'not synced',                          // 未同步
-  httpDown: 'pycore backend (:59000) unreachable - start it (pyservice.ps1) to generate audio.',
+  httpDown: 'Laravel backend (:9000) is unreachable.',
   lastRun: 'Last run',                              // 上次运行
 };
 
@@ -116,8 +115,8 @@ interface PcSentenceAudioPanelProps {
 }
 
 const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, sourceStates }) => {
+  const laravelEndpoint = usePcLaravelEndpoint();
   const [gen, setGen] = useState<AudioGenState>(loadState);
-  const [httpConnected, setHttpConnected] = useState(false);
   // If a cached session was mid-generation, it was interrupted by the
   // refresh/reopen - surface that instead of silently showing "generating".
   const [bootState, setBootState] = useState<AudioGenState>(loadState);
@@ -126,11 +125,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
   // Mirror status on every change so a refresh always has the latest batch.
   useEffect(() => { saveState(gen); }, [gen]);
 
-  // HTTP reachability mirror for the offline banner.
-  useEffect(() => {
-    const off = onHttpStatus(setHttpConnected);
-    return off;
-  }, []);
+  const httpConnected = laravelEndpoint.endpoints.find((endpoint) => endpoint.url === laravelEndpoint.current)?.healthy !== false;
 
   // On mount, mark a cached "generating" session as interrupted (the loop died
   // with the page). The user resumes explicitly - never auto-run on load.
@@ -158,7 +153,7 @@ const PcSentenceAudioPanel: React.FC<PcSentenceAudioPanelProps> = ({ entries, so
   const enrichOnce = useCallback(async (limit: number): Promise<{
     processed: number; enriched: number; remaining: number; errors: string[];
   } | null> => {
-    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.mediaEnrich, { limit })
+    const r: any = await laravelApi.enrichMedia(limit)
       .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
     if (!r || r.error || r.success === false) {
       return null;

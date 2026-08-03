@@ -19,16 +19,16 @@ import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, 
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
 // word group skip re-fetching the whole list. Never throws — a miss falls back to
-// the network. See ./cache/WfNewContentCache.
+// the network. See ../runtime-store/WfNewContentCache.
 import {
   getCachedGroups, getCachedGroupIds, putCachedGroups,
   getCachedWords, putCachedWords,
   setCacheScope, clearAuthScopedCache,
   dedupGroups,
   type WfNewCachedKind,
-} from '../cache/WfNewContentCache';
+} from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { resolveAudioSync } from '../cache/WfNewAudioCache';
+import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 
 // Modular Imports

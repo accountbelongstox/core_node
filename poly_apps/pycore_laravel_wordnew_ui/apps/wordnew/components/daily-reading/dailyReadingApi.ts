@@ -19,6 +19,8 @@ function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyRea
     article_en: typeof item.article_en === 'string' ? item.article_en : null,
     reference_cn: typeof item.reference_cn === 'string' ? item.reference_cn : null,
     audio_url: typeof item.audio_url === 'string' ? item.audio_url : null,
+    audio_ready: item.audio_ready === true,
+    audio_status: typeof item.audio_status === 'string' ? item.audio_status : null,
     reading_date: typeof item.reading_date === 'string'
       ? item.reading_date
       : (typeof item.published_at === 'string' ? item.published_at : null),
@@ -30,4 +32,13 @@ function normalizeDailyReading(item: WfNewAgentArticle, index: number): DailyRea
 export async function fetchDailyReadings(limit = 20): Promise<DailyReadingRow[]> {
   const items = await wfNewApi.getRecentAgentArticles(limit);
   return items.map(normalizeDailyReading);
+}
+
+export async function requestDailyReadingAudio(row: DailyReadingRow): Promise<void> {
+  if (!row.audio_url || row.audio_ready) return;
+  await fetch(row.audio_url, {
+    method: 'GET',
+    cache: 'no-store',
+    mode: 'no-cors',
+  });
 }

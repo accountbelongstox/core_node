@@ -28,7 +28,7 @@ import {
   ChevronDown, ChevronRight, Lock, BookMarked, Workflow,
 } from 'lucide-react';
 import {
-  pycoreApi, connectPycoreHttp, onHttpStatus, requestPycoreHttp, subscribeHttpEvent,
+  laravelApi, pycoreApi, connectPycoreHttp, onHttpStatus, requestPycoreHttp, subscribeHttpEvent,
 } from '@/apps/pycore-manager/api';
 import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
@@ -658,7 +658,7 @@ const PcBooksPage: React.FC = () => {
   // --- enrichment -------------------------------------------------------- #
   const enrichOnce = useCallback(async (): Promise<EnrichResult | null> => {
     const lim = Math.max(1, Math.floor(limit) || 1);
-    const r: any = await requestPycoreHttp(PYCORE_HTTP_ROUTES.mediaEnrich, { limit: lim })
+    const r: any = await laravelApi.enrichMedia(lim)
       .catch((e: any) => ({ error: e?.message || 'HTTP failed' }));
     if (!r || r.error || r.success === false) {
       setNotice(`${L.enrichFailed}${r?.error ? ': ' + r.error : ''}`);

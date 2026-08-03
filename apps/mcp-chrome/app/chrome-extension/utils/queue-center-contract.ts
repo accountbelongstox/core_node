@@ -71,6 +71,7 @@ export interface TaskRow {
 export interface Task extends Omit<TaskRow, 'progress' | 'assigned_to'> {
   payload: TaskPayload;
   timeout_seconds: number;
+  retry_count: number;
 }
 
 export interface TaskDetail extends TaskRow {
@@ -123,6 +124,7 @@ export interface TaskDetailBundle {
 export interface TaskResult {
   task_id: string;
   worker_id: string;
+  attempt?: number;
   status: TaskStatus;
   progress?: number;
   result?: Record<string, any>;
@@ -213,6 +215,21 @@ export interface QueueLiveCounts {
 
 interface ContractDocument {
   schema_version: number;
+  diff_delivery: {
+    version: number;
+    cursor_store: string;
+    id_page_store: string;
+    data_segment_store: string;
+    id_page_limit: number;
+    id_limit: number;
+    data_segment_limit: number;
+    consumer_batch_limits: Record<string, number>;
+    consumer_task_timeout_seconds: Record<string, number>;
+    consumer_upload_retry: { initial_seconds: number; maximum_seconds: number };
+    consumer_log_tags: Record<string, string[]>;
+    ready_ttl_seconds: number;
+    consumed_ttl_seconds: number;
+  };
   capability_claimants: Record<string, Array<'pycore' | 'chrome'>>;
   task_contract: {
     statuses: {
@@ -229,8 +246,9 @@ interface ContractDocument {
     stream_events: Record<'initial' | 'transition' | 'ping' | 'close', string>;
     execution_types: Record<string, ProcessorType>;
     priorities: Record<'default' | 'manual' | 'fast' | 'maximum', number>;
+    progress_stages: Record<'accepted' | 'synthesizing' | 'uploading' | 'finalizing' | 'completed', number>;
     limits: Record<
-      'list_default' | 'list' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'history_timeline' | 'event_batch',
+      'list_default' | 'list' | 'monitor' | 'worker_pull_default' | 'worker_pull' | 'completed' | 'long_poll_seconds' | 'history_records' | 'history_timeline' | 'event_batch',
       number
     >;
     capability_labels: Record<string, string>;
@@ -253,7 +271,7 @@ const TASK_WIRE_DTO_FIELDS = {
   ] as const satisfies readonly (keyof TaskRow)[],
   worker_pull: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'status', 'payload',
-    'timeout_seconds', 'priority', 'capability', 'is_fast_tier', 'created_at',
+    'timeout_seconds', 'retry_count', 'priority', 'capability', 'is_fast_tier', 'created_at',
   ] as const satisfies readonly (keyof Task)[],
   status: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'capability', 'is_fast_tier',
@@ -287,11 +305,12 @@ const TASK_WIRE_DTO_FIELDS = {
     'platform', 'metadata',
   ] as const satisfies readonly (keyof WorkerRegistration)[],
   worker_result: [
-    'task_id', 'worker_id', 'status', 'progress', 'result', 'error',
+    'task_id', 'worker_id', 'attempt', 'status', 'progress', 'result', 'error',
   ] as const satisfies readonly (keyof TaskResult)[],
 } as const;
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
+export const DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
 export const TASK_STATUS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;
 const taskStatusesForRoles = (roles: string[]): TaskStatus[] => (
   roles.map((role) => TASK_STATUS_BY_ROLE[role] ?? role)

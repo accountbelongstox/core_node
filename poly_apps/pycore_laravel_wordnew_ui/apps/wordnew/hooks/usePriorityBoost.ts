@@ -9,6 +9,7 @@ import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { postJSON } from '../api/WfNewApiTransport';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 const READER_DEBOUNCE_MS = 150;
 const DEFAULT_STACK_PRIORITY = 100;
@@ -30,7 +31,7 @@ function normalizeSentences(
     seen.add(key);
     out.push({ text, language });
   }
-  return out;
+  return out.slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
 }
 
 /** Debounced (~150ms) POST of visible sentence texts to sentence bump-batch. */
@@ -90,7 +91,8 @@ export function useShelfPriorityBoost(
     }
     const items = normalizeSentences(sentences);
     const lang = (language || '').trim() || (items[0]?.language ?? '');
-    const list = (words || []).map((w) => w.trim()).filter(Boolean);
+    const list = Array.from(new Set((words || []).map((w) => w.trim()).filter(Boolean)))
+      .slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
     const target = (
       targetLanguage
       || wfNewSettings.get('settingNativeLang')
@@ -137,7 +139,8 @@ export function useLibraryPriorityBoost(
       return;
     }
     const lang = (language || '').trim();
-    const list = (words || []).map((w) => w.trim()).filter(Boolean);
+    const list = Array.from(new Set((words || []).map((w) => w.trim()).filter(Boolean)))
+      .slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
     if (!lang || !list.length) return;
 
     const target = (

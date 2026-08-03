@@ -3,15 +3,18 @@
  * Mirrors the TTS engines UI (PcTtsEnginesStrip) at smaller scope: one row per
  * engine with a status pill (up = available+running, down = installed but not
  * running, setup = missing), default model, priority and a live Test button.
- * Managed server engines (ollama) get a start/stop toggle. Polls status every
- * periodically while mounted. Backend falls back to OpenRouter when no engine is up.
+ * Managed server engines (ollama) get a start/stop toggle. One shared runtime
+ * restores status and refreshes only after an explicit action or SSE recovery.
+ * Backend falls back to OpenRouter when no engine is up.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Cpu, Loader2, Power, PowerOff } from 'lucide-react';
-import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
-import type { LlmEngine, LlmStatus } from '@/apps/pycore-manager/api';
-import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import { useTopicDrivenRefresh } from '../hooks/useTopicDrivenRefresh';
+import {
+  pycoreApi,
+  refreshLlmStatusRuntime,
+  useLlmStatusRuntime,
+} from '@/apps/pycore-manager/api';
+import type { LlmEngine } from '@/apps/pycore-manager/api';
 
 type PillState = 'up' | 'down' | 'setup';
 
@@ -28,37 +31,9 @@ const PILL_CLS: Record<PillState, string> = {
 };
 
 const PcLlmEnginesStrip: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
-  const [status, setStatus] = useState<LlmStatus | null>(null);
-  const [unavailable, setUnavailable] = useState<string | null>(null);
+  const { status, error: unavailable } = useLlmStatusRuntime();
   const [busy, setBusy] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<string | null>(null);
-  const mounted = useRef(true);
-
-  const load = useCallback(async () => {
-    try {
-      const res = await pycoreApi.getLlmStatus();
-      if (!mounted.current) return;
-      if (res.success) {
-        setStatus(res);
-        setUnavailable(null);
-      } else {
-        setUnavailable('status unavailable');
-      }
-    } catch (e) {
-      if (mounted.current) setUnavailable(e instanceof Error ? e.message : 'status unavailable');
-    }
-  }, []);
-
-  useEffect(() => {
-    mounted.current = true;
-    void load();
-    return () => { mounted.current = false; };
-  }, [load]);
-  useTopicDrivenRefresh(
-    [PYCORE_EVENT_TOPICS.operationChanged],
-    load,
-    { fallbackMs: PYCORE_HTTP_DEFAULTS.fallbackPollMs },
-  );
 
   const runTest = async (engine: string) => {
     setBusy(`test-${engine}`);
@@ -68,6 +43,7 @@ const PcLlmEnginesStrip: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
       setTestResult(res.success
         ? `${res.engine} · ${res.model}${res.text ? ` — ${res.text}` : ''}`
         : `${engine}: ${res.error || 'failed'}`);
+      await refreshLlmStatusRuntime();
     } catch (e) {
       setTestResult(`${engine}: ${e instanceof Error ? e.message : 'failed'}`);
     } finally {
@@ -79,7 +55,7 @@ const PcLlmEnginesStrip: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
     setBusy(`srv-${engine}`);
     try {
       await pycoreApi.controlLlmServer({ engine, start: !running });
-      await load();
+      await refreshLlmStatusRuntime();
     } finally {
       setBusy(null);
     }

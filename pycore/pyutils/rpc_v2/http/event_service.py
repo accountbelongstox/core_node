@@ -30,6 +30,7 @@ from pycore.pyfoundations.network_constants import (
     SSE_STATE_EVENT_NAME,
 )
 
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
@@ -75,12 +76,26 @@ class SseEventJournal:
         self.max_wait_seconds = max(0.1, float(max_wait_seconds))
         self._events: Deque[SseEvent] = deque()
         self._client_acks: Dict[str, Tuple[int, float]] = {}
+        self._allocated_clients: Dict[str, Tuple[str, float]] = {}
         self._seq = 0
         self._waiters: Set[asyncio.Future] = set()
 
     @property
     def seq(self) -> int:
         return self._seq
+
+    def allocate_client_id(self, allocation_key: str) -> str:
+        """Return one bounded server-owned ID for a browser allocation key."""
+        normalized_key = str(allocation_key or "").strip() or uuid.uuid4().hex
+        now = time.monotonic()
+        current = self._allocated_clients.get(normalized_key)
+        if current is not None:
+            self._allocated_clients[normalized_key] = (current[0], now)
+            return current[0]
+        client_id = f"pycore-{self.instance_id[:8]}-{uuid.uuid4().hex}"
+        self._allocated_clients[normalized_key] = (client_id, now)
+        self._prune()
+        return client_id
 
     async def publish(
         self,
@@ -216,6 +231,21 @@ class SseEventJournal:
         )
         for client_id in stale_clients:
             self._client_acks.pop(client_id, None)
+        stale_allocations = tuple(
+            allocation_key
+            for allocation_key, (_client_id, seen_at) in self._allocated_clients.items()
+            if now - seen_at > self.max_age_seconds
+        )
+        for allocation_key in stale_allocations:
+            self._allocated_clients.pop(allocation_key, None)
+        allocation_excess = len(self._allocated_clients) - self.max_events
+        if allocation_excess > 0:
+            oldest_allocations = sorted(
+                self._allocated_clients.items(),
+                key=lambda item: item[1][1],
+            )[:allocation_excess]
+            for allocation_key, _entry in oldest_allocations:
+                self._allocated_clients.pop(allocation_key, None)
 
 
 class HttpEventService:

@@ -12,6 +12,7 @@ from pycore.pyctl.desktop.queue_manager import voice_subtitle_queue
 from pycore.pyctl.desktop.background_services import background_services
 from pycore.pyctl.desktop.processor import process_image_input, process_text_input
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 
 
 def _p(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -125,14 +126,14 @@ def add_voice(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return {"success": True, "message": "Voice added to queue"}
 
 
-def get_queue() -> Dict[str, Any]:
+def get_queue(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    req = _p(params)
     queue = voice_subtitle_queue
-    return {
-        "success": True,
-        "queue": queue.get_queue(),
-        "current_index": queue.get_current_index(),
-        "enabled": queue.is_enabled(),
-    }
+    snapshot = queue.get_snapshot(
+        offset=int(req.get("offset") or 0),
+        limit=int(req.get("limit") or QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"]),
+    )
+    return {"success": True, **snapshot}
 
 
 def clear_queue() -> Dict[str, Any]:
@@ -281,8 +282,12 @@ def stop_clipboard_monitor() -> Dict[str, Any]:
 
 
 def get_clipboard_monitor_status() -> Dict[str, Any]:
-    services = background_services
-    return {"success": True, "enabled": services.is_clipboard_enabled()}
+    status = background_services.get_monitor_status()["clipboard"]
+    return {"success": True, **status}
+
+
+def get_monitor_status() -> Dict[str, Any]:
+    return {"success": True, **background_services.get_monitor_status()}
 
 
 def start_screenshot_monitor(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -308,13 +313,8 @@ def stop_screenshot_monitor() -> Dict[str, Any]:
 
 
 def get_screenshot_monitor_status() -> Dict[str, Any]:
-    services = background_services
-    return {
-        "success": True,
-        "enabled": services.is_screenshot_enabled(),
-        "interval": services.get_screenshot_interval(),
-        "lang": services.get_screenshot_lang(),
-    }
+    status = background_services.get_monitor_status()["screenshot"]
+    return {"success": True, **status}
 
 
 def get_task_status(task_id: str) -> Dict[str, Any]:

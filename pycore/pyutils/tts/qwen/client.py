@@ -16,6 +16,23 @@ from pycore.pyutils.tts.qwen.config import (
 )
 
 _DEFAULT_TIMEOUT_S = request_timeout_seconds()
+_QUEUE_RECOVERY_INITIAL_BACKOFF_S = 0.25
+_QUEUE_RECOVERY_MAX_BACKOFF_S = 2.0
+_QUEUE_RECOVERY_STATUS_TIMEOUT_S = 3.0
+_QUEUE_RESULT_REQUEST_TIMEOUT_S = 30.0
+_RETRYABLE_QUEUE_ERROR_MARKERS = (
+    "aborted",
+    "broken pipe",
+    "connection",
+    "eof",
+    "host unreachable",
+    "remote end closed",
+    "reset",
+    "timed out",
+    "timeout",
+    "winerror 10053",
+    "winerror 10054",
+)
 _HTTP_CLIENT = HttpClient(
     default_timeout=_DEFAULT_TIMEOUT_S,
     default_headers={"Accept": "*/*"},
@@ -139,10 +156,14 @@ def queue_submit(
     return True, response, None
 
 
-def queue_status(*, service_base_url: Optional[str] = None) -> Dict[str, Any]:
+def queue_status(
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> Dict[str, Any]:
     ok, response, error = get_json(
         "/queue/status",
-        timeout=10.0,
+        timeout=timeout,
         service_base_url=service_base_url,
     )
     if ok and isinstance(response, dict):
@@ -211,8 +232,11 @@ def queue_submit_and_wait(
     stable_id = str(client_job_id or "").strip() or uuid.uuid4().hex
     request_payload = dict(payload or {})
     request_payload["client_job_id"] = stable_id
-    ok, job, error = queue_submit(
+    deadline = time.monotonic() + max(0.1, float(timeout))
+    ok, job, error = _submit_with_recovery(
         request_payload,
+        stable_id,
+        deadline,
         service_base_url=service_base_url,
     )
     if not ok or not isinstance(job, dict):
@@ -230,7 +254,7 @@ def queue_submit_and_wait(
     poll_client_id = f"pycore-qwen-wait-{stable_id}"
     cursor = 0
     instance_id = str(job.get("event_instance_id") or "")
-    deadline = time.monotonic() + max(0.1, float(timeout))
+    recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -242,7 +266,32 @@ def queue_submit_and_wait(
             service_base_url=service_base_url,
         )
         if not response.get("success"):
-            return False, b"", str(response.get("error") or "queue event poll failed")
+            poll_error = str(response.get("error") or "queue event poll failed")
+            reconciled = _find_job(
+                job_id,
+                stable_id,
+                timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
+                service_base_url=service_base_url,
+            )
+            if reconciled is not None:
+                job_id = str(reconciled.get("job_id") or job_id)
+                terminal = _terminal_result(
+                    reconciled,
+                    job_id,
+                    remaining,
+                    service_base_url=service_base_url,
+                )
+                if terminal is not None:
+                    return terminal
+            if not _is_retryable_queue_error(poll_error):
+                return False, b"", poll_error
+            time.sleep(min(recovery_backoff, max(0.0, remaining)))
+            recovery_backoff = min(
+                _QUEUE_RECOVERY_MAX_BACKOFF_S,
+                recovery_backoff * 2.0,
+            )
+            continue
+        recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
         next_instance = str(response.get("instance_id") or "")
         if (instance_id and next_instance != instance_id) or response.get("replay_lost"):
             reconciled = _find_job(
@@ -261,8 +310,10 @@ def queue_submit_and_wait(
                 if terminal is not None:
                     return terminal
             else:
-                resubmit_ok, resubmitted, resubmit_error = queue_submit(
+                resubmit_ok, resubmitted, resubmit_error = _submit_with_recovery(
                     request_payload,
+                    stable_id,
+                    deadline,
                     service_base_url=service_base_url,
                 )
                 if not resubmit_ok or not isinstance(resubmitted, dict):
@@ -327,26 +378,37 @@ def fetch_queue_result(
     *,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, bytes, Optional[str]]:
-    status, _headers, body, transport_error = request(
-        "GET",
-        f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}",
-        timeout=max(1.0, float(timeout)),
-        service_base_url=service_base_url,
-    )
-    if transport_error:
-        return False, b"", transport_error
-    if 200 <= status < 300 and body:
-        return True, body, None
-    return False, b"", _error_message(status, body)
+    deadline = time.monotonic() + max(1.0, float(timeout))
+    delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+    result_path = f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}"
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False, b"", f"qwen3tts result fetch timed out after {timeout:g}s"
+        status, _headers, body, transport_error = request(
+            "GET",
+            result_path,
+            timeout=min(_QUEUE_RESULT_REQUEST_TIMEOUT_S, remaining),
+            service_base_url=service_base_url,
+        )
+        if 200 <= status < 300 and body:
+            return True, body, None
+        error = transport_error or _error_message(status, body)
+        retryable = bool(transport_error and _is_retryable_queue_error(error)) or status == 409
+        if not retryable:
+            return False, b"", error
+        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
 
 
 def _find_job(
     job_id: str,
     client_job_id: str,
     *,
+    timeout: float = 10.0,
     service_base_url: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    snapshot = queue_status(service_base_url=service_base_url)
+    snapshot = queue_status(timeout=timeout, service_base_url=service_base_url)
     jobs = snapshot.get("jobs") if isinstance(snapshot.get("jobs"), list) else []
     for job in jobs:
         if not isinstance(job, dict):
@@ -356,6 +418,51 @@ def _find_job(
         if str(job.get("client_job_id") or "") == client_job_id:
             return job
     return None
+
+
+def _submit_with_recovery(
+    payload: Dict[str, Any],
+    client_job_id: str,
+    deadline: float,
+    *,
+    service_base_url: Optional[str] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
+    delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
+    last_error = "qwen3tts queue submit failed"
+    while True:
+        ok, job, error = queue_submit(
+            payload,
+            service_base_url=service_base_url,
+        )
+        if ok and isinstance(job, dict):
+            return True, job, None
+        last_error = str(error or last_error)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not _is_retryable_queue_error(last_error):
+            return False, None, last_error
+        reconciled = _find_job(
+            "",
+            client_job_id,
+            timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
+            service_base_url=service_base_url,
+        )
+        if reconciled is not None:
+            return True, reconciled, None
+        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
+
+
+def _is_retryable_queue_error(error: Optional[str]) -> bool:
+    normalized = str(error or "").strip().lower()
+    if not normalized:
+        return True
+    if normalized.startswith("http 5"):
+        return True
+    if normalized.startswith(("http 408", "http 409", "http 425", "http 429")):
+        return True
+    if normalized.startswith("http 4"):
+        return False
+    return any(marker in normalized for marker in _RETRYABLE_QUEUE_ERROR_MARKERS)
 
 
 def _terminal_result(

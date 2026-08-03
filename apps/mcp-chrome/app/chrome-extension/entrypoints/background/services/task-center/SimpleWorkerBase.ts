@@ -115,6 +115,7 @@ export abstract class SimpleWorkerBase {
   // task_type of the task currently being dispatched — the typed result route
   // (/api/worker/tasks/{taskType}/result) needs it at submit time.
   private currentTaskType: string | null = null;
+  private currentTaskAttempt: number | null = null;
 
   protected stats: SimpleWorkerStats = {
     pending: 0,
@@ -676,6 +677,7 @@ export abstract class SimpleWorkerBase {
     if (!this.isRunning) return;
 
     this.currentTaskType = task.task_type;
+    this.currentTaskAttempt = Math.max(0, Number(task.retry_count) || 0);
     if (!this.handlesTaskType(task.task_type)) {
       // CHROME-CAP-1: release-by-failure, never a silent skip.
       try {
@@ -685,6 +687,8 @@ export abstract class SimpleWorkerBase {
       } catch (error) {
         logger.warn(this.workerLabel, 'Failed to release unhandled task', error);
       }
+      this.currentTaskType = null;
+      this.currentTaskAttempt = null;
       return;
     }
 
@@ -712,6 +716,7 @@ export abstract class SimpleWorkerBase {
     } finally {
       this.stats.currentTaskId = null;
       this.currentTaskType = null;
+      this.currentTaskAttempt = null;
     }
   }
 
@@ -733,6 +738,7 @@ export abstract class SimpleWorkerBase {
       worker_id: this.stats.workerId || '',
       status,
     };
+    if (this.currentTaskAttempt !== null) payload.attempt = this.currentTaskAttempt;
     if (result !== undefined) payload.result = result;
     if (extra?.error !== undefined) payload.error = extra.error;
     if (extra?.progress !== undefined) payload.progress = extra.progress;
@@ -765,6 +771,7 @@ export abstract class SimpleWorkerBase {
     // mark terminal + bump stats so dispatchOne's safety-net does not re-submit.
     if (status === TASK_STATUS_BY_ROLE.completed || status === TASK_STATUS_BY_ROLE.failed) {
       this.terminalPosted = true;
+      await this.workerClient.compactTask(taskId);
     }
     if (status === TASK_STATUS_BY_ROLE.completed) this.stats.translated++;
     if (status === TASK_STATUS_BY_ROLE.failed) this.stats.failed++;

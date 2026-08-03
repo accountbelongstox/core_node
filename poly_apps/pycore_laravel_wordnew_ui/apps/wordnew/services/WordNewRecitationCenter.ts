@@ -1,8 +1,8 @@
 /* [v4.1-Iris] Wf recitation center — the daily-recitation (每日背诵) domain
  * layer over wfNewApi's /recitation/* surface. Owns:
  *   - EVENT BATCHING: recordAction(word, action) accumulates events and
- *     flushes them as ONE POST /recitation/log — debounced ~2s, immediately at
- *     10 buffered events, and on page-leave (window 'pagehide' + the page's
+ *     flushes them as ONE POST /recitation/log every five seconds and on
+ *     page-leave (window 'pagehide' + the page's
  *     unmount flushNow()). Every flush carries a FRESH batch_id so an offline
  *     replay of the persisted payload is idempotent server-side.
  *   - LIVE TODAY-STATE: the backend's `today` counters from each flush are
@@ -28,10 +28,7 @@ import {
 import { isQueuedError } from '../../../core/api-libs/base';
 import { wordNewEventBus } from './WordNewEventBus';
 
-/** Debounce window between the last recordAction() and the flush. */
-const FLUSH_DEBOUNCE_MS = 2000;
-/** Buffered-event count that triggers an immediate flush. */
-const FLUSH_MAX_BATCH = 10;
+const FLUSH_INTERVAL_MS = 5000;
 
 /** Fresh idempotency key for one flush (crypto.randomUUID with fallback). */
 const newBatchId = (): string => {
@@ -109,8 +106,8 @@ class WordNewRecitationCenterClass {
   // ---- Event batching ----
 
   /**
-   * Record one recitation event. Buffered and flushed as a batch (debounced
-   * ~2s, immediate at 10 events, and on page-leave). Never throws — flush
+   * Record one recitation event. Buffered and flushed as a batch every five
+   * seconds and on page-leave. Never throws — flush
    * failures are handled internally (queued-offline → optimistic count,
    * real failure → re-queued for the next flush).
    */
@@ -122,14 +119,7 @@ class WordNewRecitationCenterClass {
     if (language) this.pendingLanguage = language;
     this.localUniqueWords.add(trimmed.toLowerCase());
 
-    if (this.pending.length >= FLUSH_MAX_BATCH) {
-      void this.flushNow();
-      return;
-    }
-    if (this.flushTimer) clearTimeout(this.flushTimer);
-    this.flushTimer = setTimeout(() => {
-      void this.flushNow();
-    }, FLUSH_DEBOUNCE_MS);
+    this.scheduleFlush();
   }
 
   /**
@@ -196,7 +186,16 @@ class WordNewRecitationCenterClass {
       // the next flush so a transient failure never silently drops progress.
       console.error('[WordNewRecitationCenter] log flush failed:', error);
       this.pending.unshift(...words);
+      this.scheduleFlush();
     }
+  }
+
+  private scheduleFlush(): void {
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flushNow();
+    }, FLUSH_INTERVAL_MS);
   }
 
   /** Optimistic today-counters for a queued-offline flush. */

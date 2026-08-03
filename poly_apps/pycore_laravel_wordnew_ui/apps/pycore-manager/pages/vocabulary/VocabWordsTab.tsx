@@ -1,16 +1,16 @@
 /**
  * Words tab - dictionary word table with filter / search / sort / paging,
  * batch actions (delete / mark_valid / mark_invalid / requeue_tts) and per-word
- * edit + delete + requeue-TTS + validity-report. Proxied through pycore.
+ * edit + delete + requeue-TTS + validity-report. Uses Laravel directly.
  *
  * Query params mirror BooksAPI.getDictionaryWords (language/filter/q/start/limit/
- * sort/order) so the proxy forwards exactly what laravel expects.
+ * sort/order) so the direct Laravel request receives its native query shape.
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Loader2, Trash2, RefreshCw, CheckCircle2, XCircle, Pencil, Flag, Search,
 } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabDictionaryWordRow } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
@@ -83,7 +83,7 @@ export default function VocabWordsTab() {
     setLoading(true);
     setError(null);
     try {
-      const r = await pycoreApi.getVocabDictionaryWords({
+      const r = await laravelApi.getVocabDictionaryWords({
         language, filter, q, start, limit: PAGE_SIZE, sort, order,
       });
       const p = vp<any>(r);
@@ -119,7 +119,7 @@ export default function VocabWordsTab() {
     if (!md5s.length) return;
     if (action === 'delete' && !confirm(VL.confirmDelete)) return;
     try {
-      await pycoreApi.batchVocabDictionaryWords({ language, md5s, action });
+      await laravelApi.batchVocabDictionaryWords({ language, md5s, action });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -130,7 +130,7 @@ export default function VocabWordsTab() {
     const md5 = row.md5 || '';
     if (!md5 || !confirm(VL.confirmDelete)) return;
     try {
-      await pycoreApi.deleteVocabDictionaryWord(md5, { language });
+      await laravelApi.deleteVocabDictionaryWord(md5, { language });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -142,7 +142,7 @@ export default function VocabWordsTab() {
     if (!content) return;
     try {
       // laravel TTS batch/query takes a BARE ARRAY of {content, language, type}.
-      await pycoreApi.queueVocabTtsBatchQuery([{ content, language, type: 'word' }]);
+      await laravelApi.queueVocabTtsBatchQuery([{ content, language, type: 'word' }]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -153,7 +153,7 @@ export default function VocabWordsTab() {
     const md5 = row.md5 || '';
     if (!md5) return;
     try {
-      await pycoreApi.reportVocabValidity({ language, md5 });
+      await laravelApi.reportVocabValidity({ language, md5 });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -167,7 +167,7 @@ export default function VocabWordsTab() {
     if (sentences?.md5 === md5) { setSentences(null); return; }
     setSentences({ md5, items: [], loading: true });
     try {
-      const r = await pycoreApi.getVocabDictionarySentences({ word, language, limit: 10 });
+      const r = await laravelApi.getVocabDictionarySentences({ word, language, limit: 10 });
       setSentences({ md5, items: toArray(vp<any>(r)), loading: false });
     } catch {
       setSentences({ md5, items: [], loading: false });
@@ -192,7 +192,7 @@ export default function VocabWordsTab() {
     setEditBusy(true);
     setEditError(null);
     try {
-      await pycoreApi.updateVocabDictionaryWord(edit.md5, {
+      await laravelApi.updateVocabDictionaryWord(edit.md5, {
         language: edit.language,
         translations: edit.translations.split('\n').map((s) => s.trim()).filter(Boolean),
         phonetic: edit.phonetic || null,

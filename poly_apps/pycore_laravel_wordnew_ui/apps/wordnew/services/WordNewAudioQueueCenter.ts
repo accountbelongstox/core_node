@@ -5,6 +5,8 @@
  * through the wordnew data-model layer (wfNewApi), never to pycore directly.
  */
 import { wfNewApi } from '../api';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 
 export interface WordNewSentenceAudioPriorityItem {
   text: string;
@@ -18,6 +20,10 @@ class WordNewAudioQueueCenterClass {
   prioritizeSentences(items: WordNewSentenceAudioPriorityItem[]): Promise<unknown> {
     const normalized = this.normalizeSentences(items);
     if (normalized.length === 0) return Promise.resolve(null);
+    diffQueueContext.touch(
+      'wordnew:sentence-audio:priority',
+      normalized.map((item) => `${item.language}:${item.text}`),
+    );
     const key = `sentences:${normalized.map((item) => `${item.language}:${item.text}`).join('|')}`;
     return this.runOnce(
       key,
@@ -33,6 +39,10 @@ class WordNewAudioQueueCenterClass {
     const normalizedContentId = contentId.trim();
     const normalizedLanguage = language.trim();
     if (!normalizedContentId || !normalizedLanguage) return Promise.resolve(null);
+    diffQueueContext.touch(
+      'wordnew:sentence-audio:priority',
+      [`${normalizedLanguage}:${normalizedContentId}`],
+    );
     const key = `sentence:${normalizedLanguage}:${normalizedContentId}`;
     return this.runOnce(
       key,
@@ -42,8 +52,13 @@ class WordNewAudioQueueCenterClass {
 
   prioritizeWords(words: string[], language: string): Promise<unknown> {
     const normalizedLanguage = language.trim();
-    const normalizedWords = Array.from(new Set(words.map((word) => word.trim()).filter(Boolean)));
+    const normalizedWords = Array.from(new Set(words.map((word) => word.trim()).filter(Boolean)))
+      .slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
     if (!normalizedLanguage || normalizedWords.length === 0) return Promise.resolve(null);
+    diffQueueContext.touch(
+      'wordnew:word-audio:priority',
+      normalizedWords.map((word) => `${normalizedLanguage}:${word}`),
+    );
     const key = `words:${normalizedLanguage}:${normalizedWords.join('|')}`;
     return this.runOnce(
       key,
@@ -63,7 +78,7 @@ class WordNewAudioQueueCenterClass {
       seen.add(key);
       normalized.push({ text, language, content_id: item.content_id });
     }
-    return normalized;
+    return normalized.slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
   }
 
   private runOnce<T>(key: string, request: () => Promise<T>): Promise<T> {

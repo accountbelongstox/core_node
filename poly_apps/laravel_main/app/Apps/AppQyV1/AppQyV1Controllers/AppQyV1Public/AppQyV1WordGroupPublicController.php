@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Utils\StrTool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -38,12 +39,15 @@ class AppQyV1WordGroupPublicController
             }
         }
         $isNewGroup = false;
-        $existGroup = AppQyV1WordGroupModel::where('gname', $gname)
-            ->where(function ($query) use ($uid, $username) {
-                $query->where('uid', $uid)
-                    ->orWhere('username', $username);
-            })
-            ->first();
+        $existGroupQuery = AppQyV1WordGroupModel::where('gname', $gname);
+        if ($uid !== null) {
+            $existGroupQuery->where('uid', $uid);
+        } elseif ($username !== null) {
+            $existGroupQuery->where('username', $username);
+        } else {
+            $existGroupQuery->whereRaw('1 = 0');
+        }
+        $existGroup = $existGroupQuery->first();
         if (!$existGroup) {
             $isNewGroup = true;
             $existGroup = new AppQyV1WordGroupModel([
@@ -64,24 +68,24 @@ class AppQyV1WordGroupPublicController
 
     public static function ensureDefaultGroupIfNotExist($uid = null, $username = null)
     {
-            $gname = self::$default_group_name;
-            $existGroupResult = self::isGroupNameExist($gname, $uid, $username);
-            $existGroup = $existGroupResult['group'];
-            $did = $existGroup->id;
-            $isNewGroup = $existGroupResult['isNewGroup'];
-            if ($isNewGroup) {
-                $existGroup->save();
+            if ($uid === null) {
+                $uid = Auth::id();
             }
+            $existGroup = AppQyV1LanguageStudyGroupService::createLanguageDefaultGroup((int) $uid, 'en');
+            $did = $existGroup->id;
+            $wordsFrequency = is_array($existGroup->words_frequency)
+                ? $existGroup->words_frequency
+                : [];
             return [
                 'gid' => $existGroup->gid,
                 'uid' => $existGroup->uid,
                 'did' => $did,
-                'gname' => $gname,
+                'gname' => $existGroup->gname,
                 'new_words' => 0,
                 'created_at' => $existGroup->created_at,
                 'updated_at' => $existGroup->updated_at,
-                'words_frequency_count' => count($existGroup->words_frequency),
-                'words_frequency' => $existGroup->words_frequency,
+                'words_frequency_count' => count($wordsFrequency),
+                'words_frequency' => $wordsFrequency,
                 'gwords_count' => StrTool::wordCount($existGroup->gwords),
                 'gcontent_count' => 0,
             ];

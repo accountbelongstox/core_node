@@ -55,7 +55,7 @@ import {
 
 // Transport core + word mappers extracted (see WfNewApiTransport / WfNewApiMappers).
 import {
-  getJSON, authedGetJSON, postJSON, postMultipart, deleteJSON,
+  getJSON, authedGetJSON, postJSON, authedPostJSON, postMultipart, deleteJSON,
   setToken, authToken, syncPersistedToken, authExpiredSubs, unwrapEnvelope, toAuthResult,
 } from './WfNewApiTransport';
 import {
@@ -175,7 +175,7 @@ export const wfNewApiHttp: WfNewApi = {
 
   async updatePreferences(patch: WfNewPreferences): Promise<WfNewPreferences> {
     // POST merges server-side and echoes the full updated set (envelope-wrapped).
-    const res = await postJSON<any>(WfNewApiPaths.userPreferences, patch);
+    const res = await authedPostJSON<any>(WfNewApiPaths.userPreferences, patch);
     return (unwrapEnvelope(res) as WfNewPreferences) || {};
   },
 
@@ -291,22 +291,36 @@ export const wfNewApiHttp: WfNewApi = {
     const rows = Array.isArray(res?.articles)
       ? res.articles
       : Array.isArray(res?.rows) ? res.rows : Array.isArray(res?.items) ? res.items : [];
-    return rows.map((item: any, index: number) => ({
-      id: String(item?.id ?? item?.article_id ?? item?.source_key ?? item?.title_en ?? item?.title ?? `article-${index}`),
-      title: String(item?.title ?? item?.title_en ?? 'Article'),
-      title_en: item?.title_en ?? item?.title ?? null,
-      title_cn: item?.title_cn ?? null,
-      reference_cn: item?.reference_cn ?? null,
-      article_en: item?.article_en ?? null,
-      source_key: item?.source_key ?? item?.article_id ?? null,
-      article_id: item?.article_id ?? null,
-      audio_url: item?.audio_url ? (absUrl(item.audio_url) ?? null) : null,
-      word_count: item?.word_count ?? null,
-      published_at: item?.created_at ?? item?.published_at ?? null,
-      reading_date: item?.reading_date ?? item?.created_at ?? null,
-      created_at: item?.created_at ?? null,
-      document_id: item?.document_id ?? null,
-    }));
+    return rows.map((item: any, index: number) => {
+      const articleId = item?.article_id ?? item?.source_key ?? null;
+      const language = String(item?.language ?? 'en').toLowerCase();
+      const actualAudioUrl = item?.audio_url ? (absUrl(item.audio_url) ?? null) : null;
+      const expectedAudioUrl = articleId
+        ? absUrl(`/static/app_qy_v1/audio/agent_history/${encodeURIComponent(language)}/${encodeURIComponent(String(articleId))}.mp3`)
+        : null;
+      const audioReady = item?.audio_ready === true
+        || (item?.audio_ready == null && Boolean(item?.tts_generated && actualAudioUrl));
+      return {
+        id: String(item?.id ?? item?.article_id ?? item?.source_key ?? item?.title_en ?? item?.title ?? `article-${index}`),
+        title: String(item?.title ?? item?.title_en ?? 'Article'),
+        title_en: item?.title_en ?? item?.title ?? null,
+        title_cn: item?.title_cn ?? null,
+        reference_cn: item?.reference_cn ?? null,
+        article_en: item?.article_en ?? null,
+        source_key: item?.source_key ?? item?.article_id ?? null,
+        article_id: articleId,
+        audio_url: actualAudioUrl ?? expectedAudioUrl,
+        audio_ready: audioReady,
+        audio_status: audioReady ? 'ready' : String(item?.audio_status ?? 'queued'),
+        language,
+        tts_generated: Boolean(item?.tts_generated),
+        word_count: item?.word_count ?? null,
+        published_at: item?.created_at ?? item?.published_at ?? null,
+        reading_date: item?.reading_date ?? item?.created_at ?? null,
+        created_at: item?.created_at ?? null,
+        document_id: item?.document_id ?? null,
+      };
+    });
   },
 
   // ---- Book reading (book -> chapter -> verses) ----
@@ -567,6 +581,18 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
+  async boostWordAudioPriority(md5: string, language: string) {
+    const res = await postJSON<any>(WfNewApiPaths.wordAudioBoostPriority, {
+      md5,
+      lang: language,
+    });
+    return {
+      success: !!(res?.success ?? res?.ok),
+      priority: res?.priority != null ? Number(res.priority) : undefined,
+      error: res?.error ?? undefined,
+    };
+  },
+
   async prioritizeWordAudio(words: string[], language: string) {
     const res = await postJSON<any>(WfNewApiPaths.ttsQueueBatchAdd, {
       tasks: words.map((word) => ({ content: word, language, type: 'word' })),
@@ -685,9 +711,10 @@ export const wfNewApiHttp: WfNewApi = {
   async addLibraryToDefaultGroup(libraryId) {
     const groupsRes = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
     const all: any[] = asArray(groupsRes, 'groups');
-    const def = all.find((g: any) => g.gname === 'Default Vocabulary Group');
+    const def = all.find((g: any) => g.is_language_default === true && (g.language ?? 'en') === 'en')
+      ?? all.find((g: any) => g.gname === 'Default Vocabulary Group');
     if (!def) throw new Error('Default Vocabulary Group not found');
-    const res = await postJSON<any>(WfNewApiPaths.groupAddLibrary, {
+    const res = await authedPostJSON<any>(WfNewApiPaths.groupAddLibrary, {
       gid: String(def.gid),
       library_id: Number(libraryId),
     });
@@ -705,9 +732,10 @@ export const wfNewApiHttp: WfNewApi = {
   async previewAddLibraryToDefaultGroup(libraryId) {
     const groupsRes = await authedGetJSON<any>(WfNewApiPaths.queryAllGroups, null);
     const all: any[] = asArray(groupsRes, 'groups');
-    const def = all.find((g: any) => g.gname === 'Default Vocabulary Group');
+    const def = all.find((g: any) => g.is_language_default === true && (g.language ?? 'en') === 'en')
+      ?? all.find((g: any) => g.gname === 'Default Vocabulary Group');
     if (!def) throw new Error('Default Vocabulary Group not found');
-    const res = await postJSON<any>(WfNewApiPaths.groupPreviewAddLibrary, {
+    const res = await authedPostJSON<any>(WfNewApiPaths.groupPreviewAddLibrary, {
       gid: String(def.gid),
       library_id: Number(libraryId),
     });

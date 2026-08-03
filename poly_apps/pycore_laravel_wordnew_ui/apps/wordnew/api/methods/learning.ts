@@ -11,12 +11,12 @@ import { WfNewApiPaths } from '../WfNewApiPaths';
 import {
   authToken,
   authedGetJSON,
-  queryPostJSON,
-  queueablePostJSON,
+  authedQueryPostJSON,
+  authedQueueablePostJSON,
   unwrapEnvelope,
 } from '../WfNewApiTransport';
 import { WORDNEW_PROGRESS_LEGEND } from '../WfNewApiTypes';
-import { removeMirroredResponse, requestVariant } from '../../cache/WfNewServerMirror';
+import { removeMirroredResponse, requestVariant } from '../../runtime-store/WfNewServerMirror';
 
 export function invalidateGroupProgressCache(
   gid: string,
@@ -31,7 +31,7 @@ export function invalidateGroupProgressCache(
 
 export const learningMethods = {
   async getGroupProgressBlob(gid: string): Promise<WordNewGroupProgressBlob> {
-    const response = await queryPostJSON<any>(WfNewApiPaths.groupProgressBlob, { gid });
+    const response = await authedQueryPostJSON<any>(WfNewApiPaths.groupProgressBlob, { gid });
     const data = unwrapEnvelope(response) ?? response;
     return {
       gid: String(data?.gid ?? gid),
@@ -47,7 +47,7 @@ export const learningMethods = {
 
   async updateGroupProgress(payload: WordNewGroupProgressPayload): Promise<any> {
     const requestToken = authToken;
-    const response = await queueablePostJSON<any>(WfNewApiPaths.groupUpdateProgress, payload);
+    const response = await authedQueueablePostJSON<any>(WfNewApiPaths.groupUpdateProgress, payload);
     if (payload.gid) {
       await invalidateGroupProgressCache(payload.gid, requestToken);
     }
@@ -56,7 +56,7 @@ export const learningMethods = {
 
   async recitationLog(payload: WordNewRecitationLogPayload): Promise<WordNewRecitationLogResult> {
     const requestToken = authToken;
-    const response = await queueablePostJSON<any>(WfNewApiPaths.recitationLog, payload);
+    const response = await authedQueueablePostJSON<any>(WfNewApiPaths.recitationLog, payload);
     const result = (unwrapEnvelope(response) ?? response) as WordNewRecitationLogResult;
     await Promise.all([
       removeMirroredResponse(WfNewApiPaths.recitationTodayPlan(), requestToken),

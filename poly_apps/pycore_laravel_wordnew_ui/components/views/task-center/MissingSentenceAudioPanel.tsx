@@ -8,6 +8,7 @@ import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
 import type { SentenceAudioAutoStatus } from '@/apps/laravel-manager/integrations/pycore';
+import { sentenceAudioQueuePump } from '@/core/tasks/QueuePump';
 import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw, Power, Check, ExternalLink } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { EmptyState, InlineSpinner } from '../../common';
@@ -129,6 +130,9 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
     try {
       const s = await pycoreApi.setSentenceAudioAutoConfig(!pcAudio.auto_start);
       if (mounted.current) setPcAudio(s);
+      // Processor toggle drives the UI pump loop (pycore never pulls itself).
+      if (s?.auto_start) sentenceAudioQueuePump.start({});
+      else sentenceAudioQueuePump.stop();
     } finally {
       if (mounted.current) setPcBusy(false);
     }

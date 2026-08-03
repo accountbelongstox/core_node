@@ -2,7 +2,6 @@
 """Register Word TTS controllers on HTTP API."""
 
 from pycore.callmodule.rpc_routes import route_names
-from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 from pycore.pyctl.tts.word_tts_auto import apply_auto_start, get_status
 
 
@@ -18,11 +17,6 @@ def register_local_word_tts_routes(server) -> None:
             request.get("concurrency"),
         )
 
-    def run_once_handler(_params, _request_id, _context):
-        laravel_word_audio_worker.poll_and_process()
-        return {"ok": True}
-
     server.post(path=route_names.UI_WORD_TTS_STATUS, handler=get_status)
     server.post(path=route_names.UI_WORD_TTS_CONFIG, handler=config_handler)
-    server.post(path=route_names.UI_WORD_TTS_RUN_ONCE, handler=run_once_handler)
 

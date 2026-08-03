@@ -95,8 +95,11 @@ export const WfNewApiPaths = {
    *  (POST { tasks: [{content, language, type}], interactive? }); interactive=true
    *  moves the batch to the FRONT of the audio queue (move-to-front ticket). */
   ttsQueueBatchAdd: p('/ai_tools/tts/queue/batch/add'),
+  /** Raise word-audio priority by dictionary hash (POST { md5, lang }). */
+  wordAudioBoostPriority: p('/word/boost-priority'),
   /** Stack words into the translation queue at high priority (POST { words, language, target_language, priority? }). */
   translationQueueStack: p('/ai_tools/translation/queue/stack'),
+  wordImageQueueAdd: p('/ai_tools/word_image/queue/add'),
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
@@ -413,17 +416,6 @@ export const WfNewAdminPaths = {
   sentenceAudio: sentenceAudioPath,
 
   ttsQueueStats: p('/ai_tools/tts/queue/stats'),
-  /** Assist/worker queue overview (pycore + chrome lanes). */
-  assistOverview: (fresh = false): string =>
-    p(`/assist/overview${fresh ? '?fresh=1' : ''}`),
-  assistOverviewItems: (opts: { category: string; status?: string; start?: number; limit?: number }): string => {
-    const params = new URLSearchParams();
-    params.set('category', opts.category);
-    if (opts.status) params.set('status', opts.status);
-    params.set('start', String(opts.start ?? 0));
-    params.set('limit', String(opts.limit ?? 50));
-    return p(`/assist/overview/items?${params.toString()}`);
-  },
   /** Paginated TTS queue items: ?status=&type=&start=&limit=. */
   ttsQueueItems: (opts: { status?: string; type?: string; start?: number; limit?: number } = {}): string => {
     const params = new URLSearchParams();

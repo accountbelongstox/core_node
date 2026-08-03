@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Cache;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Services\QueueCenter\QueueCenterRealtimeService;
 
 /**
  * Multi-Language Dictionary Model
@@ -181,6 +182,7 @@ class AppQyV1LangDictionaryModel extends Model
         // write isn't masked by a stale summary for up to their TTL.
         Cache::forget('appqyv1_system_statistics_summary');
         Cache::forget('appqyv1_audio_file_size_stats');
+        app(QueueCenterRealtimeService::class)->publish('dictionary', strtolower($langCode));
     }
 
     /**

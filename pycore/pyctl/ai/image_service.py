@@ -5,7 +5,7 @@ import base64
 import os
 from typing import Any, Dict, Optional
 
-from pycore.pyctl.ai.ai_gateway import generate_image
+from pycore.pyctl.ai.ai_gateway import generate_image, invalidate_probe_cache
 import pycore.pyctl.ai.ai_image_history as ai_image_history
 import pycore.pyfoundations.system_launcher as system_launcher
 
@@ -36,13 +36,15 @@ def image_test(params: Optional[Dict[str, Any]] = None):
   if not provider:
     return {"success": False, "error": "provider is required"}
   prompt = str(p.get("prompt") or "A small test image: a friendly robot waving, flat style").strip()
-  return generate_image(
+  result = generate_image(
     prompt=prompt,
     size=p.get("size") or "1:1",
     model=p.get("model"),
     source="provider-test",
     provider=provider,
   )
+  invalidate_probe_cache()
+  return result
 
 
 def image_history(limit: int = 50):

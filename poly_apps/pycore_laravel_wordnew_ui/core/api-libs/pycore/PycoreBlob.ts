@@ -40,7 +40,7 @@ function resourceCall(path: string): Promise<unknown> {
       path: query.get('path') || '',
     });
   }
-  return requestPycoreHttp(PYCORE_HTTP_ROUTES.vocabularyResource, { url: path });
+  return Promise.resolve({ success: false });
 }
 
 /**

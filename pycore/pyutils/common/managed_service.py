@@ -39,6 +39,7 @@ Settings persist in user_data.json per category as prefixed `auto_manage`,
 """
 
 import atexit
+import copy
 import gc
 import os
 import subprocess
@@ -47,7 +48,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -70,6 +71,7 @@ _START_TIMEOUT_S = 180.0
 _HEALTH_POLL_S = 1.5
 _READY_MARKER = "QWEN3TTS_READY "
 _READY_SIGNAL_PREFIX = "managed.service.ready_url."
+_SETTINGS_SIGNAL_PREFIX = "managed.service.settings."
 
 
 @dataclass
@@ -100,6 +102,9 @@ class ServiceSpec:
     # kind="model":
     unload: Optional[Callable[[], None]] = None
     is_loaded: Optional[Callable[[], bool]] = None
+    # kind="server": accept a healthy listener from a previous manager process
+    # only when this capability probe confirms the current service contract.
+    adopt_foreign: Optional[Callable[[], bool]] = None
     # kind="server": called when the health endpoint answers but the process is
     # NOT one we launched (stale orphan from a previous run, manual start). It
     # should terminate that foreign process and return True when the port is
@@ -149,6 +154,7 @@ class ManagedServiceManager:
         # Every registry below is owned by one THREAD_BUS-backed state thread.
         # server-only subprocess handles
         self._processes: Dict[str, subprocess.Popen] = {}
+        self._adopted_servers: Set[str] = set()
         # per-server append log handles (subprocess stdout/stderr -> file, not DEVNULL,
         # so model-load progress AND errors are VISIBLE for diagnosis)
         self._logfiles: Dict[str, Any] = {}
@@ -172,10 +178,12 @@ class ManagedServiceManager:
     @serialized_method
     def register_category(self, category: str, layout: CategorySettings) -> None:
         self._categories[category] = layout
+        self._publish_settings(category)
 
     @serialized_method
     def register(self, spec: ServiceSpec) -> None:
         self._specs[spec.name] = spec
+        self._publish_settings(spec.category)
 
     @serialized_method
     def is_registered(self, name: str) -> bool:
@@ -213,14 +221,21 @@ class ManagedServiceManager:
     def _layout(self, category: str) -> Optional[CategorySettings]:
         return self._categories.get(category)
 
-    @serialized_method
-    def get_settings(self, category: str) -> Dict[str, Any]:
+    @staticmethod
+    def _settings_signal(category: str) -> str:
+        return f"{_SETTINGS_SIGNAL_PREFIX}{category}"
+
+    def _compose_settings(self, category: str) -> Dict[str, Any]:
         layout = self._layout(category)
         if layout is None:
             return {"success": False, "error": f"unknown category: {category}"}
         p = layout.prefix
         raw = self._load_section(layout.section)
-        services = [s.name for s in self.services_in(category)]
+        services = [
+            service.name
+            for service in self._specs.values()
+            if service.category == category
+        ]
         enabled: Dict[str, bool] = {name: True for name in services}
         saved_enabled = raw.get(f"{p}enabled")
         if isinstance(saved_enabled, dict):
@@ -240,6 +255,33 @@ class ManagedServiceManager:
             f"{p}enabled": enabled,
         }
 
+    def _publish_settings(
+        self,
+        category: str,
+        settings: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        snapshot = settings or self._compose_settings(category)
+        THREAD_BUS.signal(
+            self._settings_signal(category),
+            copy.deepcopy(snapshot),
+        )
+        return snapshot
+
+    def peek_settings(self, category: str) -> Dict[str, Any]:
+        """Return the immutable settings snapshot without entering lifecycle state."""
+        snapshot = THREAD_BUS.get_signal(self._settings_signal(category), {}) or {}
+        if isinstance(snapshot, dict) and snapshot:
+            return copy.deepcopy(snapshot)
+        return {
+            "success": False,
+            "error": f"settings snapshot unavailable: {category}",
+            "pending": True,
+        }
+
+    @serialized_method
+    def get_settings(self, category: str) -> Dict[str, Any]:
+        return self._publish_settings(category)
+
     @serialized_method
     def apply_settings(self, category: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         layout = self._layout(category)
@@ -247,7 +289,7 @@ class ManagedServiceManager:
             return {"success": False, "error": f"unknown category: {category}"}
         p = layout.prefix
         section = self._load_section(layout.section)
-        merged = self.get_settings(category)
+        merged = self._compose_settings(category)
         if patch.get(f"{p}auto_manage") is not None:
             merged[f"{p}auto_manage"] = bool(patch[f"{p}auto_manage"])
         if patch.get(f"{p}single_active") is not None:
@@ -263,7 +305,7 @@ class ManagedServiceManager:
                     merged[f"{p}enabled"][name] = bool(val)
         section.update(merged)
         self._save_section(layout.section, section)
-        return merged
+        return self._publish_settings(category, merged)
 
     def _settings(self, category: str) -> Dict[str, Any]:
         layout = self._layout(category)
@@ -284,6 +326,9 @@ class ManagedServiceManager:
         """A server subprocess we launched and is still alive."""
         proc = self._processes.get(name)
         return proc is not None and proc.poll() is None
+
+    def _is_managed_server(self, name: str) -> bool:
+        return self._is_managed_process(name) or name in self._adopted_servers
 
     def _invalidate_run_cache(self, name: str) -> None:
         self._run_cache.pop(name, None)
@@ -313,8 +358,61 @@ class ManagedServiceManager:
         if cached is not None and now - cached[0] < _RUN_CACHE_TTL_S:
             return cached[1]
         ok = bool(spec.health and spec.health())
+        if not ok:
+            self._adopted_servers.discard(name)
         self._run_cache[name] = (now, ok)
         return ok
+
+    @serialized_method
+    def peek_running(self, name: str) -> bool:
+        """Return known runtime state without invoking a health probe."""
+        spec = self._specs.get(name)
+        if spec is None:
+            return False
+        if spec.kind == "model":
+            return bool(spec.is_loaded and spec.is_loaded())
+        if self._is_managed_server(name):
+            return True
+        cached = self._run_cache.get(name)
+        return bool(cached[1]) if cached is not None else False
+
+    @serialized_method
+    def peek_runtime_status(self, name: str) -> Dict[str, Any]:
+        """Build runtime metadata from known state without command or HTTP checks."""
+        return self._compose_runtime_status(name, self.peek_running(name))
+
+    def _compose_runtime_status(
+        self,
+        name: str,
+        running: bool,
+    ) -> Dict[str, Any]:
+        """Compose the one canonical managed-service runtime payload."""
+        spec = self._specs.get(name)
+        if spec is None:
+            return {}
+        managed = (spec.kind == "server" and self._is_managed_server(name)) \
+            or (spec.kind == "model" and running)
+        settings = self._settings(spec.category)
+        idle_seconds = settings.get("idle_s", DEFAULT_IDLE_S)
+        idle_remaining: Optional[float] = None
+        if managed and idle_seconds > 0 and name in self._last_activity:
+            idle_remaining = max(
+                0.0,
+                float(idle_seconds) - (time.monotonic() - self._last_activity[name]),
+            )
+        return {
+            "name": name,
+            "category": spec.category,
+            "kind": spec.kind,
+            "running": running,
+            "managed": managed,
+            "enabled": bool(settings.get("enabled", {}).get(name, True)),
+            "in_flight": self.in_flight(name),
+            "idle_remaining_s": idle_remaining,
+            "ready_url": THREAD_BUS.get_signal(
+                f"{_READY_SIGNAL_PREFIX}{name}", None
+            ),
+        }
 
     def _touch(self, name: str) -> None:
         if name in self._specs:
@@ -423,6 +521,7 @@ class ManagedServiceManager:
         if self._is_managed_process(spec.name):
             self._touch(spec.name)
             return True
+        self._adopted_servers.discard(spec.name)
         popen_kwargs = self._popen_kwargs(cwd)
         logf = self._open_server_log(spec)
         popen_kwargs["stdout"] = subprocess.PIPE
@@ -515,7 +614,7 @@ class ManagedServiceManager:
                 continue
             if self.in_flight(s.name) > 0:
                 continue  # never stop a busy peer
-            if self._is_managed_process(s.name):
+            if self._is_managed_server(s.name):
                 ColorPrint.gray(f"[managed] single-active: stopping {s.name} for {except_name}")
                 self.stop(s.name)
 
@@ -546,15 +645,42 @@ class ManagedServiceManager:
         foreign_checked = False
         running = self.is_running(name)
         if running:
+            if spec.kind == "server" and name in self._adopted_servers:
+                if st.get("single_active", True):
+                    self._stop_others(spec.category, name)
+                self._touch(name)
+                return True
             if (
                 spec.kind == "server"
                 and not self._is_managed_process(name)
                 and spec.stop_foreign is not None
             ):
-                # A process we did NOT launch answers the health endpoint — a
-                # stale orphan from a previous run. It serves old code with a
-                # dead stdout pipe (requests 500 instantly), so reclaim the
-                # port and fall through to a fresh managed start.
+                if spec.adopt_foreign is not None:
+                    try:
+                        compatible = bool(spec.adopt_foreign())
+                    except Exception as e:  # noqa: BLE001
+                        compatible = False
+                        ColorPrint.yellow(
+                            f"[managed] {name}: adoption probe failed: {e}"
+                        )
+                    if compatible:
+                        self._adopted_servers.add(name)
+                        self._touch(name)
+                        if spec.on_started:
+                            try:
+                                spec.on_started()
+                            except Exception as e:  # noqa: BLE001
+                                ColorPrint.yellow(
+                                    f"[managed] {name}: adopted start hook failed: {e}"
+                                )
+                        if st.get("single_active", True):
+                            self._stop_others(spec.category, name)
+                        ColorPrint.green(
+                            f"[managed] {name}: adopted compatible healthy service"
+                        )
+                        return True
+                # The listener is healthy but failed or lacks the service's
+                # adoption contract. Reclaim it before starting current code.
                 ColorPrint.yellow(
                     f"[managed] {name}: foreign process holds the service port — reclaiming"
                 )
@@ -607,6 +733,8 @@ class ManagedServiceManager:
             return {"success": False, "error": f"{name} busy (in-flight)"}
         if spec.kind == "server":
             proc = self._processes.pop(name, None)
+            adopted = name in self._adopted_servers
+            self._adopted_servers.discard(name)
             logf = self._logfiles.pop(name, None)
             self._last_activity.pop(name, None)
             if proc is not None and proc.poll() is None:
@@ -619,6 +747,16 @@ class ManagedServiceManager:
                     except Exception:  # noqa: BLE001
                         pass
                 ColorPrint.yellow(f"[managed] stopped server {name} (pid={proc.pid})")
+            elif adopted and spec.stop_foreign is not None:
+                stopped = spec.stop_foreign()
+                if stopped is False:
+                    self._adopted_servers.add(name)
+                    self._touch(name)
+                    return {
+                        "success": False,
+                        "error": f"adopted {name} service could not be stopped",
+                    }
+                ColorPrint.yellow(f"[managed] stopped adopted server {name}")
             if logf is not None:
                 try:
                     logf.close()
@@ -687,30 +825,7 @@ class ManagedServiceManager:
 
     @serialized_method
     def runtime_status(self, name: str) -> Dict[str, Any]:
-        spec = self._specs.get(name)
-        if spec is None:
-            return {}
-        running = self.is_running(name)
-        managed = (spec.kind == "server" and self._is_managed_process(name)) \
-            or (spec.kind == "model" and running)
-        st = self._settings(spec.category)
-        idle_s = st.get("idle_s", DEFAULT_IDLE_S)
-        idle_remaining: Optional[float] = None
-        if managed and idle_s > 0 and name in self._last_activity:
-            idle_remaining = max(0.0, float(idle_s) - (time.monotonic() - self._last_activity[name]))
-        return {
-            "name": name,
-            "category": spec.category,
-            "kind": spec.kind,
-            "running": running,
-            "managed": managed,
-            "enabled": bool(st.get("enabled", {}).get(name, True)),
-            "in_flight": self.in_flight(name),
-            "idle_remaining_s": idle_remaining,
-            "ready_url": THREAD_BUS.get_signal(
-                f"{_READY_SIGNAL_PREFIX}{name}", None
-            ),
-        }
+        return self._compose_runtime_status(name, self.is_running(name))
 
     @serialized_method
     def all_runtime_status(self, category: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
@@ -745,7 +860,7 @@ class ManagedServiceManager:
             idle_s = cat_idle.get(spec.category, DEFAULT_IDLE_S)
             if idle_s <= 0:
                 continue
-            managed = (spec.kind == "server" and self._is_managed_process(name)) \
+            managed = (spec.kind == "server" and self._is_managed_server(name)) \
                 or (spec.kind == "model" and spec.is_loaded and spec.is_loaded())
             if not managed:
                 continue

@@ -1,42 +1,47 @@
 /**
  * Queue Center shared state.
  *
- * The UI consumes one HTTP API snapshot and only normalizes display-safe scalar
- * values. Queue counts, lifecycle, category membership, and controls are owned
- * by pycore and aligned through config/queue_center_contract.json.
+ * Laravel-owned queues are fetched directly from Laravel. Pycore supplies only
+ * local runtime state and worker controls. Both branches remain independently
+ * usable when the other backend is unavailable.
  */
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   normalizeQueueCenterSections,
+  queueCenterExchangeApi,
   pycoreApi,
   PYCORE_HTTP_DEFAULTS,
-  QUEUE_CENTER_SCHEMA_VERSION,
 } from '@/apps/pycore-manager/api';
 import type {
   AssistStatus,
-  HeartbeatWorkersStatus,
   PcQueueOverview,
-  PcTaskCenterResponse,
   PcTaskRecentResponse,
   QueueCenterControlName,
   QueueCenterControlState,
-  QueueCenterSnapshot,
   SentenceAudioAutoStatus,
   SentenceAudioQueueSnapshot,
   TranslationQueueResponse,
   TtsStatus,
   WordTtsAutoStatus,
 } from '@/apps/pycore-manager/api';
-import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { LARAVEL_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { QcSectionContracts } from '../utils/pcQueueCenterTypes';
 import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 import { StorageManager } from '../../../core/persistence';
+import { PycoreManagerStorageKeys } from '../persistence/PycoreManagerStorageKeys';
+import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
+import { sentenceAudioQueuePump } from '../../../core/tasks/QueuePump';
+import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
+import type { GlobalTaskWorkerRegistration } from '../../../core/contracts/QueueCenterContract';
+import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
+const SENTENCE_CONCURRENCY_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.consumer_batch_limits.sentence_audio;
 
 export type QueueCenterHubLifecycle = 'idle' | 'loading' | 'ready' | 'stale' | 'degraded' | 'error';
 
@@ -52,13 +57,11 @@ export interface QueueCenterHubState {
   translationPending: number | null;
   voiceWord: WordTtsAutoStatus | null;
   voiceSentence: SentenceAudioAutoStatus | null;
-  workers: HeartbeatWorkersStatus | null;
   assist: AssistStatus | null;
   tts: TtsStatus | null;
   overview: PcQueueOverview | null;
   sentenceQueue: SentenceAudioQueueSnapshot | null;
   recent: PcTaskRecentResponse | null;
-  taskCenter: PcTaskCenterResponse | null;
   translationQueue: TranslationQueueResponse | null;
   controls: Partial<Record<QueueCenterControlName, QueueCenterControlState>>;
   sliceErrors: Record<string, string>;
@@ -67,6 +70,7 @@ export interface QueueCenterHubState {
   error: string | null;
   sectionContracts: QcSectionContracts;
   refreshHub: () => Promise<void>;
+  promoteTranslationTask: (taskId: string, priority: number) => void;
   setControl: (name: QueueCenterControlName, enabled: boolean) => Promise<void>;
   autoRefresh: boolean;
   setAutoRefresh: (enabled: boolean) => void;
@@ -74,7 +78,7 @@ export interface QueueCenterHubState {
 
 type QueueCenterHubData = Omit<
   QueueCenterHubState,
-  'refreshHub' | 'setControl' | 'autoRefresh' | 'setAutoRefresh'
+  'refreshHub' | 'promoteTranslationTask' | 'setControl' | 'autoRefresh' | 'setAutoRefresh'
 >;
 
 const defaultHub: QueueCenterHubState = {
@@ -89,13 +93,11 @@ const defaultHub: QueueCenterHubState = {
   translationPending: null,
   voiceWord: null,
   voiceSentence: null,
-  workers: null,
   assist: null,
   tts: null,
   overview: null,
   sentenceQueue: null,
   recent: null,
-  taskCenter: null,
   translationQueue: null,
   controls: {},
   sliceErrors: {},
@@ -104,6 +106,7 @@ const defaultHub: QueueCenterHubState = {
   error: null,
   sectionContracts: defaultSectionContracts,
   refreshHub: async () => {},
+  promoteTranslationTask: () => {},
   setControl: async () => {},
   autoRefresh: true,
   setAutoRefresh: () => {},
@@ -122,6 +125,8 @@ function errorMessage(error: unknown, fallback: string): string {
 
 /** Page-scoped HTTP API hub. Mount once around Queue Center. */
 export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation('pc');
+  const { current: laravelEndpoint } = usePcLaravelEndpoint();
   const [autoRefresh, setAutoRefreshState] = useState<boolean>(() => readAutoRefreshPref());
   const [hub, setHub] = useState<QueueCenterHubData>(() => {
     const {
@@ -146,8 +151,64 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      // Closing the UI stops the pump.
+      sentenceAudioQueuePump.stop();
+    };
   }, []);
+
+  /**
+   * The sentence_audio processor toggle drives the UI's own pump loop.
+   * Pycore never pulls by itself; on connect the UI syncs the stored worker
+   * configuration exactly once (no periodic config polling).
+   */
+  const syncPumpWithControl = useCallback((
+    enabled: boolean,
+    worker: GlobalTaskWorkerRegistration | null,
+  ) => {
+    if (!enabled) {
+      sentenceAudioQueuePump.stop();
+      return;
+    }
+    sentenceAudioQueuePump.start({
+      laravelEndpoint,
+      worker,
+      concurrency: hub.voiceSentence?.concurrency ?? 1,
+      syncConfig: async () => {
+        const raw = StorageManager.get(PycoreManagerStorageKeys.PYCORE_SENTENCE_WORKER_CONCURRENCY, '');
+        const concurrency = Math.min(
+          SENTENCE_CONCURRENCY_LIMIT,
+          Math.max(0, parseInt(raw, 10) || 0),
+        );
+        const speaker = StorageManager.get(PycoreManagerStorageKeys.PYCORE_SENTENCE_QWEN_SPEAKER, '');
+        await pycoreApi.setSentenceAudioRuntimeConfig({
+          auto_start: true,
+          concurrency,
+          speaker,
+        });
+      },
+    });
+  }, [hub.voiceSentence?.concurrency, laravelEndpoint]);
+
+  const sentenceAudioEnabled = hub.sectionContracts.sentence_audio?.toggle.enabled === true;
+  const sentenceWorker = hub.voiceSentence?.worker;
+  const sentenceWorkerId = String(sentenceWorker?.worker_id ?? '').trim();
+  const sentenceWorkerName = String(sentenceWorker?.worker_name ?? sentenceWorkerId).trim();
+  const sentenceProcessorTypes = sentenceWorker?.processor_types ?? [];
+  const sentenceCapabilities = sentenceWorker?.capabilities ?? [];
+  const sentenceWorkerRegistration: GlobalTaskWorkerRegistration | null = sentenceWorkerId
+    ? {
+        worker_id: sentenceWorkerId,
+        worker_name: sentenceWorkerName || sentenceWorkerId,
+        processor_types: sentenceProcessorTypes,
+        capabilities: sentenceCapabilities,
+      }
+    : null;
+  const sentenceWorkerSignature = JSON.stringify(sentenceWorkerRegistration);
+  useEffect(() => {
+    syncPumpWithControl(sentenceAudioEnabled, sentenceWorkerRegistration);
+  }, [sentenceAudioEnabled, sentenceWorkerSignature, syncPumpWithControl]);
 
   const poll = useCallback(async (silent = false) => {
     if (pollInFlightRef.current) return;
@@ -168,55 +229,62 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       try {
-        const snapshot: QueueCenterSnapshot = await pycoreApi.getQueueCenterSnapshot();
+        const exchange = await queueCenterExchangeApi.read();
         if (!mounted.current || currentRequest !== requestId.current) return;
-        if (snapshot.schema_version !== QUEUE_CENTER_SCHEMA_VERSION) {
-          throw new Error(`Unsupported Queue Center schema ${snapshot.schema_version}`);
-        }
-        const sectionContracts = normalizeQueueCenterSections(
-          snapshot.section_contracts,
-          snapshot.generated_at,
-        );
-        const snapshotError = Object.entries(snapshot.errors ?? {})
-          .map(([name, value]) => `${name}: ${value}`)
-          .join('; ');
-        const workerApiUrl = snapshot.data.task_center?.remote_queue?.worker?.api_url ?? null;
-        let hubState: QueueCenterHubLifecycle = 'ready';
-        if (snapshot.data.overview?.degraded) {
-          hubState = snapshot.data.overview.source === 'pycore_fallback_stale_cache' ? 'stale' : 'degraded';
-        }
-        consecutiveFailuresRef.current = 0;
-        offlineRetryAtRef.current = 0;
+        const laravelComplete = !exchange.errors.overview
+          && !exchange.errors.queue_metrics
+          && !exchange.errors.translation
+          && !exchange.errors.sentence_queue;
+        const hubState: QueueCenterHubLifecycle = exchange.pycoreReachable
+          && exchange.laravelReachable
+          && laravelComplete
+          ? 'ready'
+          : exchange.pycoreReachable || exchange.laravelReachable
+            ? 'degraded'
+            : 'error';
 
-        setHub({
+        if (hubState === 'error') {
+          const failures = consecutiveFailuresRef.current + 1;
+          consecutiveFailuresRef.current = failures;
+          offlineRetryAtRef.current = Date.now() + Math.min(
+            PYCORE_HTTP_DEFAULTS.reconnectMaxMs,
+            2 ** Math.min(PYCORE_HTTP_DEFAULTS.maxBackoffExponent, failures)
+              * PYCORE_HTTP_DEFAULTS.reconnectMinMs,
+          );
+        } else {
+          consecutiveFailuresRef.current = 0;
+          offlineRetryAtRef.current = 0;
+        }
+
+        setHub((previous) => ({
           hubState,
-          diagnostics: snapshot.data.overview?.diagnostics ?? null,
-          pycoreReachable: true,
-          laravelReachable: snapshot.source.laravel_reachable,
-          laravelStoredEndpoint: snapshot.source.laravel_stored_endpoint,
-          laravelActiveEndpoint: snapshot.source.laravel_active_endpoint,
-          workerApiUrl: typeof workerApiUrl === 'string' && workerApiUrl ? workerApiUrl : null,
-          laravelSnapshotAgeS: snapshot.source.laravel_snapshot_age_s,
-          translationPending: snapshot.data.translation?.summary?.pending ?? null,
-          voiceWord: snapshot.data.word_audio,
-          voiceSentence: snapshot.data.sentence_audio,
-          workers: snapshot.data.workers,
-          assist: snapshot.data.assist,
-          tts: snapshot.data.tts,
-          overview: snapshot.data.overview,
-          sentenceQueue: snapshot.data.sentence_queue,
-          recent: snapshot.data.recent,
-          taskCenter: snapshot.data.task_center,
-          translationQueue: snapshot.data.translation,
-          controls: snapshot.controls,
-          sliceErrors: snapshot.errors,
-          timestamp: snapshot.generated_at,
+          diagnostics: null,
+          pycoreReachable: exchange.pycoreReachable,
+          laravelReachable: exchange.laravelReachable,
+          laravelStoredEndpoint: laravelEndpoint || null,
+          laravelActiveEndpoint: laravelEndpoint || null,
+          workerApiUrl: exchange.workerApiUrl ?? previous.workerApiUrl,
+          laravelSnapshotAgeS: exchange.laravelReachable ? 0 : previous.laravelSnapshotAgeS,
+          translationPending: exchange.translation?.summary?.pending ?? previous.translationPending,
+          voiceWord: exchange.wordAudio ?? previous.voiceWord,
+          voiceSentence: exchange.sentenceAudio ?? previous.voiceSentence,
+          assist: exchange.assist ?? previous.assist,
+          tts: exchange.tts ?? previous.tts,
+          overview: exchange.overview ?? previous.overview,
+          sentenceQueue: exchange.sentenceQueue ?? previous.sentenceQueue,
+          recent: exchange.recent ?? previous.recent,
+          translationQueue: exchange.translation ?? previous.translationQueue,
+          controls: previous.controls,
+          sliceErrors: exchange.errors,
+          timestamp: exchange.generatedAt,
           loading: false,
-          error: snapshotError || null,
-          sectionContracts,
-        });
+          error: hubState === 'error'
+            ? t('queueCenter.errors.centerUnavailable')
+            : exchange.errors.pycore || null,
+          sectionContracts: exchange.sectionContracts,
+        }));
 
-        if (snapshot.data.recent) pycoreTaskCenterState.ingestRecent(snapshot.data.recent);
+        if (exchange.recent) pycoreTaskCenterState.ingestRecent(exchange.recent);
       } catch (error: unknown) {
         if (!mounted.current || currentRequest !== requestId.current) return;
         const failures = consecutiveFailuresRef.current + 1;
@@ -231,13 +299,13 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           pycoreReachable: false,
           loading: false,
           hubState: 'error',
-          error: errorMessage(error, 'Queue Center unavailable'),
+          error: errorMessage(error, t('queueCenter.errors.centerUnavailable')),
         }));
       }
     } finally {
       pollInFlightRef.current = false;
     }
-  }, []);
+  }, [laravelEndpoint, t]);
 
   useEffect(() => { void poll(false); }, [poll]);
 
@@ -248,6 +316,20 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   );
 
   const refreshHub = useCallback(async () => { await poll(false); }, [poll]);
+
+  const promoteTranslationTask = useCallback((taskId: string, priority: number) => {
+    diffQueueContext.touch('pycore-manager:translation:priority', [taskId]);
+    setHub((previous) => {
+      const translationQueue = previous.translationQueue;
+      if (!translationQueue?.items) return previous;
+      const items = translationQueue.items
+        .map((task) => task.task_id === taskId
+          ? { ...task, priority: Math.max(task.priority ?? 0, priority), recently_bumped: true }
+          : task)
+        .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
+      return { ...previous, translationQueue: { ...translationQueue, items } };
+    });
+  }, []);
 
   useEffect(() => {
     const handleEndpointChanged = () => {
@@ -261,8 +343,8 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       }));
       void poll(false);
     };
-    window.addEventListener(PYCORE_BROWSER_EVENTS.laravelApiChanged, handleEndpointChanged);
-    return () => window.removeEventListener(PYCORE_BROWSER_EVENTS.laravelApiChanged, handleEndpointChanged);
+    window.addEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, handleEndpointChanged);
+    return () => window.removeEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, handleEndpointChanged);
   }, [poll]);
 
   const patchSectionEnabled = useCallback((name: QueueCenterControlName, enabled: boolean) => {
@@ -286,6 +368,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
         requested_by: 'user',
         reason: 'ui_toggle',
         graceful_stop: !enabled,
+        laravel_endpoint: enabled ? laravelEndpoint : null,
         timeoutMs: 20_000,
       });
       if (!response?.success) throw new Error(response?.error || `Could not update ${name}`);
@@ -295,11 +378,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       void poll(true);
       throw error;
     }
-  }, [poll, patchSectionEnabled]);
+  }, [laravelEndpoint, poll, patchSectionEnabled]);
 
   const value = useMemo<QueueCenterHubState>(
-    () => ({ ...hub, refreshHub, setControl, autoRefresh, setAutoRefresh }),
-    [hub, refreshHub, setControl, autoRefresh, setAutoRefresh],
+    () => ({ ...hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh }),
+    [hub, refreshHub, promoteTranslationTask, setControl, autoRefresh, setAutoRefresh],
   );
 
   return <QueueCenterHubContext.Provider value={value}>{children}</QueueCenterHubContext.Provider>;

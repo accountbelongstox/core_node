@@ -77,6 +77,7 @@ def reset_cooldown(params: Optional[Dict[str, Any]] = None):
     index = req.get("index")
     fn = reset_image_key_cooldown if bool(req.get("image")) else reset_text_key_cooldown
     n = fn(provider, index)
+    invalidate_probe_cache()
     return {"success": True, "reset": n}
 
 

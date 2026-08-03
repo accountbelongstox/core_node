@@ -1,129 +1,147 @@
 /**
- * WfNewEndpointStore — persisted settings for the /wordnew backend endpoint
- * manager. A SUBCLASS of the shared `PersistedStore` (core/persistence): all
- * endpoint settings live in ONE consolidated localStorage key instead of the
- * five scattered keys used before.
- *
- * Selection is stored as a TYPE (an endpoint id token), never a frozen URL —
- * `selectedType: 'current-url'` re-resolves to the live page origin on every
- * load (see WfNewEndpointKind). The concrete endpoint is resolved from the type
- * by WfNewEndpointManager.getEndpointById at runtime.
+ * WfNewEndpointStore — /wordnew view over the ONE shared Laravel endpoint
+ * persistence (core StorageKeys + the core custom-endpoint registry). The
+ * legacy wordnew-owned keys (WORDNEW_API_PREFS and the five scattered keys
+ * before it) are migrated into core exactly once, then removed; every getter
+ * here reads the core state directly.
  */
-import { PersistedStore, StorageManager } from '../../../core/persistence';
-import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
+import { StorageKeys, StorageManager } from '../../../core/persistence';
+import { WordNewStorageKeys } from '../persistence/WordNewStorageKeys';
 import { CURRENT_URL_TYPE } from '../../../core/api-libs/base/endpointIdentity';
+import {
+  addCustomEndpoint,
+  getCustomEndpoints,
+} from '../../../config/api-endpoints';
 import type { WfNewEndpoint } from './WfNewApiTypes';
 
 export { CURRENT_URL_TYPE } from '../../../core/api-libs/base/endpointIdentity';
 
-/** Everything the endpoint manager persists, in one object under one key. */
+/** Legacy wordnew preference object shape (pre-core storage layout). */
 export interface WfNewEndpointPrefs {
-  /** User-added endpoints (full records). */
   customEndpoints: WfNewEndpoint[];
-  /** User-pinned selection, stored as an endpoint TYPE/id (e.g. 'current-url'). */
   selectedType: string | null;
-  /** Last availability-auto-picked TYPE/id. */
   autoType: string | null;
-  /** Last applied TYPE/id (record of what is in use). */
   currentType: string | null;
-  /** Offline-recheck cadence override (ms); null = use the manager default. */
   recheckIntervalMs: number | null;
 }
 
-const makeDefaults = (): WfNewEndpointPrefs => ({
-  customEndpoints: [],
-  selectedType: null,
-  autoType: null,
-  currentType: null,
-  recheckIntervalMs: null,
-});
+const LEGACY_TYPE_REMAP: Record<string, string> = {
+  // Same target (43.163.112.77:9000) already exists in the core registry.
+  'remote-primary': 'remote-cloud-43',
+  // Legacy id 'current-origin' is now the 'current-url' selection type.
+  'current-origin': CURRENT_URL_TYPE,
+};
 
-class WfNewEndpointStore extends PersistedStore<WfNewEndpointPrefs> {
-  constructor() {
-    super(StorageKeys.WORDNEW_API_PREFS, makeDefaults);
-    this.migrateLegacyKeys();
-  }
+function remapType(type: string | null): string | null {
+  if (!type) return null;
+  return LEGACY_TYPE_REMAP[type] ?? type;
+}
 
-  // ---- custom endpoints ----
+class WfNewEndpointStore {
+  private migrated = false;
 
-  /** Stored custom endpoints (each re-tagged custom + kind for safety). */
+  // ---- custom endpoints (core registry) ----
+
   get customEndpoints(): WfNewEndpoint[] {
-    const list = this.get('customEndpoints');
-    return Array.isArray(list) ? list.map((e) => ({ ...e, kind: 'custom' as const, custom: true })) : [];
+    return getCustomEndpoints().map((e) => ({ ...e, kind: 'custom' as const, custom: true }));
   }
 
+  /** Custom endpoints are managed one-by-one through the core registry. */
   setCustomEndpoints(list: WfNewEndpoint[]): void {
-    this.patch({ customEndpoints: list });
+    for (const ep of list) {
+      addCustomEndpoint({ url: ep.url, protocol: ep.protocol, port: ep.port, description: ep.description });
+    }
   }
 
-  // ---- selection types ----
+  // ---- selection types (core keys) ----
 
-  get selectedType(): string | null { return this.get('selectedType'); }
-  get autoType(): string | null { return this.get('autoType'); }
-  get currentType(): string | null { return this.get('currentType'); }
+  get selectedType(): string | null {
+    return StorageManager.getRaw(StorageKeys.LARAVEL_API_USER_MODIFIED_ENDPOINT);
+  }
+  get autoType(): string | null {
+    return StorageManager.getRaw(StorageKeys.LARAVEL_API_AUTO_DETECTED_ENDPOINT);
+  }
+  get currentType(): string | null {
+    return StorageManager.getRaw(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT);
+  }
 
   /** Pin a user-chosen TYPE (also records it as the current type). */
   setSelected(type: string): void {
-    this.patch({ selectedType: type, currentType: type });
+    StorageManager.setRaw(StorageKeys.LARAVEL_API_USER_MODIFIED_ENDPOINT, type);
+    StorageManager.setRaw(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT, type);
   }
 
   /** Record an availability-auto-picked TYPE (also the current type). */
   setAuto(type: string): void {
-    this.patch({ autoType: type, currentType: type });
+    StorageManager.setRaw(StorageKeys.LARAVEL_API_AUTO_DETECTED_ENDPOINT, type);
+    StorageManager.setRaw(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT, type);
   }
 
   /** Forget every persisted reference to a TYPE so detection re-picks. */
   forgetType(type: string): void {
-    const updates: Partial<WfNewEndpointPrefs> = {};
-    if (this.get('selectedType') === type) updates.selectedType = null;
-    if (this.get('autoType') === type) updates.autoType = null;
-    if (this.get('currentType') === type) updates.currentType = null;
-    if (Object.keys(updates).length) this.patch(updates);
+    if (this.selectedType === type) StorageManager.remove(StorageKeys.LARAVEL_API_USER_MODIFIED_ENDPOINT);
+    if (this.autoType === type) StorageManager.remove(StorageKeys.LARAVEL_API_AUTO_DETECTED_ENDPOINT);
+    if (this.currentType === type) StorageManager.remove(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT);
   }
 
-  // ---- recheck interval ----
+  // ---- recheck interval (core key) ----
 
-  get recheckIntervalMs(): number | null { return this.get('recheckIntervalMs'); }
-  setRecheckIntervalMs(ms: number): void { this.patch({ recheckIntervalMs: ms }); }
+  get recheckIntervalMs(): number | null {
+    const raw = StorageManager.getRaw(StorageKeys.LARAVEL_API_RECHECK_INTERVAL_MS);
+    const parsed = raw === null ? NaN : Number(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  setRecheckIntervalMs(ms: number): void {
+    StorageManager.setRaw(StorageKeys.LARAVEL_API_RECHECK_INTERVAL_MS, String(ms));
+  }
 
-  // ---- one-time migration from the legacy five-key layout ----
+  // ---- one-time migration from the wordnew-owned layout into core ----
 
-  private migrateLegacyKeys(): void {
-    if (StorageManager.has(StorageKeys.WORDNEW_API_PREFS)) return;
+  migrateToCore(): void {
+    if (this.migrated) return;
+    this.migrated = true;
 
-    const custom = StorageManager.get<WfNewEndpoint[]>(StorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS, []);
-    const selected = StorageManager.get<string | null>(StorageKeys.WORDNEW_API_USER_ENDPOINT, null);
-    const auto = StorageManager.get<string | null>(StorageKeys.WORDNEW_API_AUTO_ENDPOINT, null);
-    const current = StorageManager.get<string | null>(StorageKeys.WORDNEW_API_CURRENT, null);
-    const recheck = StorageManager.get<number | null>(StorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS, null);
+    const prefs = StorageManager.get<WfNewEndpointPrefs | null>(WordNewStorageKeys.WORDNEW_API_PREFS, null);
+    const legacyCustom = StorageManager.get<WfNewEndpoint[]>(WordNewStorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS, []);
+    const legacySelected = StorageManager.get<string | null>(WordNewStorageKeys.WORDNEW_API_USER_ENDPOINT, null);
+    const legacyAuto = StorageManager.get<string | null>(WordNewStorageKeys.WORDNEW_API_AUTO_ENDPOINT, null);
+    const legacyCurrent = StorageManager.get<string | null>(WordNewStorageKeys.WORDNEW_API_CURRENT, null);
+    const legacyRecheck = StorageManager.get<number | null>(WordNewStorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS, null);
 
-    const hasAny =
-      (Array.isArray(custom) && custom.length > 0) ||
-      !!selected || !!auto || !!current || typeof recheck === 'number';
-    if (!hasAny) return;
+    const custom = [
+      ...(prefs && Array.isArray(prefs.customEndpoints) ? prefs.customEndpoints : []),
+      ...(Array.isArray(legacyCustom) ? legacyCustom : []),
+    ];
+    const selected = remapType(prefs?.selectedType ?? legacySelected);
+    const auto = remapType(prefs?.autoType ?? legacyAuto);
+    const current = remapType(prefs?.currentType ?? legacyCurrent);
+    const recheck = prefs?.recheckIntervalMs ?? legacyRecheck;
 
-    // Legacy id 'current-origin' is now the 'current-url' selection type.
-    const remap = (t: string | null) => (t === 'current-origin' ? CURRENT_URL_TYPE : t);
-
-    this.patch({
-      customEndpoints: Array.isArray(custom) ? custom : [],
-      selectedType: remap(selected),
-      autoType: remap(auto),
-      currentType: remap(current),
-      recheckIntervalMs: typeof recheck === 'number' ? recheck : null,
-    });
+    for (const ep of custom) {
+      if (!ep || typeof ep.url !== 'string') continue;
+      addCustomEndpoint({ url: ep.url, protocol: ep.protocol, port: ep.port, description: ep.description });
+    }
+    if (selected && !this.selectedType) this.setSelected(selected);
+    if (auto && !this.autoType) this.setAuto(auto);
+    if (current && !this.currentType) {
+      StorageManager.setRaw(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT, current);
+    }
+    if (typeof recheck === 'number' && this.recheckIntervalMs === null) {
+      this.setRecheckIntervalMs(recheck);
+    }
 
     for (const key of [
-      StorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS,
-      StorageKeys.WORDNEW_API_USER_ENDPOINT,
-      StorageKeys.WORDNEW_API_AUTO_ENDPOINT,
-      StorageKeys.WORDNEW_API_CURRENT,
-      StorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS,
+      WordNewStorageKeys.WORDNEW_API_PREFS,
+      WordNewStorageKeys.WORDNEW_API_CUSTOM_ENDPOINTS,
+      WordNewStorageKeys.WORDNEW_API_USER_ENDPOINT,
+      WordNewStorageKeys.WORDNEW_API_AUTO_ENDPOINT,
+      WordNewStorageKeys.WORDNEW_API_CURRENT,
+      WordNewStorageKeys.WORDNEW_API_RECHECK_INTERVAL_MS,
     ] as const) {
       StorageManager.remove(key);
     }
   }
 }
 
-/** Global singleton — the one persisted endpoint-settings store for /wordnew. */
+/** Global singleton — the /wordnew view over the shared endpoint persistence. */
 export const wfNewEndpointStore = new WfNewEndpointStore();

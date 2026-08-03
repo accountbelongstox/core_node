@@ -5,8 +5,8 @@ export const PycoreManagerStorageKeys = {
   PYCORE_CACHE_QUEUE_TS: 'pycore_queue_cache_ts',
   PYCORE_CACHE_THEME_LEGACY: 'pycore_theme',
   PYCORE_SENTENCE_WORKER_CONCURRENCY: 'pc_sentence_worker_concurrency',
+  PYCORE_SENTENCE_QWEN_SPEAKER: 'pc_sentence_qwen_speaker',
   PYCORE_VIDEO_EXTRACT_AUTO_SYNC: 'pycore.video-extract.autoSync',
-  PYCORE_LARAVEL_ENDPOINT: 'pycore_laravel_current_endpoint',
   PYCORE_HTTP_DEBUG_OPEN: 'pc_http_debug_open',
   PYCORE_LOG_OPEN: 'pc_log_open',
   PYCORE_QUEUE_CENTER_AUTO: 'pc_qc_auto',
@@ -19,7 +19,5 @@ export const PycoreManagerStorageKeys = {
   PYCORE_CODE_SYNC_TREE_EXPANDED: 'pc.codesync.tree.expanded',
   PYCORE_AI_TAB: 'pc_ai_tab',
   PYCORE_CONTENT_TAB: 'pc_content_tab',
-  PYCORE_VOICE_SUBTITLE_TAB: 'pc_vs_tab',
-  PYCORE_VOICE_SUBTITLE_LANGUAGE: 'pc_vs_lang',
   PYCORE_VOCAB_TAB: 'pc_vocab_tab',
 } as const;

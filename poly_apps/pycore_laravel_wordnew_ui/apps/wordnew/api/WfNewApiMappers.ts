@@ -229,6 +229,7 @@ export function toGroup(raw: any, i = 0): WordGroup {
     type: raw?.type ?? undefined,
     language: raw?.language ?? 'en',
     description: raw?.description ?? undefined,
+    isLanguageDefault: raw?.is_language_default === true || Number(raw?.is_language_default) === 1,
   };
 }
 

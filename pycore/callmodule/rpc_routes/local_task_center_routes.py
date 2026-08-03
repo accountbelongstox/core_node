@@ -5,9 +5,6 @@ from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.queue_center.task_center_service import (
     QueueCenterControlRequest,
     get_local_task_detail,
-    get_queue_center_snapshot,
-    get_remote_task_detail,
-    get_task_center,
     set_queue_center_control,
 )
 
@@ -22,6 +19,7 @@ def register_local_task_center_routes(server) -> None:
             return {"success": False, "error": "control_name is required"}
         control = QueueCenterControlRequest(
             enabled=request.get("enabled", False),
+            laravel_endpoint=request.get("laravel_endpoint"),
             requested_by=request.get("requested_by"),
             reason=request.get("reason"),
             graceful_stop=request.get("graceful_stop", False),
@@ -34,18 +32,8 @@ def register_local_task_center_routes(server) -> None:
             return {"success": False, "error": "task_id is required"}
         return get_local_task_detail(task_id)
 
-    def remote_detail_handler(params, _request_id, _context):
-        task_id = params.get("task_id")
-        if not task_id:
-            return {"success": False, "error": "task_id is required"}
-        return get_remote_task_detail(task_id)
-
     routes = (
-        (route_names.UI_TASK_CENTER_GET, get_task_center),
-        (route_names.UI_TASK_CENTER_GET_QUEUE_CENTER_SNAPSHOT, get_queue_center_snapshot),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
         (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),
-        (route_names.UI_TASK_CENTER_GET_REMOTE_TASK_DETAIL, remote_detail_handler),
     )
     server.register_routes(routes, group="task_center")
-

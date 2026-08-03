@@ -72,8 +72,23 @@ $nativePath = $null
 $cmdRegister = $null
 $manifestPath = $null
 $regKeyPath = $null
-$DevProcess = $null
+$WatchRoots = @()
+$IgnoredWatchRoots = @()
+$IgnoredWatchFilePatterns = @("tsup.config.bundled_*.mjs")
+$WatchedFileExtensions = @(".cjs", ".css", ".html", ".js", ".json", ".mjs", ".png", ".svg", ".ts", ".tsx", ".vue", ".wasm")
+$FileWatchers = [System.Collections.Generic.List[System.IO.FileSystemWatcher]]::new()
+$WatchSubscriptions = [System.Collections.Generic.List[object]]::new()
+$WatchSubscription = $null
+$WatchRoot = $null
+$IgnoredWatchRoot = $null
+$Watcher = $null
+$WatchEventName = $null
+$WatchSourceIdentifier = $null
+$WatchSourcePrefix = "McpChromeDevelopmentWatch"
+$WatchIndex = 0
+$WatchDebounceMilliseconds = 750
 $SupervisorExitCode = 0
+$ChangedPaths = @()
 
 function Get-LocalizedMessage {
     param(
@@ -128,6 +143,108 @@ function Get-LocalizedMessage {
     return $template
 }
 
+function Test-DevelopmentWatchPath {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$IgnoredRoots,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$IgnoredFilePatterns,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$WatchedExtensions
+    )
+
+    $ignoredRoot = $null
+    $ignoredPrefix = $null
+    $ignoredFilePattern = $null
+    $fileName = $null
+    $extension = $null
+
+    foreach ($ignoredRoot in $IgnoredRoots) {
+        $ignoredPrefix = [string]::Concat($ignoredRoot, [System.IO.Path]::DirectorySeparatorChar)
+        if ($Path.Equals($ignoredRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $Path.StartsWith($ignoredPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $false
+        }
+    }
+
+    $fileName = [System.IO.Path]::GetFileName($Path)
+    foreach ($ignoredFilePattern in $IgnoredFilePatterns) {
+        if ($fileName -like $ignoredFilePattern) {
+            return $false
+        }
+    }
+
+    $extension = [System.IO.Path]::GetExtension($Path)
+    return $WatchedExtensions -contains $extension
+}
+
+function Wait-DevelopmentChangeBatch {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$SourcePrefix,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$IgnoredRoots,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$IgnoredFilePatterns,
+
+        [Parameter(Mandatory=$true)]
+        [string[]]$WatchedExtensions,
+
+        [Parameter(Mandatory=$true)]
+        [int]$DebounceMilliseconds
+    )
+
+    $changeEvent = $null
+    $eventPath = $null
+    $deadline = $null
+    $isWatchedPath = $false
+    $changedPathSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    while ($true) {
+        $changeEvent = Wait-Event
+        $eventPath = [string]$changeEvent.SourceEventArgs.FullPath
+        Remove-Event -EventIdentifier $changeEvent.EventIdentifier -ErrorAction SilentlyContinue
+        if (-not $changeEvent.SourceIdentifier.StartsWith($SourcePrefix, [System.StringComparison]::Ordinal)) {
+            continue
+        }
+
+        $isWatchedPath = Test-DevelopmentWatchPath -Path $eventPath -IgnoredRoots $IgnoredRoots -IgnoredFilePatterns $IgnoredFilePatterns -WatchedExtensions $WatchedExtensions
+        if ($isWatchedPath) {
+            [void]$changedPathSet.Add($eventPath)
+            break
+        }
+    }
+
+    $deadline = [DateTime]::UtcNow.AddMilliseconds($DebounceMilliseconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $changeEvent = Wait-Event -Timeout 1
+        if (-not $changeEvent) {
+            continue
+        }
+
+        $eventPath = [string]$changeEvent.SourceEventArgs.FullPath
+        Remove-Event -EventIdentifier $changeEvent.EventIdentifier -ErrorAction SilentlyContinue
+        if (-not $changeEvent.SourceIdentifier.StartsWith($SourcePrefix, [System.StringComparison]::Ordinal)) {
+            continue
+        }
+
+        $isWatchedPath = Test-DevelopmentWatchPath -Path $eventPath -IgnoredRoots $IgnoredRoots -IgnoredFilePatterns $IgnoredFilePatterns -WatchedExtensions $WatchedExtensions
+        if ($isWatchedPath) {
+            [void]$changedPathSet.Add($eventPath)
+            $deadline = [DateTime]::UtcNow.AddMilliseconds($DebounceMilliseconds)
+        }
+    }
+
+    return @($changedPathSet)
+}
+
 $ScriptDir = Split-Path -Parent $PSScriptRoot
 $ProjectRoot = $ScriptDir
 $AppsDir = Split-Path -Parent $ProjectRoot
@@ -177,13 +294,6 @@ Write-Host "========================================"
 Write-Host ""
 
 $WatchChoice = $env:MCP_CHROME_WATCH_MODE
-if ([string]::IsNullOrWhiteSpace($WatchChoice)) {
-    try {
-        $WatchChoice = Read-Host (Get-LocalizedMessage -Key "startWatchPrompt")
-    } catch {
-        $WatchChoice = ""
-    }
-}
 if ($WatchChoice -match "^(n|no|once)$") {
     $WatchMode = "once"
     Write-Host (Get-LocalizedMessage -Key "startWatchOnceSelected") -ForegroundColor Yellow
@@ -448,25 +558,70 @@ Write-Host "========================================"
 if ($WatchMode -eq "dev") {
     Write-Host (Get-LocalizedMessage -Key "startLaunchingWatch") -ForegroundColor Yellow
     Write-Host (Get-LocalizedMessage -Key "startAutomaticRebuilds")
+    Write-Host (Get-LocalizedMessage -Key "startPressStop")
 } else {
     Write-Host (Get-LocalizedMessage -Key "startOneTimeComplete") -ForegroundColor Yellow
 }
-Write-Host (Get-LocalizedMessage -Key "startPressStop")
 Write-Host "========================================"
 Write-Host ""
 
-# Shell owns the development watcher; Python only monitors rebuilt artifacts and
-# wakes the extension/native MCP connection.
+# Shell owns source watching and runs one complete build batch per change.
+# Python wakes the extension/native MCP connection after the batch, then exits.
 Set-Location $ProjectRoot
 try {
     if ($WatchMode -eq "dev") {
-        $DevProcess = Start-Process -FilePath "pnpm.cmd" -ArgumentList @("run", "dev") -WorkingDirectory $ProjectRoot -PassThru
+        $WatchRoots = @(
+            (Join-Path (Join-Path $ProjectRoot "packages") "shared"),
+            (Join-Path (Join-Path $ProjectRoot "app") "native-server"),
+            (Join-Path (Join-Path $ProjectRoot "app") "chrome-extension")
+        )
+        $IgnoredWatchRoots = @(
+            (Join-Path $WatchRoots[0] "dist"),
+            (Join-Path $WatchRoots[0] "node_modules"),
+            (Join-Path $WatchRoots[1] "dist"),
+            (Join-Path $WatchRoots[1] "node_modules"),
+            (Join-Path $WatchRoots[2] ".wxt"),
+            (Join-Path $WatchRoots[2] "node_modules")
+        )
+
+        foreach ($WatchRoot in $WatchRoots) {
+            $Watcher = [System.IO.FileSystemWatcher]::new($WatchRoot)
+            $Watcher.IncludeSubdirectories = $true
+            $Watcher.NotifyFilter = [System.IO.NotifyFilters]::FileName -bor [System.IO.NotifyFilters]::DirectoryName -bor [System.IO.NotifyFilters]::LastWrite
+            $Watcher.InternalBufferSize = 65536
+            foreach ($WatchEventName in @("Changed", "Created", "Deleted", "Renamed")) {
+                $WatchSourceIdentifier = [string]::Concat($WatchSourcePrefix, "-", $WatchIndex, "-", $WatchEventName)
+                $WatchSubscriptions.Add(
+                    (Register-ObjectEvent -InputObject $Watcher -EventName $WatchEventName -SourceIdentifier $WatchSourceIdentifier)
+                )
+            }
+            $Watcher.EnableRaisingEvents = $true
+            $FileWatchers.Add($Watcher)
+            $WatchIndex = $WatchIndex + 1
+        }
+
+        & $PythonExe $SupervisorScript --wake
+        while ($true) {
+            $ChangedPaths = @(Wait-DevelopmentChangeBatch -SourcePrefix $WatchSourcePrefix -IgnoredRoots $IgnoredWatchRoots -IgnoredFilePatterns $IgnoredWatchFilePatterns -WatchedExtensions $WatchedFileExtensions -DebounceMilliseconds $WatchDebounceMilliseconds)
+            Write-Host ([string]::Join(", ", $ChangedPaths)) -ForegroundColor DarkGray
+            $cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
+            $cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
+            $cmdBuildExtension = Get-Var -Key ([VarKeys]::CMD_BUILD_EXTENSION)
+            Invoke-Expression $cmdBuildShared
+            Invoke-Expression $cmdBuildNative
+            Invoke-Expression $cmdBuildExtension
+            & $PythonExe $SupervisorScript --wake
+        }
+    } else {
+        & $PythonExe $SupervisorScript --wake
+        $SupervisorExitCode = $LASTEXITCODE
     }
-    & $PythonExe $SupervisorScript --project-root $ProjectRoot --watch-mode $WatchMode --recover-on-start --foreground
-    $SupervisorExitCode = $LASTEXITCODE
 } finally {
-    if ($DevProcess -and -not $DevProcess.HasExited) {
-        Stop-Process -Id $DevProcess.Id -Force -ErrorAction SilentlyContinue
+    foreach ($WatchSubscription in $WatchSubscriptions) {
+        Unregister-Event -SubscriptionId $WatchSubscription.SubscriptionId -ErrorAction SilentlyContinue
+    }
+    foreach ($Watcher in $FileWatchers) {
+        $Watcher.Dispose()
     }
     Set-Location $InitialDir
 }

@@ -40,7 +40,7 @@ import {
 } from '../services/WordNewBookReaderSentenceAudio';
 import { cellKeyOf, ttsStatusToCellState, type WordNewAudioCellState } from '../utils/WordNewAudioCellState';
 import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WordNewSentenceAudioPick';
-import { ensureAudio } from '../cache/WfNewAudioCache';
+import { ensureAudio } from '../runtime-store/WfNewAudioCache';
 import { readWordCardsForSentence } from '../services/WordNewBookReaderWordCards';
 
 interface WfNewBookReaderProps {

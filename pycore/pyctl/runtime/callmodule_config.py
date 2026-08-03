@@ -12,22 +12,9 @@ from pathlib import Path
 
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
-    TRANSLATION_EVENT_CHANNEL,
-    TRANSLATION_EVENT_HOST,
-    TRANSLATION_EVENT_PORT,
-    TRANSLATION_EVENT_SCHEME,
-    TRANSLATION_EVENT_SUPERVISOR_INTERVAL,
-    TRANSLATION_EVENT_WORD_TTL_SECONDS,
-    TRANSLATION_QUEUE_BUMP_TTL_SECONDS,
-    TRANSLATION_QUEUE_MONITOR_INTERVAL,
-    TRANSLATION_SSE_PATH,
     TRAY_BACKEND,
-    TTS_SENTENCE_WORKER_BATCH,
     TTS_SENTENCE_WORKER_CONCURRENCY,
-    TTS_SENTENCE_WORKER_INTERVAL,
-    TTS_WORKER_BATCH,
     TTS_WORKER_CONCURRENCY,
-    TTS_WORKER_INTERVAL,
     UI_ENABLE_TRAY,
 )
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
@@ -57,7 +44,7 @@ class Config:
 
     # ==================== Frontend Configuration ====================
     FRONTEND_DIR = PROJECT_ROOT / "poly_apps" / "pycore_laravel_wordnew_ui"
-    FRONTEND_PORT = int(os.getenv("PYCORE_UI_PORT", "13054"))
+    FRONTEND_PORT = 13054
     FRONTEND_URL = f"http://localhost:{FRONTEND_PORT}/pycore-manager"
     FRONTEND_MODE = "dev"
     FRONTEND_SKIP_BUILD = False
@@ -120,89 +107,36 @@ class Config:
     UI_ENABLE_TRAY = UI_ENABLE_TRAY
 
     # ==================== Translation Worker (Laravel worker-API) ====================
-    # Base URL of the Laravel backend that exposes the worker task API.
-    # Pycore sends worker identity inline with /tasks/pull, then posts /tasks/result.
-    # Env-overridable so deployments can point at a different host/port.
+    # Base URL of the Laravel backend that receives result uploads.
+    # The UI pump dispatches tasks via RPC; pycore only processes them and posts
+    # /tasks/result back (exchange-hub rule: no pull/claim/heartbeat from pycore).
     LARAVEL_WORKER_API_URL = LARAVEL_WORKER_API_URL
-    # Heartbeat-callback interval (seconds) for the translation worker poll loop.
-    TRANSLATION_WORKER_INTERVAL = int(os.getenv("TRANSLATION_WORKER_INTERVAL", "12"))
     # Task lanes and capability values are loaded from
     # config/queue_center_contract.json by queue_center_contract.py. They are not
     # configurable here because Pycore, Laravel, both UIs, and mcp-chrome must
     # always advertise the same routing vocabulary.
-    # Fast-drain re-poll cadence (seconds): while pending_fast>0 the worker bursts a
-    # short jittered loop of wait=0 pulls at this interval so interactive requests are
-    # claimed near-instantly instead of waiting for the ~12s heartbeat tick.
-    TRANSLATION_FAST_POLL_INTERVAL = float(
-        os.getenv("PYCORE_TRANSLATION_FAST_POLL_INTERVAL", "0.5")
-    )
-    # How long (seconds) a single fast-drain burst runs before yielding back to the
-    # heartbeat cadence (a fresh pending_fast signal re-arms it).
-    TRANSLATION_FAST_DRAIN_WINDOW = float(
-        os.getenv("PYCORE_TRANSLATION_FAST_DRAIN_WINDOW", "4.0")
-    )
-    # Random jitter (seconds, uniform [0, jitter]) added to each fast re-poll so N
-    # workers do not synchronize their wait=0 pulls into a thundering herd.
-    TRANSLATION_FAST_POLL_JITTER = float(
-        os.getenv("PYCORE_TRANSLATION_FAST_POLL_JITTER", "0.25")
-    )
 
-    # ==================== TTS Queue Worker (Laravel word-generation queue) ====================
-    # The TTS worker claims pending word_audio global_tasks from laravel_main
-    # (GET /api/worker/tasks/pull, long-poll), synthesizes MP3s with the
-    # pyutils TTS orchestrator and reports them back (/tts/worker/report). Runtime
-    # ownership belongs to the Queue Center Word Audio ON/OFF control.
-    # Tasks claimed per tick (server caps the claim at 50).
-    TTS_WORKER_BATCH = TTS_WORKER_BATCH
-    # Heartbeat-callback interval (seconds) for the TTS worker poll loop.
-    TTS_WORKER_INTERVAL = TTS_WORKER_INTERVAL
+    # ==================== TTS Queue Worker (word_audio) ====================
+    # The word-audio worker receives dispatched global_tasks from the UI pump,
+    # synthesizes MP3s with the pyutils TTS orchestrator and uploads results
+    # (/tts/worker/report). Runtime ownership belongs to the Queue Center Word
+    # Audio ON/OFF control.
     # Worker fan-out override (0 = use the per-engine recommended value from
     # services/tts_concurrency.py; serial engines are always forced to 1).
     TTS_WORKER_CONCURRENCY = TTS_WORKER_CONCURRENCY
 
-    # ==================== TTS Sentence-Audio Worker (Laravel sentence-library queue) ====================
-    # The sentence-audio worker claims pending sentence_audio global_tasks from
-    # laravel_main (GET /api/worker/tasks/pull, long-poll), merges every claimed
-    # ONE in-process priority queue (§5.3), synthesizes MP3s with the pyutils TTS
-    # orchestrator and reports them back (/tts/sentence/report).
-    # Lifecycle is controlled only by the unified user settings map.
-    # Tasks claimed per tick (server caps the claim at 50).
-    TTS_SENTENCE_WORKER_BATCH = TTS_SENTENCE_WORKER_BATCH
-    # Heartbeat-callback interval (seconds) for the sentence-audio worker poll loop.
-    TTS_SENTENCE_WORKER_INTERVAL = TTS_SENTENCE_WORKER_INTERVAL
+    # ==================== TTS Sentence-Audio Worker (sentence_audio) ====================
+    # The sentence-audio worker receives dispatched sentence_audio global_tasks
+    # from the UI pump into the in-process priority queue (§5.3), synthesizes
+    # MP3s with the pyutils TTS orchestrator and uploads results
+    # (/tts/sentence/report). Lifecycle is controlled only by the unified user
+    # settings map.
     # Worker fan-out override (0 = use the per-engine recommended value from
     # services/tts_concurrency.py; serial engines are always forced to 1).
     TTS_SENTENCE_WORKER_CONCURRENCY = TTS_SENTENCE_WORKER_CONCURRENCY
 
-    # ==================== Translation Queue Monitor (Laravel queue API) ====================
-    # The monitor + control proxy poll/steer Laravel's translation QUEUE
-    # (/api/app_qy_v1/ai_tools/translation/queue/{list,priority,stack}). It shares
-    # the SAME backend as the worker via LARAVEL_WORKER_API_URL + the worker's
-    # candidate-URL discovery, so monitor and worker always agree on the host.
-    # Heartbeat-callback interval (seconds) for the queue-monitor poll loop (~5s).
-    TRANSLATION_QUEUE_MONITOR_INTERVAL = TRANSLATION_QUEUE_MONITOR_INTERVAL
-    # Enabled on start by default so the UI sees the live queue out of the box;
-    # Pycore UI toggles it through HTTP `ui/heartbeat_workers/config`.
-    TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START = (
-        os.getenv("TRANSLATION_QUEUE_MONITOR_ENABLED_ON_START", "1") in ("1", "true", "True")
-    )
-    # How long (seconds) a task stays flagged `recently_bumped` after a detected
-    # priority increase, so the UI can highlight it briefly.
-    TRANSLATION_QUEUE_BUMP_TTL_SECONDS = TRANSLATION_QUEUE_BUMP_TTL_SECONDS
-
-    # ==================== Translation HTTP Event Client ====================
-    # The SSE client receives translation-queue events from Laravel's Octane HTTP
-    # service. The queue monitor remains a slower snapshot reconciler.
-    TRANSLATION_EVENT_HOST = TRANSLATION_EVENT_HOST
-    TRANSLATION_EVENT_PORT = TRANSLATION_EVENT_PORT
-    TRANSLATION_EVENT_SCHEME = TRANSLATION_EVENT_SCHEME
-    TRANSLATION_EVENT_CHANNEL = TRANSLATION_EVENT_CHANNEL
-    TRANSLATION_SSE_PATH = TRANSLATION_SSE_PATH
-    TRANSLATION_EVENT_SUPERVISOR_INTERVAL = TRANSLATION_EVENT_SUPERVISOR_INTERVAL
-    TRANSLATION_EVENT_WORD_TTL_SECONDS = TRANSLATION_EVENT_WORD_TTL_SECONDS
-
     # ==================== Runtime Mode ====================
-    MODE = os.getenv("CALLMODULE_MODE", "dev")
+    MODE = "dev"
 
     # ==================== CORS ====================
     CORS_ALLOW_ORIGINS = [

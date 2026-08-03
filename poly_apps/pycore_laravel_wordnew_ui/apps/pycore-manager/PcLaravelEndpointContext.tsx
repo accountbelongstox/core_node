@@ -1,67 +1,12 @@
 /**
- * PcLaravelEndpointContext — shared Laravel API endpoint state for the
- * pycore-manager end. Single source of truth for `laravel_api.*` HTTP data so
- * the global top-bar switcher and Settings page stay in sync.
- *
- * Recovers from a slow `laravel_api.select` by ALSO listening to a
- * `laravel_endpoint_changed` HTTP event from the server: even when the
- * caller's 30s promise has already timed out, the broadcast pulls the UI
- * back into sync as soon as the switch actually completes.
+ * Shared direct-Laravel endpoint state for pycore-manager.
  */
+
 import React, {
-  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  createContext, useCallback, useContext, useEffect, useMemo, useState,
 } from 'react';
-import {
-  pycoreLaravelApi,
-  buildPcPreparedLaravelEndpoints, buildPcPreparedLaravelEndpointUrls,
-  normalizeLaravelApiUrl,
-  subscribeHttpEvent,
-} from '@/apps/pycore-manager/api';
-import { PYCORE_BROWSER_EVENTS, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { laravelApi, pycoreApi } from '@/apps/pycore-manager/api';
 import type { LaravelApiEndpoint } from '@/apps/pycore-manager/api';
-import { StorageManager } from '../../core/persistence';
-import { PycoreManagerStorageKeys as StorageKeys } from './persistence/PycoreManagerStorageKeys';
-
-/**
- * The backend-selected endpoint is authoritative. The frontend keeps a local
- * copy only for the read-only offline fallback and refreshes it from every
- * successful backend response.
- */
-function readFeEndpoint(): string {
-  return StorageManager.getRaw(StorageKeys.PYCORE_LARAVEL_ENDPOINT) || '';
-}
-
-function writeFeEndpoint(url: string): void {
-  if (url) StorageManager.setRaw(StorageKeys.PYCORE_LARAVEL_ENDPOINT, url);
-}
-
-function mergeEndpointRows(
-  backendRows: LaravelApiEndpoint[],
-  frontendRows: LaravelApiEndpoint[],
-): LaravelApiEndpoint[] {
-  const merged: LaravelApiEndpoint[] = [];
-  const seen = new Set<string>();
-  for (const row of [...backendRows, ...frontendRows]) {
-    const normalizedUrl = normalizeLaravelApiUrl(row.url);
-    if (!normalizedUrl || seen.has(normalizedUrl)) continue;
-    seen.add(normalizedUrl);
-    merged.push({ ...row, url: normalizedUrl });
-  }
-  return merged;
-}
-
-function resolveDisplayedCurrent(
-  backendCurrent: string,
-  rows: LaravelApiEndpoint[],
-): string {
-  const normalizedBackend = normalizeLaravelApiUrl(backendCurrent);
-  if (normalizedBackend) return normalizedBackend;
-  const cachedFrontend = normalizeLaravelApiUrl(readFeEndpoint());
-  if (cachedFrontend && rows.some((row) => row.url === cachedFrontend)) {
-    return cachedFrontend;
-  }
-  return rows[0]?.url || '';
-}
 
 export interface PcLaravelEndpointContextValue {
   endpoints: LaravelApiEndpoint[];
@@ -70,7 +15,6 @@ export interface PcLaravelEndpointContextValue {
   probing: boolean;
   switching: string | null;
   error: string | null;
-  /** true when `endpoints` is the read-only prepared fallback (pycore HTTP offline). */
   fallback: boolean;
   actionError: string | null;
   reload: () => Promise<boolean>;
@@ -81,7 +25,17 @@ export interface PcLaravelEndpointContextValue {
   clearActionError: () => void;
 }
 
-const PcLaravelEndpointContext = createContext<PcLaravelEndpointContextValue | null>(null);
+const ENDPOINT_CONTEXT_GLOBAL_KEY = '__pycoreManagerLaravelEndpointContext__';
+const endpointContextRegistry = globalThis as typeof globalThis & Record<string, unknown>;
+const existingEndpointContext = endpointContextRegistry[ENDPOINT_CONTEXT_GLOBAL_KEY] as
+  React.Context<PcLaravelEndpointContextValue | null> | undefined;
+
+// Context identity must survive Vite Fast Refresh. Recreating it during HMR
+// leaves the existing Provider on the old instance and makes consumers throw
+// PC_LARAVEL_ENDPOINT_PROVIDER_MISSING until a full reload.
+const PcLaravelEndpointContext = existingEndpointContext
+  ?? createContext<PcLaravelEndpointContextValue | null>(null);
+endpointContextRegistry[ENDPOINT_CONTEXT_GLOBAL_KEY] = PcLaravelEndpointContext;
 
 export function PcLaravelEndpointProvider({ children }: { children: React.ReactNode }) {
   const [endpoints, setEndpoints] = useState<LaravelApiEndpoint[]>([]);
@@ -89,179 +43,82 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
   const [loading, setLoading] = useState(false);
   const [probing, setProbing] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [fallback, setFallback] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // De-dup CustomEvent dispatch across the two paths (promise success +
-  // HTTP event). Both may fire for the same switch; we only surface it
-  // once so downstream listeners don't reload twice.
-  const lastEndpointUrlRef = useRef<string | null>(null);
-
-  const dispatchEndpointChanged = useCallback((url: string) => {
-    if (!url || url === lastEndpointUrlRef.current) return;
-    lastEndpointUrlRef.current = url;
-    window.dispatchEvent(new CustomEvent(PYCORE_BROWSER_EVENTS.laravelApiChanged, { detail: { url } }));
-  }, []);
-
   const reload = useCallback(async (): Promise<boolean> => {
-    setLoading(true);
-    try {
-      const preparedRows = buildPcPreparedLaravelEndpoints();
-      const r = await pycoreLaravelApi.list({
-        probe: false,
-        frontendEndpoints: buildPcPreparedLaravelEndpointUrls(),
-      });
-      if (r && Array.isArray(r.endpoints)) {
-        const mergedRows = mergeEndpointRows(r.endpoints, preparedRows);
-        const nextCurrent = resolveDisplayedCurrent(r.current || '', mergedRows);
-        setEndpoints(mergedRows);
-        setCurrent(nextCurrent);
-        if (r.current) writeFeEndpoint(nextCurrent);
-        setError(null);
-        setFallback(false);
-        return true;
-      }
-      throw new Error(r?.error || 'laravel_api.list: malformed response');
-    } catch (e: any) {
-      // pycore HTTP (:59000) offline: still surface the FRONTEND-known prepared
-      // endpoints (read-only) so the switcher shows the available APIs rather than
-      // an empty error box. We keep `error` set + flag `fallback` so the UI can
-      // label these as prepared/offline.
-      const prepared = buildPcPreparedLaravelEndpoints();
-      const cachedCurrent = resolveDisplayedCurrent('', prepared);
-      setEndpoints(prepared);
-      setCurrent(cachedCurrent);
-      setError(e?.message || 'HTTP failed');
-      setFallback(true);
-      return false;
-    } finally {
-      setLoading(false);
-    }
+    const rows = laravelApi.listEndpoints();
+    setEndpoints(rows);
+    setCurrent(laravelApi.currentEndpointUrl());
+    setLoading(false);
+    return rows.length > 0;
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    reload().then((ok) => {
-      if (!ok && !cancelled) timer = setTimeout(() => { if (!cancelled) reload(); }, 3000);
-    });
+    setLoading(true);
+    void reload();
+    const handleHealth = () => { void reload(); };
+    window.addEventListener(laravelApi.events.healthChanged, handleHealth);
+    window.addEventListener(laravelApi.events.endpointsChanged, handleHealth);
+    window.addEventListener(laravelApi.events.selectionChanged, handleHealth);
     return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
+      window.removeEventListener(laravelApi.events.healthChanged, handleHealth);
+      window.removeEventListener(laravelApi.events.endpointsChanged, handleHealth);
+      window.removeEventListener(laravelApi.events.selectionChanged, handleHealth);
     };
   }, [reload]);
 
-  useEffect(() => {
-    const handlePreparedEndpointsChanged = () => { void reload(); };
-    window.addEventListener('api-endpoints-changed', handlePreparedEndpointsChanged);
-    return () => window.removeEventListener('api-endpoints-changed', handlePreparedEndpointsChanged);
-  }, [reload]);
-
-  // Subscribe to the server-side broadcast: `laravel_api.select` emits a
-  // `laravel_endpoint_changed` event AFTER the switch is persisted. The
-  // UI updates from this broadcast even when the caller's promise has
-  // already timed out on the 30s HTTP ceiling.
-  useEffect(() => {
-    const off = subscribeHttpEvent(PYCORE_EVENT_TOPICS.laravelEndpointChanged, (data: any) => {
-      if (!data || typeof data !== 'object') return;
-      if (Array.isArray(data.endpoints)) {
-        setEndpoints(mergeEndpointRows(
-          data.endpoints,
-          buildPcPreparedLaravelEndpoints(),
-        ));
-      }
-      if (typeof data.current === 'string' && data.current) {
-        const normalizedCurrent = normalizeLaravelApiUrl(data.current);
-        setCurrent(normalizedCurrent);
-        writeFeEndpoint(normalizedCurrent);
-        dispatchEndpointChanged(normalizedCurrent);
-      } else if (typeof data.url === 'string' && data.url) {
-        const normalizedCurrent = normalizeLaravelApiUrl(data.url);
-        setCurrent(normalizedCurrent);
-        writeFeEndpoint(normalizedCurrent);
-        dispatchEndpointChanged(normalizedCurrent);
-      }
-      setError(null);
-      setFallback(false);
-      setSwitching(null);
-    });
-    return () => { off(); };
-  }, [dispatchEndpointChanged]);
-
   const select = useCallback(async (url: string) => {
-    if (!url || url === current || switching) return;
+    if (switching) return;
     setSwitching(url);
     setActionError(null);
-    try {
-      const r = await pycoreLaravelApi.select(url);
-      if (r && r.success === false) throw new Error(r.error || 'select failed');
-      writeFeEndpoint(url);
-      await reload();
-      dispatchEndpointChanged(url);
-      setSwitching(null);
-    } catch (e: any) {
-      // A late-arriving `laravel_endpoint_changed` broadcast may still
-      // recover the UI even when this promise rejected. The broadcast
-      // handler also resets `switching`, so this reset is idempotent.
-      setActionError(e?.message || 'select failed');
-      setSwitching(null);
+    const result = await laravelApi.switchEndpoint(url);
+    setSwitching(null);
+    if (!result.ok) {
+      setActionError(result.error || 'LARAVEL_ENDPOINT_UNAVAILABLE');
+      return;
     }
-  }, [current, switching, reload, dispatchEndpointChanged]);
+    await reload();
+    void pycoreApi.bindLaravelWorkerEndpoint(url).catch(() => undefined);
+  }, [reload, switching]);
 
   const addUrl = useCallback(async (url: string) => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
     setActionError(null);
-    try {
-      const r = await pycoreLaravelApi.add(trimmed);
-      if (r && r.success === false) throw new Error(r.error || 'add failed');
-      await reload();
-    } catch (e: any) {
-      setActionError(e?.message || 'add failed');
+    const result = laravelApi.addEndpoint(url);
+    if (!result.ok) {
+      setActionError(result.error || 'LARAVEL_ENDPOINT_ADD_REJECTED');
+      return;
     }
+    await reload();
   }, [reload]);
 
   const removeUrl = useCallback(async (url: string) => {
     setActionError(null);
-    try {
-      const r = await pycoreLaravelApi.remove(url);
-      if (r && r.success === false) throw new Error(r.error || 'remove failed');
-      await reload();
-    } catch (e: any) {
-      setActionError(e?.message || 'remove failed');
+    const result = laravelApi.removeEndpoint(url);
+    if (!result.ok) {
+      setActionError(result.error || 'LARAVEL_ENDPOINT_REMOVE_FAILED');
+      return;
     }
+    await reload();
   }, [reload]);
 
   const reprobe = useCallback(async () => {
     if (probing) return;
     setProbing(true);
     setActionError(null);
-    try {
-      // The probe refresh runs server-side in the BACKGROUND now (the HTTP
-      // returns instantly with last-known rows). Wait out the sweep budget,
-      // then re-list so the spinner covers the actual refresh instead of
-      // flipping back on stale data.
-      await pycoreLaravelApi.probe();
-      await new Promise((resolve) => setTimeout(resolve, 4500));
-      await reload();
-    } catch (e: any) {
-      setActionError(e?.message || 'probe failed');
-    } finally {
-      setProbing(false);
-    }
+    await laravelApi.probeEndpoints();
+    await reload();
+    setProbing(false);
   }, [probing, reload]);
 
   const clearActionError = useCallback(() => setActionError(null), []);
-
   const value = useMemo<PcLaravelEndpointContextValue>(() => ({
     endpoints,
     current,
     loading,
     probing,
     switching,
-    error,
-    fallback,
+    error: null,
+    fallback: false,
     actionError,
     reload,
     select,
@@ -270,19 +127,15 @@ export function PcLaravelEndpointProvider({ children }: { children: React.ReactN
     reprobe,
     clearActionError,
   }), [
-    endpoints, current, loading, probing, switching, error, fallback, actionError,
+    endpoints, current, loading, probing, switching, actionError,
     reload, select, addUrl, removeUrl, reprobe, clearActionError,
   ]);
 
-  return (
-    <PcLaravelEndpointContext.Provider value={value}>
-      {children}
-    </PcLaravelEndpointContext.Provider>
-  );
+  return <PcLaravelEndpointContext.Provider value={value}>{children}</PcLaravelEndpointContext.Provider>;
 }
 
 export function usePcLaravelEndpoint(): PcLaravelEndpointContextValue {
-  const ctx = useContext(PcLaravelEndpointContext);
-  if (!ctx) throw new Error('usePcLaravelEndpoint must be used within PcLaravelEndpointProvider');
-  return ctx;
+  const context = useContext(PcLaravelEndpointContext);
+  if (!context) throw new Error('PC_LARAVEL_ENDPOINT_PROVIDER_MISSING');
+  return context;
 }

@@ -2,9 +2,16 @@
 """Video Extract application service over the processor and task layer."""
 
 import os
+import shutil
+import subprocess
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
+    STATUS_SNAPSHOT_SYSTEM_RESOURCES_KEY,
+    status_snapshot_cache,
+)
 import pycore.pyfoundations.system_launcher as system_launcher
 from pycore.pyutils.media_processing.video_extract_processor import (
     VIDEO_EXTENSIONS,
@@ -29,10 +36,6 @@ from pycore.pyctl.desktop.video_extract_models import (
 )
 from pycore.pyctl.runtime.user_data_service import user_data_service
 from pycore.pyctl.desktop.task_manager import task_manager
-
-import shutil
-import subprocess
-
 from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 
@@ -181,9 +184,14 @@ class VideoExtractService:
                 sub["primary_language"] = slot.get("primary_language")
                 sub["langs"] = slot.get("langs") or {}
 
-    def system_resources(self) -> dict:
+    def system_resources(self, refresh: bool = False) -> dict:
         """CPU / memory / GPU snapshot for the live resource meters."""
-        return _collect_system_resources()
+        return status_snapshot_cache.get(
+            STATUS_SNAPSHOT_SYSTEM_RESOURCES_KEY,
+            _collect_system_resources,
+            refresh=refresh,
+            ttl_seconds=STATUS_SNAPSHOT_RESOURCES_TTL_SECONDS,
+        )
 
     def preview(self, request: VideoExtractRequest) -> VideoExtractPreviewResponse:
         """Dry-run scan: list what would be processed (no files written)."""

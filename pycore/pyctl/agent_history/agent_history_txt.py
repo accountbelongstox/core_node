@@ -213,7 +213,7 @@ def read_index() -> Dict[str, Any]:
         if marker != "@session":
             continue
         sess = dict(fields)
-        for key in ("started_ts", "prompt_count", "message_count", "bytes", "source_mtime"):
+        for key in ("started_ts", "ended_ts", "prompt_count", "message_count", "bytes", "source_mtime"):
             if key in sess:
                 try:
                     sess[key] = int(sess[key])
@@ -261,6 +261,7 @@ def write_index(data: Dict[str, Any]) -> None:
             "started_ts": s.get("started_ts", 0),
             "started_at": s.get("started_at", ""),
             "ended_at": s.get("ended_at", ""),
+            "ended_ts": s.get("ended_ts", 0),
             "prompt_count": s.get("prompt_count", 0),
             "message_count": s.get("message_count", 0),
             "has_subagent": bool(s.get("has_subagent")),
@@ -338,7 +339,7 @@ def read_session(session_id: str) -> Optional[Dict[str, Any]]:
             fields["is_subagent"] = str(fields.get("is_subagent", "")).lower() == "true"
             turns.append(fields)
     detail = dict(meta)
-    for key in ("started_ts", "prompt_count", "message_count", "bytes"):
+    for key in ("started_ts", "ended_ts", "prompt_count", "message_count", "bytes"):
         if key in detail:
             try:
                 detail[key] = int(detail[key])
@@ -364,6 +365,7 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
         "started_ts": detail.get("started_ts", 0),
         "started_at": detail.get("started_at", ""),
         "ended_at": detail.get("ended_at", ""),
+        "ended_ts": detail.get("ended_ts", 0),
         "prompt_count": detail.get("prompt_count", 0),
         "message_count": detail.get("message_count", 0),
         "has_subagent": bool(detail.get("has_subagent")),

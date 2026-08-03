@@ -13,7 +13,7 @@ import { api } from '@/apps/laravel-manager/api';
 import { ServerConfig, EnvironmentInfo } from '@/apps/laravel-manager/api';
 import { userModel } from '@/apps/laravel-manager/models/UserModel';
 import { getOriginUrl } from '../../config/constants';
-import { apiManager, HealthCheckResult } from '../../apps/laravel-manager/services/ApiManager';
+import { apiManager, HealthCheckResult } from '../../core/api-libs/laravel/ApiManager';
 import { recheckApiEndpointsNow } from '../../apps/laravel-manager/services/ApiHealthRecheck';
 import { CenteredPage, CenteredTabBar } from '../shared';
 import {

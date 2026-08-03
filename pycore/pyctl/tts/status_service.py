@@ -13,10 +13,8 @@ AI chat/image routes live under /api/local/ai/* — do not reuse them for TTS te
 STT/OCR mirrors: /api/local/stt/test, /api/local/ocr/test.
 
 The edge endpoint periodically returns HTTP 403 (rate-limit / regional block).
-This route does a REAL synth round-trip to report whether TTS actually works
-right now, so the Voice & Subtitle page can show it red when it is down. The
-result is cached ~60s in the client (each test counts against rate limits);
-?refresh=1 forces a fresh test.
+Normal status reads never synthesize or start a background probe. An explicit
+refresh runs the live check and caches its result.
 """
 
 from typing import Any, Dict, Optional
@@ -30,7 +28,10 @@ from pycore.pyutils.tts.edge.client import (
 )
 import pycore.pyctl.ai.speech_history as speech_history
 from pycore.pyfoundations.api_secrets import streamelements_key_present
-from pycore.pyutils.tts.tts_orchestrator import tts_status as orchestrator_status
+from pycore.pyutils.tts.tts_orchestrator import (
+    invalidate_tts_status_cache,
+    tts_status as orchestrator_status,
+)
 from pycore.pyutils.tts.tts_orchestrator import (
     get_edge_cooldown_seconds,
     set_edge_cooldown_seconds,
@@ -43,6 +44,10 @@ from pycore.pyutils.tts.tts_service_manager import (
     set_engine_enabled,
     start_server,
     stop_server,
+)
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_TTS_KEY,
+    status_snapshot_cache,
 )
 
 # Settings-adjustable TTS tuning is persisted in user_data.json under this section
@@ -65,34 +70,28 @@ def _load_persisted_tts_settings() -> None:
 _load_persisted_tts_settings()
 
 
-def status(refresh: int = 0):
+def _build_status(refresh: int = 0):
     """
-    TTS status: the live edge-tts probe (version/availability) PLUS the
+    TTS status: the known edge-tts state (version/availability) plus the
     multi-engine orchestrator's priority/availability (chattts -> cosyvoice ->
     gptsovits -> f5tts -> melotts -> sherpa -> edge -> …).
 
     Returns:
         { success,
-          providers: [ {name, available, version, proxy, error, cached} ],   # edge live
+          providers: [ {name, available, version, proxy, error, cached} ],
           best: str|None,
           engines: [ {name, priority, available, note} ] }                   # orchestrator
     """
     client = edge_tts_client
-    # A live edge probe is a real synth round-trip that can hang for seconds
-    # (403 rate-limiting). The periodic status poll must stay fast, so it only
-    # PEEKS the last cached result; the user's Refresh button (refresh=1) forces
-    # a fresh live probe. The orchestrator snapshot below is purely local.
+    # A live edge probe is a real synth round-trip that can hang for seconds.
+    # Normal status reads only peek; explicit refresh is the only probe trigger.
     if refresh:
         edge = client.test_availability(force=True)
     else:
         edge = client.peek_availability()
-        if edge is None:
-            # Cold/stale cache: fill it in the background so the NEXT poll has a
-            # real result, without blocking this request on a network synth.
-            client.ensure_background_probe()
     edge = edge or {"available": None, "version": None, "proxy": False,
                     "error": None, "cached": False, "pending": True}
-    orch = orchestrator_status()
+    orch = orchestrator_status(refresh=bool(refresh))
     engines = list(orch.get("engines") or [])
     for entry in engines:
         if entry.get("name") != "edge":
@@ -129,6 +128,16 @@ def status(refresh: int = 0):
         # Per-engine: name, priority, available, note, version (+ edge live probe).
         "engines": engines,
     }
+
+
+def status(refresh: int = 0):
+    """Return the shared cached TTS status unless a live refresh is requested."""
+    should_refresh = bool(refresh)
+    return status_snapshot_cache.get(
+        STATUS_SNAPSHOT_TTS_KEY,
+        lambda: _build_status(refresh),
+        refresh=should_refresh,
+    )
 
 
 def test(params: Optional[Dict[str, Any]] = None):
@@ -189,6 +198,7 @@ def post_settings(params: Optional[Dict[str, Any]] = None):
     if req.get("server_enabled") is not None:
         server_patch["server_enabled"] = req["server_enabled"]
     srv = apply_server_settings(server_patch) if server_patch else get_server_settings()
+    invalidate_tts_status_cache()
     return {
         "success": True,
         "synth_timeout_s": get_synth_timeout(),
@@ -208,11 +218,18 @@ def post_server_action(params: Optional[Dict[str, Any]] = None):
         return {"success": False, "error": f"Unknown server engine: {req.get('engine')}"}
     try:
         if req.get("enabled") is not None:
-            return set_engine_enabled(engine, bool(req["enabled"]), start_now=bool(req.get("start")))
-        if req.get("start") is True:
-            return start_server(engine)
-        if req.get("start") is False:
-            return stop_server(engine)
-        return get_server_settings()
+            result = set_engine_enabled(
+                engine,
+                bool(req["enabled"]),
+                start_now=bool(req.get("start")),
+            )
+        elif req.get("start") is True:
+            result = start_server(engine)
+        elif req.get("start") is False:
+            result = stop_server(engine)
+        else:
+            result = get_server_settings()
+        invalidate_tts_status_cache(engine)
+        return result
     except Exception as e:  # noqa: BLE001
         return {"success": False, "error": str(e)}

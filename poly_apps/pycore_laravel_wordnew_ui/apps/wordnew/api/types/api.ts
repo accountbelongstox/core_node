@@ -280,6 +280,11 @@ export interface WfNewApi {
     words: string[],
     language: string,
   ): Promise<{ success: boolean; queued?: number; error?: string }>;
+  /** Raise one existing word-audio task by dictionary hash. */
+  boostWordAudioPriority(
+    md5: string,
+    language: string,
+  ): Promise<{ success: boolean; priority?: number; error?: string }>;
 
   // ---- Book reading progress (server-side, auth:sanctum) ----
   getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;

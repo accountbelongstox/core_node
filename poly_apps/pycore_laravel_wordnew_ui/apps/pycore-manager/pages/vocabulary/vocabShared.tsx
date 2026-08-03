@@ -88,9 +88,8 @@ export function humanInt(n: number | undefined | null): string {
 }
 
 /**
- * Unwrap the laravel `{ success, data: <payload> }` envelope. The pycore proxy
- * returns laravel's raw JSON verbatim; laravel-manager's BaseAPI extracts
- * `data.data || data` (BaseAPI.ts:339), so we mirror that here. For a bare
+ * Unwrap the Laravel `{ success, data: <payload> }` envelope returned by the
+ * browser-owned API boundary. For a bare
  * array response or a flat `{ success, items }` response (no `data` key), this
  * returns the body unchanged. Always returns the payload object/array.
  */

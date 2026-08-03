@@ -1635,7 +1635,7 @@
     }
   },
   "startLaunchingWatch": {
-    "message": "  WXT 개발 서버를 시작하는 중(감시 모드)..."
+    "message": "  셸에서 관리하는 개발 감시를 시작하는 중..."
   },
   "startLocation": {
     "message": "    위치: $path$",
@@ -1940,7 +1940,7 @@
     "message": "NotebookLM 생성 작업 실행"
   },
   "taskCenterCapability_validity_hint": {
-    "message": "확인되지 않거나 번역되지 않은 단어를 제거하고 웹 AI 및 Bing 번역 작업자를 활성화합니다."
+    "message": "백엔드 단어 라이브러리에서 확인되지 않았거나 번역되지 않은 단어를 가져와 DeepSeek로 처리합니다."
   },
   "taskCenterCapability_validity_label": {
     "message": "단어 유효성 및 번역 작업 실행"

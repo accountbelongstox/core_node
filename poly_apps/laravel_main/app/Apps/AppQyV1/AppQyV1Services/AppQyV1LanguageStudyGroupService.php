@@ -3,6 +3,9 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
+use App\Models\User;
+use App\Constants\AppKeys;
+use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -12,6 +15,8 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1LanguageStudyGroupService
 {
+    private const DEFAULT_VOCABULARY_GROUP_NAME = 'Default Vocabulary Group';
+
     /**
      * Get the default group name
      * Delegates to AppQyV1LanguageConfigService
@@ -56,18 +61,25 @@ class AppQyV1LanguageStudyGroupService
             ->first();
 
         if ($existing) {
-            Log::info('[AppQyV1LanguageStudyGroup] Default group already exists', [
-                'user_id' => $userId,
-                'language' => $language,
-                'group_id' => $existing->id
-            ]);
             return $existing;
         }
 
-        $gid = 'wg_' . $language . '_' . Str::random(12);
-        $groupName = self::getDefaultGroupName($language);
-        $icon = self::getLanguageIcon($language);
+        if ($language === 'en') {
+            $legacyDefault = AppQyV1WordGroupModel::where('uid', $userId)
+                ->where('gname', self::DEFAULT_VOCABULARY_GROUP_NAME)
+                ->first();
+            if ($legacyDefault) {
+                $legacyDefault->language = 'en';
+                $legacyDefault->is_language_default = true;
+                $legacyDefault->save();
+                return $legacyDefault;
+            }
+        }
 
+        $gid = 'wg_' . $language . '_' . Str::random(12);
+        $groupName = $language === 'en'
+            ? self::DEFAULT_VOCABULARY_GROUP_NAME
+            : self::getDefaultGroupName($language);
         $group = new AppQyV1WordGroupModel([
             'gid' => $gid,
             'uid' => $userId,
@@ -94,6 +106,7 @@ class AppQyV1LanguageStudyGroupService
     public static function ensureLanguageGroupsExist(int $userId, array $languages): array
     {
         $createdGroups = [];
+        $languages = array_values(array_unique(array_merge(['en'], $languages)));
 
         foreach ($languages as $language) {
             if (!self::isValidLanguage($language)) {
@@ -111,6 +124,34 @@ class AppQyV1LanguageStudyGroupService
         }
 
         return $createdGroups;
+    }
+
+    public static function ensureAllUserLanguageGroups(): array
+    {
+        $userCount = 0;
+        $groupCount = 0;
+
+        User::on(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))
+            ->select(['id', 'learning_languages'])
+            ->orderBy('id')
+            ->chunkById(200, function ($users) use (&$userCount, &$groupCount): void {
+                foreach ($users as $user) {
+                    $languages = is_array($user->learning_languages)
+                        ? $user->learning_languages
+                        : [];
+                    if (empty($languages)) {
+                        $languages = ['en'];
+                    }
+                    $groups = self::ensureLanguageGroupsExist((int) $user->id, $languages);
+                    $userCount++;
+                    $groupCount += count($groups);
+                }
+            });
+
+        return [
+            'users' => $userCount,
+            'groups' => $groupCount,
+        ];
     }
 
     public static function getByLanguage(int $userId, string $language): array

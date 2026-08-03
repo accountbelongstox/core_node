@@ -40,27 +40,21 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyfoundations.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
 from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
 from pycore.pyutils.tts.edge.client import edge_tts_client
-# Stored-first Laravel endpoint resolution - same plumbing the sentence-audio
-# router uses to proxy laravel_main for the Puter.js word-audio batch surface.
+# Stored-first Laravel endpoint resolution for worker-side task integration.
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
 )
 # Unified pycore->Laravel HTTP gateway (times + logs + records every call).
 from pycore.pyutils.laravel.client import laravel_client
-from pycore.pyctl.tts.laravel_audio_worker import laravel_word_audio_worker
 
-# Larvel word-audio batch surface (proxied so the pycore-manager Queue Center
-# bar edits laravel-owned data through pycore, matching the sentence-audio pattern).
+# Laravel word-audio surfaces retained for worker-side task integration.
 _LARAVEL_MISSING_BATCH = "/api/app_qy_v1/word/audio/missing-batch"
 _LARAVEL_UPLOAD = "/api/app_qy_v1/word/audio/upload"
 _LARAVEL_FIX_WORD = "/api/app_qy_v1/word/fix-text"
-_LARAVEL_BOOST = "/api/app_qy_v1/word/boost-priority"
-_LARAVEL_BOOST_BATCH = "/api/app_qy_v1/word/boost-priority/batch"
 _LARAVEL_WORD_MEDIA = "/api/app_qy_v1/word/{lang}/{word}/media"
 # Youdao (朗文) public CDN: type=1 UK, type=2 US. No key needed.
 _YOUDAO_URL = "http://dict.youdao.com/dictvoice"
@@ -428,79 +422,3 @@ def fix_word_text(payload: Dict[str, Any]):
     except Exception as exc:  # noqa: BLE001 - never 500
         ColorPrint.red(f"[WordAudio] /fix-word failed: {exc}\n{traceback.format_exc()}")
         return {"success": False, "error": f"proxy error: {exc}"}
-
-
-def _apply_priority_boost(md5: str, lang: str, wake_worker: bool) -> Dict[str, Any]:
-    """Synchronize one priority ticket across Laravel and the active worker."""
-    if not md5 or not lang:
-        return {"success": False, "error": "md5 and lang are required"}
-    try:
-        base = _laravel_base()
-        if base:
-            try:
-                resp = laravel_client.post(
-                    _LARAVEL_BOOST,
-                    base_url=base,
-                    json={"md5": md5, "lang": lang},
-                    timeout=10,
-                )
-                laravel_ok = resp.status_code == 200
-            except Exception as le:  # noqa: BLE001
-                ColorPrint.yellow(f"[WordAudio] boost laravel call failed: {le}")
-                laravel_ok = False
-        else:
-            laravel_ok = False
-        # Broadcast regardless of laravel result: the batch bar reorders in-memory.
-        try:
-            THREAD_BUS.trigger_event("word_audio_priority_boost", {"md5": md5, "lang": lang})
-        except Exception as be:  # noqa: BLE001
-            ColorPrint.yellow(f"[WordAudio] boost THREAD_BUS broadcast failed: {be}")
-        worker = laravel_word_audio_worker
-        worker.prioritize_word(md5, lang)
-        if wake_worker and shared_heartbeat_system.is_callback_enabled("tts_queue_poller"):
-            worker.poll_and_process()
-        ColorPrint.blue(f"[WordAudio] priority boost: md5={md5} lang={lang} laravel_ok={laravel_ok}")
-        return {
-            "success": True,
-            "laravel_updated": laravel_ok,
-            "md5": md5,
-            "lang": lang,
-        }
-    except Exception as exc:  # noqa: BLE001 - never 500
-        ColorPrint.red(f"[WordAudio] /boost-priority failed: {exc}\n{traceback.format_exc()}")
-        return {"success": False, "error": f"proxy error: {exc}"}
-
-
-def boost_priority(payload: Dict[str, Any]):
-    """Move one word to the Laravel and active pycore audio queue front."""
-    md5 = (payload.get("md5") or "").strip()
-    lang = (payload.get("lang") or "").strip()
-    return _apply_priority_boost(md5, lang, wake_worker=True)
-
-
-def boost_priority_batch(items):
-    """Move visible words to the Laravel audio queue front in display order."""
-    items = items[:200]
-    payload = [{"md5": str(item.get("md5") or "").strip(), "lang": str(item.get("lang") or "").strip()} for item in items if isinstance(item, dict)]
-    payload = [item for item in payload if item["md5"] and item["lang"]]
-    base = _laravel_base()
-    if not base or not payload:
-        return {"success": False, "count": 0, "error": "laravel endpoint or items missing"}
-    try:
-        response = laravel_client.post(
-            _LARAVEL_BOOST_BATCH,
-            base_url=base,
-            json={"items": payload},
-            timeout=30,
-        )
-        result = response.json()
-        worker = laravel_word_audio_worker
-        for item in payload:
-            worker.prioritize_word(item["md5"], item["lang"])
-            THREAD_BUS.trigger_event("word_audio_priority_boost", item)
-        if shared_heartbeat_system.is_callback_enabled("tts_queue_poller"):
-            worker.poll_and_process()
-        return result if isinstance(result, dict) else {"success": False, "count": 0}
-    except Exception as exc:  # noqa: BLE001 - never 500
-        ColorPrint.yellow(f"[WordAudio] batch priority boost failed: {exc}")
-        return {"success": False, "count": 0, "error": str(exc)}

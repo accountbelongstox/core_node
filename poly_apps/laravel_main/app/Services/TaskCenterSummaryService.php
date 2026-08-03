@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Models\GlobalTask;
 use App\Models\Worker;
 use App\Support\QueueCenterContract;
+use App\Services\QueueCenter\QueueCenterRealtimeService;
 
 final class TaskCenterSummaryService
 {
@@ -32,15 +33,18 @@ final class TaskCenterSummaryService
     private AppQyV1AssistService $assistService;
     private TaskManagerService $taskManager;
     private WorkerManagerService $workerManager;
+    private QueueCenterRealtimeService $realtime;
 
     public function __construct(
         AppQyV1AssistService $assistService,
         TaskManagerService $taskManager,
-        WorkerManagerService $workerManager
+        WorkerManagerService $workerManager,
+        QueueCenterRealtimeService $realtime
     ) {
         $this->assistService = $assistService;
         $this->taskManager = $taskManager;
         $this->workerManager = $workerManager;
+        $this->realtime = $realtime;
     }
 
     public function overview(): array
@@ -90,6 +94,7 @@ final class TaskCenterSummaryService
                 'stats' => $this->workerManager->getWorkerStats(),
             ],
             'relations' => $relations,
+            'realtime' => $this->realtime->connection(),
             'timestamp' => now()->toISOString(),
         ];
     }

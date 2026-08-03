@@ -8,9 +8,7 @@
  * for "what did my sync land"). It shows the resolved base_url + reachability
  * and a per-source local↔backend comparison with a sync-state badge.
  *
- * Books and detail peeks use video_extract.backend_media_* HTTP API routes.
- * Only pycore performs the selected-endpoint HTTP calls to Laravel; this UI
- * never falls back to a browser Laravel client.
+ * Books and detail peeks use the direct Laravel API boundary.
  *
  * Deliberately NOT part of the page's main flow: collapsed by default, lazy
  * fetch on first expand, and it never blocks or crashes the page when either
@@ -21,12 +19,12 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Database, ChevronDown, ChevronUp, RefreshCw, WifiOff, Wifi, Film, BookOpen,
 } from 'lucide-react';
-import { requestPycoreHttp } from '@/apps/pycore-manager/api';
-import { PYCORE_BROWSER_EVENTS } from '@/apps/pycore-manager/api';
+import { laravelApi, requestPycoreHttp } from '@/apps/pycore-manager/api';
+import { LARAVEL_BROWSER_EVENTS } from '@/apps/pycore-manager/api';
 import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
 import type {
   MediaSourceListItem, MediaListResponse, MediaSentence,
-} from '@/apps/laravel-manager/api';
+} from '@/apps/pycore-manager/api';
 
 // i18n labels (single source; pycore-manager pages use literals, no `t` object).
 const L = {
@@ -84,12 +82,6 @@ interface BackendStatus {
   sources: BackendStatusSource[];
 }
 
-interface MediaRpcEnvelope<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-
 interface MediaDetailPayload {
   sentences?: MediaSentence[] | { items?: MediaSentence[] };
   segments?: unknown[];
@@ -136,20 +128,18 @@ const PcLaravelMediaPanel: React.FC = () => {
   const [books, setBooks] = useState<MediaListResponse | null>(null);
   const [peek, setPeek] = useState<PeekState | null>(null);
 
-  // Both reads travel UI -> pycore HTTP API -> Laravel HTTP.
+  // Local sync comparison comes from pycore; Laravel-owned rows are direct.
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [statusResult, booksResult] = await Promise.all([
         requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendStatus, {}) as Promise<BackendStatus>,
-        requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendMediaList, {
-          kind: 'book', per_page: PER_PAGE,
-        }) as Promise<MediaRpcEnvelope<MediaListResponse>>,
+        laravelApi.listMedia('book', PER_PAGE),
       ]);
       if (!statusResult?.success) throw new Error(L.unreachable);
       setStatus(statusResult);
-      setBooks(booksResult?.success && booksResult.data ? booksResult.data : null);
-      setError(booksResult?.success ? null : booksResult?.error || L.loadError);
+      setBooks(booksResult);
+      setError(null);
     } catch (e: unknown) {
       setStatus(null);
       setBooks(null);
@@ -167,8 +157,8 @@ const PcLaravelMediaPanel: React.FC = () => {
     const onEndpointChanged = () => {
       if (fetchedOnce) refresh();
     };
-    window.addEventListener(PYCORE_BROWSER_EVENTS.laravelApiChanged, onEndpointChanged);
-    return () => window.removeEventListener(PYCORE_BROWSER_EVENTS.laravelApiChanged, onEndpointChanged);
+    window.addEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, onEndpointChanged);
+    return () => window.removeEventListener(LARAVEL_BROWSER_EVENTS.selectionChanged, onEndpointChanged);
   }, [fetchedOnce, refresh]);
 
   const toggleOpen = () => {
@@ -183,13 +173,8 @@ const PcLaravelMediaPanel: React.FC = () => {
     if (peek?.key === item.source_key) { setPeek(null); return; }
     setPeek({ key: item.source_key, kind, loading: true, sentences: [], segments: 0 });
     try {
-      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.videoExtractBackendMediaDetail, {
-        kind,
-        source_key: item.source_key,
-        grain: 'sentence',
-      }) as MediaRpcEnvelope<MediaDetailPayload>;
-      if (!res.success || !res.data) throw new Error(res.error || L.loadError);
-      const sentenceValue = res.data.sentences;
+      const res = await laravelApi.getMediaDetail(kind, item.source_key) as MediaDetailPayload;
+      const sentenceValue = res.sentences;
       const sentences = Array.isArray(sentenceValue)
         ? sentenceValue
         : Array.isArray(sentenceValue?.items) ? sentenceValue.items : [];
@@ -198,7 +183,7 @@ const PcLaravelMediaPanel: React.FC = () => {
         kind,
         loading: false,
         sentences: sentences.slice(0, PEEK_COUNT),
-        segments: Array.isArray(res.data.segments) ? res.data.segments.length : 0,
+        segments: Array.isArray(res.segments) ? res.segments.length : 0,
       });
     } catch (e: unknown) {
       setPeek({

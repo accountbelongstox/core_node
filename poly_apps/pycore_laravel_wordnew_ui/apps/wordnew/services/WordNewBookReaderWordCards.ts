@@ -1,5 +1,6 @@
-import { resolveAudioSync } from '../cache/WfNewAudioCache';
-import { getSentenceWordTable, markSentenceWordsPlayed } from './WordNewSentenceWordTable';
+import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
+import { getSentenceWordTable } from './WordNewSentenceWordTable';
+import { wordNewProgressCenter } from './WordNewProgressCenter';
 import { speakBookText } from './WordNewBookReaderSpeech';
 
 const WORD_CLIP_TIMEOUT_MS = 8000;
@@ -62,6 +63,6 @@ export async function readWordCardsForSentence(
   }
 
   if (played.length > 0) {
-    await markSentenceWordsPlayed(played, 'en').catch(() => undefined);
+    wordNewProgressCenter.reportSentenceReads(played, 'en');
   }
 }

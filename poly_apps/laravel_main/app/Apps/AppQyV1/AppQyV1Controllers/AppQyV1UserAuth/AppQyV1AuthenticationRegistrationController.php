@@ -24,9 +24,9 @@ use App\Services\UnifiedAuthService;
 use App\Constants\AppKeys;
 use App\Services\AvatarService;
 use App\Http\Common\CommonAuthService;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 
 class AppQyV1AuthenticationRegistrationController extends BaseController
 {
@@ -229,7 +229,13 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             $user->save();
         }
 
-        AppQyV1WordGroupPublicController::ensureDefaultGroupIfNotExist($user->id, $user->username);
+        $defaultGroupLanguages = !empty($selectedLearningLanguages)
+            ? $selectedLearningLanguages
+            : ['en'];
+        AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
+            (int) $user->id,
+            $defaultGroupLanguages
+        );
 
         $loginToken = $user->createToken('auth_token')->plainTextToken;
         $userTokenData = CommonAuthService::generateUserToken($user->id, 'AppQyV1');

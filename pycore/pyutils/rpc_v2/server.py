@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -16,6 +17,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_fastapi
 from pycore.pyfoundations.network_constants import (
     HTTP_API_PREFIX,
     HTTP_BIND_HOST,
+    HTTP_CLIENT_ID_PATH,
     HTTP_EVENTS_PATH,
     HTTP_EXPECTED_DISCONNECT_ERRNOS,
     HTTP_EXPECTED_DISCONNECT_MESSAGES,
@@ -41,23 +43,50 @@ RouteRegistration = Union[
     Tuple[str, Callable],
     Tuple[str, Callable, Optional[str]],
 ]
-class _PrivateNetworkAccessMiddleware:
+
+
+class _HttpProtocolMiddleware:
+    STARTED_AT_SCOPE_KEY = "pycore.http.started_at"
+    RESPONSE_LOGGED_SCOPE_KEY = "pycore.http.response_logged"
+
     def __init__(self, app: Any) -> None:
         self.app = app
+
+    @classmethod
+    def log_response(cls, scope: Dict[str, Any], status_code: int) -> None:
+        if scope.get(cls.RESPONSE_LOGGED_SCOPE_KEY):
+            return
+        method = str(scope.get("method") or "HTTP").upper()
+        route = str(scope.get("path") or "/")
+        started_at = float(scope.get(cls.STARTED_AT_SCOPE_KEY) or time.perf_counter())
+        duration_ms = (time.perf_counter() - started_at) * 1000
+        ColorPrint.gray(
+            f"[HttpServer] {method} {route} -> {status_code} "
+            f"({duration_ms:.1f} ms)"
+        )
+        scope[cls.RESPONSE_LOGGED_SCOPE_KEY] = True
 
     async def __call__(self, scope: Dict[str, Any], receive: Any, send: Any) -> None:
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
 
-        async def send_with_header(message: Dict[str, Any]) -> None:
+        method = str(scope.get("method") or "HTTP").upper()
+        route = str(scope.get("path") or "/")
+        started_at = time.perf_counter()
+        scope[self.STARTED_AT_SCOPE_KEY] = started_at
+        scope[self.RESPONSE_LOGGED_SCOPE_KEY] = False
+        ColorPrint.green(f"[HttpServer] Received {method} {route}")
+
+        async def send_with_protocol(message: Dict[str, Any]) -> None:
             if message.get("type") == "http.response.start":
                 headers = list(message.get("headers") or [])
                 headers.append((b"access-control-allow-private-network", b"true"))
                 message["headers"] = headers
+                self.log_response(scope, int(message.get("status") or 0))
             await send(message)
 
-        await self.app(scope, receive, send_with_header)
+        await self.app(scope, receive, send_with_protocol)
 
 
 class HttpServer:
@@ -89,7 +118,7 @@ class HttpServer:
             allow_headers=["*"],
             allow_credentials=True,
         )
-        self.app.add_middleware(_PrivateNetworkAccessMiddleware)
+        self.app.add_middleware(_HttpProtocolMiddleware)
         self.dispatcher = HttpDispatcher(sync_invoker=self._invoke_sync_handler)
         self.event_service = (
             HttpEventService(
@@ -196,6 +225,7 @@ class HttpServer:
             ColorPrint.red(
                 f"[HttpServer] {request.method} {request.url.path} failed: {exc}"
             )
+            _HttpProtocolMiddleware.log_response(request.scope, 500)
             return self._error_response(
                 request_id,
                 request.url.path,
@@ -205,6 +235,23 @@ class HttpServer:
             )
 
     def _register_protocol_routes(self) -> None:
+        @self.app.post(HTTP_CLIENT_ID_PATH)
+        async def client_id(request: Request) -> Dict[str, Any]:
+            payload = await request.json()
+            browser_id = str(payload.get("browser_id") or "").strip()
+            allocation_key = browser_id
+            journal = self.event_service.events if self.event_service is not None else None
+            assigned_id = (
+                journal.allocate_client_id(allocation_key)
+                if journal is not None
+                else f"pycore-{uuid.uuid4().hex}"
+            )
+            return {
+                "success": True,
+                "client_id": assigned_id,
+                "instance_id": journal.instance_id if journal is not None else None,
+            }
+
         @self.app.get(HTTP_STATUS_PATH)
         async def status() -> Dict[str, Any]:
             return {

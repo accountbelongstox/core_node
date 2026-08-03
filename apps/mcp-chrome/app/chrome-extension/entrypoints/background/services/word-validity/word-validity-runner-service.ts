@@ -8,7 +8,7 @@
  * empty:
  *
  *   loop:
- *     GET  /api/app_qy_v1/vocabulary/validity/pending?language&limit=200
+ *     GET  /api/app_qy_v1/vocabulary/validity/pending?language&limit=<data segment>
  *     -> if zero words: DONE (stop).
  *     runWordValidityClassification(words, deepseek)
  *     POST /api/app_qy_v1/vocabulary/validity/report  (valid + invalid together)
@@ -30,11 +30,12 @@ import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG, type ValidityStatus } from '@/utils/task-center-types';
 import { VALIDITY_PATHS } from '@/utils/api-paths';
 import { submitOutbox } from '../outbox/submit-outbox';
+import { DIFF_DELIVERY } from '@/utils/queue-center-contract';
 
 const LOG = 'Word-Validity Runner';
 
-// Safety caps. A batch is 200 words; MAX_ROUNDS * 200 bounds total work per run.
-const DEFAULT_LIMIT = 200;
+// Safety caps. Each batch fits one shared Queue Center data segment.
+const DEFAULT_LIMIT = DIFF_DELIVERY.data_segment_limit;
 const MAX_ROUNDS = 500;
 const MAX_CONSECUTIVE_EMPTY = 2;
 
@@ -51,7 +52,7 @@ export interface ValidityRunnerConfig {
   provider?: AiWebProvider;
   /** Target language for valid-word translations (default DEFAULT_TARGET_LANG). */
   targetLanguage?: string;
-  /** Words per round (clamped 1..200). */
+  /** Words per round (clamped to one Queue Center data segment). */
   limit?: number;
 }
 
@@ -105,6 +106,7 @@ export class ValidityApiClient extends BaseApiClient {
 class WordValidityRunnerService {
   private running = false;
   private stopRequested = false;
+  private runEpoch = 0;
   private status: ValidityRunnerStatus = {
     running: false,
     done: false,
@@ -121,6 +123,8 @@ class WordValidityRunnerService {
    * and updates status. A second start() while running is a no-op.
    */
   async start(config: ValidityRunnerConfig = {}): Promise<void> {
+    let runEpoch = 0;
+
     if (this.running) {
       logger.warn(LOG, 'Runner already running');
       return;
@@ -146,6 +150,7 @@ class WordValidityRunnerService {
 
     this.running = true;
     this.stopRequested = false;
+    runEpoch = ++this.runEpoch;
     this.status = {
       running: true,
       done: false,
@@ -159,14 +164,25 @@ class WordValidityRunnerService {
 
     logger.info(LOG, `Started (languages=${languages.join(',')}, provider=${provider}, target=${targetLanguage}, base=${apiBase})`);
     // Fire and forget: don't block the message handler on the whole drain.
-    void this.runLoop(new ValidityApiClient(apiBase), languages, provider, targetLanguage, limit);
+    void this.runLoop(
+      new ValidityApiClient(apiBase),
+      languages,
+      provider,
+      targetLanguage,
+      limit,
+      runEpoch,
+    );
   }
 
-  /** Request a graceful stop; the loop halts before its next round. */
+  /** Stop readiness immediately and invalidate every continuation from this run. */
   stop(): void {
-    if (!this.running) return;
+    const wasRunning = this.running;
+
+    this.runEpoch++;
     this.stopRequested = true;
-    logger.info(LOG, 'Stop requested');
+    this.running = false;
+    this.status.running = false;
+    if (wasRunning) logger.info(LOG, 'Stop requested');
   }
 
   getStatus(): ValidityRunnerStatus {
@@ -179,11 +195,12 @@ class WordValidityRunnerService {
     provider: AiWebProvider,
     targetLanguage: string,
     limit: number,
+    runEpoch: number,
   ): Promise<void> {
     let consecutiveEmpty = 0;
     const drained = new Set<string>();
     try {
-      while (this.running && !this.stopRequested && this.status.rounds < MAX_ROUNDS) {
+      while (this.isRunActive(runEpoch) && this.status.rounds < MAX_ROUNDS) {
         // 1. Pull the next batch of unchecked words from the next language
         // whose backlog is not drained yet (round-robin across the selection).
         const language = languages.find((lang) => !drained.has(lang));
@@ -196,6 +213,7 @@ class WordValidityRunnerService {
         this.status.language = language;
 
         const pending = await client.fetchPending(language, limit);
+        if (!this.isRunActive(runEpoch)) break;
         const words = this.extractPending(pending);
         if (words.length === 0) {
           drained.add(language);
@@ -212,10 +230,12 @@ class WordValidityRunnerService {
             targetLanguage,
           );
         } catch (error: any) {
+          if (!this.isRunActive(runEpoch)) break;
           this.status.lastError = error?.message || 'Web-AI tab drive failed';
           logger.error(LOG, `Round ${this.status.rounds}: ${this.status.lastError}`);
           break;
         }
+        if (!this.isRunActive(runEpoch)) break;
 
         const { valid, invalid } = classification;
         const classified = valid.length + invalid.length;
@@ -239,9 +259,11 @@ class WordValidityRunnerService {
         // 4. Report valid + invalid together, md5-keyed.
         const results = this.buildResults(valid, invalid);
         const reportBody = { language, target_language: targetLanguage, source: `${provider}-web`, results };
+        if (!this.isRunActive(runEpoch)) break;
         try {
           await client.report(reportBody);
         } catch (error: any) {
+          if (!this.isRunActive(runEpoch)) break;
           // Hand the md5-keyed report to the persistent outbox, then stop this
           // round. Continuing would immediately pull and re-run the same batch
           // because Laravel has not committed its report yet. The Task Center
@@ -258,6 +280,7 @@ class WordValidityRunnerService {
           );
           break;
         }
+        if (!this.isRunActive(runEpoch)) break;
 
         this.status.totalValid += valid.length;
         this.status.totalInvalid += invalid.length;
@@ -267,18 +290,26 @@ class WordValidityRunnerService {
         );
       }
 
-      if (this.status.rounds >= MAX_ROUNDS && !this.status.done) {
+      if (runEpoch === this.runEpoch && this.status.rounds >= MAX_ROUNDS && !this.status.done) {
         this.status.lastError = this.status.lastError || `Stopped at max rounds (${MAX_ROUNDS})`;
         logger.warn(LOG, this.status.lastError ?? 'Stopped at max rounds');
       }
     } catch (error: any) {
-      this.status.lastError = error?.message || 'Runner loop crashed';
-      logger.error(LOG, this.status.lastError ?? 'Runner loop crashed');
+      if (runEpoch === this.runEpoch) {
+        this.status.lastError = error?.message || 'Runner loop crashed';
+        logger.error(LOG, this.status.lastError ?? 'Runner loop crashed');
+      }
     } finally {
-      this.running = false;
-      this.status.running = false;
-      logger.info(LOG, 'Runner stopped');
+      if (runEpoch === this.runEpoch) {
+        this.running = false;
+        this.status.running = false;
+        logger.info(LOG, 'Runner stopped');
+      }
     }
+  }
+
+  private isRunActive(runEpoch: number): boolean {
+    return this.running && !this.stopRequested && runEpoch === this.runEpoch;
   }
 
   /** Tolerantly pull the words array out of the {success,data:{items}} envelope. */

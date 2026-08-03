@@ -62,20 +62,27 @@ pycore 如果开启处理，UI如果显式开启，将一直和lravel建立连�
 
 第一部份BUG修复1：
 
-1：同时查看一些构架的问题，为什么有些接口会导致阻塞：
-比如[laravel +2.06s] GET /api/app_qy_v1/ai_tools/translation/queue/pending-words -> ERR (6156ms) HTTPConnectionPool(host='43.163.112.77', port=9000): Read timed out. (read timeout=6)
-[laravel +4.54s] GET /api/app_qy_v1/ai_tools/translation/queue/list -> ERR (8144ms) HTTPConnectionPool(host='43.163.112.77', port=9000): Read timed out. (read timeout=6)
-2：Sentence Audio 、 Word Audio 的On/Off 点了依然没反应，UI ，大量重复的···ack
-ack
-ack
-ack
-ack
-ack
-ack
-ack
-0ack
-ack
-ack
-(ack···导致阻塞，
 3：句子的处理的队列 设计有阻塞 比如 ···[qwen3tts-events +0.01s] HTTP poll failed: timed out···
 显然pycore UI / pycore的设计导致了大量的阻塞，和重复调用，pycore - laravel也存在同样的问题。按规范修复，全面重构，完成第一部份。
+
+第一部份BUG修复2：
+
+1：Pycore Agent History 必须先在本地完成整篇短文音频合成，再将文章与音频一起提交到 Laravel。Laravel 必须可靠保存该音频并返回实际 audio_url；同时文章内的所有句子仍须逐句进入 sentence_audio 中心队列，任何缺失句子音频继续由已开启的 Pycore/QwenTTS 处理。
+2：word_audio 与 sentence_audio 的定时发现必须使用持久化 diff-ID 分页目录。初始化快照仅分页查询并记录所有 ID，不把完整业务行装入内存；后续发现只查询高水位之后的新 ID，跳过所有已记录 ID。
+3：ID 页目录与业务数据读取必须分离。队列已有足够 backlog 时只生成或更新 ID 页表，不读取正文、单词、句子等完整字段；只有任务供给端需要补充对应页时，才按该页 ID 查询实际业务行并创建任务。
+4：每个 ID 页必须独立持久化，运行时一次只载入一个 diff-ID 页；页处理成功后再确认游标，失败时保留该页重试，避免丢任务、重复全表扫描和大数组常驻内存。
+5：单词与句子保持独立队列、独立 diff 游标和独立 backlog 水位；交互式缺失请求仍可直接置顶并通知在线 Pycore，不等待后台分页扫描。
+
+第一部份BUG修复3：
+
+1：Laravel、Pycore、mcp-chrome 的队列数据交换统一拆成三层：持久化 DIFF IDS 游标库、持久化且有界的 ID 分页库、按需物化的实际数据段。三层不得重新合并为一个全量缓存。
+2：所有后台任务发现器只按主键高水位扫描新 ID。初始化仅建立 ID 页表，后续跳过已发现 ID；不得每个 tick 重扫旧业务行，也不得为排重加载所有 pending payload。
+3：任务置顶只更新 revision/high-water 游标与 head IDS 页，并发送已有实时通知；置顶操作不得为了重排而查询或复制完整 payload。Pycore 和 mcp-chrome 收到置顶后只重排已经领取的本地映射段。
+4：完整业务行只允许由 UI 页请求或 worker claim/消费请求按一个 ID 页惰性读取。未发生请求时不得后台预热完整行；列表响应完成或 worker 结果被后端/outbox可靠接管后，实际数据段必须压缩为 ID、状态、计数和时间元数据。
+5：ID 页、实际数据段和消费记录必须有独立上限；未消费页优先保留，已消费页只保留有界历史。任何端都不得把数据库全集映射到常驻内存或浏览器 storage。
+6：word_translation、word_validity、word_media、word_audio、sentence_audio、article sentence audio 与 library article sentence audio 共用 DIFF feeder 基类；健康检查、租约回收和显式对账属于状态维护，不得错误地当成新任务发现。
+7：Pycore Queue Center 与 sentence queue 的完整列表改成前端请求时物化；heartbeat 只做轻量控制和 worker 调度，不重复请求完整列表。mcp-chrome 的所有 typed pull 统一经过持久化领取段，禁止每个 worker 自建无界 payload 缓存。
+8：Laravel Manager 与 Pycore Manager 的列表只读取契约规定的当前页；置顶成功后前端仅更新当前 ID 顺序和 revision，并按需刷新单条详情，不得重新拉取整套 Queue Center 快照。
+9：wordnew 的可见句子、单词优先请求和轮询映射必须服从 data segment 上限与并发上限；请求完成、取消或调度器重置时移除实际数据映射并更新已消费 ID 上下文，达到上限的新请求必须明确结束而不能留下悬空 Promise。
+10：`code-last-modified` 必须继续覆盖全部配置代码目录，但优先使用单次原生扫描；原生扫描、PHP 兜底和冷缓存锁等待都必须有独立短预算，失败时快速返回 scan-busy/空快照，不得占满调用端 6 秒超时。
+

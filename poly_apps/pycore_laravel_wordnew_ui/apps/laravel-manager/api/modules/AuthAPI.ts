@@ -1,6 +1,6 @@
-import { BaseAPI } from '../base/BaseAPI';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
-import { LARAVEL_API_ROUTE } from '../ApiContract';
+import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
 
 /**
  * AuthAPI - Public Authentication API Module

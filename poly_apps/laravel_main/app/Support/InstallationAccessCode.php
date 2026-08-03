@@ -6,6 +6,6 @@ final class InstallationAccessCode
 {
     public static function value(): string
     {
-        return 'NEXU-59EB-C23C-D07C-82DD';
+        return 'NEXU-BADC-EF2F-B2F7-872F';
     }
 }

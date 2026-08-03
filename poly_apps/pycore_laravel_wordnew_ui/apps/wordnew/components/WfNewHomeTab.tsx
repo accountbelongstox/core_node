@@ -1,7 +1,7 @@
 /** WfNewHomeTab - the home tab body extracted from WfNewApp so the shell
  * stays under the 800-line modular limit. Pure presentation: state + handlers
  * come from the shell via props (prop names match the destructured hook bindings). */
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   BookOpen, Sparkles, GraduationCap, Flame, ChevronRight, 
@@ -14,22 +14,21 @@ import {
 import { useShell } from '../../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial, DEFAULT_VOCAB_GROUP_NAME } from '../api';
+import { DEFAULT_VOCAB_GROUP_NAME, wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from '../api';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from '../api';
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
 // word group skip re-fetching the whole list. Never throws — a miss falls back to
-// the network. See ./cache/WfNewContentCache.
+// the network. See ../runtime-store/WfNewContentCache.
 import {
   getCachedGroups, getCachedGroupIds, putCachedGroups,
   getCachedWords, putCachedWords,
   setCacheScope, clearAuthScopedCache,
   dedupGroups,
   type WfNewCachedKind,
-} from '../cache/WfNewContentCache';
+} from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
-import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 
 // Modular Imports
 import { UserStats, ElementTheme } from '../WfNewTypes';
@@ -66,6 +65,7 @@ import { WfNewHomeDashboard } from './WfNewHomeDashboard';
 import { WfNewOnboarding } from '../pages/WfNewOnboarding';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';
+import { WordNewDailyReadingSection } from './daily-reading/WordNewDailyReadingSection';
 
 interface WfNewHomeTabProps {
   activeTheme: ElementTheme; trans: (k: string, r?: Record<string, string|number>) => string;
@@ -87,24 +87,6 @@ interface WfNewHomeTabProps {
 export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
   const { activeTheme, trans, lang, dark, currentUser, nickname, avatarUrl, statistics, gGroups, bentoGroups, userStats, languageOptions, homeContent, homeContentLoading, addToast, setActiveTab, setContentListKind, handleSaveDashboard, openHomeGroup, loadMoreGroups, selectBookCourse, startGroupPractice, startModePractice, addLibraryToStudy } = props;
 
-  // The pinned Default Vocabulary Group as a content-group card model — shown
-  // ONCE, as the FIRST card of the WORD GROUPS section (it is the fixed
-  // default pack; any word groups the user adds follow after it). It used to
-  // ALSO render as a large hero card in the bento waterfall below — that
-  // duplicate is filtered out there.
-  const defaultWordGroup = useMemo<WfNewContentGroup | undefined>(() => {
-    const g = gGroups.find((gr) => gr.name === DEFAULT_VOCAB_GROUP_NAME) ?? gGroups[0];
-    if (!g) return undefined;
-    return {
-      id: g.id,
-      kind: 'word',
-      title: g.name,
-      count: g.count,
-      countUnit: 'words',
-      language: g.language,
-      description: g.description,
-    };
-  }, [gGroups]);
   return (
     <>
               {/* Unified learning dashboard. When LOGGED IN: identity + real backend
@@ -125,6 +107,28 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 dailyGoal={userStats.dailyGoal}
                 languageOptions={languageOptions}
                 onSave={handleSaveDashboard}
+              />
+
+              {/* Daily Reading remains a full home section. Playback opens the
+                  dedicated article route instead of becoming a header action. */}
+              <WordNewDailyReadingSection
+                theme={activeTheme}
+                trans={trans}
+                onOpenPage={(articleId) => {
+                  if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
+                  }
+                  setActiveTab('daily-reading');
+                }}
+                onOpenBook={(sourceKey, title) => openHomeGroup({
+                  id: sourceKey,
+                  kind: 'book',
+                  sourceKey,
+                  title,
+                  count: 0,
+                  countUnit: 'sentences',
+                  category: 'daily',
+                })}
               />
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
@@ -271,12 +275,9 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                   </button>
                 </div>
 
-                {/* Staggered Bento Grid. The Default Vocabulary Group is
-                    EXCLUDED here: it renders once, pinned as the first card of
-                    the WORD GROUPS section below (the large hero card here was
-                    its duplicate representation). */}
+                {/* The dossiers area represents the canonical vocabulary group only. */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-auto">
-                  {bentoGroups.filter((group) => group.name !== DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => {
+                  {bentoGroups.filter((group) => group.name === DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => {
                     // Match decoration variables
                     const progressVal = group.progress;
                     
@@ -433,32 +434,6 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 </div>
               </div>
 
-              {/* Daily Reading — latest reading articles, inline expand +
-                  sequential audio playback with a floating player console. */}
-              <WordNewDailyReadingSection
-                theme={activeTheme}
-                trans={trans}
-                onOpenBook={(sourceKey, title) => {
-                  openHomeGroup({
-                    id: sourceKey,
-                    kind: 'book',
-                    sourceKey,
-                    title,
-                    count: 0,
-                    countUnit: 'sentences',
-                    category: 'daily',
-                  });
-                }}
-                onPlayArticle={(articleId) => {
-                  // Open the routed player page (#/read-daily/<id>) on the
-                  // daily-reading tab — a real page, not a modal over home.
-                  if (typeof window !== 'undefined') {
-                    window.history.replaceState(null, '', `#/read-daily/${encodeURIComponent(articleId)}`);
-                  }
-                  setActiveTab('daily-reading');
-                }}
-              />
-
               {/* Multi-category content hub — live backend word / book / subtitle
                   / document groups (WfNewHomeContent widget reads getHomeContent). */}
               <WfNewHomeContentWidget
@@ -466,7 +441,6 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 loading={homeContentLoading}
                 theme={activeTheme}
                 trans={trans}
-                defaultWordGroup={defaultWordGroup}
                 onOpen={openHomeGroup}
                 onMore={(kind) => { setContentListKind(kind); setActiveTab('content-list'); }}
                 onNeedMore={loadMoreGroups}

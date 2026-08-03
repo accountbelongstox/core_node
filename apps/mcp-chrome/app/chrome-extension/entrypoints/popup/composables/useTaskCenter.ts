@@ -199,6 +199,7 @@ export interface TaskCenterState {
 
 export function useTaskCenter() {
   const isActive = ref(false);
+  const isStarting = ref(false);
   const { apiBaseUrl } = useApiEndpoint();
   const config = ref<TaskCenterConfig>({
     apiUrl: '',
@@ -222,6 +223,7 @@ export function useTaskCenter() {
   const error = ref('');
   let endpointRequestVersion = 0;
   let endpointRequestQueue: Promise<void> = Promise.resolve();
+  let startRequestVersion = 0;
 
   watch(apiBaseUrl, (url) => {
     if (!url) return;
@@ -302,6 +304,8 @@ export function useTaskCenter() {
   // Start the center with the checked capability keys. The background
   // derives the concrete processorTypes; the popup only names capabilities.
   const startTaskCenter = async (activeCapabilities: CapabilityKey[]) => {
+    const requestVersion = ++startRequestVersion;
+    isStarting.value = true;
     try {
       error.value = '';
       await apiManager.initialize({ autoDetect: false });
@@ -318,6 +322,8 @@ export function useTaskCenter() {
         },
       });
 
+      if (requestVersion !== startRequestVersion) return;
+
       if (response && response.success) {
         state.value.isRunning = true;
         logger.info(LOG, 'Started successfully');
@@ -329,8 +335,11 @@ export function useTaskCenter() {
         error.value = response?.error || getMessage('taskCenterStartFailed');
       }
     } catch (err: any) {
+      if (requestVersion !== startRequestVersion) return;
       logger.error(LOG, 'Start error', err);
       error.value = err.message || getMessage('taskCenterStartFailed');
+    } finally {
+      if (requestVersion === startRequestVersion) isStarting.value = false;
     }
   };
 
@@ -370,6 +379,8 @@ export function useTaskCenter() {
   const stopTaskCenter = async () => {
     try {
       error.value = '';
+      startRequestVersion++;
+      isStarting.value = false;
       const response = await chrome.runtime.sendMessage({
         type: TASK_CENTER_MSG,
         action: 'stop',
@@ -527,6 +538,7 @@ export function useTaskCenter() {
 
   return {
     isActive,
+    isStarting,
     config,
     state,
     error,

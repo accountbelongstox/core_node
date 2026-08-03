@@ -10,14 +10,23 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_CAPABILITY_STATUS_POST_CAPABILITY_SETTINGS,
 )
 import pycore.pyctl.desktop.capability_service as cap
-from pycore.pyctl.capabilities import capabilities_status, system_info
+from pycore.pyctl.capabilities import system_info
 
 
 def register_local_capability_status_routes(server):
     """Register HTTP controllers."""
 
-    server.post(path=UI_CAPABILITY_STATUS_STATUS, handler=capabilities_status)
-    server.post(path=UI_CAPABILITY_STATUS_INFO, handler=system_info)
+    def status_handler(params, _request_id, _context):
+        return cap.get_capability_status(bool(params.get("refresh")))
+
+    def info_handler(params, _request_id, _context):
+        return system_info(bool(params.get("refresh")))
+
+    def settings_handler(params, _request_id, _context):
+        return cap.get_capability_settings(bool(params.get("refresh")))
+
+    server.post(path=UI_CAPABILITY_STATUS_STATUS, handler=status_handler)
+    server.post(path=UI_CAPABILITY_STATUS_INFO, handler=info_handler)
 
     def open_directory_handler(params, request_id, context):
         return cap.open_directory(str(params.get("key") or ""))
@@ -29,7 +38,7 @@ def register_local_capability_status_routes(server):
 
     server.post(
         path=UI_CAPABILITY_STATUS_GET_CAPABILITY_SETTINGS,
-        handler=cap.get_capability_settings,
+        handler=settings_handler,
     )
 
     def post_capability_settings_handler(params, request_id, context):

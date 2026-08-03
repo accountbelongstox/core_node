@@ -7,3 +7,4 @@ export * from './WordNewAchievementCenter';
 export * from './WordNewProgressCenter';
 export * from './WordNewReadingProgressCenter';
 export * from './WordNewRecitationCenter';
+export * from './WordNewArticlePlaybackHighlighter';

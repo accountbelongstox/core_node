@@ -1,16 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
-import { requestPycoreHttp, connectPycoreHttp } from '@/apps/pycore-manager/api';
-import { pycoreEventBus } from '@/apps/pycore-manager/api';
-import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import { PYCORE_HTTP_ROUTES } from '@/apps/pycore-manager/api';
+import React, { useEffect, useState } from 'react';
+import {
+  pycoreApi,
+  refreshAgentHistoryRuntime,
+  setAgentHistoryArticleConfig,
+  useAgentHistoryRuntime,
+} from '@/apps/pycore-manager/api';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
 import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
 
 const REFERENCE_LANGUAGE = 'CN';
 const TARGET_LANGUAGE = 'EN';
-const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
 /**
  * Article config panel — master ON/OFF toggle bound to config.enabled (backend
@@ -21,61 +21,43 @@ const PcAgentHistoryConfigPanel: React.FC<{
   tk: (k: string) => string;
   onEnabledToolsChange?: (tools: string[]) => void;
 }> = ({ tk, onEnabledToolsChange }) => {
-  const [articleCfg, setArticleCfg] = useState<Record<string, unknown> | null>(null);
-  const [opStatus, setOpStatus] = useState<Record<string, any> | null>(null);
+  const {
+    articleConfig: articleCfg,
+    operationSnapshot,
+    configError,
+  } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
   const [enabledTools, setEnabledTools] = useState<string[]>([]);
 
-  const loadConfig = useCallback(async () => {
-    try {
-      const res = await pycoreApi.getAgentHistoryArticleConfig();
-      if (res.success && res.data) {
-        setArticleCfg(res.data);
-        setEnabled(!!res.data.enabled);
-        setMinRawWords(Number(res.data.min_raw_words || 200));
-        const tools = Array.isArray((res.data as any).enabled_tools)
-          ? ((res.data as any).enabled_tools as unknown[]).map(String)
-          : [];
-        setEnabledTools(tools);
-        onEnabledToolsChange?.(tools);
-      }
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : tk('loadError'));
-    }
-  }, [tk, onEnabledToolsChange]);
-
-  const loadOpStatus = useCallback(async () => {
-    try {
-      const res = await requestPycoreHttp(PYCORE_HTTP_ROUTES.operationSnapshot, {
-        scope: 'agent_history',
-        include_items: false,
-      });
-      if (res?.success && res.data?.operation) {
-        setOpStatus(res.data.operation as Record<string, any>);
-      }
-    } catch {
-      /* offline — keep last known operation status */
-    }
-  }, []);
-
   useEffect(() => {
-    connectPycoreHttp();
-    void loadConfig();
-    void loadOpStatus();
-  }, [loadConfig, loadOpStatus]);
+    if (!articleCfg) return;
+    setEnabled(!!articleCfg.enabled);
+    setMinRawWords(Number(articleCfg.min_raw_words || 200));
+    const tools = Array.isArray(articleCfg.enabled_tools)
+      ? (articleCfg.enabled_tools as unknown[]).map(String)
+      : [];
+    setEnabledTools(tools);
+    onEnabledToolsChange?.(tools);
+  }, [articleCfg, onEnabledToolsChange]);
 
-  // Refresh display-side operation status when the pipeline store changes.
-  useEffect(() => {
-    const off = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.operationChanged, (payload: any) => {
-      const scope = String(payload?.operation_scope || '');
-      if (scope && !PIPELINE_SCOPES.has(scope)) return;
-      void loadOpStatus();
-    });
-    return () => { off(); };
-  }, [loadOpStatus]);
+  const opStatus = operationSnapshot?.operation as Record<string, any> | undefined;
+  const currentItem = operationSnapshot?.current_item as Record<string, any> | undefined;
+  const totals = opStatus?.totals as Record<string, any> | undefined;
+  const totalItems = Math.max(0, Number(totals?.total || 0));
+  const completedItems = Number(totals?.succeeded || 0)
+    + Number(totals?.skipped || 0)
+    + Number(totals?.failed || 0)
+    + Number(totals?.cancelled || 0);
+  const itemProgress = Math.max(0, Math.min(1, Number(currentItem?.progress || 0)));
+  const progressValue = totalItems > 0
+    ? Math.max(0, Math.min(1, (completedItems + itemProgress) / totalItems))
+    : itemProgress;
+  const processing = enabled
+    && Boolean(opStatus)
+    && !['completed', 'failed', 'cancelled'].includes(String(opStatus?.status || ''));
 
   const saveConfig = async (enabledOverride?: boolean, toolsOverride?: string[]) => {
     setBusy(true);
@@ -93,7 +75,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
         enabled_tools: tools,
       });
       if (res.success && res.data) {
-        setArticleCfg(res.data);
+        setAgentHistoryArticleConfig(res.data);
         setMsg(tk('save'));
       } else {
         setMsg(res.error || tk('loadError'));
@@ -122,7 +104,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
       if (res.success) {
         setEnabled(true);
         setMsg(tk('pipelineQueued'));
-        await loadConfig();
+        await refreshAgentHistoryRuntime();
       } else {
         setMsg(res.error || tk('loadError'));
       }
@@ -177,6 +159,25 @@ const PcAgentHistoryConfigPanel: React.FC<{
             </span>
           )}
         </div>
+        {processing && (
+          <div className="space-y-1.5" aria-live="polite">
+            <div className="flex items-center justify-between gap-3 text-[11px] font-mono text-indigo-600 dark:text-indigo-300">
+              <span>
+                {tk('processing')}: {String(currentItem?.stage || opStatus?.stage || 'running')}
+              </span>
+              <span>
+                {Math.round(progressValue * 100)}%
+                {totalItems > 0 ? ` · ${completedItems}/${totalItems}` : ''}
+              </span>
+            </div>
+            <div className="h-1.5 rounded-full bg-slate-200 dark:bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-indigo-500 transition-[width] duration-300"
+                style={{ width: `${Math.round(progressValue * 100)}%` }}
+              />
+            </div>
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="text-xs text-slate-500">
             {tk('referenceLang')}
@@ -212,6 +213,9 @@ const PcAgentHistoryConfigPanel: React.FC<{
           </div>
         )}
         {msg && <p className="text-xs text-indigo-600 dark:text-indigo-300">{msg}</p>}
+        {!msg && configError && (
+          <p className="text-xs text-rose-500">{configError}</p>
+        )}
       </section>
 
       {enabled && <PcAgentHistoryLogPanel tk={tk} />}

@@ -1,7 +1,6 @@
 import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
-import { postJSON } from '../api/WfNewApiTransport';
-import { pycoreApi } from '@/apps/wordnew/integrations/pycore';
+import { authedPostJSON, authedQueueablePostJSON } from '../api/WfNewApiTransport';
 import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
@@ -12,9 +11,16 @@ export interface WordNewSentenceWordRow {
   image_url?: string | null;
   audio_status?: string;
   image_status?: string;
-  translations?: unknown[];
+  translations?: string[];
+  explanation?: string | null;
+  phonetic?: string | null;
+  us_phonetic?: string | null;
+  uk_phonetic?: string | null;
   played: boolean;
   play_count: number;
+  in_default_group: boolean;
+  added_to_default_group: boolean;
+  eligible_for_new_only: boolean;
 }
 
 function clientKey(): string {
@@ -33,7 +39,7 @@ function absoluteUrl(url: string | null | undefined): string | null {
 }
 
 async function post(path: string, body: Record<string, unknown>): Promise<any> {
-  return postJSON(path, body);
+  return authedPostJSON(path, body);
 }
 
 function prioritizeMissing(
@@ -53,13 +59,22 @@ function prioritizeMissing(
     .map((row) => ({ word: row.word, language }));
   const requests: Promise<unknown>[] = [];
   if (translationWords.length > 0) {
-    requests.push(pycoreApi.stackQueue(translationWords, language, targetLanguage, 200));
+    requests.push(authedPostJSON(WfNewApiPaths.translationQueueStack, {
+      words: translationWords,
+      language,
+      target_language: targetLanguage,
+      priority: 200,
+    }));
   }
   if (audioWords.length > 0) {
     requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, language));
   }
   if (imageItems.length > 0) {
-    requests.push(pycoreApi.prioritizeWordImages(imageItems));
+    requests.push(authedPostJSON(WfNewApiPaths.wordImageQueueAdd, {
+      words: imageItems,
+      priority: 'front',
+      interactive: true,
+    }));
   }
   if (requests.length > 0) void Promise.allSettled(requests);
 }
@@ -68,12 +83,14 @@ export async function getSentenceWordTable(
   sentence: string,
   language = 'en',
   targetLanguage = 'zh',
+  maxReadCount = 0,
 ): Promise<WordNewSentenceWordRow[]> {
   const payload = await post(WfNewApiPaths.sentenceWords, {
     sentence,
     language,
     target_language: targetLanguage,
     client_key: clientKey(),
+    max_read_count: Math.max(0, Math.min(100, Number(maxReadCount) || 0)),
   });
   const rows = Array.isArray(payload?.data?.words) ? payload.data.words : [];
   const normalized = rows.map((row: WordNewSentenceWordRow) => ({
@@ -86,7 +103,7 @@ export async function getSentenceWordTable(
 
 export async function markSentenceWordsPlayed(words: string[], language = 'en'): Promise<void> {
   if (words.length === 0) return;
-  await post(WfNewApiPaths.sentenceWordsPlayed, {
+  await authedQueueablePostJSON(WfNewApiPaths.sentenceWordsPlayed, {
     words,
     language,
     client_key: clientKey(),

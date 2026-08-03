@@ -7,13 +7,15 @@
  */
 
 import type {
+  GlobalTaskCapability,
+  GlobalTaskExecutionType,
   GlobalTaskStatusRecord,
   PcQueueOverview,
   QueueCenterControlName,
   QueueCenterControlState,
   QueueCenterSectionContract,
   QueueCenterScope,
-} from './QueueCenterContract';
+} from '../../contracts/QueueCenterContract';
 import type { AiUsageProviderStat } from '../../contracts/ai';
 
 export type {
@@ -48,12 +50,13 @@ export type {
   QueueCenterControlResponse,
   QueueCenterControlState,
   QueueCenterErrorState,
+  QueueCenterOverviewResponse,
   QueueCenterScope,
   QueueCenterSectionContract,
   QueueCenterSectionLifecycle,
   QueueCenterToggleEnvelope,
   QueueCenterWorkerMetrics,
-} from './QueueCenterContract';
+} from '../../contracts/QueueCenterContract';
 
 export interface QueueItem {
   id: string;
@@ -1193,6 +1196,75 @@ export interface AgentHistorySessionResponse {
   error: string | null;
 }
 
+// --- DIFF read surface (ID page tables + lazy per-page materialization) ---- #
+// ID pages carry IDs + status metadata only and are aligned by `revision`;
+// full rows are materialized lazily for the visible page. No full loads.
+export interface AgentHistoryIdPage<T> {
+  revision: string;
+  /** True when `since_revision` matched — reuse the locally cached page table. */
+  unchanged?: boolean;
+  total: number;
+  page: number;
+  page_count: number;
+  items?: T[];
+}
+
+export interface AgentHistorySessionIdItem {
+  id: string;
+  tool: string;
+  os_user: string;
+  started_ts: number;
+  prompt_count: number;
+  has_subagent: boolean;
+}
+
+export type AgentHistoryPromptIdItem = Omit<AgentHistoryPrompt, 'text'>;
+
+export type AgentHistoryArticleRecordMetadata = Omit<AgentHistoryArticleRecord, 'article_en' | 'reference_cn'>;
+
+export interface AgentHistorySessionIdPagesResponse {
+  success: boolean;
+  data: (AgentHistoryIdPage<AgentHistorySessionIdItem> & {
+    is_dev_machine?: boolean;
+    generated_at?: string;
+    tools?: string[];
+    users?: string[];
+    langs?: string[];
+    counts?: Record<string, number>;
+  }) | null;
+  error: string | null;
+}
+
+export interface AgentHistoryPromptIdPagesResponse {
+  success: boolean;
+  data: AgentHistoryIdPage<AgentHistoryPromptIdItem> | null;
+  error: string | null;
+}
+
+export interface AgentHistoryArticleRecordIdPagesResponse {
+  success: boolean;
+  data: AgentHistoryIdPage<AgentHistoryArticleRecordMetadata> | null;
+  error: string | null;
+}
+
+export interface AgentHistorySessionPageResponse {
+  success: boolean;
+  data: { items: AgentHistorySessionSummary[]; total: number } | null;
+  error: string | null;
+}
+
+export interface AgentHistoryPromptPageResponse {
+  success: boolean;
+  data: { items: AgentHistoryPrompt[]; total: number } | null;
+  error: string | null;
+}
+
+export interface AgentHistoryArticleRecordPageResponse {
+  success: boolean;
+  data: { items: AgentHistoryArticleRecord[]; total: number } | null;
+  error: string | null;
+}
+
 /** One generated article row from GET …/agent-history/article/records. */
 export interface AgentHistoryArticleRecord {
   id: string;
@@ -1205,6 +1277,9 @@ export interface AgentHistoryArticleRecord {
   openrouter_model?: string;
   translation_engine?: string;
   audio_available: boolean;
+  audio_url?: string | null;
+  audio_status?: string | null;
+  laravel_article_id?: string | null;
   uploaded: boolean;
   uploaded_at?: string | null;
 }
@@ -1354,6 +1429,10 @@ export interface CapabilityStatus {
   cuda: CudaStatus;
   libraries: CapabilityLibrary[];
   model_tiers?: ModelTierRow[];
+  tts?: TtsStatus;
+  stt?: SttStatus;
+  ocr?: OcrStatus;
+  ai_gateway?: AiGatewayStatus;
   error?: string;
 }
 
@@ -1443,7 +1522,7 @@ export interface LocalTaskDetail {
 }
 
 /**
- * Laravel global_tasks row proxied through Pycore HTTP API.
+ * Laravel global_tasks row consumed through the browser's Laravel API client.
  *
  * Field types come from the central task model. The list-row fallback used by
  * PcTranslationQueuePage can omit detail-only fields until the HTTP response
@@ -1528,10 +1607,12 @@ export interface AssistLaravelStatus {
 export interface AssistStatus {
   enabled: boolean;
   capabilities: AssistCapabilities;
-  /** The Laravel endpoint assist targets (follows laravel_api.select); null = none. */
+  /** The Laravel endpoint used by task workers after a UI endpoint notification. */
   endpoint: { base_url: string; label?: string } | null;
   /** Whether at least one canonical capability worker is active. */
   running: boolean;
+  /** Whether the dispatch-driven processor accepts tasks from the UI pump. */
+  processor_enabled?: boolean;
   /** Circuit breaker: open = backed off after repeated failures. */
   circuit: { open: boolean; cooldown_s: number };
   counters: { claimed: number; submitted: number; released: number; failures: number };
@@ -1830,76 +1911,8 @@ export interface WordAudioTestResponse {
 }
 
 // Queue Center category, worker, control, and section types are defined in
-// QueueCenterContract.ts, which reads the shared JSON contract used by Python
-// and Laravel. Raw Task Center slice types remain below.
-
-/** HTTP API task-center aggregate; pycore owns any Laravel enrichment. */
-export interface PcTaskCenterLocalCounts {
-  pending?: number;
-  processing?: number;
-  completed?: number;
-  failed?: number;
-}
-
-export interface PcTaskCenterRemoteQueue {
-  laravel_reachable: boolean;
-  /** UI-selected URL (user_data laravel_api.current). */
-  laravel_endpoint?: string;
-  /** Last-known healthy URL the monitor/worker uses. */
-  laravel_active_endpoint?: string;
-  event_connected?: boolean;
-  summary?: TranslationQueueSummary;
-  age_ms?: number | null;
-  /** Age of the cached monitor snapshot (seconds); lets the hub skip triangulation. */
-  laravel_snapshot_age_s?: number | null;
-  /** Translation worker subset — api_url lets the UI detect re-registration lag. */
-  worker?: {
-    worker_id?: string | null;
-    api_url?: string | null;
-    registered?: boolean;
-    inflight_tasks?: number;
-    done_words_cached?: number;
-  };
-}
-
-export interface PcTaskCenterResponse {
-  scheduler?: Record<string, unknown>;
-  local_tasks?: {
-    recent?: unknown[];
-    counts?: PcTaskCenterLocalCounts;
-  };
-  remote_queue?: PcTaskCenterRemoteQueue;
-  timestamp?: string;
-}
-
-export interface QueueCenterSnapshot {
-  success: boolean;
-  schema_version: 2;
-  generated_at: string;
-  source: {
-    pycore_reachable: boolean;
-    laravel_reachable: boolean;
-    laravel_stored_endpoint: string | null;
-    laravel_active_endpoint: string | null;
-    laravel_snapshot_age_s: number | null;
-  };
-  controls: Record<QueueCenterControlName, QueueCenterControlState>;
-  section_contracts: Record<QueueCenterScope, QueueCenterSectionContract>;
-  error_code?: string | null;
-  data: {
-    task_center: PcTaskCenterResponse;
-    translation: TranslationQueueResponse | null;
-    word_audio: WordTtsAutoStatus | null;
-    sentence_audio: SentenceAudioAutoStatus | null;
-    workers: HeartbeatWorkersStatus | null;
-    assist: AssistStatus | null;
-    tts: TtsStatus | null;
-    overview: PcQueueOverview | null;
-    sentence_queue: SentenceAudioQueueSnapshot | null;
-    recent: PcTaskRecentResponse | null;
-  };
-  errors: Record<string, string>;
-}
+// core/contracts/QueueCenterContract.ts, which reads the shared JSON contract
+// used by Python and Laravel. Raw Task Center slice types remain below.
 
 /** One in-flight sentence-audio task (sentence worker get_status). */
 export interface SentenceWorkerTask {
@@ -1912,6 +1925,12 @@ export interface SentenceWorkerTask {
   current_variant_index?: number;
   current_variant_key?: string;
   current_provider?: string;
+  stage?: string;
+  progress?: number;
+  elapsed_seconds?: number;
+  speaker?: string;
+  backend_uploaded?: boolean;
+  backend_result_accepted?: boolean;
 }
 
 /** HTTP API sentence-audio status — auto-start, worker, and Laravel counts. */
@@ -1920,8 +1939,15 @@ export interface SentenceAudioAutoStatus {
   /** Effective worker concurrency + recommended value for the current engine. */
   concurrency?: number;
   concurrency_recommended?: number;
+  concurrency_limit?: number;
+  concurrency_class?: string | null;
+  selected_speaker?: string;
+  supported_speakers?: string[];
   heartbeat_enabled: boolean;
+  /** Canonical dispatch-driven processor state; heartbeat_enabled is legacy. */
+  processor_enabled?: boolean;
   sentence_audio_capability: boolean;
+  required_engine?: string;
   laravel?: {
     pending?: number;
     leased?: number;
@@ -1930,15 +1956,20 @@ export interface SentenceAudioAutoStatus {
     stale?: boolean;
   };
   worker?: {
+    worker_id?: string;
+    worker_name?: string;
+    processor_types?: GlobalTaskExecutionType[];
+    capabilities?: GlobalTaskCapability[];
     queued?: number;
     leased?: number;
     processing?: number | string | null;
+    enabled?: boolean;
     cycle_running?: boolean;
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
     last_cycle?: Record<string, unknown>;
-    /** Live heartbeat flag (sentence worker get_status; replaces enabled_on_start). */
+    /** Legacy worker flag retained for older queue snapshots. */
     heartbeat_enabled?: boolean;
     /** Single task before the concurrent worker; a list of in-flight tasks after. */
     current_task?: SentenceWorkerTask | SentenceWorkerTask[] | null;
@@ -1951,16 +1982,25 @@ export interface SentenceAudioAutoStatus {
       text_preview?: string;
       language?: string;
       priority?: number;
+      elapsed_seconds?: number;
+      backend_uploaded?: boolean;
+      backend_result_accepted?: boolean;
     }>;
   };
 }
 
 export interface SentenceQueueRow {
+  task_id?: string;
   content_id: string;
   text?: string;
   language: string;
   tts_priority?: number;
   tts_status?: string;
+  progress?: number;
+  stage?: string;
+  backend_uploaded?: boolean;
+  assigned_at?: string | null;
+  updated_at?: string | null;
   tts_locked_by?: string | null;
   occurrence_count?: number;
   recently_bumped?: boolean;
@@ -2019,6 +2059,8 @@ export interface WordTtsAutoStatus {
   concurrency?: number;
   concurrency_recommended?: number;
   heartbeat_enabled: boolean;
+  /** Canonical dispatch-driven processor state; heartbeat_enabled is legacy. */
+  processor_enabled?: boolean;
   laravel?: {
     pending?: number;
     leased?: number;
@@ -2028,11 +2070,12 @@ export interface WordTtsAutoStatus {
   };
   worker?: {
     batch_running?: boolean;
+    enabled?: boolean;
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
     last_tick?: Record<string, unknown>;
-    /** Live heartbeat flag (word worker get_status). */
+    /** Legacy worker flag retained for older queue snapshots. */
     heartbeat_enabled?: boolean;
     /** Recent processing records ({at, kind, detail, ...}), same shape as the sentence worker's. */
     events?: Array<{
@@ -2045,9 +2088,7 @@ export interface WordTtsAutoStatus {
   };
 }
 
-// --- Code version indicator (pycore + pointed-to laravel backend) ----------- #
-// Served by pycore GET /api/local/version. The UI reads BOTH through pycore
-// (UI -> pycore -> laravel); the browser never calls laravel directly.
+// --- Code version indicator ------------------------------------------------ #
 export interface PcCodeVersion {
   last_modified_unix: number;
   last_modified_at: string;
@@ -2056,25 +2097,7 @@ export interface PcCodeVersion {
 }
 export interface PcVersionInfo {
   success: boolean;
-  backend_configured: boolean;
   pycore: PcCodeVersion;
-  backend: PcCodeVersion & { base_url: string; reachable: boolean };
-}
-
-export interface HeartbeatCallbackRow {
-  name: string;
-  enabled: boolean;
-  interval: number;
-  run_count: number;
-  queue_role?: string | null;
-}
-
-export interface HeartbeatWorkersStatus {
-  success?: boolean;
-  callbacks: HeartbeatCallbackRow[];
-  auxiliary?: Record<string, { persisted?: boolean | null; enabled: boolean; configured?: boolean }>;
-  word_tts?: WordTtsAutoStatus;
-  sentence_audio?: SentenceAudioAutoStatus;
 }
 
 // --- Queue Center: capability settings (contract B) ------------------------ #
@@ -2167,7 +2190,7 @@ export interface DictionaryEntry {
 }
 
 // --- Recent tasks (cross-end task history: pycore + chrome) ---------------- #
-// ui/task_history/get_recent_tasks returns a newest-first log of finished task
+// ui/task_history/get_recent_local_tasks returns Pycore-local finished tasks
 // units across both ends (pycore workers + the chrome MCP host). Each record is
 // a single processed item (a word, a TTS synth, an image fetch, a translation
 // batch, …). `detail` is free-form per task_type; the common keys are typed but
@@ -2286,36 +2309,6 @@ export interface PcTaskRecentResponse {
   types?: Record<string, number>;
   resource_count?: number;
   last_sync_at?: string | null;
-  error?: string;
-}
-
-/** HTTP API persistent terminal-task archive. */
-export interface PcCompletedTaskArchiveResponse {
-  success: boolean;
-  records: PcTaskRecord[];
-  count: number;
-  types: Record<string, number>;
-  resource_count: number;
-  last_sync_at: string | null;
-  total?: number;
-  offset?: number;
-  limit?: number;
-  next_offset?: number | null;
-  error?: string;
-}
-
-/** HTTP API cross-end archive synchronization. */
-export interface PcCompletedTaskSyncResponse {
-  success: boolean;
-  partial?: boolean;
-  laravel_error?: string | null;
-  synced: number;
-  resource_count: number;
-  last_sync_at: string | null;
-  types: Record<string, number>;
-  records: PcTaskRecord[];
-  count: number;
-  next_cursor_id?: number | null;
   error?: string;
 }
 

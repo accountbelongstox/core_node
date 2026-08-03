@@ -1,5 +1,5 @@
-import { BaseAPI } from '../base/BaseAPI';
-import { LARAVEL_API_ROUTE } from '../ApiContract';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
 
 /**
  * DatabaseManagerAPI

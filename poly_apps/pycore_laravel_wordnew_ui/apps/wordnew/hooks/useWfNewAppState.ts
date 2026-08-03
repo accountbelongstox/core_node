@@ -21,10 +21,11 @@ import type { UserStats } from '../WfNewTypes';
 import {
   getCachedGroups, getCachedGroupIds, putCachedGroups,
   getCachedWords, putCachedWords, setCacheScope, clearAuthScopedCache, dedupGroups,
-} from '../cache/WfNewContentCache';
-import type { WfNewCachedKind } from '../cache/WfNewContentCache';
+} from '../runtime-store/WfNewContentCache';
+import type { WfNewCachedKind } from '../runtime-store/WfNewContentCache';
 import { useWfNewContentHandlers } from './useWfNewContentHandlers';
 import { StorageManager } from '../../../core/persistence';
+import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 /** Every navigable page/tab in the wordnew shell (drives the history stack). */
@@ -59,7 +60,10 @@ export function wfNewPageHeader(
     case 'settings': return { title: trans('settings.title'), subtitle: trans('settings.sub') };
     case 'about': return { title: trans('about.title'), subtitle: trans('about.sub') };
     case 'admin': return { title: trans('hdr.admin'), subtitle: trans('hdr.adminSub') };
-    case 'daily-reading': return { title: 'Daily Reading', subtitle: 'Bilingual short articles with English audio' };
+    case 'daily-reading': return {
+      title: trans('home.dailyReading.title'),
+      subtitle: trans('home.dailyReading.pageSubtitle'),
+    };
     case 'social': return { title: trans('bc.social') };
     case 'auth': return { title: trans('bc.auth') };
     case 'content-list':
@@ -154,13 +158,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       'learning-model', 'review-settings', 'playback', 'book-reader', 'content-list', 'about',
       'daily-reading', 'admin',
     ];
-    if (fromHash === 'article' || fromHash.startsWith('article/')) {
-      setActiveTabRaw('daily-reading');
-      return;
-    }
-    // Deep-link to the Daily Reading player: #/read-daily/<articleId> — the
-    // section reads the id from the hash and auto-starts that article.
-    if (fromHash === 'read-daily' || fromHash.startsWith('read-daily/')) {
+    if (fromHash === 'daily-reading' || fromHash.startsWith('daily-reading?') || fromHash.startsWith('daily-reading/')) {
       setActiveTabRaw('daily-reading');
       return;
     }
@@ -215,10 +213,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     }
     if (activeTab === 'daily-reading') {
       const current = window.location.hash;
-      next = /^#\/article(\/(latest|oldest|source|unread|random))?$/.test(current)
-        || /^#\/read-daily(\/.+)?$/.test(current)
+      next = /^#\/daily-reading(?:\?sort=(latest|oldest|source|unread|random))?$/.test(current)
+        || /^#\/daily-reading\/[^?]+$/.test(current)
         ? current
-        : '#/article/latest';
+        : '#/daily-reading?sort=latest';
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
@@ -457,10 +455,11 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   // so a fresh login re-establishes the token. Also subscribe to auth-expiry so a
   // 401 from ANY endpoint flips the whole app to logged-out + the login screen.
   useEffect(() => {
-    // Stale/expired session detected on load → clear everything and jump to login
-    // ONCE (the user expects a single redirect when the session has expired).
+    // Keep the active page mounted while the shared application shell asks the
+    // user to re-authenticate.
     if (currentUser.isLoggedIn && !wfNewApi.isAuthenticated()) {
-      clearUserSession(true);
+      clearUserSession(false);
+      requestAuthLogin({ source: 'wordnew-session', reason: 'session-expired' });
       addToast(trans('toast.sessionExpired'), 'warning');
     }
     // A 401 from ANY endpoint fires this — already deduped to once per
@@ -468,7 +467,8 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     // re-toast / re-route once we're already logged out (single redirect).
     const unsubscribe = wfNewApi.onAuthExpired(() => {
       if (!isLoggedInRef.current) return;
-      clearUserSession(true);
+      clearUserSession(false);
+      requestAuthLogin({ source: 'wordnew-session', reason: 'session-expired' });
       addToast(trans('toast.sessionExpired'), 'warning');
     });
     return unsubscribe;

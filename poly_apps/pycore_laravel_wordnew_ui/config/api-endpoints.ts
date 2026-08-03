@@ -4,8 +4,7 @@
  */
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../core/api-libs/base/endpointIdentity';
-import { StorageManager } from '../core/persistence';
-import { LaravelManagerStorageKeys as StorageKeys } from '../apps/laravel-manager/persistence/LaravelManagerStorageKeys';
+import { StorageKeys, StorageManager } from '../core/persistence';
 
 export { CURRENT_URL_TYPE, isCurrentUrlId } from '../core/api-libs/base/endpointIdentity';
 
@@ -29,6 +28,29 @@ export interface ApiEndpointsConfig {
 /** Laravel Octane API port — independent of the FE shell port (e.g. :13054). */
 export const FIXED_API_PORT = 9000;
 
+function createCurrentOriginEndpoint(
+  hostname: string,
+  protocol: 'http' | 'https',
+): BackendApiEndpoint {
+  const isLocal =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    /^192\.168\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    /^100\./.test(hostname);
+
+  return {
+    id: `${CURRENT_URL_TYPE}:${hostname}`,
+    url: hostname,
+    protocol,
+    port: FIXED_API_PORT,
+    priority: 0,
+    isLocal,
+    description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
+  };
+}
+
 /**
  * Build the current-page-origin endpoint: host + protocol from `window.location`,
  * port pinned to FIXED_API_PORT (:9000). Null off-web or on non-http(s) origins.
@@ -41,23 +63,7 @@ export function getCurrentOriginEndpoint(): BackendApiEndpoint | null {
   if (!hostname) return null;
 
   const proto: 'http' | 'https' = protocol === 'https:' ? 'https' : 'http';
-  const isLocal =
-    hostname === 'localhost' ||
-    hostname === '127.0.0.1' ||
-    /^192\.168\./.test(hostname) ||
-    /^10\./.test(hostname) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-    /^100\./.test(hostname);
-
-  return {
-    id: `${CURRENT_URL_TYPE}:${hostname}`,
-    url: hostname,
-    protocol: proto,
-    port: FIXED_API_PORT,
-    priority: 0,
-    isLocal,
-    description: `Current URL — this site (${proto}://${hostname}:${FIXED_API_PORT})`,
-  };
+  return createCurrentOriginEndpoint(hostname, proto);
 }
 
 /**
@@ -116,6 +122,33 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       priority: 6,
       isLocal: false,
       description: 'Secondary Remote API Server'
+    },
+    {
+      id: 'loopback',
+      url: '127.0.0.1',
+      protocol: 'http',
+      port: 9000,
+      priority: 7,
+      isLocal: true,
+      description: 'Loopback 127.0.0.1:9000'
+    },
+    {
+      id: 'tailnet-1',
+      url: '100.101.149.39',
+      protocol: 'http',
+      port: 9000,
+      priority: 8,
+      isLocal: true,
+      description: 'Mesh node 100.101.149.39:9000'
+    },
+    {
+      id: 'tailnet-2',
+      url: '100.106.85.16',
+      protocol: 'http',
+      port: 9000,
+      priority: 9,
+      isLocal: true,
+      description: 'Mesh node 100.106.85.16:9000'
     }
   ],
   // Default ALL-Offline retry interval for this end (laravel-manager). While
@@ -160,7 +193,7 @@ export function endpointKey(e: { protocol: string; url: string; port?: number })
 
 function readCustomEndpoints(): BackendApiEndpoint[] {
   try {
-    const parsed = StorageManager.get<BackendApiEndpoint[]>(StorageKeys.API_CUSTOM_ENDPOINTS, []);
+    const parsed = StorageManager.get<BackendApiEndpoint[]>(StorageKeys.LARAVEL_API_CUSTOM_ENDPOINTS, []);
     if (!Array.isArray(parsed)) return [];
     return parsed.filter(
       (e): e is BackendApiEndpoint =>
@@ -173,7 +206,7 @@ function readCustomEndpoints(): BackendApiEndpoint[] {
 }
 
 function writeCustomEndpoints(list: BackendApiEndpoint[]): void {
-  StorageManager.set(StorageKeys.API_CUSTOM_ENDPOINTS, list);
+  StorageManager.set(StorageKeys.LARAVEL_API_CUSTOM_ENDPOINTS, list);
 }
 
 /** User-added endpoints only (already de-duplicated against built-ins). */
@@ -270,10 +303,17 @@ export function removeCustomEndpoint(id: string): boolean {
 
 /**
  * Get an endpoint by ID (built-in, custom, or current-url type).
- * The 'current-url' type re-resolves live from window.location on every call.
+ * A host-qualified current-url ID restores its exact persisted hostname.
+ * Only the legacy unqualified type resolves from window.location.
  */
 export function getEndpointById(id: string): BackendApiEndpoint | undefined {
-  if (isCurrentUrlId(id)) return getCurrentOriginEndpoint() ?? undefined;
+  if (id === CURRENT_URL_TYPE) return getCurrentOriginEndpoint() ?? undefined;
+  if (isCurrentUrlId(id)) {
+    const hostname = id.slice(`${CURRENT_URL_TYPE}:`.length).trim();
+    const live = getCurrentOriginEndpoint();
+    if (!hostname || !live) return live ?? undefined;
+    return createCurrentOriginEndpoint(hostname, live.protocol);
+  }
   return getAllEndpoints().find(e => e.id === id);
 }
 
@@ -295,6 +335,14 @@ export function getAllEndpoints(): BackendApiEndpoint[] {
 
   const filtered = list.filter(e => !sameTarget(e));
   filtered.push(current);
+  // The persisted Laravel endpoint remains visible even when a debug reload
+  // opens the UI through a different hostname (for example localhost instead
+  // of 127.0.0.1). Listing must follow localStorage, not window.location.
+  const storedId = StorageManager.getRaw(StorageKeys.LARAVEL_API_CURRENT_ENDPOINT);
+  const stored = storedId && isCurrentUrlId(storedId)
+    ? getEndpointById(storedId)
+    : undefined;
+  const storedExists = stored && filtered.some(e => endpointKey(e) === endpointKey(stored));
+  if (stored && !storedExists) filtered.push(stored);
   return filtered.sort((a, b) => a.priority - b.priority);
 }
-

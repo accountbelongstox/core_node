@@ -156,6 +156,7 @@ class GlobalTaskWorkerRegistration(TypedDict, total=False):
 class GlobalTaskWorkerResult(TypedDict, total=False):
     task_id: str
     worker_id: str
+    attempt: int
     status: str
     progress: float
     result: Dict[str, Any]
@@ -163,6 +164,7 @@ class GlobalTaskWorkerResult(TypedDict, total=False):
 
 
 QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
+QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
 QUEUE_CENTER_CONTROL_NAMES: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["control_names"])
 QUEUE_CENTER_CAPABILITY_CLAIMANTS: Dict[str, Tuple[str, ...]] = {
     key: tuple(str(item) for item in value)
@@ -225,6 +227,9 @@ GLOBAL_TASK_CAPABILITIES_BY_ROLE: Dict[str, str] = {
 }
 GLOBAL_TASK_PRIORITIES: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["priorities"].items()
+}
+GLOBAL_TASK_PROGRESS_STAGES: Dict[str, int] = {
+    str(key): int(value) for key, value in _TASK_CONTRACT["progress_stages"].items()
 }
 GLOBAL_TASK_LIMITS: Dict[str, int] = {
     str(key): int(value) for key, value in _TASK_CONTRACT["limits"].items()
@@ -409,6 +414,7 @@ __all__ = [
     "QUEUE_CENTER_CONTROL_NAMES",
     "QUEUE_CENTER_CAPABILITY_CLAIMANTS",
     "QUEUE_CENTER_SCHEMA_VERSION",
+    "QUEUE_CENTER_DIFF_DELIVERY",
     "QUEUE_CENTER_SECTION_DEFINITIONS",
     "QUEUE_COUNT_KEYS",
     "GLOBAL_TASK_CAPABILITIES",
@@ -422,6 +428,7 @@ __all__ = [
     "GLOBAL_TASK_LIMITS",
     "GLOBAL_TASK_LIVE_STATUSES",
     "GLOBAL_TASK_PRIORITIES",
+    "GLOBAL_TASK_PROGRESS_STAGES",
     "GLOBAL_TASK_STATUSES",
     "GLOBAL_TASK_STATUSES_BY_ROLE",
     "GLOBAL_TASK_STREAM_EVENTS_BY_ROLE",

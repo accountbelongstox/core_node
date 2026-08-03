@@ -78,6 +78,7 @@ class AppQyV1WordGroupService
                     'words_added' => 0,
                     'words_skipped' => $skippedCount,
                     'total_requested' => count($wordIds),
+                    'word_ids_added' => [],
                 ];
             }
 
@@ -114,6 +115,7 @@ class AppQyV1WordGroupService
                 'words_added' => $addedCount,
                 'words_skipped' => $skippedCount,
                 'total_requested' => count($wordIds),
+                'word_ids_added' => $addedCount > 0 ? $validIds : [],
             ];
         });
     }

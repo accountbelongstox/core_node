@@ -67,8 +67,28 @@ def reset_sync_settings() -> Dict[str, Any]:
     return get_code_sync_manager().reset_sync_settings()
 
 
-def get_sync_logs(limit: int = 100) -> Dict[str, Any]:
-    return get_code_sync_manager().get_sync_logs(int(limit or 100))
+def get_sync_logs(
+    limit: int = 100,
+    page: int = 1,
+    since_revision: str = "",
+) -> Dict[str, Any]:
+    return get_code_sync_manager().get_sync_logs(
+        int(limit or 100),
+        int(page or 1),
+        str(since_revision or ""),
+    )
+
+
+def get_ui_runtime(
+    page: int = 1,
+    page_size: int = 100,
+    since_revision: str = "",
+) -> Dict[str, Any]:
+    return get_code_sync_manager().get_ui_runtime(
+        int(page or 1),
+        int(page_size or 100),
+        str(since_revision or ""),
+    )
 
 
 def get_file_tree() -> Dict[str, Any]:

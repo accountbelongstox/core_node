@@ -41,12 +41,17 @@ posix_lock_file: Optional[IO[str]] = None
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project-root", required=True)
+    args: Optional[argparse.Namespace] = None
+
+    parser.add_argument("--project-root")
     parser.add_argument("--recover-on-start", action="store_true")
     parser.add_argument("--watch-mode", choices=[WATCH_MODE_DEV, WATCH_MODE_ONCE])
     parser.add_argument("--foreground", action="store_true")
     parser.add_argument("--wake", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.wake and not args.project_root:
+        parser.error("--project-root is required unless --wake is used")
+    return args
 
 
 def acquire_singleton() -> bool:
@@ -200,7 +205,7 @@ def extension_recovery_url() -> Optional[str]:
             continue
         for origin in manifest.get("allowed_origins", []):
             if isinstance(origin, str) and origin.startswith("chrome-extension://"):
-                return f"{origin}popup.html?reconnectNative=1"
+                return f"{origin}popup.html"
     return None
 
 
@@ -225,19 +230,31 @@ def chrome_executable() -> Optional[str]:
 def wake_extension() -> None:
     recovery_url = extension_recovery_url()
     chrome_path = chrome_executable()
+    reload_url: Optional[str] = None
+    reconnect_url: Optional[str] = None
 
     if not recovery_url:
         print("[Supervisor] Native host manifest has no Chrome extension origin.", flush=True)
         return
+    reload_url = f"{recovery_url}?reloadExtension=1"
+    reconnect_url = f"{recovery_url}?reconnectNative=1"
     try:
         if chrome_path:
             subprocess.Popen(
-                [chrome_path, recovery_url],
+                [chrome_path, reload_url],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            time.sleep(1.5)
+            subprocess.Popen(
+                [chrome_path, reconnect_url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         else:
-            webbrowser.open(recovery_url, new=0, autoraise=False)
+            webbrowser.open(reload_url, new=0, autoraise=False)
+            time.sleep(1.5)
+            webbrowser.open(reconnect_url, new=0, autoraise=False)
         print("[Supervisor] Requested Chrome extension native-host recovery.", flush=True)
     except OSError as error:
         print(f"[Supervisor] Could not wake the Chrome extension: {error}", flush=True)
@@ -309,11 +326,13 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
 
 def main() -> int:
     args = parse_args()
-    project_root = Path(args.project_root).resolve()
+    project_root: Optional[Path] = None
 
     if args.wake:
         wake_extension()
         return 0
+
+    project_root = Path(args.project_root).resolve()
 
     if args.recover_on_start:
         request_recovery()

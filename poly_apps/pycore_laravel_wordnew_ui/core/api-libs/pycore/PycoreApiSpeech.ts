@@ -108,12 +108,12 @@ export const pycoreApiSpeech = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.enginesLoadStatusLoadStatus, {}),
 
   // --- Capabilities: CUDA/compute + free-library availability -------------- #
-  getCapabilities: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.capabilityStatusStatus, {}),
+  getCapabilities: (refresh = false) => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.capabilityStatusStatus,
+    { refresh },
+  ),
 
-  // --- Code version: pycore's own + the pointed-to laravel backend's -------- #
-  // UI -> pycore -> laravel: pycore reports its own newest-source mtime AND
-  // proxies the Laravel /api/dashboard/code-last-modified probe through HTTP.
-  // getJSON (the /api/local/ bridge). TTL-cached backend-side.
+  // --- Code version: pycore local source tree ------------------------------ #
   getVersion: () => requestPycoreHttp(PYCORE_HTTP_ROUTES.versionVersion, {}),
 
   // --- System info: read-only constants + static dirs (one-click open) ----- #

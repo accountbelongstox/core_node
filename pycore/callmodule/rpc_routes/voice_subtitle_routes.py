@@ -37,6 +37,7 @@ def register_voice_subtitle_routes(server):
         (rn.UI_VOICE_SUBTITLE_START_CLIPBOARD_MONITOR, vs.start_clipboard_monitor),
         (rn.UI_VOICE_SUBTITLE_STOP_CLIPBOARD_MONITOR, vs.stop_clipboard_monitor),
         (rn.UI_VOICE_SUBTITLE_GET_CLIPBOARD_MONITOR_STATUS, vs.get_clipboard_monitor_status),
+        (rn.UI_VOICE_SUBTITLE_GET_MONITOR_STATUS, vs.get_monitor_status),
         (rn.UI_VOICE_SUBTITLE_STOP_SCREENSHOT_MONITOR, vs.stop_screenshot_monitor),
         (rn.UI_VOICE_SUBTITLE_GET_SCREENSHOT_MONITOR_STATUS, vs.get_screenshot_monitor_status),
         (rn.UI_VOICE_SUBTITLE_SET_CURRENT_INDEX, vs.set_current_index),
@@ -52,4 +53,3 @@ def register_voice_subtitle_routes(server):
         (rn.UI_VOICE_SUBTITLE_GET_ALL_TASKS, get_all_tasks),
     )
     server.register_routes(routes, group="voice_subtitle")
-

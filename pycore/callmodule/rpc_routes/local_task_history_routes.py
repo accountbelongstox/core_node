@@ -5,9 +5,8 @@ HTTP Routes for task_history
 
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE,
-    UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
     UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE,
-    UI_TASK_HISTORY_GET_RECENT_TASKS,
+    UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS,
     UI_TASK_HISTORY_SEARCH_TASKS,
     UI_TASK_HISTORY_CLEAR_RECENT_TASKS
 )
@@ -19,7 +18,6 @@ from pycore.pyctl.task_history.service import (
     search_tasks,
     clear_recent_tasks,
 )
-from pycore.pyctl.task_history.archive import completed_task_archive
 
 def register_local_task_history_routes(server):
     """Register HTTP controllers."""
@@ -31,18 +29,6 @@ def register_local_task_history_routes(server):
         return get_completed_archive(task_type=task_type, limit=limit, offset=offset)
         
     server.post(path=UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE, handler=get_completed_archive_handler)
-
-    def sync_completed_archive_handler(params, request_id, context):
-        return completed_task_archive.sync_page(
-            limit=params.get("limit", 200),
-            cursor_id=params.get("cursor_id", 0),
-            task_type=params.get("task_type"),
-        )
-
-    server.post(
-        path=UI_TASK_HISTORY_SYNC_COMPLETED_ARCHIVE,
-        handler=sync_completed_archive_handler,
-    )
 
     def completed_archive_resource_handler(params, request_id, context):
         cache_key = params.get("cache_key")
@@ -68,7 +54,7 @@ def register_local_task_history_routes(server):
             task_type=task_type,
         )
         
-    server.post(path=UI_TASK_HISTORY_GET_RECENT_TASKS, handler=get_recent_tasks_handler)
+    server.post(path=UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS, handler=get_recent_tasks_handler)
 
     def search_tasks_handler(params, request_id, context):
         q = params.get("q")

@@ -11,6 +11,7 @@ import {
 } from '../../apps/laravel-manager/uiTypes';
 // Laravel Manager uses its application-owned API boundary.
 import { api } from '@/apps/laravel-manager/api';
+import { laravelApi } from '@/core/api-libs/laravel';
 import { TRANSLATIONS } from '../../constants';
 import { laravelMediaUrl as mediaUrl } from '../../apps/laravel-manager/network/mediaUrl';
 import { commonClasses } from '../../styles/theme';
@@ -32,7 +33,7 @@ import { buildDictionaryColumns } from '../vocabulary/words/dictionaryColumns';
 import WordDetail from '../vocabulary/words/WordDetail';
 import QueueItemDetailPanel from '../vocabulary/QueueItemDetailPanel';
 import { buildAssistQueueColumns, buildTtsQueueColumns } from '../vocabulary/queueDrillColumns';
-import type { AssistOverviewResponse } from '@/apps/laravel-manager/api';
+import type { AssistOverviewResponse } from '@/core/api-libs/laravel';
 import type { VocabularyStatisticsWordRow, VocabularyWordsPagination } from '../../apps/laravel-manager/uiTypes';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '../../core/logstore/logStore';
@@ -186,13 +187,10 @@ const VocabularyLearning: React.FC = () => {
       });
 
   const fetchAssistOverview = (): Promise<AssistOverviewResponse | null> =>
-    api.books.getAssistOverview()
+    laravelApi.getQueueOverview()
       .then((response: any) => {
         setLoadingAssistOverview(false);
-        if (response.success && response.data) {
-          return response.data as AssistOverviewResponse;
-        }
-        return null;
+        return response.success ? response as AssistOverviewResponse : null;
       })
       .catch((error: any) => {
         console.error('Failed to load assist overview:', error);
@@ -991,9 +989,9 @@ const VocabularyLearning: React.FC = () => {
   ) => {
     const columns = buildAssistQueueColumns(queueDrillDeps);
     const fetchPage: PaginatedListFetcher = async (start, limit) => {
-      const r = await api.books.getAssistCategoryItems({ category, status, start, limit });
-      if (!r.success || !r.data) throw new Error(r.error || 'Failed to load category items');
-      return { items: r.data.items || [], total: r.data.total || 0 };
+      const r = await laravelApi.getQueueOverviewItems({ category, status, start, limit });
+      if (!r.success) throw new Error(r.error || 'Failed to load category items');
+      return { items: r.items || [], total: r.total || 0 };
     };
     logInfo('vocab', `Drill-down: assist "${label}" (${category}${status ? `/${status}` : ''})`);
     setStatDrill({

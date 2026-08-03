@@ -21,20 +21,20 @@ import { userModel } from './apps/laravel-manager/models/UserModel';
 import { useUser } from './hooks/useUser';
 import { ViewType } from './apps/laravel-manager/uiTypes';
 import { useTranslation } from 'react-i18next';
-import { getRequireLoginMessage, isRequireLoginView, setDebugAuthBypass } from './config/auth';
+import { isRequireLoginView, setDebugAuthBypass } from './config/auth';
 import i18n from './apps/laravel-manager/i18n';
-import { htmlErrorManager, HtmlErrorEvent } from './apps/laravel-manager/services/HtmlErrorManager';
-import { apiManager } from './apps/laravel-manager/services/ApiManager';
+import { htmlErrorManager, HtmlErrorEvent } from './core/api-libs/laravel/transport/HtmlErrorEvents';
+import { apiManager } from './core/api-libs/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './apps/laravel-manager/services/ApiHealthRecheck';
-import { OfflineBanner, GlobalLogPanel, LaravelLogPanel } from './components/shared';
-import { subscribeGlobalLoginRequest } from './apps/laravel-manager/auth/loginModalBridge';
+import { OfflineBanner, GlobalLogPanel } from './components/shared';
+import { subscribeAuthLoginRequest } from './core/auth/AuthRequestCenter';
 
 /**
  * AppContent – main layout and view routing.
  *
  * PROTECTED PAGES (require login; see config/auth.ts): Server Manager, Settings, Invite Code Manager, Database Viewer.
- * When user opens any of these without being logged in, AuthGuard calls onLoginRequest() and the login modal
- * opens immediately. After login, the page content is shown. Set window.DISABLE_AUTH = true only to bypass auth (e.g. testing).
+ * When user opens any of these without being logged in, AuthGuard requests the
+ * global login modal while keeping the page mounted and visible.
  */
 const AppContent: React.FC = () => {
   const {
@@ -76,12 +76,11 @@ const AppContent: React.FC = () => {
     setApiReady(true);
 
     // Step 2 (background, does NOT gate paint): the shared STORED-FIRST
-    // detection pass (single-flight + StrictMode-safe). It probes ONLY the
-    // stored last-used endpoint first — if that answers, it is kept and no
-    // other endpoint is touched; only when it is dead does the pass sweep ALL
-    // endpoints in parallel and "以能使用的为准" auto-fail-over to the
-    // highest-weight healthy one (store write-back, api_user_modified never
-    // clobbered). No timeout override here — the config's 3000ms applies (a
+    // detection pass (single-flight + StrictMode-safe). The localStorage
+    // endpoint is an invariant across refresh, HMR, and StrictMode remounts:
+    // this pass may update its health badge but MUST NOT replace it. A sweep
+    // and automatic persisted choice are allowed only on the first run when
+    // no stored selection exists. No timeout override here — the config's 3000ms applies (a
     // 1s override regressed the Octane cold-worker fix recorded in
     // config/api-endpoints.ts and froze a false all-Offline state). The pass
     // itself dispatches `api-health-initialized` for the read-only switcher.
@@ -100,7 +99,7 @@ const AppContent: React.FC = () => {
         const baseUrl = apiManager.getCurrentBaseUrl();
         if (!preselected || chosen.id !== preselected.id) {
           api.updateBaseURL(baseUrl);
-          console.log('[ApiManager] Auto-failover to:', baseUrl);
+          console.log('[ApiManager] Initial endpoint selected:', baseUrl);
         }
       }
 
@@ -169,7 +168,7 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  useEffect(() => subscribeGlobalLoginRequest(() => {
+  useEffect(() => subscribeAuthLoginRequest(() => {
     setLoginModalFromProtectedView(false);
     setShowLoginModal(true);
   }), []);
@@ -205,19 +204,7 @@ const AppContent: React.FC = () => {
     if (disableAuth || !isRequireLoginView(viewType)) {
       return content;
     }
-    return (
-      <AuthGuard
-        lang={lang}
-        requireAuth={true}
-        fallbackMessage={getRequireLoginMessage(viewType, lang)}
-        onLoginRequest={() => {
-          setLoginModalFromProtectedView(true);
-          setShowLoginModal(true);
-        }}
-      >
-        {content}
-      </AuthGuard>
-    );
+    return <AuthGuard requireAuth>{content}</AuthGuard>;
   };
 
   const renderView = () => {
@@ -320,7 +307,6 @@ const AppContent: React.FC = () => {
               collapsed to a pill by default; the store keeps the last 1000
               entries). Mounted here once for the whole laravel-manager end. */}
           <GlobalLogPanel />
-          <LaravelLogPanel />
 
           {/* Scrollable view content */}
           <div className="flex-1 min-h-0 relative overflow-y-auto overflow-x-hidden">

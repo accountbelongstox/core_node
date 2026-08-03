@@ -2,10 +2,9 @@
  * PycoreCapabilityStore — shared OCR / TTS / AI gateway / capabilities snapshot
  * for the pycore-manager end.
  *
- * Both PcVoiceSubtitlePage and PcAiStatusPage read the same store so a refresh
- * on either page updates the other. One cached snapshot, single-flight fetches.
- * Each probe patches the store as it settles — a slow/failing probe does not
- * block the other panels from leaving Loading.
+ * All pycore-manager capability panels read the same store. Pycore returns
+ * every cached capability
+ * slice through one exchange, and this store keeps one browser-side flight.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
@@ -13,6 +12,7 @@ import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreNetwo
 import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from '../../../core/api-libs/pycore/pycoreTypes';
 
 export const PYCORE_CAPABILITY_EVENT = PYCORE_BROWSER_EVENTS.capabilityChanged;
+const CAPABILITY_CLIENT_TTL_MS = 30_000;
 
 export type CapabilityKey = 'ocr' | 'tts' | 'stt' | 'caps' | 'aiGateway';
 
@@ -45,6 +45,7 @@ let state: PycoreCapabilityState = {
 
 let inFlight: Promise<void> | null = null;
 let pollRefs = 0;
+let loadedAt = 0;
 
 function notify(): void {
   window.dispatchEvent(new CustomEvent(PYCORE_CAPABILITY_EVENT));
@@ -52,19 +53,6 @@ function notify(): void {
 
 function patch(partial: Partial<PycoreCapabilityState>): void {
   state = { ...state, ...partial };
-  notify();
-}
-
-function patchError(key: CapabilityKey, message: string): void {
-  state = { ...state, errors: { ...state.errors, [key]: message } };
-  notify();
-}
-
-function clearError(key: CapabilityKey): void {
-  if (!(key in state.errors)) return;
-  const next = { ...state.errors };
-  delete next[key];
-  state = { ...state, errors: next };
   notify();
 }
 
@@ -78,39 +66,45 @@ export function subscribePycoreCapability(listener: () => void): () => void {
   return () => window.removeEventListener(PYCORE_CAPABILITY_EVENT, handler);
 }
 
-async function settleProbe<T extends { success?: boolean; error?: string }>(
-  key: CapabilityKey,
-  promise: Promise<T>,
-  apply: (value: T) => Partial<PycoreCapabilityState>,
-): Promise<void> {
+async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
+  const keys: CapabilityKey[] = ['ocr', 'tts', 'stt', 'caps', 'aiGateway'];
   try {
-    const value = await promise;
+    const value = await pycoreApi.getCapabilities(refresh) as CapabilityStatus;
     if (value?.success) {
-      clearError(key);
-      patch(apply(value));
+      loadedAt = Date.now();
+      patch({
+        caps: value,
+        ocr: value.ocr ?? state.ocr,
+        tts: value.tts ?? state.tts,
+        stt: value.stt ?? state.stt,
+        aiGateway: value.ai_gateway ?? state.aiGateway,
+        errors: {},
+      });
     } else {
-      patchError(key, value?.error || 'probe failed');
+      const message = value?.error || 'CAPABILITY_STATUS_UNAVAILABLE';
+      patch({
+        errors: Object.fromEntries(keys.map((key) => [key, message])),
+      });
     }
-  } catch (e: any) {
-    patchError(key, e?.message || 'fetch failed');
+  } catch (error: unknown) {
+    const message = error instanceof Error
+      ? error.message
+      : 'CAPABILITY_STATUS_UNAVAILABLE';
+    patch({
+      errors: Object.fromEntries(keys.map((key) => [key, message])),
+    });
   }
 }
 
-/** Fetch all capability probes. `forceTtsRefresh` bypasses the TTS ~60s cache. */
-export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promise<void> {
+/** Refresh the unified capability exchange; live probes are explicit only. */
+export async function refreshPycoreCapabilities(refresh = false): Promise<void> {
   if (inFlight) return inFlight;
 
   const isFirst = !state.initialized;
   patch({ refreshing: !isFirst, loading: isFirst });
 
   inFlight = (async () => {
-    await Promise.allSettled([
-      settleProbe('aiGateway', pycoreApi.getAiGateway(), (v) => ({ aiGateway: v as AiGatewayStatus })),
-      settleProbe('ocr', pycoreApi.getOcrStatus(), (v) => ({ ocr: v as OcrStatus })),
-      settleProbe('tts', pycoreApi.getTtsStatus(forceTtsRefresh), (v) => ({ tts: v as TtsStatus })),
-      settleProbe('stt', pycoreApi.getSttStatus(), (v) => ({ stt: v as SttStatus })),
-      settleProbe('caps', pycoreApi.getCapabilities(), (v) => ({ caps: v as CapabilityStatus })),
-    ]);
+    await settleCapabilitySnapshot(refresh);
 
     patch({
       loading: false,
@@ -124,11 +118,17 @@ export async function refreshPycoreCapabilities(forceTtsRefresh = false): Promis
   return inFlight;
 }
 
+/** Reuse the browser snapshot while it is inside the backend cache window. */
+export async function ensurePycoreCapabilities(): Promise<void> {
+  if (state.initialized && Date.now() - loadedAt < CAPABILITY_CLIENT_TTL_MS) return;
+  await refreshPycoreCapabilities(false);
+}
+
 /** Load the shared capability snapshot once for all mounted consumers. */
 export function startPycoreCapabilityPoll(): void {
   pollRefs += 1;
   if (pollRefs === 1 && !state.initialized) {
-    void refreshPycoreCapabilities();
+    void ensurePycoreCapabilities();
   }
 }
 
@@ -138,7 +138,9 @@ export function stopPycoreCapabilityPoll(): void {
 }
 
 export interface PycoreCapabilityHook extends PycoreCapabilityState {
-  /** One-click retry — forces a fresh TTS probe too. */
+  /** Refresh the shared cached exchange without live probes. */
+  refresh: () => Promise<void>;
+  /** One-click retry with explicit live probes. */
   retry: () => Promise<void>;
 }
 
@@ -162,5 +164,9 @@ export function usePycoreCapability(): PycoreCapabilityHook {
     await refreshPycoreCapabilities(true);
   }, []);
 
-  return useMemo(() => ({ ...snap, retry }), [snap, retry]);
+  const refresh = useCallback(async () => {
+    await refreshPycoreCapabilities(false);
+  }, []);
+
+  return useMemo(() => ({ ...snap, refresh, retry }), [snap, refresh, retry]);
 }

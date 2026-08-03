@@ -67,8 +67,9 @@ const PcApp: React.FC = () => {
         {/* Legacy redirects (manual): old slugs that merged into tabbed pages,
             each landing on the matching ?tab=. These have no PC_PAGES entry, so
             they are intentionally kept here rather than generated. */}
-        <Route path="voice-player" element={<Navigate to="/pycore-manager/voice-subtitle" replace />} />
-        <Route path="subtitle" element={<Navigate to="/pycore-manager/voice-subtitle" replace />} />
+        <Route path="voice-subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
+        <Route path="voice-player" element={<Navigate to="/pycore-manager/agent-history" replace />} />
+        <Route path="subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
         <Route path="queue" element={<Navigate to="/pycore-manager/queue-center?tab=manager" replace />} />
         <Route path="task-queue" element={<Navigate to="/pycore-manager/queue-center?tab=tasks" replace />} />
         <Route path="translation-queue" element={<Navigate to="/pycore-manager/queue-center?tab=translation" replace />} />

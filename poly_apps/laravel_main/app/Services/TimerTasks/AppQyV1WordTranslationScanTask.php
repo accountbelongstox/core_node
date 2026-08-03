@@ -3,15 +3,14 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 
 /**
  * Word Translation Auto-Scan
  *
- * Background half of the enqueue side. Scans every language dictionary that has
- * data (AppQyV1DictionaryService::getAllLanguageStatistics, now driven by the
- * full supported-language list) and enqueues word_translation tasks at LOW
+ * Background half of the enqueue side. Scans each available language dictionary
+ * and enqueues word_translation tasks at LOW
  * priority for untranslated words. This lets background translation proceed with
  * no frontend involvement; FE-enqueued visible words use HIGH priority and are
  * pulled first.
@@ -22,7 +21,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
  * The default target language is Chinese (zh); the source language is whatever
  * dictionary the words live in.
  */
-class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
+class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
 {
     // Background priority. Lower than FE-enqueued visible words (HIGH = 100).
     private const PRIORITY_LOW = 0;
@@ -31,13 +30,6 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
     private const WORDS_PER_TASK = 40;
     private const MAX_TASKS_PER_LANGUAGE = 2;
 
-    private $taskManager;
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-    }
-
     public function getInterval(): int
     {
         return 60;
@@ -45,50 +37,65 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
 
     public function exec(): void
     {
-        $allLanguageStats = AppQyV1DictionaryService::getAllLanguageStatistics();
-
-        if (empty($allLanguageStats)) {
+        $languages = AppQyV1DictionaryService::scanAvailableLanguages();
+        if ($languages === []) {
             return;
         }
 
         $totalCreated = 0;
 
-        foreach ($allLanguageStats as $langCode => $stats) {
-            $untranslated = $stats['untranslated'] ?? 0;
-            if ($untranslated <= 0) {
-                continue;
-            }
-
-            // Resolve a language name the dictionary service understands; the
-            // hardened getLanguageCode() maps either name or code back to a code.
-            $languageName = $stats['language'] ?? $langCode;
-
+        foreach ($languages as $langCode) {
             // Do not pile up: skip languages that already have plenty of pending
             // background word_translation tasks waiting.
-            $pendingCount = $this->countPendingForLanguage($languageName);
+            $pendingCount = $this->countPendingForLanguage($langCode);
             if ($pendingCount >= self::MAX_TASKS_PER_LANGUAGE) {
                 continue;
             }
 
-            $words = AppQyV1DictionaryService::getUntranslatedWords(
-                $languageName,
-                self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount)
+            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
+            $scope = 'word_translation:' . $langCode . ':' . $model->getTable();
+            $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
+            $page = $this->rowsForPendingPage(
+                $scope,
+                $model->newQuery(),
+                $limit,
+                static function (array $ids) use ($model): array {
+                    return $model->newQuery()
+                        ->whereIn('id', $ids)
+                        ->where('has_translation', false)
+                        ->where('is_valid', true)
+                        ->orderByDesc('query_count')
+                        ->get(['id', 'content', 'md5'])
+                        ->map(static fn ($row): array => [
+                            'word' => (string) ($row->content ?? ''),
+                            'md5' => (string) ($row->md5 ?? ''),
+                        ])
+                        ->all();
+                }
             );
-
-            if (empty($words)) {
+            $words = array_values(array_filter(
+                $page['rows'],
+                static fn (array $row): bool => $row['word'] !== ''
+            ));
+            if ($words === [] && ($page['page'] ?? 0) === 0) {
                 continue;
             }
 
-            $wordStrings = [];
-            foreach ($words as $word) {
-                if (isset($word['word']) && $word['word'] !== '') {
-                    $wordStrings[] = $word['word'];
+            $pageFailed = false;
+            try {
+                foreach (array_chunk(array_column($words, 'word'), self::WORDS_PER_TASK) as $chunk) {
+                    $this->createTask($langCode, $chunk);
+                    $totalCreated++;
                 }
+            } catch (\Throwable $e) {
+                $pageFailed = true;
+                $this->logWarning('Background word_translation page failed', [
+                    'language' => $langCode,
+                    'error' => $e->getMessage(),
+                ]);
             }
-
-            foreach (array_chunk($wordStrings, self::WORDS_PER_TASK) as $chunk) {
-                $this->createTask($languageName, $chunk);
-                $totalCreated++;
+            if (!$pageFailed) {
+                $this->consumePendingPage($scope, $page);
             }
         }
 
@@ -99,9 +106,9 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
         }
     }
 
-    private function countPendingForLanguage(string $languageName): int
+    private function countPendingForLanguage(string $languageCode): int
     {
-        $langCode = AppQyV1DictionaryService::getLanguageCode($languageName);
+        $langCode = AppQyV1DictionaryService::getLanguageCode($languageCode);
         $targetCode = AppQyV1DictionaryService::getLanguageCode(self::TARGET_LANGUAGE);
 
         // Count at the DB by the normalized codes stored in the JSON payload,
@@ -111,7 +118,11 @@ class AppQyV1WordTranslationScanTask extends OctaneTimerTaskAbstract
         return GlobalTask::query()
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::status('pending'))
+            ->whereIn('status', [
+                GlobalTask::status('pending'),
+                GlobalTask::status('assigned'),
+                GlobalTask::status('processing'),
+            ])
             ->where('payload->language', $langCode)
             ->where('payload->target_language', $targetCode)
             ->count();

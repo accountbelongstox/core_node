@@ -11,7 +11,7 @@
  * keeps playing from there (matches the book reader "click row -> playFrom").
  */
 import type { WfNewLibraryWord } from '../api';
-import { ensureAudio } from '../cache/WfNewAudioCache';
+import { ensureAudio } from '../runtime-store/WfNewAudioCache';
 
 export interface WordNewLibraryPlaybackDeps {
   /** Current ordered word list (the rendered page). */

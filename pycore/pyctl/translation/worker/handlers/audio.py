@@ -70,7 +70,7 @@ def process_audio_task(worker, task: Dict[str, Any]) -> None:
     if task_type == worker.WORD_AUDIO_TASK_TYPE:
         _process_word_audio(worker, task_id, payload, language)
         return
-    if task_type in (worker.ARTICLE_AUDIO_TASK_TYPE, worker.SENTENCE_AUDIO_TASK_TYPE):
+    if task_type == worker.SENTENCE_AUDIO_TASK_TYPE:
         _process_content_audio(worker, task_id, task_type, payload, language)
         return
     worker._post_result(task_id, "failed", error=f"unsupported audio task_type: {task_type}")

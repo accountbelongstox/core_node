@@ -806,11 +806,7 @@ class AppQyV1ArticleController
         }
         $svc = new AppQyV1SentenceAudioService();
         $bumped = 0;
-        $cap = 80;
         foreach ($rows as $row) {
-            if ($bumped >= $cap) {
-                break;
-            }
             if (!is_array($row)) {
                 continue;
             }

@@ -9,6 +9,8 @@ use App\Models\GlobalTask;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 
 /**
@@ -40,6 +42,7 @@ class AppQyV1BackfillGlobalTasks extends Command
         $chunk = max(1, (int) $this->option('chunk'));
         $dryRun = (bool) $this->option('dry-run');
         $onlyLang = $this->option('lang');
+        $articleAudioService = new AppQyV1ArticleSentenceAudioService();
 
         $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
         $languages = AppQyV1DictionaryTTSCoordinator::supportedLanguages();
@@ -100,9 +103,14 @@ class AppQyV1BackfillGlobalTasks extends Command
                         $q->whereNotNull('tts_status')->orWhere('has_audio', true);
                     })
                     ->orderBy('id')
-                    ->chunkById($chunk, function ($rows) use ($lang, $articleTable, $connName, $dryRun, &$totals) {
+                    ->chunkById($chunk, function ($rows) use ($lang, $dryRun, $articleAudioService, &$totals) {
                         foreach ($rows as $row) {
-                            $this->upsertBackfillTask($connName, $articleTable, $row, $lang, 'audio', 'article_audio', GlobalTask::executionType('remote_audio'), GlobalTask::capability('audio'), $dryRun);
+                            if (!$dryRun && empty($row->has_audio)) {
+                                $article = AppQyV1ArticleLibraryModel::findByMd5($lang, (string) ($row->md5 ?? ''));
+                                if ($article) {
+                                    $articleAudioService->enqueueLibraryArticle($article, $lang, false);
+                                }
+                            }
                             $totals['article_audio']++;
                         }
                     });

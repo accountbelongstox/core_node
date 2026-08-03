@@ -185,13 +185,6 @@ def get_recent_tasks(
                 "last_error": pe.get("error"),
             })
 
-    archived = completed_task_archive.query(
-        task_type=task_type,
-        limit=row_limit,
-        offset=0,
-    )
-    records.extend(archived.get("records") or [])
-
     if end:
         records = [r for r in records if r["end"] == end]
     if worker:
@@ -221,6 +214,10 @@ def get_recent_tasks(
     success = sum(1 for r in records if r["success"])
     failed = sum(1 for r in records if r["status"] == "failed")
     posted_back = sum(1 for r in records if r["posted_back"])
+    types: Dict[str, int] = {}
+    for record in records:
+        record_type = normalize_task_type(record.get("task_type"))
+        types[record_type] = types.get(record_type, 0) + 1
 
     return {
         "success": True,
@@ -235,9 +232,9 @@ def get_recent_tasks(
             "log_path": "user_data:task_history",
             "persisted_total": persisted.get("stored", 0),
         },
-        "types": archived.get("types") or {},
-        "resource_count": archived.get("resource_count", 0),
-        "last_sync_at": archived.get("last_sync_at"),
+        "types": types,
+        "resource_count": 0,
+        "last_sync_at": None,
     }
 
 

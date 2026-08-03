@@ -12,8 +12,25 @@ _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _QUOTA_ERROR = "openrouter daily request limit reached"
 
 def _parse_json_obj(text: str) -> Dict[str, Any]:
-    match = _JSON_OBJ_RE.search(text or "")
-    data = json.loads(match.group(0) if match else text)
+    """Parse the FIRST complete JSON object from model output.
+
+    Free-tier models sometimes emit the same JSON object twice back to back
+    (or append prose after it). A greedy first-{ to last-} match then spans
+    two objects and json.loads fails with "Extra data". raw_decode stops at
+    the end of the first valid object instead; the greedy-regex fallback is
+    kept for outputs where the object does not start at the first brace.
+    """
+    blob = str(text or "")
+    start = blob.find("{")
+    if start >= 0:
+        try:
+            data, _end = json.JSONDecoder().raw_decode(blob[start:])
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+    match = _JSON_OBJ_RE.search(blob)
+    data = json.loads(match.group(0) if match else blob)
     if not isinstance(data, dict):
         raise ValueError("model returned non-object JSON")
     return data

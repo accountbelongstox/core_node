@@ -1,4 +1,4 @@
-import { BaseAPI, getSharedBaseURL } from '../base/BaseAPI';
+import { BaseAPI, getSharedBaseURL } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type { AiChatMessage, AiUsageProviderStat } from '../../../../core/contracts/ai';
 

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Star, Volume2, ShieldCheck, Tag } from 'lucide-react';
 import { Word, WordGroup, ElementTheme } from '../WfNewTypes';
-import { DEFAULT_VOCAB_GROUP_NAME } from '../api';
+import { isDefaultVocabularyGroup } from '../api';
 import { wfNewStudyProgress } from './study/WfNewStudyProgress';
 
 interface CourseBlockCardProps {
@@ -23,7 +23,7 @@ export const CourseBlockCard: React.FC<CourseBlockCardProps> = ({
   // The Default Vocabulary Group derives its % live from the study-progress
   // store (synced with the backend blob on content load); every other group
   // keeps the API-provided value (which getAllGroup never returns — stays 0).
-  const isDefault = group.name === DEFAULT_VOCAB_GROUP_NAME;
+  const isDefault = isDefaultVocabularyGroup(group);
   const [version, setVersion] = React.useState(0);
   React.useEffect(() => {
     if (!isDefault) return undefined;

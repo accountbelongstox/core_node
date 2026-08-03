@@ -18,6 +18,8 @@ use Illuminate\Http\StreamedEvent;
  * Routes (public control-plane group, same trust level as /api/task/*):
  *   GET  /api/queue-center/overview
  *   GET  /api/queue-center/queues/{queue}/items
+ *   GET  /api/queue-center/queues/{queue}/id-pages
+ *   GET  /api/queue-center/queues/{queue}/page-data
  *   POST /api/queue-center/queues/{queue}/bump
  *   POST /api/queue-center/tasks/{taskId}/cancel
  *   POST /api/queue-center/tasks/{taskId}/retry
@@ -89,6 +91,59 @@ class QueueCenterController extends Controller
         );
 
         return $this->success($data, 'Queue items');
+    }
+
+    /**
+     * GET /api/queue-center/queues/{queue}/id-pages?cursor=&pages=
+     * High-water diff ID page table for the UI pump: IDs + status metadata
+     * only, bounded by the contract id_page_limit / id_limit, with the
+     * realtime revision for incremental alignment.
+     */
+    public function idPages(Request $request, string $queue): JsonResponse
+    {
+        if (!QueueCenterService::isSupportedQueue($queue)) {
+            return $this->notFound(
+                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
+            );
+        }
+
+        $idPageLimit = max(1, (int) (QueueCenterContract::diffDelivery()['id_page_limit'] ?? 64));
+        $validated = $request->validate([
+            'cursor' => 'nullable|integer|min:0',
+            'pages' => 'nullable|integer|min:1|max:' . $idPageLimit,
+        ]);
+
+        $data = $this->queueCenter->idPages(
+            $queue,
+            (int) ($validated['cursor'] ?? 0),
+            isset($validated['pages']) ? (int) $validated['pages'] : null
+        );
+
+        return $this->success($data, 'Queue ID pages');
+    }
+
+    /**
+     * GET /api/queue-center/queues/{queue}/page-data?ids[]=
+     * Lazily materialized real rows for one requested ID page, bounded by the
+     * contract data_segment_limit.
+     */
+    public function pageData(Request $request, string $queue): JsonResponse
+    {
+        if (!QueueCenterService::isSupportedQueue($queue)) {
+            return $this->notFound(
+                "Unknown queue: {$queue} (supported: " . implode(', ', QueueCenterService::queueKeys()) . ')'
+            );
+        }
+
+        $segmentLimit = max(1, (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128));
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:' . $segmentLimit,
+            'ids.*' => 'string|max:100',
+        ]);
+
+        $data = $this->queueCenter->pageData($queue, $validated['ids']);
+
+        return $this->success($data, 'Queue page data');
     }
 
     /**

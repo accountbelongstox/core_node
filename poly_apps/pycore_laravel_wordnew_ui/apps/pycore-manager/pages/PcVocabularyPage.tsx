@@ -1,17 +1,13 @@
 /**
- * PcVocabularyPage - the laravel-manager #/vocabulary surface, proxied through
- * pycore (UI -> pycore -> laravel). Self-contained: each tab calls pycoreApi
- * and holds local React state - no laravel-manager shell contexts (the shared
- * VocabularyLearning component hits laravel directly and needs AppStateContext
- * / ToastProvider that pycore-manager doesn't provide).
+ * PcVocabularyPage is a self-contained direct-Laravel vocabulary surface.
+ * Each tab uses the pycore-manager Laravel API boundary and owns local state.
  *
  * Tabs: Translate / Words / Libraries / Statistics / TTS Queue / Learning Tasks.
  * The active tab is persisted to localStorage. Every tab guards its own calls
- * and shows its own offline/error banner - pycore reachability is already
- * tracked globally by the shell (checkPycoreNow in PcApp), so this page does
- * not duplicate that probe.
+ * and shows its own offline/error banner.
  */
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { BookOpen } from 'lucide-react';
 import {
   VOCAB_TABS, VOCAB_TAB_KEY, type VocabTabKey,
@@ -24,12 +20,8 @@ import VocabStatisticsTab from './vocabulary/VocabStatisticsTab';
 import VocabTtsQueueTab from './vocabulary/VocabTtsQueueTab';
 import VocabLearningTasksPanel from './vocabulary/VocabLearningTasksPanel';
 
-const L = {
-  title: 'Vocabulary',                                                // 词汇
-  subtitle: 'Dictionary words, libraries, statistics, translate & TTS queue - proxied to Laravel through pycore.',
-};
-
 export default function PcVocabularyPage() {
+  const { t } = useTranslation('pc');
   const [activeTab, setActiveTab] = useState<VocabTabKey>(() => {
     const saved = StorageManager.getRaw(VOCAB_TAB_KEY) as VocabTabKey | null;
     if (saved && VOCAB_TABS.some((t) => t.key === saved)) return saved;
@@ -46,8 +38,8 @@ export default function PcVocabularyPage() {
       <header className="flex items-center gap-2">
         <BookOpen className="w-6 h-6 text-sky-400" />
         <div>
-          <h1 className="text-xl font-bold text-slate-100">{L.title}</h1>
-          <p className="text-sm text-slate-400">{L.subtitle}</p>
+          <h1 className="text-xl font-bold text-slate-100">{t('vocabularyPage.title')}</h1>
+          <p className="text-sm text-slate-400">{t('vocabularyPage.subtitle')}</p>
         </div>
       </header>
 

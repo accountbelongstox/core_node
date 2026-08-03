@@ -1,4 +1,4 @@
-import { BaseAPI } from '../base/BaseAPI';
+import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 
 export interface PathMapping {

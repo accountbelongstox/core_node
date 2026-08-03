@@ -8,7 +8,6 @@ from pycore.pyctl.laravel.sync.media_sync import (
     sync_all,
     sync_source,
 )
-from pycore.pyutils.laravel.media_query_service import get_media_detail, list_media
 
 
 def register_video_extract_routes(server) -> None:
@@ -55,22 +54,6 @@ def register_video_extract_routes(server) -> None:
         request = params
         return backend_status(request.get("paths"), request.get("base_url"))
 
-    def media_list_handler(params, _request_id, _context):
-        request = params
-        return list_media(
-            request.get("kind") or "",
-            request.get("page") or 1,
-            request.get("per_page") or 8,
-        )
-
-    def media_detail_handler(params, _request_id, _context):
-        request = params
-        return get_media_detail(
-            request.get("kind") or "",
-            request.get("source_key") or "",
-            request.get("grain") or "sentence",
-        )
-
     def sync_all_handler(params, _request_id, _context):
         request = params
         return sync_all(
@@ -85,9 +68,6 @@ def register_video_extract_routes(server) -> None:
         (route_names.VIDEO_EXTRACT_SYNC_SOURCE, sync_source_handler),
         (route_names.VIDEO_EXTRACT_FILL_LANGUAGES, fill_languages_handler),
         (route_names.VIDEO_EXTRACT_BACKEND_STATUS, backend_status_handler),
-        (route_names.VIDEO_EXTRACT_BACKEND_MEDIA_LIST, media_list_handler),
-        (route_names.VIDEO_EXTRACT_BACKEND_MEDIA_DETAIL, media_detail_handler),
         (route_names.VIDEO_EXTRACT_SYNC_ALL, sync_all_handler),
     )
     server.register_routes(routes, group="video_extract")
-

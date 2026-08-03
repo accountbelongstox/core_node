@@ -127,6 +127,7 @@ def synthesize(
     speed: float = 1.0,
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
+    client_job_id: Optional[str] = None,
 ) -> bool:
     """Queue one normal Pycore synthesis and write its retained audio result.
 
@@ -139,6 +140,7 @@ def synthesize(
         text,
         lang,
         output_mp3,
+        client_job_id=client_job_id,
         timeout=_REQUEST_TIMEOUT_S,
         speaker=speaker,
         instruct=(instruct or os.environ.get("QWEN3TTS_INSTRUCT") or ""),

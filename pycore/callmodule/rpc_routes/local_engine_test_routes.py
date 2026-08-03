@@ -24,6 +24,9 @@ def register_local_engine_test_routes(server) -> None:
     def tts_status_handler(params, _request_id, _context):
         return tts_status(refresh=int(params.get("refresh") or 0))
 
+    def ai_status_handler(params, _request_id, _context):
+        return gateway_status(refresh=bool(params.get("refresh")))
+
     routes = (
         (LOCAL_TTS_TEST, local_engine_service.test_tts, "Live TTS synthesis test"),
         (LOCAL_STT_TEST, local_engine_service.test_stt, "Live STT round-trip test"),
@@ -32,7 +35,6 @@ def register_local_engine_test_routes(server) -> None:
         (LOCAL_TTS_STATUS, tts_status_handler, "TTS engine status"),
         (LOCAL_STT_STATUS, stt_status, "STT engine status"),
         (LOCAL_OCR_STATUS, ocr_status, "OCR engine status"),
-        (LOCAL_AI_STATUS, gateway_status, "AI gateway status"),
+        (LOCAL_AI_STATUS, ai_status_handler, "AI gateway status"),
     )
     server.register_routes(routes, group="local_engine")
-

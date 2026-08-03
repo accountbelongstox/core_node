@@ -1,13 +1,13 @@
 /**
  * Libraries tab - vocabulary libraries by language, with cover-retry, delete,
- * and a paginated library-words detail modal. Proxied through pycore.
+ * and a paginated library-words detail modal. Loaded directly from Laravel.
  *
  * Params mirror AppQyV1.getLibraries (language/page/per_page) and
  * getLibraryWords (page/per_page).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Trash2, RefreshCw, BookOpen, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabLibrary, VocabLibraryWordRow, VocabLibraryWordsResponse } from '@/apps/pycore-manager/api';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
@@ -20,8 +20,6 @@ const L = {
   detailTitle: 'Library words',
   empty: 'No libraries.',
 };
-
-const coverResourceCache = new Map<string, Promise<string>>();
 
 function VocabCoverImage({ url, alt }: { url: string; alt: string }) {
   const [src, setSrc] = useState('');
@@ -40,18 +38,7 @@ function VocabCoverImage({ url, alt }: { url: string; alt: string }) {
     return () => observer.disconnect();
   }, [visible]);
   useEffect(() => {
-    if (!visible) return undefined;
-    let active = true;
-    let pending = coverResourceCache.get(url);
-    if (!pending) {
-      pending = pycoreApi.getVocabResourceDataUrl(url).then((value) => {
-        if (!value) coverResourceCache.delete(url);
-        return value;
-      });
-      coverResourceCache.set(url, pending);
-    }
-    void pending.then((value) => { if (active) setSrc(value); });
-    return () => { active = false; };
+    if (visible) setSrc(laravelApi.getVocabResourceUrl(url));
   }, [url, visible]);
   return src
     ? <img src={src} alt={alt} className="w-full h-full object-cover" />
@@ -71,7 +58,7 @@ export default function VocabLibrariesTab() {
     setLoading(true);
     setError(null);
     try {
-      const r = await pycoreApi.getVocabLibraries({ language, page: 1, per_page: 100 });
+      const r = await laravelApi.getVocabLibraries({ language, page: 1, per_page: 100 });
       setLibs(toArray<VocabLibrary>(vp(r)));
       setOffline(false);
     } catch (e) {
@@ -88,7 +75,7 @@ export default function VocabLibrariesTab() {
   const retryCover = async (lib: VocabLibrary) => {
     setRetrying((s) => new Set(s).add(lib.id));
     try {
-      await pycoreApi.retryVocabCover({ library_id: lib.id });
+      await laravelApi.retryVocabCover({ library_id: lib.id });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -100,7 +87,7 @@ export default function VocabLibrariesTab() {
   const deleteLib = async (lib: VocabLibrary) => {
     if (!confirm(VL.confirmDelete)) return;
     try {
-      await pycoreApi.deleteVocabLibrary(lib.id);
+      await laravelApi.deleteVocabLibrary(lib.id);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : VL.error);
@@ -178,7 +165,7 @@ function LibraryDetailModal({ lib, onClose }: { lib: VocabLibrary; onClose: () =
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    pycoreApi.getVocabLibraryWords(lib.id, { page, per_page: perPage })
+    laravelApi.getVocabLibraryWords(lib.id, { page, per_page: perPage })
       .then((r) => {
         if (cancelled) return;
         const p = vp<any>(r);
