@@ -79,6 +79,7 @@ LAUNCHER_ROOT=""
 REPO_BASE_URL=""
 GVAR_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
 MOUNT_COMMON_RELATIVE="scripts/shells/linux/common/mount_common.sh"
+PERMISSION_HELPER_RELATIVE="scripts/shells/linux/common/fs_perm_helpers.sh"
 SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
 GITHUB_RAW="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
 GITEE_RAW="https://gitee.com/accountbelongstox/core_node/raw/main"
@@ -476,37 +477,18 @@ ensure_project_cloned() {
         return 1
     fi
 
-    # Validate and print project root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
-    local project_root="$CORE_NODE_PROJECT_ROOT"
-    echo "  [SAFE_PATH] project_root=$project_root"
-    if [ -z "$project_root" ]; then
-        log_err "project_root is empty; skipping chown/chmod to avoid system damage"
-        return 0
-    fi
-    case "$project_root" in
-        /) log_err "project_root is /; refusing chown/chmod"; return 0;;
-        /usr|/usr/*) log_err "project_root under /usr; refusing chown/chmod"; return 0;;
-        /etc|/etc/*) log_err "project_root under /etc; refusing chown/chmod"; return 0;;
-        /bin|/bin/*) log_err "project_root under /bin; refusing chown/chmod"; return 0;;
-        /sbin|/sbin/*) log_err "project_root under /sbin; refusing chown/chmod"; return 0;;
-        /lib|/lib/*) log_err "project_root under /lib; refusing chown/chmod"; return 0;;
-        /var) log_err "project_root is /var; refusing chown/chmod"; return 0;;
-    esac
-    if [[ "$project_root" != /* ]]; then
-        log_err "project_root is not absolute: $project_root; refusing chown/chmod"
-        return 0
-    fi
-
-    echo "  $USE_SUDO chown -R $(whoami):$(whoami) $project_root"
-    $USE_SUDO chown -R "$(whoami):$(whoami)" "$project_root" 2>/dev/null || true
-    echo "  $USE_SUDO chmod -R 755 $project_root"
-    $USE_SUDO chmod -R 755 "$project_root" 2>/dev/null || true
     return 0
 }
 
 # Step 7: Exec project dd.sh (hand off to project; installed detection will see full tree)
 exec_project_dd() {
     local dd_sh="$CORE_NODE_PROJECT_ROOT/dd.sh"
+    local permission_helper="$CORE_NODE_PROJECT_ROOT/$PERMISSION_HELPER_RELATIVE"
+
+    # shellcheck source=/dev/null
+    source "$permission_helper"
+    repair_owned_tree_777 "$CORE_NODE_PROJECT_ROOT"
+
     if [ ! -s "$dd_sh" ]; then
         log_err "Project dd.sh not found at $dd_sh"
         return 1

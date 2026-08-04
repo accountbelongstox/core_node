@@ -47,9 +47,12 @@ error() {
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+PERMISSION_HELPER="$PARENT_DIR_LEVEL_2/common/fs_perm_helpers.sh"
 
 # Source gvar_common.sh to get necessary variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+# shellcheck source=/dev/null
+source "$PERMISSION_HELPER"
 
 # Print comprehensive environment information
 log "=========================================="
@@ -229,29 +232,7 @@ restore_project() {
                 return 1
             fi
 
-            # Validate and print project root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
-            log "[SAFE_PATH] project_root=$project_root"
-            if [ -z "$project_root" ]; then
-                error "project_root is empty; skipping chown/chmod to avoid system damage"
-            else
-                case "$project_root" in
-                    /) error "project_root is /; refusing chown/chmod";;
-                    /usr|/usr/*) error "project_root under /usr; refusing chown/chmod";;
-                    /etc|/etc/*) error "project_root under /etc; refusing chown/chmod";;
-                    /bin|/bin/*) error "project_root under /bin; refusing chown/chmod";;
-                    /sbin|/sbin/*) error "project_root under /sbin; refusing chown/chmod";;
-                    /lib|/lib/*) error "project_root under /lib; refusing chown/chmod";;
-                    /var) error "project_root is /var; refusing chown/chmod";;
-                    *)
-                        if [[ "$project_root" != /* ]]; then
-                            error "project_root is not absolute: $project_root; refusing chown/chmod"
-                        else
-                            safe_chown_R "$(whoami):$(whoami)" "$project_root"
-                            safe_chmod_R 755 "$project_root"
-                        fi
-                        ;;
-                esac
-            fi
+            repair_owned_tree_777 "$project_root"
 
             log "Project restoration completed successfully"
             return 0
@@ -271,6 +252,7 @@ restore_project() {
 # package.json+main.js gate, so a transiently-incomplete checkout is not wiped).
 if [ -d "$CORE_NODE_PROJECT_ROOT" ] && { [ -e "$CORE_NODE_PROJECT_ROOT/.git" ] || [ -f "$CORE_NODE_PROJECT_ROOT/package.json" ]; }; then
     log "Project correctly positioned at: $CORE_NODE_PROJECT_ROOT (adopting; no restore)"
+    repair_owned_tree_777 "$CORE_NODE_PROJECT_ROOT"
     exit 0
 fi
 

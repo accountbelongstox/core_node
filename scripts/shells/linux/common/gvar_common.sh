@@ -29,54 +29,62 @@ WSL_USERS_PATH="/mnt/c/Users"
 ACTUAL_DESKTOP_USER=""
 ACTUAL_DESKTOP_USER_HOME=""
 
-# IDEMPOTENCY: Detect actual system user dynamically (excludes system/service users)
+# Return success only for an interactive non-system account.
+system_user_candidate_is_active_regular() {
+    local candidate="$1"
+    local candidate_uid=""
+    local candidate_entry=""
+    local candidate_shell=""
+
+    [ -n "$candidate" ] || return 1
+    candidate_uid="$(id -u "$candidate" 2>/dev/null || true)"
+    [ -n "$candidate_uid" ] || return 1
+    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
+    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
+    if command -v getent >/dev/null 2>&1; then
+        candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
+        candidate_shell="${candidate_entry##*:}"
+        case "$candidate_shell" in
+            */nologin|*/false) return 1 ;;
+        esac
+    fi
+    return 0
+}
+
+# Detect only an explicit caller or active login. Dormant passwd entries and
+# /home directories are not evidence that a regular user is currently in use.
 detect_system_user() {
-    local excluded_users=("git" "nginx" "www-data" "mysql" "postgres" "redis" "mongodb" "docker" "systemd-network" "systemd-resolve" "systemd-timesync" "_apt" "backup" "bin" "daemon" "games" "gnats" "irc" "list" "lp" "mail" "man" "news" "proxy" "sync" "sys" "uucp" "sshd" "postfix" "ftp" "nobody" "nogroup" "root")
+    local candidate=""
 
-    # Check SUDO_USER first
-    if [[ -n "${SUDO_USER:-}" ]] && [[ "$SUDO_USER" != "root" ]]; then
-        for excluded in "${excluded_users[@]}"; do
-            [[ "$SUDO_USER" == "$excluded" ]] && break
-        done
-        if [[ "$SUDO_USER" != "$excluded" ]]; then
-            echo "$SUDO_USER"
-            return 0
-        fi
-    fi
-
-    # Check current USER
-    if [[ "$USER" != "root" ]]; then
-        for excluded in "${excluded_users[@]}"; do
-            [[ "$USER" == "$excluded" ]] && break
-        done
-        if [[ "$USER" != "$excluded" ]]; then
-            echo "$USER"
-            return 0
-        fi
-    fi
-
-    # Prefer ubuntu if exists
-    if [[ -d "/home/ubuntu" ]]; then
-        echo "ubuntu"
+    candidate="${SUDO_USER:-}"
+    if system_user_candidate_is_active_regular "$candidate"; then
+        echo "$candidate"
         return 0
     fi
 
-    # Find any real user in /home
-    for user_home in /home/*; do
-        if [[ -d "$user_home" ]]; then
-            local username=$(basename "$user_home")
-            for excluded in "${excluded_users[@]}"; do
-                [[ "$username" == "$excluded" ]] && break
-            done
-            if [[ "$username" != "$excluded" ]]; then
-                echo "$username"
-                return 0
-            fi
-        fi
-    done
+    candidate="$(id -un 2>/dev/null || true)"
+    if system_user_candidate_is_active_regular "$candidate"; then
+        echo "$candidate"
+        return 0
+    fi
 
-    # Final fallback
-    echo "ubuntu"
+    if command -v who >/dev/null 2>&1; then
+        candidate="$(who 2>/dev/null | awk 'NF { print $1; exit }')"
+        if system_user_candidate_is_active_regular "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    if command -v loginctl >/dev/null 2>&1; then
+        candidate="$(loginctl list-users --no-legend 2>/dev/null | awk 'NF >= 2 { print $2; exit }')"
+        if system_user_candidate_is_active_regular "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    fi
+
+    echo "root"
 }
 
 # Check and set sudo

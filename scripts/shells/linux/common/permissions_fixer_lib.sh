@@ -39,10 +39,17 @@
 #     0 on success, non-zero on failure
 # =============================================================================
 
+# Variable declarations
+PERMISSIONS_FIXER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PERMISSIONS_FIXER_FS_HELPER="$PERMISSIONS_FIXER_DIR/fs_perm_helpers.sh"
+
+# shellcheck source=/dev/null
+source "$PERMISSIONS_FIXER_FS_HELPER"
+
 # Get real user (cached)
 get_target_user() {
-    local real_user=$(get_real_user)
-    echo "$real_user"
+    resolve_active_permission_owner >/dev/null
+    echo "$ACTIVE_PERMISSION_USER"
 }
 
 # Fix permissions for a specific directory
@@ -50,7 +57,12 @@ get_target_user() {
 fix_directory_permissions() {
     local dir_path="$1"
     local description="$2"
-    local real_user=$(get_target_user)
+    local real_user=""
+    local real_group=""
+
+    resolve_active_permission_owner >/dev/null
+    real_user="$ACTIVE_PERMISSION_USER"
+    real_group="$ACTIVE_PERMISSION_GROUP"
 
     if [ -z "$dir_path" ]; then
         echo "[ERROR] Directory path not provided"
@@ -64,29 +76,10 @@ fix_directory_permissions() {
 
     echo "[FIX] $description..."
     echo "  Path: $dir_path"
-    echo "  Owner: $real_user:$real_user"
+    echo "  Owner: $real_user:$real_group"
+    echo "  Permissions: 777"
 
-    # Validate path before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
-    case "$dir_path" in
-        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-            echo "[ERROR] Refusing chown/chmod on system path: $dir_path"
-            return 1
-            ;;
-    esac
-    [[ "$dir_path" != /* ]] && echo "[ERROR] Path not absolute: $dir_path" && return 1
-
-    # Fix ownership
-    sudo chown -R "$real_user:$real_user" "$dir_path" 2>/dev/null || {
-        echo "  [WARN] Could not change ownership (may already be correct)"
-    }
-
-    # Fix permissions
-    sudo chmod -R 755 "$dir_path" 2>/dev/null || {
-        echo "  [WARN] Could not change permissions (may already be correct)"
-    }
-
-    echo "  [OK] Permissions fixed"
-    return 0
+    repair_owned_tree_777 "$dir_path" "$real_user" "$real_group"
 }
 
 # Fix core_node directory permissions

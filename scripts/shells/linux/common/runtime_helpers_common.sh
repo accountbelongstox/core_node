@@ -4,91 +4,13 @@
 # Directory Migration and Permission Management Functions
 # ============================================================================
 
-# Get real user (not root, not sudo) (from common_functions.sh)
+# Get the active regular user, or root when none is active.
 get_real_user_from_common_functions() {
     local real_user=""
-    local real_home=""
 
-    # Priority 1: Check SUDO_USER environment variable
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        real_user="$SUDO_USER"
-        real_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
-        if [ -n "$real_home" ] && [ -d "$real_home" ]; then
-            echo "$real_user"
-            return 0
-        fi
-    fi
-
-    # Priority 2: If not root, return current user
-    if [ "$(id -u)" -ne 0 ] && [ "$USER" != "root" ]; then
-        echo "$USER"
-        return 0
-    fi
-
-    # Priority 3: Check ACTUAL_DESKTOP_USER from gvar_common.sh
-    if [ -n "${ACTUAL_DESKTOP_USER:-}" ] && [ "$ACTUAL_DESKTOP_USER" != "root" ]; then
-        echo "$ACTUAL_DESKTOP_USER"
-        return 0
-    fi
-
-    # Priority 4: Scan /home/* for most recently modified accessible directory
-    # This finds the user who is actively using the system
-    local most_recent_user=""
-    local most_recent_time=0
-
-    for user_home in /home/*; do
-        if [ -d "$user_home" ] && [ -r "$user_home" ]; then
-            local username="$(basename "$user_home")"
-
-            # Skip system users and special names
-            if [ "$username" = "lost+found" ] || [ "$username" = "nobody" ]; then
-                continue
-            fi
-
-            # Check if user exists in passwd
-            if ! id -u "$username" >/dev/null 2>&1; then
-                continue
-            fi
-
-            # Get last modification time of home directory and common subdirectories
-            local check_dirs=(
-                "$user_home"
-                "$user_home/.bashrc"
-                "$user_home/.profile"
-                "$user_home/.local"
-                "$user_home/.config"
-                "$user_home/Desktop"
-                "$user_home/Documents"
-            )
-
-            for check_dir in "${check_dirs[@]}"; do
-                if [ -e "$check_dir" ]; then
-                    local mtime=$(stat -c %Y "$check_dir" 2>/dev/null || echo 0)
-                    if [ "$mtime" -gt "$most_recent_time" ]; then
-                        most_recent_time=$mtime
-                        most_recent_user="$username"
-                    fi
-                fi
-            done
-        fi
-    done
-
-    if [ -n "$most_recent_user" ]; then
-        echo "$most_recent_user"
-        return 0
-    fi
-
-    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
-    while IFS=: read -r username _ uid _ _ homedir _; do
-        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ] && [ "$username" != "nobody" ]; then
-            echo "$username"
-            return 0
-        fi
-    done < /etc/passwd
-
-    # Fallback: return current user
-    echo "$USER"
-    return 0
+    resolve_active_permission_owner >/dev/null
+    real_user="$ACTIVE_PERMISSION_USER"
+    echo "$real_user"
 }
 
 # Migrate from old directory to new directory (from common_functions.sh)
@@ -158,8 +80,10 @@ migrate_old_to_new_directory_from_common_functions() {
 # Fix permissions for installation directory (from common_functions.sh)
 fix_installation_permissions_from_common_functions() {
     local target_path="$1"
-    local permission_mode="${2:-777}"  # Default: 777 (all users)
+    local permission_mode="777"
     local set_owner="${3:-true}"       # Default: set owner to real user
+    local real_user=""
+    local real_group=""
 
     if [ ! -e "$target_path" ]; then
         print_warning_from_common_functions "Path does not exist: $target_path"
@@ -181,30 +105,16 @@ fix_installation_permissions_from_common_functions() {
             ;;
     esac
 
-    # Get real user
-    local real_user=$(get_real_user_from_common_functions)
-    local real_group=$(id -gn "$real_user" 2>/dev/null || echo "$real_user")
+    real_user="$(get_real_user_from_common_functions)"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
 
     print_info_from_common_functions "Real user: $real_user:$real_group"
     print_info_from_common_functions "Permission mode: $permission_mode"
 
-    # Set ownership to real user if requested
     if [ "$set_owner" = "true" ]; then
-        print_info_from_common_functions "Changing ownership to: $real_user:$real_group"
-        $USE_SUDO chown -R "$real_user:$real_group" "$target_path" 2>/dev/null || {
-            print_warning_from_common_functions "Failed to change ownership, continuing..."
-        }
-    fi
-
-    # Set permissions
-    print_info_from_common_functions "Setting permissions: $permission_mode"
-    $USE_SUDO chmod -R "$permission_mode" "$target_path" 2>/dev/null || {
-        print_warning_from_common_functions "Failed to set permissions, continuing..."
-    }
-
-    # For directories, also set execute bit
-    if [ -d "$target_path" ]; then
-        $USE_SUDO find "$target_path" -type d -exec chmod a+x {} \; 2>/dev/null || true
+        repair_owned_tree_777 "$target_path" "$real_user" "$real_group" || return $?
+    else
+        safe_chmod_R "$permission_mode" "$target_path"
     fi
 
     print_success_from_common_functions "Permissions fixed for: $target_path"

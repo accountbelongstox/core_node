@@ -222,121 +222,30 @@ find_most_recent_home_user() {
     return 1
 }
 
-# Function: Get real (non-root) user with caching
+# Function: Get the active regular user, or root when none is active
 get_real_user() {
-    # Try cache first
-    local cached=$(read_cache)
-    if [ -n "$cached" ]; then
-        echo "$cached" | cut -d'|' -f1
-        return 0
-    fi
-
     local detected_user=""
     local detected_home=""
 
-    # Non-desktop environment: return current login user
-    if ! is_desktop_environment; then
-        if [ "$(id -u)" -ne 0 ]; then
-            detected_user="$USER"
-            detected_home="$HOME"
-        elif [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-            detected_user="$SUDO_USER"
-            detected_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
-        else
-            # Scan /home for most recent user
-            local result=$(find_most_recent_home_user)
-            if [ -n "$result" ]; then
-                detected_user=$(echo "$result" | cut -d'|' -f1)
-                detected_home=$(echo "$result" | cut -d'|' -f2)
-            else
-                # Last resort: first non-system user
-                detected_user=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}')
-                if [ -n "$detected_user" ]; then
-                    detected_home=$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)
-                fi
-            fi
-        fi
-
-        if [ -n "$detected_user" ] && [ -n "$detected_home" ]; then
-            write_cache "$detected_user" "$detected_home"
-            echo "$detected_user"
-        fi
-        return 0
-    fi
-
-    # Desktop environment: detect real user
-
-    # Priority 1: Not running as root - return current user
-    if [ "$(id -u)" -ne 0 ]; then
-        detected_user="$USER"
-        detected_home="$HOME"
-        write_cache "$detected_user" "$detected_home"
-        echo "$detected_user"
-        return 0
-    fi
-
-    # Priority 2: SUDO_USER
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        detected_user="$SUDO_USER"
-        detected_home=$(getent passwd "$SUDO_USER" 2>/dev/null | cut -d: -f6)
-        if [ -n "$detected_home" ]; then
-            write_cache "$detected_user" "$detected_home"
-            echo "$detected_user"
-            return 0
-        fi
-    fi
-
-    # Priority 3: User with active desktop session
-    for user_home in /home/*; do
-        if [ -d "$user_home" ] && is_dir_accessible "$user_home"; then
-            local username=$(basename "$user_home")
-            if timeout 2 pgrep -u "$username" -x "gnome-session|kde-session|xfce4-session|mate-session|cinnamon-session" >/dev/null 2>&1; then
-                detected_user="$username"
-                detected_home="$user_home"
-                write_cache "$detected_user" "$detected_home"
-                echo "$detected_user"
-                return 0
-            fi
-        fi
-    done
-
-    # Priority 4: Most recently modified /home directory (scan 3 levels)
-    local result=$(find_most_recent_home_user)
-    if [ -n "$result" ]; then
-        detected_user=$(echo "$result" | cut -d'|' -f1)
-        detected_home=$(echo "$result" | cut -d'|' -f2)
-        write_cache "$detected_user" "$detected_home"
-        echo "$detected_user"
-        return 0
-    fi
-
-    # Priority 5: First non-system user (UID >= 1000)
-    detected_user=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}')
-    if [ -n "$detected_user" ]; then
-        detected_home=$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)
-        if [ -n "$detected_home" ]; then
-            write_cache "$detected_user" "$detected_home"
-            echo "$detected_user"
-            return 0
-        fi
-    fi
+    detected_user="$(detect_system_user)"
+    detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$detected_home" ] || detected_home="/root"
+    write_cache "$detected_user" "$detected_home"
+    echo "$detected_user"
 }
 
 # Function: Get real user home directory
 get_real_user_home() {
-    # Try cache first
-    local cached=$(read_cache)
-    if [ -n "$cached" ]; then
-        echo "$cached" | cut -d'|' -f2
-        return 0
-    fi
+    local username="$(get_real_user)"
+    local user_home=""
 
-    local username=$(get_real_user)
     if [ -z "$username" ]; then
         return 1
     fi
 
-    getent passwd "$username" | cut -d: -f6
+    user_home="$(getent passwd "$username" 2>/dev/null | cut -d: -f6)"
+    [ -n "$user_home" ] || user_home="/root"
+    echo "$user_home"
 }
 
 # Function: Get real user Downloads directory

@@ -10,46 +10,24 @@
 # - AI tools repair functionality
 # =============================================================================
 
+# Variable declarations
+SMART_PERMISSIONS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SMART_PERMISSIONS_HELPER="$SMART_PERMISSIONS_DIR/../common/fs_perm_helpers.sh"
+
+# shellcheck source=/dev/null
+source "$SMART_PERMISSIONS_HELPER"
+
 # Get real user information
 get_real_user_info() {
     local project_root="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
     local real_user=""
     local real_user_home=""
 
-    echo "[DEBUG] get_real_user_info: project_root=$project_root" >&2
-
-    # Method 1: Check SUDO_USER (when running with sudo)
-    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-        real_user="$SUDO_USER"
-        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
-        if [ -z "$real_user_home" ]; then
-            real_user_home="/home/$real_user"
-        fi
-        echo "[DEBUG] get_real_user_info: Using SUDO_USER method" >&2
-    fi
-
-    # Method 2: Check current user (when not running with sudo)
-    if [ -z "$real_user" ]; then
-        real_user="$(whoami 2>/dev/null || echo "$USER")"
-        if [ "$real_user" = "root" ]; then
-            # If running as root without sudo, try to find the real user
-            real_user="${USER:-ubuntu}"
-        fi
-        real_user_home=$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)
-        if [ -z "$real_user_home" ]; then
-            real_user_home="/home/$real_user"
-        fi
-        echo "[DEBUG] get_real_user_info: Using current user method" >&2
-    fi
-
-    # Method 3: Ultimate fallback
-    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
-        echo "[DEBUG] get_real_user_info: Using ultimate fallback" >&2
-        real_user="ubuntu"
-        real_user_home="/home/ubuntu"
-    fi
-
-    echo "[DEBUG] get_real_user_info: final result=$real_user:$real_user_home" >&2
+    resolve_active_permission_owner >/dev/null
+    real_user="$ACTIVE_PERMISSION_USER"
+    real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$real_user_home" ] || real_user_home="/root"
+    echo "[INFO] Permission owner source: $ACTIVE_PERMISSION_SOURCE" >&2
     echo "$real_user:$real_user_home"
 }
 
@@ -60,94 +38,20 @@ fix_core_node_permissions_essential() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
-    local real_user_home="${user_info##*:}"
+    local real_group=""
+    local parent_dir=""
+    local build_dir=""
 
     echo "[INFO] Fixing Core Node essential permissions (fast)..."
     echo "[SAFE_PATH] project_root=$project_root"
     echo "[INFO] Real user: $real_user"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    parent_dir="$(dirname "$project_root")"
+    build_dir="$parent_dir/_build_dir"
 
-    # Validate project_root before recursive chown/chmod to avoid touching system paths (e.g. /usr/bin/sudo)
-    if [ -z "$project_root" ]; then
-        echo "[ERROR] project_root is empty; refusing chown/chmod"
-        return 1
-    fi
-    case "$project_root" in
-        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-            echo "[ERROR] project_root is system path; refusing chown/chmod: $project_root"
-            return 1
-            ;;
-    esac
-    [[ "$project_root" != /* ]] && echo "[ERROR] project_root not absolute: $project_root" && return 1
-
-    # Calculate build directory path dynamically (no hardcoding)
-    # project_root: /www/programing/core_node
-    # parent: /www/programing
-    # build_dir: /www/programing/_build_dir
-    local parent_dir="$(dirname "$project_root")"
-    local build_dir="$parent_dir/_build_dir"
-
-    # Essential directories for basic operation - 777 permissions
-    local essential_dirs=(
-        "$project_root"
-        "$project_root/scripts"
-        "$build_dir"
-    )
-
-    # Print directories to be scanned
-    echo "[SCAN] Directories to be checked:"
-    for dir in "${essential_dirs[@]}"; do
-        echo "  - $dir"
-    done
-    echo ""
-
-    # Critical file
-    local critical_file="$project_root/dd.sh"
-
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - fixing essential permissions"
-
-        # Fix essential directories - set 777 for all users
-        for dir in "${essential_dirs[@]}"; do
-            if [ ! -d "$dir" ]; then
-                echo "[INFO] Creating directory: $dir"
-                mkdir -p "$dir" 2>/dev/null
-            fi
-            if [ -d "$dir" ]; then
-                echo "[INFO] Setting 777 permissions for: $dir"
-                chmod -R 777 "$dir" 2>/dev/null
-                chown -R "$real_user:$real_user" "$dir" 2>/dev/null
-                # Ensure all .sh files in scripts are executable
-                find "$dir" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null
-            else
-                echo "[WARNING] Failed to create/access directory: $dir"
-            fi
-        done
-        
-        # Fix dd.sh specifically
-        if [ -f "$critical_file" ]; then
-            echo "[INFO] Setting permissions for: $critical_file"
-            chmod 755 "$critical_file"
-            chown "$real_user:$real_user" "$critical_file" 2>/dev/null
-        fi
-        
-        echo "[SUCCESS] Essential Core Node permissions fixed"
-    else
-        echo "[INFO] Not running as root - checking essential accessibility"
-        local needs_fix=false
-        
-        for dir in "${essential_dirs[@]}"; do
-            if [ -d "$dir" ] && [ ! -w "$dir" ]; then
-                echo "[WARNING] Essential directory not writable: $dir"
-                needs_fix=true
-            fi
-        done
-        
-        if [ "$needs_fix" = "false" ]; then
-            echo "[INFO] Essential directories are accessible"
-        else
-            echo "[WARNING] Essential directories need permission fix"
-        fi
-    fi
+    repair_owned_tree_777 "$project_root" "$real_user" "$real_group" || return $?
+    repair_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
+    echo "[SUCCESS] Essential Core Node permissions fixed"
 }
 
 # =============================================================================
@@ -157,51 +61,14 @@ fix_var_core_node_permissions() {
     local project_root="$1"
     local user_info="$2"
     local real_user="${user_info%%:*}"
+    local real_group=""
     local target_path="/var/_core_node"
 
     echo "[INFO] Fixing /var/_core_node permissions for MyBest directories..."
     echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"
 
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "[INFO] Running as root - setting up $target_path"
-
-        # Only allow chown/chmod on this fixed path (not on /var or /usr)
-        case "$target_path" in
-            /var/_core_node) ;;
-            /var/_core_node/*) ;;
-            *)
-                echo "[ERROR] Refusing: only /var/_core_node is allowed for this function"
-                return 1
-                ;;
-        esac
-
-        # Create directory if needed
-        if [ ! -d "$target_path" ]; then
-            echo "[INFO] Creating directory: $target_path"
-            mkdir -p "$target_path" || {
-                echo "[ERROR] Failed to create $target_path"
-                return 1
-            }
-        fi
-
-        # Set ownership and 777 permissions
-        echo "[INFO] Setting ownership and permissions for $real_user on $target_path"
-        chown -R "$real_user:$real_user" "$target_path" 2>/dev/null || {
-            echo "[WARNING] Failed to change ownership to $real_user"
-        }
-        chmod -R 777 "$target_path" 2>/dev/null || echo "[WARNING] Failed to set 777 permissions"
-        chmod -R +rwx "$target_path" 2>/dev/null || echo "[WARNING] Failed to set +rwx permissions"
-        
-        echo "[SUCCESS] /var/_core_node permissions configured"
-    else
-        if [ ! -d "$target_path" ]; then
-            echo "[WARNING] $target_path does not exist (need root to create)"
-        elif [ ! -w "$target_path" ]; then
-            echo "[WARNING] $target_path not writable (MyBest creation may fail)"
-        else
-            echo "[INFO] $target_path is accessible"
-        fi
-    fi
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+    repair_owned_tree_777 "$target_path" "$real_user" "$real_group"
 }
 
 # =============================================================================
@@ -379,7 +246,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
         "core")
             project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"
             user_info="$(get_real_user_info "$project_root")"
-            fix_core_node_permissions "$project_root" "$user_info"
+            fix_core_node_permissions_essential "$project_root" "$user_info"
             ;;
         "var")
             project_root="${2:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)}"

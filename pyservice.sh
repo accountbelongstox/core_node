@@ -193,7 +193,7 @@ Subcommands:
                (forwards remaining args to: python -m pycore.pyctl.pyservice_cli config)
   codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
                Manual commands first repair the repository for the regular user,
-               using root privileges; root is used when no regular user exists.
+               using root privileges; root is used without an explicit regular caller.
                (no subcommand)            -> prompt to add+start the systemd service
                install|uninstall|start|stop|restart|status -> manage that service
                run|show|role|peers|distribute|skip-update   -> stdlib CLI
@@ -292,8 +292,8 @@ _pyservice_maybe_elevate
 #     is never executed, no third_party). See pycore/pyutils/codesync/runtime.py.
 if [[ "$CMD" == "codesync" ]]; then
     CS_MGR="$SCRIPT_DIR/scripts/shells/linux/common/codesync_service.sh"
-    # Every manual Code Sync command first repairs the repository for the regular
-    # service user. The preparation elevates only its chown/chmod operations.
+    # Every manual Code Sync command first assigns the repository to the active
+    # regular user with mode 777, or to root when no regular user is active.
     # The resident systemd child skips this step because installation/start has
     # already prepared the tree and a service process must never invoke sudo.
     if [ -z "${INVOCATION_ID:-}" ]; then
