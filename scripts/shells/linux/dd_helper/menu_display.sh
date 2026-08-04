@@ -16,36 +16,8 @@
 # =============================================================================
 
 initialize_menu_items() {
-    menu_items["Install and Test Environment"]="text=Install and Test Environment;values=default;current=0;key=INSTALL_TEST_MENU;action=show_install_test_menu"
-    menu_order+=("Install and Test Environment")
-
-
-    menu_items["Git Management"]="text=Git Management;values=default;current=0;key=GIT_MANAGEMENT_MENU;action=show_git_management_menu"
-    menu_order+=("Git Management")
-
-    menu_items["System Information & Variables"]="text=System Information & Variables;values=default;current=0;key=SYSTEM_INFO_MENU;action=show_system_info_menu"
-    menu_order+=("System Information & Variables")
-
-    menu_items["Unified App Manager"]="text=Unified App Manager;values=default;current=0;key=UNIFIED_MANAGER_TYPE;action=unified_manager"
-    menu_order+=("Unified App Manager")
-
-    menu_items["Set Special Software Environment Variables (like AI)"]="text=Set Special Software Environment Variables (like AI);values=default;current=0;key=SPECIAL_ENV_MENU;action=show_special_software_env_menu"
-    menu_order+=("Set Special Software Environment Variables (like AI)")
-
-    menu_items["Service Manager"]="text=Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH);values=default;current=0;key=SERVICE_MANAGER_MENU;action=show_service_manager"
-    menu_order+=("Service Manager")
-
-    # Merged menu: "Linux Management" + "Backup Management" are grouped under one
-    # entry that opens a dispatcher with both as sub-menus. The dispatcher also
-    # hosts the Python runtime + models + user-data backup.
-    menu_items["Management & Backup"]="text=Management & Backup;values=default;current=0;key=MANAGEMENT_BACKUP_MENU;action=show_management_and_backup"
-    menu_order+=("Management & Backup")
-
-    menu_items["AI & MCP Management"]="text=AI & MCP Management (status/install/sync 8 tools);values=default;current=0;key=AI_MCP_MENU;action=show_ai_mcp_management"
-    menu_order+=("AI & MCP Management")
-
-    menu_items["Push to git"]="text=Push to git;values=all,gitee,github,local;current=0;key=GIT_PUSH_TARGET;action=push_git"
-    menu_order+=("Push to git")
+    menu_items["Linux Management"]="text=Linux Management;values=default;current=0;key=LINUX_MANAGEMENT_MENU;action=show_linux_management_submenu"
+    menu_order+=("Linux Management")
 
     menu_items["Exit"]="text=Exit;values=default;current=0;key=EXIT_TYPE;action=exit_script"
     menu_order+=("Exit")

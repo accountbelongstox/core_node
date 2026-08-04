@@ -74,56 +74,39 @@ fi
 
 # Get real login user (not root)
 get_real_login_user_from_apt_repository_manager() {
+    local result=""
+
     # Use function from common_functions.sh if available (check if function exists)
     if type get_real_user_from_common_functions >/dev/null 2>&1; then
-        local result=$(get_real_user_from_common_functions 2>/dev/null)
-        if [ -n "$result" ] && [ "$result" != "root" ]; then
+        result="$(get_real_user_from_common_functions 2>/dev/null)"
+        if [ -n "$result" ]; then
             echo "$result"
             return 0
         fi
     fi
-    
-    # Fallback: simple detection
-    if [ "$(id -u)" -ne 0 ]; then
-        echo "$USER"
+
+    if type detect_system_user >/dev/null 2>&1; then
+        detect_system_user
         return 0
-    elif [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        echo "$SUDO_USER"
-        return 0
-    elif [ -n "${ACTUAL_DESKTOP_USER:-}" ] && [ "$ACTUAL_DESKTOP_USER" != "root" ]; then
-        echo "$ACTUAL_DESKTOP_USER"
-        return 0
-    else
-        # Last resort: find first non-system user
-        local real_user=$(getent passwd | awk -F: '$3 >= 1000 && $3 < 60000 {print $1; exit}')
-        if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
-            echo "$real_user"
-            return 0
-        fi
     fi
-    
-    # Final fallback (should not reach here)
-    return 1
+    echo "root"
 }
 
 # Fix file permissions to real user (not root)
 fix_file_permissions_from_apt_repository_manager() {
     local file_path="$1"
     local permissions="${2:-+x}"
+    local real_user=""
+    local real_group=""
     
     if [ -z "$file_path" ]; then
         return 1
     fi
     
-    local real_user=$(get_real_login_user_from_apt_repository_manager)
-    if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
-        # If we can't determine real user, just chmod
-        $USE_SUDO chmod "$permissions" "$file_path" 2>/dev/null || return 1
-        return 0
-    fi
-    
-    # Set ownership to real user first, then chmod
-    $USE_SUDO chown "$real_user:$real_user" "$file_path" 2>/dev/null || true
+    real_user="$(get_real_login_user_from_apt_repository_manager)"
+    real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
+
+    $USE_SUDO chown "$real_user:$real_group" "$file_path" 2>/dev/null || true
     $USE_SUDO chmod "$permissions" "$file_path" 2>/dev/null || return 1
     
     return 0
@@ -1771,4 +1754,3 @@ verify_repository_health_from_apt_repository_manager() {
         return 1
     fi
 }
-

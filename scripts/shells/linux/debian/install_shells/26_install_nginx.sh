@@ -960,8 +960,7 @@ fix_directory_structure() {
     
     # Fix ownership and permissions
     echo "[$SCRIPT_INDEX] Fixing ownership and permissions..."
-    safe_chown_R root:root "$WWW_ROOT"
-    safe_chmod_R 755 "$WWW_ROOT"
+    repair_owned_tree_777 "$WWW_ROOT"
 
     # Ensure nginx user can access log directory
     safe_chown_R root:adm /var/log/nginx

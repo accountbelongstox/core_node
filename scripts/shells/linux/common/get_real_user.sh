@@ -16,13 +16,11 @@
 # =============================================================================
 #
 # Synopsis:
-#     Pure Bash real user detection (no hardcoded usernames, with caching)
+#     Active or home-backed regular-user detection with root fallback
 #
 # Description:
-#     Detects real user by scanning /home/* directories and finding the most
-#     recently modified accessible directory. Results are cached to /tmp for
-#     performance. Works in both desktop and non-desktop environments without
-#     hardcoding any usernames. Quickly skips inaccessible directories.
+#     Reuses the shared resolver. Explicit callers and active sessions win;
+#     root-only execution scores filtered /home users by interactive folders.
 #
 # Usage:
 #     # Source this file to get helper functions

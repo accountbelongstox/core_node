@@ -34,7 +34,7 @@ fix_core_node_permissions_full() {
     laravel_db_dir="$(map_web_path "laravel_db" 2>/dev/null)"
 
     repair_owned_tree_777 "$project_root" "$real_user" "$real_group" || return $?
-    repair_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
+    ensure_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
     if [ -n "$laravel_db_dir" ] && [ -d "$laravel_db_dir" ]; then
         repair_owned_tree_777 "$laravel_db_dir" "$real_user" "$real_group" || return $?
     fi

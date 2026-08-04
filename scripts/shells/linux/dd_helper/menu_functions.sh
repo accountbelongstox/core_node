@@ -21,8 +21,7 @@ source "$DD_HELPER_DIR/constants.sh"
 # Source linux management functions
 source "$DD_HELPER_DIR/linux_management.sh"
 
-# Source the merged Management & Backup dispatcher (Linux Management +
-# Backup Management + Python runtime/models backup)
+# Source Management & Backup, which is opened from Linux Management.
 source "$DD_HELPER_DIR/management_and_backup.sh"
 
 # Build full paths from constants

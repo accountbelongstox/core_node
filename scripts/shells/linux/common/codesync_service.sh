@@ -409,7 +409,7 @@ codesync_service.sh - manage the Code Sync systemd service (Linux only)
 Usage: bash codesync_service.sh <command>
 
 Commands:
-  prepare              Repair repository ownership for the Code Sync user
+  prepare              Set repository owner and recursive mode 777
   install [--prompt]  Create, enable and start the '${CODESYNC_SERVICE_NAME}' service
                       (--prompt asks first, default YES)
   start               Start the service

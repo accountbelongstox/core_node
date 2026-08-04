@@ -436,13 +436,13 @@ WRAPPER_EOF
 
     # Fix permissions for AppImage installation directory
     log_message "Fixing permissions for AppImage installation: $install_dir"
-    fix_installation_permissions_from_common_functions "$install_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+    fix_installation_permissions_from_common_functions "$install_dir" "777" "true" 2>&1 | while IFS= read -r line; do
         log_message "$line"
     done
 
     # Fix permissions for wrapper script
     if [ -f "$wrapper_script" ]; then
-        fix_installation_permissions_from_common_functions "$wrapper_script" "755" "true" 2>&1 | while IFS= read -r line; do
+        fix_installation_permissions_from_common_functions "$wrapper_script" "777" "true" 2>&1 | while IFS= read -r line; do
             log_message "$line"
         done
     fi

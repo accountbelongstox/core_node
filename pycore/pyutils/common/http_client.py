@@ -56,6 +56,7 @@ class HttpClient:
             for key, value in dict(default_headers or {}).items()
         }
         self._connections: Dict[ConnectionKey, http.client.HTTPConnection] = {}
+        self._connection_keys_by_thread: Dict[int, set[ConnectionKey]] = {}
 
     def get(
         self,
@@ -118,6 +119,10 @@ class HttpClient:
         if connection is None:
             connection = self._create_connection(parsed_url, request_timeout)
             self._connections[connection_key] = connection
+            self._connection_keys_by_thread.setdefault(
+                connection_key[0],
+                set(),
+            ).add(connection_key)
         else:
             self._set_connection_timeout(connection, request_timeout)
         try:
@@ -135,6 +140,17 @@ class HttpClient:
     def close(self) -> None:
         connections = tuple(self._connections.values())
         self._connections.clear()
+        self._connection_keys_by_thread.clear()
+        for connection in connections:
+            connection.close()
+
+    def close_current_thread(self) -> None:
+        thread_id = threading.get_ident()
+        connection_keys = tuple(self._connection_keys_by_thread.pop(thread_id, ()))
+        connections = tuple(
+            self._connections.pop(key)
+            for key in connection_keys
+        )
         for connection in connections:
             connection.close()
 
@@ -197,6 +213,13 @@ class HttpClient:
         cached_connection = self._connections.get(connection_key)
         if cached_connection is connection:
             self._connections.pop(connection_key, None)
+            thread_connection_keys = self._connection_keys_by_thread.get(
+                connection_key[0]
+            )
+            if thread_connection_keys is not None:
+                thread_connection_keys.discard(connection_key)
+                if not thread_connection_keys:
+                    self._connection_keys_by_thread.pop(connection_key[0], None)
         connection.close()
 
     def _resolve_url(self, url: str) -> str:

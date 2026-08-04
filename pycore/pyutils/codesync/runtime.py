@@ -233,6 +233,7 @@ class BusTaskThread(threading.Thread):
             response = {"success": True, "result": result}
         except Exception as exc:
             response = {"success": False, "error": str(exc)}
+        http.close_current_thread()
         _publish_response(response_signal, response_guard, response)
         THREAD_BUS.clear_queue(self._queue_name)
 

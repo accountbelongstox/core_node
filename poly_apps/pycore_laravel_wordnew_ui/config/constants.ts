@@ -17,9 +17,6 @@ export const DEFAULT_API_PORT = 9000;
  */
 export const DEFAULT_FRONTEND_PORT = 13054;
 
-/** Browser-facing Vite host. Fixed so HTTP and HMR use the same loopback identity. */
-export const DEFAULT_FRONTEND_HOST = '127.0.0.1';
-
 /** Unified UI build configuration. Runtime settings come from persisted user data. */
 export const FRONTEND_BUILD_TARGET: string = 'web';
 export const FRONTEND_APP_FLAVOR: string = 'shell';

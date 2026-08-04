@@ -33,6 +33,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 # Source gvar_common.sh (trust-based coding)
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
+source "$PARENT_DIR_LEVEL_2/common/fs_perm_helpers.sh"
 # Mount library: single fstab entry per UUID, real-time remount
 source "$PARENT_DIR_LEVEL_2/common/mount_common.sh"
 # Repository manager (merged from former 12_update.sh: repo repair + management).
@@ -845,21 +846,7 @@ configure_gnome_desktop() {
     log "Configuring GNOME desktop for high performance..."
     
     # Detect desktop user
-    local desktop_user=""
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        desktop_user="$SUDO_USER"
-    else
-        # Try to find desktop user
-        for user_home in /home/*; do
-            if [ -d "$user_home" ]; then
-                local user_name=$(basename "$user_home")
-                if pgrep -u "$user_name" -x "gnome-session" >/dev/null 2>&1; then
-                    desktop_user="$user_name"
-                    break
-                fi
-            fi
-        done
-    fi
+    local desktop_user="$(resolve_desktop_user gnome-session)"
     
     if [ -z "$desktop_user" ]; then
         warning "Could not detect desktop user, skipping GNOME configuration"
@@ -1016,10 +1003,9 @@ configure_kde_desktop() {
 # helper is defensive and returns 0 so they are safe under the script's set -e.
 # --------------------------------------------------------------------------- #
 
-# Resolve the desktop user: SUDO_USER, else a user running $1 (a session process
-# name, optional), else the first regular (uid >= 1000) login user. Always 0.
+# Resolve the desktop user through the shared filtered/scored user policy.
 resolve_desktop_user() {
-    local session_proc="$1" uh uname
+    local session_proc="$1" uh uname resolved_user
     if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
         echo "$SUDO_USER"; return 0
     fi
@@ -1032,7 +1018,8 @@ resolve_desktop_user() {
             fi
         done
     fi
-    awk -F: '$3>=1000 && $3<65534 {print $1; exit}' /etc/passwd 2>/dev/null || true
+    resolved_user="$(detect_system_user)"
+    [ "$resolved_user" != "root" ] && echo "$resolved_user"
     return 0
 }
 
@@ -1643,9 +1630,10 @@ ensure_sudo_installed() {
 
 # Initialize core_node shared directories (was 12).
 initialize_core_node_directories() {
-    echo "Initializing core_node shared directories..."
     local CORE_NODE_BASE="${CORE_NODE_DATA_DIR}"
     local SHARED_DOWNLOADS="${CORE_NODE_SHARED_DOWNLOADS}"
+
+    echo "Initializing core_node shared directories..."
     echo "[SAFE_PATH] CORE_NODE_BASE=$CORE_NODE_BASE SHARED_DOWNLOADS=$SHARED_DOWNLOADS"
     _safe_dir() {
         local d="$1"
@@ -1657,14 +1645,12 @@ initialize_core_node_directories() {
             *) return 0 ;;
         esac
     }
-    if _safe_dir "$CORE_NODE_BASE" && $USE_SUDO mkdir -p "$CORE_NODE_BASE" 2>/dev/null; then
-        $USE_SUDO chmod 777 "$CORE_NODE_BASE" 2>/dev/null || true
+    if _safe_dir "$CORE_NODE_BASE" && ensure_owned_tree_777 "$CORE_NODE_BASE"; then
         echo "Created base directory: $CORE_NODE_BASE"
     else
         echo "[SKIP] Refusing chmod on system or invalid path: $CORE_NODE_BASE"
     fi
-    if _safe_dir "$SHARED_DOWNLOADS" && $USE_SUDO mkdir -p "$SHARED_DOWNLOADS" 2>/dev/null; then
-        $USE_SUDO chmod 777 "$SHARED_DOWNLOADS" 2>/dev/null || true
+    if _safe_dir "$SHARED_DOWNLOADS" && ensure_owned_tree_777 "$SHARED_DOWNLOADS"; then
         echo "Created shared downloads directory: $SHARED_DOWNLOADS"
     else
         echo "[SKIP] Refusing chmod on system or invalid path: $SHARED_DOWNLOADS"

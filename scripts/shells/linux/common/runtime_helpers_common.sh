@@ -99,6 +99,7 @@ fix_installation_permissions_from_common_functions() {
         return 1
     fi
     case "$target_path" in
+        /usr/local|/usr/local/*) ;;
         /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
             print_warning_from_common_functions "Refusing chown/chmod on system path: $target_path"
             return 1
@@ -124,7 +125,7 @@ fix_installation_permissions_from_common_functions() {
 # Ensure directory exists with correct permissions (from common_functions.sh)
 ensure_directory_permissions_from_common_functions() {
     local target_dir="$1"
-    local permission_mode="${2:-755}"  # Default: 755
+    local permission_mode="777"
     local set_owner="${3:-true}"       # Default: set owner to real user
 
     # Create directory if it doesn't exist
@@ -155,11 +156,11 @@ fix_npm_global_permissions_from_common_functions() {
 
     # Fix permissions for bin and lib directories
     if [ -d "$npm_prefix/bin" ]; then
-        fix_installation_permissions_from_common_functions "$npm_prefix/bin" "755" "true"
+        fix_installation_permissions_from_common_functions "$npm_prefix/bin" "777" "true"
     fi
 
     if [ -d "$npm_prefix/lib" ]; then
-        fix_installation_permissions_from_common_functions "$npm_prefix/lib" "755" "true"
+        fix_installation_permissions_from_common_functions "$npm_prefix/lib" "777" "true"
     fi
 
     # Make all binaries executable

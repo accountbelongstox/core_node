@@ -12,10 +12,16 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Web Path Permissions Manager
-# Sets execute permissions (+x) on web map paths for real-login users (non-root)
+# Assigns mapped web paths to the resolved user with recursive mode 777.
 
 # Variable Declarations
 WEBPATH_CACHE_FILE=""
+WEBPATH_PERMISSION_POLICY="owner-mode-777-v1"
+WEBPATH_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WEBPATH_PERMISSION_HELPER="$WEBPATH_SCRIPT_DIR/../common/fs_perm_helpers.sh"
+
+# shellcheck source=/dev/null
+source "$WEBPATH_PERMISSION_HELPER"
 
 # Function to get cache file path
 get_webpath_cache_file() {
@@ -43,9 +49,18 @@ get_webpath_cache_file() {
 # Function to check if permissions were already set
 check_webpath_permissions_cache() {
     local cache_file=$(get_webpath_cache_file)
+    local target_user="$1"
+    local cache_value=""
+    local cache_time=""
+    local cache_policy=""
+    local cache_user=""
 
     if [ -f "$cache_file" ]; then
-        local cache_time=$(cat "$cache_file" 2>/dev/null)
+        cache_value="$(cat "$cache_file" 2>/dev/null)"
+        IFS='|' read -r cache_time cache_policy cache_user <<< "$cache_value"
+        if [ "$cache_policy" != "$WEBPATH_PERMISSION_POLICY" ] || [ "$cache_user" != "$target_user" ]; then
+            return 1
+        fi
         echo -e "\033[33m[WEBPATH PERMISSIONS] Already set at: $cache_time\033[0m"
         echo -e "\033[33m[WEBPATH PERMISSIONS] Skipping (cache found at: $cache_file)\033[0m"
         return 0
@@ -58,8 +73,9 @@ check_webpath_permissions_cache() {
 save_webpath_permissions_cache() {
     local cache_file=$(get_webpath_cache_file)
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    local target_user="$1"
 
-    echo "$timestamp" > "$cache_file" 2>/dev/null
+    echo "$timestamp|$WEBPATH_PERMISSION_POLICY|$target_user" > "$cache_file" 2>/dev/null
     if [ $? -eq 0 ]; then
         echo -e "\033[32m[WEBPATH PERMISSIONS] Cache saved: $cache_file\033[0m"
     fi
@@ -107,28 +123,16 @@ ensure_parent_path_accessible() {
 # This function is called when running as root to ensure real users can access web directories
 set_webpath_execute_permissions() {
     local force_mode="$1"
-    local current_uid=$(id -u)
+    local target_user=""
+    local target_group=""
 
-    # Only run when executing as root
-    if [ "$current_uid" -ne 0 ]; then
-        return 0
-    fi
-
-    # Detect actual desktop user (from gvar_common.sh)
-    if [ -z "$ACTUAL_DESKTOP_USER" ]; then
-        if type detect_actual_desktop_user >/dev/null 2>&1; then
-            detect_actual_desktop_user
-        fi
-    fi
-
-    # If no real user detected, skip
-    if [ -z "$ACTUAL_DESKTOP_USER" ]; then
-        return 0
-    fi
+    resolve_active_permission_owner >/dev/null
+    target_user="$ACTIVE_PERMISSION_USER"
+    target_group="$ACTIVE_PERMISSION_GROUP"
 
     # Check cache unless force mode is enabled
     if [ "$force_mode" != "force" ]; then
-        if check_webpath_permissions_cache; then
+        if check_webpath_permissions_cache "$target_user"; then
             return 0
         fi
     else
@@ -136,7 +140,7 @@ set_webpath_execute_permissions() {
         clear_webpath_permissions_cache
     fi
 
-    echo -e "\033[36m[WEBPATH PERMISSIONS] Setting full access permissions for user: $ACTUAL_DESKTOP_USER\033[0m"
+    echo -e "\033[36m[WEBPATH PERMISSIONS] Setting owner $target_user:$target_group and mode 777\033[0m"
 
     # Get base data directory
     local data_base=$(get_base_data_directory)
@@ -183,6 +187,7 @@ set_webpath_execute_permissions() {
 
             echo -e "\033[36m  [SAFE_PATH] path_key=$path_key -> mapped_path=$mapped_path\033[0m"
             case "$mapped_path" in
+                /usr/local|/usr/local/*) ;;
                 /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
                     echo -e "\033[33m  [SKIP] Refusing chown on system path: $mapped_path\033[0m"
                     path_ok=false
@@ -194,46 +199,11 @@ set_webpath_execute_permissions() {
             if [ "$path_ok" = false ]; then
                 ((error_count++))
             else
-            # Step 0: Ensure parent directories are accessible
-            ensure_parent_path_accessible "$mapped_path"
-
-            # Step 1: Change ownership to real user
-            if chown -R "$ACTUAL_DESKTOP_USER":"$ACTUAL_DESKTOP_USER" "$mapped_path" 2>/dev/null; then
-                echo -e "\033[32m  [OK] Set ownership on $path_key -> $mapped_path (owner: $ACTUAL_DESKTOP_USER)\033[0m"
+            if repair_owned_tree_777 "$mapped_path" "$target_user" "$target_group"; then
+                echo -e "\033[32m  [OK] Set owner and mode 777 on $path_key -> $mapped_path\033[0m"
             else
-                echo -e "\033[33m  [WARN] Failed to set ownership on $path_key\033[0m"
+                echo -e "\033[33m  [WARN] Failed to repair $path_key -> $mapped_path\033[0m"
                 path_ok=false
-            fi
-
-            # Step 2: Set directory permissions to 755 (rwxr-xr-x)
-            # Owner can read/write/execute, others can read/execute
-            if find "$mapped_path" -type d -exec chmod 755 {} + 2>/dev/null; then
-                echo -e "\033[32m  [OK] Set directory permissions 755 on $path_key\033[0m"
-            else
-                echo -e "\033[33m  [WARN] Failed to set directory permissions on $path_key\033[0m"
-                path_ok=false
-            fi
-
-            # Step 3: Set file permissions to 644 (rw-r--r--)
-            # Owner can read/write, others can read
-            if find "$mapped_path" -type f -exec chmod 644 {} + 2>/dev/null; then
-                echo -e "\033[32m  [OK] Set file permissions 644 on $path_key\033[0m"
-            else
-                echo -e "\033[33m  [WARN] Failed to set file permissions on $path_key\033[0m"
-                path_ok=false
-            fi
-
-            # Step 4: Set +x on shell scripts
-            if find "$mapped_path" -type f -name "*.sh" -exec chmod +x {} + 2>/dev/null; then
-                echo -e "\033[32m  [OK] Set +x on .sh files in $path_key\033[0m"
-            fi
-
-            # Step 5: Set +x on Node.js executables (cli.js, bin files in npm-global)
-            # This is needed for npm global packages that use .js as entry points
-            if [[ "$path_key" == *"npm"* ]] || [[ "$path_key" == *"dev_system"* ]]; then
-                if find "$mapped_path" -type f \( -name "cli.js" -o -path "*/bin/*" \) -exec chmod +x {} + 2>/dev/null; then
-                    echo -e "\033[32m  [OK] Set +x on npm executables in $path_key\033[0m"
-                fi
             fi
 
             if [ "$path_ok" = true ]; then
@@ -253,21 +223,16 @@ set_webpath_execute_permissions() {
     # Set permissions on data base directory (e.g., /www or /mnt/d)
     if [ -d "$data_base" ]; then
         ensure_parent_path_accessible "$data_base"
-        if chmod 755 "$data_base" 2>/dev/null; then
-            echo -e "\033[32m  [OK] Set permissions 755 on data base: $data_base\033[0m"
+        if repair_owned_entry_777 "$data_base" "$target_user" "$target_group"; then
+            echo -e "\033[32m  [OK] Set owner and mode 777 on data base: $data_base\033[0m"
         fi
     fi
 
     # Set permissions and ownership on base path (e.g., /www or /mnt/d/www)
     if [ -d "$base_path" ]; then
         ensure_parent_path_accessible "$base_path"
-        if chown "$ACTUAL_DESKTOP_USER":"$ACTUAL_DESKTOP_USER" "$base_path" 2>/dev/null && chmod 755 "$base_path" 2>/dev/null; then
-            echo -e "\033[32m  [OK] Set ownership and permissions on base path: $base_path\033[0m"
-        fi
-
-        # Recursively set +x on all subdirectories under base path
-        if find "$base_path" -type d -exec chmod o+x {} + 2>/dev/null; then
-            echo -e "\033[32m  [OK] Set +x recursively on all directories under: $base_path\033[0m"
+        if repair_owned_entry_777 "$base_path" "$target_user" "$target_group"; then
+            echo -e "\033[32m  [OK] Set owner and mode 777 on base path: $base_path\033[0m"
         fi
     fi
 
@@ -280,7 +245,7 @@ set_webpath_execute_permissions() {
 
     # Save cache if at least one path was processed successfully
     if [ "$processed_count" -gt 0 ]; then
-        save_webpath_permissions_cache
+        save_webpath_permissions_cache "$target_user"
     fi
 
     return 0
@@ -289,96 +254,7 @@ set_webpath_execute_permissions() {
 # Function to set ownership of web paths to real user
 # This ensures the real user (non-root) can write to these directories
 set_webpath_ownership() {
-    local current_uid=$(id -u)
-    local target_user="$1"
-
-    # Only run when executing as root
-    if [ "$current_uid" -ne 0 ]; then
-        return 0
-    fi
-
-    # Detect actual desktop user if not provided
-    if [ -z "$target_user" ]; then
-        if [ -z "$ACTUAL_DESKTOP_USER" ]; then
-            detect_actual_desktop_user
-        fi
-        target_user="$ACTUAL_DESKTOP_USER"
-    fi
-
-    # If no real user detected, skip
-    if [ -z "$target_user" ]; then
-        return 0
-    fi
-
-    echo -e "\033[36m[WEBPATH OWNERSHIP] Setting ownership for user: $target_user\033[0m"
-
-    # Get base data directory
-    local data_base=$(get_base_data_directory)
-
-    # Determine base path for www based on environment
-    local base_path=""
-    if [ "$IS_WSL" = true ]; then
-        base_path="$data_base/www"
-    elif [ "$IS_PRODUCTION" = true ]; then
-        base_path="/www"
-    else
-        if [ "$data_base" = "/www" ]; then
-            base_path="/www"
-        else
-            base_path="$data_base/www"
-        fi
-    fi
-
-    # List of web map path keys to process
-    local web_path_keys=(
-        "wwwroot"
-        "nginxconfig"
-        "shared-data"
-        "backup"
-    )
-
-    # Set ownership on each web map path
-    local processed_count=0
-    local error_count=0
-
-    for path_key in "${web_path_keys[@]}"; do
-        local mapped_path=$(map_web_path "$path_key")
-
-        if [ -d "$mapped_path" ]; then
-            echo -e "\033[36m  [SAFE_PATH] path_key=$path_key -> mapped_path=$mapped_path\033[0m"
-            case "$mapped_path" in
-                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
-                    echo -e "\033[33m  [SKIP] Refusing chown on system path: $mapped_path\033[0m"
-                    ((error_count++))
-                    ;;
-                *)
-                    if [[ "$mapped_path" != /* ]]; then
-                        echo -e "\033[33m  [SKIP] Path not absolute: $mapped_path\033[0m"
-                        ((error_count++))
-                    else
-                        if chown -R "$target_user":"$target_user" "$mapped_path" 2>/dev/null; then
-                            ((processed_count++))
-                            echo -e "\033[32m  [OK] Set ownership on $path_key -> $mapped_path\033[0m"
-                        else
-                            ((error_count++))
-                            echo -e "\033[33m  [WARN] Failed to set ownership on $path_key -> $mapped_path\033[0m"
-                        fi
-                    fi
-                    ;;
-            esac
-        else
-            echo -e "\033[33m  [SKIP] Path does not exist: $path_key -> $mapped_path\033[0m"
-        fi
-    done
-
-    # Summary
-    echo -e "\033[36m[WEBPATH OWNERSHIP] Summary:\033[0m"
-    echo -e "\033[32m  - Processed: $processed_count paths\033[0m"
-    if [ "$error_count" -gt 0 ]; then
-        echo -e "\033[33m  - Warnings: $error_count paths\033[0m"
-    fi
-
-    return 0
+    set_webpath_execute_permissions "force"
 }
 
 # Function to display web path permissions status
@@ -575,9 +451,8 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
                 echo "What this script does:"
                 echo "  1. Detects real-login user (non-root) via SUDO_USER or active sessions"
                 echo "  2. Changes ownership of web paths to real user"
-                echo "  3. Sets directory permissions to 755 (rwxr-xr-x)"
-                echo "  4. Sets file permissions to 644 (rw-r--r--)"
-                echo "  5. Ensures parent directories are traversable"
+                echo "  3. Sets all mapped directories and files to mode 777"
+                echo "  4. Uses root only when no regular user can be resolved"
                 exit 0
                 ;;
             *)

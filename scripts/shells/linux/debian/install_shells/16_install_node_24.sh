@@ -256,8 +256,8 @@ fix_node_install_dir_permissions_all_users() {
     fi
 
     if [ -d "$NODE_INSTALL_DIR" ]; then
-        safe_chmod_R 777 "$NODE_INSTALL_DIR"
-        echo "[OK] ensured world-writable (0777) on: $NODE_INSTALL_DIR"
+        repair_owned_tree_777 "$NODE_INSTALL_DIR"
+        echo "[OK] ensured active-user ownership and mode 777 on: $NODE_INSTALL_DIR"
     else
         echo "[SKIP] Node install dir does not exist yet: $NODE_INSTALL_DIR"
     fi

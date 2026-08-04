@@ -410,7 +410,7 @@ install_via_flatpak() {
         log_install "Fixing permissions for flatpak installation"
         # Fix system flatpak directory
         if [ -d "/var/lib/flatpak/app/$package_id" ]; then
-            fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "755" "true" 2>&1 | while IFS= read -r line; do
+            fix_installation_permissions_from_common_functions "/var/lib/flatpak/app/$package_id" "777" "true" 2>&1 | while IFS= read -r line; do
                 log_install "$line"
             done
         fi
@@ -958,7 +958,7 @@ universal_install() {
         if [ -n "$exec_path" ] && [ -f "$exec_path" ]; then
             # Fix permissions for the executable
             log_install "Fixing permissions for: $exec_path"
-            fix_installation_permissions_from_common_functions "$exec_path" "755" "true" 2>&1 | while IFS= read -r line; do
+            fix_installation_permissions_from_common_functions "$exec_path" "777" "true" 2>&1 | while IFS= read -r line; do
                 log_install "$line"
             done
 
@@ -968,7 +968,7 @@ universal_install() {
                 if [ -n "$target_path" ] && [ -e "$target_path" ]; then
                     local target_dir=$(dirname "$target_path")
                     log_install "Fixing permissions for target directory: $target_dir"
-                    fix_installation_permissions_from_common_functions "$target_dir" "755" "true" 2>&1 | while IFS= read -r line; do
+                    fix_installation_permissions_from_common_functions "$target_dir" "777" "true" 2>&1 | while IFS= read -r line; do
                         log_install "$line"
                     done
                 fi

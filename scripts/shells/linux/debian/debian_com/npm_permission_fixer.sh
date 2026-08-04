@@ -16,12 +16,17 @@
 SCRIPT_INDEX="[NPM_PERM_FIX]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLATION_LIBRARY_PATH="$(dirname "$(dirname "$SCRIPT_CURRENT_DIR")")/common/installation_library.sh"
+NPM_PERMISSION_USER=""
+NPM_PERMISSION_GROUP=""
 
 # Source required libraries
 source "$INSTALLATION_LIBRARY_PATH"
 
 # Get npm configuration
 get_npm_config() {
+    resolve_active_permission_owner >/dev/null
+    NPM_PERMISSION_USER="$ACTIVE_PERMISSION_USER"
+    NPM_PERMISSION_GROUP="$ACTIVE_PERMISSION_GROUP"
     NPM_PREFIX=$($USE_SUDO npm config get prefix 2>/dev/null || echo "/usr/local")
     NPM_GLOBAL_MODULES="$NPM_PREFIX/lib/node_modules"
     NPM_BIN="$NPM_PREFIX/bin"
@@ -31,6 +36,9 @@ get_npm_config() {
 # Detect permission issues
 detect_permission_issues() {
     local issues_found=0
+    local wrong_owner_count=0
+    local bin_mismatch_count=0
+    local non_exec_count=0
 
     # Check node_modules directory
     if [ -d "$NPM_GLOBAL_MODULES" ]; then
@@ -41,7 +49,10 @@ detect_permission_issues() {
         fi
 
         # Check for files with wrong ownership
-        local wrong_owner_count=$($USE_SUDO find "$NPM_GLOBAL_MODULES" ! -user root 2>/dev/null | wc -l)
+        wrong_owner_count=$($USE_SUDO find "$NPM_GLOBAL_MODULES" \
+            \( -type d -o -type f \) \
+            \( ! -user "$NPM_PERMISSION_USER" -o ! -group "$NPM_PERMISSION_GROUP" -o ! -perm 0777 \) \
+            2>/dev/null | wc -l)
         if [ $wrong_owner_count -gt 0 ]; then
             log_warning "Found $wrong_owner_count files with incorrect ownership"
             ((issues_found++))
@@ -57,8 +68,18 @@ detect_permission_issues() {
             ISSUE_BIN_DIR=true
         fi
 
+        bin_mismatch_count=$($USE_SUDO find "$NPM_BIN" \
+            \( -type d -o -type f \) \
+            \( ! -user "$NPM_PERMISSION_USER" -o ! -group "$NPM_PERMISSION_GROUP" -o ! -perm 0777 \) \
+            2>/dev/null | wc -l)
+        if [ "$bin_mismatch_count" -gt 0 ]; then
+            log_warning "Found $bin_mismatch_count bin entries outside the owner/mode policy"
+            ((issues_found++))
+            ISSUE_BIN_DIR=true
+        fi
+
         # Check for non-executable binaries
-        local non_exec_count=$($USE_SUDO find "$NPM_BIN" -type f ! -perm -111 2>/dev/null | wc -l)
+        non_exec_count=$($USE_SUDO find "$NPM_BIN" -type f ! -perm -111 2>/dev/null | wc -l)
         if [ $non_exec_count -gt 0 ]; then
             log_warning "Found $non_exec_count non-executable binaries"
             ((issues_found++))
@@ -94,23 +115,7 @@ fix_modules_directory() {
         return 1
     fi
 
-    # Set ownership
-    $USE_SUDO chown -R root:root "$NPM_GLOBAL_MODULES" 2>/dev/null || {
-        log_warning "Failed to set ownership, trying alternative method..."
-        return 1
-    }
-
-    # Set directory permissions (755: rwxr-xr-x)
-    $USE_SUDO find "$NPM_GLOBAL_MODULES" -type d -exec chmod 755 {} \; 2>/dev/null || {
-        log_warning "Failed to set directory permissions"
-        return 1
-    }
-
-    # Set file permissions (644: rw-r--r--)
-    $USE_SUDO find "$NPM_GLOBAL_MODULES" -type f -exec chmod 644 {} \; 2>/dev/null || {
-        log_warning "Failed to set file permissions"
-        return 1
-    }
+    ensure_owned_tree_777 "$NPM_GLOBAL_MODULES" "$NPM_PERMISSION_USER" "$NPM_PERMISSION_GROUP" || return $?
 
     log_success "Fixed node_modules directory permissions"
     return 0
@@ -130,23 +135,7 @@ fix_bin_directory() {
         return 1
     fi
 
-    # Set ownership
-    $USE_SUDO chown -R root:root "$NPM_BIN" 2>/dev/null || {
-        log_warning "Failed to set ownership"
-        return 1
-    }
-
-    # Set directory permissions (755: rwxr-xr-x)
-    $USE_SUDO chmod 755 "$NPM_BIN" 2>/dev/null || {
-        log_warning "Failed to set directory permissions"
-        return 1
-    }
-
-    # Set all files as executable (755: rwxr-xr-x)
-    $USE_SUDO find "$NPM_BIN" -type f -exec chmod 755 {} \; 2>/dev/null || {
-        log_warning "Failed to set executable permissions"
-        return 1
-    }
+    ensure_owned_tree_777 "$NPM_BIN" "$NPM_PERMISSION_USER" "$NPM_PERMISSION_GROUP" || return $?
 
     log_success "Fixed bin directory permissions"
     return 0
@@ -166,21 +155,7 @@ fix_cache_directory() {
         return 1
     fi
 
-    # Cache directory should be owned by the user running npm
-    local cache_owner="root"
-    if [ -n "$SUDO_USER" ]; then
-        cache_owner="$SUDO_USER"
-    fi
-
-    $USE_SUDO chown -R "$cache_owner:$cache_owner" "$NPM_CACHE" 2>/dev/null || {
-        log_warning "Failed to set cache ownership"
-        return 1
-    }
-
-    $USE_SUDO chmod -R 755 "$NPM_CACHE" 2>/dev/null || {
-        log_warning "Failed to set cache permissions"
-        return 1
-    }
+    repair_owned_tree_777 "$NPM_CACHE" "$NPM_PERMISSION_USER" "$NPM_PERMISSION_GROUP" || return $?
 
     log_success "Fixed cache directory permissions"
     return 0
@@ -201,9 +176,7 @@ fix_super_scripts_directory() {
         return 1
     fi
 
-    $USE_SUDO chown -R root:root "$super_scripts_dir" 2>/dev/null || true
-    $USE_SUDO chmod -R 755 "$super_scripts_dir" 2>/dev/null || true
-    $USE_SUDO find "$super_scripts_dir" -type f -name "*.sh" -exec chmod +x {} \; 2>/dev/null || true
+    repair_owned_tree_777 "$super_scripts_dir" "$NPM_PERMISSION_USER" "$NPM_PERMISSION_GROUP" || return $?
 
     log_success "Fixed super_scripts directory permissions"
     return 0

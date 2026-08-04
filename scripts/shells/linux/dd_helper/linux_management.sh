@@ -614,14 +614,13 @@ show_slim_disk_submenu() {
     done
 }
 
-# Function to show Linux management submenu
-show_linux_management_submenu() {
+# Function to show Linux system tools submenu
+show_linux_system_tools_submenu() {
     local selected=0
     local total=10
     local old_settings=$(stty -g)
-    stty -icanon -echo
-    trap 'stty "$old_settings"' RETURN
-
+    local char=""
+    local seq=""
     local menu_items=(
         "Disable Ubuntu Automatic Updates"
         "Permissions Repair Menu"
@@ -632,13 +631,16 @@ show_linux_management_submenu() {
         "RustDesk Server Install Info (Key & Ports)"
         "APP Install"
         "Slim & Disk Cleanup (scan + GPU/Snap/Apache/Server slim)"
-        "Back to Main Menu"
+        "Back to Linux Management"
     )
+
+    stty -icanon -echo
+    trap 'stty "$old_settings"' RETURN
     
     while true; do
         printf "\033c"
         echo "=========================================="
-        echo "Linux Management Menu"
+        echo "Linux System Tools"
         echo "=========================================="
         echo "Select an option (Up/Down to move, Enter to select):"
         echo "Press Ctrl+C to go back"
@@ -652,11 +654,11 @@ show_linux_management_submenu() {
             fi
         done
 
-        local char
         char=$(dd bs=1 count=1 2>/dev/null)
 
         case "$char" in
             $'\x1B')
+                seq=""
                 read -r -t 0.1 -d '' seq
                 case "$seq" in
                     '[A')
@@ -706,6 +708,182 @@ show_linux_management_submenu() {
                         ;;
                 esac
 
+                stty -icanon -echo
+                ;;
+        esac
+    done
+}
+
+linux_managed_user_is_valid() {
+    local username="$1"
+
+    [[ "$username" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || return 1
+    system_user_is_excluded "$username" && return 1
+    return 0
+}
+
+list_linux_managed_users() {
+    local username=""
+    local uid=""
+    local home_dir=""
+    local shell=""
+
+    echo "Managed regular users:"
+    while IFS=: read -r username _ uid _ _ home_dir shell; do
+        [ "$uid" -ge 1000 ] 2>/dev/null || continue
+        [ "$uid" -lt 65534 ] 2>/dev/null || continue
+        linux_managed_user_is_valid "$username" || continue
+        case "$shell" in
+            */nologin|*/false) continue ;;
+        esac
+        printf "  %-20s uid=%-6s home=%s\n" "$username" "$uid" "$home_dir"
+    done < <(getent passwd)
+}
+
+add_linux_managed_user() {
+    local username=""
+    local confirm=""
+
+    printf "New username: "
+    read -r username
+    if ! linux_managed_user_is_valid "$username"; then
+        echo "Invalid or reserved username: $username"
+        return 1
+    fi
+    if id "$username" >/dev/null 2>&1; then
+        echo "User already exists: $username"
+        return 1
+    fi
+    printf "Create user '%s' with a home directory? [y/N]: " "$username"
+    read -r confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || return 0
+    $USE_SUDO useradd -m -U -s /bin/bash "$username"
+    echo "User created: $username"
+}
+
+delete_linux_managed_user() {
+    local username=""
+    local confirm=""
+    local active_user=""
+
+    list_linux_managed_users
+    echo ""
+    printf "Username to delete (home directory will be preserved): "
+    read -r username
+    if ! linux_managed_user_is_valid "$username" || ! system_user_candidate_is_active_regular "$username"; then
+        echo "Managed user not found: $username"
+        return 1
+    fi
+    active_user="$(id -un 2>/dev/null || true)"
+    if [ "$active_user" = "root" ] && system_user_candidate_is_active_regular "${SUDO_USER:-}"; then
+        active_user="$SUDO_USER"
+    elif [ "$active_user" = "root" ]; then
+        active_user="$(who 2>/dev/null | awk 'NF { print $1; exit }')"
+    fi
+    if [ "$username" = "$active_user" ]; then
+        echo "Refusing to delete the active user: $username"
+        return 1
+    fi
+    printf "Type DELETE to remove account '%s': " "$username"
+    read -r confirm
+    [ "$confirm" = "DELETE" ] || return 0
+    $USE_SUDO userdel "$username"
+    echo "User account deleted; home directory preserved: $username"
+}
+
+show_linux_user_management_menu() {
+    local choice=""
+
+    while true; do
+        printf "\033c"
+        echo "=========================================="
+        echo "Linux User Management"
+        echo "=========================================="
+        list_linux_managed_users
+        echo ""
+        echo "1) Add User"
+        echo "2) Delete User"
+        echo "3) Back to Linux Management"
+        printf "Select an option [1-3]: "
+        read -r choice
+        case "$choice" in
+            1) add_linux_managed_user ;;
+            2) delete_linux_managed_user ;;
+            3|q|Q|"") return 0 ;;
+            *) echo "Invalid option: $choice" ;;
+        esac
+        echo ""
+        echo "Press Enter to continue..."
+        read -r
+    done
+}
+
+# Function to show the consolidated Linux management submenu.
+show_linux_management_submenu() {
+    local selected=0
+    local total=12
+    local old_settings="$(stty -g)"
+    local char=""
+    local seq=""
+    local menu_items=(
+        "Install and Test Environment"
+        "Git Management"
+        "System Information & Variables"
+        "Unified App Manager"
+        "Set Special Software Environment Variables (like AI)"
+        "Service Manager (Redis/PostgreSQL/Docker/MySQL/Nginx/SSH)"
+        "Management & Backup"
+        "AI & MCP Management (status/install/sync 8 tools)"
+        "Push to git [all]"
+        "User Management"
+        "Linux System Tools"
+        "Exit Linux Management"
+    )
+
+    stty -icanon -echo
+    trap 'stty "$old_settings"' RETURN
+    while true; do
+        printf "\033c"
+        echo "=========================================="
+        echo "Linux Management"
+        echo "=========================================="
+        echo "Select an option (Up/Down to move, Enter to select):"
+        echo "Press Ctrl+C to go back"
+        echo ""
+        for i in "${!menu_items[@]}"; do
+            if [ "$i" -eq "$selected" ]; then
+                printf "\033[47m\033[30m> %-68s\033[0m\n" "${menu_items[$i]}"
+            else
+                printf "  %-68s\n" "${menu_items[$i]}"
+            fi
+        done
+        char="$(dd bs=1 count=1 2>/dev/null)"
+        case "$char" in
+            $'\x1B')
+                seq=""
+                read -r -t 0.1 -d '' seq
+                case "$seq" in
+                    '[A') ((selected--)); [ "$selected" -lt 0 ] && selected=$((total - 1)) ;;
+                    '[B') ((selected++)); [ "$selected" -ge "$total" ] && selected=0 ;;
+                esac
+                ;;
+            '')
+                stty "$old_settings"
+                printf "\033c"
+                case "$selected" in
+                    0) bash "$INSTALL_TEST_MENU_SCRIPT_PATH" ;;
+                    1) show_git_management_menu ;;
+                    2) bash "$SYSTEM_INFO_SCRIPT_PATH" ;;
+                    3) (cd "$CORE_NODE_ROOT_DIR" && bash "$UNIFIED_MANAGER_SCRIPT_PATH") ;;
+                    4) show_special_software_env_menu ;;
+                    5) show_service_manager ;;
+                    6) show_management_and_backup ;;
+                    7) handle_menu_action "show_ai_mcp_management" "default" "AI_MCP_MENU" ;;
+                    8) handle_menu_action "push_git" "all" "GIT_PUSH_TARGET" ;;
+                    9) show_linux_user_management_menu ;;
+                    10) show_linux_system_tools_submenu ;;
+                    11) return 0 ;;
+                esac
                 stty -icanon -echo
                 ;;
         esac

@@ -3,7 +3,6 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import {
-  DEFAULT_FRONTEND_HOST,
   DEFAULT_FRONTEND_PORT,
   FRONTEND_APP_FLAVOR,
   FRONTEND_BUILD_TARGET,
@@ -50,10 +49,6 @@ export default defineConfig(() => {
         port: DEFAULT_FRONTEND_PORT,
         host: '0.0.0.0',
         strictPort: true,
-        hmr: {
-          host: DEFAULT_FRONTEND_HOST,
-          clientPort: DEFAULT_FRONTEND_PORT,
-        },
       },
       plugins: [
         react(),

@@ -8,10 +8,9 @@
 # mount-fixed too, so recursive chown/chmod are wasted walks there as well.
 #
 # Behavior:
-#   - On FUSE/NTFS/ntfs3/exfat/vfat mounts: skip entirely (perms mount-fixed).
-#   - On native filesystems: run the recursive walk ONLY when the root entry is
-#     not already in the desired state (idempotent re-runs). For a forced full
-#     subtree fix, call chown/chmod directly instead of these helpers.
+#   - Legacy safe_chown_R/safe_chmod_R skip mount-fixed filesystems.
+#   - The owner/mode-777 policy helpers inspect the full tree and enforce the
+#     requested state, including Code Sync preparation.
 #
 # Sourced transitively via common_functions.sh -> available to every installer.
 
@@ -21,6 +20,18 @@ FS_PERM_MOUNT_FIXED_FSTYPES="fuse fuseblk ntfs ntfs3 exfat vfat drvfs"
 ACTIVE_PERMISSION_USER=""
 ACTIVE_PERMISSION_GROUP=""
 ACTIVE_PERMISSION_SOURCE=""
+
+# permission_user_is_excluded <user> -> 0 for known service-only accounts.
+permission_user_is_excluded() {
+    local candidate="$1"
+
+    case "$candidate" in
+        root|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|backup|list|irc|_apt|git|gitea|mysql|postgres|redis|nginx|www-data|node|nobody|daemon|messagebus|sshd|polkitd|systemd-network|systemd-timesync)
+            return 0
+            ;;
+    esac
+    return 1
+}
 
 # active_permission_user_is_regular <user> -> 0 only for an interactive user.
 active_permission_user_is_regular() {
@@ -34,6 +45,7 @@ active_permission_user_is_regular() {
     [ -n "$candidate_uid" ] || return 1
     [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
     [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
+    permission_user_is_excluded "$candidate" && return 1
     if command -v getent >/dev/null 2>&1; then
         candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
         candidate_shell="${candidate_entry##*:}"
@@ -45,11 +57,15 @@ active_permission_user_is_regular() {
 }
 
 # resolve_active_permission_owner -> sets ACTIVE_PERMISSION_* and prints user.
-# Only an explicit caller or active login session qualifies as a regular user.
-# Dormant passwd entries, /home directories, and existing path owners are never
-# used as identity evidence. Root is the deterministic fallback.
+# Explicit callers and active sessions take priority. A root-only process scores
+# valid /home users by interactive folders. Existing path owners are never used.
 resolve_active_permission_owner() {
     local candidate=""
+    local candidate_home=""
+    local home_entry=""
+    local marker=""
+    local candidate_score=0
+    local best_score=-1
 
     ACTIVE_PERMISSION_USER=""
     ACTIVE_PERMISSION_GROUP=""
@@ -78,10 +94,34 @@ resolve_active_permission_owner() {
     fi
 
     if [ -z "$ACTIVE_PERMISSION_USER" ] && command -v loginctl >/dev/null 2>&1; then
-        candidate="$(loginctl list-users --no-legend 2>/dev/null | awk 'NF >= 2 { print $2; exit }')"
-        if active_permission_user_is_regular "$candidate"; then
-            ACTIVE_PERMISSION_USER="$candidate"
-            ACTIVE_PERMISSION_SOURCE="active systemd login"
+        while read -r candidate; do
+            [ -n "$candidate" ] || continue
+            if active_permission_user_is_regular "$candidate"; then
+                ACTIVE_PERMISSION_USER="$candidate"
+                ACTIVE_PERMISSION_SOURCE="active systemd login"
+                break
+            fi
+        done < <(loginctl list-sessions --no-legend 2>/dev/null | awk 'NF >= 3 { print $3 }')
+    fi
+
+    if [ -z "$ACTIVE_PERMISSION_USER" ]; then
+        for candidate_home in /home/*; do
+            [ -d "$candidate_home" ] || continue
+            candidate="${candidate_home##*/}"
+            active_permission_user_is_regular "$candidate" || continue
+            home_entry="$(getent passwd "$candidate" 2>/dev/null | cut -d: -f6)"
+            [ "$home_entry" = "$candidate_home" ] || continue
+            candidate_score=0
+            for marker in Downloads Documents Desktop; do
+                [ -d "$candidate_home/$marker" ] && candidate_score=$((candidate_score + 1))
+            done
+            if [ "$candidate_score" -gt "$best_score" ]; then
+                ACTIVE_PERMISSION_USER="$candidate"
+                best_score="$candidate_score"
+            fi
+        done
+        if [ -n "$ACTIVE_PERMISSION_USER" ]; then
+            ACTIVE_PERMISSION_SOURCE="home directory score $best_score"
         fi
     fi
 
@@ -109,6 +149,7 @@ repair_owned_tree_777() {
     local privilege_command=()
 
     case "$target_path" in
+        /usr/local|/usr/local/*) ;;
         ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
             echo "[permissions] Refusing unsafe recursive target: $target_path" >&2
             return 1
@@ -138,7 +179,7 @@ repair_owned_tree_777() {
     fi
 
     mismatch="$("${privilege_command[@]}" find "$target_path" \
-        \( \( -type d -o -type f \) \( ! -user "$target_user" -o ! -perm 0777 \) \) \
+        \( \( -type d -o -type f \) \( ! -user "$target_user" -o ! -group "$target_group" -o ! -perm 0777 \) \) \
         -print -quit 2>/dev/null)" || scan_status=$?
     if [ "$scan_status" -ne 0 ]; then
         echo "[permissions] Unable to inspect: $target_path" >&2
@@ -153,6 +194,68 @@ repair_owned_tree_777() {
     "${privilege_command[@]}" chown -R "$target_user:$target_group" "$target_path" || return $?
     "${privilege_command[@]}" chmod -R 777 "$target_path" || return $?
     return 0
+}
+
+# ensure_owned_tree_777 <absolute-path> [user] [group]
+# Creates a missing managed directory, then applies the shared ownership policy.
+ensure_owned_tree_777() {
+    local target_path="$1"
+    local target_user="${2:-}"
+    local target_group="${3:-}"
+    local privilege_prefix=""
+    local privilege_command=()
+
+    case "$target_path" in
+        /usr/local|/usr/local/*) ;;
+        ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            echo "[permissions] Refusing unsafe managed target: $target_path" >&2
+            return 1
+            ;;
+    esac
+    [[ "$target_path" == /* ]] || return 1
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    if [ ! -d "$target_path" ]; then
+        echo "[permissions] Creating managed directory: $target_path"
+        "${privilege_command[@]}" mkdir -p "$target_path" || return $?
+    fi
+    repair_owned_tree_777 "$target_path" "$target_user" "$target_group"
+}
+
+# repair_owned_entry_777 <absolute-path> [user] [group]
+# Applies the policy only to one existing entry, without walking its children.
+repair_owned_entry_777() {
+    local target_path="$1"
+    local target_user="${2:-}"
+    local target_group="${3:-}"
+    local privilege_prefix=""
+    local privilege_command=()
+
+    case "$target_path" in
+        /usr/local|/usr/local/*) ;;
+        ""|/|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            return 1
+            ;;
+    esac
+    [[ "$target_path" == /* ]] || return 1
+    [ -e "$target_path" ] || return 0
+    if [ -z "$target_user" ]; then
+        resolve_active_permission_owner >/dev/null
+        target_user="$ACTIVE_PERMISSION_USER"
+        target_group="$ACTIVE_PERMISSION_GROUP"
+    elif [ -z "$target_group" ]; then
+        target_group="$(id -gn "$target_user" 2>/dev/null || echo "$target_user")"
+    fi
+    privilege_prefix="$(fs_perm_sudo_prefix)"
+    if [ "$(id -u)" -ne 0 ]; then
+        [ -n "$privilege_prefix" ] || return 1
+        privilege_command=("$privilege_prefix")
+    fi
+    "${privilege_command[@]}" chown "$target_user:$target_group" "$target_path" || return $?
+    "${privilege_command[@]}" chmod 777 "$target_path"
 }
 
 # fs_perm_is_fuse_mount <path> -> 0 if path sits on a mount-fixed-permission fs.

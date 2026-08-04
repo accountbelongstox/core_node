@@ -28,6 +28,20 @@ WSL_USERS_PATH="/mnt/c/Users"
 # Detected actual desktop user (when running as root)
 ACTUAL_DESKTOP_USER=""
 ACTUAL_DESKTOP_USER_HOME=""
+CORE_PERMISSION_USER=""
+CORE_PERMISSION_GROUP=""
+
+# Return success for known service-only accounts.
+system_user_is_excluded() {
+    local candidate="$1"
+
+    case "$candidate" in
+        root|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|backup|list|irc|_apt|git|gitea|mysql|postgres|redis|nginx|www-data|node|nobody|daemon|messagebus|sshd|polkitd|systemd-network|systemd-timesync)
+            return 0
+            ;;
+    esac
+    return 1
+}
 
 # Return success only for an interactive non-system account.
 system_user_candidate_is_active_regular() {
@@ -41,6 +55,7 @@ system_user_candidate_is_active_regular() {
     [ -n "$candidate_uid" ] || return 1
     [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
     [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
+    system_user_is_excluded "$candidate" && return 1
     if command -v getent >/dev/null 2>&1; then
         candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
         candidate_shell="${candidate_entry##*:}"
@@ -51,10 +66,16 @@ system_user_candidate_is_active_regular() {
     return 0
 }
 
-# Detect only an explicit caller or active login. Dormant passwd entries and
-# /home directories are not evidence that a regular user is currently in use.
+# Prefer an explicit caller or active login. A root-only process then scores
+# valid /home accounts by common interactive directories before using root.
 detect_system_user() {
     local candidate=""
+    local candidate_home=""
+    local home_entry=""
+    local marker=""
+    local best_user=""
+    local candidate_score=0
+    local best_score=-1
 
     candidate="${SUDO_USER:-}"
     if system_user_candidate_is_active_regular "$candidate"; then
@@ -77,11 +98,33 @@ detect_system_user() {
     fi
 
     if command -v loginctl >/dev/null 2>&1; then
-        candidate="$(loginctl list-users --no-legend 2>/dev/null | awk 'NF >= 2 { print $2; exit }')"
-        if system_user_candidate_is_active_regular "$candidate"; then
-            echo "$candidate"
-            return 0
+        while read -r candidate; do
+            [ -n "$candidate" ] || continue
+            if system_user_candidate_is_active_regular "$candidate"; then
+                echo "$candidate"
+                return 0
+            fi
+        done < <(loginctl list-sessions --no-legend 2>/dev/null | awk 'NF >= 3 { print $3 }')
+    fi
+
+    for candidate_home in /home/*; do
+        [ -d "$candidate_home" ] || continue
+        candidate="${candidate_home##*/}"
+        system_user_candidate_is_active_regular "$candidate" || continue
+        home_entry="$(getent passwd "$candidate" 2>/dev/null | cut -d: -f6)"
+        [ "$home_entry" = "$candidate_home" ] || continue
+        candidate_score=0
+        for marker in Downloads Documents Desktop; do
+            [ -d "$candidate_home/$marker" ] && candidate_score=$((candidate_score + 1))
+        done
+        if [ "$candidate_score" -gt "$best_score" ]; then
+            best_user="$candidate"
+            best_score="$candidate_score"
         fi
+    done
+    if [ -n "$best_user" ]; then
+        echo "$best_user"
+        return 0
     fi
 
     echo "root"
@@ -187,88 +230,15 @@ detect_desktop_environment() {
 # Function to detect actual desktop user when running as root
 # This is useful for services that need to interact with the desktop user's session
 detect_actual_desktop_user() {
-    # If not running as root, return current user
-    if [ "$(id -u)" -ne 0 ]; then
-        ACTUAL_DESKTOP_USER="$USER"
-        ACTUAL_DESKTOP_USER_HOME="$HOME"
-        return 0
-    fi
-
     local detected_user=""
     local detected_home=""
 
-    # Priority 1: Check SUDO_USER environment variable
-    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
-        detected_user="$SUDO_USER"
-        detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
-        if [ -n "$detected_home" ] && [ -d "$detected_home" ]; then
-            ACTUAL_DESKTOP_USER="$detected_user"
-            ACTUAL_DESKTOP_USER_HOME="$detected_home"
-            return 0
-        fi
-    fi
-
-    # Priority 2: Find user with active desktop session
-    for user_home in /home/*; do
-        if [ -d "$user_home" ]; then
-            detected_user="$(basename "$user_home")"
-
-            # Check if user has active desktop session process
-            if pgrep -u "$detected_user" -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session" >/dev/null 2>&1; then
-                detected_home="$user_home"
-                ACTUAL_DESKTOP_USER="$detected_user"
-                ACTUAL_DESKTOP_USER_HOME="$detected_home"
-                return 0
-            fi
-        fi
-    done
-
-    # Priority 3: Find user with Desktop folder (typical desktop user)
-    for user_home in /home/*; do
-        if [ -d "$user_home/Desktop" ]; then
-            detected_user="$(basename "$user_home")"
-            detected_home="$user_home"
-            ACTUAL_DESKTOP_USER="$detected_user"
-            ACTUAL_DESKTOP_USER_HOME="$detected_home"
-            return 0
-        fi
-    done
-
-    # Priority 4: Find user with most running processes (likely the active user)
-    local max_processes=0
-    local best_user=""
-    local best_home=""
-    for user_home in /home/*; do
-        if [ -d "$user_home" ]; then
-            detected_user="$(basename "$user_home")"
-            local proc_count=$(pgrep -u "$detected_user" 2>/dev/null | wc -l)
-            if [ "$proc_count" -gt "$max_processes" ]; then
-                max_processes=$proc_count
-                best_user="$detected_user"
-                best_home="$user_home"
-            fi
-        fi
-    done
-
-    if [ -n "$best_user" ] && [ "$max_processes" -gt 0 ]; then
-        ACTUAL_DESKTOP_USER="$best_user"
-        ACTUAL_DESKTOP_USER_HOME="$best_home"
-        return 0
-    fi
-
-    # Priority 5: Find first non-system user (UID >= 1000, < 60000)
-    while IFS=: read -r username _ uid _ _ homedir _; do
-        if [ "$uid" -ge 1000 ] && [ "$uid" -lt 60000 ] && [ -d "$homedir" ]; then
-            ACTUAL_DESKTOP_USER="$username"
-            ACTUAL_DESKTOP_USER_HOME="$homedir"
-            return 0
-        fi
-    done < /etc/passwd
-
-    # Fallback: return empty (no user detected)
-    ACTUAL_DESKTOP_USER=""
-    ACTUAL_DESKTOP_USER_HOME=""
-    return 1
+    detected_user="$(detect_system_user)"
+    detected_home="$(getent passwd "$detected_user" 2>/dev/null | cut -d: -f6)"
+    [ -n "$detected_home" ] || detected_home="/root"
+    ACTUAL_DESKTOP_USER="$detected_user"
+    ACTUAL_DESKTOP_USER_HOME="$detected_home"
+    return 0
 }
 
 # Detect desktop environment first
@@ -1357,9 +1327,10 @@ map_web_path() {
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
                     local detected_user=$(detect_system_user)
-                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
+                    local detected_group=$(id -gn "$detected_user" 2>/dev/null || echo "$detected_user")
+                    $USE_SUDO chown "$detected_user:$detected_group" "$mapped_path" 2>/dev/null || true
                 fi
-                $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
+                $USE_SUDO chmod 777 "$mapped_path" 2>/dev/null || true
             fi
             ;;
         "www")
@@ -1372,9 +1343,10 @@ map_web_path() {
                 # Set proper permissions (skip chown in desktop Windows as it may not support it)
                 if [ "$IS_DESKTOP_WITH_WINDOWS" = false ]; then
                     local detected_user=$(detect_system_user)
-                    $USE_SUDO chown ${detected_user}:${detected_user} "$mapped_path" 2>/dev/null || true
+                    local detected_group=$(id -gn "$detected_user" 2>/dev/null || echo "$detected_user")
+                    $USE_SUDO chown "$detected_user:$detected_group" "$mapped_path" 2>/dev/null || true
                 fi
-                $USE_SUDO chmod 755 "$mapped_path" 2>/dev/null || true
+                $USE_SUDO chmod 777 "$mapped_path" 2>/dev/null || true
             fi
             ;;
     esac
@@ -1386,9 +1358,10 @@ map_web_path() {
 # Function to ensure directory exists with proper permissions
 ensure_web_directory() {
     local path_key="$1"
-    local permissions="${2:-755}"
+    local permissions="777"
     local detected_user=$(detect_system_user)
-    local owner="${3:-${detected_user}:${detected_user}}"
+    local detected_group=$(id -gn "$detected_user" 2>/dev/null || echo "$detected_user")
+    local owner="${3:-${detected_user}:${detected_group}}"
 
     # Map to appropriate path using string key
     local actual_path=$(map_web_path "$path_key")
@@ -1447,6 +1420,8 @@ fi
 # Function to create script-specific temporary directory (restricted to $GLOBAL_TEMP_DIR/<script_name>)
 create_script_temp_dir() {
     local script_name="$1"
+    local target_user=""
+    local target_group=""
     # Restrict to GLOBAL_TEMP_DIR and prevent path traversal
     case "$script_name" in
         */*|*..*) echo "[ERROR] create_script_temp_dir: invalid script_name (no / or ..): $script_name" >&2; return 1 ;;
@@ -1461,12 +1436,11 @@ create_script_temp_dir() {
 
     if [ ! -d "$script_temp_dir" ]; then
         $USE_SUDO mkdir -p "$script_temp_dir"
-        $USE_SUDO chmod 777 "$script_temp_dir"
-        # Ensure current user can write to this directory
-        if [ -n "$USER" ] && [ "$USER" != "root" ]; then
-            $USE_SUDO chown -R "$USER:$USER" "$script_temp_dir" 2>/dev/null || true
-        fi
     fi
+    target_user="$(detect_system_user)"
+    target_group="$(id -gn "$target_user" 2>/dev/null || echo "$target_user")"
+    $USE_SUDO chown -R "$target_user:$target_group" "$script_temp_dir" 2>/dev/null || true
+    $USE_SUDO chmod -R 777 "$script_temp_dir" 2>/dev/null || true
 
     echo "$script_temp_dir"
     return 0
@@ -1488,10 +1462,11 @@ if [ ! -d "$GLOBAL_VAR_DIR" ]; then
     $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
     echo "Created global variable directory: $GLOBAL_VAR_DIR"
 fi
-# Make the shared /var/_core_node tree ALL-USERS-WRITABLE (1777, sticky like /tmp)
-# so any user (not just the one who created it first) can read/write the global
-# vars and the rest of the runtime tree. Idempotent; best-effort (ignore errors).
-$USE_SUDO chmod 1777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || chmod 1777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
+# Assign shared core_node state to the resolved user with the common mode policy.
+CORE_PERMISSION_USER="$(detect_system_user)"
+CORE_PERMISSION_GROUP="$(id -gn "$CORE_PERMISSION_USER" 2>/dev/null || echo "$CORE_PERMISSION_USER")"
+$USE_SUDO chown -R "$CORE_PERMISSION_USER:$CORE_PERMISSION_GROUP" "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
+$USE_SUDO chmod -R 777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
 
 # Set IS_GLOBAL based on SELECTED_REGION
 set_is_global() {
@@ -1547,9 +1522,8 @@ set_global_var() {
 
     # Write value to file
     if echo "$val" | $USE_SUDO tee "$file_path" >/dev/null; then
-        # World-writable so a DIFFERENT user can later overwrite this shared var
-        # (the dir is 1777, but a root-written 0644 file would block other users).
-        $USE_SUDO chmod 666 "$file_path" 2>/dev/null || chmod 666 "$file_path" 2>/dev/null || true
+        # Keep shared variable files aligned with the common mode-777 policy.
+        $USE_SUDO chmod 777 "$file_path" 2>/dev/null || chmod 777 "$file_path" 2>/dev/null || true
         if [[ "$print" != "false" ]] && [ "$prev_val" != "$val" ]; then
             echo "Successfully set global variable: $key -> $val"
         fi

@@ -50,7 +50,7 @@ fix_core_node_permissions_essential() {
     build_dir="$parent_dir/_build_dir"
 
     repair_owned_tree_777 "$project_root" "$real_user" "$real_group" || return $?
-    repair_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
+    ensure_owned_tree_777 "$build_dir" "$real_user" "$real_group" || return $?
     echo "[SUCCESS] Essential Core Node permissions fixed"
 }
 
@@ -68,7 +68,7 @@ fix_var_core_node_permissions() {
     echo "[SAFE_PATH] target_path=$target_path (fixed path, allowed)"
 
     real_group="$(id -gn "$real_user" 2>/dev/null || echo "$real_user")"
-    repair_owned_tree_777 "$target_path" "$real_user" "$real_group"
+    ensure_owned_tree_777 "$target_path" "$real_user" "$real_group"
 }
 
 # =============================================================================

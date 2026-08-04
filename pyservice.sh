@@ -283,7 +283,7 @@ _pyservice_maybe_elevate
 #
 # codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
 # prerequisite-install step and without importing the pycore package. Manual
-# commands first run the privileged repository-permission preparation.
+# commands first apply the repository owner and mode-777 policy.
 #   * no subcommand          -> offer to add Code Sync to the systemd service
 #                               (prompt, default YES), then start it + show logs.
 #   * install|uninstall|start|stop|restart|status -> manage that systemd service.
@@ -297,7 +297,10 @@ if [[ "$CMD" == "codesync" ]]; then
     # The resident systemd child skips this step because installation/start has
     # already prepared the tree and a service process must never invoke sudo.
     if [ -z "${INVOCATION_ID:-}" ]; then
-        bash "$CS_MGR" prepare
+        if ! bash "$CS_MGR" prepare; then
+            echo "[codesync-service] Repository permission preparation failed." >&2
+            exit 1
+        fi
     fi
     case "${1:-}" in
         "")

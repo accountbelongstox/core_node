@@ -119,8 +119,7 @@ remove_package_directory() {
             esac
         fi
         if [ "$_safe_pkg" = true ]; then
-            $USE_SUDO chmod -R 777 "$package_dir" 2>/dev/null || true
-            $USE_SUDO chown -R root:root "$package_dir" 2>/dev/null || true
+            repair_owned_tree_777 "$package_dir" || true
         else
             log_warning "Refusing chmod/chown on system or invalid path: $package_dir"
         fi
