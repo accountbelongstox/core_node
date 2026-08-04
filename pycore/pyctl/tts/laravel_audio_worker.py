@@ -176,10 +176,13 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
         if task is None:
             break
         processed += 1
-        if worker._process_claimed(task):
-            succeeded += 1
-        else:
-            failed += 1
+        try:
+            if worker._process_claimed(task):
+                succeeded += 1
+            else:
+                failed += 1
+        finally:
+            worker._queue.complete(task)
     return {
         "processed": processed,
         "succeeded": succeeded,
@@ -1264,7 +1267,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     "duplicate": True,
                 }
             concurrency, _engine = self._effective_concurrency()
-            local_load = len(self._queue) + max(0, int(self._processing))
+            local_load = self._queue.active_count()
             if local_load >= concurrency:
                 return {
                     "success": False,
@@ -1366,10 +1369,13 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     if task is None:
                         break
                     processed += 1
-                    if self._process_claimed_bounded(task):
-                        succeeded += 1
-                    else:
-                        failed += 1
+                    try:
+                        if self._process_claimed_bounded(task):
+                            succeeded += 1
+                        else:
+                            failed += 1
+                    finally:
+                        self._queue.complete(task)
 
             if processed == 0:
                 return

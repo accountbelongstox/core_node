@@ -29,6 +29,7 @@ import {
 } from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
+import { WfNewContentGroupCard } from './WfNewContentGroupCard';
 
 // Modular Imports
 import { UserStats, ElementTheme } from '../WfNewTypes';
@@ -107,28 +108,6 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 dailyGoal={userStats.dailyGoal}
                 languageOptions={languageOptions}
                 onSave={handleSaveDashboard}
-              />
-
-              {/* Daily Reading remains a full home section. Playback opens the
-                  dedicated article route instead of becoming a header action. */}
-              <WordNewDailyReadingSection
-                theme={activeTheme}
-                trans={trans}
-                onOpenPage={(articleId) => {
-                  if (typeof window !== 'undefined') {
-                    window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
-                  }
-                  setActiveTab('daily-reading');
-                }}
-                onOpenBook={(sourceKey, title) => openHomeGroup({
-                  id: sourceKey,
-                  kind: 'book',
-                  sourceKey,
-                  title,
-                  count: 0,
-                  countUnit: 'sentences',
-                  category: 'daily',
-                })}
               />
 
               {/* Omni-Symmetrical Audio-Visual Laboratory */}
@@ -256,12 +235,12 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 </div>
               </div>
 
-              {/* Quantum Custom Bento Box Waterfall Catalog */}
+              {/* Word Groups uses the original dossier artwork as one full-width block. */}
               <div className="space-y-4 pt-4">
                 <div className="flex justify-between items-center px-1">
                   <div>
                     <h3 className="text-sm font-black font-mono uppercase tracking-widest text-zinc-400">
-                      {trans('home.dossiersTitle')}
+                      {trans('content.section.word')}
                     </h3>
                     <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
                       {trans('home.dossiersDesc')}
@@ -275,8 +254,8 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                   </button>
                 </div>
 
-                {/* The dossiers area represents the canonical vocabulary group only. */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-auto">
+                {/* The canonical Default Vocabulary Group owns the complete row. */}
+                <div className="grid grid-cols-1 gap-6 auto-rows-auto">
                   {bentoGroups.filter((group) => group.name === DEFAULT_VOCAB_GROUP_NAME).map((group, idx) => {
                     // Match decoration variables
                     const progressVal = group.progress;
@@ -290,7 +269,7 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                         }}
                         whileHover={{ scale: 1.015, y: -4 }}
                         transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                        className={`rounded-3xl relative overflow-hidden cursor-pointer group flex flex-col justify-between p-6 transition-all duration-300 border backdrop-blur-xl ${group.gridSpan} ${
+                        className={`w-full h-[160px] rounded-3xl relative overflow-hidden cursor-pointer group flex flex-col justify-between p-6 transition-all duration-300 border backdrop-blur-xl ${
                           dark 
                             ? `bg-slate-900/40 border-white/5 hover:border-indigo-500/30 ${activeTheme.glowClass}` 
                             : `bg-white/40 border-zinc-200 hover:border-indigo-400/40 shadow-sm hover:shadow-indigo-100/40`
@@ -432,7 +411,45 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                     );
                   })}
                 </div>
+
+                {/* Remaining word groups stay below the full-width default group. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {homeContent.words
+                    .filter((group) => group.title !== DEFAULT_VOCAB_GROUP_NAME)
+                    .map((group) => (
+                      <WfNewContentGroupCard
+                        key={`${group.kind}-${group.id}`}
+                        group={group}
+                        theme={activeTheme}
+                        trans={trans}
+                        onClick={() => openHomeGroup(group)}
+                        fullWidth
+                      />
+                    ))}
+                </div>
               </div>
+
+              {/* Daily Reading stays directly below Word Groups. Playback opens
+                  the dedicated article route instead of becoming a header action. */}
+              <WordNewDailyReadingSection
+                theme={activeTheme}
+                trans={trans}
+                onOpenPage={(articleId) => {
+                  if (typeof window !== 'undefined') {
+                    window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
+                  }
+                  setActiveTab('daily-reading');
+                }}
+                onOpenBook={(sourceKey, title) => openHomeGroup({
+                  id: sourceKey,
+                  kind: 'book',
+                  sourceKey,
+                  title,
+                  count: 0,
+                  countUnit: 'sentences',
+                  category: 'daily',
+                })}
+              />
 
               {/* Multi-category content hub — live backend word / book / subtitle
                   / document groups (WfNewHomeContent widget reads getHomeContent). */}

@@ -24,7 +24,7 @@ class SentencePriorityQueue:
 
     def __init__(self) -> None:
         self._heap: List[Tuple[int, int, Dict[str, Any]]] = []
-        self._queued_keys: Set[str] = set()
+        self._active_keys: Set[str] = set()
         self._seq = 0
         init_serialized_owner(self, "tts.priority_queue", "TTSPriorityQueueState")
 
@@ -36,7 +36,7 @@ class SentencePriorityQueue:
         except (TypeError, ValueError):
             priority = 0
         task_key = self._task_key(task)
-        if task_key and task_key in self._queued_keys:
+        if task_key and task_key in self._active_keys:
             for index, (negative_priority, sequence, queued_task) in enumerate(self._heap):
                 if self._task_key(queued_task) != task_key:
                     continue
@@ -44,9 +44,10 @@ class SentencePriorityQueue:
                     self._heap[index] = (-priority, sequence, dict(task))
                     heapq.heapify(self._heap)
                 return False
+            return False
         heapq.heappush(self._heap, (-priority, self._seq, task))
         if task_key:
-            self._queued_keys.add(task_key)
+            self._active_keys.add(task_key)
         self._seq += 1
         return True
 
@@ -55,17 +56,25 @@ class SentencePriorityQueue:
         """Pop the highest-priority task (FIFO within equal priority), or None."""
         if not self._heap:
             return None
-        task = heapq.heappop(self._heap)[2]
+        return heapq.heappop(self._heap)[2]
+
+    @serialized_method
+    def complete(self, task: Dict[str, Any]) -> None:
+        """Release an execution-attempt key after processing has settled."""
         task_key = self._task_key(task)
         if task_key:
-            self._queued_keys.discard(task_key)
-        return task
+            self._active_keys.discard(task_key)
 
     @serialized_method
     def contains(self, task: Dict[str, Any]) -> bool:
-        """Return whether the same task execution attempt is already queued."""
+        """Return whether the same task execution attempt is queued or running."""
         task_key = self._task_key(task)
-        return bool(task_key and task_key in self._queued_keys)
+        return bool(task_key and task_key in self._active_keys)
+
+    @serialized_method
+    def active_count(self) -> int:
+        """Return queued plus popped attempts that have not settled yet."""
+        return len(self._active_keys)
 
     @staticmethod
     def _task_key(task: Dict[str, Any]) -> str:

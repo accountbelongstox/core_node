@@ -1,9 +1,8 @@
 /**
  * WfNewHomeContent — the home "content hub" dashboard: a responsive KPI strip
- * (one stat tile per category) over per-category sections.
+ * (one stat tile per supporting category) over per-category sections.
  *
  * Layout per category:
- *   - word  → horizontal scroll-snap rail (compact preview).
  *   - book / subtitle / library → a RESPONSIVE AUTO-FILL MASONRY grid (no swipe):
  *     cards flow into as many columns as fit and wrap into rows; the home caps the
  *     preview at 2 ROWS (WFNEW_HOME_ROWS), auto-loads more as you scroll, and shows
@@ -16,7 +15,7 @@
  * Pure presentation: data + navigation come from props; WfNewApp owns the fetch.
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Layers, BookOpen, Clapperboard, Library, ArrowRight, ChevronDown } from 'lucide-react';
+import { BookOpen, Clapperboard, Library, ArrowRight, ChevronDown } from 'lucide-react';
 import { ElementTheme } from '../WfNewTypes';
 import type { WfNewContentGroup, WfNewContentKind, WfNewHomeContent as WfNewHomeContentData } from '../api';
 import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCard';
@@ -52,7 +51,6 @@ const SECTIONS: Array<{
   key: keyof WfNewHomeContentData;
   Icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { kind: 'word', key: 'words', Icon: Layers },
   { kind: 'book', key: 'books', Icon: BookOpen },
   { kind: 'subtitle', key: 'subtitles', Icon: Clapperboard },
   { kind: 'library', key: 'libraries', Icon: Library },
@@ -229,8 +227,8 @@ export const WfNewHomeContent: React.FC<WfNewHomeContentProps> = ({
         <p className="text-[10px] text-zinc-500 font-mono mt-0.5">{trans('home.hubDesc')}</p>
       </div>
 
-      {/* KPI strip — responsive: 2-col (phone) → 3 → 5 (desktop) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+      {/* KPI strip — responsive: 2-col (phone) → 3 (desktop) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3">
         {SECTIONS.map(({ kind, key, Icon }) => {
           const style = WFNEW_KIND_STYLES[kind];
           const count = content[key].length;

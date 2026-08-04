@@ -140,12 +140,13 @@ def synthesize_batch(
 def queue_submit(
     payload: Dict[str, Any],
     *,
+    timeout: float = 30.0,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], Optional[str]]:
     ok, response, error = post_json(
         "/queue/submit",
         payload,
-        timeout=30.0,
+        timeout=max(0.1, float(timeout)),
         service_base_url=service_base_url,
     )
     if not ok or not isinstance(response, dict):
@@ -176,16 +177,23 @@ def queue_events(
     since_seq: int,
     timeout_seconds: float = 20.0,
     *,
+    request_timeout: Optional[float] = None,
     service_base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
+    poll_timeout = max(0.0, float(timeout_seconds))
+    http_timeout = (
+        max(0.1, float(request_timeout))
+        if request_timeout is not None
+        else max(5.0, poll_timeout + 5.0)
+    )
     ok, response, error = get_json(
         "/queue/events/poll",
         query={
             "client_id": client_id,
             "since_seq": max(0, int(since_seq or 0)),
-            "timeout_s": max(0.0, float(timeout_seconds)),
+            "timeout_s": poll_timeout,
         },
-        timeout=max(5.0, float(timeout_seconds) + 5.0),
+        timeout=http_timeout,
         service_base_url=service_base_url,
     )
     if ok and isinstance(response, dict):
@@ -197,12 +205,13 @@ def acknowledge_events(
     client_id: str,
     seq: int,
     *,
+    timeout: float = 10.0,
     service_base_url: Optional[str] = None,
 ) -> bool:
     ok, response, _error = post_json(
         "/queue/events/ack",
         {"client_id": client_id, "seq": max(0, int(seq or 0))},
-        timeout=10.0,
+        timeout=max(0.1, float(timeout)),
         service_base_url=service_base_url,
     )
     return bool(ok and isinstance(response, dict) and response.get("success"))
@@ -243,9 +252,12 @@ def queue_submit_and_wait(
         return False, b"", error or "qwen3tts queue submit failed"
     job_id = str(job.get("job_id") or "")
     if job.get("status") == "done":
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False, b"", f"qwen3tts queue wait timed out after {timeout:g}s"
         return fetch_queue_result(
             job_id,
-            timeout,
+            remaining,
             service_base_url=service_base_url,
         )
     if job.get("status") in {"failed", "cancelled"}:
@@ -262,7 +274,8 @@ def queue_submit_and_wait(
         response = queue_events(
             poll_client_id,
             cursor,
-            min(20.0, remaining),
+            min(20.0, max(0.0, remaining - 0.5)),
+            request_timeout=remaining,
             service_base_url=service_base_url,
         )
         if not response.get("success"):
@@ -278,14 +291,16 @@ def queue_submit_and_wait(
                 terminal = _terminal_result(
                     reconciled,
                     job_id,
-                    remaining,
+                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
                     return terminal
             if not _is_retryable_queue_error(poll_error):
                 return False, b"", poll_error
-            time.sleep(min(recovery_backoff, max(0.0, remaining)))
+            time.sleep(
+                min(recovery_backoff, max(0.0, deadline - time.monotonic()))
+            )
             recovery_backoff = min(
                 _QUEUE_RECOVERY_MAX_BACKOFF_S,
                 recovery_backoff * 2.0,
@@ -297,6 +312,7 @@ def queue_submit_and_wait(
             reconciled = _find_job(
                 job_id,
                 stable_id,
+                timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
                 service_base_url=service_base_url,
             )
             if reconciled is not None:
@@ -304,7 +320,7 @@ def queue_submit_and_wait(
                 terminal = _terminal_result(
                     reconciled,
                     job_id,
-                    remaining,
+                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
@@ -322,7 +338,7 @@ def queue_submit_and_wait(
                 terminal = _terminal_result(
                     resubmitted,
                     job_id,
-                    remaining,
+                    deadline - time.monotonic(),
                     service_base_url=service_base_url,
                 )
                 if terminal is not None:
@@ -335,6 +351,10 @@ def queue_submit_and_wait(
                 acknowledge_events(
                     poll_client_id,
                     cursor,
+                    timeout=min(
+                        10.0,
+                        max(0.1, deadline - time.monotonic()),
+                    ),
                     service_base_url=service_base_url,
                 )
             instance_id = next_instance
@@ -354,20 +374,19 @@ def queue_submit_and_wait(
             terminal = _terminal_result(
                 event,
                 job_id,
-                remaining,
+                deadline - time.monotonic(),
                 service_base_url=service_base_url,
             )
             if terminal is not None:
-                acknowledge_events(
-                    poll_client_id,
-                    cursor,
-                    service_base_url=service_base_url,
-                )
                 return terminal
         if cursor:
             acknowledge_events(
                 poll_client_id,
                 cursor,
+                timeout=min(
+                    10.0,
+                    max(0.1, deadline - time.monotonic()),
+                ),
                 service_base_url=service_base_url,
             )
 
@@ -378,7 +397,7 @@ def fetch_queue_result(
     *,
     service_base_url: Optional[str] = None,
 ) -> Tuple[bool, bytes, Optional[str]]:
-    deadline = time.monotonic() + max(1.0, float(timeout))
+    deadline = time.monotonic() + max(0.1, float(timeout))
     delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     result_path = f"/queue/result/{urllib.parse.quote(str(job_id or ''), safe='')}"
     while True:
@@ -430,8 +449,12 @@ def _submit_with_recovery(
     delay = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     last_error = "qwen3tts queue submit failed"
     while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False, None, last_error
         ok, job, error = queue_submit(
             payload,
+            timeout=min(30.0, remaining),
             service_base_url=service_base_url,
         )
         if ok and isinstance(job, dict):
@@ -474,6 +497,8 @@ def _terminal_result(
 ) -> Optional[Tuple[bool, bytes, Optional[str]]]:
     status = str(value.get("status") or "")
     if status == "done":
+        if timeout <= 0:
+            return False, b"", "qwen3tts result fetch deadline expired"
         return fetch_queue_result(
             job_id,
             timeout,
