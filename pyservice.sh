@@ -192,6 +192,8 @@ Subcommands:
   config       Edit/show headless config via the cross-platform Python CLI
                (forwards remaining args to: python -m pycore.pyctl.pyservice_cli config)
   codesync     Standalone Code Sync (stdlib only; no prereqs, no pycore import).
+               Manual commands first repair the repository for the regular user,
+               using root privileges; root is used when no regular user exists.
                (no subcommand)            -> prompt to add+start the systemd service
                install|uninstall|start|stop|restart|status -> manage that service
                run|show|role|peers|distribute|skip-update   -> stdlib CLI
@@ -245,8 +247,9 @@ esac
 # prerequisite installers (apt); BUT the systemd unit's own ExecStart
 # (`run --no-ui --no-install`) runs as the real desktop user under User= and
 # must NOT re-elevate, so `run` is elevated only when NOT already launched by
-# systemd (INVOCATION_ID unset). `config`/`codesync`/`help` are user-context
-# operations and are intentionally never elevated. Re-exec ONCE under sudo at
+# systemd (INVOCATION_ID unset). `config`/`help` remain user-context operations.
+# Code Sync performs its own privileged repository-permission preparation before
+# returning to the caller context. Re-exec ONCE under sudo at
 # the very top so EVERY subsequent command inherits root, preserving the
 # original args plus the GUI/session env the tray (AppIndicator/pystray) and
 # the worker need (DISPLAY/WAYLAND/XDG_RUNTIME_DIR/DBUS/HOME).
@@ -279,7 +282,8 @@ _pyservice_maybe_elevate
 # entry point for Debian/Ubuntu and Windows CodeSync service management.
 #
 # codesync -> STANDALONE, stdlib-only Code Sync. Dispatched HERE, before the
-# prerequisite-install step and without importing the pycore package.
+# prerequisite-install step and without importing the pycore package. Manual
+# commands first run the privileged repository-permission preparation.
 #   * no subcommand          -> offer to add Code Sync to the systemd service
 #                               (prompt, default YES), then start it + show logs.
 #   * install|uninstall|start|stop|restart|status -> manage that systemd service.
@@ -288,6 +292,13 @@ _pyservice_maybe_elevate
 #     is never executed, no third_party). See pycore/pyutils/codesync/runtime.py.
 if [[ "$CMD" == "codesync" ]]; then
     CS_MGR="$SCRIPT_DIR/scripts/shells/linux/common/codesync_service.sh"
+    # Every manual Code Sync command first repairs the repository for the regular
+    # service user. The preparation elevates only its chown/chmod operations.
+    # The resident systemd child skips this step because installation/start has
+    # already prepared the tree and a service process must never invoke sudo.
+    if [ -z "${INVOCATION_ID:-}" ]; then
+        bash "$CS_MGR" prepare
+    fi
     case "${1:-}" in
         "")
             # No subcommand: prompt to add Code Sync to the system service.

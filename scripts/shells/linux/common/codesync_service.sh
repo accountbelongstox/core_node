@@ -24,7 +24,7 @@
 #
 # Both SOURCEABLE and RUNNABLE:
 #   source codesync_service.sh                       # exposes codesync_service_* funcs
-#   bash   codesync_service.sh <install|start|stop|restart|status|uninstall>
+#   bash   codesync_service.sh <prepare|install|start|stop|restart|status|uninstall>
 #
 # `install --prompt` asks before installing (default YES), then installs, starts,
 # and prints how to follow the logs. This is what `pyservice.sh codesync`
@@ -34,7 +34,7 @@
 #   [Service]
 #   ExecStart=/bin/bash <REPO_ROOT>/pyservice.sh codesync run
 #   WorkingDirectory=<REPO_ROOT>
-#   User=<real desktop user>
+#   User=<regular user, or root when no regular user exists>
 #   Restart=always
 #
 # Resident by design: the service NEVER hot-reloads. A code change (e.g. a
@@ -56,6 +56,7 @@ CODESYNC_REPO_ROOT="$(cd "$CODESYNC_SVC_SCRIPT_DIR/../../../.." && pwd)"
 # manual `pyservice.sh codesync restart` or a reinstall.
 CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run"
 CODESYNC_SVC_USER=""
+CODESYNC_SVC_GROUP=""
 CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/debian_service_manager.sh"
 CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"
 CODESYNC_UNIT_FILE="/etc/systemd/system/${CODESYNC_SERVICE_NAME}.service"
@@ -87,22 +88,137 @@ codesync_load_service_dependencies() {
     CODESYNC_SERVICE_DEPS_LOADED=1
 }
 
-# --- Resolve the real (desktop) user the unit should run as -------------- #
+# --- Resolve the regular user the unit should run as --------------------- #
+codesync_user_is_regular() {
+    local candidate="$1"
+    local candidate_uid=""
+    local candidate_entry=""
+    local candidate_shell=""
+
+    [ -n "$candidate" ] || return 1
+    candidate_uid="$(id -u "$candidate" 2>/dev/null || true)"
+    [ -n "$candidate_uid" ] || return 1
+    [ "$candidate_uid" -ge 1000 ] 2>/dev/null || return 1
+    [ "$candidate_uid" -lt 65534 ] 2>/dev/null || return 1
+    if command -v getent >/dev/null 2>&1; then
+        candidate_entry="$(getent passwd "$candidate" 2>/dev/null || true)"
+        candidate_shell="${candidate_entry##*:}"
+        case "$candidate_shell" in
+            */nologin|*/false) return 1 ;;
+        esac
+    fi
+    return 0
+}
+
 codesync_resolve_user() {
     local resolved=""
-    if type detect_system_user >/dev/null 2>&1; then
-        resolved="$(detect_system_user 2>/dev/null)"
+    local candidate=""
+    local repo_owner=""
+
+    candidate="${SUDO_USER:-}"
+    if codesync_user_is_regular "$candidate"; then
+        resolved="$candidate"
     fi
-    if [ -z "$resolved" ] || [ "$resolved" = "root" ]; then
-        if [ -n "${SUDO_USER:-}" ] && [ "${SUDO_USER}" != "root" ]; then
-            resolved="$SUDO_USER"
+
+    if [ -z "$resolved" ]; then
+        candidate="$(id -un 2>/dev/null || true)"
+        if codesync_user_is_regular "$candidate"; then
+            resolved="$candidate"
         fi
     fi
+
     if [ -z "$resolved" ]; then
-        resolved="$(whoami 2>/dev/null || echo root)"
+        repo_owner="$(stat -c '%U' "$CODESYNC_REPO_ROOT" 2>/dev/null || true)"
+        if codesync_user_is_regular "$repo_owner"; then
+            resolved="$repo_owner"
+        fi
     fi
-    CODESYNC_SVC_USER="$resolved"
-    echo "$resolved"
+
+    if [ -z "$resolved" ] && command -v getent >/dev/null 2>&1; then
+        candidate="$(getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 && $7 !~ /(nologin|false)$/ { print $1; exit }')"
+        if codesync_user_is_regular "$candidate"; then
+            resolved="$candidate"
+        fi
+    fi
+
+    CODESYNC_SVC_USER="${resolved:-root}"
+    CODESYNC_SVC_GROUP="$(id -gn "$CODESYNC_SVC_USER" 2>/dev/null || echo "$CODESYNC_SVC_USER")"
+    echo "$CODESYNC_SVC_USER"
+}
+
+# --- Repair repository ownership before any manual Code Sync operation --- #
+codesync_prepare_repo_permissions() {
+    local target_user=""
+    local target_group=""
+    local mismatch=""
+    local remaining_mismatch=""
+    local scan_status=0
+    local verify_status=0
+    local privilege_command=()
+
+    case "$CODESYNC_REPO_ROOT" in
+        ""|/|/usr|/etc|/bin|/sbin|/lib|/var)
+            echo "[codesync-service] Refusing permission repair for unsafe repository path: $CODESYNC_REPO_ROOT" >&2
+            return 1
+            ;;
+    esac
+    if [[ "$CODESYNC_REPO_ROOT" != /* ]]; then
+        echo "[codesync-service] Repository path is not absolute: $CODESYNC_REPO_ROOT" >&2
+        return 1
+    fi
+
+    codesync_resolve_user >/dev/null
+    target_user="$CODESYNC_SVC_USER"
+    target_group="$CODESYNC_SVC_GROUP"
+
+    if [ "$(id -u)" -ne 0 ]; then
+        if ! command -v sudo >/dev/null 2>&1; then
+            echo "[codesync-service] Root privileges are required to repair repository permissions." >&2
+            return 1
+        fi
+        privilege_command=(sudo)
+    fi
+
+    mismatch="$("${privilege_command[@]}" find "$CODESYNC_REPO_ROOT" \
+        \( \( -type d \( ! -user "$target_user" -o ! -perm -u=rwx \) \) -o \
+        \( -type f \( ! -user "$target_user" -o ! -perm -u=rw \) \) \) \
+        -print -quit 2>/dev/null)" || scan_status=$?
+    if [ "$scan_status" -ne 0 ]; then
+        echo "[codesync-service] Unable to inspect repository permissions." >&2
+        return "$scan_status"
+    fi
+    if [ -z "$mismatch" ]; then
+        echo "[codesync-service] Repository permissions are ready for $target_user:$target_group."
+        return 0
+    fi
+
+    echo "[codesync-service] Repairing repository ownership for Code Sync."
+    echo "[codesync-service] Target: $CODESYNC_REPO_ROOT"
+    echo "[codesync-service] Owner: $target_user:$target_group"
+    if ! "${privilege_command[@]}" chown -R "$target_user:$target_group" "$CODESYNC_REPO_ROOT"; then
+        echo "[codesync-service] Failed to update repository ownership." >&2
+        return 1
+    fi
+    if ! "${privilege_command[@]}" chmod -R u+rwX "$CODESYNC_REPO_ROOT"; then
+        echo "[codesync-service] Failed to update repository permissions." >&2
+        return 1
+    fi
+
+    remaining_mismatch="$("${privilege_command[@]}" find "$CODESYNC_REPO_ROOT" \
+        \( \( -type d \( ! -user "$target_user" -o ! -perm -u=rwx \) \) -o \
+        \( -type f \( ! -user "$target_user" -o ! -perm -u=rw \) \) \) \
+        -print -quit 2>/dev/null)" || verify_status=$?
+    if [ "$verify_status" -ne 0 ]; then
+        echo "[codesync-service] Unable to verify repository permissions." >&2
+        return "$verify_status"
+    fi
+    if [ -n "$remaining_mismatch" ]; then
+        echo "[codesync-service] Repository permission repair is incomplete: $remaining_mismatch" >&2
+        return 1
+    fi
+
+    echo "[codesync-service] Repository permissions repaired for $target_user:$target_group."
+    return 0
 }
 
 # --- Default-YES confirmation prompt ------------------------------------- #
@@ -396,6 +512,7 @@ codesync_service.sh - manage the Code Sync systemd service (Linux only)
 Usage: bash codesync_service.sh <command>
 
 Commands:
+  prepare              Repair repository ownership for the Code Sync user
   install [--prompt]  Create, enable and start the '${CODESYNC_SERVICE_NAME}' service
                       (--prompt asks first, default YES)
   start               Start the service
@@ -415,6 +532,7 @@ codesync_service_dispatch() {
     local cmd="${1:-help}"
     shift || true
     case "$cmd" in
+        prepare)     codesync_prepare_repo_permissions "$@" ;;
         install)     codesync_service_install     "$@" ;;
         run-prompt)  codesync_service_run_prompt  "$@" ;;
         start)       codesync_service_start       "$@" ;;
