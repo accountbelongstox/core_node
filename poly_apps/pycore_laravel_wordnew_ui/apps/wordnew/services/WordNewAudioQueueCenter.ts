@@ -8,6 +8,11 @@ import { wfNewApi } from '../api';
 import type { WfNewWordAccent, WfNewWordMedia } from '../api';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
+import {
+  sentenceAudioQueueKey,
+  wordAudioQueueKey,
+  wordNewQueueRuntime,
+} from './WordNewQueueRuntime';
 
 export interface WordNewSentenceAudioPriorityItem {
   text: string;
@@ -30,18 +35,24 @@ class WordNewAudioQueueCenterClass {
   prioritizeSentences(items: WordNewSentenceAudioPriorityItem[]): Promise<unknown> {
     const normalized = this.normalizeSentences(items);
     if (normalized.length === 0) return Promise.resolve(null);
+    normalized.forEach((item) => {
+      wordNewQueueRuntime.markWaiting(sentenceAudioQueueKey(item.text, item.language), 'audio');
+    });
     diffQueueContext.touch(
       'wordnew:sentence-audio:priority',
       normalized.map((item) => `${item.language}:${item.text}`),
     );
     const key = `sentences:${normalized.map((item) => `${item.language}:${item.text}`).join('|')}`;
+    const requestItems = normalized.map(({ text, language }) => ({ text, language })).reverse();
     return this.runOnce(
       key,
       // Reversed: each bump takes the next move-to-front ticket, so the FIRST
       // visible sentence ends up highest in the queue (legacy relay parity).
-      () => wfNewApi.bumpSentenceAudioBatch(
-        normalized.map(({ text, language }) => ({ text, language })).reverse(),
-      ),
+      async () => {
+        const response = await wfNewApi.bumpSentenceAudioBatch(requestItems);
+        wordNewQueueRuntime.recordSentenceAudio(response, requestItems);
+        return response;
+      },
     );
   }
 
@@ -65,15 +76,23 @@ class WordNewAudioQueueCenterClass {
     const normalizedWords = Array.from(new Set(words.map((word) => word.trim()).filter(Boolean)))
       .slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
     if (!normalizedLanguage || normalizedWords.length === 0) return Promise.resolve(null);
+    normalizedWords.forEach((word) => {
+      wordNewQueueRuntime.markWaiting(wordAudioQueueKey(word, normalizedLanguage), 'audio');
+    });
     diffQueueContext.touch(
       'wordnew:word-audio:priority',
       normalizedWords.map((word) => `${normalizedLanguage}:${word}`),
     );
     const key = `words:${normalizedLanguage}:${normalizedWords.join('|')}`;
+    const requestWords = normalizedWords.slice().reverse();
     return this.runOnce(
       key,
       // Reversed for the same move-to-front ticket reason as prioritizeSentences.
-      () => wfNewApi.prioritizeWordAudio(normalizedWords.slice().reverse(), normalizedLanguage),
+      async () => {
+        const response = await wfNewApi.prioritizeWordAudio(requestWords, normalizedLanguage);
+        wordNewQueueRuntime.recordWordAudio(response, requestWords, normalizedLanguage);
+        return response;
+      },
     );
   }
 
@@ -119,7 +138,10 @@ class WordNewAudioQueueCenterClass {
         passive: true,
       });
       const readyVariant = media.audioVariants?.find((variant) => variant.status === 'ready' && variant.url);
-      if (media.audioUrl || readyVariant) return media;
+      if (media.audioUrl || readyVariant) {
+        wordNewQueueRuntime.markReady(wordAudioQueueKey(word, language), 'audio');
+        return media;
+      }
       await new Promise<void>((resolve) => {
         setTimeout(resolve, WORD_AUDIO_POLL_INTERVAL_MS);
       });

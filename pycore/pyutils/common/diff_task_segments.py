@@ -205,6 +205,43 @@ class _DiffTaskSegmentCenter:
             DATA_SEGMENT_NAMESPACE: segments,
         })
 
+    @serialized_method
+    def reprioritize(self, scope: str, task_id: Any, priority: int) -> None:
+        """Update a cached priority without incorrectly retaining queue-head state."""
+        task_key = str(task_id or "")
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        pages = self._store.get_section(ID_PAGE_NAMESPACE)
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        cursor = dict(cursors.get(scope) or {})
+        cursor["revision"] = int(cursor.get("revision") or 0) + 1
+        if str(cursor.get("head_id") or "") == task_key:
+            cursor["head_id"] = None
+        cursor["updated_at"] = time.time()
+        cursors[scope] = cursor
+
+        scope_pages: List[Dict[str, Any]] = []
+        for page in list(pages.get(scope) or []):
+            if page.get("state") != "priority":
+                scope_pages.append(page)
+                continue
+            ids = [str(value) for value in page.get("ids", []) if str(value) != task_key]
+            if ids:
+                scope_pages.append({**page, "ids": ids})
+        pages[scope] = self._trim_pages(scope_pages)
+
+        scope_segments = dict(segments.get(scope) or {})
+        task = scope_segments.get(task_key)
+        if isinstance(task, dict):
+            task["priority"] = int(priority)
+            scope_segments[task_key] = task
+            segments[scope] = scope_segments
+
+        self._store.set_sections({
+            CURSOR_NAMESPACE: cursors,
+            ID_PAGE_NAMESPACE: pages,
+            DATA_SEGMENT_NAMESPACE: segments,
+        })
+
     @staticmethod
     def _trim_pages(pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         priority = [page for page in pages if page.get("state") == "priority"]

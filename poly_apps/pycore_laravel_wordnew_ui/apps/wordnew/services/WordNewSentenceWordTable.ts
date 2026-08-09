@@ -2,6 +2,7 @@ import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { authedPostJSON, authedQueueablePostJSON } from '../api/WfNewApiTransport';
 import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
+import { wordNewQueueRuntime } from './WordNewQueueRuntime';
 import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
@@ -59,12 +60,7 @@ function prioritizeMissing(
     .map((row) => ({ word: row.word, language }));
   const requests: Promise<unknown>[] = [];
   if (translationWords.length > 0) {
-    requests.push(authedPostJSON(WfNewApiPaths.translationQueueStack, {
-      words: translationWords,
-      language,
-      target_language: targetLanguage,
-      priority: 200,
-    }));
+    requests.push(wordNewQueueRuntime.prioritizeTranslations(translationWords, language, targetLanguage));
   }
   if (audioWords.length > 0) {
     requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, language));

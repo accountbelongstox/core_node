@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react';
 import { WfNewApiPaths } from '../api/WfNewApiPaths';
 import { postJSON } from '../api/WfNewApiTransport';
 import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { wordNewQueueRuntime } from '../services/WordNewQueueRuntime';
 
 const FLUSH_DELAY_MS = 250;
-const VISIBLE_PRIORITY = 200;
 const MAX_BATCH_SIZE = 100;
 
 export interface VisiblePriorityWord {
@@ -47,12 +47,11 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       .map((row) => ({ word: row.word, language: row.language }));
     const requests: Promise<unknown>[] = [];
     if (translationWords.length > 0) {
-      requests.push(postJSON(WfNewApiPaths.translationQueueStack, {
-        words: translationWords,
-        language: languageRef.current,
-        target_language: targetLanguageRef.current,
-        priority: VISIBLE_PRIORITY,
-      }));
+      requests.push(wordNewQueueRuntime.prioritizeTranslations(
+        translationWords,
+        languageRef.current,
+        targetLanguageRef.current,
+      ));
     }
     if (audioWords.length > 0) {
       requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, languageRef.current));

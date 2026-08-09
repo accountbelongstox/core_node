@@ -608,5 +608,22 @@ export const zhLocaleB: Record<string, string> = {
     'notif.actionFailed': '操作失败，请重试。',
     'notif.type.friend.request': '新的好友请求',
     'notif.type.friend.accept': '好友请求已接受',
-    'notif.type.message.new': '新消息'
+    'notif.type.message.new': '新消息',
+    'queue.none': '无排队资源',
+    'queue.missing': '音频缺失',
+    'queue.waiting': '等待 Laravel 接收',
+    'queue.queued': 'Laravel 已接收并调到队首',
+    'queue.laravel_received': 'Laravel 已接收并调到队首',
+    'queue.worker_received': '在线 Worker 已接收并调到本地队首',
+    'queue.processing': 'Worker 正在处理',
+    'queue.ready': '资源已就绪',
+    'queue.completed': '资源已就绪',
+    'queue.playing': '正在播放音频',
+    'queue.failed': '生成失败',
+    'queue.laravel': 'Laravel',
+    'queue.pycore': 'Pycore',
+    'queue.mcpChrome': 'mcp-chrome',
+    'queue.online': '在线',
+    'queue.offline': '离线',
+    'queue.tracked': '正在跟踪 {count} 项'
 };

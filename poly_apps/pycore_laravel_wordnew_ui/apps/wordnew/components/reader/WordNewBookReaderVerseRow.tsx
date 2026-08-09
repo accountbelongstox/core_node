@@ -8,6 +8,7 @@ import { WordNewAudioVariantPicker } from '../WordNewAudioVariantPicker';
 import type { WordNewAudioCellState } from '../../utils/WordNewAudioCellState';
 import { cellKeyOf, ttsStatusToCellState } from '../../utils/WordNewAudioCellState';
 import { readySentenceVariants } from '../../utils/WordNewSentenceAudioPick';
+import { sentenceAudioQueueKey } from '../../services/WordNewQueueRuntime';
 
 export interface WordNewBookReaderVerseRowProps {
   activeTheme: ElementTheme;
@@ -101,12 +102,12 @@ export const WordNewBookReaderVerseRow: React.FC<WordNewBookReaderVerseRowProps>
           ) : null}
           <WordNewAudioStatusIcon
           state={text ? state : 'none'}
+          queueKey={text ? sentenceAudioQueueKey(text, lang) : undefined}
+          trans={trans}
           disabled={!text}
           title={!text ? '' : state === 'ready' || state === 'playing'
             ? `${trans('reader.playAudio')}${variantHint ? ` · ${variantHint}` : ''}`
-            : state === 'processing' ? trans('reader.audioProcessing')
-              : state === 'queued' ? trans('reader.audioQueued')
-                : trans('reader.retryAudio')}
+            : undefined}
           onClick={() => {
             if (!text?.trim()) return;
             // A tap always plays this language: the playback engine bumps missing

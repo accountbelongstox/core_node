@@ -69,6 +69,7 @@ import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
 import { WfNewNavLogo } from './components/WfNewNavLogo';
 import { WfNewNotificationBell } from './components/WfNewNotificationBell';
+import { WordNewQueueStatusBar } from './components/WordNewQueueStatusBar';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
@@ -251,6 +252,7 @@ export const WfNewApp: React.FC = () => {
         avatarUrl={avatarUrl}
         addToast={addToast}
       />
+      <WordNewQueueStatusBar trans={trans} />
 
       {/* Main scrolling wrapper */}
       <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 pb-32">

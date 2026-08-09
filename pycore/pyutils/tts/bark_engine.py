@@ -16,7 +16,6 @@ Config:
   BARK_VOICE_PRESET   - voice preset string (default v2/en_speaker_6)
 """
 
-from transformers import AutoProcessor, BarkModel
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -24,7 +23,11 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-from pycore.pyfoundations.third_party.api import get_third_package_torch
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_soundfile,
+    get_third_package_torch,
+    get_third_package_transformers,
+)
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyfoundations.third_party.api import get_third_package_numpy
@@ -42,6 +45,10 @@ _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'BarkModelThread')
 _MODEL_WORKER.start()
 _processor: Any = None
 _model: Any = None
+_STATIC_MODEL_MIN_BYTES = {
+    "suno/bark": {"pytorch_model.bin": 4_000_000_000},
+    "suno/bark-small": {"pytorch_model.bin": 1_500_000_000},
+}
 
 
 def _device() -> str:
@@ -63,7 +70,12 @@ def _model_id() -> str:
         tier = runtime_engine_model("bark")
     except Exception:
         tier = "suno/bark"
-    return resolve_model_id("BARK_DIR", "bark", tier)
+    return resolve_model_id(
+        "BARK_DIR",
+        "bark",
+        tier,
+        static_sizes=_STATIC_MODEL_MIN_BYTES.get(tier),
+    )
 
 
 def _voice_preset() -> str:
@@ -72,7 +84,10 @@ def _voice_preset() -> str:
 
 def available() -> bool:
     try:
-        return importlib.util.find_spec("transformers") is not None
+        return (
+            importlib.util.find_spec("transformers") is not None
+            and importlib.util.find_spec("soundfile") is not None
+        )
     except Exception:
         return False
 
@@ -83,8 +98,14 @@ def _load_model() -> tuple[Any, Any]:
         return _processor, _model
     model_id = _model_id()
     dev = _device()
-    _processor = AutoProcessor.from_pretrained(model_id)
-    _model = BarkModel.from_pretrained(model_id)
+    transformers = get_third_package_transformers()
+    processor_class = getattr(transformers, "AutoProcessor", None)
+    model_class = getattr(transformers, "BarkModel", None)
+    if processor_class is None or model_class is None:
+        ColorPrint.red("[bark] transformers Bark classes are unavailable")
+        return None, None
+    _processor = processor_class.from_pretrained(model_id)
+    _model = model_class.from_pretrained(model_id)
     if dev != "cpu":
         _model = _model.to(dev)
     ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
@@ -109,6 +130,8 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     tmp_wav = output_mp3.with_suffix(".bark.wav")
     try:
         processor, model = _get_model()
+        if processor is None or model is None:
+            return False
         dev = _device()
         preset = _voice_preset()
         inputs = processor(cleaned, voice_preset=preset, return_tensors="pt")
@@ -127,7 +150,11 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             arr = arr.reshape(-1)
         rate = getattr(model.generation_config, "sample_rate", 24000)
         tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(tmp_wav), arr.astype(np.float32), int(rate))
+        soundfile = get_third_package_soundfile()
+        if soundfile is None:
+            ColorPrint.red("[bark] soundfile is unavailable")
+            return False
+        soundfile.write(str(tmp_wav), arr.astype(np.float32), int(rate))
     except Exception as exc:
         ColorPrint.red(f"[bark] synth failed: {exc}")
         return False

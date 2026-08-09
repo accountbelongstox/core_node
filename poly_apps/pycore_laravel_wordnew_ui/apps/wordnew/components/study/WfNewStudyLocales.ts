@@ -78,6 +78,14 @@ const en: StudyDict = {
   'study.settings.synced': 'Synced {t}',
   'study.settings.unsaved': 'Not synced to account',
   'study.settings.syncFailed': 'Sync failed (login required?)',
+  'queue.waiting': 'Waiting for Laravel',
+  'queue.laravel_received': 'Laravel received and moved to queue front',
+  'queue.worker_received': 'Online worker received and moved to local queue front',
+  'queue.processing': 'Worker is processing',
+  'queue.completed': 'Resource ready',
+  'queue.ready': 'Resource ready',
+  'queue.playing': 'Playing audio',
+  'queue.failed': 'Generation failed',
 };
 
 const zh: StudyDict = {
@@ -147,6 +155,14 @@ const zh: StudyDict = {
   'study.settings.synced': '已同步 {t}',
   'study.settings.unsaved': '未同步到账号',
   'study.settings.syncFailed': '同步失败（需要登录？）',
+  'queue.waiting': '等待 Laravel 接收',
+  'queue.laravel_received': 'Laravel 已接收并调到队首',
+  'queue.worker_received': '在线 Worker 已接收并调到本地队首',
+  'queue.processing': 'Worker 正在处理',
+  'queue.completed': '资源已就绪',
+  'queue.ready': '资源已就绪',
+  'queue.playing': '正在播放音频',
+  'queue.failed': '生成失败',
 };
 
 const DICTS: Record<string, StudyDict> = { en, zh };

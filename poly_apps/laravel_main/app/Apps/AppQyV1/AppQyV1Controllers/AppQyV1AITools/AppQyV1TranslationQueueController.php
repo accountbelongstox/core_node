@@ -884,12 +884,13 @@ class AppQyV1TranslationQueueController extends Controller
             return $this->notFound('Task not found');
         }
 
+        $oldPriority = (int) $task->priority;
         $task->priority = $priority;
         $task->save();
 
         // Real-time re-order hint for pycore workers (Phase-C `task.priority`).
-        $this->broadcastSafely(static function () use ($task, $priority) {
-            event(new TranslationTaskPriorityEvent($task->task_id, $priority));
+        $this->broadcastSafely(static function () use ($task, $priority, $oldPriority) {
+            event(new TranslationTaskPriorityEvent($task->task_id, $priority, $oldPriority));
         }, 'task.priority', ['task_id' => $task->task_id]);
 
         return $this->success([

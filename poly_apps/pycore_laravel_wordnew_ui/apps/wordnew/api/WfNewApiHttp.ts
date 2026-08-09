@@ -599,11 +599,12 @@ export const wfNewApiHttp: WfNewApi = {
       tasks: words.map((word) => ({ content: word, language, type: 'word' })),
       interactive: true,
     });
+    const results = Array.isArray(res?.results) ? res.results : [];
     return {
-      success: !!(res?.success ?? res?.status === 'success'),
-      queued: res?.data?.added != null ? Number(res.data.added) : undefined,
-      total: res?.data?.total != null ? Number(res.data.total) : undefined,
-      results: Array.isArray(res?.data?.results) ? res.data.results : [],
+      success: !!res?.success,
+      queued: results.filter((item: any) => item?.success !== false).length,
+      total: res?.total != null ? Number(res.total) : words.length,
+      results,
       error: res?.error ?? undefined,
     };
   },

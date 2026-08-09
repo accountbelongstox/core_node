@@ -22,7 +22,11 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-from pycore.pyfoundations.third_party.api import get_third_package_torch
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_soundfile,
+    get_third_package_torch,
+    get_third_package_voxcpm,
+)
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyfoundations.serialized_worker import (
@@ -78,7 +82,10 @@ def _timesteps() -> int:
 
 def available() -> bool:
     try:
-        return importlib.util.find_spec("voxcpm") is not None
+        return (
+            importlib.util.find_spec("voxcpm") is not None
+            and importlib.util.find_spec("soundfile") is not None
+        )
     except Exception:
         return False
 
@@ -91,7 +98,12 @@ def _load_model() -> Any:
     kwargs = {"load_denoiser": False}
     if dev != "auto":
         kwargs["device"] = dev
-    _model = VoxCPM.from_pretrained(_model_id(), **kwargs)
+    voxcpm = get_third_package_voxcpm()
+    model_class = getattr(voxcpm, "VoxCPM", None)
+    if model_class is None:
+        ColorPrint.red("[voxcpm2] VoxCPM class is unavailable")
+        return None
+    _model = model_class.from_pretrained(_model_id(), **kwargs)
     ColorPrint.green(f"[voxcpm2] loaded {_model_id()} (device={dev})")
     return _model
 
@@ -117,6 +129,8 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     tmp_wav = output_mp3.with_suffix(".voxcpm2.wav")
     try:
         model = _get_model()
+        if model is None:
+            return False
         wav = call_serialized(
             _MODEL_QUEUE,
             _generate_audio,
@@ -126,7 +140,11 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         )
         tmp_wav.parent.mkdir(parents=True, exist_ok=True)
         rate = getattr(getattr(model, "tts_model", None), "sample_rate", 44100)
-        sf.write(str(tmp_wav), wav, rate)
+        soundfile = get_third_package_soundfile()
+        if soundfile is None:
+            ColorPrint.red("[voxcpm2] soundfile is unavailable")
+            return False
+        soundfile.write(str(tmp_wav), wav, rate)
     except Exception as e:
         ColorPrint.red(f"[voxcpm2] synth failed: {e}")
         return False

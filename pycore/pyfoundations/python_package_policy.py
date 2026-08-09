@@ -79,6 +79,10 @@ DEPENDENCY_MAP: Dict[str, str] = {
 
 OPTIONAL_PACKAGES: Dict[str, str] = {
     "edge_tts": "edge-tts",
+    "parler_tts": "git+https://github.com/huggingface/parler-tts.git",
+    "soundfile": "soundfile",
+    "transformers": "transformers",
+    "voxcpm": "voxcpm",
     "whisper": "openai-whisper",
     "watchdog": "watchdog",
     "gi": "PyGObject",
@@ -128,7 +132,19 @@ DOCUMENT_PARSING_IMPORTS: Tuple[str, ...] = (
 )
 
 GUI_ONLY_IMPORTS = frozenset({"PySide6", "PyQt5", "labelme", "labelImg"})
-SPECIALIZED_IMPORTS = frozenset({"torch", "ultralytics", "edge_tts", "whisper", "gi"})
+SPECIALIZED_IMPORTS = frozenset(
+    {
+        "edge_tts",
+        "gi",
+        "parler_tts",
+        "soundfile",
+        "torch",
+        "transformers",
+        "ultralytics",
+        "voxcpm",
+        "whisper",
+    }
+)
 BACKEND_IMPORTS = frozenset(
     {
         "PIL",

@@ -22,7 +22,12 @@ from typing import Any, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
-from pycore.pyfoundations.third_party.api import get_third_package_torch
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_parler_tts,
+    get_third_package_soundfile,
+    get_third_package_torch,
+    get_third_package_transformers,
+)
 
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
@@ -76,7 +81,11 @@ def _description() -> str:
 
 def available() -> bool:
     try:
-        return importlib.util.find_spec("parler_tts") is not None
+        return (
+            importlib.util.find_spec("parler_tts") is not None
+            and importlib.util.find_spec("soundfile") is not None
+            and importlib.util.find_spec("transformers") is not None
+        )
     except Exception:
         return False
 
@@ -88,8 +97,15 @@ def _load_model() -> tuple[Any, Any]:
     get_third_package_torch()
     model_id = _model_id()
     dev = _device()
-    _tokenizer = AutoTokenizer.from_pretrained(model_id)
-    _model = ParlerTTSForConditionalGeneration.from_pretrained(model_id).to(dev)
+    transformers = get_third_package_transformers()
+    parler_tts = get_third_package_parler_tts()
+    tokenizer_class = getattr(transformers, "AutoTokenizer", None)
+    model_class = getattr(parler_tts, "ParlerTTSForConditionalGeneration", None)
+    if tokenizer_class is None or model_class is None:
+        ColorPrint.red("[parler] model classes are unavailable")
+        return None, None
+    _tokenizer = tokenizer_class.from_pretrained(model_id)
+    _model = model_class.from_pretrained(model_id).to(dev)
     ColorPrint.green(f"[parler] loaded {model_id} (device={dev})")
     return _tokenizer, _model
 
@@ -113,6 +129,8 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
     try:
         torch = get_third_package_torch()
         tokenizer, model = _get_model()
+        if tokenizer is None or model is None:
+            return False
         dev = _device()
         description = _description()
         input_ids = tokenizer(description, return_tensors="pt").input_ids.to(dev)
@@ -128,7 +146,11 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         arr = generation.cpu().numpy().squeeze()
         rate = int(getattr(model.config, "sampling_rate", 44100))
         tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-        sf.write(str(tmp_wav), arr, rate)
+        soundfile = get_third_package_soundfile()
+        if soundfile is None:
+            ColorPrint.red("[parler] soundfile is unavailable")
+            return False
+        soundfile.write(str(tmp_wav), arr, rate)
     except Exception as exc:
         ColorPrint.red(f"[parler] synth failed: {exc}")
         return False

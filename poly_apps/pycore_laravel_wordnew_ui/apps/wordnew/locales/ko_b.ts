@@ -426,5 +426,22 @@ export const koLocaleB: Record<string, string> = {
     'notif.actionFailed': '작업에 실패했습니다. 다시 시도하세요.',
     'notif.type.friend.request': '새 친구 요청',
     'notif.type.friend.accept': '친구 요청 수락됨',
-    'notif.type.message.new': '새 메시지'
+    'notif.type.message.new': '새 메시지',
+    'queue.none': '대기 리소스 없음',
+    'queue.missing': '오디오 없음',
+    'queue.waiting': 'Laravel 수신 대기',
+    'queue.queued': 'Laravel 수신 및 대기열 맨 앞으로 이동',
+    'queue.laravel_received': 'Laravel 수신 및 대기열 맨 앞으로 이동',
+    'queue.worker_received': '온라인 Worker 수신 및 로컬 대기열 맨 앞으로 이동',
+    'queue.processing': 'Worker 처리 중',
+    'queue.ready': '리소스 준비 완료',
+    'queue.completed': '리소스 준비 완료',
+    'queue.playing': '오디오 재생 중',
+    'queue.failed': '생성 실패',
+    'queue.laravel': 'Laravel',
+    'queue.pycore': 'Pycore',
+    'queue.mcpChrome': 'mcp-chrome',
+    'queue.online': '온라인',
+    'queue.offline': '오프라인',
+    'queue.tracked': '{count}개 추적 중'
 };

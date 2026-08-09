@@ -19,11 +19,13 @@
  *     speaker icon carries an emerald badge with the count (played mark).
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { Volume2, Star, Check, RotateCcw } from 'lucide-react';
+import { Star, Check, RotateCcw } from 'lucide-react';
 import type { Word, ElementTheme } from '../../WfNewTypes';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewNoTranslation } from './WfNewNoTranslation';
 import { useVisibleWordPriority } from '../../hooks/useVisibleWordPriority';
+import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
 
 interface WfNewStudyWordListProps {
   words: Word[];
@@ -171,8 +173,14 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
                   tapped; an empty translation shows the muted no-translation marker
                   (nothing to reveal, so no blur/reveal button). */}
               {!word.translation ? (
-                <span className="block mt-1">
+                <span className="mt-1 flex items-center gap-1.5">
                   <WfNewNoTranslation lang={lang} />
+                  <WordNewAudioStatusIcon
+                    state="waiting"
+                    resource="translation"
+                    queueKey={wordTranslationQueueKey(word.text, sourceLanguage, lang)}
+                    trans={(key) => studyT(lang, key)}
+                  />
                 </span>
               ) : alwaysShowTranslation ? (
                 <span className={`${jumbo ? 'text-2xl' : 'text-xs'} truncate block mt-1 text-zinc-400`}>
@@ -202,13 +210,15 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
               {/* No animated wave icon during playback (per design request) —
                   the active-row highlight alone marks the playing word. */}
               <span className="relative">
-                <button
+                <WordNewAudioStatusIcon
+                  state={word.audioUrl || (word.audioFiles?.length ?? 0) > 0 ? 'ready' : 'waiting'}
+                  queueKey={wordAudioQueueKey(word.text, sourceLanguage)}
+                  trans={(key) => studyT(lang, key)}
                   onClick={() => onSpeak(word)}
+                  size="md"
                   className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-300"
                   title={studyT(lang, 'study.recite.play')}
-                >
-                  <Volume2 className="w-3.5 h-3.5" />
-                </button>
+                />
                 {/* Played mark — the backend-mirrored read count; shown once the
                     word has been read/played at least once. */}
                 {readCount > 0 && (

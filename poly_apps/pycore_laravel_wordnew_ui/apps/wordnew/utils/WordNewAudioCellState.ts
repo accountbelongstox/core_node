@@ -5,7 +5,17 @@ import type { WordNewAudioFileVariant } from '../api/types/media';
 
 export type { WordNewAudioFileVariant };
 
-export type WordNewAudioCellState = 'none' | 'missing' | 'queued' | 'processing' | 'ready' | 'playing';
+export type WordNewAudioCellState =
+  | 'none'
+  | 'missing'
+  | 'waiting'
+  | 'queued'
+  | 'laravel_received'
+  | 'worker_received'
+  | 'processing'
+  | 'ready'
+  | 'playing'
+  | 'failed';
 
 export const cellKeyOf = (grain: string, seq: number, lang: string) => `${grain}-${seq}-${lang}`;
 

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { BookMarked, CircleDashed, Clock3, ListMusic, Volume2 } from 'lucide-react';
+import { BookMarked, CircleDashed, ListMusic } from 'lucide-react';
 import type { WordNewSentenceWordRow } from '../../services/WordNewSentenceWordTable';
+import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
 
 interface Props {
   words: WordNewSentenceWordRow[];
@@ -53,9 +55,6 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
           const meaning = translations.join(' / ') || word.explanation || trans('home.dailyReading.meaningPending');
           const isActive = wordIndex === activeWordIndex;
           const hasAudio = word.audio_status === 'ready' && !!word.audio_url;
-          const audioLabel = trans(hasAudio
-            ? 'home.dailyReading.audioReady'
-            : 'home.dailyReading.audioPending');
           const groupLabel = trans(word.in_default_group
             ? 'home.dailyReading.defaultGroupLinked'
             : 'home.dailyReading.defaultGroupPending');
@@ -73,9 +72,19 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
               <span className="truncate text-xs font-semibold">{word.word}</span>
               <span className="truncate text-[11px]" title={meaning}>{meaning}</span>
               <span className="flex items-center gap-1.5 text-[10px]">
-                {hasAudio
-                  ? <Volume2 className="w-3.5 h-3.5 text-emerald-300" aria-label={audioLabel} title={audioLabel} />
-                  : <Clock3 className="w-3.5 h-3.5 text-amber-300" aria-label={audioLabel} title={audioLabel} />}
+                <WordNewAudioStatusIcon
+                  state={hasAudio ? 'ready' : 'waiting'}
+                  queueKey={wordAudioQueueKey(word.word, 'en')}
+                  trans={trans}
+                />
+                {translations.length === 0 ? (
+                  <WordNewAudioStatusIcon
+                    state="waiting"
+                    resource="translation"
+                    queueKey={wordTranslationQueueKey(word.word, 'en', 'zh')}
+                    trans={trans}
+                  />
+                ) : null}
                 {word.in_default_group
                   ? <BookMarked className="w-3.5 h-3.5 text-indigo-300" aria-label={groupLabel} title={groupLabel} />
                   : <CircleDashed className="w-3.5 h-3.5 text-zinc-500" aria-label={groupLabel} title={groupLabel} />}

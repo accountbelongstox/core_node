@@ -5,14 +5,12 @@
  * stacking remains a direct Laravel command. Failures never block the UI.
  */
 import { useEffect, useRef } from 'react';
-import { WfNewApiPaths } from '../api/WfNewApiPaths';
-import { postJSON } from '../api/WfNewApiTransport';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { wordNewQueueRuntime } from '../services/WordNewQueueRuntime';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 const READER_DEBOUNCE_MS = 150;
-const DEFAULT_STACK_PRIORITY = 100;
 
 export type PriorityBoostSentence = { text: string; language: string };
 
@@ -109,12 +107,7 @@ export function useShelfPriorityBoost(
       });
     }
     if (lang && list.length && target) {
-      void postJSON(WfNewApiPaths.translationQueueStack, {
-        words: list,
-        language: lang,
-        target_language: target,
-        priority: DEFAULT_STACK_PRIORITY,
-      }).catch((e) => {
+      void wordNewQueueRuntime.prioritizeTranslations(list, lang, target).catch((e) => {
         console.warn('[wordnew] shelf translation stack failed', e);
       });
     }
@@ -154,12 +147,7 @@ export function useLibraryPriorityBoost(
     if (stackedKeyRef.current === sig) return;
     stackedKeyRef.current = sig;
 
-    void postJSON(WfNewApiPaths.translationQueueStack, {
-      words: list,
-      language: lang,
-      target_language: target,
-      priority: DEFAULT_STACK_PRIORITY,
-    }).catch((e) => {
+    void wordNewQueueRuntime.prioritizeTranslations(list, lang, target).catch((e) => {
       console.warn('[wordnew] translation queue stack failed', e);
     });
   }, [libraryId, words, language, targetLanguage]);

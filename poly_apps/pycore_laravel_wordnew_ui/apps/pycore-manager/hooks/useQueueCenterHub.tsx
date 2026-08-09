@@ -35,7 +35,6 @@ import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 import { StorageManager } from '../../../core/persistence';
-import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
@@ -139,6 +138,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const offlineRetryAtRef = useRef(0);
   const consecutiveFailuresRef = useRef(0);
   const pollInFlightRef = useRef(false);
+  const pollQueuedRef = useRef(false);
+  const remoteRefreshQueuedRef = useRef(false);
+  const pollRef = useRef<(silent?: boolean, requestRemoteRefresh?: boolean) => Promise<void>>(
+    async () => undefined,
+  );
   const mounted = useRef(true);
 
   const setAutoRefresh = useCallback((enabled: boolean) => {
@@ -154,7 +158,11 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   }, []);
 
   const poll = useCallback(async (silent = false, requestRemoteRefresh = false) => {
-    if (pollInFlightRef.current) return;
+    if (pollInFlightRef.current) {
+      pollQueuedRef.current = true;
+      remoteRefreshQueuedRef.current = remoteRefreshQueuedRef.current || requestRemoteRefresh;
+      return;
+    }
     pollInFlightRef.current = true;
     try {
       const currentRequest = ++requestId.current;
@@ -247,8 +255,17 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       }
     } finally {
       pollInFlightRef.current = false;
+      if (pollQueuedRef.current && mounted.current) {
+        const queuedRemoteRefresh = remoteRefreshQueuedRef.current;
+        pollQueuedRef.current = false;
+        remoteRefreshQueuedRef.current = false;
+        window.setTimeout(() => {
+          if (mounted.current) void pollRef.current(true, queuedRemoteRefresh);
+        }, 0);
+      }
     }
   }, [laravelEndpoint, t]);
+  pollRef.current = poll;
 
   useEffect(() => { void poll(false); }, [poll]);
 
@@ -265,13 +282,12 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
   const promoteTranslationTask = useCallback((taskId: string, priority: number) => {
-    diffQueueContext.touch('pycore-manager:translation:priority', [taskId]);
     setHub((previous) => {
       const translationQueue = previous.translationQueue;
       if (!translationQueue?.items) return previous;
       const items = translationQueue.items
         .map((task) => task.task_id === taskId
-          ? { ...task, priority: Math.max(task.priority ?? 0, priority), recently_bumped: true }
+          ? { ...task, priority, recently_bumped: priority > (task.priority ?? 0) }
           : task)
         .sort((left, right) => (right.priority ?? 0) - (left.priority ?? 0));
       return { ...previous, translationQueue: { ...translationQueue, items } };
@@ -280,13 +296,24 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
 
   useEffect(() => {
     const handleEndpointChanged = () => {
+      requestId.current += 1;
       setHub((previous) => ({
         ...previous,
+        hubState: 'loading',
         laravelActiveEndpoint: null,
         laravelStoredEndpoint: null,
         workerApiUrl: null,
         laravelReachable: null,
         laravelSnapshotAgeS: null,
+        translationPending: null,
+        overview: null,
+        sentenceQueue: null,
+        recent: null,
+        translationQueue: null,
+        sliceErrors: {},
+        timestamp: null,
+        loading: true,
+        sectionContracts: defaultSectionContracts,
       }));
       void poll(false);
     };

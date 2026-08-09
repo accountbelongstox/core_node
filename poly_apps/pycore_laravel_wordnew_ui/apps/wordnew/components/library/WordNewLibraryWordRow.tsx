@@ -15,11 +15,13 @@ import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { ttsStatusToCellState, type WordNewAudioCellState } from '../../utils/WordNewAudioCellState';
 import { pickSentenceAudioUrl, readySentenceVariants } from '../../utils/WordNewSentenceAudioPick';
 import { buildWordCell } from '../../utils/WordNewLibraryWordCell';
+import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
 
 export interface WordNewLibraryWordRowProps {
   word: WfNewLibraryWord;
   resolved: WfNewWordMedia | undefined;
   lang: string;
+  targetLanguage: string;
   open: boolean;
   /** Current playing key (`${md5||index}:${lang}`) or null. */
   playingKey: string | null;
@@ -60,7 +62,7 @@ const resolveRowState = (
 };
 
 export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
-  word: w, resolved, lang, open, playingKey, activeKey, cellStatuses,
+  word: w, resolved, lang, targetLanguage, open, playingKey, activeKey, cellStatuses,
   variantByKey, onVariantSelect, onPlay, onRetry, onToggleExpand, trans,
   requested, imagePending, effImages, theme, rowRef,
 }) => {
@@ -119,11 +121,21 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
           {(effAudioUrl || state !== 'none' || w.ttsStatus || requested) ? (
             <WordNewAudioStatusIcon
               state={state}
+              queueKey={wordAudioQueueKey(w.word, lang)}
+              trans={trans}
               onClick={() => {
                 if (state === 'ready' || state === 'playing') onPlay(w);
                 else if (w.word?.trim()) onRetry(w);
               }}
-              title={trans('library.play')}
+              title={state === 'ready' || state === 'playing' ? trans('library.play') : undefined}
+            />
+          ) : null}
+          {w.translations.length === 0 ? (
+            <WordNewAudioStatusIcon
+              state="waiting"
+              resource="translation"
+              queueKey={wordTranslationQueueKey(w.word, lang, targetLanguage)}
+              trans={trans}
             />
           ) : null}
           {effImages.length > 0 ? (

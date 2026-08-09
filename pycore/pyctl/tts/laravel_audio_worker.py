@@ -1232,6 +1232,11 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         super().promote_cached_task(task_id, priority)
         self._queue.bump_task(task_id, priority)
 
+    def reprioritize_cached_task(self, task_id: Any, priority: int) -> None:
+        """Update both cached audio representations without forcing queue head."""
+        super().reprioritize_cached_task(task_id, priority)
+        self._queue.bump_task(task_id, priority)
+
     def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
         """Queue one typed-pull or compatibility-RPC task for synthesis.
 

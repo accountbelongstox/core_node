@@ -597,6 +597,15 @@ class BaseLaravelWorkerService:
             priority,
         )
 
+    def reprioritize_cached_task(self, task_id: Any, priority: int) -> None:
+        """Update a cached task priority without moving it to the queue head."""
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        diff_task_segment_store.reprioritize(
+            self._diff_segment_scope(base_url),
+            task_id,
+            priority,
+        )
+
     # -------------------- backend circuit breaker --------------------
 
     def _note_result_accepted(self) -> None:

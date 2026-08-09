@@ -100,7 +100,7 @@ def engine_installed(name: str) -> bool:
     if name == "bark":
         return (_spec("transformers") and _spec("scipy")) or staging_deps_done("bark")
     if name == "parler":
-        return False  # disabled: conflicts with qwen-tts transformers pin
+        return _spec("parler_tts") and _spec("soundfile") and _spec("transformers")
     if name == "voxcpm2":
         return _spec("voxcpm") or staging_deps_done("voxcpm2")
     if name == "kokoro":
@@ -201,9 +201,6 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
 
     if name == "edge":
         return "edge-tts client failed to initialize (check package / network)"
-
-    if name == "parler":
-        return "Parler-TTS is disabled because qwen-tts owns an isolated transformer dependency set"
 
     return None
 

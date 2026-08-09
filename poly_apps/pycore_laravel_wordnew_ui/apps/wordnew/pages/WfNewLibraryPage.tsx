@@ -503,6 +503,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
                       word={w}
                       resolved={resolved}
                       lang={libLang}
+                      targetLanguage={nativeLang}
                       open={expanded.has(w.index)}
                       playingKey={playingKey}
                       activeKey={activeKey}

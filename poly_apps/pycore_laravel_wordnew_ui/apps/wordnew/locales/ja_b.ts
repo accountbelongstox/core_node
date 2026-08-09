@@ -426,5 +426,22 @@ export const jaLocaleB: Record<string, string> = {
     'notif.actionFailed': '操作に失敗しました。もう一度お試しください。',
     'notif.type.friend.request': '新しい友達リクエスト',
     'notif.type.friend.accept': '友達リクエストが承認されました',
-    'notif.type.message.new': '新しいメッセージ'
+    'notif.type.message.new': '新しいメッセージ',
+    'queue.none': 'キュー対象なし',
+    'queue.missing': '音声がありません',
+    'queue.waiting': 'Laravel の受信待ち',
+    'queue.queued': 'Laravel が受信しキュー先頭へ移動',
+    'queue.laravel_received': 'Laravel が受信しキュー先頭へ移動',
+    'queue.worker_received': 'オンライン Worker が受信しローカルキュー先頭へ移動',
+    'queue.processing': 'Worker が処理中',
+    'queue.ready': 'リソース準備完了',
+    'queue.completed': 'リソース準備完了',
+    'queue.playing': '音声を再生中',
+    'queue.failed': '生成に失敗しました',
+    'queue.laravel': 'Laravel',
+    'queue.pycore': 'Pycore',
+    'queue.mcpChrome': 'mcp-chrome',
+    'queue.online': 'オンライン',
+    'queue.offline': 'オフライン',
+    'queue.tracked': '{count} 件を追跡中'
 };

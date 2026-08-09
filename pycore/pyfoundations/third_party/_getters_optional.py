@@ -406,6 +406,50 @@ def get_third_package_melo():
     return _PACKAGE_CACHE['melo']
 
 
+def get_third_package_transformers():
+    """Get transformers without runtime installation."""
+    if 'transformers' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['transformers'] = (
+            importlib.import_module('transformers')
+            if importlib.util.find_spec('transformers') is not None
+            else None
+        )
+    return _PACKAGE_CACHE['transformers']
+
+
+def get_third_package_soundfile():
+    """Get soundfile without runtime installation."""
+    if 'soundfile' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['soundfile'] = (
+            importlib.import_module('soundfile')
+            if importlib.util.find_spec('soundfile') is not None
+            else None
+        )
+    return _PACKAGE_CACHE['soundfile']
+
+
+def get_third_package_parler_tts():
+    """Get parler_tts without runtime installation."""
+    if 'parler_tts' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['parler_tts'] = (
+            importlib.import_module('parler_tts')
+            if importlib.util.find_spec('parler_tts') is not None
+            else None
+        )
+    return _PACKAGE_CACHE['parler_tts']
+
+
+def get_third_package_voxcpm():
+    """Get voxcpm without runtime installation."""
+    if 'voxcpm' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['voxcpm'] = (
+            importlib.import_module('voxcpm')
+            if importlib.util.find_spec('voxcpm') is not None
+            else None
+        )
+    return _PACKAGE_CACHE['voxcpm']
+
+
 def get_third_package_pywinauto():
     """Get pywinauto package (lazy load, Windows only)"""
     if 'pywinauto' not in _PACKAGE_CACHE:

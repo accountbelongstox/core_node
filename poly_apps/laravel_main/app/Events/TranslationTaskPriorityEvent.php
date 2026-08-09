@@ -27,7 +27,7 @@ use Illuminate\Queue\SerializesModels;
  * the queue in real time. Reliable ordering still comes from the HTTP
  * pull/claim endpoint; this is a hint to react sooner.
  *
- * Payload: { task_id, priority }
+ * Payload: { task_id, priority, old_priority?, bump }
  */
 class TranslationTaskPriorityEvent implements ShouldBroadcastNow
 {
@@ -35,11 +35,13 @@ class TranslationTaskPriorityEvent implements ShouldBroadcastNow
 
     public string $taskId;
     public int $priority;
+    public ?int $oldPriority;
 
-    public function __construct(string $taskId, int $priority)
+    public function __construct(string $taskId, int $priority, ?int $oldPriority = null)
     {
         $this->taskId = $taskId;
         $this->priority = $priority;
+        $this->oldPriority = $oldPriority;
     }
 
     public function broadcastOn(): Channel
@@ -54,9 +56,16 @@ class TranslationTaskPriorityEvent implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        return [
+        $payload = [
             'task_id' => $this->taskId,
             'priority' => $this->priority,
+            'bump' => $this->oldPriority === null || $this->priority > $this->oldPriority
+                ? 'bumped'
+                : 'reprioritized',
         ];
+        if ($this->oldPriority !== null) {
+            $payload['old_priority'] = $this->oldPriority;
+        }
+        return $payload;
     }
 }

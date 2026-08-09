@@ -609,5 +609,22 @@ export const enLocaleB: Record<string, string> = {
     'notif.actionFailed': 'Action failed. Try again.',
     'notif.type.friend.request': 'New friend request',
     'notif.type.friend.accept': 'Friend request accepted',
-    'notif.type.message.new': 'New message'
+    'notif.type.message.new': 'New message',
+    'queue.none': 'No queued resource',
+    'queue.missing': 'Audio is missing',
+    'queue.waiting': 'Waiting for Laravel',
+    'queue.queued': 'Laravel received and moved to queue front',
+    'queue.laravel_received': 'Laravel received and moved to queue front',
+    'queue.worker_received': 'Online worker received and moved to local queue front',
+    'queue.processing': 'Worker is processing',
+    'queue.ready': 'Resource ready',
+    'queue.completed': 'Resource ready',
+    'queue.playing': 'Playing audio',
+    'queue.failed': 'Generation failed',
+    'queue.laravel': 'Laravel',
+    'queue.pycore': 'Pycore',
+    'queue.mcpChrome': 'mcp-chrome',
+    'queue.online': 'Online',
+    'queue.offline': 'Offline',
+    'queue.tracked': '{count} tracked'
 };
