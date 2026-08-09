@@ -30,6 +30,7 @@ from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audi
 from pycore.pyctl.tts.status_service import status as get_tts_status
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 from pycore.pyctl.translation.worker.worker import translation_worker_service
+from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
 from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -435,10 +436,11 @@ class QueueCenterSnapshotService:
                     ):
                         continue
                     event_payload = item.get("payload")
-                    next_snapshot["sentenceQueue"] = self._promote_sentence_row(
-                        next_snapshot.get("sentenceQueue"),
-                        event_payload if isinstance(event_payload, dict) else item,
-                    )
+            next_snapshot["sentenceQueue"] = self._update_sentence_row(
+                next_snapshot.get("sentenceQueue"),
+                event_payload if isinstance(event_payload, dict) else item,
+                True,
+            )
                 for item in reversed(list(queue_heads.get("word_translation") or [])):
                     if (
                         not isinstance(item, dict)
@@ -446,11 +448,12 @@ class QueueCenterSnapshotService:
                         or float(item.get("received_at") or 0) < refresh_started_at
                     ):
                         continue
-                    next_snapshot["translation"] = self._promote_translation_row(
-                        next_snapshot.get("translation"),
-                        str(item["task_id"]),
-                        int(item.get("priority") or 0),
-                    )
+            next_snapshot["translation"] = self._update_translation_row(
+                next_snapshot.get("translation"),
+                str(item["task_id"]),
+                int(item.get("priority") or 0),
+                True,
+            )
                 next_snapshot["generatedAt"] = _utc_now()
                 next_snapshot["laravelReachable"] = successes > 0
                 next_snapshot["laravelActiveEndpoint"] = endpoint or None
@@ -521,35 +524,14 @@ class QueueCenterSnapshotService:
                 if not batch_task_id:
                     continue
                 batch_priority = int(batch_item.get("priority") or priority)
-                if queue in ("word_audio", "sentence_audio"):
-                    batch_worker = (
-                        laravel_word_audio_worker
-                        if queue == "word_audio"
-                        else laravel_sentence_audio_worker
-                    )
-                    if move_to_head:
-                        batch_worker.promote_cached_task(batch_task_id, batch_priority)
-                    else:
-                        batch_worker.reprioritize_cached_task(batch_task_id, batch_priority)
-                elif move_to_head:
-                    translation_worker_service.promote_cached_task(batch_task_id, batch_priority)
-                else:
-                    translation_worker_service.reprioritize_cached_task(batch_task_id, batch_priority)
-        if task_id and queue in ("word_audio", "sentence_audio"):
-            worker = (
-                laravel_word_audio_worker
-                if queue == "word_audio"
-                else laravel_sentence_audio_worker
-            )
-            if move_to_head:
-                worker.promote_cached_task(task_id, priority)
-            else:
-                worker.reprioritize_cached_task(task_id, priority)
-        elif task_id:
-            if move_to_head:
-                translation_worker_service.promote_cached_task(task_id, priority)
-            else:
-                translation_worker_service.reprioritize_cached_task(task_id, priority)
+                self._set_worker_priority(
+                    queue,
+                    batch_task_id,
+                    batch_priority,
+                    move_to_head,
+                )
+        if task_id:
+            self._set_worker_priority(queue, task_id, priority, move_to_head)
         if move_to_head:
             queue_bump_hub.record(
                 queue,
@@ -592,31 +574,17 @@ class QueueCenterSnapshotService:
             snapshot["generatedAt"] = _utc_now()
             snapshot["laravelReachable"] = True
             if queue == "sentence_audio" and task_id:
-                snapshot["sentenceQueue"] = (
-                    self._promote_sentence_row(
-                        snapshot.get("sentenceQueue"),
-                        payload,
-                    )
-                    if move_to_head
-                    else self._reprioritize_sentence_row(
-                        snapshot.get("sentenceQueue"),
-                        task_id,
-                        priority,
-                    )
+                snapshot["sentenceQueue"] = self._update_sentence_row(
+                    snapshot.get("sentenceQueue"),
+                    payload,
+                    move_to_head,
                 )
             if queue == "word_translation" and task_id:
-                snapshot["translation"] = (
-                    self._promote_translation_row(
-                        snapshot.get("translation"),
-                        task_id,
-                        priority,
-                    )
-                    if move_to_head
-                    else self._reprioritize_translation_row(
-                        snapshot.get("translation"),
-                        task_id,
-                        priority,
-                    )
+                snapshot["translation"] = self._update_translation_row(
+                    snapshot.get("translation"),
+                    task_id,
+                    priority,
+                    move_to_head,
                 )
             return snapshot
 
@@ -627,6 +595,20 @@ class QueueCenterSnapshotService:
         self._publish_changed(event_name, snapshot)
         if payload.get("batch") or not move_to_head:
             self.request_refresh()
+
+    @staticmethod
+    def _set_worker_priority(
+        queue: str,
+        task_id: str,
+        priority: int,
+        move_to_head: bool,
+    ) -> None:
+        worker = translation_worker_service
+        if queue == "word_audio":
+            worker = laravel_word_audio_worker
+        elif queue == "sentence_audio":
+            worker = laravel_sentence_audio_worker
+        worker.set_cached_task_priority(task_id, priority, move_to_head)
 
     @staticmethod
     def _priority_label(payload: Dict[str, Any], task_id: str, queue: str) -> str:
@@ -779,96 +761,55 @@ class QueueCenterSnapshotService:
         return payload
 
     @staticmethod
-    def _promote_translation_row(
+    def _update_translation_row(
         translation: Any,
         task_id: str,
         priority: int,
+        move_to_head: bool,
     ) -> Dict[str, Any]:
         snapshot = dict(translation) if isinstance(translation, dict) else {}
-        items = [dict(item) for item in snapshot.get("items") or [] if isinstance(item, dict)]
-        matching = [
-            item for item in items
-            if str(item.get("task_id") or "") == task_id
-        ]
-        if not matching:
-            return snapshot
-        row = matching[0]
-        row["priority"] = priority
-        row["recently_bumped"] = True
-        snapshot["items"] = [
-            row,
-            *[item for item in items if str(item.get("task_id") or "") != task_id],
-        ][:QUEUE_CENTER_HEAD_LIMIT]
+        snapshot["items"] = BoundedPriorityRows.update(
+            snapshot.get("items"),
+            [{"task_id": task_id}],
+            "priority",
+            priority,
+            QUEUE_CENTER_HEAD_LIMIT,
+            move_to_head,
+        )
         return snapshot
 
     @staticmethod
-    def _reprioritize_translation_row(
-        translation: Any,
-        task_id: str,
-        priority: int,
-    ) -> Dict[str, Any]:
-        snapshot = dict(translation) if isinstance(translation, dict) else {}
-        items = [dict(item) for item in snapshot.get("items") or [] if isinstance(item, dict)]
-        for item in items:
-            if str(item.get("task_id") or "") != task_id:
-                continue
-            item["priority"] = priority
-            item["recently_bumped"] = False
-            break
-        items.sort(key=lambda item: int(item.get("priority") or 0), reverse=True)
-        snapshot["items"] = items[:QUEUE_CENTER_HEAD_LIMIT]
-        return snapshot
-
-    @staticmethod
-    def _promote_sentence_row(
+    def _update_sentence_row(
         sentence_queue: Any,
         payload: Dict[str, Any],
+        move_to_head: bool,
     ) -> Dict[str, Any]:
         snapshot = dict(sentence_queue) if isinstance(sentence_queue, dict) else {"success": True}
         queue = dict(snapshot.get("queue") or {})
-        items = [dict(item) for item in queue.get("items") or [] if isinstance(item, dict)]
         task_id = str(payload.get("task_id") or "")
         content_id = str(payload.get("content_id") or "")
         language = str(payload.get("language") or "")
-        matching = [
-            item for item in items
-            if str(item.get("task_id") or "") == task_id
-            or (
-                content_id
-                and str(item.get("content_id") or "") == content_id
-                and str(item.get("language") or "") == language
-            )
-        ]
-        row = matching[0] if matching else {
+        identities = []
+        if task_id:
+            identities.append({"task_id": task_id})
+        if content_id:
+            identities.append({"content_id": content_id, "language": language})
+        create_row = {
             "task_id": task_id,
             "content_id": content_id,
             "language": language,
             "text": payload.get("text"),
             "tts_status": "pending",
         }
-        row["tts_priority"] = int(payload.get("priority") or 0)
-        row["recently_bumped"] = True
-        queue["items"] = [row, *[item for item in items if item is not row]][:QUEUE_CENTER_HEAD_LIMIT]
-        snapshot["queue"] = queue
-        return snapshot
-
-    @staticmethod
-    def _reprioritize_sentence_row(
-        sentence_queue: Any,
-        task_id: str,
-        priority: int,
-    ) -> Dict[str, Any]:
-        snapshot = dict(sentence_queue) if isinstance(sentence_queue, dict) else {"success": True}
-        queue = dict(snapshot.get("queue") or {})
-        items = [dict(item) for item in queue.get("items") or [] if isinstance(item, dict)]
-        for item in items:
-            if str(item.get("task_id") or "") != task_id:
-                continue
-            item["tts_priority"] = priority
-            item["recently_bumped"] = False
-            break
-        items.sort(key=lambda item: int(item.get("tts_priority") or 0), reverse=True)
-        queue["items"] = items[:QUEUE_CENTER_HEAD_LIMIT]
+        queue["items"] = BoundedPriorityRows.update(
+            queue.get("items"),
+            identities,
+            "tts_priority",
+            int(payload.get("priority") or 0),
+            QUEUE_CENTER_HEAD_LIMIT,
+            move_to_head,
+            create_row if move_to_head else None,
+        )
         snapshot["queue"] = queue
         return snapshot
 

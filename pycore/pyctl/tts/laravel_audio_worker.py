@@ -1227,14 +1227,14 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     # -------------------- RPC accept entry / drain cycle --------------------
 
-    def promote_cached_task(self, task_id: Any, priority: int) -> None:
-        """Reorder both the persistent segment and an already queued task."""
-        super().promote_cached_task(task_id, priority)
-        self._queue.bump_task(task_id, priority)
-
-    def reprioritize_cached_task(self, task_id: Any, priority: int) -> None:
-        """Update both cached audio representations without forcing queue head."""
-        super().reprioritize_cached_task(task_id, priority)
+    def set_cached_task_priority(
+        self,
+        task_id: Any,
+        priority: int,
+        move_to_head: bool,
+    ) -> None:
+        """Update both persistent and in-process audio queue representations."""
+        super().set_cached_task_priority(task_id, priority, move_to_head)
         self._queue.bump_task(task_id, priority)
 
     def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:

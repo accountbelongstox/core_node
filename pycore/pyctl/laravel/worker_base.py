@@ -588,23 +588,26 @@ class BaseLaravelWorkerService:
     def _diff_segment_scope(self, base: str) -> str:
         return f"{self.worker_name}:{self.worker_id}:{base}"
 
-    def promote_cached_task(self, task_id: Any, priority: int) -> None:
-        """Apply a Laravel queue-head event to Pycore's bounded local caches."""
+    def set_cached_task_priority(
+        self,
+        task_id: Any,
+        priority: int,
+        move_to_head: bool,
+    ) -> None:
+        """Apply one Laravel priority event to Pycore's bounded local caches."""
         base_url = self._sync_laravel_endpoint(self.api_url)
-        diff_task_segment_store.promote(
+        diff_task_segment_store.set_priority(
             self._diff_segment_scope(base_url),
             task_id,
             priority,
+            move_to_head,
         )
 
+    def promote_cached_task(self, task_id: Any, priority: int) -> None:
+        self.set_cached_task_priority(task_id, priority, True)
+
     def reprioritize_cached_task(self, task_id: Any, priority: int) -> None:
-        """Update a cached task priority without moving it to the queue head."""
-        base_url = self._sync_laravel_endpoint(self.api_url)
-        diff_task_segment_store.reprioritize(
-            self._diff_segment_scope(base_url),
-            task_id,
-            priority,
-        )
+        self.set_cached_task_priority(task_id, priority, False)
 
     # -------------------- backend circuit breaker --------------------
 
