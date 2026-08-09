@@ -7,8 +7,8 @@
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
-use App\Models\Book;
-use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Providers\PathMapper;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Constants\AppKeys;

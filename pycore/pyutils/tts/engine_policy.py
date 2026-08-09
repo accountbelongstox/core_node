@@ -2,6 +2,7 @@
 """Persistent TTS priority, cooldown, and display-command policy (canonical: pyutils.tts)."""
 
 import os
+import shlex
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -13,6 +14,7 @@ from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
 from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.tts.edge.command import build_edge_tts_command
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
@@ -394,12 +396,21 @@ def format_tts_synth_command(
 ) -> str:
     language_value = (language or "en").strip() or "en"
     output = str(output_path) if output_path else "<output.mp3>"
-    sample = (text or "").replace('"', "'")[:120]
+    text_value = text or ""
     engine_value = (engine or "unknown").strip().lower()
     accent_value = normalize_tts_accent(accent)
     if engine_value == "edge" and edge_voice is not None:
         voice = edge_voice(language_value, accent_value, gender)
-        return f'edge-tts --voice {voice} --rate "{rate or "+0%"}" --text "{sample}" --write-media {output}'
+        proxy = (os.environ.get("EDGE_TTS_PROXY") or "").strip()
+        command = build_edge_tts_command(
+            "edge-tts",
+            voice,
+            rate,
+            text_value,
+            Path(output),
+            proxy=proxy or None,
+        )
+        return shlex.join(command)
     templates = {
         "streamelements": f'streamelements TTS voice={"Amy" if accent_value == "uk" else "Joanna"} lang={language_value}',
         "sherpa": f'sherpa-onnx OfflineTts.generate(lang={language_value}, speed={tts_rate_to_speed(rate)})',
@@ -418,7 +429,7 @@ def format_tts_synth_command(
         "azure": f'azure-cognitiveservices speech lang={language_value} rate={rate or "+0%"}',
     }
     prefix = templates.get(engine_value, f'{engine_value} synthesize(lang={language_value}, accent={accent_value or "any"})')
-    return f'{prefix} text="{sample}" -> {output}'
+    return f'{prefix} text={shlex.quote(text_value)} -> {shlex.quote(output)}'
 
 
 reload_tts_priority()

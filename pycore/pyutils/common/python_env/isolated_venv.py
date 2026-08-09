@@ -24,6 +24,7 @@ from pycore.pyutils.common.python_env.runtime_policy import (
 )
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.compute_caps import CUDADetector
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.system_paths import get_lang_compiler_dir
 
 
@@ -658,6 +659,7 @@ def _install_into(
                 prefix="pycore-shared-runtime-",
                 suffix=".txt",
                 delete=False,
+                dir=str(TMP_DIR),
             ) as handle:
                 handle.write("\n".join(constraints) + "\n")
                 constraint_path = Path(handle.name)

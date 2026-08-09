@@ -57,7 +57,7 @@ if IS_WINDOWS:
         r"C:\Program Files\7-Zip\7z.exe",
         r"C:\Program Files (x86)\7-Zip\7z.exe",
     ]
-    DEFAULT_TEMP_DIR = os.getenv("TEMP", r"C:\Windows\Temp")
+    TMP_DIR = Path(r"D:\.tmp")
     APPLICATIONS_DIR = r"D:\applications"
     LANG_COMPILER_DIR = r"D:\lang_compiler"
 else:
@@ -68,9 +68,17 @@ else:
         "/usr/bin/7za",
         "/usr/local/bin/7za",
     ]
-    DEFAULT_TEMP_DIR = "/tmp"
+    TMP_DIR = Path("/var/_core_node/_tmp")
     APPLICATIONS_DIR = "/opt/applications"
     LANG_COMPILER_DIR = "/opt/lang_compiler"
+
+TMP_DIR.mkdir(parents=True, exist_ok=True)
+DEFAULT_TEMP_DIR = str(TMP_DIR)
+os.environ["CORE_NODE_TMP_DIR"] = DEFAULT_TEMP_DIR
+os.environ["TEMP"] = DEFAULT_TEMP_DIR
+os.environ["TMP"] = DEFAULT_TEMP_DIR
+os.environ["TMPDIR"] = DEFAULT_TEMP_DIR
+tempfile.tempdir = DEFAULT_TEMP_DIR
 
 BACKUP_DIR_NAME = "CoreNodeBackup"
 LOCAL_CORE_NODE_DIR = os.path.join(USER_HOME_DIR, ".core_node")
@@ -106,14 +114,14 @@ WIN11_IDENTIFIER = "10.0.22000"
 
 _SYSTEM_KEY = SYSTEM_NAME.lower()
 _HOME_PATH = Path(USER_HOME_DIR)
-_FALLBACK_CORE_NODE_PATH = Path(tempfile.gettempdir()) / ".core_node"
+_FALLBACK_CORE_NODE_PATH = TMP_DIR / ".core_node"
 _GLOBAL_STORAGE_ROOT = (
     _HOME_PATH / ".core_node"
     if os.access(_HOME_PATH, os.W_OK)
     else _FALLBACK_CORE_NODE_PATH
 )
 GLOBAL_VARS_DIR = _GLOBAL_STORAGE_ROOT / ".global_vars"
-PYTOOLS_TMP_DIR = _GLOBAL_STORAGE_ROOT / "pytools" / "tmp"
+PYTOOLS_TMP_DIR = TMP_DIR / "pytools"
 GLOBAL_VARS_DIR.mkdir(parents=True, exist_ok=True)
 PYTOOLS_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -311,6 +319,7 @@ __all__ = [
     "SYSTEM_NAME",
     "SYSTEM_SCREEN_RESOLUTION",
     "SYSTEM_VERSION",
+    "TMP_DIR",
     "USER_HOME_DIR",
     "USER_PROFILE",
     "WIN10_IDENTIFIER",

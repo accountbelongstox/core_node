@@ -87,6 +87,8 @@ $ErrorActionPreference = "Stop"
 # Variables declared at the top of the file (project rule).
 $arkcliCmd = $null
 $arkcliOk = $false
+$arkcliCheckResult = $null
+$arkcliInstallResult = $null
 $claudeCmd = $null
 $claudeOk = $false
 $pnpmExe = $null
@@ -384,20 +386,30 @@ function Invoke-ExternalCaptured {{
 if (-not $usePlainClaude) {{
 $arkcliCmd = Get-Command arkcli -ErrorAction SilentlyContinue
 if ($arkcliCmd) {{
-    & arkcli --version *> $null
-    if ($LASTEXITCODE -eq 0) {{ $arkcliOk = $true }}
+    $arkcliCheckResult = Invoke-ExternalCaptured -FilePath $arkcliCmd.Source -ArgumentList @("--version")
+    if ([int]$arkcliCheckResult.ExitCode -eq 0) {{ $arkcliOk = $true }}
 }}
 if (-not $arkcliOk) {{
-    Write-Host "arkcli not found; installing {ark_package} via pnpm..." -ForegroundColor Yellow
+    Write-Host "arkcli is missing or unhealthy; installing {ark_package} via pnpm..." -ForegroundColor Yellow
     $pnpmExe = Resolve-PnpmExe
-    & $pnpmExe add -g "{ark_package}"
-    if ($LASTEXITCODE -ne 0) {{
+    $arkcliInstallResult = Invoke-ExternalCaptured -FilePath $pnpmExe -ArgumentList @("add", "--global", "{ark_package}")
+    if (-not [string]::IsNullOrWhiteSpace([string]$arkcliInstallResult.Output)) {{
+        Write-Host ([string]$arkcliInstallResult.Output).Trim()
+    }}
+    if ([int]$arkcliInstallResult.ExitCode -ne 0) {{
         Write-Host "[ERROR] pnpm install of @volcengine/ark-cli failed." -ForegroundColor Red
         exit 1
     }}
     $arkcliCmd = Get-Command arkcli -ErrorAction SilentlyContinue
-    if (-not $arkcliCmd) {{
-        Write-Host "[ERROR] arkcli installed but not on PATH. Restart your shell and re-run this script." -ForegroundColor Red
+    if ($arkcliCmd) {{
+        $arkcliCheckResult = Invoke-ExternalCaptured -FilePath $arkcliCmd.Source -ArgumentList @("--version")
+        if ([int]$arkcliCheckResult.ExitCode -eq 0) {{ $arkcliOk = $true }}
+    }}
+    if (-not $arkcliOk) {{
+        Write-Host "[ERROR] arkcli is unavailable after pnpm installation." -ForegroundColor Red
+        if (($null -ne $arkcliCheckResult) -and -not [string]::IsNullOrWhiteSpace([string]$arkcliCheckResult.Output)) {{
+            Write-Host ([string]$arkcliCheckResult.Output).Trim() -ForegroundColor Red
+        }}
         exit 1
     }}
 }}
@@ -985,13 +997,15 @@ if command -v arkcli >/dev/null 2>&1 && arkcli --version >/dev/null 2>&1; then
     arkcliOk=1
 fi
 if [ "$arkcliOk" -eq 0 ]; then
-    echo "arkcli not found; installing {ark_package} via pnpm..."
+    echo "arkcli is missing or unhealthy; installing {ark_package} via pnpm..."
     resolve_pnpm
-    "$pnpmBin" add -g "{ark_package}" || {{ echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }}
-    if ! command -v arkcli >/dev/null 2>&1; then
-        echo "[ERROR] arkcli installed but not on PATH. Restart your shell and re-run this script." >&2
+    "$pnpmBin" add --global "{ark_package}" || {{ echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }}
+    hash -r
+    if ! command -v arkcli >/dev/null 2>&1 || ! arkcli --version >/dev/null 2>&1; then
+        echo "[ERROR] arkcli is unavailable after pnpm installation." >&2
         exit 1
     fi
+    arkcliOk=1
 fi
 fi
 

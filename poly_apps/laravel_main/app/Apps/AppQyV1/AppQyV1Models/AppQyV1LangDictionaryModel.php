@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Schema;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -155,6 +156,11 @@ class AppQyV1LangDictionaryModel extends Model
         return 'appqyv1:dict_metrics:' . strtolower($langCode);
     }
 
+    public static function coverageCacheKey(string $langCode): string
+    {
+        return 'appqyv1:dict_coverage:' . strtolower($langCode);
+    }
+
     /**
      * Canonical cache key for the consolidated per-language dictionary stats
      * aggregate used by the system-initialization dashboard. Shares the same
@@ -174,6 +180,7 @@ class AppQyV1LangDictionaryModel extends Model
     public static function forgetMetricsCache(string $langCode): void
     {
         Cache::forget(self::metricsCacheKey($langCode));
+        Cache::forget(self::coverageCacheKey($langCode));
         // The system-init dashboard aggregate is derived from the same table,
         // so it must be dropped on the same writes.
         Cache::forget(self::sysInitStatsCacheKey($langCode));
@@ -304,6 +311,261 @@ class AppQyV1LangDictionaryModel extends Model
             ->whereRaw('LENGTH(content) < 500');
     }
 
+    public function scopeContentContainsInsensitive($query, string $value)
+    {
+        return $query->whereRaw('LOWER(content) LIKE ?', ['%' . strtolower($value) . '%']);
+    }
+
+    public function scopeContentStartsWithInsensitive($query, string $value)
+    {
+        return $query->whereRaw('LOWER(content) LIKE ?', [strtolower($value) . '%']);
+    }
+
+    public function scopeWordLength($query)
+    {
+        return $query->whereRaw('LENGTH(content) <= 50');
+    }
+
+    public function scopeMissingAudioFiles($query)
+    {
+        $driver = $query->getModel()->getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            return $query->whereRaw("(audio_files IS NULL OR audio_files::jsonb = '[]'::jsonb)");
+        }
+
+        return $query->whereRaw('(audio_files IS NULL OR json_array_length(audio_files) = 0)');
+    }
+
+    public function scopeMissingTtsFiles($query)
+    {
+        $driver = $query->getModel()->getConnection()->getDriverName();
+
+        if ($driver === 'pgsql') {
+            return $query->whereRaw("(tts_files IS NULL OR tts_files::jsonb = '[]'::jsonb)");
+        }
+
+        return $query->whereRaw('(tts_files IS NULL OR json_array_length(tts_files) = 0)');
+    }
+
+    public function scopeWithTranslationCoverage($query)
+    {
+        return $query->where(function ($builder) {
+            $builder->where('has_translation', true)
+                ->orWhereRaw("translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'");
+        });
+    }
+
+    public function scopeWithoutTranslationCoverage($query)
+    {
+        return $query->where(function ($builder) {
+            $builder->where(function ($flagQuery) {
+                $flagQuery->where('has_translation', false)->orWhereNull('has_translation');
+            })->whereRaw("(translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')");
+        });
+    }
+
+    public static function cachedPendingTranslationSummary(string $langCode): array
+    {
+        $cacheKey = 'appqyv1:wordtrans_pending_summary:' . strtolower($langCode);
+
+        return Cache::remember($cacheKey, 60, static function () use ($langCode): array {
+            $counts = self::forLanguage($langCode)
+                ->newQuery()
+                ->selectRaw('count(*) as total')
+                ->selectRaw('sum(case when has_translation = false and is_valid = true then 1 else 0 end) as pending')
+                ->selectRaw('sum(case when has_translation = true then 1 else 0 end) as completed')
+                ->selectRaw('sum(case when is_valid = false then 1 else 0 end) as failed')
+                ->first();
+
+            return [
+                'pending' => (int) ($counts->pending ?? 0),
+                'completed' => (int) ($counts->completed ?? 0),
+                'failed' => (int) ($counts->failed ?? 0),
+                'total' => (int) ($counts->total ?? 0),
+            ];
+        });
+    }
+
+    public static function invalidCountsBySource(string $langCode)
+    {
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->invalid()
+            ->groupBy('validity_source')
+            ->selectRaw('validity_source, count(*) as total')
+            ->pluck('total', 'validity_source');
+    }
+
+    public static function languageBreakdownMetrics(string $langCode): ?array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return null;
+        }
+
+        $hasValidity = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
+        $selects = [
+            'COUNT(*) as words',
+            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as with_translation",
+            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
+            $hasValidity ? 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid' : '0 as invalid',
+        ];
+        $row = $model->newQuery()->selectRaw(implode(', ', $selects))->first();
+
+        return [
+            'words' => (int) ($row->words ?? 0),
+            'with_translation' => (int) ($row->with_translation ?? 0),
+            'with_audio' => (int) ($row->with_audio ?? 0),
+            'invalid' => (int) ($row->invalid ?? 0),
+        ];
+    }
+
+    public static function coverageMetrics(string $langCode): ?array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return null;
+        }
+
+        $hasValidity = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
+        $selects = [
+            'COUNT(*) as total',
+            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as with_translation",
+            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
+            "SUM(CASE WHEN image_files IS NOT NULL AND image_files <> '' AND image_files <> '{}' AND image_files <> '[]' THEN 1 ELSE 0 END) as with_images",
+            $hasValidity ? 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid_words' : '0 as invalid_words',
+            $hasValidity ? 'SUM(CASE WHEN validity_checked_at IS NOT NULL THEN 1 ELSE 0 END) as validity_checked' : '0 as validity_checked',
+        ];
+        $row = $model->newQuery()->selectRaw(implode(', ', $selects))->first();
+
+        return [
+            'total' => (int) ($row->total ?? 0),
+            'with_translation' => (int) ($row->with_translation ?? 0),
+            'with_audio' => (int) ($row->with_audio ?? 0),
+            'with_images' => (int) ($row->with_images ?? 0),
+            'invalid_words' => (int) ($row->invalid_words ?? 0),
+            'validity_checked' => (int) ($row->validity_checked ?? 0),
+        ];
+    }
+
+    public static function cachedCoverageMetrics(string $langCode): ?array
+    {
+        return Cache::remember(
+            self::coverageCacheKey($langCode),
+            self::METRICS_CACHE_TTL,
+            fn () => self::coverageMetrics($langCode)
+        );
+    }
+
+    public static function coverageMetricsForIds(string $langCode, array $ids): array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+        $stats = ['translated' => 0, 'with_audio' => 0, 'with_image' => 0, 'invalid' => 0];
+
+        if (empty($ids) || !Schema::connection($connectionName)->hasTable($table)) {
+            return $stats;
+        }
+
+        $hasValidity = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
+        $selects = [
+            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as translated",
+            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
+            "SUM(CASE WHEN image_files IS NOT NULL AND image_files <> '' AND image_files <> '{}' AND image_files <> '[]' THEN 1 ELSE 0 END) as with_image",
+            $hasValidity ? 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid' : '0 as invalid',
+        ];
+
+        foreach (array_chunk($ids, 1000) as $chunk) {
+            $row = $model->newQuery()->whereIn('id', $chunk)->selectRaw(implode(', ', $selects))->first();
+            if ($row === null) {
+                continue;
+            }
+            $stats['translated'] += (int) $row->translated;
+            $stats['with_audio'] += (int) $row->with_audio;
+            $stats['with_image'] += (int) $row->with_image;
+            $stats['invalid'] += (int) $row->invalid;
+        }
+
+        return $stats;
+    }
+
+    public static function cachedSystemInitStats(string $langCode, int $ttlSeconds): array
+    {
+        $cacheKey = self::sysInitStatsCacheKey($langCode);
+
+        return Cache::remember($cacheKey, $ttlSeconds, static function () use ($langCode): array {
+            $zero = [
+                'table_exists' => false,
+                'words' => 0,
+                'sentences' => 0,
+                'audio' => 0,
+                'complete_words' => 0,
+                'missing_translation' => 0,
+                'missing_phonetic' => 0,
+                'missing_audio' => 0,
+                'missing_images' => 0,
+                'complete_sentences' => 0,
+                'missing_sentence_translation' => 0,
+                'missing_sentence_audio' => 0,
+            ];
+            $model = self::forLanguage($langCode);
+            $connectionName = $model->getConnectionName();
+            $table = $model->getTable();
+
+            if (!Schema::connection($connectionName)->hasTable($table)) {
+                return $zero;
+            }
+
+            $isSentence = 'LENGTH(content) > 50 AND LENGTH(content) < 500';
+            $hasTranslation = "(has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'))";
+            $missingTranslation = "(has_translation = false OR translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')";
+            $missingPhonetic = "((us_phonetic IS NULL OR us_phonetic = '') AND (uk_phonetic IS NULL OR uk_phonetic = ''))";
+            $missingAudio = "(has_audio = false OR tts_files IS NULL OR tts_files = '' OR tts_files = '{}' OR tts_files = '[]')";
+            $missingImages = "(image_files IS NULL OR image_files = '' OR image_files = '{}' OR image_files = '[]')";
+            $selects = implode(', ', [
+                'COUNT(*) as words',
+                "SUM(CASE WHEN {$isSentence} THEN 1 ELSE 0 END) as sentences",
+                'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as audio',
+                "SUM(CASE WHEN {$hasTranslation} THEN 1 ELSE 0 END) as complete_words",
+                "SUM(CASE WHEN {$missingTranslation} THEN 1 ELSE 0 END) as missing_translation",
+                "SUM(CASE WHEN {$missingPhonetic} THEN 1 ELSE 0 END) as missing_phonetic",
+                "SUM(CASE WHEN {$missingAudio} THEN 1 ELSE 0 END) as missing_audio",
+                "SUM(CASE WHEN {$missingImages} THEN 1 ELSE 0 END) as missing_images",
+                "SUM(CASE WHEN {$isSentence} AND {$hasTranslation} THEN 1 ELSE 0 END) as complete_sentences",
+                "SUM(CASE WHEN {$isSentence} AND {$missingTranslation} THEN 1 ELSE 0 END) as missing_sentence_translation",
+                "SUM(CASE WHEN {$isSentence} AND {$missingAudio} THEN 1 ELSE 0 END) as missing_sentence_audio",
+            ]);
+            $row = $model->newQuery()->selectRaw($selects)->first();
+
+            if ($row === null) {
+                return array_merge($zero, ['table_exists' => true]);
+            }
+
+            return [
+                'table_exists' => true,
+                'words' => (int) $row->words,
+                'sentences' => (int) $row->sentences,
+                'audio' => (int) $row->audio,
+                'complete_words' => (int) $row->complete_words,
+                'missing_translation' => (int) $row->missing_translation,
+                'missing_phonetic' => (int) $row->missing_phonetic,
+                'missing_audio' => (int) $row->missing_audio,
+                'missing_images' => (int) $row->missing_images,
+                'complete_sentences' => (int) $row->complete_sentences,
+                'missing_sentence_translation' => (int) $row->missing_sentence_translation,
+                'missing_sentence_audio' => (int) $row->missing_sentence_audio,
+            ];
+        });
+    }
+
     /** Only words explicitly marked invalid by a third-party check. */
     public function scopeInvalid($query)
     {
@@ -328,6 +590,131 @@ class AppQyV1LangDictionaryModel extends Model
         // in the same query, so the counter bump and the last_query_time stamp no
         // longer cost two separate round-trips per word lookup.
         $this->increment('query_count', 1, ['last_query_time' => now()]);
+    }
+
+    public static function tableRowCount(string $table): ?int
+    {
+        $model = new self();
+        $connectionName = $model->getConnectionName();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return null;
+        }
+
+        return (int) $model->getConnection()->table($table)->count();
+    }
+
+    public static function languageTableExists(string $langCode): bool
+    {
+        $model = self::forLanguage($langCode);
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    public static function languageColumnAvailability(string $langCode, array $columns): array
+    {
+        $model = self::forLanguage($langCode);
+        $schema = Schema::connection($model->getConnectionName());
+        $table = $model->getTable();
+        $availability = [];
+
+        if (!$schema->hasTable($table)) {
+            return array_fill_keys($columns, false);
+        }
+
+        foreach ($columns as $column) {
+            $availability[$column] = $schema->hasColumn($table, $column);
+        }
+
+        return $availability;
+    }
+
+    public static function exportRowsByIds(string $langCode, array $ids): array
+    {
+        $model = self::forLanguage($langCode);
+        $rowsById = [];
+
+        foreach (array_chunk($ids, 1000) as $chunk) {
+            $rows = $model->getConnection()
+                ->table($model->getTable())
+                ->whereIn('id', $chunk)
+                ->get(['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic']);
+
+            foreach ($rows as $row) {
+                $rowsById[(int) $row->id] = $row;
+            }
+        }
+
+        return $rowsById;
+    }
+
+    public static function boostTtsPriority(string $langCode, string $md5): array
+    {
+        $model = self::forLanguage($langCode);
+        $table = $model->getTable();
+
+        return $model->getConnection()->transaction(function () use ($langCode, $md5, $model, $table) {
+            AppQyV1TableMaps::lockTableForFrontTicket($model->getConnection(), $table);
+            $priority = (int) self::forLanguage($langCode)->max('tts_priority') + 1;
+            $updated = self::forLanguage($langCode)
+                ->where('md5', $md5)
+                ->where(function ($query) {
+                    $query->whereNull('is_valid')->orWhere('is_valid', true);
+                })
+                ->update(['tts_priority' => $priority]);
+            $row = $updated > 0
+                ? self::forLanguage($langCode)->select(['id', 'content'])->where('md5', $md5)->first()
+                : null;
+
+            return [
+                'updated' => $updated,
+                'priority' => $updated > 0 ? $priority : 0,
+                'row_id' => (int) ($row?->id ?? 0),
+                'content' => (string) ($row?->content ?? ''),
+                'row_table' => $table,
+            ];
+        });
+    }
+
+    public static function boostTtsPriorities(string $langCode, array $md5s): array
+    {
+        $model = self::forLanguage($langCode);
+        $table = $model->getTable();
+        $rowMap = self::forLanguage($langCode)
+            ->select(['id', 'md5', 'content'])
+            ->whereIn('md5', $md5s)
+            ->get()
+            ->keyBy('md5');
+
+        return $model->getConnection()->transaction(function () use ($langCode, $md5s, $model, $rowMap, $table) {
+            AppQyV1TableMaps::lockTableForFrontTicket($model->getConnection(), $table);
+            $ticket = (int) self::forLanguage($langCode)->max('tts_priority') + count($md5s);
+            $result = [];
+
+            foreach ($md5s as $index => $md5) {
+                $priority = $ticket - $index;
+                $updated = self::forLanguage($langCode)
+                    ->where('md5', $md5)
+                    ->where(function ($query) {
+                        $query->whereNull('is_valid')->orWhere('is_valid', true);
+                    })
+                    ->update(['tts_priority' => $priority]);
+
+                if ($updated > 0) {
+                    $row = $rowMap->get($md5);
+                    $result[] = [
+                        'md5' => $md5,
+                        'language' => $langCode,
+                        'priority' => $priority,
+                        'row_id' => (int) ($row?->id ?? 0),
+                        'content' => (string) ($row?->content ?? ''),
+                        'row_table' => $table,
+                    ];
+                }
+            }
+
+            return $result;
+        });
     }
 
     public function addTTSFile(string $path, string $speedKey = 'p0pct', string $type = 'word'): void

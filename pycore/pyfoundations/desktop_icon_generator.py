@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 import os
 import shutil
-import tempfile
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 from pycore.pyfoundations.app_user_model_id import set_shortcut_app_user_model_id

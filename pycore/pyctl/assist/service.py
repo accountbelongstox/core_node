@@ -141,13 +141,16 @@ def assist_cycle(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if not settings["enabled"]:
         return {"success": False, "error": "queue processing is disabled — enable it first"}
 
-    # Pycore no longer runs its own pull cycles: the UI task pump fetches and
-    # accepts tasks from Laravel and dispatches them to pycore over RPC.
+    results = [
+        translation_worker_service.pull_once(0),
+        laravel_word_audio_worker.pull_once(0),
+        laravel_sentence_audio_worker.pull_once(0),
+    ]
     return {
         "ok": True,
-        "processed": 0,
-        "submitted": 0,
+        "processed": sum(int(result.get("processed") or 0) for result in results),
+        "submitted": sum(int(result.get("processed") or 0) for result in results),
         "released": 0,
         "errors": [],
-        "note": "processing is UI-pump driven; pycore runs no pull cycle",
+        "workers": results,
     }

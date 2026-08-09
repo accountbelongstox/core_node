@@ -12,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\StreamedEvent;
 use Illuminate\Validation\Rule;
 use App\Traits\ApiResponse;
+use App\Utils\SseStreamResponse;
 
 /**
  * Task Controller
@@ -290,7 +291,7 @@ class TaskController extends Controller
         // short-circuit when the stream OPENS on an already-terminal task.
         $initialStatus = $task->status;
 
-        $response = response()->eventStream(function () use ($taskId, $cursor, $maxLifetime, $initial, $terminal, $initialStatus) {
+        return SseStreamResponse::make(function () use ($taskId, $cursor, $maxLifetime, $initial, $terminal, $initialStatus) {
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -353,12 +354,6 @@ class TaskController extends Controller
             $done = in_array($closingStatus, $terminal, true);
             yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('close'), data: json_encode(['cursor' => $current, 'done' => $done]));
         });
-
-        $response->headers->set('X-Accel-Buffering', 'no');
-        $response->headers->set('Cache-Control', 'no-cache, no-transform');
-        $response->headers->set('Connection', 'keep-alive');
-
-        return $response;
     }
 
     /**

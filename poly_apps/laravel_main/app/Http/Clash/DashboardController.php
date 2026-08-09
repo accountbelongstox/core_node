@@ -11,7 +11,7 @@
 
 namespace App\Http\Clash;
 
-use App\Models\Group;
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 
 class DashboardController
@@ -30,7 +30,7 @@ class DashboardController
         $groupViewController = new GroupViewController();
         $currentGroup = $groupIdentifier 
             ? $groupViewController->findGroup($groupIdentifier)
-            : Group::first() ?? Group::create(['name' => 'Default Group']);
+            : Group::defaultGroup();
 
         return view('dashboard', compact('currentGroup'));
     }

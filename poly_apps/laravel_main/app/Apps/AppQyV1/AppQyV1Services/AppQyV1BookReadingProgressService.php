@@ -6,6 +6,8 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserBookReadingProgressModel;
 
 class AppQyV1BookReadingProgressService
 {
+    private const DAILY_READING_SOURCE_KEY = '__daily_reading__';
+
     public function getForBook(int $userId, string $sourceKey): ?array
     {
         $row = AppQyV1UserBookReadingProgressModel::query()
@@ -57,6 +59,35 @@ class AppQyV1BookReadingProgressService
         return $this->toPayload($row);
     }
 
+    public function getDailyReadingForUser(int $userId): ?array
+    {
+        $row = AppQyV1UserBookReadingProgressModel::query()
+            ->where('user_id', $userId)
+            ->where('source_key', self::DAILY_READING_SOURCE_KEY)
+            ->first();
+
+        return $row ? $this->toDailyReadingPayload($row) : null;
+    }
+
+    public function saveDailyReadingForUser(int $userId, array $payload): array
+    {
+        $row = AppQyV1UserBookReadingProgressModel::query()->firstOrNew([
+            'user_id' => $userId,
+            'source_key' => self::DAILY_READING_SOURCE_KEY,
+        ]);
+
+        if (array_key_exists('article_id', $payload)) {
+            $row->article_id = $payload['article_id'];
+        }
+        if (array_key_exists('selection_mode', $payload)) {
+            $row->selection_mode = $payload['selection_mode'];
+        }
+
+        $row->save();
+
+        return $this->toDailyReadingPayload($row);
+    }
+
     private function toPayload(AppQyV1UserBookReadingProgressModel $row): array
     {
         return [
@@ -65,6 +96,15 @@ class AppQyV1BookReadingProgressService
             'verse_seq' => (int) ($row->verse_seq ?? 0),
             'grain' => $row->grain ?? 'sentence',
             'page' => (int) ($row->page ?? 1),
+            'updated_at' => $row->updated_at?->toIso8601String(),
+        ];
+    }
+
+    private function toDailyReadingPayload(AppQyV1UserBookReadingProgressModel $row): array
+    {
+        return [
+            'article_id' => $row->article_id,
+            'selection_mode' => $row->selection_mode ?? 'latest',
             'updated_at' => $row->updated_at?->toIso8601String(),
         ];
     }

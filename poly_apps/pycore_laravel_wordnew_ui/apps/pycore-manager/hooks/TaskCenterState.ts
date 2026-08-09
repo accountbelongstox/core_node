@@ -176,12 +176,8 @@ export class PycoreTaskCenterStateService {
     }
 
     // --- Translation Queue Methods ---
-    async fetchTranslationQueue(refresh: boolean, refreshHub: () => Promise<void>) {
-        try {
-            if (refresh) await laravelApi.getTranslationQueue();
-        } finally {
-            await refreshHub();
-        }
+    async fetchTranslationQueue(_refresh: boolean, refreshHub: () => Promise<void>) {
+        await refreshHub();
     }
 
     async changeTranslationPriority(

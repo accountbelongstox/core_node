@@ -6,8 +6,8 @@
  *   #/library/<libraryId>?page=<n>&view=<dash|table>
  *
  * Audio parity with the book reader (WfNewBookReader):
- *   - three-state icons (queued / processing / ready) via ttsStatusToCellState,
- *   - priority bump on visible/click (bumpSentenceAudioImmediate + wait),
+ *   - three-state pronunciation icons (queued / processing / ready),
+ *   - priority bump on visible/click through the canonical word_audio queue,
  *   - click row plays it through WordNewLibraryPlayback (playFrom re-roots current),
  *   - play-all top-to-bottom with auto-advance,
  *   - auto-scroll active word to upper-middle; manual scroll pauses it 2.5s,
@@ -27,14 +27,9 @@ import {
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WordNewLibraryPlayback } from '../services/WordNewLibraryPlayback';
-import {
-  bumpSentenceAudioImmediate,
-  requestSentenceAudio,
-  resetSentenceAudioScheduler,
-  waitForSentenceAudioUrl,
-} from '../services/WordNewBookReaderSentenceAudio';
-import { ttsStatusToCellState, type WordNewAudioCellState } from '../utils/WordNewAudioCellState';
-import { pickSentenceAudioUrl, readerPreferredAccent } from '../utils/WordNewSentenceAudioPick';
+import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import type { WordNewAudioCellState } from '../utils/WordNewAudioCellState';
+import { mapUiAccent, pickWordAudioUrl } from '../hooks/wordNewWordAudioFallback';
 import { buildWordCell } from '../utils/WordNewLibraryWordCell';
 import { WordNewLibraryWordRow, wordRowKey } from '../components/library/WordNewLibraryWordRow';
 import { useVisibleWordPriority } from '../hooks/useVisibleWordPriority';
@@ -93,9 +88,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   }, [boostStatus]);
 
   // ---- On-demand word media (image/audio) --------------------------------- //
-  // For a row whose image/audio is missing we call getWordMedia(lang, word) ONCE
-  // - that READS current media AND tells the backend to enqueue+prioritize the
-  // missing files. Polled a few times until ready, then overlaid on the row.
+  // For a row whose image/audio is missing the first resolve prioritizes it;
+  // later polls are passive reads and cannot repeatedly alter queue order.
   const [mediaByMd5, setMediaByMd5] = useState<Record<string, WfNewWordMedia>>({});
   const requestedMd5 = useRef<Set<string>>(new Set());
   const pollTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
@@ -150,7 +144,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     const intervalMs = 4000;
     const attempt = (tries: number): void => {
       wfNewApi
-        .getWordMedia(lang, w.word)
+        .getWordMedia(lang, w.word, { passive: tries > 1 })
         .then((m) => {
           setMediaByMd5((prev) => ({ ...prev, [md5]: m }));
           const settled = m.imageStatus === 'ready' && m.audioStatus === 'ready';
@@ -171,47 +165,37 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     setCellStatuses((prev) => (prev[key] === state ? prev : { ...prev, [key]: state }));
   }, []);
 
-  /** Queued (non-urgent) resolve/bump for a word missing audio - drives the
-   *  three-state icon from the sentence-audio scheduler. */
-  const requestWordAudio = useCallback((w: WfNewLibraryWord, lang: string) => {
+  /** Resolve and prioritize missing pronunciation through word_audio. */
+  const queueWordAudio = useCallback((
+    w: WfNewLibraryWord,
+    lang: string,
+    force = false,
+  ) => {
     const text = w.word?.trim();
     if (!text) return;
     const key = wordRowKey(w, lang);
-    if (requestedWordKeys.current.has(key)) return;
+    if (!force && requestedWordKeys.current.has(key)) return;
     requestedWordKeys.current.add(key);
     setCellStatus(key, 'queued');
-    requestSentenceAudio(text, lang, {
-      onStatus: ({ exists, queued, tts_status }) => {
-        setCellStatus(key, ttsStatusToCellState(exists, tts_status, queued));
-      },
-      onReady: () => setCellStatus(key, 'ready'),
-      onSettled: (url) => { if (!url) requestedWordKeys.current.delete(key); },
+    void wordNewAudioQueueCenter.waitForWordAudio(text, lang, {
+      accent: mapUiAccent(wfNewSettings.get('voiceAccent')),
+    }).then((media) => {
+      if (!media) {
+        requestedWordKeys.current.delete(key);
+        return;
+      }
+      setMediaByMd5((prev) => ({ ...prev, [w.md5 || `${w.index}-${w.word}`]: media }));
+      setCellStatus(key, 'ready');
     });
   }, [setCellStatus]);
 
   /** Urgent re-bump + wait (icon click on a missing/queued word). */
   const retryWordAudio = useCallback((w: WfNewLibraryWord) => {
-    const text = w.word?.trim();
-    if (!text) return;
-    const lang = langRef.current;
-    const key = wordRowKey(w, lang);
-    const variantKey = variantByKeyRef.current[key];
-    requestedWordKeys.current.add(key);
-    setCellStatus(key, 'queued');
-    void bumpSentenceAudioImmediate(text, lang, variantKey);
-    void waitForSentenceAudioUrl(text, lang, {
-      urgent: true,
-      variantKey: variantKey || undefined,
-      onStatus: ({ exists, queued, tts_status }) => {
-        setCellStatus(key, ttsStatusToCellState(exists, tts_status, queued));
-      },
-      onReady: () => setCellStatus(key, 'ready'),
-      onSettled: (url) => { if (!url) requestedWordKeys.current.delete(key); },
-    });
-  }, [setCellStatus]);
+    queueWordAudio(w, langRef.current, true);
+  }, [queueWordAudio]);
 
   /** Resolve an absolute MP3 url for a word (playback). Pick from ready
-   *  variants first; else poll the sentence-audio scheduler. Stable callback
+   *  variants first; else poll the word-audio queue gateway. Stable callback
    *  (reads media/variant via refs) so the playback engine is not rebuilt. */
   const resolveAudioUrl = useCallback(async (
     w: WfNewLibraryWord,
@@ -219,20 +203,20 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   ): Promise<string | null> => {
     const lang = langRef.current;
     const key = wordRowKey(w, lang);
-    const variantKey = variantByKeyRef.current[key];
-    const preferredAccent = readerPreferredAccent(wfNewSettings.get('voiceAccent'));
+    const preferredAccent = mapUiAccent(wfNewSettings.get('voiceAccent'));
     const resolved = mediaByMd5Ref.current[w.md5 || `${w.index}-${w.word}`];
-    const cell = buildWordCell(w, resolved);
-    const picked = pickSentenceAudioUrl(cell, { variantKey, preferredAccent });
+    const picked = pickWordAudioUrl(w.audioUrl ?? null, resolved, preferredAccent);
     if (picked.url) return picked.url;
     const text = w.word?.trim();
     if (!text) return null;
-    return waitForSentenceAudioUrl(text, lang, {
-      urgent: true,
+    const media = await wordNewAudioQueueCenter.waitForWordAudio(text, lang, {
       shouldContinue,
-      variantKey: variantKey || undefined,
-      onReady: () => setCellStatus(key, 'ready'),
+      accent: preferredAccent,
     });
+    if (!media) return null;
+    setMediaByMd5((prev) => ({ ...prev, [w.md5 || `${w.index}-${w.word}`]: media }));
+    setCellStatus(key, 'ready');
+    return pickWordAudioUrl(null, media, preferredAccent).url;
   }, [setCellStatus]);
 
   // Build the playback engine once; deps read latest via refs.
@@ -247,9 +231,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       onWordActive: setActiveWord,
       resolveAudioUrl,
       bumpMissingAudio: (w, lang) => {
-        const key = wordRowKey(w, lang);
-        const variantKey = variantByKeyRef.current[key];
-        void bumpSentenceAudioImmediate(w.word, lang, variantKey);
+        wordNewAudioQueueCenter.notifyMissingWord(w.word, lang);
       },
     });
     return () => { playbackRef.current?.stop(); };
@@ -261,7 +243,6 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     requestedWordKeys.current = new Set();
     setMediaByMd5({});
     setCellStatuses({});
-    resetSentenceAudioScheduler();
     playbackRef.current?.stop();
     const timers = pollTimers.current;
     return () => {
@@ -300,11 +281,11 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       else if (cell.ttsStatus === 'pending') next[key] = 'queued';
       else if (!cell.hasAudio) {
         // No audio at all -> ask the scheduler to resolve/bump (queued).
-        requestWordAudio(w, libLang);
+        queueWordAudio(w, libLang);
       }
     }
     if (Object.keys(next).length) setCellStatuses((prev) => ({ ...prev, ...next }));
-  }, [wordRows, libLang, mediaByMd5, requestWordAudio]);
+  }, [wordRows, libLang, mediaByMd5, queueWordAudio]);
 
   // Auto-scroll the active word to upper-middle (~1/3 from top). Manual scroll
   // pauses this for 2.5s; a user-picked playFrom resumes immediately.

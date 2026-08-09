@@ -14,9 +14,11 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 
 /**
  * Live session (Social Center expansion §LIVE). No native broadcast — an
@@ -59,4 +61,66 @@ class AppQyV1LiveSessionModel extends Model
         'ended_at' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(AppQyV1LiveMessageModel::class, 'session_id');
+    }
+
+    public static function listed(string $status, int $limit): Collection
+    {
+        $query = null;
+
+        $query = static::query();
+        if ($status === self::STATUS_LIVE) {
+            $query->where('status', self::STATUS_LIVE);
+        }
+
+        return $query->orderByDesc('id')->limit($limit)->get();
+    }
+
+    public static function startForHost(
+        int $hostId,
+        string $title,
+        ?string $description,
+        ?string $externalUrl
+    ): self {
+        return static::query()->create([
+            'host_id' => $hostId,
+            'title' => $title,
+            'description' => $description,
+            'status' => self::STATUS_LIVE,
+            'external_url' => $externalUrl,
+            'viewer_count' => 0,
+            'started_at' => now(),
+            'ended_at' => null,
+            'created_at' => now(),
+        ]);
+    }
+
+    public static function findSession(int $sessionId): ?self
+    {
+        return static::query()->find($sessionId);
+    }
+
+    public function endSession(): self
+    {
+        if ((string) $this->status !== self::STATUS_ENDED) {
+            $this->status = self::STATUS_ENDED;
+            $this->ended_at = now();
+            $this->save();
+        }
+
+        return $this;
+    }
+
+    public function syncViewerCount(int $viewerCount): void
+    {
+        if ((int) $this->viewer_count === $viewerCount) {
+            return;
+        }
+
+        $this->viewer_count = $viewerCount;
+        $this->save();
+    }
 }

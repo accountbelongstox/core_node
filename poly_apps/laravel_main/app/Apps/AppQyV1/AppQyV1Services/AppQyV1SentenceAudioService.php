@@ -6,7 +6,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
 use App\Services\QueueCenter\QueueCenterService;
@@ -484,7 +484,14 @@ class AppQyV1SentenceAudioService
      *
      * @return array<string,mixed> the JSON body
      */
-    public function resolve(?string $hash, ?string $text, ?string $language, ?string $variantKey = null, ?string $accent = null): array
+    public function resolve(
+        ?string $hash,
+        ?string $text,
+        ?string $language,
+        ?string $variantKey = null,
+        ?string $accent = null,
+        bool $enqueueMissing = true
+    ): array
     {
         $resolvedLang = ($language !== null && trim($language) !== '')
             ? AppQyV1TableMaps::normalizeLangCode($language)
@@ -570,6 +577,19 @@ class AppQyV1SentenceAudioService
                 'content_id' => $resolvedHash,
                 'language' => $resolvedLang,
                 'tts_status' => $sentence?->tts_status ?? 'completed',
+                'audio_files' => $audioFilesPayload,
+            ];
+        }
+
+        if (!$enqueueMissing) {
+            return [
+                'success' => true,
+                'exists' => false,
+                'queued' => false,
+                'hash' => $resolvedHash,
+                'content_id' => $resolvedHash,
+                'language' => $resolvedLang,
+                'tts_status' => $sentence?->tts_status,
                 'audio_files' => $audioFilesPayload,
             ];
         }

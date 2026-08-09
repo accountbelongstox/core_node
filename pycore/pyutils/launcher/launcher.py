@@ -35,7 +35,6 @@ if str(PROJECT_ROOT) not in sys.path:
 # Now import remaining stdlib and pycore modules
 import platform
 import os
-import tempfile
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime, run_background
 

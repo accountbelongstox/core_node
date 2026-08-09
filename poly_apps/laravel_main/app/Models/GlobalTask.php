@@ -6,6 +6,8 @@ use App\Support\QueueCenterContract;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 
 class GlobalTask extends Model
 {
@@ -130,6 +132,52 @@ class GlobalTask extends Model
     public static function capabilitySingleLanes(): array
     {
         return QueueCenterContract::capabilitySingleLanes();
+    }
+
+    public static function cachedStatusCounts(
+        string $cacheKey,
+        int $ttlSeconds,
+        string $appName,
+        string $taskType,
+        array $payloadFilters = []
+    ): Collection {
+        return Cache::remember($cacheKey, $ttlSeconds, static function () use ($appName, $taskType, $payloadFilters): Collection {
+            $query = self::query()
+                ->where('app_name', $appName)
+                ->where('task_type', $taskType);
+
+            foreach ($payloadFilters as $field => $value) {
+                $query->where('payload->' . $field, $value);
+            }
+
+            return $query
+                ->groupBy('status')
+                ->selectRaw('status, count(*) as total')
+                ->pluck('total', 'status');
+        });
+    }
+
+    public static function countsByTaskType(array $statuses): Collection
+    {
+        return self::query()
+            ->whereIn('status', $statuses)
+            ->groupBy('task_type')
+            ->selectRaw('task_type, count(*) as total')
+            ->pluck('total', 'task_type');
+    }
+
+    public static function cachedCountsByTaskType(string $cacheKey, int $ttlSeconds, array $statuses): Collection
+    {
+        return Cache::remember($cacheKey, $ttlSeconds, static function () use ($statuses): Collection {
+            return self::query()
+                ->whereIn('status', $statuses)
+                ->whereNotNull('task_type')
+                ->groupBy('task_type')
+                ->selectRaw('task_type, count(*) as total')
+                ->orderBy('task_type')
+                ->pluck('total', 'task_type')
+                ->map(static fn ($total): int => (int) $total);
+        });
     }
 
     /**

@@ -15,6 +15,7 @@ import {
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
+import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -372,10 +373,19 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
   const wordHasNext = wordStart + wordPageSize < wordTotal;
 
   const playWordAudio = (w: WfNewDictWord) => {
+    const language = wfNewSettings.get('wordListLanguage') || 'en';
     if (w.audioUrl) {
       const el = wordAudioRef.current;
-      if (el) { el.src = resolveAudioSync(w.audioUrl) ?? w.audioUrl; el.play().catch(() => speakWord(w.content)); return; }
+      if (el) {
+        el.src = resolveAudioSync(w.audioUrl) ?? w.audioUrl;
+        el.play().catch(() => {
+          wordNewAudioQueueCenter.notifyMissingWord(w.content, language);
+          speakWord(w.content);
+        });
+        return;
+      }
     }
+    wordNewAudioQueueCenter.notifyMissingWord(w.content, language);
     speakWord(w.content);
   };
 

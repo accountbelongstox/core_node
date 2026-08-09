@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
 use App\Services\QueueCenter\QueueCenterService;

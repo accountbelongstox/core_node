@@ -197,7 +197,7 @@ function startCodeSyncRuntime(): void {
       void refreshCodeSyncRuntime();
     }),
   ];
-  if (!state.initialized) void refreshCodeSyncRuntime();
+  void refreshCodeSyncRuntime();
 }
 
 function stopCodeSyncRuntime(): void {

@@ -7,7 +7,7 @@
  * config/queue_center_contract.json.
  */
 import type React from 'react';
-import { LayoutGrid, Languages, AudioLines, MessageSquareText, History } from 'lucide-react';
+import { LayoutGrid, AudioLines, MessageSquareText, History } from 'lucide-react';
 import type {
   QueueCenterScope,
   QueueCenterSectionContract,
@@ -18,7 +18,7 @@ import type {
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
 /** Single-page section keys. Legacy ?tab= values map 1:1 onto these anchors. */
-export type QcSection = 'overview' | 'translation' | 'wordAudio' | 'sentence' | 'recent';
+export type QcSection = 'overview' | 'wordAudio' | 'sentence' | 'recent';
 
 export type QcSectionScope = QueueCenterScope;
 
@@ -43,7 +43,6 @@ export const qcSectionAnchor = (key: QcSection): string => `qc-section-${key}`;
 
 export const QC_SECTION_DEFS: { key: QcSection; Icon: React.FC<{ className?: string }> }[] = [
   { key: 'overview', Icon: LayoutGrid },
-  { key: 'translation', Icon: Languages },
   { key: 'wordAudio', Icon: AudioLines },
   { key: 'sentence', Icon: MessageSquareText },
   { key: 'recent', Icon: History },
@@ -51,6 +50,5 @@ export const QC_SECTION_DEFS: { key: QcSection; Icon: React.FC<{ className?: str
 
 /** Accepts both section keys and the legacy ?tab= values (identical except wordAudio). */
 export function isQcSection(v: string | null): v is QcSection {
-  return v === 'overview' || v === 'translation' ||
-    v === 'wordAudio' || v === 'sentence' || v === 'recent';
+  return v === 'overview' || v === 'wordAudio' || v === 'sentence' || v === 'recent';
 }

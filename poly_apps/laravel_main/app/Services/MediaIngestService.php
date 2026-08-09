@@ -2,12 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\Subtitle;
-use App\Models\Book;
-use App\Models\LangSentence;
-use App\Models\LangChapter;
-use App\Models\SourceSentence;
-use App\Models\MediaSegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Database\Eloquent\Model;

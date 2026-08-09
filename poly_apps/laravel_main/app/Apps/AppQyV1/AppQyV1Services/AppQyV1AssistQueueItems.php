@@ -10,9 +10,9 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
-use App\Models\Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Models\GlobalTask;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
 use App\Support\QueueCenterContract;
@@ -396,11 +396,11 @@ trait AppQyV1AssistQueueItems
         $total = 0;
         foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
             try {
-                $model = \App\Models\LangSentence::for($lang);
+                $model = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::for($lang);
                 if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
                     continue;
                 }
-                $query = \App\Models\LangSentence::onLang($lang);
+                $query = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::onLang($lang);
                 if ($status === 'all' || $status === null || $status === '') {
                     // No status predicate: include every sentence task.
                 } elseif ($status === 'leased') {
@@ -684,13 +684,13 @@ trait AppQyV1AssistQueueItems
             ];
         }
 
-        $query = \App\Models\AppQyV1AssistRequest::query()
+        $query = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::query()
             ->where('record_type', $recordType)
             ->where('request_type', $requestType);
 
         if ($status !== null && $status !== '') {
             if ($status === 'leased') {
-                $leaseFloor = now()->subMinutes(\App\Models\AppQyV1AssistRequest::LEASE_MINUTES);
+                $leaseFloor = now()->subMinutes(\App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::LEASE_MINUTES);
                 $query->whereNotNull('claimed_at')
                     ->where('claimed_at', '>=', $leaseFloor);
             } else {
@@ -727,7 +727,7 @@ trait AppQyV1AssistQueueItems
         $items = [];
         foreach ($rows as $row) {
             $isLeased = $row->claimed_at !== null
-                && $row->claimed_at >= now()->subMinutes(\App\Models\AppQyV1AssistRequest::LEASE_MINUTES);
+                && $row->claimed_at >= now()->subMinutes(\App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::LEASE_MINUTES);
             $items[] = [
                 'id' => (int) $row->id,
                 'category' => $category,

@@ -815,6 +815,7 @@ export interface AiUsageResponse {
   success: boolean;
   storage_path: string;
   stats: Record<string, AiUsageProviderStat>;
+  source_stats?: Record<string, Record<string, unknown>>;
   entries: AiUsageRecord[];
   error?: string;
 }
@@ -1237,7 +1238,12 @@ export interface AgentHistorySessionIdPagesResponse {
 
 export interface AgentHistoryPromptIdPagesResponse {
   success: boolean;
-  data: AgentHistoryIdPage<AgentHistoryPromptIdItem> | null;
+  data: (AgentHistoryIdPage<AgentHistoryPromptIdItem> & {
+    generated_at?: string;
+    tools?: string[];
+    users?: string[];
+    counts?: Record<string, number>;
+  }) | null;
   error: string | null;
 }
 
@@ -1288,10 +1294,35 @@ export interface AgentHistoryTestExtractResponse {
   success?: boolean;
   data?: {
     ok: boolean;
+    empty?: boolean;
     tool: string;
     sources?: number;
     error?: string;
     prompt?: { ts: number; text: string };
+  };
+  error?: string | null;
+}
+
+export interface AgentHistoryToolStatistics {
+  tool: string;
+  sessions: number;
+  history_records: number;
+  processed: number;
+  pending: number;
+  prompts: number;
+  replies: number;
+  generated_at: string;
+  source_modified_ts: number;
+}
+
+export interface AgentHistoryStatusResponse {
+  success: boolean;
+  data?: {
+    tick?: Record<string, unknown>;
+    store?: Record<string, unknown>;
+    article?: Record<string, unknown>;
+    tool_history?: AgentHistoryToolStatistics;
+    tool_histories?: AgentHistoryToolStatistics[];
   };
   error?: string | null;
 }
@@ -2053,6 +2084,21 @@ export interface QueueBumpsSnapshot {
 }
 
 /** Word-dictionary TTS worker auto-start strip (tts_queue_poller). */
+export interface WordTtsWorkerTask {
+  task_id?: number | string;
+  content_id?: string;
+  word?: string;
+  text?: string;
+  language?: string;
+  priority?: number;
+  current_provider?: string;
+  stage?: string;
+  progress?: number;
+  elapsed_seconds?: number;
+  backend_uploaded?: boolean;
+  backend_result_accepted?: boolean;
+}
+
 export interface WordTtsAutoStatus {
   auto_start: boolean;
   /** Effective worker concurrency + recommended value for the current engine. */
@@ -2077,6 +2123,9 @@ export interface WordTtsAutoStatus {
     last_tick?: Record<string, unknown>;
     /** Legacy worker flag retained for older queue snapshots. */
     heartbeat_enabled?: boolean;
+    processing?: number;
+    current_task?: WordTtsWorkerTask | null;
+    current_tasks?: WordTtsWorkerTask[];
     /** Recent processing records ({at, kind, detail, ...}), same shape as the sentence worker's. */
     events?: Array<{
       at?: number;

@@ -7,13 +7,12 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Constants\AppKeys;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Http\Controllers\Controller;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Vocabulary page stats drill-down (dashboard).
@@ -113,8 +112,7 @@ class AppQyV1VocabularyStatsController extends Controller
 
         $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
+        $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
         if (!$hasTable) {
             return $this->success([
                 'language' => $language,
@@ -139,8 +137,7 @@ class AppQyV1VocabularyStatsController extends Controller
         }
 
         if ($search !== '') {
-            $needle = '%' . strtolower($search) . '%';
-            $query->whereRaw('LOWER(content) LIKE ?', [$needle]);
+            $query->contentContainsInsensitive($search);
         }
 
         $total = (clone $query)->count();
@@ -266,8 +263,7 @@ class AppQyV1VocabularyStatsController extends Controller
         }
         $languageCode = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
+        $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
         if (!$hasTable) {
             return $this->success([
                 'language' => $language,
@@ -288,11 +284,7 @@ class AppQyV1VocabularyStatsController extends Controller
         $valid = $total - $invalid;
 
         // Group the invalid rows by validity_source (one grouped query).
-        $grouped = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
-            ->where('is_valid', false)
-            ->groupBy('validity_source')
-            ->selectRaw('validity_source, count(*) as total')
-            ->pluck('total', 'validity_source');
+        $grouped = AppQyV1LangDictionaryModel::invalidCountsBySource($languageCode);
 
         $invalidBySource = [];
         foreach ($grouped as $source => $count) {
@@ -342,20 +334,11 @@ class AppQyV1VocabularyStatsController extends Controller
         // ({prefix}_sentences_{lang}), keyed by content_id. Resolve the language
         // CODE for the table (the request may send a name like 'english').
         $langCode = $this->resolveLangCode($language);
-        $model = LangSentence::for($langCode);
-        if (!Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
+        if (!LangSentence::tableExists($langCode)) {
             return $this->success(['word' => $word, 'language' => $language, 'count' => 0, 'sentences' => []], 'No sentence library');
         }
 
-        $query = LangSentence::onLang($langCode);
-        if ($model->getConnection()->getDriverName() === 'pgsql') {
-            // \y = word boundary (case-insensitive ~*); escape regex metachars.
-            $query->whereRaw('text ~* ?', ['\\y' . preg_quote($word, '/') . '\\y']);
-        } else {
-            $query->whereRaw('LOWER(text) LIKE ?', ['%' . strtolower($word) . '%']);
-        }
-
-        $rows = $query->orderByDesc('occurrence_count')->limit($limit)->get();
+        $rows = LangSentence::containingWordRows($langCode, $word, $limit);
         $sentences = $rows->map(static function (LangSentence $s) {
             return [
                 'id' => $s->content_id ?? $s->getKey(),
@@ -414,20 +397,12 @@ class AppQyV1VocabularyStatsController extends Controller
     private function applyDictionaryFilter($query, string $filter): void
     {
         if ($filter === 'with_translation') {
-            $query->where(function ($q) {
-                $q->where('has_translation', true)
-                    ->orWhereRaw("translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'");
-            });
+            $query->withTranslationCoverage();
             return;
         }
 
         if ($filter === 'without_translation') {
-            $query->where(function ($q) {
-                $q->where(function ($qq) {
-                    $qq->where('has_translation', false)
-                        ->orWhereNull('has_translation');
-                })->whereRaw("(translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')");
-            });
+            $query->withoutTranslationCoverage();
             return;
         }
 
@@ -535,34 +510,11 @@ class AppQyV1VocabularyStatsController extends Controller
      */
     public function languageBreakdown(): JsonResponse
     {
-        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
         $languages = [];
 
         foreach (AppQyV1TableMaps::getAllWordTables() as $langCode => $table) {
-            if (!Schema::connection($connName)->hasTable($table)) {
-                continue;
-            }
-
-            $hasValidity = Schema::connection($connName)->hasColumn($table, 'is_valid');
-
-            $selects = [
-                'COUNT(*) as words',
-                "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as with_translation",
-                'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
-            ];
-            if ($hasValidity) {
-                $selects[] = 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid';
-            } else {
-                $selects[] = '0 as invalid';
-            }
-
-            $row = \Illuminate\Support\Facades\DB::connection($connName)
-                ->table($table)
-                ->selectRaw(implode(', ', $selects))
-                ->first();
-
-            $words = (int) $row->words;
-            if ($words === 0) {
+            $metrics = AppQyV1LangDictionaryModel::languageBreakdownMetrics($langCode);
+            if ($metrics === null || $metrics['words'] === 0) {
                 continue;
             }
 
@@ -574,10 +526,10 @@ class AppQyV1VocabularyStatsController extends Controller
             $languages[] = [
                 'language' => $languageName,
                 'language_code' => $langCode,
-                'words' => $words,
-                'with_translation' => (int) $row->with_translation,
-                'with_audio' => (int) $row->with_audio,
-                'invalid' => (int) $row->invalid,
+                'words' => $metrics['words'],
+                'with_translation' => $metrics['with_translation'],
+                'with_audio' => $metrics['with_audio'],
+                'invalid' => $metrics['invalid'],
             ];
         }
 

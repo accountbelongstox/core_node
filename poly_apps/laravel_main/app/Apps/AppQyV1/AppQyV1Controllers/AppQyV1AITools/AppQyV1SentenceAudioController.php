@@ -200,7 +200,7 @@ class AppQyV1SentenceAudioController extends Controller
      *
      * Optional ?variant_key=<key> resolves a specific suffixed variant;
      * ?accent=<us|uk|...> resolves the first on-disk variant whose spec matches
-     * that accent (falls back to the extension-preference scan when none match).
+     * that accent. ?passive=1 reads current state without queue writes.
      * Delegates to AppQyV1SentenceAudioService::resolve() (variant-aware disk
      * lookup via relativePathFor + audio_files entry).
      */
@@ -212,6 +212,7 @@ class AppQyV1SentenceAudioController extends Controller
             'language' => 'nullable|string|max:20',
             'variant_key' => 'nullable|string|max:32',
             'accent' => 'nullable|string|max:16',
+            'passive' => 'nullable|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -226,6 +227,7 @@ class AppQyV1SentenceAudioController extends Controller
         $language = $request->query('language');
         $variantKey = $request->query('variant_key');
         $accent = $request->query('accent');
+        $passive = $request->boolean('passive');
 
         if (($hash === null || $hash === '') && ($text === null || $text === '')) {
             return response()->json([
@@ -235,7 +237,14 @@ class AppQyV1SentenceAudioController extends Controller
         }
 
         try {
-            $result = $this->service->resolve($hash, $text, $language, $variantKey, $accent);
+            $result = $this->service->resolve(
+                $hash,
+                $text,
+                $language,
+                $variantKey,
+                $accent,
+                !$passive
+            );
         } catch (\Throwable $e) {
             Log::error('[SentenceAudio] resolve failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during resolve'], 500);

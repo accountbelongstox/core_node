@@ -37,6 +37,7 @@ from pycore.pyfoundations.system_info import (
     get_linux_distro_info as _get_linux_distro_info,
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.app_config_path import get_app_config_dir as _get_foundation_app_config_dir
 def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
     """Development-tooling base directory (where <base>/_<name>_<ver> with node/py
@@ -338,18 +339,12 @@ def get_app_temp_dir() -> Path:
     Get application temporary data directory
 
     Canonical scratch space for transient processor output (extracted audio,
-    rendered video, captured screenshots, parsed files, etc.). Lives under the
-    shared cache pycore dir so it is never created loosely in the project tree.
+    rendered video, captured screenshots, parsed files, etc.).
 
     Returns:
-        Path: Application temp directory (<cache>/pycore/temp/)
+        Path: Application temp directory (<TMP_DIR>/pycore/)
     """
-    temp_dir = get_local_data_dir() / 'temp'
-
-    if not temp_dir.exists():
-        temp_dir.mkdir(parents=True, exist_ok=True)
-
-    return temp_dir
+    return _ensure_dir(TMP_DIR / 'pycore')
 
 
 def get_core_node_root() -> Path:

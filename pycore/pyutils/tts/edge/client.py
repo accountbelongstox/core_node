@@ -18,8 +18,13 @@ import time
 import asyncio
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
+from pycore.pyutils.tts.edge.command import (
+    build_edge_tts_command,
+    normalize_edge_tts_rate,
+)
 
 import tempfile
 
@@ -67,36 +72,10 @@ _EDGE_SYNTH_WORKER = SerializedWorkerThread(
 )
 _EDGE_SYNTH_WORKER.start()
 
-# Default speech rate. edge-tts wants a signed percentage string ("-20%", "+0%").
-# For a language-learning subtitle tool, a slight slowdown (~0.8x) sharpens word
-# boundaries while keeping natural prosody. Override with EDGE_TTS_RATE.
-_DEFAULT_RATE = "-20%"
-
-
 def _edge_tts_proxy() -> Optional[str]:
     """Optional outbound proxy for edge-tts (EDGE_TTS_PROXY env), or None."""
     proxy = (os.environ.get('EDGE_TTS_PROXY') or '').strip()
     return proxy or None
-
-
-def _normalize_rate(rate: Optional[str]) -> str:
-    """
-    Coerce a rate to edge-tts's signed-percentage form ("-20%", "+10%", "+0%").
-
-    Accepts None (-> EDGE_TTS_RATE env or the -20% default), a bare number
-    ("-20" -> "-20%"), or an already-valid string. An unsigned percentage gets a
-    leading "+".
-    """
-    if rate is None:
-        rate = (os.environ.get('EDGE_TTS_RATE') or '').strip() or _DEFAULT_RATE
-    rate = str(rate).strip()
-    if not rate:
-        return "+0%"
-    if not rate.endswith('%'):
-        rate += '%'
-    if rate[0] not in '+-':
-        rate = '+' + rate
-    return rate
 
 
 def _is_retryable_tts_error(err: Exception) -> bool:
@@ -311,7 +290,7 @@ class EdgeTTSClient:
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        rate = _normalize_rate(rate)
+        rate = normalize_edge_tts_rate(rate)
 
         self._mark_task_start()
         try:
@@ -362,20 +341,27 @@ class EdgeTTSClient:
                             break
                     hint = (" Set EDGE_TTS_PROXY for region-blocked networks."
                             if last_err and '403' in str(last_err) and not proxy else "")
-                    ColorPrint.red(f"[EdgeTTS] Synthesis failed after {_SYNTH_MAX_ATTEMPTS} attempts: {last_err}.{hint}")
+                    ColorPrint.red(
+                        f"[EdgeTTS] Synthesis failed on attempt "
+                        f"{attempt}/{_SYNTH_MAX_ATTEMPTS}: {last_err}.{hint}"
+                    )
                     return False
 
                 binary = self._find_edge_tts_binary()
                 if not binary:
                     return False
 
-                cmd = [binary, '--voice', voice, '--rate', rate, '--text', text, '--write-media', str(output_path)]
                 if subtitle_path:
                     subtitle_path.parent.mkdir(parents=True, exist_ok=True)
-                    cmd.extend(['--write-subtitles', str(subtitle_path)])
-
-                if binary == 'python':
-                    cmd = [binary, '-m', 'edge_tts'] + cmd[1:]
+                cmd = build_edge_tts_command(
+                    binary,
+                    voice,
+                    rate,
+                    text,
+                    output_path,
+                    subtitle_path=subtitle_path,
+                    proxy=_edge_tts_proxy(),
+                )
 
                 result = exec_silent(cmd, capture_output=True, text=True)
                 if result.return_code != 0:
@@ -510,7 +496,7 @@ class EdgeTTSClient:
             kwargs = {"proxy": proxy} if proxy else {}
             # A 1-attempt synth to a temp file is the true end-to-end test.
             communicate = edge_tts.Communicate("test", "en-US-AriaNeural", **kwargs)
-            fd, tmp = tempfile.mkstemp(suffix=".mp3")
+            fd, tmp = tempfile.mkstemp(suffix=".mp3", dir=str(TMP_DIR))
             os.close(fd)
             try:
                 await communicate.save(tmp)

@@ -50,6 +50,18 @@ $claudeLaunchCommonScript = $null
 $claudeExecutable = $null
 $ultraChoice = $null
 $enableUltra = $false
+$upgradeChoice = $null
+$pnpmCommand = $null
+$currentVersionOutput = $null
+$latestVersionOutput = $null
+$currentVersionTokens = @()
+$latestVersionTokens = @()
+$versionSeparators = @()
+$versionToken = $null
+$versionCandidate = $null
+$currentVersion = $null
+$latestVersion = $null
+$versionGapLarge = $false
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 $env:DISABLE_AUTOUPDATER = "1"
@@ -97,6 +109,50 @@ $claudeLaunchCommonScript = Join-Path $winCommonDirPath "ClaudeLaunchCommon.ps1"
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 . $claudeLaunchCommonScript
+
+$claudeExecutable = Resolve-ClaudeCodeExecutable
+$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+$versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
+if (($null -ne $claudeExecutable) -and ($null -ne $pnpmCommand)) {
+    $currentVersionOutput = (& $claudeExecutable --version 2>$null | Out-String).Trim()
+    $latestVersionOutput = (& $pnpmCommand.Source view "@anthropic-ai/claude-code" version 2>$null | Out-String).Trim()
+    $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($versionToken in $currentVersionTokens) {
+        $versionCandidate = $versionToken.Trim()
+        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $versionCandidate = $versionCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($versionCandidate, [ref]$currentVersion)) {
+            break
+        }
+    }
+    $latestVersionTokens = $latestVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($versionToken in $latestVersionTokens) {
+        $versionCandidate = $versionToken.Trim()
+        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $versionCandidate = $versionCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($versionCandidate, [ref]$latestVersion)) {
+            break
+        }
+    }
+}
+if (($null -ne $currentVersion) -and ($null -ne $latestVersion) -and ($latestVersion -gt $currentVersion)) {
+    $versionGapLarge = ($latestVersion.Major -gt $currentVersion.Major) -or
+        (($latestVersion.Major -eq $currentVersion.Major) -and ($latestVersion.Minor -gt $currentVersion.Minor))
+}
+if ($versionGapLarge) {
+    Write-Host "Upgrade Claude Code via 'claude update'? [N/y]: " -ForegroundColor Yellow -NoNewline
+    $upgradeChoice = Read-Host
+}
+if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
+    Write-Host "[INFO] Upgrading Claude Code..." -ForegroundColor Cyan
+    & $claudeExecutable update
+    $claudeExecutable = Resolve-ClaudeCodeExecutable
+    Write-Host "[INFO] Claude Code upgrade command completed." -ForegroundColor Green
+} elseif ($versionGapLarge) {
+    Write-Host "[INFO] Claude Code upgrade skipped." -ForegroundColor DarkGray
+}
 
 # Load environment variables from secret files
 $secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
@@ -197,7 +253,6 @@ if ($enableUltra) {
 }
 
 # Launch tool (info already shown above; start Claude directly).
-$claudeExecutable = Resolve-ClaudeCodeExecutable
 if (-not $claudeExecutable) {
     Write-Host ""
     Write-Host "[ERROR] Claude Code executable not found." -ForegroundColor Red

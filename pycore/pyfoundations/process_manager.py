@@ -5,7 +5,6 @@ Foundation Process Manager
 Handles process management including starting, stopping, and monitoring processes
 """
 
-import os
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
 import sys
 import time
@@ -16,6 +15,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
+from pycore.pyfoundations.pygvar import TMP_DIR
 
 
 psutil = get_third_package_psutil()
@@ -28,7 +28,7 @@ class ProcessManager:
     
     def __init__(self):
         """Initialize process manager"""
-        self.temp_bat_dir = Path(os.environ.get('TEMP', 'C:\\temp')) / 'd3check_bats'
+        self.temp_bat_dir = TMP_DIR / 'd3check_bats'
         self.temp_bat_dir.mkdir(exist_ok=True)
         ColorPrint.green("[INIT] ProcessManager initialized")
     

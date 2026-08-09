@@ -14,6 +14,7 @@ import type {
   TranslateHistoryResponse, TranslateHistoryDeleteResponse, TranslateHistoryClearResponse,
   AgentHistoryIndexResponse, AgentHistoryPromptsResponse, AgentHistorySessionResponse,
   AgentHistoryArticleRecordsResponse,
+  AgentHistoryStatusResponse,
   AgentHistoryTestExtractResponse,
   AgentHistorySessionIdPagesResponse, AgentHistorySessionPageResponse,
   AgentHistoryPromptIdPagesResponse, AgentHistoryPromptPageResponse,
@@ -234,21 +235,20 @@ export const pycoreApiLocal = {
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryUpdatePrompt, { id, text }) as Promise<
       { success: boolean; data?: { id: string; text: string; edited: boolean }; error?: string | null }
     >,
+  getAgentHistoryStatus: (tools?: string[]) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryStatus, { tools }) as Promise<AgentHistoryStatusResponse>,
   getAgentHistoryRuntime: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryRuntimeGet, {}) as Promise<{
       success: boolean;
       data?: {
         article_config?: Record<string, unknown>;
         operation_snapshot?: Record<string, unknown> | null;
+        ai_dashboard?: Record<string, unknown> | null;
       };
       error?: string | null;
     }>,
   saveAgentHistoryArticleConfig: (body: Record<string, unknown>) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleConfigPost, body) as Promise<
-      { success: boolean; data?: Record<string, unknown>; error?: string | null }
-    >,
-  startAgentHistoryArticlePipeline: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.agentHistoryArticleStart, {}) as Promise<
       { success: boolean; data?: Record<string, unknown>; error?: string | null }
     >,
   getAgentHistoryArticles: (limit = 50) =>
@@ -285,6 +285,12 @@ export const pycoreApiLocal = {
    */
   acceptQueueCenterTask: (payload: { task: GlobalTaskWorkerRecord; laravel_endpoint?: string | null }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAcceptTask, payload),
+  getQueueCenterSnapshot: (refresh = false) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterSnapshot, { refresh }) as Promise<{
+      success: boolean;
+      data?: Record<string, unknown>;
+      error?: string;
+    }>,
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),

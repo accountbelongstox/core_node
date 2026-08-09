@@ -1,26 +1,23 @@
 # -*- coding: utf-8 -*-
 """
-TranslationWorkerService (compute-only) + shared instance.
+TranslationWorkerService + shared persistent worker instance.
 
 The concrete translation worker. Split out of the former
 translation_worker_service.py monolith (2252 lines) per the AGENTS.md Modular
 rule. Only the worker-specific glue lives here; the shared Laravel result-upload
-scaffold is in base_laravel_worker.py, lane gating in lane_gating.py, the
+scaffold is in pyctl/laravel/worker_base.py, lane gating in lane_gating.py, the
 word-dedup cache in done_words_cache.py, and the per-lane task processing in
 handlers/. No engine logic moved.
 
-Exchange-hub architecture (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
-pycore never pulls, claims, or heartbeats Laravel. The UI pump accepts tasks
-from Laravel and dispatches them to pycore over RPC (accept_task); pycore
-processes them and uploads ONLY the result (status + payload) through
-base_laravel_worker._post_result.
+Enabled task categories are pulled from Laravel by Pycore even when the UI is
+closed. The UI remains the persisted control plane for switches and endpoint
+selection.
 
 Public API:
   TranslationWorkerService, translation_worker_service,
   accept_task, get_status, mark_words_done, partition_words, done_words_count.
 """
 
-import socket
 import time
 from typing import Any, Dict, List, Optional
 
@@ -33,10 +30,9 @@ from pycore.pyfoundations.serialized_worker import (
 # Internal imports at file top (PYTHON_PYCORE.md §1.4). task_manager is stdlib-only.
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
 
-from pycore.pyctl.translation.worker.base_laravel_worker import BaseLaravelWorkerService
+from pycore.pyctl.laravel.worker_base import BaseLaravelWorkerService
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
 from pycore.pyctl.translation.worker.done_words_cache import DoneWordsCache
-import pycore.pyctl.translation.worker.handlers.ai_translate as h_ai_translate
 import pycore.pyctl.translation.worker.handlers.audio as h_audio
 import pycore.pyctl.translation.worker.handlers.media as h_media
 import pycore.pyctl.translation.worker.handlers.prompt_translate as h_prompt_translate
@@ -49,21 +45,17 @@ from pycore.pyutils.common.queue_center_contract import (
     task_local_label,
     task_types_for_execution,
 )
-from pycore.pyutils.common.service_config import (
-    LARAVEL_WORKER_API_URL,
-    PYCORE_WORKER_INSTANCE,
-)
+from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 
 
 class TranslationWorkerService(BaseLaravelWorkerService):
     """
-    Translation worker (singleton) processing UI-dispatched tasks.
+    Translation worker (singleton) processing Laravel typed tasks.
 
     Lifecycle:
-      - The UI pump accepts a task from Laravel and calls accept_task() over RPC.
-      - accept_task() records the task type/endpoint for the typed result route
-        and dispatches the task to a TaskManager background thread so the
-        actual translation + result POST never blocks the RPC thread.
+      - The persistent Pycore callback pulls and accepts enabled task types.
+      - accept_task() remains available for compatibility RPC callers.
+      - Task processing and result upload run on TaskManager background threads.
     """
 
     # These values come from config/queue_center_contract.json through the
@@ -87,32 +79,11 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     # appended live by _effective_processor_types() when their Config kill-switch
     # AND layered user-data/assist toggle are on.
     PROCESSOR_TYPES = [TRANSLATION_FAST_PROCESSOR_TYPE, TRANSLATION_PROCESSOR_TYPE]
+    STATE_OWNER_KEY = "translation.worker.state"
+    STATE_OWNER_NAME = "TranslationWorkerState"
+    WORKER_ID_PREFIX = "pycore-translate"
 
     DEFAULT_PROVIDER = "google"
-
-    @staticmethod
-    def _build_worker_id() -> str:
-        """Stable, hostname-based worker id (same across restarts on a host).
-
-        Overrides the base generic form with the translation-specific
-        ``pycore-translate-`` prefix so existing Laravel-side worker_id
-        accounting is unchanged.
-
-        MULTI-INSTANCE NOTE: Laravel keys results by worker_id, so two pycore
-        processes on the SAME host must not share one. For multiple pycore
-        processes on one host, configure PYCORE_WORKER_INSTANCE with a stable
-        per-instance tag; it is appended to the id. Single-instance hosts keep
-        the original stable id.
-        """
-        host = socket.gethostname() or "host"
-        safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-        instance = PYCORE_WORKER_INSTANCE.strip()
-        if instance:
-            safe_instance = "".join(
-                c if (c.isalnum() or c in "-_") else "-" for c in instance
-            ).lower()
-            return f"pycore-translate-{safe}-{safe_instance}"
-        return f"pycore-translate-{safe}"
 
     def __init__(self, laravel_api_url: str = "http://127.0.0.1:9000"):
         """
@@ -180,6 +151,16 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         """The lane set this worker can process (delegates to lane_gating)."""
         return lane_gating.effective_processor_types(self)
 
+    def _pull_task_types(self) -> List[str]:
+        task_types: List[str] = []
+        if lane_gating.translation_enabled():
+            task_types.append(self.PROMPT_TRANSLATION_TASK_TYPE)
+        if lane_gating.subtitle_enabled():
+            task_types.append(self.SUBTITLE_TASK_TYPE)
+        if lane_gating.stt_enabled():
+            task_types.extend(self.STT_TASK_TYPES)
+        return list(dict.fromkeys(task_types))
+
     # -------------------- payload hygiene --------------------
 
     @staticmethod
@@ -194,11 +175,10 @@ class TranslationWorkerService(BaseLaravelWorkerService):
     # -------------------- RPC accept entry --------------------
 
     def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
-        """RPC accept entry: take ONE UI-dispatched task and process it.
+        """Dispatch one typed-pull or compatibility-RPC task.
 
-        The UI pump has already accepted (claimed) the task from Laravel; this
-        worker only processes it and uploads the result. The task type and the
-        Laravel base URL are recorded for the typed result route.
+        The task type and Laravel base URL are recorded for the typed result
+        route before background processing starts.
         """
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -252,13 +232,11 @@ class TranslationWorkerService(BaseLaravelWorkerService):
         so Laravel re-routes/re-pends; nothing is ever silently dropped.
 
         Dispatch order (unified client) - delegates to the per-lane handlers:
-          - capability == 'ai_translate'  -> ai_translate.ai_translate_words
           - task_type == 'subtitle_search'-> media.process_subtitle_search_task
           - task_type == 'prompt_translation' -> prompt_translate.process_prompt_translation_task
           - task_type == 'word_audio' -> audio.process_audio_task
           - task_type == 'sentence_audio' -> audio.process_audio_task
           - task_type in STT_TASK_TYPES   -> stt.process_stt_task
-          - task_type word_translation/'' -> translation.process_word_translation
           - anything else                 -> 'failed' (re-route)
         """
         task_id = task.get("task_id")
@@ -266,10 +244,16 @@ class TranslationWorkerService(BaseLaravelWorkerService):
             task_type = task.get("task_type")
             capability = task.get("capability")
 
-            # AI-translate capability: race on the shared fast lane. task_type stays
-            # word_translation; only the PATH differs (AI gateway vs Google).
-            if capability == "ai_translate":
-                h_ai_translate.ai_translate_words(self, task)
+            if task_type == self.WORD_TRANSLATION_TASK_TYPE or capability in (
+                "translate",
+                "ai_translate",
+                "puter_translate",
+            ):
+                self._post_result(
+                    task_id,
+                    "failed",
+                    error="Word translation tasks are handled by Chrome",
+                )
                 return
 
             if task_type == self.SUBTITLE_TASK_TYPE:
@@ -288,11 +272,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                 h_stt.process_stt_task(self, task)
                 return
 
-            # A mis-tagged task of another task_type can land here. Translating
-            # it would post a result shape its real processor does not
-            # understand - report failed instead so Laravel retries it toward
-            # the right consumer.
-            if task_type not in (None, "", self.WORD_TRANSLATION_TASK_TYPE):
+            if task_type not in (None, ""):
                 ColorPrint.yellow(
                     f"[TranslationWorker] Task {task_id} has unsupported "
                     f"task_type '{task_type}' - reporting failed so it can be re-routed"
@@ -301,13 +281,17 @@ class TranslationWorkerService(BaseLaravelWorkerService):
                     task_id,
                     "failed",
                     error=(
-                        f"pycore translation worker only processes word_translation "
-                        f"tasks (got task_type={task_type!r})"
+                        f"pycore translation worker does not process "
+                        f"task_type={task_type!r}"
                     ),
                 )
                 return
 
-            h_translation.process_word_translation(self, task)
+            self._post_result(
+                task_id,
+                "failed",
+                error="Untyped translation tasks are handled by Chrome",
+            )
         except Exception as e:
             ColorPrint.red(f"[TranslationWorker] Task {task_id} failed: {e}")
             self._post_result(task_id, "failed", error=str(e))
@@ -361,12 +345,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     @staticmethod
     def _local_task_label(task: Dict[str, Any]) -> str:
-        """Map a dispatched task to the local TaskManager lane label for the UI.
-
-        Each new unified task_type gets its own lane so the local task-center UI can
-        distinguish them; ai_translate keeps the translation lane (task_type stays
-        word_translation).
-        """
+        """Map a dispatched task to the local TaskManager lane label for the UI."""
         return task_local_label(task.get("task_type"), task.get("capability"))
 
     def _purge_inflight_locked(self, now: float) -> None:

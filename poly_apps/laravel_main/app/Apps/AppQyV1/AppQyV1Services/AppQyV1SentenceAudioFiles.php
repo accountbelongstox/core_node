@@ -2,7 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 
 /**
  * Structured multi-variant sentence audio registry (Books v3.1).

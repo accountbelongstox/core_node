@@ -49,6 +49,9 @@ class CursorExtractor(BaseExtractor):
                         seen.add(file)
                         out.append(self.descriptor(file))
 
+        if out:
+            return out
+
         for base in (
             os.path.join(home, "AppData", "Roaming", "Cursor", "User"),
             os.path.join(home, ".config", "Cursor", "User"),
@@ -81,6 +84,10 @@ class CursorExtractor(BaseExtractor):
 
         turns: List[Dict[str, Any]] = []
         prompts: List[Dict[str, Any]] = []
+        pending_assistant_texts: List[str] = []
+        pending_assistant_seen: set[str] = set()
+        pending_assistant_ts = 0
+        pending_assistant_model: Optional[str] = None
         models: Dict[str, bool] = {}
         first_ts = 0
         last_ts = 0
@@ -100,12 +107,11 @@ class CursorExtractor(BaseExtractor):
         if os.path.basename(os.path.dirname(file)) != "agent-transcripts":
             session_id = os.path.basename(os.path.dirname(file))
 
-        for e in entries:
-            ts = self.ts_to_epoch(e.get("timestamp")) or mtime
+        for entry_index, e in enumerate(entries):
+            ts = self.ts_to_epoch(e.get("timestamp")) or (mtime + entry_index)
             if ts > 0:
-                last_ts = ts
-                if first_ts == 0:
-                    first_ts = ts
+                first_ts = ts if first_ts <= 0 else min(first_ts, ts)
+                last_ts = max(last_ts, ts)
 
             role = str(e.get("role") or "")
             msg = e.get("message") or {}
@@ -119,6 +125,7 @@ class CursorExtractor(BaseExtractor):
             if not isinstance(content, list):
                 continue
 
+            text_blocks: List[str] = []
             for block in content:
                 if not isinstance(block, dict):
                     continue
@@ -130,11 +137,7 @@ class CursorExtractor(BaseExtractor):
                     text = self._strip_cursor_metadata(text)
                     if not text:
                         continue
-                    if role == "user":
-                        prompts.append({"ts": ts, "text": self.truncate(text)})
-                        turns.append(self.turn(ts, "user", text))
-                    else:
-                        turns.append(self.turn(ts, "assistant", text, False, model))
+                    text_blocks.append(text)
                 elif btype == "tool_use":
                     name = str(block.get("name") or "?")
                     inp = json.dumps(block.get("input") or {}, ensure_ascii=False)
@@ -144,8 +147,44 @@ class CursorExtractor(BaseExtractor):
                     if text.strip():
                         turns.append(self.turn(ts, "tool_result", text, False, model))
 
-            if len(turns) > MAX_TURNS:
+            if role == "user":
+                if pending_assistant_texts:
+                    turns.append(self.turn(
+                        pending_assistant_ts,
+                        "assistant",
+                        "\n\n".join(pending_assistant_texts),
+                        False,
+                        pending_assistant_model,
+                    ))
+                    pending_assistant_texts = []
+                    pending_assistant_seen = set()
+                    pending_assistant_ts = 0
+                    pending_assistant_model = None
+                prompt_text = "\n\n".join(text_blocks).strip()
+                if prompt_text:
+                    prompts.append({"ts": ts, "text": self.truncate(prompt_text)})
+                    turns.append(self.turn(ts, "user", prompt_text))
+            else:
+                for text in text_blocks:
+                    if text in pending_assistant_seen:
+                        continue
+                    pending_assistant_seen.add(text)
+                    pending_assistant_texts.append(text)
+                if text_blocks:
+                    pending_assistant_ts = ts
+                    pending_assistant_model = model
+
+            if len(turns) >= MAX_TURNS:
                 break
+
+        if pending_assistant_texts and len(turns) < MAX_TURNS:
+            turns.append(self.turn(
+                pending_assistant_ts,
+                "assistant",
+                "\n\n".join(pending_assistant_texts),
+                False,
+                pending_assistant_model,
+            ))
 
         if not turns:
             return None
@@ -246,6 +285,6 @@ class CursorExtractor(BaseExtractor):
             btype = b.get("type") or b.get("role") or ""
             is_user = btype in (1, "1", "user")
             turns.append(self.turn(ts, "user" if is_user else "assistant", text))
-            if len(turns) > MAX_TURNS:
+            if len(turns) >= MAX_TURNS:
                 break
         return turns

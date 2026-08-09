@@ -16,9 +16,9 @@ use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
-use App\Models\LangSentence;
-use App\Models\Book;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -245,7 +245,7 @@ class AppQyV1TaskEnqueueController extends Controller
             }
             $contentId = (string) ($payload['content_id'] ?? '');
             $language = (string) ($payload['language'] ?? '');
-            $sentence = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+            $sentence = LangSentence::findByContentId($language, $contentId);
             if ($sentence === null || (string) $sentence->text === '') {
                 $error = 'sentence_audio: no sentence text found for content_id+language';
                 return $payload;
@@ -261,8 +261,8 @@ class AppQyV1TaskEnqueueController extends Controller
             $mediaType = (string) ($payload['media_type'] ?? '');
             $id = (int) ($payload['id'] ?? 0);
             $row = $mediaType === 'book'
-                ? Book::find($id)
-                : ($mediaType === 'subtitle' ? Subtitle::find($id) : null);
+                ? Book::findSource($id)
+                : ($mediaType === 'subtitle' ? Subtitle::findSource($id) : null);
             if ($row === null) {
                 $error = 'poster: no ' . $mediaType . ' row found for id ' . $id;
                 return $payload;

@@ -27,10 +27,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import platform
 import os
-import tempfile
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.desktop_icon_generator import DesktopIconGenerator
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.shortcut_manager import ShortcutManager
 
 # Real entry point for the desktop shortcut (.bat / .desktop). Must NOT use __file__
@@ -154,7 +154,7 @@ def show_admin_permission_warning():
     if platform.system() != 'Windows':
         return  # Windows-only "Run as administrator" guidance; irrelevant on Linux/macOS
     # Use a lock file to ensure only one process shows the warning
-    lock_file = Path(tempfile.gettempdir()) / 'window_launcher_admin_warning_shown.lock'
+    lock_file = TMP_DIR / 'window_launcher_admin_warning_shown.lock'
 
     # Check if warning was already shown (check lock file)
     if lock_file.exists():

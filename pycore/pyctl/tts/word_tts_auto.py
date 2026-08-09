@@ -2,7 +2,7 @@
 """
 Word-dictionary TTS auto-start (Queue Center toggle).
 
-When enabled, turns on the word-audio processor used by the UI task pump.
+When enabled, turns on Pycore's persistent word-audio pull worker.
 """
 
 from typing import Any, Dict, Optional
@@ -38,7 +38,7 @@ def get_config() -> Dict[str, Any]:
 
 
 def restore_persisted_auto_start() -> None:
-    """Apply persisted concurrency (worker lifecycle is UI-pump driven)."""
+    """Apply persisted concurrency before the pull callback starts."""
     try:
         laravel_word_audio_worker.set_concurrency(get_config()["concurrency"])
     except Exception as exc:  # noqa: BLE001

@@ -75,7 +75,7 @@ class AppQyV1QuizController extends Controller
             // Cross-DB "NULLS LAST then ascending" trick: (col IS NULL) sorts non-null
             // first (boolean 0) before null (1), then by col ASC. Valid on both sqlite
             // and pgsql; do NOT switch to "NULLS LAST" (sqlite does not support it).
-            ->orderByRaw('next_review_at IS NULL, next_review_at ASC')
+            ->dueFirst()
             ->limit(200)
             ->get();
 

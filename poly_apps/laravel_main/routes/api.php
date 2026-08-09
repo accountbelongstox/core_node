@@ -364,6 +364,7 @@ use App\Http\Controllers\QueueCenterController;
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
     Route::get('overview', [QueueCenterController::class, 'overview']);
+    Route::get('receipts', [QueueCenterController::class, 'receipts']);
     Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
     // UI pump reads: high-water ID page table + lazy page data materialization.
     Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);

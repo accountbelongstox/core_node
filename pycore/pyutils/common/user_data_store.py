@@ -1,19 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Shared JSON-backed user settings owned by one THREAD_BUS worker."""
+"""Shared JSON-backed user settings owned by one serialized center."""
 
 import copy
 import json
 import os
-import threading
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR, CORE_NODE_ROOT
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
 
 STORE_FILE_NAME = "user_data.json"
@@ -42,52 +44,16 @@ def _read_json_object(path: Path) -> Dict[str, Any]:
     return loaded if isinstance(loaded, dict) else {}
 
 
-class UserDataStoreThread(threading.Thread):
-    """Own defaults, personalized JSON, and the merged effective settings map."""
+class _UserDataDocument:
+    """One JSON document whose state is owned by the shared store center."""
 
-    def __init__(self, queue_name: str):
-        super().__init__(name=f"UserDataStore-{queue_name[-8:]}", daemon=True)
-        self._queue_name = queue_name
-        self._base_dir = Path()
-        self._defaults_dir = Path()
-        self._path = Path()
+    def __init__(self, base_dir: Path, defaults_dir: Path, file_name: str) -> None:
+        self._base_dir = base_dir
+        self._defaults_dir = defaults_dir
+        self._path = base_dir / file_name
         self._defaults: Optional[Dict[str, Any]] = None
         self._overrides: Optional[Dict[str, Any]] = None
         self._data: Optional[Dict[str, Any]] = None
-
-    def run(self) -> None:
-        while not THREAD_BUS.is_shutdown_requested():
-            request = THREAD_BUS.receive_message(
-                self._queue_name,
-                block=True,
-                timeout=0.1,
-            )
-            if not isinstance(request, dict):
-                continue
-            response_signal = request.get("response_signal", "")
-            response_guard = request.get("response_guard", "")
-            operation = request.get("operation", "")
-            payload = request.get("payload", {})
-            try:
-                if operation == "configure":
-                    self._base_dir = Path(payload["base_dir"])
-                    self._defaults_dir = Path(payload["defaults_dir"])
-                    self._path = self._base_dir / payload["file_name"]
-                    result = True
-                else:
-                    result = getattr(self, operation)(**payload)
-                response = {"success": True, "result": result}
-            except Exception as exc:
-                response = {"success": False, "error": str(exc)}
-            if response_signal:
-                if response_guard:
-                    THREAD_BUS.signal_if_present(
-                        response_guard,
-                        response_signal,
-                        response,
-                    )
-                else:
-                    THREAD_BUS.signal(response_signal, response)
 
     @property
     def path(self) -> Path:
@@ -142,7 +108,9 @@ class UserDataStoreThread(threading.Thread):
 
     def _write_overrides(self, overrides: Dict[str, Any]) -> None:
         self._base_dir.mkdir(parents=True, exist_ok=True)
-        temporary_path = self._path.with_suffix(self._path.suffix + ".tmp")
+        temporary_path = self._path.with_suffix(
+            self._path.suffix + f".tmp.{os.getpid()}.{uuid.uuid4().hex}"
+        )
         with temporary_path.open("w", encoding="utf-8") as file_handle:
             json.dump(
                 overrides,
@@ -183,9 +151,13 @@ class UserDataStoreThread(threading.Thread):
         return copy.deepcopy(section) if isinstance(section, dict) else {}
 
     def set_section(self, namespace: str, value: Dict[str, Any]) -> None:
+        self.set_sections({namespace: value})
+
+    def set_sections(self, values: Dict[str, Dict[str, Any]]) -> None:
         self._ensure_loaded()
         overrides = copy.deepcopy(self._overrides or {})
-        overrides[namespace] = copy.deepcopy(value or {})
+        for namespace, value in values.items():
+            overrides[namespace] = copy.deepcopy(value or {})
         self._write_overrides(overrides)
         self._overrides = overrides
         self._rebuild_effective()
@@ -268,8 +240,43 @@ class UserDataStoreThread(threading.Thread):
         self.set_section(name, data)
 
 
+class _UserDataStoreCenter:
+    """Own every JSON document behind one process-wide serialized instance."""
+
+    def __init__(self) -> None:
+        self._documents: Dict[str, _UserDataDocument] = {}
+        init_serialized_owner(
+            self,
+            "user_data_store.center",
+            "UserDataStoreCenter",
+        )
+
+    @serialized_method
+    def execute(
+        self,
+        store_key: str,
+        operation: str,
+        payload: Dict[str, Any],
+    ) -> Any:
+        if operation == "configure":
+            if store_key not in self._documents:
+                self._documents[store_key] = _UserDataDocument(
+                    base_dir=Path(payload["base_dir"]),
+                    defaults_dir=Path(payload["defaults_dir"]),
+                    file_name=payload["file_name"],
+                )
+            return True
+        document = self._documents.get(store_key)
+        if document is None:
+            raise RuntimeError(f"User data store is not configured: {store_key}")
+        return getattr(document, operation)(**payload)
+
+
+user_data_store_center = _UserDataStoreCenter()
+
+
 class UserDataStore:
-    """Synchronous facade backed by one THREAD_BUS-owned settings map."""
+    """Configured facade backed by the process-wide user-data store center."""
 
     def __init__(
         self,
@@ -280,9 +287,7 @@ class UserDataStore:
         self._base_dir = Path(base_dir) if base_dir else APP_CONFIG_DIR
         self._defaults_dir = Path(defaults_dir) if defaults_dir else DEFAULT_CONFIG_DIR
         self._path = self._base_dir / file_name
-        self._queue_name = f"user_data_store.requests.{uuid.uuid4().hex}"
-        self._worker = UserDataStoreThread(self._queue_name)
-        self._worker.start()
+        self._store_key = str(self._path.resolve())
         self._request(
             "configure",
             base_dir=str(self._base_dir),
@@ -324,6 +329,9 @@ class UserDataStore:
 
     def set_section(self, namespace: str, value: Dict[str, Any]) -> None:
         self._request("set_section", namespace=namespace, value=value)
+
+    def set_sections(self, values: Dict[str, Dict[str, Any]]) -> None:
+        self._request("set_sections", values=values)
 
     def update_section(self, namespace: str, patch: Dict[str, Any]) -> Dict[str, Any]:
         section = self._request(
@@ -372,22 +380,11 @@ class UserDataStore:
         self.set_section(name, data)
 
     def _request(self, operation: str, **payload: Any) -> Any:
-        response_signal = f"{self._queue_name}.response.{uuid.uuid4().hex}"
-        response_guard = f"{response_signal}.waiting"
-        THREAD_BUS.signal(response_guard, True)
-        THREAD_BUS.send_message(self._queue_name, {
-            "operation": operation,
-            "payload": payload,
-            "response_signal": response_signal,
-            "response_guard": response_guard,
-        })
-        response = THREAD_BUS.wait_signal(response_signal, timeout=30.0)
-        THREAD_BUS.clear_signal(response_signal)
-        if not isinstance(response, dict):
-            raise TimeoutError(f"User data operation timed out: {operation}")
-        if not response.get("success"):
-            raise RuntimeError(response.get("error", "User data operation failed"))
-        return response.get("result")
+        return user_data_store_center.execute(
+            self._store_key,
+            operation,
+            payload,
+        )
 
 
 user_data_store = UserDataStore()
@@ -397,6 +394,6 @@ __all__ = [
     "DEFAULT_CONFIG_DIR",
     "STORE_FILE_NAME",
     "UserDataStore",
-    "UserDataStoreThread",
     "user_data_store",
+    "user_data_store_center",
 ]

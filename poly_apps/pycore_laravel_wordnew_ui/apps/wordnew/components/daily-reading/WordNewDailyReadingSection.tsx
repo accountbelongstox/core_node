@@ -3,14 +3,26 @@
  * text inline (article_en with reference_cn). A Play button (header = play
  * all, per row = start from that article) opens the article route; the book
  * button opens the read-along reader. */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, ChevronDown, Headphones, Home, ListMusic, Loader2, Newspaper } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BookOpen,
+  ChevronDown,
+  Headphones,
+  History,
+  Home,
+  ListMusic,
+  Loader2,
+  Newspaper,
+  RefreshCw,
+  Shuffle,
+  Sparkles,
+} from 'lucide-react';
 import type { ElementTheme } from '../../WfNewTypes';
 import { fetchDailyReadings, requestDailyReadingAudio, type DailyReadingRow } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
 import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOverlay';
 import { connectPycoreHttp, PYCORE_EVENT_TOPICS, subscribe } from '@/apps/wordnew/integrations/pycore';
-import { wfNewApi } from '../../api';
+import { wfNewApi, type WfNewDailyReadingSelectionMode } from '../../api';
 import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 
 interface Props {
@@ -25,13 +37,31 @@ interface Props {
 }
 
 const POLL_MS = 12_000;
-type ArticleSort = 'latest' | 'oldest' | 'source' | 'unread' | 'random';
-
-function initialArticleSort(): ArticleSort {
-  if (typeof window === 'undefined') return 'latest';
-  const match = window.location.hash.match(/^#\/daily-reading(?:\?sort=(latest|oldest|source|unread|random))?$/);
-  return (match?.[1] as ArticleSort | undefined) ?? 'latest';
-}
+const SELECTION_MODE_OPTIONS: Array<{
+  value: WfNewDailyReadingSelectionMode;
+  labelKey: string;
+  hintKey: string;
+  icon: typeof Sparkles;
+}> = [
+  {
+    value: 'latest',
+    labelKey: 'home.dailyReading.startLatest',
+    hintKey: 'home.dailyReading.startLatestHint',
+    icon: Sparkles,
+  },
+  {
+    value: 'resume',
+    labelKey: 'home.dailyReading.startResume',
+    hintKey: 'home.dailyReading.startResumeHint',
+    icon: History,
+  },
+  {
+    value: 'random',
+    labelKey: 'home.dailyReading.startRandom',
+    hintKey: 'home.dailyReading.startRandomHint',
+    icon: Shuffle,
+  },
+];
 
 /** Article id carried by a #/daily-reading/<articleId> deep link. */
 function readDailyHashId(): string | null {
@@ -45,42 +75,47 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [articleSort, setArticleSort] = useState<ArticleSort>(initialArticleSort);
+  const [selectionMode, setSelectionMode] = useState<WfNewDailyReadingSelectionMode>('latest');
+  const [savedArticleId, setSavedArticleId] = useState<string | null>(null);
   const [queueingId, setQueueingId] = useState<string | null>(null);
   const mounted = useRef(true);
   const deepLinkHandled = useRef(false);
   const player = useDailyReadingPlayer();
-  const visibleRows = useMemo(() => {
-    const sorted = [...rows];
-    if (articleSort === 'oldest') return sorted.reverse();
-    if (articleSort === 'source') return sorted.sort((left, right) => (left.source_key || '').localeCompare(right.source_key || ''));
-    if (articleSort === 'random') return sorted.sort(() => Math.random() - 0.5);
-    // unread and latest default to the original order for now
-    return sorted;
-  }, [articleSort, rows]);
 
   /** Start the player and reflect the playing article in the URL hash. */
   const startPlayer = useCallback((startId?: string) => {
-    const articleId = startId
-      ?? visibleRows.find((row) => row.audio_ready === true && !!row.audio_url)?.id;
+    const playableRows = rows.filter((row) => row.audio_ready === true && !!row.audio_url);
+    let articleId = startId;
+    if (!articleId && selectionMode === 'resume') {
+      articleId = playableRows.find((row) => row.id === savedArticleId)?.id;
+    }
+    if (!articleId && selectionMode === 'random' && playableRows.length > 0) {
+      articleId = playableRows[Math.floor(Math.random() * playableRows.length)]?.id;
+    }
+    articleId ??= playableRows[0]?.id;
     if (!articleId) return;
+    if (wfNewApi.isAuthenticated()) {
+      void wfNewApi.saveDailyReadingProgress(articleId, selectionMode).then((progress) => {
+        if (progress && mounted.current) setSavedArticleId(progress.articleId);
+      });
+    }
     if (onOpenPage) {
       onOpenPage(articleId);
       return;
     }
-    player.start(visibleRows, articleId);
+    player.start(rows, articleId);
     if (routeMode && typeof window !== 'undefined') {
       window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
     }
-  }, [onOpenPage, player, routeMode, visibleRows]);
+  }, [onOpenPage, player, routeMode, rows, savedArticleId, selectionMode]);
 
   // Player closed -> return to the Daily Reading list route.
   useEffect(() => {
     if (player.open || !routeMode || typeof window === 'undefined') return;
     if (/^#\/daily-reading\//.test(window.location.hash)) {
-      window.history.replaceState(null, '', `#/daily-reading?sort=${articleSort}`);
+      window.history.replaceState(null, '', '#/daily-reading');
     }
-  }, [player.open, routeMode, articleSort]);
+  }, [player.open, routeMode]);
 
   // Deep link: #/daily-reading/<articleId> auto-starts once rows arrive.
   useEffect(() => {
@@ -98,12 +133,14 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player, rows]);
 
-  const changeSort = useCallback((next: ArticleSort) => {
-    setArticleSort(next);
-    if (routeMode && typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#/daily-reading?sort=${next}`);
+  const changeSelectionMode = useCallback((next: WfNewDailyReadingSelectionMode) => {
+    setSelectionMode(next);
+    if (wfNewApi.isAuthenticated()) {
+      void wfNewApi.saveDailyReadingProgress(savedArticleId, next).then((progress) => {
+        if (progress && mounted.current) setSavedArticleId(progress.articleId);
+      });
     }
-  }, [routeMode]);
+  }, [savedArticleId]);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -140,6 +177,13 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
   useEffect(() => {
     mounted.current = true;
     load(false);
+    if (wfNewApi.isAuthenticated()) {
+      void wfNewApi.getDailyReadingProgress().then((progress) => {
+        if (!progress || !mounted.current) return;
+        setSavedArticleId(progress.articleId);
+        setSelectionMode(progress.selectionMode);
+      });
+    }
     const id = setInterval(() => load(true), POLL_MS);
     connectPycoreHttp();
     const onArticlePublished = () => load(true);
@@ -151,60 +195,110 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
     };
   }, [load]);
 
-  const playableCount = visibleRows.filter((r) => r.audio_ready === true).length;
+  const playableCount = rows.filter((row) => row.audio_ready === true && !!row.audio_url).length;
 
   if (player.open) {
     return <WordNewDailyReadingPlayerOverlay player={player} trans={trans} onGoHome={onGoHome} />;
   }
 
   return (
-    <section className={`${theme.cardClass} rounded-3xl border border-white/5 p-5 space-y-4`}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-black font-mono uppercase tracking-widest text-indigo-400 flex items-center gap-2">
-            <Newspaper className="w-4 h-4" />
-            {trans('home.dailyReading.title')}
-          </h2>
-          <p className="text-[11px] text-zinc-500 mt-1">{trans('home.dailyReading.subtitle')}</p>
+    <section className={`${theme.cardClass} border border-white/5 ${routeMode
+      ? 'min-h-[calc(100vh-10rem)] rounded-[2rem] p-5 sm:p-8 flex flex-col gap-6 overflow-hidden'
+      : 'rounded-3xl p-5 space-y-4'}`}>
+      <div className={routeMode
+        ? 'relative rounded-3xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/10 via-slate-950/40 to-fuchsia-500/5 p-5 sm:p-7 space-y-5 overflow-hidden'
+        : 'flex items-center justify-between gap-3'}>
+        <div className={routeMode ? 'flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5' : 'contents'}>
+          <div>
+            <h2 className={`${routeMode ? 'text-xl sm:text-2xl' : 'text-sm font-mono uppercase tracking-widest'} font-black text-indigo-400 flex items-center gap-2`}>
+              <Newspaper className={routeMode ? 'w-6 h-6' : 'w-4 h-4'} />
+              {trans('home.dailyReading.title')}
+            </h2>
+            <p className={`${routeMode ? 'text-sm max-w-2xl' : 'text-[11px]'} text-zinc-500 mt-1`}>
+              {trans('home.dailyReading.subtitle')}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {routeMode && (
+              <button
+                type="button"
+                onClick={() => void load(false)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-xs font-bold text-zinc-300 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
+                title={trans('home.dailyReading.refresh')}
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                {trans('home.dailyReading.refresh')}
+              </button>
+            )}
+            {!routeMode && loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
+            {routeMode && onGoHome && (
+              <button
+                type="button"
+                onClick={onGoHome}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 text-xs font-bold text-zinc-300 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
+                title={trans('home.dailyReading.backHome')}
+              >
+                <Home className="w-4 h-4" />
+                {trans('home.dailyReading.backHome')}
+              </button>
+            )}
+            {playableCount > 0 && (
+              <button
+                type="button"
+                onClick={() => startPlayer()}
+                className={`${routeMode ? 'px-4 py-2 text-xs' : 'px-3 py-1.5 text-[11px]'} flex items-center gap-1.5 rounded-xl font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform`}
+                title={trans('home.dailyReading.playAll')}
+              >
+                <ListMusic className="w-4 h-4" />
+                {trans('home.dailyReading.playAll')}
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {routeMode && (
-            <select
-              value={articleSort}
-              onChange={(event) => changeSort(event.target.value as ArticleSort)}
-              className="rounded-xl border border-white/10 bg-slate-950 px-2 py-1.5 text-[11px] text-zinc-300"
-              aria-label={trans('home.dailyReading.articleSort')}
-            >
-              <option value="latest">{trans('home.dailyReading.sortLatest')}</option>
-              <option value="oldest">{trans('home.dailyReading.sortOldest')}</option>
-              <option value="source">{trans('home.dailyReading.sortSource')}</option>
-              <option value="unread">{trans('home.dailyReading.sortUnread')}</option>
-              <option value="random">{trans('home.dailyReading.sortRandom')}</option>
-            </select>
-          )}
-          {loading && <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />}
-          {routeMode && onGoHome && (
-            <button
-              type="button"
-              onClick={onGoHome}
-              className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
-              title={trans('home.dailyReading.backHome')}
-            >
-              <Home className="w-4 h-4" />
-            </button>
-          )}
-          {playableCount > 0 && (
-            <button
-              type="button"
-              onClick={() => startPlayer()}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-md shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-transform"
-              title={trans('home.dailyReading.playAll')}
-            >
-              <ListMusic className="w-3.5 h-3.5" />
-              {trans('home.dailyReading.playAll')}
-            </button>
-          )}
-        </div>
+
+        {routeMode && (
+          <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={trans('home.dailyReading.startMode')}>
+            {SELECTION_MODE_OPTIONS.map((option) => {
+              const ModeIcon = option.icon;
+              const selected = selectionMode === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => changeSelectionMode(option.value)}
+                  className={`group flex items-start gap-3 rounded-2xl border p-4 text-left transition-all ${selected
+                    ? 'border-indigo-400/50 bg-indigo-500/15 shadow-lg shadow-indigo-950/20'
+                    : 'border-white/5 bg-slate-950/35 hover:border-indigo-500/25 hover:bg-slate-900/60'}`}
+                >
+                  <span className={`rounded-xl p-2 ${selected ? 'bg-indigo-500 text-white' : 'bg-white/5 text-zinc-500 group-hover:text-indigo-300'}`}>
+                    <ModeIcon className="w-4 h-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block text-sm font-bold ${selected ? 'text-indigo-200' : 'text-zinc-200'}`}>
+                      {trans(option.labelKey)}
+                    </span>
+                    <span className="block mt-1 text-[11px] leading-relaxed text-zinc-500">
+                      {trans(option.hintKey)}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {routeMode && (
+          <div className="flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
+            <span className="rounded-full border border-white/5 bg-white/[0.03] px-3 py-1.5">
+              {trans('home.dailyReading.articleCount', { count: rows.length })}
+            </span>
+            <span className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 text-emerald-400/80">
+              {trans('home.dailyReading.playableCount', { count: playableCount })}
+            </span>
+          </div>
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -212,14 +306,14 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
           {loading ? '…' : error || trans('home.dailyReading.empty')}
         </p>
       ) : (
-        <ul className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-          {visibleRows.map((row) => {
+        <ul className={routeMode ? 'grid flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
+          {rows.map((row) => {
             const expanded = expandedId === row.id;
             const dateLabel = row.reading_date ?? row.created_at;
             return (
               <li
                 key={row.id}
-                className="rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors"
+                className={`rounded-2xl border border-white/5 bg-slate-900/40 p-4 hover:border-indigo-500/30 transition-colors ${routeMode ? 'h-full' : ''}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <button
@@ -242,15 +336,16 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
                       {dateLabel ? new Date(dateLabel).toLocaleDateString() : ''}
                     </div>
                   </button>
-                  <div className="shrink-0 flex flex-col gap-2">
+                  <div className={`shrink-0 flex gap-2 ${routeMode ? 'flex-row flex-wrap justify-end' : 'flex-col'}`}>
                     {row.audio_url && row.audio_ready && (
                       <button
                         type="button"
-                      onClick={() => startPlayer(row.id)}
-                        className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
+                        onClick={() => startPlayer(row.id)}
+                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
                         title={trans('home.dailyReading.playFrom')}
                       >
                         <Headphones className="w-4 h-4" />
+                        {routeMode && <span className="text-[10px] font-bold">{trans('home.dailyReading.play')}</span>}
                       </button>
                     )}
                     {row.audio_url && !row.audio_ready && (
@@ -258,22 +353,37 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
                         type="button"
                         onClick={() => void queueAudio(row)}
                         disabled={queueingId === row.id}
-                        className="p-2 rounded-xl border border-amber-500/20 text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
+                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-amber-500/20 text-amber-300 hover:bg-amber-500/10 transition-colors disabled:opacity-50"
                         title={trans('home.dailyReading.audioQueued')}
                       >
                         {queueingId === row.id
                           ? <Loader2 className="w-4 h-4 animate-spin" />
                           : <Headphones className="w-4 h-4" />}
+                        {routeMode && <span className="text-[10px] font-bold">{trans('home.dailyReading.audioPending')}</span>}
                       </button>
                     )}
                     {row.source_key && (
                       <button
                         type="button"
                         onClick={() => onOpenBook(row.source_key!, row.title_en)}
-                        className="p-2 rounded-xl border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/10 transition-colors"
+                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/10 transition-colors"
                         title={trans('home.agentArticles.read')}
                       >
                         <BookOpen className="w-4 h-4" />
+                        {routeMode && <span className="text-[10px] font-bold">{trans('home.agentArticles.read')}</span>}
+                      </button>
+                    )}
+                    {routeMode && (row.article_en || row.reference_cn) && (
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(expanded ? null : row.id)}
+                        className="inline-flex items-center gap-1.5 p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 transition-colors"
+                        title={trans('home.dailyReading.toggleText')}
+                      >
+                        <ChevronDown className={`w-4 h-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                        <span className="text-[10px] font-bold">
+                          {trans(expanded ? 'home.dailyReading.hideArticle' : 'home.dailyReading.showArticle')}
+                        </span>
                       </button>
                     )}
                   </div>

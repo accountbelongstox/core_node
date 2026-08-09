@@ -23,9 +23,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import platform
 import os
-import tempfile
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.pybasecommon.commander import run_background
 from pycore.pyutils.launcher.launch_guard import is_pycore_module_running
 
@@ -51,7 +51,7 @@ def launch_pycore_module():
         return
 
     try:
-        log_dir = Path(tempfile.gettempdir()) / 'pycore_module'
+        log_dir = TMP_DIR / 'pycore_module'
         log_dir.mkdir(exist_ok=True)
         log_file = log_dir / 'pycore_module_launcher.log'
         ColorPrint.plain(f"[Launcher] Pycore Module log dir: {log_dir}")

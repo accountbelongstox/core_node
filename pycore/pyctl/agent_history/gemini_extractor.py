@@ -28,19 +28,73 @@ class GeminiExtractor(BaseExtractor):
                 out.append(self.descriptor(logs))
             for cp in glob(os.path.join(project_dir, "checkpoints", "*.json")):
                 out.append(self.descriptor(cp))
+            for chat in glob(os.path.join(project_dir, "chats", "session-*.json")):
+                out.append(self.descriptor(chat))
+            for chat in glob(os.path.join(project_dir, "chats", "session-*.jsonl")):
+                out.append(self.descriptor(chat))
             for tag in glob(os.path.join(project_dir, "*.json")):
                 if os.path.basename(tag) != "logs.json":
                     out.append(self.descriptor(tag))
         return out
 
     def parse_source(self, path: str, user: str) -> List[Dict[str, Any]]:
-        data = self.load_json(path)
+        data = self.load_jsonl(path) if path.lower().endswith(".jsonl") else self.load_json(path)
+        if isinstance(data, dict) and isinstance(data.get("messages"), list):
+            session = self._parse_chat(data, user, path)
+            return [session] if session else []
         if not isinstance(data, list):
             return []
         if os.path.basename(path) == "logs.json":
             return self._parse_logs(data, user, path)
         sess = self._parse_checkpoint(data, user, path)
         return [sess] if sess else []
+
+    @staticmethod
+    def _project_name(source: str) -> str:
+        parent = os.path.dirname(source)
+        if os.path.basename(parent) in ("chats", "checkpoints"):
+            parent = os.path.dirname(parent)
+        return os.path.basename(parent)
+
+    def _parse_chat(self, data: Dict[str, Any], user: str, source: str) -> Optional[Dict[str, Any]]:
+        messages = data.get("messages") or []
+        turns: List[Dict[str, Any]] = []
+        prompts: List[Dict[str, Any]] = []
+        first = self.ts_to_epoch(data.get("startTime"))
+        last = self.ts_to_epoch(data.get("lastUpdated"))
+        for index, message in enumerate(messages):
+            if not isinstance(message, dict):
+                continue
+            message_type = str(message.get("type") or message.get("role") or "").lower()
+            if message_type not in ("user", "gemini", "assistant", "model"):
+                continue
+            text = self.stringify_content(message.get("content") or message.get("message") or "").strip()
+            if not text:
+                continue
+            timestamp = self.ts_to_epoch(message.get("timestamp"))
+            if timestamp <= 0:
+                timestamp = first or last or int(os.path.getmtime(source)) + index
+            first = timestamp if first <= 0 else min(first, timestamp)
+            last = max(last, timestamp)
+            role = "user" if message_type == "user" else "assistant"
+            turns.append(self.turn(timestamp, role, text, model=message.get("model")))
+            if role == "user":
+                prompts.append({"ts": timestamp, "text": self.truncate(text)})
+            if len(turns) >= MAX_TURNS:
+                break
+        if not turns:
+            return None
+        raw_id = str(data.get("sessionId") or os.path.splitext(os.path.basename(source))[0])
+        project = self._project_name(source)
+        return self.session("gemini", user, raw_id, {
+            "project": project,
+            "title": prompts[0]["text"][:120] if prompts else raw_id,
+            "firstTs": first,
+            "lastTs": last,
+            "source": source,
+            "prompts": prompts,
+            "turns": turns,
+        })
 
     def _parse_logs(self, rows: List[Any], user: str, source: str) -> List[Dict[str, Any]]:
         by_session: Dict[str, List[Dict[str, Any]]] = {}
@@ -71,12 +125,13 @@ class GeminiExtractor(BaseExtractor):
                     turns.append(self.turn(ts, "user", text))
                 else:
                     turns.append(self.turn(ts, "assistant", text))
-                if len(turns) > MAX_TURNS:
-                    break
+            if len(turns) >= MAX_TURNS:
+                break
             if not turns:
                 continue
-            out.append(self.session("gemini", user, f"log-{os.path.basename(os.path.dirname(source))}-{sid}", {
-                "project": os.path.basename(os.path.dirname(source)),
+            project = self._project_name(source)
+            out.append(self.session("gemini", user, f"log-{project}-{sid}", {
+                "project": project,
                 "firstTs": first,
                 "lastTs": last,
                 "source": source,
@@ -128,14 +183,15 @@ class GeminiExtractor(BaseExtractor):
                 turns.append(self.turn(mtime, "user", text))
             else:
                 turns.append(self.turn(mtime, "assistant", text))
-            if len(turns) > self.MAX_TURNS:
+            if len(turns) >= MAX_TURNS:
                 break
 
         if not turns:
             return None
-        raw_id = f"{os.path.basename(os.path.dirname(source))}-{os.path.splitext(os.path.basename(source))[0]}"
+        project = self._project_name(source)
+        raw_id = f"{project}-{os.path.splitext(os.path.basename(source))[0]}"
         return self.session("gemini", user, raw_id, {
-            "project": os.path.basename(os.path.dirname(source)),
+            "project": project,
             "title": os.path.splitext(os.path.basename(source))[0],
             "firstTs": mtime,
             "lastTs": mtime,

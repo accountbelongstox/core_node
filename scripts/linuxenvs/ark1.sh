@@ -231,13 +231,15 @@ if command -v arkcli >/dev/null 2>&1 && arkcli --version >/dev/null 2>&1; then
     arkcliOk=1
 fi
 if [ "$arkcliOk" -eq 0 ]; then
-    echo "arkcli not found; installing @volcengine/ark-cli@latest via pnpm..."
+    echo "arkcli is missing or unhealthy; installing @volcengine/ark-cli@latest via pnpm..."
     resolve_pnpm
-    "$pnpmBin" add -g "@volcengine/ark-cli@latest" || { echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }
-    if ! command -v arkcli >/dev/null 2>&1; then
-        echo "[ERROR] arkcli installed but not on PATH. Restart your shell and re-run this script." >&2
+    "$pnpmBin" add --global "@volcengine/ark-cli@latest" || { echo "[ERROR] pnpm install of @volcengine/ark-cli failed." >&2; exit 1; }
+    hash -r
+    if ! command -v arkcli >/dev/null 2>&1 || ! arkcli --version >/dev/null 2>&1; then
+        echo "[ERROR] arkcli is unavailable after pnpm installation." >&2
         exit 1
     fi
+    arkcliOk=1
 fi
 fi
 

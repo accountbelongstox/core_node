@@ -4,7 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Services\MediaIngestService;
 use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Support\Facades\Log;
@@ -73,29 +73,21 @@ trait AppQyV1SentenceAudioPriorityTrait
                     'engine_profile' => $this->sentenceEngineInfo()['profile'],
                     'preferred_engine' => $this->sentenceEngineInfo()['primary'],
                 ];
-                if ($interactive) {
-                    $result = $queueCenter->moveToHead(
-                        QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                        $dedupKey,
-                        $queuePayload,
-                        $emitEvent
-                    );
-                    $taskId = isset($result['task_id']) ? (string) $result['task_id'] : null;
-                } else {
-                    $result = $queueCenter->enqueue(
-                        QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                        $queuePayload,
-                        $dedupKey
-                    );
-                    $taskId = (string) $result['task']->task_id;
-                    if ($emitEvent) {
-                        $this->emitPriorityEvent([
-                            'content_id' => $contentId,
-                            'language' => $language,
-                            'priority' => $ticket,
-                            'text' => (string) $sentence->text,
-                        ]);
-                    }
+                $result = $queueCenter->schedule(
+                    QueueCenterService::QUEUE_SENTENCE_AUDIO,
+                    $queuePayload,
+                    $dedupKey,
+                    $interactive,
+                    $emitEvent
+                );
+                $taskId = isset($result['task_id']) ? (string) $result['task_id'] : null;
+                if (!$interactive && $emitEvent) {
+                    $this->emitPriorityEvent([
+                        'content_id' => $contentId,
+                        'language' => $language,
+                        'priority' => $ticket,
+                        'text' => (string) $sentence->text,
+                    ]);
                 }
             } catch (\Throwable $e) {
                 Log::warning('[SentenceAudio] bump task create failed', [
@@ -125,7 +117,7 @@ trait AppQyV1SentenceAudioPriorityTrait
      * event wakes pycore after all rows receive their move-to-front tickets.
      *
      * @param array<int,array{text?:string,language?:string}> $items
-     * @return array{ok:bool,queued:int,total:int}
+     * @return array{ok:bool,queued:int,total:int,items:array<int,array<string,mixed>>}
      */
     public function bumpPriorityBatch(array $items, bool $interactive = true): array
     {
@@ -133,6 +125,7 @@ trait AppQyV1SentenceAudioPriorityTrait
         $total = 0;
         $seen = [];
         $bumpedLanguages = [];
+        $receipts = [];
         foreach ($items as $item) {
             $text = isset($item['text']) ? trim((string) $item['text']) : '';
             $language = isset($item['language']) ? (string) $item['language'] : '';
@@ -147,10 +140,16 @@ trait AppQyV1SentenceAudioPriorityTrait
             $seen[$dedupKey] = true;
             $total++;
             try {
-                $result = $this->bumpPriority($contentId, $language, false, $interactive, $text, false);
+                $result = $this->bumpPriority($contentId, $language, true, $interactive, $text, false);
                 if (($result['ok'] ?? false) === true && !($result['already_done'] ?? false)) {
                     $queued++;
                     $bumpedLanguages[$language] = true;
+                    $receipts[] = [
+                        'text' => $text,
+                        'language' => $language,
+                        'content_id' => $contentId,
+                        'task_id' => $result['task_id'] ?? null,
+                    ];
                 }
             } catch (\Throwable $e) {
                 Log::warning('[SentenceAudio] batch bump item failed', [
@@ -166,7 +165,7 @@ trait AppQyV1SentenceAudioPriorityTrait
                 'languages' => array_keys($bumpedLanguages),
             ]);
         }
-        return ['ok' => true, 'queued' => $queued, 'total' => $total];
+        return ['ok' => true, 'queued' => $queued, 'total' => $total, 'items' => $receipts];
     }
 
     private function assignFrontTicket(LangSentence $sentence): int

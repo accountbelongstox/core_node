@@ -45,7 +45,7 @@ class AppQyV1WordGroupPublicController
         } elseif ($username !== null) {
             $existGroupQuery->where('username', $username);
         } else {
-            $existGroupQuery->whereRaw('1 = 0');
+            $existGroupQuery->whereIn('id', []);
         }
         $existGroup = $existGroupQuery->first();
         if (!$existGroup) {

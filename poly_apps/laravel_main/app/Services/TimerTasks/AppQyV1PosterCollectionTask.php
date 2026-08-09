@@ -4,8 +4,8 @@ namespace App\Services\TimerTasks;
 
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
-use App\Models\Book;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 
 /**
  * AppQyV1 Poster Collection / Maintenance Timer Task (pull-only architecture).

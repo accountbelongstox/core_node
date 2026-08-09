@@ -47,7 +47,6 @@ class AppQyV1LiveController extends BaseController
         $currentUser = $request->user();
         $validator = null;
         $status = 'live';
-        $builder = null;
         $rows = null;
         $hosts = null;
         $items = [];
@@ -65,11 +64,7 @@ class AppQyV1LiveController extends BaseController
 
         $status = (string) $request->query('status', 'live');
 
-        $builder = AppQyV1LiveSessionModel::query();
-        if ($status === 'live') {
-            $builder->where('status', AppQyV1LiveSessionModel::STATUS_LIVE);
-        }
-        $rows = $builder->orderByDesc('id')->limit(self::LIST_LIMIT)->get();
+        $rows = AppQyV1LiveSessionModel::listed($status, self::LIST_LIMIT);
 
         $hosts = $this->usersFor($rows->pluck('host_id')->map(fn ($hid) => (int) $hid)->all());
 
@@ -114,17 +109,12 @@ class AppQyV1LiveController extends BaseController
         $description = $request->input('description');
         $externalUrl = $request->input('external_url');
 
-        $session = AppQyV1LiveSessionModel::query()->create([
-            'host_id' => $myId,
-            'title' => $title,
-            'description' => is_string($description) && $description !== '' ? $description : null,
-            'status' => AppQyV1LiveSessionModel::STATUS_LIVE,
-            'external_url' => is_string($externalUrl) && $externalUrl !== '' ? $externalUrl : null,
-            'viewer_count' => 0,
-            'started_at' => now(),
-            'ended_at' => null,
-            'created_at' => now(),
-        ]);
+        $session = AppQyV1LiveSessionModel::startForHost(
+            $myId,
+            $title,
+            is_string($description) && $description !== '' ? $description : null,
+            is_string($externalUrl) && $externalUrl !== '' ? $externalUrl : null
+        );
 
         $shape = $this->liveShape($session, $this->usersFor([$myId]));
 
@@ -151,7 +141,7 @@ class AppQyV1LiveController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $session = AppQyV1LiveSessionModel::query()->find($id);
+        $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
             return $this->notFound('Live session not found');
         }
@@ -159,11 +149,7 @@ class AppQyV1LiveController extends BaseController
             return $this->forbidden('Only the host can end this live');
         }
 
-        if ((string) $session->status !== AppQyV1LiveSessionModel::STATUS_ENDED) {
-            $session->status = AppQyV1LiveSessionModel::STATUS_ENDED;
-            $session->ended_at = now();
-            $session->save();
-        }
+        $session->endSession();
 
         return $this->success([
             'live' => $this->liveShape($session, $this->usersFor([(int) $session->host_id])),
@@ -187,7 +173,7 @@ class AppQyV1LiveController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $session = AppQyV1LiveSessionModel::query()->find($id);
+        $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
             return $this->notFound('Live session not found');
         }
@@ -199,11 +185,7 @@ class AppQyV1LiveController extends BaseController
 
         $viewerCount = AppQyV1LiveViewerModel::freshViewerCount($id);
 
-        // Materialize the recomputed count on the session.
-        if ((int) $session->viewer_count !== $viewerCount) {
-            $session->viewer_count = $viewerCount;
-            $session->save();
-        }
+        $session->syncViewerCount($viewerCount);
 
         return $this->success(['viewer_count' => $viewerCount]);
     }
@@ -236,7 +218,7 @@ class AppQyV1LiveController extends BaseController
             return $this->validationErrorWithParams($validator);
         }
 
-        $session = AppQyV1LiveSessionModel::query()->find($id);
+        $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
             return $this->notFound('Live session not found');
         }
@@ -244,12 +226,7 @@ class AppQyV1LiveController extends BaseController
         $cursor = (int) $request->query('cursor', 0);
         $limit = (int) $request->query('limit', self::CHAT_DEFAULT_LIMIT);
 
-        $rows = AppQyV1LiveMessageModel::query()
-            ->where('session_id', $id)
-            ->where('id', '>', $cursor)
-            ->orderBy('id', 'asc')
-            ->limit($limit)
-            ->get();
+        $rows = AppQyV1LiveMessageModel::afterCursor($id, $cursor, $limit);
 
         $users = $this->usersFor($rows->pluck('user_id')->map(fn ($uid) => (int) $uid)->all());
 
@@ -293,7 +270,7 @@ class AppQyV1LiveController extends BaseController
             return $this->validationErrorWithParams($validator);
         }
 
-        $session = AppQyV1LiveSessionModel::query()->find($id);
+        $session = AppQyV1LiveSessionModel::findSession($id);
         if (!$session) {
             return $this->notFound('Live session not found');
         }
@@ -306,12 +283,7 @@ class AppQyV1LiveController extends BaseController
         // A sender is implicitly a viewer; keep their presence fresh.
         AppQyV1LiveViewerModel::touch($id, $myId);
 
-        $message = AppQyV1LiveMessageModel::query()->create([
-            'session_id' => $id,
-            'user_id' => $myId,
-            'body' => $body,
-            'created_at' => now(),
-        ]);
+        $message = AppQyV1LiveMessageModel::append($id, $myId, $body);
 
         $shape = $this->liveMsgShape($message, $this->usersFor([$myId]));
 
@@ -338,11 +310,7 @@ class AppQyV1LiveController extends BaseController
      */
     private function fanoutToFollowers(int $hostId, string $event, array $data): void
     {
-        $followerIds = AppQyV1UserFollowModel::query()
-            ->where('followed_user_id', $hostId)
-            ->pluck('user_id')
-            ->map(fn ($uid) => (int) $uid)
-            ->all();
+        $followerIds = AppQyV1UserFollowModel::followerUserIds($hostId);
         foreach (array_unique($followerIds) as $followerId) {
             if ((int) $followerId === $hostId) {
                 continue;
@@ -358,13 +326,7 @@ class AppQyV1LiveController extends BaseController
      */
     private function usersFor(array $userIds)
     {
-        $userIds = array_values(array_unique(array_map('intval', $userIds)));
-        if (empty($userIds)) {
-            return collect();
-        }
-        return User::whereIn('id', $userIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        return User::indexedByIds($userIds, ['id', 'username', 'nickname', 'name', 'avatar']);
     }
 
     /** FE-facing Live shape. */

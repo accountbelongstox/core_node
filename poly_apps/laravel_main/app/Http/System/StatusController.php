@@ -53,7 +53,7 @@ class StatusController extends BaseController
     protected function getDatabaseStatus(): array
     {
         try {
-            \DB::connection()->getPdo();
+            \App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel::databaseIsAvailable();
             return [
                 'status' => 'connected',
                 'driver' => config('database.default'),

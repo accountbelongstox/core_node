@@ -1,9 +1,11 @@
 /**
  * Queue Center shared state.
  *
- * Laravel-owned queues are fetched directly from Laravel. Pycore supplies only
- * local runtime state and worker controls. Both branches remain independently
- * usable when the other backend is unavailable.
+ * Queue data is read from Pycore's shared snapshot cache. Pycore owns the
+ * Laravel stream, bounded queue cache, pull/accept/result processing, and
+ * continues after this provider unmounts.
+ *
+ * Architecture reference: `_prompts/队列中心.txt`.
  */
 import React, {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
@@ -33,15 +35,10 @@ import { QC_AUTO_KEY } from '../utils/pcQueueCenterTypes';
 import { pycoreTaskCenterState } from './TaskCenterState';
 import { useTopicDrivenRefresh } from './useTopicDrivenRefresh';
 import { StorageManager } from '../../../core/persistence';
-import { PycoreManagerStorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
-import { sentenceAudioQueuePump } from '../../../core/tasks/QueuePump';
-import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
-import type { GlobalTaskWorkerRegistration } from '../../../core/contracts/QueueCenterContract';
 import { usePcLaravelEndpoint } from '../PcLaravelEndpointContext';
 
 const defaultSectionContracts = normalizeQueueCenterSections(null, null);
-const SENTENCE_CONCURRENCY_LIMIT = QUEUE_CENTER_DIFF_DELIVERY.consumer_batch_limits.sentence_audio;
 
 export type QueueCenterHubLifecycle = 'idle' | 'loading' | 'ready' | 'stale' | 'degraded' | 'error';
 
@@ -153,64 +150,10 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
     mounted.current = true;
     return () => {
       mounted.current = false;
-      // Closing the UI stops the pump.
-      sentenceAudioQueuePump.stop();
     };
   }, []);
 
-  /**
-   * The sentence_audio processor toggle drives the UI's own pump loop.
-   * Pycore never pulls by itself; on connect the UI syncs the stored worker
-   * configuration exactly once (no periodic config polling).
-   */
-  const syncPumpWithControl = useCallback((
-    enabled: boolean,
-    worker: GlobalTaskWorkerRegistration | null,
-  ) => {
-    if (!enabled) {
-      sentenceAudioQueuePump.stop();
-      return;
-    }
-    sentenceAudioQueuePump.start({
-      laravelEndpoint,
-      worker,
-      concurrency: hub.voiceSentence?.concurrency ?? 1,
-      syncConfig: async () => {
-        const raw = StorageManager.get(PycoreManagerStorageKeys.PYCORE_SENTENCE_WORKER_CONCURRENCY, '');
-        const concurrency = Math.min(
-          SENTENCE_CONCURRENCY_LIMIT,
-          Math.max(0, parseInt(raw, 10) || 0),
-        );
-        const speaker = StorageManager.get(PycoreManagerStorageKeys.PYCORE_SENTENCE_QWEN_SPEAKER, '');
-        await pycoreApi.setSentenceAudioRuntimeConfig({
-          auto_start: true,
-          concurrency,
-          speaker,
-        });
-      },
-    });
-  }, [hub.voiceSentence?.concurrency, laravelEndpoint]);
-
-  const sentenceAudioEnabled = hub.sectionContracts.sentence_audio?.toggle.enabled === true;
-  const sentenceWorker = hub.voiceSentence?.worker;
-  const sentenceWorkerId = String(sentenceWorker?.worker_id ?? '').trim();
-  const sentenceWorkerName = String(sentenceWorker?.worker_name ?? sentenceWorkerId).trim();
-  const sentenceProcessorTypes = sentenceWorker?.processor_types ?? [];
-  const sentenceCapabilities = sentenceWorker?.capabilities ?? [];
-  const sentenceWorkerRegistration: GlobalTaskWorkerRegistration | null = sentenceWorkerId
-    ? {
-        worker_id: sentenceWorkerId,
-        worker_name: sentenceWorkerName || sentenceWorkerId,
-        processor_types: sentenceProcessorTypes,
-        capabilities: sentenceCapabilities,
-      }
-    : null;
-  const sentenceWorkerSignature = JSON.stringify(sentenceWorkerRegistration);
-  useEffect(() => {
-    syncPumpWithControl(sentenceAudioEnabled, sentenceWorkerRegistration);
-  }, [sentenceAudioEnabled, sentenceWorkerSignature, syncPumpWithControl]);
-
-  const poll = useCallback(async (silent = false) => {
+  const poll = useCallback(async (silent = false, requestRemoteRefresh = false) => {
     if (pollInFlightRef.current) return;
     pollInFlightRef.current = true;
     try {
@@ -229,7 +172,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       }
 
       try {
-        const exchange = await queueCenterExchangeApi.read();
+        const exchange = await queueCenterExchangeApi.read(requestRemoteRefresh);
         if (!mounted.current || currentRequest !== requestId.current) return;
         const laravelComplete = !exchange.errors.overview
           && !exchange.errors.queue_metrics
@@ -262,9 +205,9 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
           pycoreReachable: exchange.pycoreReachable,
           laravelReachable: exchange.laravelReachable,
           laravelStoredEndpoint: laravelEndpoint || null,
-          laravelActiveEndpoint: laravelEndpoint || null,
+          laravelActiveEndpoint: exchange.laravelActiveEndpoint,
           workerApiUrl: exchange.workerApiUrl ?? previous.workerApiUrl,
-          laravelSnapshotAgeS: exchange.laravelReachable ? 0 : previous.laravelSnapshotAgeS,
+          laravelSnapshotAgeS: exchange.laravelSnapshotAgeS,
           translationPending: exchange.translation?.summary?.pending ?? previous.translationPending,
           voiceWord: exchange.wordAudio ?? previous.voiceWord,
           voiceSentence: exchange.sentenceAudio ?? previous.voiceSentence,
@@ -310,12 +253,16 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
   useEffect(() => { void poll(false); }, [poll]);
 
   useTopicDrivenRefresh(
-    [PYCORE_EVENT_TOPICS.operationChanged, PYCORE_EVENT_TOPICS.qwenQueueChanged],
+    [
+      PYCORE_EVENT_TOPICS.operationChanged,
+      PYCORE_EVENT_TOPICS.qwenQueueChanged,
+      PYCORE_EVENT_TOPICS.queueCenterSnapshotChanged,
+    ],
     () => { void poll(true); },
     { fallbackMs: autoRefresh ? PYCORE_HTTP_DEFAULTS.fallbackPollMs : 0, enabled: autoRefresh },
   );
 
-  const refreshHub = useCallback(async () => { await poll(false); }, [poll]);
+  const refreshHub = useCallback(async () => { await poll(false, true); }, [poll]);
 
   const promoteTranslationTask = useCallback((taskId: string, priority: number) => {
     diffQueueContext.touch('pycore-manager:translation:priority', [taskId]);

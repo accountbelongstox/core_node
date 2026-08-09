@@ -12,8 +12,6 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use App\Traits\ApiResponse;
 use App\Constants\AppKeys;
@@ -178,10 +176,6 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
 
     private function languagesSection(): array
     {
-        $connectionName = (new AppQyV1LangDictionaryModel())->getConnectionName();
-        $schema = Schema::connection($connectionName);
-        $db = DB::connection($connectionName);
-
         $languages = [];
         $unpromoted = [];
         $missingFormal = [];
@@ -190,11 +184,11 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
             $formalTable = AppQyV1TableMaps::getDictionaryTableName($lang);
             $stagingTable = AppQyV1TableMaps::getDictionaryStagingTableName($lang);
 
-            $formalExists = $schema->hasTable($formalTable);
-            $stagingExists = $schema->hasTable($stagingTable);
-
-            $formalCount = $formalExists ? (int) $db->table($formalTable)->count() : 0;
-            $stagingCount = $stagingExists ? (int) $db->table($stagingTable)->count() : 0;
+            $formalRowCount = AppQyV1LangDictionaryModel::tableRowCount($formalTable);
+            $stagingRowCount = AppQyV1LangDictionaryModel::tableRowCount($stagingTable);
+            $formalExists = $formalRowCount !== null;
+            $formalCount = $formalRowCount ?? 0;
+            $stagingCount = $stagingRowCount ?? 0;
 
             $promoted = true;
             $langStatus = 'pass';
@@ -261,9 +255,6 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
 
     private function legacySection(): array
     {
-        $connectionName = (new AppQyV1LangDictionaryModel())->getConnectionName();
-        $schema = Schema::connection($connectionName);
-        $db = DB::connection($connectionName);
         $prefix = AppTablePrefixServiceProvider::getPrefix(AppKeys::APPQYV1);
 
         $nameMap = [
@@ -282,11 +273,9 @@ class AppQyV1SystemInitComplianceCtl extends BaseController
                 $candidates[] = "{$prefix}_words_{$nameMap[$lang]}";
             }
             foreach ($candidates as $legacyTable) {
-                if ($schema->hasTable($legacyTable)) {
-                    $count = (int) $db->table($legacyTable)->count();
-                    if ($count > 0) {
-                        $active[] = $legacyTable . ' (' . $count . ' rows)';
-                    }
+                $count = AppQyV1LangDictionaryModel::tableRowCount($legacyTable);
+                if ($count !== null && $count > 0) {
+                    $active[] = $legacyTable . ' (' . $count . ' rows)';
                 }
             }
         }

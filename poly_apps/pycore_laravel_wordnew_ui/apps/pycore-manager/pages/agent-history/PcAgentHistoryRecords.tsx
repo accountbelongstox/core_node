@@ -7,6 +7,8 @@ import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { laravelMediaUrl } from '@/apps/laravel-manager/network/mediaUrl';
 import type { AgentHistoryArticleRecord, AgentHistoryArticleRecordMetadata } from '@/apps/pycore-manager/api';
 import { agentHistoryPageTableStore } from '@/core/tasks/AgentHistoryPageTableStore';
+import { StorageManager } from '../../../../core/persistence';
+import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 
 const RECORD_PAGE_SIZE = 10;
 
@@ -37,11 +39,18 @@ const RecordAudio: React.FC<{ record: AgentHistoryArticleRecord; tk: (k: string)
 const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
   const [records, setRecords] = useState<AgentHistoryArticleRecord[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(() => Math.max(
+    1,
+    Number(StorageManager.get<number>(StorageKeys.PYCORE_AGENT_HISTORY_RECORD_PAGE, 1)),
+  ));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const mounted = useRef(true);
   const materializedKey = useRef('');
+
+  useEffect(() => {
+    StorageManager.set(StorageKeys.PYCORE_AGENT_HISTORY_RECORD_PAGE, page);
+  }, [page]);
 
   const load = useCallback(async () => {
     try {

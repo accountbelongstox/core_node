@@ -10,7 +10,6 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Word-validity intake for a third-party verification client.
@@ -122,8 +121,7 @@ class AppQyV1VocabularyValidityController extends Controller
         // + word_translation pair + has_translation + translation_provider).
         $translationsToWrite = [];
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $hasTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
+        $hasTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
 
         if (!$hasTable) {
             return $this->error('Dictionary table not found for language: ' . $languageCode, 404);

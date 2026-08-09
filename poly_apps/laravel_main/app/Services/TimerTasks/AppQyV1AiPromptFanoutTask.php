@@ -3,9 +3,9 @@
 namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
-use App\Models\AppQyV1AiPrompt;
-use App\Models\AppQyV1AiPromptRequest;
-use App\Models\AppQyV1AiPromptRequestTask;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptModel as AppQyV1AiPrompt;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestModel as AppQyV1AiPromptRequest;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestTaskModel as AppQyV1AiPromptRequestTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 

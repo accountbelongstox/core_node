@@ -3,7 +3,7 @@
 namespace App\Services\TaskProcessors;
 
 use App\Models\GlobalTask;
-use App\Models\AppQyV1GeminiTextResult;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GeminiTextResultModel as AppQyV1GeminiTextResult;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;

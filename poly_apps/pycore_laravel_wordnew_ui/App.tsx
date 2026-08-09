@@ -11,7 +11,6 @@ import TaskCenter from './components/views/TaskCenter';
 import ServerManager from './components/views/ServerManager';
 import DatabaseManager from './components/views/DatabaseManager';
 import Settings from './components/views/Settings';
-import LoginModal from './components/LoginModal';
 import AuthGuard from './components/auth/AuthGuard';
 import { HtmlErrorModal } from './components/HtmlErrorModal';
 import { AppStateProvider, useAppState } from './contexts/AppStateContext';
@@ -27,7 +26,7 @@ import { htmlErrorManager, HtmlErrorEvent } from './core/api-libs/laravel/transp
 import { apiManager } from './core/api-libs/laravel/ApiManager';
 import { syncOfflineRecheckLoop, stopOfflineRecheckLoop } from './apps/laravel-manager/services/ApiHealthRecheck';
 import { OfflineBanner, GlobalLogPanel } from './components/shared';
-import { subscribeAuthLoginRequest } from './core/auth/AuthRequestCenter';
+import { dismissAuthLogin, requestAuthLogin } from './core/auth/AuthRequestCenter';
 
 /**
  * AppContent – main layout and view routing.
@@ -49,9 +48,6 @@ const AppContent: React.FC = () => {
   const { logout: userLogout, user } = useUser();
   const { t } = useTranslation();
 
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  /** True when modal was opened by AuthGuard (protected page); modal then uses full-block overlay and no close on backdrop. */
-  const [loginModalFromProtectedView, setLoginModalFromProtectedView] = useState(false);
   const [htmlError, setHtmlError] = useState<HtmlErrorEvent | null>(null);
   const [apiReady, setApiReady] = useState(false);
   /** Bumped once the loopback debug-status probe resolves so AuthGuard re-reads the bypass flag. */
@@ -142,8 +138,7 @@ const AppContent: React.FC = () => {
           // same tick as startup, latching showLoginModal=true. Once the bypass is
           // known to be active the modal must go away, otherwise it stays stuck
           // over already-unlocked content.
-          setShowLoginModal(false);
-          setLoginModalFromProtectedView(false);
+          dismissAuthLogin();
         }
       })
       .catch(() => {
@@ -168,11 +163,6 @@ const AppContent: React.FC = () => {
     return unsubscribe;
   }, []);
 
-  useEffect(() => subscribeAuthLoginRequest(() => {
-    setLoginModalFromProtectedView(false);
-    setShowLoginModal(true);
-  }), []);
-
   useEffect(() => {
     console.log('[App] Mounted with activeView:', activeView);
   }, []);
@@ -181,19 +171,8 @@ const AppContent: React.FC = () => {
     if (isLoggedIn) {
       await userLogout();
     } else {
-      setLoginModalFromProtectedView(false);
-      setShowLoginModal(true);
+      requestAuthLogin({ source: 'laravel-manager-header', reason: 'header-auth' });
     }
-  };
-
-  const handleLoginSuccess = () => {
-    setLoginModalFromProtectedView(false);
-    setShowLoginModal(false);
-  };
-
-  const handleCloseLoginModal = () => {
-    setLoginModalFromProtectedView(false);
-    setShowLoginModal(false);
   };
 
   // Auth is required by default for protected views. Set window.DISABLE_AUTH = true only to skip login (e.g. local testing).
@@ -218,10 +197,7 @@ const AppContent: React.FC = () => {
         return (
           <MediaHub
             lang={lang}
-            onRequireLogin={() => {
-              setLoginModalFromProtectedView(false);
-              setShowLoginModal(true);
-            }}
+            onRequireLogin={() => requestAuthLogin({ source: 'laravel-manager-media', reason: 'protected-feature' })}
           />
         );
       case ViewType.TOOLS:
@@ -318,15 +294,6 @@ const AppContent: React.FC = () => {
         </main>
       </div>
       )}
-
-      {/* Login modal: full-screen, top-most overlay portaled to <body> (renders nothing when closed). */}
-      <LoginModal
-        isOpen={showLoginModal}
-        onClose={handleCloseLoginModal}
-        onSuccess={handleLoginSuccess}
-        lang={lang}
-        blockCloseBackdrop={loginModalFromProtectedView}
-      />
 
       {/* HTML Error Debug Modal */}
       <HtmlErrorModal

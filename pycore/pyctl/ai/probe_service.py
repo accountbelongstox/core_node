@@ -18,11 +18,12 @@ from typing import Optional
 
 from pycore.pyctl.ai.ai_probe import probe_all, probe_one
 from pycore.pyctl.ai.ai_balance import balance_all, balance_one
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyutils.common.status_snapshot_cache import (
+    STATUS_SNAPSHOT_AI_PROBE_KEY,
+    status_snapshot_cache,
+)
 
-# Last-probe cache so repeated UI loads are cheap. ~30s TTL; refresh=1 bypasses.
 _CACHE_TTL_SECONDS = 30.0
-_CACHE_SIGNAL = 'callmodule.ai_probe.cache'
 
 
 def probe(refresh: int = 0, provider: Optional[str] = None):
@@ -39,30 +40,27 @@ def probe(refresh: int = 0, provider: Optional[str] = None):
         # Single-provider test: always live, never cached.
         return probe_one(provider)
 
-    now = time.time()
-    cache = THREAD_BUS.get_signal(_CACHE_SIGNAL, {}) or {}
-    cache_result = cache.get('result')
-    cache_ts = float(cache.get('timestamp') or 0.0)
-    fresh_enough = (
-        cache_result is not None
-        and not refresh
-        and (now - cache_ts) < _CACHE_TTL_SECONDS
+    loaded_here = False
+
+    def load_probe() -> dict:
+        nonlocal loaded_here
+        result = probe_all()
+        loaded_here = True
+        return {"result": result, "completed_at": time.time()}
+
+    if refresh:
+        status_snapshot_cache.invalidate(STATUS_SNAPSHOT_AI_PROBE_KEY)
+    snapshot = status_snapshot_cache.get(
+        STATUS_SNAPSHOT_AI_PROBE_KEY,
+        load_probe,
+        ttl_seconds=_CACHE_TTL_SECONDS,
+        stale_while_refresh=False,
     )
-    if fresh_enough:
-        out = dict(cache_result)
-        out["cached"] = True
-        out["age_ms"] = round((now - cache_ts) * 1000, 1)
-        return out
-
-    result = probe_all()
-    THREAD_BUS.signal(_CACHE_SIGNAL, {
-        'result': result,
-        'timestamp': time.time(),
-    })
-
-    out = dict(result)
-    out["cached"] = False
-    out["age_ms"] = 0.0
+    result = snapshot.get("result") or {}
+    completed_at = float(snapshot.get("completed_at") or time.time())
+    out = dict(result) if isinstance(result, dict) else {}
+    out["cached"] = not loaded_here
+    out["age_ms"] = round(max(0.0, time.time() - completed_at) * 1000, 1)
     return out
 
 

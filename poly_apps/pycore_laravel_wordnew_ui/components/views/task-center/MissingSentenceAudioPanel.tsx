@@ -1,14 +1,15 @@
 /**
  * Task Center — sentences awaiting spoken audio (by language).
  * Lists Laravel's shared sentence library rows with has_audio=false so
- * operators can see what pycore's sentence-audio worker should assist.
+ * operators can see what pycore's persistent sentence-audio worker should
+ * assist. UI controls must not start a browser-owned queue pump; see
+ * `_prompts/队列中心.txt`.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Language } from '../../../apps/laravel-manager/uiTypes';
 import { api } from '@/apps/laravel-manager/api';
 import { pycoreApi } from '@/apps/laravel-manager/integrations/pycore';
 import type { SentenceAudioAutoStatus } from '@/apps/laravel-manager/integrations/pycore';
-import { sentenceAudioQueuePump } from '@/core/tasks/QueuePump';
 import { AudioLines, ChevronLeft, ChevronRight, Languages, RefreshCw, Power, Check, ExternalLink } from 'lucide-react';
 import { commonClasses } from '../../../styles/theme';
 import { EmptyState, InlineSpinner } from '../../common';
@@ -130,9 +131,6 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
     try {
       const s = await pycoreApi.setSentenceAudioAutoConfig(!pcAudio.auto_start);
       if (mounted.current) setPcAudio(s);
-      // Processor toggle drives the UI pump loop (pycore never pulls itself).
-      if (s?.auto_start) sentenceAudioQueuePump.start({});
-      else sentenceAudioQueuePump.stop();
     } finally {
       if (mounted.current) setPcBusy(false);
     }
@@ -180,7 +178,7 @@ const MissingSentenceAudioPanel: React.FC<MissingSentenceAudioPanelProps> = ({ l
               {pcAudio.auto_start ? t.pycoreOn : t.pycoreOff}
             </button>
             <a
-              href="/pycore-manager/queue-center?tab=translation"
+              href="/pycore-manager/queue-center"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-teal-600 hover:underline ml-auto">

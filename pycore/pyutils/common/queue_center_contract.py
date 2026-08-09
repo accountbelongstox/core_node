@@ -165,6 +165,7 @@ class GlobalTaskWorkerResult(TypedDict, total=False):
 
 QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
+QUEUE_CENTER_DELIVERY_RECEIPT: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery_receipt"])
 QUEUE_CENTER_CONTROL_NAMES: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["control_names"])
 QUEUE_CENTER_CAPABILITY_CLAIMANTS: Dict[str, Tuple[str, ...]] = {
     key: tuple(str(item) for item in value)

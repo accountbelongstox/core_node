@@ -6,6 +6,7 @@
  * as its body. One HTTP API snapshot drives the page; control mutations also use
  * HTTP API, followed by hub.refreshHub(). Legacy ?tab= links
  * scroll to the matching section anchor instead of switching tabs.
+ * Worker ownership and UI-offline behavior: `_prompts/队列中心.txt`.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -18,15 +19,14 @@ import {
   PYCORE_HEALTH_EVENT,
   PYCORE_HTTP_DEFAULTS,
 } from '@/apps/pycore-manager/api';
-import PcTranslationQueuePanel from './PcTranslationQueuePage';
 import PcSentenceQueuePanel from './PcSentenceQueuePanel';
 import { PcWordAudioPanel } from '../components/PcWordAudioPanel';
 import PcQueueOverviewPanel from './PcQueueOverviewPanel';
 import PcRecentTasksPanel from './PcRecentTasksPanel';
 import PcAssistStrip from '../components/PcAssistStrip';
-import PcTtsEnginesStrip from '../components/PcTtsEnginesStrip';
 import PcQueueBumpToasts from '../components/PcQueueBumpToasts';
 import PcCapabilityDrawer from '../components/PcCapabilityDrawer';
+import { PcWordAudioQueueModal } from '../components/PcWordAudioQueueModal';
 import {
   QueueCenterHubProvider, useQueueCenterHub, workerEndpointMismatch,
 } from '../hooks/useQueueCenterHub';
@@ -61,6 +61,8 @@ const QcSectionSwitch: React.FC<{ on: boolean; busy: boolean; onToggle: () => vo
 interface QcSectionCardProps {
   section: QcSection;
   count: number | null;
+  countTitle?: string;
+  onCountClick?: () => void;
   highlight: boolean;
   toggle?: {
     enabled: boolean;
@@ -77,7 +79,7 @@ interface QcSectionCardProps {
 
 /** One Queue Center section: header row (icon/title/count/toggle) + body. */
 const QcSectionCard: React.FC<QcSectionCardProps> = ({
-  section, count, highlight, toggle, extra, children,
+  section, count, countTitle, onCountClick, highlight, toggle, extra, children,
 }) => {
   const { t } = useTranslation('pc');
   const def = QC_SECTION_DEFS.find((d) => d.key === section)!;
@@ -108,9 +110,19 @@ const QcSectionCard: React.FC<QcSectionCardProps> = ({
         <h2 className="text-sm font-bold text-slate-700 dark:text-slate-200">
           {t(`queueCenter.sections.${section}` as const)}
         </h2>
-        {count != null && (
-          <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500">{count}</span>
-        )}
+        {count != null && (onCountClick ? (
+          <button
+            type="button"
+            onClick={onCountClick}
+            title={countTitle}
+            aria-label={countTitle}
+            aria-haspopup="dialog"
+            className="rounded-full bg-indigo-500/10 px-2 py-0.5 font-mono text-xs text-indigo-500 transition hover:bg-indigo-500/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/40">
+            {count}
+          </button>
+        ) : (
+          <span className="rounded-full bg-indigo-500/10 px-2 py-0.5 font-mono text-xs text-indigo-500">{count}</span>
+        ))}
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {extra}
           {toggle && (
@@ -140,6 +152,12 @@ const QueueCenterBody: React.FC = () => {
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   const [drawerOpen, setDrawerOpen] = useState(() => StorageManager.getRaw(QC_DRAWER_KEY) === '1');
+  const [wordAudioQueueOpen, setWordAudioQueueOpen] = useState(false);
+  const openWordAudioQueue = useCallback(() => {
+    setWordAudioQueueOpen(true);
+    void hub.refreshHub();
+  }, [hub.refreshHub]);
+  const closeWordAudioQueue = useCallback(() => setWordAudioQueueOpen(false), []);
   useEffect(() => { StorageManager.setRaw(QC_DRAWER_KEY, drawerOpen ? '1' : '0'); }, [drawerOpen]);
 
   const sectionContracts = hub.sectionContracts;
@@ -155,7 +173,6 @@ const QueueCenterBody: React.FC = () => {
     (sum, category) => sum + (category.pending ?? 0),
     0,
   );
-  const translationCount = sectionContracts.assist_translation.queue.pending;
   const wordPending = sectionContracts.word_audio.queue.pending;
   const sentenceCount = sectionContracts.sentence_audio.queue.pending;
 
@@ -194,34 +211,12 @@ const QueueCenterBody: React.FC = () => {
     }
   }, [busyScope]);
 
-  // Unified assistant/translation lifecycle and toggle state now always comes from one
-  // shared section contract to avoid duplicate ON/OFF behavior in two cards.
-  /*
-   * [gpt-5.3-codex-spark:LEGACY-START]
-   * Previous page logic tracked `assistOn` and `translationWorkerOn` separately.
-   * In practice both were read from the same backend contract (`assist_translation`)
-   * and could temporarily diverge in the UI.
-   * New behavior uses one canonical view for both cards.
-   * [gpt-5.3-codex-spark:LEGACY-END]
-   */
-  const assistContract = sectionContracts.assist_translation;
-  const translationContract = sectionContracts.assist_translation;
   const sentenceContract = sectionContracts.sentence_audio;
   const wordAudioContract = sectionContracts.word_audio;
 
-  const assistTranslationOn = assistContract.toggle.enabled;
   const sentenceOn = sentenceContract.toggle.enabled;
   const wordAudioOn = wordAudioContract.toggle.enabled;
 
-  const toggleAssistTranslation = useCallback(
-    /*
-     * [gpt-5.3-codex-spark:LEGACY-START]
-     * Old calls toggled `assist`, which then needed alias handling.
-     * Directly call canonical `assist_translation` for clearer, idempotent scope updates.
-     * [gpt-5.3-codex-spark:LEGACY-END]
-     */
-    () => runToggle('assist_translation', 'assist+translation', () => hub.setControl('assist_translation', !assistTranslationOn)),
-    [runToggle, assistTranslationOn, hub]);
   const toggleSentence = useCallback(
     () => runToggle('sentence_audio', 'sentence', () => hub.setControl('sentence_audio', !sentenceOn)),
     [runToggle, sentenceOn]);
@@ -305,41 +300,16 @@ const QueueCenterBody: React.FC = () => {
       <QcSectionCard
         section="overview"
         count={overviewCount}
-        highlight={highlight === 'overview'}
-        toggle={{
-          enabled: assistContract.toggle.enabled,
-          lifecycle: assistContract.lifecycle,
-          pausedByUser: assistContract.toggle.paused_by_user ?? false,
-          gracefulStop: assistContract.toggle.graceful_stop,
-          busy: busyScope.assist_translation === true,
-          onToggle: toggleAssistTranslation,
-          title: assistContract.toggle.enabled
-            ? t('queueCenter.sectionsToggle.assistOff')
-            : t('queueCenter.sectionsToggle.assistOn'),
-        }}>
+        highlight={highlight === 'overview'}>
         <PcAssistStrip />
         <PcQueueOverviewPanel />
       </QcSectionCard>
 
       <QcSectionCard
-        section="translation"
-        count={translationCount}
-        highlight={highlight === 'translation'}
-        toggle={{
-          enabled: translationContract.toggle.enabled,
-          lifecycle: translationContract.lifecycle,
-          pausedByUser: translationContract.toggle.paused_by_user ?? false,
-          gracefulStop: translationContract.toggle.graceful_stop,
-          busy: busyScope.assist_translation === true,
-          onToggle: toggleAssistTranslation,
-          title: translationContract.toggle.enabled ? t('queueCenter.sectionsToggle.workerOff') : t('queueCenter.sectionsToggle.workerOn'),
-        }}>
-        <PcTranslationQueuePanel />
-      </QcSectionCard>
-
-      <QcSectionCard
         section="wordAudio"
         count={wordPending}
+        countTitle={t('queueCenter.wordAudioQueue.openTitle')}
+        onCountClick={openWordAudioQueue}
         highlight={highlight === 'wordAudio'}
         toggle={{
           enabled: wordAudioContract.toggle.enabled,
@@ -350,7 +320,6 @@ const QueueCenterBody: React.FC = () => {
           onToggle: toggleWordAudio,
           title: wordAudioContract.toggle.enabled ? t('queueCenter.sectionsToggle.wordAudioOff') : t('queueCenter.sectionsToggle.wordAudioOn'),
         }}>
-        <PcTtsEnginesStrip />
         <PcWordAudioPanel />
       </QcSectionCard>
 
@@ -378,6 +347,7 @@ const QueueCenterBody: React.FC = () => {
       </QcSectionCard>
 
       <PcCapabilityDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+      <PcWordAudioQueueModal open={wordAudioQueueOpen} onClose={closeWordAudioQueue} />
     </div>
   );
 };

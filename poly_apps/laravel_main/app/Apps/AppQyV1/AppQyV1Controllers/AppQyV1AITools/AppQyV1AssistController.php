@@ -10,7 +10,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 /**
@@ -291,27 +290,7 @@ class AppQyV1AssistController extends Controller
 
         try {
             $reset = $this->assist->retryFailedCovers($ids, $all);
-            $model = new AppQyV1VocabularyLibraryModel();
-            $connection = DB::connection($model->getConnectionName());
-            $boost = $connection->transaction(function () use ($ids, $all): array {
-                $head = AppQyV1VocabularyLibraryModel::query()
-                    ->orderByDesc('cover_priority')
-                    ->lockForUpdate()
-                    ->first(['cover_priority']);
-                $ticket = (int) ($head->cover_priority ?? 0) + 1;
-                $query = AppQyV1VocabularyLibraryModel::query()
-                    ->whereIn('cover_status', ['pending', 'retry', 'failed']);
-                if (!$all) {
-                    $query->whereIn('id', $ids);
-                }
-                $promoted = $query->update([
-                    'cover_priority' => $ticket,
-                    'cover_status' => 'pending',
-                    'assist_claimed_by' => null,
-                    'assist_claimed_at' => null,
-                ]);
-                return ['priority' => $ticket, 'promoted' => $promoted];
-            });
+            $boost = AppQyV1VocabularyLibraryModel::promotePendingCovers($ids, $all);
             AppQyV1TranslationEventModel::emit('cover.priority', [
                 'batch' => true,
                 'count' => $boost['promoted'],

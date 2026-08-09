@@ -10,6 +10,7 @@ from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
 from pycore.pyctl.agent_history.pipeline.config import (
     advance_tool_cursor,
+    advance_tool_live_cursor,
     get_config,
     save_config,
 )
@@ -50,58 +51,6 @@ def _try_acquire_run() -> Optional[object]:
 
 def _release_run(token: object) -> None:
     _run_gate.release(token)
-
-def start_backfill() -> Dict[str, Any]:
-    """Start a new backfill operation."""
-    token = _try_acquire_run()
-    if token is None:
-        return {"busy": True}
-        
-    try:
-        save_config({
-            "enabled": True,
-            "extract_as_article": True,
-            "phase": "backfill",
-            "live_listen": True,
-        })
-        
-        cfg = get_config()
-        cfg["cursor"] = {
-            "fragment_index": 0,
-            "after_ts": 0,
-            "after_fragment_id": "",
-            "raw_index": 0,
-            "attempts": 0,
-        }
-        cfg["cursors"] = {}
-        cfg["last_tool"] = ""
-        save_config(cfg)
-        
-        items, pending = plan_batches(live=False)
-        
-        op_service = operation_service
-        op = op_service.create_operation(
-            kind="agent_history_backfill",
-            scope="agent_history",
-            items_data=items,
-            initial_message=f"Pipeline restarted: backfill ({pending} fragments pending, {len(items)} batches planned)",
-        )
-        operation_event_service.log_event(
-            op.id,
-            "info",
-            "operation.startup",
-            f"Accepted backfill with {len(items)} planned items ({pending} fragments pending)",
-            None,
-        )
-        
-        return {
-            "started": True,
-            "phase": "backfill",
-            "pending_fragments": pending,
-            "operation_id": op.id,
-        }
-    finally:
-        _release_run(token)
 
 def recover_nonterminal_operations() -> Dict[str, Any]:
     """Mark interrupted agent-history operations for UI recovery after restart."""
@@ -176,7 +125,7 @@ def tick_pipeline() -> None:
             else:
                 op_service.complete(op.id, "All items finished")
         
-        items, pending = plan_batches(live=(phase == "live"))
+        items, pending = plan_batches()
         if not items:
             return
             
@@ -222,18 +171,14 @@ def tick_pipeline() -> None:
         _release_run(token)
 
 def _advance_cursor_for_input(input_data: Dict[str, Any]) -> None:
-    """Advance the per-tool cursor (forward only) from a planned item's input
-    and rotate to the next tool so every AI is processed evenly."""
+    """Advance one tool's completed lane and rotate backfill fairly."""
     tool = str(input_data.get("tool") or "")
     if not tool:
         return
     cfg = get_config()
-    advance_tool_cursor(
-        cfg,
-        tool,
-        int(input_data.get("last_ts") or 0),
-        str(input_data.get("last_fragment_id") or ""),
-    )
+    lane = str(input_data.get("lane") or "backfill")
+    advance = advance_tool_live_cursor if lane == "live" else advance_tool_cursor
+    advance(cfg, tool, int(input_data.get("last_ts") or 0), str(input_data.get("last_fragment_id") or ""))
     cfg["last_tool"] = tool
     save_config(cfg)
 

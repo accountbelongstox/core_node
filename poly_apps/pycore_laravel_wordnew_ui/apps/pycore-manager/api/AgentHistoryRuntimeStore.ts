@@ -18,9 +18,11 @@ const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 export interface AgentHistoryRuntimeState {
   articleConfig: Record<string, any> | null;
   operationSnapshot: Record<string, any> | null;
+  aiDashboard: Record<string, any> | null;
   configLoading: boolean;
   operationLoading: boolean;
   initialized: boolean;
+  authoritative: boolean;
   configError: string | null;
   operationError: string | null;
 }
@@ -28,9 +30,11 @@ export interface AgentHistoryRuntimeState {
 let state: AgentHistoryRuntimeState = {
   articleConfig: null,
   operationSnapshot: null,
+  aiDashboard: null,
   configLoading: true,
   operationLoading: true,
   initialized: false,
+  authoritative: false,
   configError: null,
   operationError: null,
 };
@@ -44,6 +48,7 @@ if (recovered?.data) {
     configLoading: false,
     operationLoading: false,
     initialized: true,
+    authoritative: false,
   };
 }
 let operationFlight: Promise<void> | null = null;
@@ -108,8 +113,10 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
       patch({
         articleConfig: response.data.article_config || null,
         operationSnapshot: response.data.operation_snapshot || null,
+        aiDashboard: response.data.ai_dashboard || null,
         configError: null,
         operationError: null,
+        authoritative: true,
       });
       lastOperationReadAt = Date.now();
     })
@@ -165,7 +172,7 @@ function scheduleOperationRefresh(): void {
   if (operationRefreshTimer !== null) clearTimeout(operationRefreshTimer);
   operationRefreshTimer = setTimeout(() => {
     operationRefreshTimer = null;
-    void refreshAgentHistoryOperation(false);
+    void refreshAgentHistoryRuntime();
   }, delay);
 }
 
@@ -239,9 +246,7 @@ function startAgentHistoryRuntime(): void {
       void refreshAgentHistoryRuntime();
     }),
   ];
-  if (!state.initialized) {
-    void refreshAgentHistoryRuntime();
-  }
+  void refreshAgentHistoryRuntime();
 }
 
 function stopAgentHistoryRuntime(): void {

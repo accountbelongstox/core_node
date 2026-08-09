@@ -72,4 +72,9 @@ class AppQyV1PersonalDictionaryEntryModel extends Model
     {
         return $this->belongsTo(User::class, 'uid');
     }
+
+    public function scopeWordContainsInsensitive($query, string $word)
+    {
+        return $query->whereRaw('LOWER(word) LIKE ?', ['%' . strtolower($word) . '%']);
+    }
 }

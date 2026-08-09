@@ -5,6 +5,7 @@ import { AppToaster } from '../core/notify/notify';
 import { ShellProvider } from './ShellContext';
 import { FloatingAppSwitcher } from './FloatingAppSwitcher';
 import { applyFlavorDocument, FLAVOR_REGISTRY, type FlavorConfig } from './flavor';
+import { GlobalLoginHost } from './GlobalLoginHost';
 
 type AppModule = { default: React.ComponentType<any> };
 
@@ -69,6 +70,7 @@ export const StandaloneApp: React.FC<{ flavor: FlavorConfig }> = ({ flavor }) =>
     <BrowserRouter>
       <ShellProvider>
         <AppToaster />
+        <GlobalLoginHost />
         <StandaloneRoutes buildFlavor={flavor} />
       </ShellProvider>
     </BrowserRouter>

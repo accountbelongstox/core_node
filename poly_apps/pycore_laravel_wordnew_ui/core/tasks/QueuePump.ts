@@ -1,10 +1,10 @@
 /**
- * SentenceAudioQueuePump — UI-side task pump (Queue Center v3).
+ * SentenceAudioQueuePump — retained compatibility API (Queue Center v3).
  *
- * The UI is the single orchestrator: a processor toggle starts this pump,
- * closing the UI or toggling OFF stops it. Pycore never starts its own pull
- * loop; it only receives claimed payloads (in-memory), synthesizes, and
- * uploads results straight to Laravel.
+ * The active Queue Center architecture is documented in
+ * `_prompts/队列中心.txt`: the UI owns switches and endpoint editing while
+ * Pycore performs persistent typed pull/accept/result work. This client remains
+ * available for compatibility and diagnostics but is not started by the UI.
  *
  * Cycle (spec: FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
  *   1. Restore the diff ID page table from the local store (no cold full pull)

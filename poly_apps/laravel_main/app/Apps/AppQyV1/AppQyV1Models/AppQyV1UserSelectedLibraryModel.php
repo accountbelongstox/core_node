@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use App\Utils\RunsModelTransactions;
+
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -10,6 +12,7 @@ use App\Providers\AppTablePrefixServiceProvider;
 
 class AppQyV1UserSelectedLibraryModel extends Model
 {
+    use RunsModelTransactions;
     use HasFactory;
 
     protected $appKey = AppKeys::APPQYV1;

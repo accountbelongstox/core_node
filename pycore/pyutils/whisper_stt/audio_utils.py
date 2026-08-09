@@ -15,7 +15,6 @@ Dependencies:
 
 import os
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
-import tempfile
 import platform
 from pathlib import Path
 from typing import Optional, Tuple

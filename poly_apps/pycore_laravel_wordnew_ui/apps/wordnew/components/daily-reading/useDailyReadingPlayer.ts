@@ -9,7 +9,7 @@ import { wordNewProgressCenter } from '../../services/WordNewProgressCenter';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 import { wfNewApi } from '../../api';
-import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
+import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../../core/auth/AuthRequestCenter';
 
 export type DailyReadingPlaybackMode = 'sequential' | 'repeat-all' | 'repeat-one' | 'shuffle';
 export type DailyReadingWordMode = 'off' | 'new' | 'all';
@@ -446,6 +446,7 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     const clamped = Math.max(0, Math.min(position, rows.length - 1));
     const row = rows[clamped];
     if (!row?.audio_ready || !row.audio_url) return;
+    void wfNewApi.saveDailyReadingProgress(row.id);
     const requestId = ++requestIdRef.current;
     modelPausedRef.current = false;
     pendingAdvanceRef.current = false;
@@ -472,6 +473,11 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
     });
   }, [buildSequence, playSequenceItem]);
   playAtRef.current = playAt;
+
+  useEffect(() => subscribeAuthLoginSuccess((detail) => {
+    if (detail.request?.source !== 'wordnew-daily-reading' || detail.request.reason !== 'playback') return;
+    playAtRef.current(indexRef.current);
+  }), []);
 
   const next = useCallback(() => {
     const mode = settingsRef.current.playbackMode;

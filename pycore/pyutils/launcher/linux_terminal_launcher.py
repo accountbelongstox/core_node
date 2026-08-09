@@ -47,6 +47,7 @@ import tempfile
 import time
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.launcher.linux_window_placer import LinuxWindowPlacer
 from pycore.pyutils.launcher.linux_terminal_argv import LinuxTerminalArgv
 
@@ -338,7 +339,9 @@ class LinuxTerminalLauncher:
         session_text = "\n".join(lines) + "\n"
 
         try:
-            fd, path = tempfile.mkstemp(prefix="pylauncher-kitty-", suffix=".conf")
+            fd, path = tempfile.mkstemp(
+                prefix="pylauncher-kitty-", suffix=".conf", dir=str(TMP_DIR)
+            )
             with os.fdopen(fd, "w") as fh:
                 fh.write(session_text)
         except Exception as e:

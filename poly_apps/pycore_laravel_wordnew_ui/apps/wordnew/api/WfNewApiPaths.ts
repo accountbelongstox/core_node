@@ -1,3 +1,5 @@
+import type { WfNewWordMediaOptions } from './WfNewApiTypes';
+
 /**
  * WfNewApiPaths — the /wordnew ENDPOINT LIST CENTER.
  *
@@ -29,12 +31,14 @@
 
 /** Laravel api.php mount (`/api`) + the AppQyV1 route prefix (`app_qy_v1`). */
 export const WFNEW_API_BASE = '/api/app_qy_v1';
+export const WFNEW_ROOT_API_BASE = '/api';
 
 /** Prefix a route suffix with the AppQyV1 base. */
 const p = (suffix: string): string => `${WFNEW_API_BASE}${suffix}`;
-const sentenceAudioPath = (text: string, language: string, variantKey?: string): string =>
+const rootApi = (suffix: string): string => `${WFNEW_ROOT_API_BASE}${suffix}`;
+const sentenceAudioPath = (text: string, language: string, variantKey?: string, passive = false): string =>
   p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
-    variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}`);
+    variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}${passive ? '&passive=1' : ''}`);
 
 /**
  * Every backend path the /wordnew app uses. Static strings for fixed routes;
@@ -42,6 +46,13 @@ const sentenceAudioPath = (text: string, language: string, variantKey?: string):
  * hand-concatenate a URL).
  */
 export const WfNewApiPaths = {
+  queueCenterOverview: rootApi('/queue-center/overview'),
+  queueCenterReceipts: (taskIds: string[]): string => {
+    const params = new URLSearchParams();
+    taskIds.forEach((taskId) => params.append('task_ids[]', taskId));
+    return rootApi(`/queue-center/receipts?${params.toString()}`);
+  },
+
   // ---- Auth (AppQyV1Auth.php — prefix app_qy_v1) ----
   register: p('/register'),
   login: p('/login'),
@@ -72,6 +83,8 @@ export const WfNewApiPaths = {
   userBookProgressList: (limit = 100): string => p(`/user/book-progress?limit=${limit}`),
   userBookProgress: (sourceKey: string): string =>
     p(`/user/book-progress/${encodeURIComponent(sourceKey)}`),
+  /** Daily-reading playback progress — one row per authenticated user. */
+  userDailyReadingProgress: p('/user/daily-reading-progress'),
 
   /** Guest device settings (PUBLIC) — browser fingerprint client_key. */
   clientDeviceSettings: (clientKey: string): string =>
@@ -186,11 +199,14 @@ export const WfNewApiPaths = {
   /** Resolve a word's media + dictionary detail by (lang, word). File-first:
    *  returns current image_url/audio_url + image_status/audio_status, and
    *  ENQUEUES+prioritizes generation for whatever is still 'pending'.
-   *  Optional `?accent=us|uk` requests a specific accent rendition; the response
-   *  then adds audio_accent / accent_fallback / audio_variants[]. */
-  wordMedia: (lang: string, word: string, accent?: string): string =>
-    p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${
-      accent ? `?accent=${encodeURIComponent(accent)}` : ''}`),
+   *  Optional accent requests a specific rendition; passive mode is read-only. */
+  wordMedia: (lang: string, word: string, options: WfNewWordMediaOptions = {}): string => {
+    const params = new URLSearchParams();
+    if (options.accent) params.set('accent', options.accent);
+    if (options.passive) params.set('passive', '1');
+    const query = params.toString();
+    return p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${query ? `?${query}` : ''}`);
+  },
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
   /** Paginated dictionary words with audio + translation for the word-stats sidebar.

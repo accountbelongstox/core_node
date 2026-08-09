@@ -5,8 +5,8 @@ ai_gateway_quota - TTL-cached dispatch snapshot + quota for the AI gateway.
 
 The HOT PATH (generate_text / translation / gateway_status polling) uses the
 registry catalog + local cooldown/rate state only — it NEVER calls probe_all().
-Live /models probes run only when the UI explicitly requests them (or
-``refresh=True`` on a one-off gateway refresh). This mirrors the TTS orchestrator:
+Live /models probes run only through the explicit AI Probe/Test service. This
+mirrors the TTS orchestrator:
 unconfigured or dead providers stay disabled; rate-limited ones pause until the
 budget resets.
 
@@ -22,6 +22,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_AI_KEY,
+    STATUS_SNAPSHOT_AI_PROBE_KEY,
     STATUS_SNAPSHOT_CAPABILITIES_KEY,
     status_snapshot_cache,
 )
@@ -150,6 +151,7 @@ def invalidate_probe_cache() -> None:
     THREAD_BUS.clear_signal(_QUOTA_CACHE_SIGNAL)
     THREAD_BUS.clear_signal(_VISION_CACHE_SIGNAL)
     status_snapshot_cache.invalidate(STATUS_SNAPSHOT_AI_KEY)
+    status_snapshot_cache.invalidate(STATUS_SNAPSHOT_AI_PROBE_KEY)
     status_snapshot_cache.invalidate(STATUS_SNAPSHOT_CAPABILITIES_KEY)
 
 

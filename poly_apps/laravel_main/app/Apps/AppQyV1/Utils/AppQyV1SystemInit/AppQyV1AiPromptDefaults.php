@@ -7,7 +7,7 @@
 
 namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 
-use App\Models\AppQyV1AiPrompt;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptModel as AppQyV1AiPrompt;
 
 /**
  * AppQyV1AiPromptDefaults

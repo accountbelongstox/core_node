@@ -9,7 +9,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1AIAnalysisCtl extends Controller
 {
@@ -32,7 +31,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->error('Project is already being analyzed');
         }
 
-        DB::beginTransaction();
+        CodeMartV1AIAnalysisModel::beginModelTransaction();
 
         $project->update(['analysis_status' => 'analyzing']);
 
@@ -42,7 +41,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             'keywords' => $this->extractKeywords($project->title, $project->description),
         ]);
 
-        DB::commit();
+        CodeMartV1AIAnalysisModel::commitModelTransaction();
 
         // No queue/dispatch: the row is left in status 'processing' and the
         // Octane timer (CodeMartV1AIAnalysisTask) picks it up within ~5s.
@@ -96,7 +95,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->error('Analysis not completed yet');
         }
 
-        DB::beginTransaction();
+        CodeMartV1AIAnalysisModel::beginModelTransaction();
 
         $analysis->update(['accepted_at' => now()]);
 
@@ -106,7 +105,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             'status' => 'awaiting_payment',
         ]);
 
-        DB::commit();
+        CodeMartV1AIAnalysisModel::commitModelTransaction();
 
         return $this->success([
             'message' => 'Proposal accepted. Please proceed to payment.',
@@ -134,7 +133,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->notFound('Analysis not found');
         }
 
-        DB::beginTransaction();
+        CodeMartV1AIAnalysisModel::beginModelTransaction();
 
         $analysis->update([
             'status' => 'revising',
@@ -143,7 +142,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         $analysis->project->update(['analysis_status' => 'revising']);
 
-        DB::commit();
+        CodeMartV1AIAnalysisModel::commitModelTransaction();
 
         // No queue/dispatch: status is 'revising'; the Octane timer
         // (CodeMartV1AIAnalysisTask) re-processes it within ~5s.

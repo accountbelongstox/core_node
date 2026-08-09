@@ -6,14 +6,11 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupProgressController
@@ -129,7 +126,7 @@ class AppQyV1WordGroupProgressController
             $playTime = (float) $playTime;
         }
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $wordId, $action, $proficiency, $isCorrect, $playTime, $supported_params) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $userId, $wordId, $action, $proficiency, $isCorrect, $playTime, $supported_params) {
             $languageCode = self::resolveGroupLanguageCode($group);
             $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
             $locked = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
@@ -204,7 +201,7 @@ class AppQyV1WordGroupProgressController
     {
         $updates = $request->input('updates');
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $userId, $updates) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $userId, $updates) {
             $languageCode = self::resolveGroupLanguageCode($group);
             $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
             $locked = AppQyV1GroupWordProgressModel::lockForGroup($group->id);

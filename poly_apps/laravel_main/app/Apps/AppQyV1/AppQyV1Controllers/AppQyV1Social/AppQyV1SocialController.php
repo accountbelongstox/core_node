@@ -26,7 +26,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ConversationModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ConversationParticipantModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
 
 class AppQyV1SocialController extends BaseController
@@ -64,20 +63,19 @@ class AppQyV1SocialController extends BaseController
             return $this->unauthorized();
         }
 
-        $followRows = AppQyV1UserFollowModel::where('user_id', $currentUser->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $followRows = AppQyV1UserFollowModel::rowsForUser((int) $currentUser->id);
         $followedIds = $followRows->pluck('followed_user_id')->map(fn ($id) => (int) $id)->all();
 
         if (empty($followedIds)) {
             return $this->success(['friends' => [], 'total' => 0]);
         }
 
-        $users = User::whereIn('id', $followedIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        $users = User::indexedByIds($followedIds, ['id', 'username', 'nickname', 'name', 'avatar']);
         $statsByUser = $this->aggregateProgressStats($followedIds, null);
-        $studyingIds = $this->getRecentlyStudyingUserIds($followedIds);
+        $studyingIds = AppQyV1UserLearningProgressModel::recentlyStudyingUserIds(
+            $followedIds,
+            self::STUDYING_WINDOW_MINUTES
+        );
         // Presence batched from app_qy_v1_user_presence (heartbeat truth).
         $presenceMap = AppQyV1UserPresenceModel::effectiveFor($followedIds);
 
@@ -136,7 +134,6 @@ class AppQyV1SocialController extends BaseController
         }
 
         $query = trim((string) $request->query('q'));
-        $needle = '%' . strtolower($query) . '%';
         $native = strtolower(trim((string) $request->query('native', '')));
         $target = strtolower(trim((string) $request->query('target', '')));
         $followedIds = AppQyV1UserFollowModel::getFollowedUserIds($currentUser->id);
@@ -144,23 +141,13 @@ class AppQyV1SocialController extends BaseController
 
         // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive on
         // sqlite but case-SENSITIVE on pgsql, so lower both sides explicitly.
-        $builder = User::where('id', '!=', $currentUser->id)
-            ->where(function ($q) use ($needle) {
-                $q->whereRaw('LOWER(username) LIKE ?', [$needle])
-                    ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
-                    ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
-            });
-
-        if ($native !== '') {
-            $builder->whereRaw('LOWER(native_language) = ?', [$native]);
-        }
-        if ($target !== '') {
-            $this->applyLearningContains($builder, $target);
-        }
-
-        $users = $builder->orderBy('username')
-            ->limit(20)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+        $users = User::searchSocialProfiles(
+            (int) $currentUser->id,
+            $query,
+            $native,
+            $target,
+            20
+        );
 
         $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
         $presenceMap = AppQyV1UserPresenceModel::effectiveFor($userIds);
@@ -245,33 +232,16 @@ class AppQyV1SocialController extends BaseController
         }
         $excludeIds = array_values(array_unique($excludeIds));
 
-        // ---- Query users (DEFAULT connection) ----
-        $builder = User::whereNotIn('id', $excludeIds);
-
-        if ($q !== '') {
-            $needle = '%' . strtolower($q) . '%';
-            $builder->where(function ($w) use ($needle) {
-                $w->whereRaw('LOWER(username) LIKE ?', [$needle])
-                    ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
-                    ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
-            });
-        }
-        if ($native !== '') {
-            $builder->whereRaw('LOWER(native_language) = ?', [$native]);
-        }
-        if ($target !== '') {
-            $this->applyLearningContains($builder, $target);
-        }
-
-        $users = $builder->orderByDesc('id')
-            ->limit(max(1, min(100, $limit)) * 3) // over-fetch; exchange ranking trims to $limit
-            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+        $users = User::discoverSocialProfiles($excludeIds, $q, $native, $target, $limit);
 
         // ---- Merge AppQyV1 stats + presence in PHP (separate conn) ----
         $userIds = $users->pluck('id')->map(fn ($id) => (int) $id)->all();
         $statsByUser = $this->aggregateProgressStats($userIds, null);
         $presenceMap = AppQyV1UserPresenceModel::effectiveFor($userIds);
-        $studyingIds = empty($userIds) ? [] : $this->getRecentlyStudyingUserIds($userIds);
+        $studyingIds = AppQyV1UserLearningProgressModel::recentlyStudyingUserIds(
+            $userIds,
+            self::STUDYING_WINDOW_MINUTES
+        );
 
         foreach ($users as $u) {
             $theirNative = strtolower((string) ($u->native_language ?? ''));
@@ -350,7 +320,7 @@ class AppQyV1SocialController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $targetUser = User::find($id);
+        $targetUser = User::findById($id);
         if (!$targetUser) {
             return $this->notFound('User not found');
         }
@@ -360,17 +330,12 @@ class AppQyV1SocialController extends BaseController
         $isFollowing = in_array($id, array_map('intval', $myFollowedIds), true);
         $isFriend = AppQyV1FriendRequestModel::areFriends($myId, $id);
 
-        // following_count = users this profile follows (user_id == id).
-        $followingCount = (int) AppQyV1UserFollowModel::query()
-            ->where('user_id', $id)
-            ->count();
-        // follower_count = users who follow this profile (followed_user_id == id).
-        $followerCount = (int) AppQyV1UserFollowModel::query()
-            ->where('followed_user_id', $id)
-            ->count();
+        $followCounts = AppQyV1UserFollowModel::countsForUser($id);
+        $followingCount = (int) $followCounts['following_count'];
+        $followerCount = (int) $followCounts['follower_count'];
 
         // ---- Visible post count (mirrors the author-scoped feed visibility) ----
-        $postCount = $this->visiblePostCount($id, $myId, $myFollowedIds);
+        $postCount = AppQyV1PostModel::visibleCountForViewer($id, $myId, $myFollowedIds);
 
         // ---- Presence (60s stale rule, batched effectiveFor) ----
         $presenceMap = AppQyV1UserPresenceModel::effectiveFor([$id]);
@@ -391,37 +356,6 @@ class AppQyV1SocialController extends BaseController
                 'presence' => $presenceMap[$id] ?? ['status' => 'offline', 'last_seen_at' => null],
             ],
         ]);
-    }
-
-    /**
-     * Count an author's posts visible to a viewer. Same visibility rules as the
-     * author-scoped feed: author sees all of their own; otherwise public always,
-     * followers if the viewer follows the author, private never. Kept here (not
-     * shared with AppQyV1PostController) to avoid cross-controller instantiation.
-     *
-     * @param array<int, int> $viewerFollowedIds Ids the viewer follows.
-     */
-    private function visiblePostCount(int $authorId, int $viewerId, array $viewerFollowedIds): int
-    {
-        $allowed = [];
-
-        if ($viewerId === $authorId) {
-            $allowed = [
-                AppQyV1PostModel::VISIBILITY_PUBLIC,
-                AppQyV1PostModel::VISIBILITY_FOLLOWERS,
-                AppQyV1PostModel::VISIBILITY_PRIVATE,
-            ];
-        } else {
-            $allowed = [AppQyV1PostModel::VISIBILITY_PUBLIC];
-            if (in_array($authorId, array_map('intval', $viewerFollowedIds), true)) {
-                $allowed[] = AppQyV1PostModel::VISIBILITY_FOLLOWERS;
-            }
-        }
-
-        return (int) AppQyV1PostModel::query()
-            ->where('user_id', $authorId)
-            ->whereIn('visibility', $allowed)
-            ->count();
     }
 
     /**
@@ -450,7 +384,7 @@ class AppQyV1SocialController extends BaseController
             return $this->error('Cannot follow yourself', 422);
         }
 
-        $targetUser = User::find($targetId);
+        $targetUser = User::findById($targetId);
         if (!$targetUser) {
             return $this->notFound('User not found');
         }
@@ -529,9 +463,7 @@ class AppQyV1SocialController extends BaseController
             $userIds[] = (int) $currentUser->id;
         }
 
-        $users = User::whereIn('id', $userIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        $users = User::indexedByIds($userIds, ['id', 'username', 'nickname', 'name', 'avatar']);
 
         foreach ($userIds as $userId) {
             $rowUser = $users->get($userId);
@@ -592,25 +524,17 @@ class AppQyV1SocialController extends BaseController
         }
 
         $since = now()->subDays(self::ACTIVITY_WINDOW_DAYS);
-        $rows = AppQyV1UserLearningProgressModel::query()
-            ->selectRaw('user_id')
-            ->selectRaw("SUM(CASE WHEN learning_status IN ('learning', 'reviewing', 'learned') THEN 1 ELSE 0 END) as learned_count")
-            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_count")
-            ->selectRaw('MAX(updated_at) as last_activity_at')
-            ->whereIn('user_id', $followedIds)
-            ->where('updated_at', '>=', $since)
-            ->where('review_count', '>', 0)
-            ->groupBy('user_id')
-            ->orderByDesc('last_activity_at')
-            ->get();
+        $rows = AppQyV1UserLearningProgressModel::socialStatsForUserIds($followedIds, $since, true)
+            ->sortByDesc('last_activity_at');
 
         if ($rows->isEmpty()) {
             return $this->success(['activities' => [], 'total' => 0]);
         }
 
-        $users = User::whereIn('id', $rows->pluck('user_id')->all())
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        $users = User::indexedByIds(
+            $rows->pluck('user_id')->all(),
+            ['id', 'username', 'nickname', 'name', 'avatar']
+        );
 
         foreach ($rows as $row) {
             $rowUser = $users->get((int) $row->user_id);
@@ -648,26 +572,10 @@ class AppQyV1SocialController extends BaseController
      */
     private function aggregateProgressStats(?array $userIds, $since): array
     {
-        $query = null;
         $rows = null;
         $result = [];
 
-        $query = AppQyV1UserLearningProgressModel::query()
-            ->selectRaw('user_id')
-            ->selectRaw('COUNT(*) as total_words')
-            ->selectRaw("SUM(CASE WHEN learning_status IN ('learning', 'reviewing', 'learned') THEN 1 ELSE 0 END) as learned_words")
-            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_words")
-            ->selectRaw('SUM(correct_count) as correct_answers')
-            ->groupBy('user_id');
-
-        if ($userIds !== null) {
-            $query->whereIn('user_id', $userIds);
-        }
-        if ($since !== null) {
-            $query->where('updated_at', '>=', $since);
-        }
-
-        $rows = $query->get();
+        $rows = AppQyV1UserLearningProgressModel::aggregateProgressStats($userIds, $since);
         foreach ($rows as $row) {
             $result[(int) $row->user_id] = [
                 'total_words' => (int) $row->total_words,
@@ -704,21 +612,6 @@ class AppQyV1SocialController extends BaseController
         return ($statsByUser[$userId]['learned_words'] * self::XP_PER_LEARNED_WORD)
             + ($statsByUser[$userId]['mastered_words'] * self::XP_PER_MASTERED_WORD)
             + ($statsByUser[$userId]['correct_answers'] * self::XP_PER_CORRECT_ANSWER);
-    }
-
-    /**
-     * User ids (among $userIds) with a progress row updated very recently,
-     * used to derive the 'studying' presence state from real data.
-     */
-    private function getRecentlyStudyingUserIds(array $userIds): array
-    {
-        return AppQyV1UserLearningProgressModel::query()
-            ->whereIn('user_id', $userIds)
-            ->where('updated_at', '>=', now()->subMinutes(self::STUDYING_WINDOW_MINUTES))
-            ->distinct()
-            ->pluck('user_id')
-            ->map(fn ($id) => (int) $id)
-            ->all();
     }
 
     /**
@@ -777,7 +670,7 @@ class AppQyV1SocialController extends BaseController
             return $this->error('Cannot friend yourself', 422);
         }
 
-        $targetUser = User::find($targetId);
+        $targetUser = User::findById($targetId);
         if (!$targetUser) {
             return $this->notFound('User not found');
         }
@@ -787,16 +680,7 @@ class AppQyV1SocialController extends BaseController
             return $this->success(['status' => AppQyV1FriendRequestModel::STATUS_ACCEPTED, 'request_id' => null], 'Already friends');
         }
 
-        // One row per (requester, addressee). A re-send of a rejected request
-        // resets it to pending.
-        $row = AppQyV1FriendRequestModel::query()->firstOrCreate(
-            ['requester_id' => $myId, 'addressee_id' => $targetId],
-            ['status' => AppQyV1FriendRequestModel::STATUS_PENDING]
-        );
-        if ($row->status === AppQyV1FriendRequestModel::STATUS_REJECTED) {
-            $row->status = AppQyV1FriendRequestModel::STATUS_PENDING;
-            $row->save();
-        }
+        $row = AppQyV1FriendRequestModel::sendOrReset($myId, $targetId);
 
         // Notify + SSE the addressee (best-effort).
         $notifId = AppQyV1NotificationModel::notify($targetId, 'friend_request', [
@@ -853,7 +737,7 @@ class AppQyV1SocialController extends BaseController
         $requestId = (int) $request->input('request_id');
         $action = (string) $request->input('action');
 
-        $row = AppQyV1FriendRequestModel::query()->find($requestId);
+        $row = AppQyV1FriendRequestModel::findRequest($requestId);
         if (!$row) {
             return $this->notFound('Friend request not found');
         }
@@ -866,14 +750,12 @@ class AppQyV1SocialController extends BaseController
         }
 
         if ($action === 'reject') {
-            $row->status = AppQyV1FriendRequestModel::STATUS_REJECTED;
-            $row->save();
+            $row->rejectRequest();
             return $this->success(['request_id' => $requestId, 'status' => $row->status], 'Friend request rejected');
         }
 
         // accept
-        $row->status = AppQyV1FriendRequestModel::STATUS_ACCEPTED;
-        $row->save();
+        $row->acceptRequest();
 
         // Ensure a direct conversation between the pair (best-effort).
         $this->ensureDirectConversation((int) $row->requester_id, (int) $row->addressee_id);
@@ -928,19 +810,12 @@ class AppQyV1SocialController extends BaseController
         $myId = (int) $currentUser->id;
         $direction = (string) $request->query('direction', 'incoming');
 
-        $rows = AppQyV1FriendRequestModel::query()
-            ->where('status', AppQyV1FriendRequestModel::STATUS_PENDING)
-            ->when($direction === 'incoming', fn ($q) => $q->where('addressee_id', $myId))
-            ->when($direction === 'outgoing', fn ($q) => $q->where('requester_id', $myId))
-            ->orderByDesc('id')
-            ->get();
+        $rows = AppQyV1FriendRequestModel::pendingForUser($myId, $direction);
 
         foreach ($rows as $row) {
             $otherIds[] = $direction === 'incoming' ? (int) $row->requester_id : (int) $row->addressee_id;
         }
-        $users = User::whereIn('id', $otherIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        $users = User::indexedByIds($otherIds, ['id', 'username', 'nickname', 'name', 'avatar']);
 
         foreach ($rows as $row) {
             $otherId = $direction === 'incoming' ? (int) $row->requester_id : (int) $row->addressee_id;
@@ -994,52 +869,12 @@ class AppQyV1SocialController extends BaseController
             return $this->error('Cannot block yourself', 422);
         }
 
-        // Reuse an existing row in EITHER direction; else create one with me as
-        // requester. One blocked row per pair.
-        $row = AppQyV1FriendRequestModel::query()
-            ->where(function ($q) use ($myId, $targetId) {
-                $q->where(function ($q2) use ($myId, $targetId) {
-                    $q2->where('requester_id', $myId)->where('addressee_id', $targetId);
-                })->orWhere(function ($q2) use ($myId, $targetId) {
-                    $q2->where('requester_id', $targetId)->where('addressee_id', $myId);
-                });
-            })
-            ->first();
-
-        if (!$row) {
-            $row = AppQyV1FriendRequestModel::query()->create([
-                'requester_id' => $myId,
-                'addressee_id' => $targetId,
-                'status' => AppQyV1FriendRequestModel::STATUS_BLOCKED,
-            ]);
-        } else {
-            $row->status = AppQyV1FriendRequestModel::STATUS_BLOCKED;
-            $row->save();
-        }
+        $row = AppQyV1FriendRequestModel::blockPair($myId, $targetId);
 
         return $this->success(['user_id' => $targetId, 'status' => $row->status], 'User blocked');
     }
 
     // ---- Internal helpers ----
-
-    /**
-     * Apply a driver-portable "learning_languages contains $code" predicate.
-     * Prefer whereJsonContains (pgsql/sqlite ok); add a LOWER(...) LIKE fallback
-     * so a non-JSON / legacy text column still matches.
-     */
-    private function applyLearningContains($builder, string $code): void
-    {
-        $code = strtolower($code);
-        $like = '%"' . $code . '"%';
-        $builder->where(function ($q) use ($code, $like) {
-            try {
-                $q->whereJsonContains('learning_languages', $code);
-            } catch (\Throwable $e) {
-                // Some drivers throw at build time only in edge cases; ignore.
-            }
-            $q->orWhereRaw('LOWER(CAST(learning_languages AS CHAR(500))) LIKE ?', [$like]);
-        });
-    }
 
     /**
      * Normalize a learning_languages value (json array, or JSON/CSV string) into
@@ -1076,21 +911,7 @@ class AppQyV1SocialController extends BaseController
     private function ensureDirectConversation(int $a, int $b): void
     {
         try {
-            $dkey = AppQyV1ConversationModel::directKey($a, $b);
-            $conv = AppQyV1ConversationModel::query()->firstOrCreate(
-                ['dkey' => $dkey],
-                [
-                    'type' => AppQyV1ConversationModel::TYPE_DIRECT,
-                    'created_by' => $a,
-                    'last_message_at' => null,
-                ]
-            );
-            foreach ([$a, $b] as $uid) {
-                AppQyV1ConversationParticipantModel::query()->firstOrCreate(
-                    ['conversation_id' => (int) $conv->id, 'user_id' => $uid],
-                    ['joined_at' => now()]
-                );
-            }
+            AppQyV1ConversationModel::findOrCreateDirect($a, $b);
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('[AppQyV1Social] ensureDirectConversation failed', [
                 'a' => $a,

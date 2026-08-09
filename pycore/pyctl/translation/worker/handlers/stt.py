@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.laravel.client import laravel_client
 
 import pycore.pyctl.translation.worker.lane_gating as lane_gating
@@ -61,7 +62,9 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
             tmp_path = file_path
         elif audio_url:
             try:
-                fd, tmp_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".mp3")
+                fd, tmp_path = tempfile.mkstemp(
+                    prefix="worker_stt_", suffix=".mp3", dir=str(TMP_DIR)
+                )
                 os.close(fd)
                 owned_file = True
                 # Route via the unified client so the download is logged/recorded
@@ -80,7 +83,9 @@ def process_stt_task(worker, task: Dict[str, Any]) -> None:
                 return
         elif audio_b64:
             try:
-                fd, tmp_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".bin")
+                fd, tmp_path = tempfile.mkstemp(
+                    prefix="worker_stt_", suffix=".bin", dir=str(TMP_DIR)
+                )
                 os.close(fd)
                 owned_file = True
                 with open(tmp_path, "wb") as fh:
@@ -148,7 +153,9 @@ def _stt_to_wav(src: Path) -> Optional[Path]:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         return None
-    fd, wav_path = tempfile.mkstemp(prefix="worker_stt_", suffix=".wav")
+    fd, wav_path = tempfile.mkstemp(
+        prefix="worker_stt_", suffix=".wav", dir=str(TMP_DIR)
+    )
     os.close(fd)
     try:
         rc = subprocess.run(

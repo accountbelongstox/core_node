@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.frontend_launcher.frontend_config import FrontendConfig
 from pycore.pyutils.frontend_launcher.output_capturer import OutputCapturer
 import subprocess
@@ -203,7 +204,9 @@ class NuxtLauncher:
 
             if plat.system() == 'Windows':
                 # Windows: Launch in new console window
-                fd, temp_script_path = tempfile.mkstemp(suffix='.bat', text=True)
+                fd, temp_script_path = tempfile.mkstemp(
+                    suffix='.bat', text=True, dir=str(TMP_DIR)
+                )
                 self.temp_script = Path(temp_script_path)
 
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:

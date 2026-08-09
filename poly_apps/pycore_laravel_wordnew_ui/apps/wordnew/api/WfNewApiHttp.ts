@@ -38,7 +38,7 @@ import type {
   WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse, WfNewBookVerseLang,
   WfNewSubtitleDetail, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewDictWord, WfNewWordPage,
   WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia,
-  WfNewWordAccent, WfNewWordAudioVariant,
+  WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMediaOptions,
 } from './WfNewApiTypes';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import {
@@ -506,9 +506,9 @@ export const wfNewApiHttp: WfNewApi = {
   async getWordMedia(
     language: string,
     word: string,
-    opts: { accent?: WfNewWordAccent } = {},
+    opts: WfNewWordMediaOptions = {},
   ): Promise<WfNewWordMedia> {
-    const res = await getJSON<any>(WfNewApiPaths.wordMedia(language, word, opts.accent));
+    const res = await getJSON<any>(WfNewApiPaths.wordMedia(language, word, opts));
     const t = res?.translations;
     const translations: string[] = Array.isArray(t)
       ? t.filter((x: any) => typeof x === 'string')
@@ -544,8 +544,8 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async resolveSentenceAudio(text: string, language: string, variantKey?: string) {
-    const res = await getJSON<any>(WfNewApiPaths.sentenceAudio(text, language, variantKey));
+  async resolveSentenceAudio(text: string, language: string, variantKey?: string, passive = false) {
+    const res = await getJSON<any>(WfNewApiPaths.sentenceAudio(text, language, variantKey, passive));
     return {
       exists: !!res?.exists,
       url: res?.url ?? null,
@@ -577,6 +577,7 @@ export const wfNewApiHttp: WfNewApi = {
       success: !!(res?.success ?? res?.ok),
       queued: res?.queued != null ? Number(res.queued) : undefined,
       total: res?.total != null ? Number(res.total) : undefined,
+      items: Array.isArray(res?.items) ? res.items : [],
       error: res?.error ?? undefined,
     };
   },
@@ -601,6 +602,8 @@ export const wfNewApiHttp: WfNewApi = {
     return {
       success: !!(res?.success ?? res?.status === 'success'),
       queued: res?.data?.added != null ? Number(res.data.added) : undefined,
+      total: res?.data?.total != null ? Number(res.data.total) : undefined,
+      results: Array.isArray(res?.data?.results) ? res.data.results : [],
       error: res?.error ?? undefined,
     };
   },
@@ -667,6 +670,46 @@ export const wfNewApiHttp: WfNewApi = {
       }));
     } catch {
       return [];
+    }
+  },
+
+  async getDailyReadingProgress() {
+    if (!authToken) return null;
+    try {
+      const res = await authedGetJSON<any>(WfNewApiPaths.userDailyReadingProgress, null);
+      const progress = res?.progress;
+      if (!progress) return null;
+      return {
+        articleId: progress.article_id ? String(progress.article_id) : null,
+        selectionMode: ['latest', 'resume', 'random'].includes(progress.selection_mode)
+          ? progress.selection_mode
+          : 'latest',
+        updatedAt: progress.updated_at ?? null,
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async saveDailyReadingProgress(articleId, selectionMode) {
+    if (!authToken) return null;
+    try {
+      const raw = await postJSON<any>(WfNewApiPaths.userDailyReadingProgress, {
+        ...(articleId ? { article_id: articleId } : {}),
+        ...(selectionMode ? { selection_mode: selectionMode } : {}),
+      });
+      const res = unwrapEnvelope(raw);
+      const progress = res?.progress;
+      if (!progress) return null;
+      return {
+        articleId: progress.article_id ? String(progress.article_id) : null,
+        selectionMode: ['latest', 'resume', 'random'].includes(progress.selection_mode)
+          ? progress.selection_mode
+          : 'latest',
+        updatedAt: progress.updated_at ?? null,
+      };
+    } catch {
+      return null;
     }
   },
 

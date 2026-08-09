@@ -5,10 +5,9 @@ Generates temporary batch scripts for launching applications
 """
 
 from pathlib import Path
-import os
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyfoundations.pygvar import TMP_DIR
 
 
 def format_wt_size(term_cols, term_rows):
@@ -27,9 +26,7 @@ class ScriptGenerator:
             temp_dir: Temporary directory for scripts. If None, uses default location.
         """
         if temp_dir is None:
-            # Centralized per-user state dir (D:\programing\Users\<user>\.core_node
-            # on Windows, /var/_core_node on Linux) - see system_paths.
-            temp_dir = get_system_cache_dir() / 'launch_multiple'
+            temp_dir = TMP_DIR / 'launch_multiple'
 
         self.temp_dir = Path(temp_dir)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -171,4 +168,3 @@ class ScriptGenerator:
     def get_temp_dir(self):
         """Get temporary directory path"""
         return self.temp_dir
-

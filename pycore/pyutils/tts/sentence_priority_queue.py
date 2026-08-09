@@ -114,5 +114,21 @@ class SentencePriorityQueue:
                 return True
         return False
 
+    @serialized_method
+    def bump_task(self, task_id: Any, priority: int) -> bool:
+        """Re-key a queued task by its canonical Laravel task ID."""
+        task_key = str(task_id or "").strip()
+        if not task_key:
+            return False
+        new_priority = int(priority)
+        for index, (_negative_priority, sequence, task) in enumerate(self._heap):
+            if str(task.get("task_id") or "").strip() != task_key:
+                continue
+            task["priority"] = new_priority
+            self._heap[index] = (-new_priority, sequence, task)
+            heapq.heapify(self._heap)
+            return True
+        return False
+
     def __len__(self) -> int:
         return len(self._heap)

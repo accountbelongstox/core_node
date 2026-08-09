@@ -22,7 +22,7 @@ use Illuminate\Support\Facades\Log;
  * The authoritative completion is the global_tasks row status set by
  * submitResult, and the worker's full result is ALREADY persisted verbatim on
  * that row. There is no clean canonical subtitle "search hit" store to fan the
- * raw search results into (the App\Models\Subtitle table holds INGESTED media,
+ * raw search results into (the App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel table holds INGESTED media,
  * keyed by source_key — not transient search candidates), so this processor
  * intentionally adds NO migration and stores NO second copy: it validates and
  * normalizes the artifact and reports the count of hits already persisted on

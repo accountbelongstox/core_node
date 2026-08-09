@@ -12,7 +12,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1InvoiceModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CodeMartV1PaymentCtl extends Controller
@@ -79,13 +78,13 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1PaymentModel::beginModelTransaction();
 
         $payer_wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
 
         if ($request->payment_method === 'wallet') {
             if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
-                DB::rollBack();
+                CodeMartV1PaymentModel::rollBackModelTransaction();
                 return $this->error('Insufficient wallet balance', 422);
             }
 
@@ -114,7 +113,7 @@ class CodeMartV1PaymentCtl extends Controller
             $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
         }
 
-        DB::commit();
+        CodeMartV1PaymentModel::commitModelTransaction();
 
         return $this->success($payment->load(['payer', 'payee']), 'Payment created successfully', 201);
     }
@@ -284,17 +283,17 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->notFound('Refund not found');
         }
 
-        DB::beginTransaction();
+        CodeMartV1PaymentModel::beginModelTransaction();
 
         if (!$refund->complete()) {
-            DB::rollBack();
+            CodeMartV1PaymentModel::rollBackModelTransaction();
             return $this->error('Cannot process refund in current status', 422);
         }
 
         $payment = $refund->payment;
         $payment->update(['status' => 'cancelled']);
 
-        DB::commit();
+        CodeMartV1PaymentModel::commitModelTransaction();
 
         return $this->success($refund, 'Refund processed successfully');
     }

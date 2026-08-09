@@ -11,8 +11,8 @@ import os
 import socket
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pathlib import Path
-import tempfile
 
 from pycore.pyfoundations.third_party.api import get_third_package_pystray
 
@@ -136,7 +136,7 @@ def view_log():
     """Display log file contents."""
     ColorPrint.plain("[Check] Checking log files...")
 
-    log_dir = Path(tempfile.gettempdir()) / 'device_sync'
+    log_dir = TMP_DIR / 'device_sync'
     launcher_log = log_dir / 'device_sync_launcher.log'
     main_log = log_dir / 'device_sync.log'
 

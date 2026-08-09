@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 
 /**
  * Heartbeat-written presence (SOCIAL_FEATURE_SPECIFICATION.md §1/§4). One row per
@@ -69,6 +70,39 @@ class AppQyV1UserPresenceModel extends Model
         'location_updated_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function findByUserId(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function nearbyCandidates(
+        int $userId,
+        float $latitude,
+        float $longitude,
+        float $radius,
+        int $limit = 500
+    ): Collection {
+        $latitudeDelta = 0.0;
+        $longitudeDelta = 0.0;
+        $longitudeScale = 1.0;
+
+        $latitudeDelta = $radius / 111.0;
+        $longitudeScale = max(0.01, cos(deg2rad($latitude)));
+        $longitudeDelta = $radius / (111.0 * $longitudeScale);
+
+        return static::query()
+            ->where('user_id', '!=', $userId)
+            ->where('location_visible', true)
+            ->whereNotNull('latitude')
+            ->whereNotNull('longitude')
+            ->where('location_updated_at', '>=', now()->subDay())
+            ->whereBetween('latitude', [$latitude - $latitudeDelta, $latitude + $latitudeDelta])
+            ->whereBetween('longitude', [$longitude - $longitudeDelta, $longitude + $longitudeDelta])
+            ->orderByDesc('location_updated_at')
+            ->limit($limit)
+            ->get();
+    }
 
     public static function updateLocation(int $userId, float $latitude, float $longitude, ?float $accuracy, bool $visible): void
     {

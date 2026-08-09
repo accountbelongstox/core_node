@@ -6,6 +6,10 @@ from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
 
+_ARTICLE_TYPE = "daily"
+_ARTICLE_SOURCE = "agent_history"
+
+
 def upload_to_laravel(
     article: Dict[str, Any],
     audio: Dict[str, Any],
@@ -40,7 +44,8 @@ def upload_to_laravel(
         "reference_lang": cfg.get("reference_lang") or "CN",
         "target_lang": cfg.get("target_lang") or "EN",
         "language": "en",
-        "source": "agent_history",
+        "article_type": _ARTICLE_TYPE,
+        "source": _ARTICLE_SOURCE,
         "raw_preview": raw_text[:2000],
         "raw_word_count": len([w for w in raw_text.split() if w.strip()]),
         "audio_base64": audio.get("audio_base64"),
@@ -73,11 +78,11 @@ def upload_to_laravel(
     data = response_data.get("data") or {}
     article_id = data.get("article_id")
     audio_url = data.get("audio_url")
-    if not audio_url and article_id:
-        audio_url = f"/static/app_qy_v1/audio/agent_history/en/{article_id}.mp3"
     return {
         "article_id": article_id,
         "source_key": data.get("source_key"),
         "audio_url": audio_url,
-        "audio_status": data.get("audio_status") or ("ready" if audio_url else "queued"),
+        "audio_status": data.get("audio_status") or ("ready" if audio_url else "missing"),
+        "article_type": data.get("article_type") or _ARTICLE_TYPE,
+        "source": data.get("source") or _ARTICLE_SOURCE,
     }

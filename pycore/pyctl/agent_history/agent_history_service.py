@@ -2,13 +2,14 @@
 """
 Local AI agent history extractor — pycore twin of Laravel DeveloperHistoryService.
 
-Incrementally scans Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark source files
+Incrementally scans Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline source files
 from user home dirs, parses prompts + AI returns, and persists to txt files under
 ``<cache>/pycore/.ai_state/agent_history/`` (no database).
 """
 
 from __future__ import annotations
 
+import calendar
 import hashlib
 import os
 import platform
@@ -18,7 +19,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pycore.pyctl.agent_history.agent_history_txt as txt
-from pycore.pyctl.agent_history.ark_cli_extractor import ArkCliExtractor
+from pycore.pyctl.agent_history.agent_history_fragments import summarize_tool_fragments_many
+from pycore.pyctl.agent_history.snapshot_cache import (
+    file_revision,
+    read_index_catalog,
+    read_prompt_catalog,
+    read_prompt_catalog_snapshot,
+    session_summary,
+)
 from pycore.pyctl.agent_history.antigravity_extractor import AntigravityExtractor
 from pycore.pyctl.agent_history.claude_extractor import ClaudeCodeExtractor
 from pycore.pyctl.agent_history.cline_extractor import ClineExtractor
@@ -33,10 +41,16 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
+from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
 PROMPTS_CAP = 8000
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
+EXTRACT_PROBE_SOURCE_CAP = 25
+EXTRACTOR_SCHEMA_REVISION = "2026-08-09.3"
+TOOL_SOURCE_REVISIONS_CACHE_KEY = "agent_history.tool_source_revisions"
+TOOL_STATISTICS_CACHE_PREFIX = "agent_history.tool_statistics."
+TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
 SESSION_ID_FIELDS = (
     "id",
     "tool",
@@ -46,27 +60,12 @@ SESSION_ID_FIELDS = (
     "prompt_count",
     "has_subagent",
 )
-SESSION_SUMMARY_FIELDS = (
-    "id",
-    "raw_id",
-    "tool",
-    "os_user",
-    "project",
-    "title",
-    "started_at",
-    "ended_at",
-    "started_ts",
-    "ended_ts",
-    "prompt_count",
-    "message_count",
-    "has_subagent",
-    "models",
-    "bytes",
-    "file",
-)
 TOOL_MARKERS = (
     ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
-    ".ark", ".ark-cli", ".agent", ".cline", ".antigravity",
+    ".agent", ".openclaw", ".cline", ".antigravity",
+)
+STORE_TIMESTAMP_RE = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$"
 )
 
 _EXTRACT_QUEUE = 'pyctl.agent_history.extract'
@@ -78,25 +77,27 @@ _EXTRACT_WORKER = SerializedWorkerThread(
 _EXTRACT_WORKER.start()
 
 
+def _valid_generated_at(value: Any) -> str:
+    timestamp = str(value or "").strip()
+    match = STORE_TIMESTAMP_RE.fullmatch(timestamp)
+    if match is None:
+        return ""
+    year, month, day, hour, minute, second = [int(part) for part in match.groups()]
+    if year < 2000 or year > 2100 or month < 1 or month > 12:
+        return ""
+    if day < 1 or day > calendar.monthrange(year, month)[1]:
+        return ""
+    if hour > 23 or minute > 59 or second > 59:
+        return ""
+    return timestamp
+
+
 def _detect_lang(text: str) -> str:
     if not text:
         return ""
     if re.search(r"[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]", text):
         return "zh"
     return "en"
-
-
-def _session_summary(detail: Dict[str, Any]) -> Dict[str, Any]:
-    """Keep the index bounded to fields used by the session list UI."""
-    summary = {
-        field: detail.get(field)
-        for field in SESSION_SUMMARY_FIELDS
-        if field in detail
-    }
-    models = summary.get("models")
-    if isinstance(models, list):
-        summary["models"] = [str(model) for model in models[:20]]
-    return summary
 
 
 def user_homes() -> Dict[str, str]:
@@ -131,15 +132,8 @@ class AgentHistoryService:
             KimiExtractor(),
             AntigravityExtractor(),
             ClineExtractor(),
-            ArkCliExtractor(),
             GenericAgentExtractor(),
         ]
-        self._index_catalog_cache: Dict[str, Any] = {
-            "revision": "",
-            "data": {},
-            "by_id": {},
-        }
-        self._prompt_catalog_cache: Dict[str, Any] = {"revision": "", "items": []}
 
     def is_dev_machine(self) -> bool:
         for home in user_homes():
@@ -204,6 +198,7 @@ class AgentHistoryService:
             signature = self._signature(current)
 
             state = txt.read_state()
+            extractor_schema_changed = state.get("extractor_schema_revision") != EXTRACTOR_SCHEMA_REVISION
             prev_sources = state.get("sources") if isinstance(state.get("sources"), dict) else {}
             prev_sources_by_id = {
                 str(info.get("source_id") or self._source_id(path)): {"path": path, **info}
@@ -211,7 +206,12 @@ class AgentHistoryService:
                 if isinstance(info, dict)
             }
 
-            if not force and state.get("signature") == signature and state.get("generated_at"):
+            if (
+                not force
+                and not extractor_schema_changed
+                and state.get("signature") == signature
+                and _valid_generated_at(state.get("generated_at"))
+            ):
                 summary = {"unchanged": True, "is_dev_machine": is_dev}
                 summary.update(state.get("counts") or {})
                 THREAD_BUS.signal(_SUMMARY_SIGNAL, summary)
@@ -225,7 +225,7 @@ class AgentHistoryService:
                 if sid:
                     summaries[sid] = s
 
-            if force:
+            if force or extractor_schema_changed:
                 changed_paths = list(current.keys())
             else:
                 changed_paths = []
@@ -274,7 +274,7 @@ class AgentHistoryService:
                     self._apply_edits(detail.get("prompts") or [], edits)
                     txt.write_session(sid, detail)
 
-                    summary = _session_summary(detail)
+                    summary = session_summary(detail)
                     summaries[sid] = summary
 
                     for p in detail.get("prompts") or []:
@@ -345,6 +345,7 @@ class AgentHistoryService:
                 "is_dev_machine": is_dev,
                 "generated_at": generated_at,
                 "signature": signature,
+                "extractor_schema_revision": EXTRACTOR_SCHEMA_REVISION,
                 "sources": new_sources,
                 "counts": counts,
             })
@@ -372,19 +373,20 @@ class AgentHistoryService:
 
     def read_index(self) -> Dict[str, Any]:
         index = self._index_catalog()
-        counts = txt.read_state().get("counts") or {}
+        state = txt.read_state()
+        counts = state.get("counts") or {}
         if not isinstance(counts, dict):
             counts = {}
         if not counts.get("sessions"):
             counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
         sessions = [
-            _session_summary(session)
+            session_summary(session)
             for session in (index.get("sessions") or [])
             if isinstance(session, dict)
         ]
         return {
             "is_dev_machine": index.get("is_dev_machine", self.is_dev_machine()),
-            "generated_at": index.get("generated_at", ""),
+            "generated_at": _valid_generated_at(index.get("generated_at")) or _valid_generated_at(state.get("generated_at")),
             "tools": index.get("tools") or [],
             "users": index.get("users") or [],
             "langs": index.get("langs") or [],
@@ -402,7 +404,7 @@ class AgentHistoryService:
         lang: Optional[str] = None,
         tools: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        all_prompts = txt.read_prompts()
+        all_prompts = self._prompt_catalog()
         needle = (q or "").strip().lower()
         allowed_tools = {
             str(item).strip().lower()
@@ -439,11 +441,7 @@ class AgentHistoryService:
 
     @staticmethod
     def _file_revision(path: Path) -> str:
-        try:
-            stat = path.stat()
-            return f"{stat.st_mtime_ns}:{stat.st_size}"
-        except OSError:
-            return "0:0"
+        return file_revision(path)
 
     @staticmethod
     def _paginate(items: List[Dict[str, Any]], page: int, page_size: int) -> Dict[str, Any]:
@@ -460,14 +458,15 @@ class AgentHistoryService:
         }
 
     def _store_header(self, index: Dict[str, Any]) -> Dict[str, Any]:
-        counts = txt.read_state().get("counts") or {}
+        state = txt.read_state()
+        counts = state.get("counts") or {}
         if not isinstance(counts, dict):
             counts = {}
         if not counts.get("sessions"):
             counts["sessions"] = index.get("sessions_count") or len(index.get("sessions") or [])
         return {
             "is_dev_machine": index.get("is_dev_machine", self.is_dev_machine()),
-            "generated_at": index.get("generated_at", ""),
+            "generated_at": _valid_generated_at(index.get("generated_at")) or _valid_generated_at(state.get("generated_at")),
             "tools": index.get("tools") or [],
             "users": index.get("users") or [],
             "langs": index.get("langs") or [],
@@ -476,29 +475,16 @@ class AgentHistoryService:
 
     def _prompt_catalog(self) -> List[Dict[str, Any]]:
         """Prompts parsed once per store revision; text stays backend-side."""
-        path = txt.store_dir() / "prompts.txt"
-        revision = self._file_revision(path)
-        cache = self._prompt_catalog_cache
-        if cache.get("revision") != revision:
-            cache["items"] = txt.read_prompts()
-            cache["revision"] = revision
-        return cache["items"]
+        return read_prompt_catalog()
 
     def _index_catalog(self) -> Dict[str, Any]:
         """Session summaries parsed once per persistent index revision."""
-        path = txt.store_dir() / "index.txt"
-        revision = self._file_revision(path)
-        cache = self._index_catalog_cache
-        if cache.get("revision") != revision:
-            data = txt.read_index()
-            cache["data"] = data
-            cache["by_id"] = {
-                session.get("id"): _session_summary(session)
-                for session in (data.get("sessions") or [])
-                if isinstance(session, dict) and session.get("id")
-            }
-            cache["revision"] = revision
-        return cache["data"]
+        snapshot = self._index_catalog_snapshot()
+        data = snapshot.get("data") or {}
+        return data if isinstance(data, dict) else {}
+
+    def _index_catalog_snapshot(self) -> Dict[str, Any]:
+        return read_index_catalog()
 
     @staticmethod
     def _filter_prompts(
@@ -536,10 +522,11 @@ class AgentHistoryService:
         page_size: int = 50,
         since_revision: str = "",
     ) -> Dict[str, Any]:
-        revision = self._file_revision(txt.store_dir() / "index.txt")
+        snapshot = self._index_catalog_snapshot()
+        revision = str(snapshot.get("revision") or "missing")
         if since_revision and since_revision == revision:
             return {"revision": revision, "unchanged": True}
-        index = self._index_catalog()
+        index = snapshot.get("data") or {}
         needle = (q or "").strip().lower()
         filtered = []
         for s in index.get("sessions") or []:
@@ -565,8 +552,8 @@ class AgentHistoryService:
 
     def read_session_page(self, ids: List[str]) -> Dict[str, Any]:
         wanted = [str(value) for value in (ids or []) if str(value or "")][:MATERIALIZE_CAP]
-        self._index_catalog()
-        by_id = self._index_catalog_cache["by_id"]
+        snapshot = self._index_catalog_snapshot()
+        by_id = snapshot.get("by_id") or {}
         items = [by_id[sid] for sid in wanted if sid in by_id]
         return {"items": items, "total": len(items)}
 
@@ -580,11 +567,14 @@ class AgentHistoryService:
         page_size: int = 50,
         since_revision: str = "",
     ) -> Dict[str, Any]:
-        revision = self._file_revision(txt.store_dir() / "prompts.txt")
+        prompt_snapshot = read_prompt_catalog_snapshot()
+        revision = str(prompt_snapshot.get("revision") or "missing")
         if since_revision and since_revision == revision:
             return {"revision": revision, "unchanged": True}
-        filtered = self._filter_prompts(self._prompt_catalog(), tool, user, q, tools)
-        result = {"revision": revision}
+        prompts = prompt_snapshot.get("items") or []
+        filtered = self._filter_prompts(prompts, tool, user, q, tools)
+        result = self._store_header(self._index_catalog())
+        result["revision"] = revision
         result.update(self._paginate(filtered, page, page_size))
         result["items"] = [
             {key: value for key, value in p.items() if key != "text"}
@@ -667,6 +657,199 @@ class AgentHistoryService:
     def get_status(self) -> Dict[str, Any]:
         return {"last": THREAD_BUS.get_signal(_SUMMARY_SIGNAL, {}) or {}}
 
+    def read_tool_statistics(
+        self,
+        tool: str,
+        after_ts: int = 0,
+        after_fragment_id: str = "",
+    ) -> Dict[str, Any]:
+        """Lazily count one tool without materializing history in the browser."""
+        key = str(tool or "").strip().lower()
+        items = self.read_tool_statistics_many({
+            key: {
+                "after_ts": int(after_ts or 0),
+                "after_fragment_id": str(after_fragment_id or ""),
+            },
+        })
+        return items[0] if items else {
+            "tool": key,
+            "sessions": 0,
+            "history_records": 0,
+            "processed": 0,
+            "pending": 0,
+            "prompts": 0,
+            "replies": 0,
+            "generated_at": "",
+            "source_modified_ts": 0,
+        }
+
+    def read_tool_statistics_many(
+        self,
+        cursors: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Read tool counts from a source-revision-aware shared snapshot."""
+        keys = [str(tool or "").strip().lower() for tool in cursors]
+        keys = [tool for tool in keys if tool]
+        normalized_cursors: Dict[str, Dict[str, Any]] = {}
+        source_revisions = self._tool_source_revisions()
+        versions: Dict[str, str] = {}
+        for tool in keys:
+            cursor = cursors.get(tool) or {}
+            normalized = {
+                "after_ts": int(cursor.get("after_ts") or 0),
+                "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
+                "backfill_target_ts": int(cursor.get("backfill_target_ts") or 0),
+                "backfill_target_fragment_id": str(
+                    cursor.get("backfill_target_fragment_id") or ""
+                ),
+                "live_after_ts": int(cursor.get("live_after_ts") or 0),
+                "live_after_fragment_id": str(
+                    cursor.get("live_after_fragment_id") or ""
+                ),
+                "lane_aware": bool(cursor.get("lane_aware")),
+            }
+            normalized_cursors[tool] = normalized
+            source_revision = source_revisions.get(tool) or {}
+            version_source = (
+                f"{tool}|{source_revision.get('revision') or 'empty'}|"
+                f"{normalized['after_ts']}|{normalized['after_fragment_id']}|"
+                f"{normalized['backfill_target_ts']}|"
+                f"{normalized['backfill_target_fragment_id']}|"
+                f"{normalized['live_after_ts']}|"
+                f"{normalized['live_after_fragment_id']}|"
+                f"{int(normalized['lane_aware'])}"
+            )
+            version = hashlib.md5(version_source.encode()).hexdigest()
+            versions[tool] = version
+        cache_keys = {
+            tool: TOOL_STATISTICS_CACHE_PREFIX + tool
+            for tool in keys
+        }
+        tools_by_cache_key = {
+            cache_key: tool
+            for tool, cache_key in cache_keys.items()
+        }
+        cache_versions = {
+            cache_keys[tool]: versions[tool]
+            for tool in keys
+        }
+
+        def load_missing(
+            missing_cache_keys: List[str],
+        ) -> Dict[str, Dict[str, Any]]:
+            missing_tools = [
+                tools_by_cache_key[cache_key]
+                for cache_key in missing_cache_keys
+            ]
+            missing_cursors = {
+                tool: normalized_cursors[tool]
+                for tool in missing_tools
+            }
+            computed = self._compute_tool_statistics_many(
+                missing_cursors,
+                source_revisions,
+            )
+            computed_by_tool = {
+                str(item.get("tool") or ""): item
+                for item in computed
+            }
+            return {
+                cache_keys[tool]: computed_by_tool[tool]
+                for tool in missing_tools
+                if tool in computed_by_tool
+            }
+
+        cached_by_key = status_snapshot_cache.get_many(
+            cache_versions,
+            load_missing,
+            ttl_seconds=float("inf"),
+        )
+        return [
+            dict(cached_by_key[cache_keys[tool]])
+            for tool in keys
+            if cache_keys[tool] in cached_by_key
+        ]
+
+    def _tool_source_revisions(self) -> Dict[str, Dict[str, Any]]:
+        state_path = txt.store_dir() / "state.txt"
+        file_revision = self._file_revision(state_path)
+        snapshot = status_snapshot_cache.get(
+            TOOL_SOURCE_REVISIONS_CACHE_KEY,
+            self._build_tool_source_revisions,
+            ttl_seconds=float("inf"),
+            version=file_revision,
+        )
+        tools = snapshot.get("tools") or {}
+        return tools if isinstance(tools, dict) else {}
+
+    @staticmethod
+    def _build_tool_source_revisions() -> Dict[str, Any]:
+        state = txt.read_state()
+        sources = state.get("sources") or {}
+        schema_revision = str(state.get("extractor_schema_revision") or "")
+        parts_by_tool: Dict[str, List[str]] = {}
+        modified_by_tool: Dict[str, int] = {}
+        for source_path, raw_source in sources.items():
+            if not isinstance(raw_source, dict):
+                continue
+            tool = str(raw_source.get("tool") or "").strip().lower()
+            if not tool:
+                continue
+            modified = int(raw_source.get("mtime") or 0)
+            session_ids = sorted(
+                str(item) for item in raw_source.get("session_ids") or []
+            )
+            source_id = str(raw_source.get("source_id") or source_path)
+            parts_by_tool.setdefault(tool, []).append(
+                f"{source_id}|{modified}|{int(raw_source.get('bytes') or 0)}|"
+                f"{','.join(session_ids)}|{schema_revision}"
+            )
+            modified_by_tool[tool] = max(modified_by_tool.get(tool, 0), modified)
+        tools: Dict[str, Dict[str, Any]] = {}
+        for tool, parts in parts_by_tool.items():
+            parts.sort()
+            tools[tool] = {
+                "revision": hashlib.md5("\n".join(parts).encode()).hexdigest(),
+                "last_modified_ts": modified_by_tool.get(tool, 0),
+                "source_count": len(parts),
+            }
+        return {"tools": tools}
+
+    def _compute_tool_statistics_many(
+        self,
+        cursors: Dict[str, Dict[str, Any]],
+        source_revisions: Dict[str, Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        keys = list(cursors)
+        index = self._index_catalog()
+        session_counts = {tool: 0 for tool in keys}
+        for session in index.get("sessions") or []:
+            if not isinstance(session, dict):
+                continue
+            session_tool = str(session.get("tool") or "").lower()
+            if session_tool in session_counts:
+                session_counts[session_tool] += 1
+        counts_by_tool = summarize_tool_fragments_many(cursors)
+        generated_at = _valid_generated_at(index.get("generated_at"))
+        results: List[Dict[str, Any]] = []
+        for tool, counts in counts_by_tool.items():
+            source_revision = source_revisions.get(tool) or {}
+            result: Dict[str, Any] = {
+                "tool": tool,
+                "sessions": session_counts.get(tool, 0),
+                "history_records": counts["total"],
+                "processed": counts["processed"],
+                "pending": counts["pending"],
+                "prompts": counts["prompts"],
+                "replies": counts["replies"],
+                "generated_at": generated_at,
+                "source_modified_ts": int(
+                    source_revision.get("last_modified_ts") or 0
+                ),
+            }
+            results.append(result)
+        return results
+
     def test_extract(self, tool: str) -> Dict[str, Any]:
         """Parse the newest source of one tool and return its latest prompt.
 
@@ -674,6 +857,15 @@ class AgentHistoryService:
         store, never touches extract state.
         """
         key = str(tool or "").strip().lower()
+        source_revision = self._tool_source_revisions().get(key) or {}
+        return status_snapshot_cache.get(
+            TOOL_EXTRACT_PROBE_CACHE_PREFIX + key,
+            lambda: self._test_extract_uncached(key),
+            ttl_seconds=float("inf"),
+            version=str(source_revision.get("revision") or "empty"),
+        )
+
+    def _test_extract_uncached(self, key: str) -> Dict[str, Any]:
         extractor = next(
             (e for e in self._extractors if str(e.tool()).lower() == key),
             None,
@@ -702,7 +894,7 @@ class AgentHistoryService:
                 "sources": len(sources),
             }
         last_error = ""
-        for src in inline_sources[:5]:
+        for src in inline_sources[:EXTRACT_PROBE_SOURCE_CAP]:
             try:
                 sessions = extractor.parse_source(src["path"], src["user"])
             except Exception as exc:  # noqa: BLE001 — try the next source
@@ -725,10 +917,17 @@ class AgentHistoryService:
                         "text": str(latest.get("text") or "")[:500],
                     },
                 }
+        if last_error:
+            return {
+                "ok": False,
+                "tool": key,
+                "error": last_error,
+                "sources": len(sources),
+            }
         return {
-            "ok": False,
+            "ok": True,
+            "empty": True,
             "tool": key,
-            "error": last_error or "sources found but no prompts parsed",
             "sources": len(sources),
         }
 

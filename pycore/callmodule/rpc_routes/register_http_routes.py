@@ -39,6 +39,9 @@ from pycore.callmodule.rpc_routes.management_control_routes import register_mana
 from pycore.callmodule.rpc_routes.media_routes import register_media_routes
 from pycore.callmodule.rpc_routes.notebooklm_stt_routes import register_notebooklm_stt_routes
 from pycore.callmodule.rpc_routes.operation_routes import register_operation_routes
+from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
+    register_pycore_manager_ui_state_routes,
+)
 from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_routes
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
@@ -88,6 +91,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_management_control_routes,
     register_local_local_config_routes,
     register_operation_routes,
+    register_pycore_manager_ui_state_routes,
     register_qwen_http_routes,
 )
 

@@ -18,11 +18,12 @@ use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Support\Facades\DB;
+use App\Utils\RunsModelTransactions;
+use Illuminate\Support\Facades\Cache;
 
 class AppQyV1WordGroupModel extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, RunsModelTransactions, SoftDeletes;
 
     /**
      * The database connection name for the model.
@@ -73,6 +74,24 @@ class AppQyV1WordGroupModel extends Model
         'is_language_default',
     ];
 
+    public static function cachedForUserByGid(int $userId, string $gid): ?self
+    {
+        return Cache::remember(
+            "word_group:{$userId}:{$gid}",
+            now()->addMinutes(10),
+            fn () => self::query()->where('gid', $gid)->where('uid', $userId)->first()
+        );
+    }
+
+    public static function cachedForUserByName(int $userId, string $name): ?self
+    {
+        return Cache::remember(
+            "word_group_by_name:{$userId}:{$name}",
+            now()->addMinutes(10),
+            fn () => self::query()->where('gname', $name)->where('uid', $userId)->first()
+        );
+    }
+
     /**
      * The attributes that should be cast.
      *
@@ -86,6 +105,19 @@ class AppQyV1WordGroupModel extends Model
 
     protected static function booted(): void
     {
+        static::saved(function (AppQyV1WordGroupModel $group) {
+            self::forgetLookupCache(
+                (int) $group->uid,
+                (string) $group->gid,
+                (string) $group->gname
+            );
+            self::forgetLookupCache(
+                (int) $group->getOriginal('uid'),
+                (string) $group->getOriginal('gid'),
+                (string) $group->getOriginal('gname')
+            );
+        });
+
         static::created(function (AppQyV1WordGroupModel $group) {
             if (!$group->cover_image_uuid) {
                 $group->generateCoverImage();
@@ -96,8 +128,22 @@ class AppQyV1WordGroupModel extends Model
         // (group_word_progress) is owned by the group and goes with it.
         // Fires on soft delete too (delete events run on SoftDeletes).
         static::deleted(function (AppQyV1WordGroupModel $group) {
+            self::forgetLookupCache((int) $group->uid, (string) $group->gid, (string) $group->gname);
             AppQyV1GroupWordProgressModel::where('group_id', $group->id)->delete();
         });
+    }
+
+    private static function forgetLookupCache(int $userId, string $gid, string $name): void
+    {
+        if ($userId <= 0) {
+            return;
+        }
+        if ($gid !== '') {
+            Cache::forget("word_group:{$userId}:{$gid}");
+        }
+        if ($name !== '') {
+            Cache::forget("word_group_by_name:{$userId}:{$name}");
+        }
     }
 
     /**

@@ -14,6 +14,7 @@ import {
 } from '@/apps/pycore-manager/api';
 import { registerPcLocales } from './pc-locales';
 import { PcLanguageSync } from './PcLanguageSync';
+import { PcUiStateBackupGate } from './persistence/PcUiStateBackupGate';
 
 registerPcLocales();
 import { PC_PAGES } from './pcPages';
@@ -56,11 +57,11 @@ const PcApp: React.FC = () => {
   }, []);
 
   return (
-    <>
-    <PcLanguageSync />
-    <PcProviders>
-    <Routes>
-      <Route element={<PcLayout />}>
+    <PcUiStateBackupGate>
+      <PcLanguageSync />
+      <PcProviders>
+        <Routes>
+          <Route element={<PcLayout />}>
         {/* Page routes are generated from PC_PAGES (above) — add a registry
             entry, get a route. */}
         {pcPageRoutes}
@@ -70,9 +71,10 @@ const PcApp: React.FC = () => {
         <Route path="voice-subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
         <Route path="voice-player" element={<Navigate to="/pycore-manager/agent-history" replace />} />
         <Route path="subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
+        <Route path="agent-historyf" element={<Navigate to="/pycore-manager/agent-history" replace />} />
         <Route path="queue" element={<Navigate to="/pycore-manager/queue-center?tab=manager" replace />} />
         <Route path="task-queue" element={<Navigate to="/pycore-manager/queue-center?tab=tasks" replace />} />
-        <Route path="translation-queue" element={<Navigate to="/pycore-manager/queue-center?tab=translation" replace />} />
+        <Route path="translation-queue" element={<Navigate to="/pycore-manager/queue-center" replace />} />
         <Route path="video-extract" element={<Navigate to="/pycore-manager/content?tab=subtitles" replace />} />
         <Route path="books" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
         <Route path="corebook" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
@@ -85,10 +87,10 @@ const PcApp: React.FC = () => {
         <Route path="image-search" element={<Navigate to="/pycore-manager/ai?tab=imageSearch" replace />} />
         <Route path="subtitle-search" element={<Navigate to="/pycore-manager/ai?tab=subtitleSearch" replace />} />
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
-      </Route>
-    </Routes>
-    </PcProviders>
-    </>
+          </Route>
+        </Routes>
+      </PcProviders>
+    </PcUiStateBackupGate>
   );
 };
 

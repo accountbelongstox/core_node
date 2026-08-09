@@ -1,6 +1,6 @@
 /**
- * PcTranslationQueuePanel — Laravel translation queue read and mutated through
- * the browser-owned Laravel API boundary.
+ * PcTranslationQueuePanel — Pycore-cached queue reads with explicit Laravel
+ * mutations and on-demand task detail requests.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -64,7 +64,7 @@ const PcTranslationQueuePanel: React.FC<PanelProps> = () => {
    * [gpt-5.3-codex-spark:LEGACY-END]
    */
 
-  // Force Laravel's monitor once after a mutation, then refresh the shared snapshot.
+  // Ask Pycore to refresh its shared snapshot after an explicit mutation.
   const fetchQueue = useCallback(async (refresh: boolean) => {
     await state.fetchTranslationQueue(refresh, hub.refreshHub);
   }, [state, hub]);

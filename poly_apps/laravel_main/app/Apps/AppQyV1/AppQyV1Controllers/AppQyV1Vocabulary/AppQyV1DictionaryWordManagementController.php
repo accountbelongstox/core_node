@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Dictionary WORD MANAGEMENT (dashboard mutations).
@@ -30,8 +29,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
     private function resolveLanguage(string $language): array
     {
         $code = AppQyV1VocabularyLibraryPublicController::getLanguageCode($language);
-        $model = AppQyV1LangDictionaryModel::forLanguage($code);
-        $hasTable = Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+        $hasTable = AppQyV1LangDictionaryModel::languageTableExists($code);
         return [$code, $hasTable];
     }
 

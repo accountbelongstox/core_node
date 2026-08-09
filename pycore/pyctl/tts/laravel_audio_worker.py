@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-Dispatch-driven TTS audio workers (word_audio + sentence_audio).
+Persistent TTS audio workers (word_audio + sentence_audio).
 
-Exchange-hub architecture (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md):
-pycore is a compute-only end. These two singleton workers no longer pull,
-claim, or heartbeat Laravel — the UI pump accepts tasks from Laravel directly
-and dispatches the payloads to pycore over RPC (``accept_task``). The worker
-synthesizes locally with the shared TTS orchestrator, then uploads the result
-through the EXISTING report endpoints and completes the global task — the ONLY
-remaining pycore -> Laravel traffic (result upload exemption).
+Enabled workers pull and accept typed Laravel tasks without depending on the
+React UI lifecycle. The RPC ``accept_task`` route remains as a compatible
+manual dispatch surface.
 
 ------------------------------------------------------------------------------
-Laravel contract (result upload only)
+Laravel typed pull/accept/result contract
 ------------------------------------------------------------------------------
+  Pull:    GET  /api/worker/tasks/{taskType}/pull
+  Accept:  POST /api/worker/tasks/{taskType}/accept
   Result:  POST /api/worker/tasks/{taskType}/result   (processing/completed/failed)
 
-  Task payloads (global_task.payload, delivered by the UI pump):
+  Task payloads (global_task.payload, delivered by Laravel typed pull):
     word_audio:     {word, content(alias), language, md5, audio_relative_path,
                      accent?, dict_row_id?}
     sentence_audio: {text, content(alias), language, content_id, variant_key?,
@@ -41,12 +39,12 @@ Laravel contract (result upload only)
   even when a domain report endpoint cannot be addressed.
 
 ------------------------------------------------------------------------------
-Architecture (compute-only kernel)
+Architecture (persistent worker kernel)
 ------------------------------------------------------------------------------
   * Singleton per lane on top of BaseLaravelWorkerService (result upload with
     retry + circuit breaker).
-  * accept_task() (RPC entry) records the task type/endpoint, pushes the task
-    into ONE shared priority heap, and starts ONE background drain cycle
+  * Typed pull or the compatibility accept_task() entry records the task
+    type/endpoint, pushes it into ONE shared priority heap, and starts ONE drain
     (non-reentrant via a THREAD_BUS signal). Serial engines drain on one lane,
     parallel-safe engines fan out to bounded lanes via map_bus_tasks
     (retired-worker pattern).
@@ -63,8 +61,6 @@ import base64
 import hashlib
 import os
 import shutil
-import socket
-import tempfile
 import time
 from collections import deque
 from pathlib import Path
@@ -72,6 +68,7 @@ from typing import Any, Deque, Dict, List, Optional, Tuple
 
 # ColorPrint is the only allowed logger in pycore services.
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.serialized_worker import (
     map_bus_tasks,
     serialized_method,
@@ -84,7 +81,6 @@ from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyutils.laravel.client import laravel_client
 from pycore.pyutils.common.service_config import (
     LARAVEL_WORKER_API_URL,
-    PYCORE_WORKER_INSTANCE,
     TTS_SENTENCE_WORKER_CONCURRENCY,
     TTS_WORKER_CONCURRENCY,
 )
@@ -97,7 +93,7 @@ from pycore.pyutils.common.queue_center_contract import (
     task_execution_type,
 )
 from pycore.pyctl.assist.assist_settings import assist_capability_enabled
-from pycore.pyctl.translation.worker.base_laravel_worker import (
+from pycore.pyctl.laravel.worker_base import (
     BaseLaravelWorkerService,
 )
 from pycore.pyctl.desktop.task_manager import task_manager as shared_task_manager
@@ -197,11 +193,11 @@ def _run_single_claimed(payload: Dict[str, Any]) -> bool:
 
 
 class BaseLaravelAudioWorker(BaseLaravelWorkerService):
-    """Shared word/sentence audio worker (dispatch-driven, result upload only).
+    """Shared word/sentence persistent Laravel audio worker.
 
     Lane-specific config lives in class attributes; the two concrete singletons
     at the bottom differ ONLY in those attributes. Lifecycle:
-      accept_task() (RPC entry) -> record type/endpoint + push the task into
+      typed pull or compatibility accept_task() -> record type/endpoint + push into
       the shared priority heap -> start ONE background drain cycle (skipped
       while the previous cycle runs) -> drain by priority (one serial lane
       or bounded parallel lanes) -> per task: cache check -> synthesize ->
@@ -268,7 +264,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
         # Scratch dir for synthesized/uploaded word MP3s (cleaned per task) and
         # the persistent sentence cache root (retained local copy).
-        self._tmp_dir = os.path.join(tempfile.gettempdir(), "pycore_tts_worker")
+        self._tmp_dir = str(TMP_DIR / "pycore_tts_worker")
         self._cache_dir = str(get_app_cache_dir() / "sentence_audio")
 
         self._initialized = True
@@ -278,25 +274,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         )
 
     # -------------------- identity / lanes --------------------
-
-    @classmethod
-    def _build_worker_id(cls) -> str:
-        """Stable, hostname-based worker id (per-lane prefix).
-
-        Laravel keys claims/heartbeats by worker_id. Configure
-        PYCORE_WORKER_INSTANCE when multiple pycore processes share one host so
-        their ids do not collide.
-        """
-        prefix = getattr(cls, "WORKER_ID_PREFIX", "pycore-worker")
-        host = socket.gethostname() or "host"
-        safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in host).lower()
-        instance = PYCORE_WORKER_INSTANCE.strip()
-        if instance:
-            safe_instance = "".join(
-                c if (c.isalnum() or c in "-_") else "-" for c in instance
-            ).lower()
-            return f"{prefix}-{safe}-{safe_instance}"
-        return f"{prefix}-{safe}"
 
     def _effective_processor_types(self) -> List[str]:
         """Dedicated lane + the shared fast lane (bumped/interactive tasks)."""
@@ -308,11 +285,18 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
     def _effective_capabilities(self) -> List[str]:
         return [GLOBAL_TASK_CAPABILITIES_BY_ROLE[self.CAPABILITY]]
 
+    def _pull_task_types(self) -> List[str]:
+        return [self.QUEUE_KEY] if self._is_enabled() else []
+
+    def _pull_capacity(self) -> int:
+        concurrency, _engine = self._effective_concurrency()
+        return max(0, concurrency - self._queue.active_count())
+
     def _is_enabled(self) -> bool:
         """Lane enable state: the persisted assist capability (UI toggle).
 
-        The UI pump only dispatches while the toggle is on; this is a
-        defense-in-depth guard on the accept entry."""
+        The persistent pull callback runs only while this toggle is on; this is
+        also a defense-in-depth guard on the compatibility accept entry."""
         return assist_capability_enabled(self.ASSIST_CAPABILITY)
 
     # -------------------- engine probe / concurrency --------------------
@@ -1243,13 +1227,16 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     # -------------------- RPC accept entry / drain cycle --------------------
 
-    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
-        """RPC accept entry: take ONE UI-dispatched task and queue it for synthesis.
+    def promote_cached_task(self, task_id: Any, priority: int) -> None:
+        """Reorder both the persistent segment and an already queued task."""
+        super().promote_cached_task(task_id, priority)
+        self._queue.bump_task(task_id, priority)
 
-        The UI pump has already accepted (claimed) the task from Laravel; this
-        worker only processes it and uploads the result. The task type and the
-        Laravel base URL are recorded for the typed result route. Exception-safe
-        — it must never raise into the RPC handler.
+    def accept_task(self, task: Dict[str, Any], base_url: str = "") -> Dict[str, Any]:
+        """Queue one typed-pull or compatibility-RPC task for synthesis.
+
+        The task type and Laravel base URL are recorded for the typed result
+        route. Exception-safe so compatibility RPC callers are not interrupted.
         """
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
@@ -1425,6 +1412,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "queued": queued,
             "processing": int(state["processing"]),
             "current_task": current,
+            "current_tasks": current_tasks,
             "current_keys": current_keys,
             "events": state["events"],
             "total_claimed": state["total_claimed"],

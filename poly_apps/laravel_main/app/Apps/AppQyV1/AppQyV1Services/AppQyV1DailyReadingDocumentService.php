@@ -2,7 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1DailyReadingLibraryDefaults;
 use Illuminate\Support\Facades\Log;

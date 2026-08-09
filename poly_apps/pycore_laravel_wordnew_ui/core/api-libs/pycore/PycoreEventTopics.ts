@@ -14,6 +14,7 @@ export const PYCORE_EVENT_TOPICS = {
   operationChanged: 'operation.changed',
   pycoreLog: 'pycore_log',
   queueBump: 'queue_bump',
+  queueCenterSnapshotChanged: 'queue_center.snapshot.changed',
   qwenJobCompleted: 'tts.qwen3tts.job.completed',
   qwenJobFailed: 'tts.qwen3tts.job.failed',
   qwenQueueChanged: 'tts.qwen3tts.queue.changed',

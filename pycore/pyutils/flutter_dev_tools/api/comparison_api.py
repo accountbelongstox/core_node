@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.flutter_dev_tools.utils.comparison_manager import (
     get_comparison_base_dir,
     list_comparison_images,
@@ -49,8 +50,7 @@ def create_comparison(
         app_name = app_path.name
 
         # Save uploaded actual image to temporary location
-        design_docs_dir = app_path / "design_docs_and_progress"
-        temp_dir = design_docs_dir / "temp"
+        temp_dir = TMP_DIR / "flutter_dev_tools"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         temp_actual_path = temp_dir / "temp_uploaded_actual.png"

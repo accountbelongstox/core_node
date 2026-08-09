@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Sync assist_laravel capabilities to live heartbeat workers.
+Sync persisted Queue Center capabilities to Pycore's live pull workers.
 
-Exchange-hub note (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md): the queue
-workers (translation / TTS word / TTS sentence) no longer run pycore-side pull
-loops — the UI pump dispatches tasks to pycore over RPC — so their former
-heartbeat callbacks are gone. Toggling one of those names is a harmless no-op;
-any remaining registered callbacks still toggle normally.
+The UI owns switches and endpoint selection; registered heartbeat callbacks
+own Laravel pull/accept/result processing independently of the UI lifecycle.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -19,9 +16,8 @@ from pycore.pyctl.assist.assist_settings import assist_callback_states
 def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
     """Enable/disable a heartbeat callback. Returns (ok, error_or_None).
 
-    An unregistered callback is not an failure in either direction: disabling
-    is already "off", and the retired queue-worker callbacks no longer exist
-    (their lifecycle moved to the UI task pump).
+    An unregistered callback is not a failure while startup registration is
+    still in progress; the persisted setting will be applied after registration.
     """
     heartbeat = shared_heartbeat_system
     try:
@@ -33,7 +29,7 @@ def _toggle_callback(name: str, want: bool) -> Tuple[bool, Optional[str]]:
         if not ok:
             if not want:
                 return True, None
-            ColorPrint.blue(f"[AssistSync] {name} not registered — skipped (pump-driven)")
+            ColorPrint.blue(f"[AssistSync] {name} not registered - deferred")
             return True, None
         ColorPrint.blue(f"[AssistSync] {name} {'enabled' if want else 'disabled'}")
         return True, None

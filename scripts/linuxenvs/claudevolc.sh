@@ -44,6 +44,10 @@ scriptSource=""
 scriptCurrentPath=""
 scriptsDirPath=""
 projectRootPath=""
+upgrade_choice=""
+current_version_output=""
+latest_version_output=""
+version_gap_large="0"
 
 # Ensure DISABLE_AUTOUPDATER is set for Claude Code
 export DISABLE_AUTOUPDATER="1"
@@ -66,6 +70,44 @@ fi
 scriptCurrentPath="$(cd "$(dirname "$scriptSource")" && pwd)"
 scriptsDirPath="$(cd "$scriptCurrentPath/.." && pwd)"
 projectRootPath="$(cd "$scriptsDirPath/.." && pwd)"
+
+if command -v claude >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    current_version_output="$(claude --version 2>/dev/null || true)"
+    latest_version_output="$(pnpm view @anthropic-ai/claude-code version 2>/dev/null || true)"
+    version_gap_large="$(node -e '
+const currentInput = process.argv[1];
+const latestInput = process.argv[2];
+const parseVersion = (value) => {
+    const tokens = value.trim().split(/\s+/);
+    for (const token of tokens) {
+        const candidate = token.startsWith("v") ? token.slice(1) : token;
+        const parts = candidate.split(".");
+        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
+        if (valid) {
+            return parts.map(Number);
+        }
+    }
+    return null;
+};
+const current = parseVersion(currentInput);
+const latest = parseVersion(latestInput);
+const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
+const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
+process.stdout.write(large ? "1" : "0");
+' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
+fi
+if [ "$version_gap_large" = "1" ]; then
+    printf '\033[33mUpgrade Claude Code via '\''claude update'\''? [N/y]: \033[0m'
+    read -r upgrade_choice || upgrade_choice=""
+fi
+if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
+    echo "[INFO] Upgrading Claude Code..."
+    claude update
+    hash -r
+    echo "[INFO] Claude Code upgrade command completed."
+elif [ "$version_gap_large" = "1" ]; then
+    echo "[INFO] Claude Code upgrade skipped."
+fi
 
 # Load environment variables from secret files
 secret_dir="$projectRootPath/.secret_keys/.secret_ignore"

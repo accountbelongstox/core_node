@@ -12,9 +12,6 @@ use App\Providers\PathMapper;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 class AppQyV1VocabularyLibraryPublicController extends Controller
 {
@@ -141,19 +138,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             $includeWords = true;
         }
 
-        $baseQuery = AppQyV1VocabularyLibraryModel::query()->public();
-        if ($language !== null && $language !== '') {
-            $baseQuery->forLanguage($language);
-        }
-
         // Single grouped aggregate over the (filtered) library table. The
         // top-level totals (libraries, words, distinct languages) are all derived
         // from these rows, replacing three additional COUNT/SUM/DISTINCT scans.
-        $languageRows = (clone $baseQuery)
-            ->selectRaw('language, SUM(total_words) as total_words, COUNT(*) as libraries_count')
-            ->groupBy('language')
-            ->orderBy('language')
-            ->get();
+        $languageRows = AppQyV1VocabularyLibraryModel::publicLanguageAggregates(
+            $language !== null && $language !== '' ? $language : null
+        );
 
         $totalLibraries = 0;
         $totalWords = 0;
@@ -283,11 +273,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         if ($search = $request->query('search')) {
             // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive
             // on sqlite but case-SENSITIVE on pgsql.
-            $searchNeedle = '%' . strtolower($search) . '%';
-            $query->where(function ($q) use ($searchNeedle) {
-                $q->whereRaw('LOWER(name) LIKE ?', [$searchNeedle])
-                    ->orWhereRaw('LOWER(description) LIKE ?', [$searchNeedle]);
-            });
+            $query->searchTextInsensitive($search);
         }
 
         // Dedup-then-paginate: duplicate library rows (same canonical key) must
@@ -460,44 +446,11 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             return $stats;
         }
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
-        $connectionName = $dictModel->getConnectionName();
-        $table = $dictModel->getTable();
-        if (!Schema::connection($connectionName)->hasTable($table)) {
-            return $stats;
-        }
-
-        $hasValidity = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
-
-        // Booleans compared with true/false so the raw SQL is portable across
-        // pgsql (real boolean) and sqlite (true/false map to 1/0).
-        $selects = [
-            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as translated",
-            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
-            "SUM(CASE WHEN image_files IS NOT NULL AND image_files <> '' AND image_files <> '{}' AND image_files <> '[]' THEN 1 ELSE 0 END) as with_image",
-        ];
-        if ($hasValidity) {
-            $selects[] = 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid';
-        } else {
-            $selects[] = '0 as invalid';
-        }
-        $selectSql = implode(', ', $selects);
-
-        // Chunk the id set so the WHERE IN never exceeds driver bind limits.
-        foreach (array_chunk($ids, 1000) as $chunk) {
-            $row = DB::connection($connectionName)
-                ->table($table)
-                ->whereIn('id', $chunk)
-                ->selectRaw($selectSql)
-                ->first();
-            if ($row === null) {
-                continue;
-            }
-            $stats['translated'] += (int) $row->translated;
-            $stats['with_audio'] += (int) $row->with_audio;
-            $stats['with_image'] += (int) $row->with_image;
-            $stats['invalid'] += (int) $row->invalid;
-        }
+        $coverage = AppQyV1LangDictionaryModel::coverageMetricsForIds($langCode, $ids);
+        $stats['translated'] = $coverage['translated'];
+        $stats['with_audio'] = $coverage['with_audio'];
+        $stats['with_image'] = $coverage['with_image'];
+        $stats['invalid'] = $coverage['invalid'];
 
         return $stats;
     }
@@ -520,8 +473,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $offset = ($page - 1) * $perPage;
 
         $languageCode = self::getLanguageCode($language);
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $hasDictionaryTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictModel->getTable());
+        $hasDictionaryTable = AppQyV1LangDictionaryModel::languageTableExists($languageCode);
 
         // Membership lives in vocabulary_libraries.word_ids: build the
         // (library, word_id, in-library index) pair list for every public
@@ -752,16 +704,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             ];
         }
 
-        // The aggregate below scans the whole tts_cache_{lang} table (197k+ rows
-        // for EN) and runs on every dashboard load, once per language. Cache the
-        // result for a short window; writes to the dictionary explicitly forget
-        // this key (AppQyV1LangDictionaryModel::forgetMetricsCache), and the TTL
-        // is a backstop for any path that bypasses explicit invalidation.
-        return Cache::remember(
-            AppQyV1LangDictionaryModel::metricsCacheKey($languageCode),
-            AppQyV1LangDictionaryModel::METRICS_CACHE_TTL,
-            fn () => $this->computeDictionaryMetrics($languageName, $languageCode)
-        );
+        return $this->computeDictionaryMetrics($languageName, $languageCode);
     }
 
     private function computeDictionaryMetrics(string $languageName, string $languageCode): array
@@ -782,44 +725,17 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
             'review_percentage' => 0,
         ];
 
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $connectionName = $dictModel->getConnectionName();
-        $table = $dictModel->getTable();
-
-        if (!Schema::connection($connectionName)->hasTable($table)) {
+        $coverage = AppQyV1LangDictionaryModel::cachedCoverageMetrics($languageCode);
+        if ($coverage === null) {
             return $empty;
         }
 
-        $hasValidityColumn = Schema::connection($connectionName)->hasColumn($table, 'is_valid');
-
-        $selects = [
-            'COUNT(*) as total',
-            // Booleans compared with true/false (not 1/0) so the raw SQL works on
-            // both pgsql (real boolean) and sqlite (true/false map to 1/0).
-            "SUM(CASE WHEN has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]') THEN 1 ELSE 0 END) as with_translation",
-            'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as with_audio',
-            "SUM(CASE WHEN image_files IS NOT NULL AND image_files <> '' AND image_files <> '{}' AND image_files <> '[]' THEN 1 ELSE 0 END) as with_images",
-        ];
-
-        if ($hasValidityColumn) {
-            $selects[] = 'SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) as invalid_words';
-            $selects[] = 'SUM(CASE WHEN validity_checked_at IS NOT NULL THEN 1 ELSE 0 END) as validity_checked';
-        } else {
-            $selects[] = '0 as invalid_words';
-            $selects[] = '0 as validity_checked';
-        }
-
-        $row = DB::connection($connectionName)
-            ->table($table)
-            ->selectRaw(implode(', ', $selects))
-            ->first();
-
-        $total = (int) $row->total;
-        $withTranslation = (int) $row->with_translation;
-        $withAudio = (int) $row->with_audio;
-        $withImages = (int) $row->with_images;
-        $invalid = (int) $row->invalid_words;
-        $checked = (int) $row->validity_checked;
+        $total = $coverage['total'];
+        $withTranslation = $coverage['with_translation'];
+        $withAudio = $coverage['with_audio'];
+        $withImages = $coverage['with_images'];
+        $invalid = $coverage['invalid_words'];
+        $checked = $coverage['validity_checked'];
 
         $withoutTranslation = $total - $withTranslation;
         if ($withoutTranslation < 0) {

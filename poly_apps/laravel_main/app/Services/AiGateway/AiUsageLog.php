@@ -28,7 +28,7 @@ class AiUsageLog
     public const RUNTIME = 'laravel';
 
     /** Newest-last ring buffer cap (matches pycore _MAX_ENTRIES). */
-    private const MAX_ENTRIES = 400;
+    private const MAX_ENTRIES = 5000;
 
     // Every AI/capability call kind the unified usage log accepts (parity with
     // pycore ai_usage_log._KINDS). image/tts/stt are folded in so the global
@@ -143,6 +143,7 @@ class AiUsageLog
             $prov['last_ts'] = $ts;
             $prov['last_model'] = $entry['model'];
             unset($prov);
+            AiUsageRollup::update($doc['source_stats'], $entry);
             self::save($doc);
         });
     }
@@ -151,7 +152,7 @@ class AiUsageLog
      * Newest-first records (+ full per-provider/kind rollup) for the UI.
      * Optional $kind filters the records (stats stay the full rollup).
      *
-     * @return array{success: bool, storage_path: string, stats: array, entries: array}
+     * @return array{success: bool, storage_path: string, stats: array, source_stats: array, entries: array}
      */
     public static function log(int $limit = 100, ?string $kind = null): array
     {
@@ -166,6 +167,7 @@ class AiUsageLog
             'success' => true,
             'storage_path' => self::file(),
             'stats' => $doc['stats'],
+            'source_stats' => $doc['source_stats'],
             'entries' => array_slice($records, 0, $limit),
         ];
     }
@@ -178,6 +180,7 @@ class AiUsageLog
             $n = count($doc['entries']);
             $doc['entries'] = [];
             $doc['stats'] = [];
+            $doc['source_stats'] = [];
             self::save($doc);
             return $n;
         });
@@ -185,7 +188,7 @@ class AiUsageLog
 
     // --- internals --------------------------------------------------------- //
 
-    /** @return array{version: int, saved_at: float, entries: array, stats: array} */
+    /** @return array{version: int, saved_at: float, entries: array, stats: array, source_stats: array} */
     private static function load(): array
     {
         $path = self::file();
@@ -194,16 +197,22 @@ class AiUsageLog
             if ($raw !== false && $raw !== '') {
                 $decoded = json_decode($raw, true);
                 if (is_array($decoded)) {
+                    $entries = is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [];
+                    $sourceStats = is_array($decoded['source_stats'] ?? null) ? $decoded['source_stats'] : [];
+                    if ($sourceStats === [] && $entries !== []) {
+                        $sourceStats = AiUsageRollup::rebuild($entries);
+                    }
                     return [
                         'version' => isset($decoded['version']) ? (int) $decoded['version'] : 1,
                         'saved_at' => isset($decoded['saved_at']) ? (float) $decoded['saved_at'] : 0.0,
-                        'entries' => is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [],
+                        'entries' => $entries,
                         'stats' => is_array($decoded['stats'] ?? null) ? $decoded['stats'] : [],
+                        'source_stats' => $sourceStats,
                     ];
                 }
             }
         }
-        return ['version' => 1, 'saved_at' => 0.0, 'entries' => [], 'stats' => []];
+        return ['version' => 1, 'saved_at' => 0.0, 'entries' => [], 'stats' => [], 'source_stats' => []];
     }
 
     private static function save(array $doc): void

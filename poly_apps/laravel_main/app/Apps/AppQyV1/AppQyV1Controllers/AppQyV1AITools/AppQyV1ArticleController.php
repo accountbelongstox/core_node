@@ -15,7 +15,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\Utils\AppQyV1ArticleTextParser;
@@ -23,13 +22,10 @@ use App\Services\TaskManagerService;
 use App\Services\BookTextStatsService;
 use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use Illuminate\Support\Facades\Log;
@@ -138,7 +134,7 @@ class AppQyV1ArticleController
         $task = null;
 
         try {
-        DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use (
+        AppQyV1Article::runInTransaction(function () use (
                 $articleId,
                 $userId,
                 $request,
@@ -650,10 +646,11 @@ class AppQyV1ArticleController
             'reference_cn' => 'nullable|string|max:5000',
             'reference_lang' => 'nullable|string|max:10',
             'target_lang' => 'nullable|string|max:10',
-            'source' => 'nullable|string|max:255',
+            'article_type' => 'nullable|string|in:daily',
+            'source' => 'nullable|string|in:agent_history',
             'raw_preview' => 'nullable|string|max:5000',
             'raw_word_count' => 'nullable|integer|min:0',
-            'audio_base64' => 'nullable|string',
+            'audio_base64' => 'required|string',
             'tts_engine' => 'nullable|string|max:100',
             'tts_accent' => 'nullable|string|max:20',
             'openrouter_model' => 'nullable|string|max:200',
@@ -678,22 +675,33 @@ class AppQyV1ArticleController
 
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
         $articleId = 'article_' . Str::uuid();
+        $articleType = AppQyV1Article::TYPE_DAILY;
+        $source = AppQyV1Article::SOURCE_AGENT_HISTORY;
 
         try {
+            $audioUrl = $this->dailyReadingService->storeAudio(
+                $articleId,
+                $language,
+                (string) $request->input('audio_base64')
+            );
+            if ($audioUrl === null) {
+                throw new \RuntimeException('Agent history article audio could not be stored.');
+            }
+
             $article = AppQyV1Article::create([
                 'article_id' => $articleId,
                 'user_id' => 0,
                 'title' => $titleEn,
                 'content' => $articleText,
                 'language' => $language,
-                'article_type' => 'daily',
-                'source' => 'daily',
+                'article_type' => $articleType,
+                'source' => $source,
                 'word_count' => $parsedResult['total_words'],
                 'unique_word_count' => $parsedResult['unique_words'],
                 'sentence_count' => $parsedResult['total_sentences'],
                 'is_daily_reading' => true,
                 'reading_date' => now()->toDateString(),
-                'tts_generated' => false,
+                'tts_generated' => true,
                 'metadata' => [
                     'title_en' => $titleEn,
                     'title_cn' => $request->input('title_cn'),
@@ -703,6 +711,16 @@ class AppQyV1ArticleController
                     'raw_preview' => $request->input('raw_preview'),
                     'raw_word_count' => (int) $request->input('raw_word_count', 0),
                     'openrouter_model' => $request->input('openrouter_model'),
+                    'submission_source' => $source,
+                    'audio_url' => $audioUrl,
+                    'audio_status' => 'ready',
+                    'tts_engine' => $request->input('tts_engine'),
+                    'tts_accent' => $request->input('tts_accent'),
+                    'audio_files' => [[
+                        'sentence' => $articleText,
+                        'path' => $audioUrl,
+                        'created_at' => now()->toDateTimeString(),
+                    ]],
                 ],
             ]);
 
@@ -712,26 +730,6 @@ class AppQyV1ArticleController
                 $parsedResult['word_frequency'],
                 $language
             );
-
-            $audioUrl = null;
-            $audioB64 = $request->input('audio_base64');
-            if (is_string($audioB64) && $audioB64 !== '') {
-                $audioUrl = $this->dailyReadingService->storeAudio($articleId, $language, $audioB64);
-                if ($audioUrl !== null) {
-                    $meta = is_array($article->metadata) ? $article->metadata : [];
-                    $meta['audio_url'] = $audioUrl;
-                    $meta['tts_engine'] = $request->input('tts_engine');
-                    $meta['tts_accent'] = $request->input('tts_accent');
-                    $meta['audio_files'] = [[
-                        'sentence' => $articleText,
-                        'path' => $audioUrl,
-                        'created_at' => now()->toDateTimeString(),
-                    ]];
-                    $article->metadata = $meta;
-                    $article->tts_generated = true;
-                    $article->save();
-                }
-            }
 
             // Also persist the article body as an uploaded document (same table
             // as the /learning/upload document feature) categorized as daily
@@ -744,14 +742,13 @@ class AppQyV1ArticleController
                 $language
             );
 
-            $this->mapArticleToLibrary($articleId, $articleText, $language);
-            $bumpedSentences = $this->bumpWorkerArticleSentences($parsedResult, $language);
-
             AppQyV1TranslationEventModel::emit('article.published', [
                 'article_id' => $articleId,
                 'source_key' => $articleId,
                 'title' => $article->title,
                 'language' => $language,
+                'article_type' => $articleType,
+                'source' => $source,
                 'audio_url' => $audioUrl,
                 'document_id' => $documentId,
             ]);
@@ -762,7 +759,9 @@ class AppQyV1ArticleController
                 'audio_url' => $audioUrl,
                 'document_id' => $documentId,
                 'title' => $article->title,
-                'sentence_bumps' => $bumpedSentences,
+                'article_type' => $articleType,
+                'source' => $source,
+                'sentence_bumps' => 0,
             ], 'Agent history article stored');
         } catch (\Throwable $e) {
             return $this->error('Failed to store worker article: ' . $e->getMessage(), 500);
@@ -792,41 +791,4 @@ class AppQyV1ArticleController
         ], 'Recent daily-reading articles');
     }
 
-    /**
-     * After library ingest, bump sentence-audio priority so pycore can fill per-sentence MP3s
-     * for WfNewBookReader read-along (best-effort; never fails the submit).
-     *
-     * @param array<string,mixed> $parsedResult
-     */
-    private function bumpWorkerArticleSentences(array $parsedResult, string $language): int
-    {
-        $rows = $parsedResult['sentences_with_md5'] ?? [];
-        if (!is_array($rows) || count($rows) === 0) {
-            return 0;
-        }
-        $svc = new AppQyV1SentenceAudioService();
-        $bumped = 0;
-        foreach ($rows as $row) {
-            if (!is_array($row)) {
-                continue;
-            }
-            $text = trim((string) ($row['sentence'] ?? ''));
-            $contentId = trim((string) ($row['md5'] ?? ''));
-            if ($contentId === '' || $text === '') {
-                continue;
-            }
-            try {
-                $res = $svc->bumpPriority($contentId, $language, true, true, $text);
-                if (!empty($res['ok'])) {
-                    $bumped++;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('[AppQyV1Article] sentence bump failed', [
-                    'content_id' => $contentId,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-        return $bumped;
-    }
 }

@@ -230,6 +230,11 @@ interface ContractDocument {
     ready_ttl_seconds: number;
     consumed_ttl_seconds: number;
   };
+  delivery_receipt: {
+    stages: Record<string, string>;
+    worker_kinds: string[];
+    task_id_limit_source: string;
+  };
   capability_claimants: Record<string, Array<'pycore' | 'chrome'>>;
   task_contract: {
     statuses: {
@@ -311,6 +316,7 @@ const TASK_WIRE_DTO_FIELDS = {
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
+export const DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const TASK_STATUS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;
 const taskStatusesForRoles = (roles: string[]): TaskStatus[] => (
   roles.map((role) => TASK_STATUS_BY_ROLE[role] ?? role)

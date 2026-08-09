@@ -11,7 +11,7 @@
 
 namespace App\Http\Clash;
 
-use App\Models\Group;
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -20,9 +20,7 @@ class GroupController
 {
     public function index()
     {
-        $groups = Group::orderBy('created_at', 'desc')
-            ->withCount('configs')
-            ->get();
+        $groups = Group::orderedWithConfigCounts();
         return response()->json($groups);
     }
 
@@ -37,7 +35,7 @@ class GroupController
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $group = Group::create([
+        $group = Group::createGroup([
             'name' => $request->name,
             'description' => $request->description
         ]);
@@ -77,7 +75,7 @@ class GroupController
     public function destroy(Group $group)
     {
         // Check whether the group has any associated configs
-        if ($group->configs()->count() > 0) {
+        if ($group->hasConfigs()) {
             return response()->json([
                 'message' => 'Cannot delete group with associated configs'
             ], 422);

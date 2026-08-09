@@ -403,6 +403,12 @@ def describe_synth_command(
     rate: Optional[str] = None,
     gender: Optional[str] = None,
 ) -> str:
+    if (engine or "").strip().lower() == "gtts_web":
+        return gtts_web_engine.describe_command(
+            text,
+            language or "en",
+            output_path or Path("<output.mp3>"),
+        )
     return format_tts_synth_command(
         engine,
         text,
@@ -511,6 +517,7 @@ def synthesize(
 
     tried: List[str] = []
     last_error: Optional[str] = None
+    last_synth_command = ""
     for name in engine_order:
         # Skip a recently-failed edge endpoint so a whole batch doesn't repeatedly
         # pay the per-attempt timeout when edge is down — go straight to offline.
@@ -531,6 +538,10 @@ def synthesize(
         if synth is None:
             continue
         tried.append(name)
+        synth_command = describe_synth_command(
+            name, cleaned, language, output_path, want_accent, rate, gender
+        )
+        last_synth_command = synth_command
         try:
             with managed_services.using(name), _model_load_ctx(name):
                 if name == "qwen3tts":
@@ -550,6 +561,7 @@ def synthesize(
         except Exception as e:  # noqa: BLE001— fall through to next engine
             last_error = f"{name}: {e}"
             ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
+            ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
             if name == "edge":
                 _set_edge_cooldown()
             continue
@@ -574,14 +586,14 @@ def synthesize(
                 "error": None,
                 "cached": False,
                 "tried": tried,
-                "synth_command": describe_synth_command(
-                    name, cleaned, language, output_path, want_accent, rate, gender),
+                "synth_command": synth_command,
             }
         last_error = f"{name}: synthesis failed"
         detail = _engine_synth_error(name)
         if detail:
             last_error = f"{name}: {detail}"
         ColorPrint.gray(f"[tts] {name} returned no audio; trying next engine")
+        ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
         if name == "edge":
             _set_edge_cooldown()
 
@@ -591,6 +603,7 @@ def synthesize(
         "accent": None,
         "error": last_error or ("No TTS engine available" if not tried else "All TTS engines failed"),
         "tried": tried,
+        "synth_command": last_synth_command,
     }
 
 
@@ -730,6 +743,11 @@ def synthesize_engine(
         return False
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    cleaned = (text or "").strip()
+    synth_command = describe_synth_command(
+        engine, cleaned, language, output_path, accent, rate,
+        extra_params.get("gender"),
+    )
     # Apply per-engine extra params before the synth call, restore afterwards.
     applied_env = _apply_engine_extra_params(engine, extra_params)
     ok = False
@@ -737,13 +755,13 @@ def synthesize_engine(
         with managed_services.using(engine), _model_load_ctx(engine):
             if engine == "qwen3tts":
                 ok = qwen_engine.synthesize(
-                    (text or "").strip(), language or "en", output_path,
+                    cleaned, language or "en", output_path,
                     speed=_rate_to_speed(rate),
                     speaker=extra_params.get("speaker"),
                     instruct=extra_params.get("instruct"),
                 )
             else:
-                ok = synth((text or "").strip(), language, output_path, rate, _normalize_accent(accent))
+                ok = synth(cleaned, language, output_path, rate, _normalize_accent(accent))
             if ok and is_server_engine(engine):
                 record_server_use(engine)
     except Exception as e:  # noqa: BLE001
@@ -754,6 +772,7 @@ def synthesize_engine(
             str(e),
         )
         ColorPrint.yellow(f"[tts] {engine} test failed ({e})")
+        ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
         return False
     finally:
         _restore_engine_extra_params(applied_env)
@@ -773,7 +792,12 @@ def synthesize_engine(
                 "last_engine_synth_error",
                 f"{engine} synthesis failed",
             )
-    return bool(ok and output_path.exists() and output_path.stat().st_size > 0)
+    produced_audio = bool(
+        ok and output_path.exists() and output_path.stat().st_size > 0
+    )
+    if not produced_audio:
+        ColorPrint.yellow(f"[tts] failed synth command: {synth_command}")
+    return produced_audio
 
 
 def tts_test(engine: Optional[str] = None, text: Optional[str] = None,

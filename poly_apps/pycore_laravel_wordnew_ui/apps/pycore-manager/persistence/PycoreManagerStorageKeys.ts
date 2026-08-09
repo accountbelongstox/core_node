@@ -1,8 +1,13 @@
-/** Pycore Manager-owned UI persistence registry. */
-export const PycoreManagerStorageKeys = {
-  PYCORE_CACHE_SETTINGS: 'pycore_settings',
+/** Pycore Manager-owned runtime cache keys. */
+export const PycoreManagerCacheStorageKeys = {
   PYCORE_CACHE_QUEUE: 'pycore_queue_cache',
   PYCORE_CACHE_QUEUE_TS: 'pycore_queue_cache_ts',
+  PYCORE_UI_STATE_PENDING_REVISION: 'pc_ui_state_pending_revision',
+} as const;
+
+/** Pycore Manager-owned UI persistence registry. */
+export const PycoreManagerUiStorageKeys = {
+  PYCORE_CACHE_SETTINGS: 'pycore_settings',
   PYCORE_CACHE_THEME_LEGACY: 'pycore_theme',
   PYCORE_SENTENCE_WORKER_CONCURRENCY: 'pc_sentence_worker_concurrency',
   PYCORE_SENTENCE_QWEN_SPEAKER: 'pc_sentence_qwen_speaker',
@@ -20,4 +25,15 @@ export const PycoreManagerStorageKeys = {
   PYCORE_AI_TAB: 'pc_ai_tab',
   PYCORE_CONTENT_TAB: 'pc_content_tab',
   PYCORE_VOCAB_TAB: 'pc_vocab_tab',
+  PYCORE_AGENT_HISTORY_UI: 'pc_agent_history_ui',
+  PYCORE_AGENT_HISTORY_RECORD_PAGE: 'pc_agent_history_record_page',
 } as const;
+
+export const PycoreManagerStorageKeys = {
+  ...PycoreManagerCacheStorageKeys,
+  ...PycoreManagerUiStorageKeys,
+} as const;
+
+export const PYCORE_MANAGER_SYNCED_STORAGE_KEYS = Object.freeze(
+  Array.from(new Set(Object.values(PycoreManagerUiStorageKeys))),
+);

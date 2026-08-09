@@ -15,11 +15,11 @@ here (never re-declared) so import-time init/side-effects stay single-sourced.
 
 import sys
 import time
-import tempfile
 from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.clipboard.clipboard_manager import clipboard_manager
 from pycore.pyutils.hotkey.hotkey_listener import HotkeyListener
 from pycore.pyutils.common.speech_config import speech_config
@@ -538,7 +538,7 @@ def _replay_text_with_tts(text: str, language: str, speech_manager):
         voice = voice_map.get(language, "en-US-JennyNeural")
 
         # Generate temporary audio file
-        temp_dir = Path(tempfile.gettempdir())
+        temp_dir = TMP_DIR
         temp_file = temp_dir / f"tts_replay_{int(time.time())}.mp3"
 
         ColorPrint.blue(f"[TTS] Generating speech: {voice}")

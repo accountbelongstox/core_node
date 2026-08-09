@@ -435,10 +435,10 @@ export const WfNewHomeTab: React.FC<WfNewHomeTabProps> = (props) => {
                 theme={activeTheme}
                 trans={trans}
                 onOpenPage={(articleId) => {
+                  setActiveTab('daily-reading');
                   if (typeof window !== 'undefined') {
                     window.history.replaceState(null, '', `#/daily-reading/${encodeURIComponent(articleId)}`);
                   }
-                  setActiveTab('daily-reading');
                 }}
                 onOpenBook={(sourceKey, title) => openHomeGroup({
                   id: sourceKey,

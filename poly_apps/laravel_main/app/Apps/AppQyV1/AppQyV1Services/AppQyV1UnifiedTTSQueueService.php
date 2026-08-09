@@ -356,6 +356,7 @@ class AppQyV1UnifiedTTSQueueService
     private function addWordTask(string $content, string $language, string $position): array
     {
         $contentHash = md5($content);
+        $queueTaskId = null;
 
         $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
 
@@ -414,27 +415,17 @@ class AppQyV1UnifiedTTSQueueService
                 'dict_language' => $language,
                 'dict_row_table' => $dictEntry->getTable(),
             ];
-            if ($position === 'beginning') {
-                $queueResult = $queueCenter->moveToHead(
-                    \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                    $dedupKey,
-                    $queuePayload,
-                    true,
-                    $queueLinks
-                );
-                $queueTaskId = (string) ($queueResult['task_id'] ?? '');
-            } else {
-                $queueResult = $queueCenter->enqueue(
-                    \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
-                    $queuePayload,
-                    $dedupKey,
-                    false,
-                    $queueLinks,
-                    min((int) ($dictEntry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
-                    300
-                );
-                $queueTaskId = (string) $queueResult['task']->task_id;
-            }
+            $queueResult = $queueCenter->schedule(
+                \App\Services\QueueCenter\QueueCenterService::QUEUE_WORD_AUDIO,
+                $queuePayload,
+                $dedupKey,
+                $position === 'beginning',
+                true,
+                $queueLinks,
+                min((int) ($dictEntry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
+                300
+            );
+            $queueTaskId = (string) ($queueResult['task_id'] ?? '');
             if ($queueTaskId !== '') {
                 // Link the canonical row to its queue-center task (same column
                 // the retired dual-write maintained).
@@ -455,6 +446,7 @@ class AppQyV1UnifiedTTSQueueService
             'success' => true,
             'status' => $status,
             'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $dictEntry->id, self::TYPE_WORD, $language),
+            'queue_task_id' => $queueTaskId,
             'task_type' => self::TYPE_WORD,
             'position' => $position,
         ];
@@ -1460,9 +1452,9 @@ class AppQyV1UnifiedTTSQueueService
         // ---- WORDS: claim across languages up to the batch size ----
         //
         // API-first, no local binary. A claimed word is resolved through the
-        // real-pronunciation API chain (Free Dictionary API -> Forvo) - the SAME
-        // chain AppQyV1WordMediaService::fetchRealPronunciation uses on the
-        // request path. On a hit storeWordAudioBytes persists the bytes and marks
+        // real-pronunciation API chain (Free Dictionary API -> Forvo). The
+        // interactive request path only enqueues and never waits for this chain.
+        // On a hit storeWordAudioBytes persists the bytes and marks
         // the row completed. On a miss the row is NEVER synthesized via the local
         // edge-tts binary: it is delegated to the pycore word_audio task lane
         // (which runs the same API chain, then its TTS fallback) and the claim is
@@ -1862,10 +1854,9 @@ class AppQyV1UnifiedTTSQueueService
 
     /**
      * Try the REAL pronunciation API chain (Free Dictionary API -> Forvo) for a
-     * word and persist a hit via the source-agnostic coordinator. Mirrors
-     * AppQyV1WordMediaService::fetchRealPronunciation so the timer uses the SAME
-     * API-first logic as the request path (storeWordAudioBytes validates the
-     * bytes, writes the canonical path and marks the row completed). Returns
+     * word and persist a hit via the source-agnostic coordinator.
+     * storeWordAudioBytes validates the bytes, writes the canonical path, and
+     * marks the row completed. Returns
      * true only when audio was newly stored. NEVER throws.
      */
     private function tryRealPronunciation(string $word, string $lang, string $md5): bool

@@ -10,12 +10,15 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class CodeMartV1UserModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $table = 'users';
 
     protected $fillable = [

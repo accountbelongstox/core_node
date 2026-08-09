@@ -16,6 +16,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Support\ServerRuntime;
+use App\Utils\SseStreamResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\StreamedEvent;
 
@@ -91,7 +92,7 @@ class AppQyV1TranslationStreamController extends Controller
             $maxLifetime = self::SINGLE_WORKER_LIFETIME_SECONDS;
         }
 
-        $response = response()->eventStream(function () use ($cursor, $maxLifetime) {
+        return SseStreamResponse::make(function () use ($cursor, $maxLifetime) {
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -136,12 +137,5 @@ class AppQyV1TranslationStreamController extends Controller
             // Final envelope carries the cursor so the client resumes exactly.
             yield new StreamedEvent(event: 'stream.close', data: json_encode(['cursor' => $current]));
         });
-
-        // SSE hygiene: disable nginx/proxy buffering so events flush immediately.
-        $response->headers->set('X-Accel-Buffering', 'no');
-        $response->headers->set('Cache-Control', 'no-cache, no-transform');
-        $response->headers->set('Connection', 'keep-alive');
-
-        return $response;
     }
 }

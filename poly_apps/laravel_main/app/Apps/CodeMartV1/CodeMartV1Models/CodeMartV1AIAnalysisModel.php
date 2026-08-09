@@ -3,10 +3,13 @@ namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Constants\AppKeys;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1AIAnalysisModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_ai_analyses';
 

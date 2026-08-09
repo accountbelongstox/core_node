@@ -3,7 +3,7 @@
 namespace App\Services\TaskProcessors;
 
 use App\Models\GlobalTask;
-use App\Models\AppQyV1NotebookLmResult;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotebookLmResultModel as AppQyV1NotebookLmResult;
 use App\Services\TaskManagerService;
 use Illuminate\Support\Facades\Log;
 

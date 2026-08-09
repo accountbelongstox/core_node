@@ -5,7 +5,6 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
@@ -14,8 +13,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 class AppQyV1LearningController extends Controller
@@ -186,7 +183,7 @@ class AppQyV1LearningController extends Controller
             ], 403);
         }
 
-        $message = DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($action, $user, $collection, $collectionId, $langCode) {
+        $message = AppQyV1UserSelectedLibraryModel::runInTransaction(function () use ($action, $user, $collection, $collectionId, $langCode) {
             if ($action === 'select') {
                 AppQyV1UserSelectedLibraryModel::selectLibrary($user->id, $collectionId, $langCode);
 

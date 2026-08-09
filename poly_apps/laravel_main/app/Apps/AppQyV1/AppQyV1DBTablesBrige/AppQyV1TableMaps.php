@@ -149,6 +149,8 @@ class AppQyV1TableMaps
             'verse_seq' => 'verse_seq',
             'grain' => 'grain',
             'page' => 'page',
+            'article_id' => 'article_id',
+            'selection_mode' => 'selection_mode',
             'created_at' => 'created_at',
             'updated_at' => 'updated_at',
         ]
@@ -707,4 +709,3 @@ class AppQyV1TableMaps
         return \App\Providers\GlobalTablesMap::hasTableKey($tableKey);
     }
 }
-

@@ -14,9 +14,11 @@ import {
 } from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
+import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
 import { wfNewPageHeader, type WordNewTab } from './useWfNewAppState';
+import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 export function useWfNewContentHandlers(deps: Record<string, any>) {
   const {
@@ -393,7 +395,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
 
     if (!currentUser.isLoggedIn) {
       addToast(trans('dashboard.loginHint'), 'warning');
-      setActiveTab('auth');
+      requestAuthLogin({ source: 'wordnew-dashboard', reason: 'save-preferences' });
       return;
     }
     try {
@@ -471,6 +473,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
 
   // Perform Speeches robustly with rates
   const playPhoneticSpeech = (word: Word) => {
+    wordNewAudioQueueCenter.notifyMissingWord(word.text, 'en');
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(word.text);
@@ -653,7 +656,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
   const handleAddLibraryToStudy = async (group: WfNewContentGroup) => {
     if (!currentUser.isLoggedIn) {
       addToast(trans('social.loginRequired'), 'warning');
-      setActiveTab('auth');
+      requestAuthLogin({ source: 'wordnew-library', reason: 'add-to-study' });
       return;
     }
     setAddLibraryConfirm({ group, loading: true, submitting: false, preview: null, error: null });

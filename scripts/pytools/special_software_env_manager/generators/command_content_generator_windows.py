@@ -5,64 +5,32 @@ Generates PowerShell scripts for Windows systems with full environment variable 
 This is the Windows-specific version of CommandContentGenerator.ps1
 """
 
-import os
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
 
-from config.path_config import get_path_config
-from script_sections.mcp_section import MCPSectionGenerator
-from script_sections.user_directory_section import UserDirectorySectionGenerator
-from script_sections.env_loading_section import EnvLoadingSectionGenerator
-from script_sections.ssh_command_generator import SSHCommandGenerator
-from script_sections.backup_restore_section import BackupRestoreSectionGenerator
+from generators import CliUpgradeConfig, CommandContentGeneratorBase
 
 
-class WindowsCommandContentGenerator:
+WINDOWS_CLI_UPGRADE_ACTIONS = {
+    'claude': '''Write-Host "[INFO] Upgrading Claude Code..." -ForegroundColor Cyan
+    & $upgradeCliCommand.Source update
+    Write-Host "[INFO] Claude Code upgrade command completed." -ForegroundColor Green''',
+    'codex': '''Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
+    & $upgradePackageManager.Source add --global "@openai/codex@latest"
+    Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green''',
+    'kimi': '''Write-Host "[INFO] Upgrading Kimi Code CLI with the official native installer..." -ForegroundColor Cyan
+    $upgradeInstallerContent = Invoke-RestMethod -Uri "https://code.kimi.com/kimi-code/install.ps1"
+    Invoke-Expression $upgradeInstallerContent
+    Write-Host "[INFO] Kimi Code CLI native upgrade command completed." -ForegroundColor Green''',
+}
+
+
+class WindowsCommandContentGenerator(CommandContentGeneratorBase):
     """Generate Windows PowerShell command scripts"""
 
     def __init__(self):
-        self.path_config = get_path_config()
-        self.project_root = self.path_config.project_root
-        self.scripts_dir = self.path_config.scripts_dir
+        super().__init__('windows')
         self.win_common_dir = self.path_config.win_common_dir
         self.secret_manager_path = self.path_config.secret_manager_ps1
-        self.mcp_generator = MCPSectionGenerator(self.path_config)
-        self.user_dir_generator = UserDirectorySectionGenerator()
-        self.env_loading_generator = EnvLoadingSectionGenerator()
-        self.ssh_generator = SSHCommandGenerator()
-        self.backup_restore_generator = BackupRestoreSectionGenerator(self.path_config)
-
-    def get_mcp_sync_script_path(self, tool_type: str) -> Path:
-        """Get MCP sync script path for a specific tool"""
-        return self.path_config.get_mcp_sync_script_path(tool_type)
-
-    def get_pre_launch_script_path(self, tool_type: str) -> Path:
-        """Get pre-launch script path for a specific tool"""
-        return self.path_config.get_pre_launch_script_path(tool_type, 'windows')
-
-    def get_update_script_path(self, tool_type: str) -> Path:
-        """Get update/upgrade script path for a specific tool"""
-        return self.path_config.get_update_script_path(tool_type, 'windows')
-
-    def generate_mcp_section(self, tool_type: str, tool_display_name: str,
-                           target_name: str, support_upgrade: bool = True, support_npm_update: bool = False,
-                           include_launch_pause: bool = True) -> str:
-        """Generate MCP synchronization section for any AI tool
-
-        Args:
-            tool_type: Type of AI tool (e.g., 'claude', 'codex')
-            tool_display_name: Display name for the tool (e.g., 'Claude Code')
-            target_name: Target name for MCP sync (e.g., 'claude')
-            support_upgrade: Whether to include upgrade option
-            support_npm_update: Whether to include npm/npx update option
-            include_launch_pause: Whether to include the trailing 'Press Enter' pause
-        """
-        # Delegate to MCPSectionGenerator for consistency
-        return self.mcp_generator.generate_windows_mcp_section(
-            tool_type, tool_display_name, target_name, support_upgrade, support_npm_update,
-            include_launch_pause
-        )
 
     def generate_custom_user_directory_section(self) -> str:
         """Generate custom user directory configuration section"""
@@ -250,27 +218,6 @@ Write-Host ""
 #endregion
 """
 
-    @staticmethod
-    def _has_model_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'ANTHROPIC_MODEL':
-                return True
-        return False
-
-    @staticmethod
-    def _has_codex_model_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'CODEX_MODEL':
-                return True
-        return False
-
-    @staticmethod
-    def _has_kimi_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'KIMI_API_KEY':
-                return True
-        return False
-
     def generate_codex_user_dir_section(self, file_number: int) -> str:
         """Codex path-init + custom user dir override.
 
@@ -363,29 +310,84 @@ if (Test-Path $codexConfigHelper) {
 
 """
 
-    def generate_codex_upgrade_prompt_section(self) -> str:
-        """Codex-only: npm upgrade prompt at the SCRIPT START (default y/N).
+    def _render_cli_upgrade_prompt_section(
+        self,
+        command_prefix: str,
+        tool_config: CliUpgradeConfig,
+    ) -> str:
+        """Render a PowerShell version-aware upgrade section."""
+        action = WINDOWS_CLI_UPGRADE_ACTIONS[command_prefix]
+        template = r'''
+#region Version-Aware CLI Upgrade
+function Invoke-VersionAwareCliUpgrade {
+$upgradeChoice = $null
+$upgradeCliCommand = Get-Command __COMMAND__ -ErrorAction SilentlyContinue
+$upgradePackageManager = Get-Command pnpm -ErrorAction SilentlyContinue
+$upgradeCurrentOutput = $null
+$upgradeLatestOutput = $null
+$upgradeCurrentTokens = @()
+$upgradeLatestTokens = @()
+$upgradeSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
+$upgradeToken = $null
+$upgradeCandidate = $null
+$upgradeCurrentVersion = $null
+$upgradeLatestVersion = $null
+$upgradeVersionGapLarge = $false
+$upgradeInstallerContent = $null
 
-        Runs `npm install -g @openai/codex` when the user confirms - the latest
-        Codex CLI is installed/upgraded before any env/config step."""
-        return """
-#region Upgrade Codex CLI (npm)
-Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "Codex CLI - Upgrade Check" -ForegroundColor Yellow
-Write-Host "============================================================" -ForegroundColor Cyan
-$codexUpgradeChoice = Read-Host "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N)"
-if ($codexUpgradeChoice -eq "y" -or $codexUpgradeChoice -eq "Y") {
-    Write-Host "[INFO] Running: npm install -g @openai/codex" -ForegroundColor Cyan
-    npm install -g "@openai/codex"
-    Write-Host "[SUCCESS] Codex CLI upgrade complete" -ForegroundColor Green
-} else {
-    Write-Host "[INFO] Skipping Codex CLI upgrade" -ForegroundColor Cyan
+if (($null -ne $upgradeCliCommand) -and ($null -ne $upgradePackageManager)) {
+    $upgradeCurrentOutput = (& $upgradeCliCommand.Source --version 2>$null | Out-String).Trim()
+    $upgradeLatestOutput = (& $upgradePackageManager.Source view "__PACKAGE__" version 2>$null | Out-String).Trim()
+    $upgradeCurrentTokens = $upgradeCurrentOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($upgradeToken in $upgradeCurrentTokens) {
+        $upgradeCandidate = $upgradeToken.Trim()
+        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $upgradeCandidate = $upgradeCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeCurrentVersion)) {
+            break
+        }
+    }
+    $upgradeLatestTokens = $upgradeLatestOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($upgradeToken in $upgradeLatestTokens) {
+        $upgradeCandidate = $upgradeToken.Trim()
+        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $upgradeCandidate = $upgradeCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeLatestVersion)) {
+            break
+        }
+    }
 }
-Write-Host ""
+if (($null -ne $upgradeCurrentVersion) -and ($null -ne $upgradeLatestVersion) -and ($upgradeLatestVersion -gt $upgradeCurrentVersion)) {
+    $upgradeVersionGapLarge = ($upgradeLatestVersion.Major -gt $upgradeCurrentVersion.Major) -or
+        (($upgradeLatestVersion.Major -eq $upgradeCurrentVersion.Major) -and ($upgradeLatestVersion.Minor -gt $upgradeCurrentVersion.Minor))
+}
+if ($upgradeVersionGapLarge) {
+    Write-Host "__PROMPT__" -ForegroundColor Yellow -NoNewline
+    $upgradeChoice = Read-Host
+}
+if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
+    __ACTION__
+} elseif ($upgradeVersionGapLarge) {
+    Write-Host "[INFO] CLI upgrade skipped." -ForegroundColor DarkGray
+}
+}
+
+Invoke-VersionAwareCliUpgrade
 #endregion
 
-"""
+'''
+        return (
+            template.replace('__COMMAND__', tool_config.command)
+            .replace('__PACKAGE__', tool_config.package)
+            .replace('__PROMPT__', tool_config.prompt)
+            .replace('__ACTION__', action)
+        )
+
+    def generate_codex_upgrade_prompt_section(self) -> str:
+        """Generate the Codex version-aware upgrade section."""
+        return self.generate_cli_upgrade_prompt_section('codex')
 
     def generate_codex_personalized_config_section(self, has_codex_model: bool) -> str:
         """Codex-only: write ~/.codex/config.toml (model + latest features) and a
@@ -755,21 +757,20 @@ pause
         # and a Python helper writes ~/.codex/config.toml (wire_api=chat) to stop the
         # OpenAI WebSocket fallback that ignores OPENAI_BASE_URL. Other tools: MyBest dir.
         is_codex = (command_prefix or "").lower() == "codex"
+        cli_upgrade_section = self.generate_cli_upgrade_prompt_section(command_prefix)
         if is_codex:
             custom_user_dir_section = self.generate_codex_user_dir_section(file_number)
-            codex_upgrade_section = self.generate_codex_upgrade_prompt_section()
             codex_config_section = self.generate_codex_config_call_section()
         else:
             custom_user_dir_section = self.generate_custom_user_directory_section()
-            codex_upgrade_section = ""
             codex_config_section = ""
 
         # Codex: upgrade prompt at the SCRIPT START (before path/env); config
         # section after env loading. Path-init replaces the custom user dir.
         if is_codex:
-            return f"""{header}{file_name_display}{codex_upgrade_section}{custom_user_dir_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+            return f"""{header}{file_name_display}{cli_upgrade_section}{custom_user_dir_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
-        return f"""{header}{file_name_display}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+        return f"""{header}{file_name_display}{cli_upgrade_section}{custom_user_dir_section}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:

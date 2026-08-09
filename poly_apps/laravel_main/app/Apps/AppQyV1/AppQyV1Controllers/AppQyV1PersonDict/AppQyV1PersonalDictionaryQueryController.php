@@ -64,7 +64,7 @@ class AppQyV1PersonalDictionaryQueryController
         if ($word !== null && $word !== '') {
             // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive
             // on sqlite but case-SENSITIVE on pgsql.
-            $query->whereRaw('LOWER(word) LIKE ?', ['%' . strtolower($word) . '%']);
+            $query->wordContainsInsensitive($word);
         }
         if ($language !== null && $language !== '') {
             $query->where('language', $language);

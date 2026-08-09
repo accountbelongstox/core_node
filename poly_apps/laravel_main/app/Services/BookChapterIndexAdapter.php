@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Models\LangChapter;
-use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 
 /**
  * Maps LangChapter metadata chapter_index to SourceSentence slot chapter_index.

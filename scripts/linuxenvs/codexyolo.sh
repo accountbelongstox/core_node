@@ -12,6 +12,9 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 upgrade_choice=""
+current_version_output=""
+latest_version_output=""
+version_gap_large="0"
 script_dir_path=""
 scripts_dir_path=""
 core_node_path=""
@@ -70,23 +73,46 @@ echo "============================================================"
 echo "codexyolo.sh"
 echo "============================================================"
 
-read -r -p "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]: " upgrade_choice || upgrade_choice=""
-if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
-    if ! command -v pnpm >/dev/null 2>&1; then
-        echo "[WARN] pnpm is unavailable; keeping the installed Codex CLI."
-    else
-        echo "[INFO] Upgrading Codex CLI with pnpm..."
-        pnpm add --global @openai/codex@latest
-        hash -r
-        echo "[INFO] Codex CLI upgrade command completed."
-    fi
-else
-    echo "[INFO] Codex CLI upgrade skipped."
-fi
-
 if ! command -v codex >/dev/null 2>&1; then
     echo "[ERROR] codex is not available on PATH."
     exit 1
+fi
+if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    current_version_output="$(codex --version 2>/dev/null || true)"
+    latest_version_output="$(pnpm view @openai/codex version 2>/dev/null || true)"
+    version_gap_large="$(node -e '
+const currentInput = process.argv[1];
+const latestInput = process.argv[2];
+const parseVersion = (value) => {
+    const tokens = value.trim().split(/\s+/);
+    for (const token of tokens) {
+        const candidate = token.startsWith("v") ? token.slice(1) : token;
+        const parts = candidate.split(".");
+        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
+        if (valid) {
+            return parts.map(Number);
+        }
+    }
+    return null;
+};
+const current = parseVersion(currentInput);
+const latest = parseVersion(latestInput);
+const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
+const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
+process.stdout.write(large ? "1" : "0");
+' "$current_version_output" "$latest_version_output" 2>/dev/null || true)"
+fi
+if [ "$version_gap_large" = "1" ]; then
+    printf '\033[33mUpgrade Codex CLI via '\''pnpm add --global @openai/codex@latest'\''? [N/y]: \033[0m'
+    read -r upgrade_choice || upgrade_choice=""
+fi
+if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
+    echo "[INFO] Upgrading Codex CLI with pnpm..."
+    pnpm add --global @openai/codex@latest
+    hash -r
+    echo "[INFO] Codex CLI upgrade command completed."
+elif [ "$version_gap_large" = "1" ]; then
+    echo "[INFO] Codex CLI upgrade skipped."
 fi
 
 if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||

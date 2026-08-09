@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, Lock, User, ArrowRight, Loader2, AlertTriangle, Mail, UserPlus, Key } from "lucide-react";
 import { useTranslation } from 'react-i18next';
 import { Language } from '../apps/laravel-manager/uiTypes';
-import { useUser } from '../hooks/useUser';
 import { api } from '@/apps/laravel-manager/api';
 import { InviteCode } from '@/apps/laravel-manager/api';
+import { userModel } from '../apps/laravel-manager/models/UserModel';
+import { getAuthErrorMessage } from '../apps/laravel-manager/utils/authErrors';
 import Portal from './shared/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP, OVERLAY_BACKDROP_STRONG } from '../styles/overlay';
 
@@ -22,9 +23,9 @@ interface LoginModalProps {
 
 const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lang: _lang, blockCloseBackdrop = false, contained = false }) => {
   const { t } = useTranslation();
-  const { login, register, loading, error: userError, clearError } = useUser();
 
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -34,6 +35,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     registrationCode: ''
   });
   const [localError, setLocalError] = useState<string | null>(null);
+  const [userError, setUserError] = useState<string | null>(null);
   const [availableCodes, setAvailableCodes] = useState<InviteCode[]>([]);
 
   const error = localError || userError;
@@ -65,14 +67,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
     setFormData(prev => ({ ...prev, [field]: e.target.value }));
     if (error) {
       setLocalError(null);
-      clearError();
+      setUserError(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLocalError(null);
-    clearError();
+    setUserError(null);
 
     if (!formData.username || !formData.password) {
       setLocalError(t('login.errors.AUTH_VALIDATION_FAILED'));
@@ -84,21 +86,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
       return;
     }
 
-    let success = false;
-
-    if (isRegisterMode) {
-      success = await register(
-        formData.username,
-        formData.password,
-        formData.email || undefined,
-        formData.nickname || undefined,
-        formData.registrationCode || undefined
-      );
-    } else {
-      success = await login(formData.username, formData.password);
-    }
-
-    if (success) {
+    setLoading(true);
+    try {
+      if (isRegisterMode) {
+        await userModel.register(
+          formData.username,
+          formData.password,
+          formData.email || undefined,
+          formData.nickname || undefined,
+          formData.registrationCode || undefined
+        );
+      } else {
+        await userModel.login(formData.username, formData.password);
+      }
       setFormData({
         username: '',
         password: '',
@@ -108,13 +108,22 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onSuccess, lan
         registrationCode: ''
       });
       onSuccess();
+    } catch (submitError) {
+      const authError = submitError as Error & { errorCode?: string };
+      setUserError(getAuthErrorMessage(
+        authError.errorCode,
+        authError.message,
+        _lang,
+      ));
+    } finally {
+      setLoading(false);
     }
   };
 
   const toggleMode = () => {
     setIsRegisterMode(prev => !prev);
     setLocalError(null);
-    clearError();
+    setUserError(null);
   };
 
   const title = isRegisterMode ? t('login.register_title') : t('login.title');

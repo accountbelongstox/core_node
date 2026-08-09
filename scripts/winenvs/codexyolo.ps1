@@ -51,6 +51,16 @@ $upgradeChoice = $null
 $pnpmCommand = $null
 $nodeCommand = $null
 $codexCommand = $null
+$currentVersionOutput = $null
+$latestVersionOutput = $null
+$currentVersionTokens = @()
+$latestVersionTokens = @()
+$versionSeparators = @()
+$versionToken = $null
+$versionCandidate = $null
+$currentVersion = $null
+$latestVersion = $null
+$versionGapLarge = $false
 $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
 $codexArgs = @()
@@ -93,23 +103,50 @@ Write-Host "============================================================" -Foreg
 Write-Host "codexyolo.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 
-$upgradeChoice = Read-Host "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]"
-if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
-    $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
-    if ($null -eq $pnpmCommand) {
-        Write-Host "[WARN] pnpm is unavailable; keeping the installed Codex CLI." -ForegroundColor Yellow
-    } else {
-        Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
-        & $pnpmCommand.Source add --global "@openai/codex@latest"
-        Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green
-    }
-} else {
-    Write-Host "[INFO] Codex CLI upgrade skipped." -ForegroundColor DarkGray
-}
-
 $codexCommand = Get-Command codex -ErrorAction SilentlyContinue
 if ($null -eq $codexCommand) {
     throw "codex is not available on PATH."
+}
+$pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+$versionSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
+if ($null -ne $pnpmCommand) {
+    $currentVersionOutput = (& $codexCommand.Source --version 2>$null | Out-String).Trim()
+    $latestVersionOutput = (& $pnpmCommand.Source view "@openai/codex" version 2>$null | Out-String).Trim()
+    $currentVersionTokens = $currentVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($versionToken in $currentVersionTokens) {
+        $versionCandidate = $versionToken.Trim()
+        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $versionCandidate = $versionCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($versionCandidate, [ref]$currentVersion)) {
+            break
+        }
+    }
+    $latestVersionTokens = $latestVersionOutput.Split($versionSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($versionToken in $latestVersionTokens) {
+        $versionCandidate = $versionToken.Trim()
+        if ($versionCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $versionCandidate = $versionCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($versionCandidate, [ref]$latestVersion)) {
+            break
+        }
+    }
+}
+if (($null -ne $currentVersion) -and ($null -ne $latestVersion) -and ($latestVersion -gt $currentVersion)) {
+    $versionGapLarge = ($latestVersion.Major -gt $currentVersion.Major) -or
+        (($latestVersion.Major -eq $currentVersion.Major) -and ($latestVersion.Minor -gt $currentVersion.Minor))
+}
+if ($versionGapLarge) {
+    Write-Host "Upgrade Codex CLI via 'pnpm add --global @openai/codex@latest'? [N/y]: " -ForegroundColor Yellow -NoNewline
+    $upgradeChoice = Read-Host
+}
+if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
+    Write-Host "[INFO] Upgrading Codex CLI with pnpm..." -ForegroundColor Cyan
+    & $pnpmCommand.Source add --global "@openai/codex@latest"
+    Write-Host "[INFO] Codex CLI upgrade command completed." -ForegroundColor Green
+} elseif ($versionGapLarge) {
+    Write-Host "[INFO] Codex CLI upgrade skipped." -ForegroundColor DarkGray
 }
 
 $mcpChromeNeedsDependencies = -not (Test-Path -LiteralPath $mcpChromeNodeModulesPath)

@@ -1,12 +1,12 @@
 /** types/api.ts - the WfNewApi interface (method contract shared by WfNewApiHttp + WfNewApiMock). (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
-import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAccent, WfNewWordAudioVariant, WfNewWordMedia, WordNewAudioFileVariant, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
+import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAudioVariant, WfNewWordMedia, WfNewWordMediaOptions, WordNewAudioFileVariant, WfNewQueuePriorityResult, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
 import type { WfNewEndpointKind, WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot } from './endpoints';
-import type { WfNewBookReadingProgress } from './bookProgress';
+import type { WfNewBookReadingProgress, WfNewDailyReadingProgress, WfNewDailyReadingSelectionMode } from './bookProgress';
 import type { WfNewClientDeviceSettings, WfNewReaderSettingsBlob } from './readerSettings';
 import type {
   WordNewGroupProgressBlob, WordNewGroupProgressPayload,
@@ -246,13 +246,13 @@ export interface WfNewApi {
    * Resolve (and, file-first, ENQUEUE+prioritize) a word's image/audio + dictionary
    * detail (GET /word/{lang}/{word}/media). Simply calling this triggers backend
    * generation for any missing file; poll it until imageStatus/audioStatus flip to
-   * 'ready' and the urls appear. Optional `opts.accent` requests a specific
-   * accent rendition ('us' | 'uk', contract D1/C1).
+   * 'ready' and the urls appear. `opts.passive` makes polling read-only after
+   * the initial queue notification.
    */
   getWordMedia(
     language: string,
     word: string,
-    opts?: { accent?: WfNewWordAccent },
+    opts?: WfNewWordMediaOptions,
   ): Promise<WfNewWordMedia>;
 
   /** Resolve sentence-library audio (file-first). On miss, backend bumps priority.
@@ -262,6 +262,7 @@ export interface WfNewApi {
     text: string,
     language: string,
     variantKey?: string,
+    passive?: boolean,
   ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WordNewAudioFileVariant[] }>;
 
   // ---- Audio prioritization (Laravel owns the queue + worker notification) ----
@@ -273,13 +274,13 @@ export interface WfNewApi {
   /** Raise TTS priority for a batch of visible sentences (POST /ai_tools/tts/sentence/bump-batch). */
   bumpSentenceAudioBatch(
     items: Array<{ text: string; language: string }>,
-  ): Promise<{ success: boolean; queued?: number; total?: number; error?: string }>;
+  ): Promise<WfNewQueuePriorityResult>;
   /** Enqueue + prioritize word-audio generation by word text
    *  (POST /ai_tools/tts/queue/batch/add, interactive → front of the audio queue). */
   prioritizeWordAudio(
     words: string[],
     language: string,
-  ): Promise<{ success: boolean; queued?: number; error?: string }>;
+  ): Promise<WfNewQueuePriorityResult>;
   /** Raise one existing word-audio task by dictionary hash. */
   boostWordAudioPriority(
     md5: string,
@@ -293,6 +294,11 @@ export interface WfNewApi {
     payload: { chapterIndex?: number | null; verseSeq: number; grain?: string; page?: number },
   ): Promise<WfNewBookReadingProgress | null>;
   listBookReadingProgress(limit?: number): Promise<WfNewBookReadingProgress[]>;
+  getDailyReadingProgress(): Promise<WfNewDailyReadingProgress | null>;
+  saveDailyReadingProgress(
+    articleId: string | null,
+    selectionMode?: WfNewDailyReadingSelectionMode,
+  ): Promise<WfNewDailyReadingProgress | null>;
 
   /** Guest device reader settings (PUBLIC, fingerprint client_key). */
   getClientDeviceSettings(clientKey: string): Promise<WfNewClientDeviceSettings | null>;

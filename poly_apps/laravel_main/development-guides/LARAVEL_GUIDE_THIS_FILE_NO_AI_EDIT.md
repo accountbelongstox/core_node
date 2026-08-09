@@ -52,6 +52,8 @@ The **laravel_main project root** is [here](../).
 
 ## 5. 数据库规则
 
+- **模型归属与命名空间**: `app/Models` may contain only models shared by multiple applications; every application-owned model must use `app/Apps/{AppNameWithVersion}/{AppNameWithVersion}Models/{AppNameWithVersion}{DomainName}Model.php` and the matching `App\Apps\{AppNameWithVersion}\{AppNameWithVersion}Models` namespace.
+- **控制器数据访问**: Controllers must never use the `DB` facade, raw SQL, or raw query clauses; all database reads, writes, transactions, aggregates, optimized queries, and cache policies must be exposed through the owning Laravel Eloquent model using relationships, scopes, and model methods.
 - **数据库位置**: 项目使用的数据库**位于项目代码目录之外**，以便于代码的迁移和部署。
 - **共享数据库**: 所有应用**共同使用同一个数据库**,同时`app/Models`中需要修改为重新放到`app/Apps/{appNameWithVersion}/{appNameWithVersion}Models` 的子目录存入APP专属的Model,不再使用laravel的原目录，同时命名规范为`{appNameWithVersion}{CustomName}Model.php`命名规则，并修正引用。
 - **应用数据库表名桥接**： 

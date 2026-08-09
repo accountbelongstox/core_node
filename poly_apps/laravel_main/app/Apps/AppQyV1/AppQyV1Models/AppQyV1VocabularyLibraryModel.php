@@ -8,6 +8,7 @@ use Illuminate\Support\Collection;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Utils\RunsModelTransactions;
 
 /**
  * Vocabulary library - the ONLY membership store after the Wave A
@@ -19,7 +20,7 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
  */
 class AppQyV1VocabularyLibraryModel extends Model
 {
-    use HasFactory;
+    use HasFactory, RunsModelTransactions;
 
     /**
      * Canonical language name <-> code map. Library rows store the full
@@ -196,6 +197,52 @@ class AppQyV1VocabularyLibraryModel extends Model
         }
 
         return $query;
+    }
+
+    public function scopeSearchTextInsensitive($query, string $search)
+    {
+        $needle = '%' . strtolower($search) . '%';
+
+        return $query->where(function ($builder) use ($needle) {
+            $builder->whereRaw('LOWER(name) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(description) LIKE ?', [$needle]);
+        });
+    }
+
+    public static function publicLanguageAggregates(?string $language = null)
+    {
+        return self::query()
+            ->public()
+            ->forLanguage($language)
+            ->selectRaw('language, SUM(total_words) as total_words, COUNT(*) as libraries_count')
+            ->groupBy('language')
+            ->orderBy('language')
+            ->get();
+    }
+
+    public static function promotePendingCovers(array $ids, bool $all): array
+    {
+        return self::runInTransaction(static function () use ($ids, $all): array {
+            $head = self::query()
+                ->orderByDesc('cover_priority')
+                ->lockForUpdate()
+                ->first(['cover_priority']);
+            $ticket = (int) ($head->cover_priority ?? 0) + 1;
+            $query = self::query()->whereIn('cover_status', ['pending', 'retry', 'failed']);
+
+            if (!$all) {
+                $query->whereIn('id', $ids);
+            }
+
+            $promoted = $query->update([
+                'cover_priority' => $ticket,
+                'cover_status' => 'pending',
+                'assist_claimed_by' => null,
+                'assist_claimed_at' => null,
+            ]);
+
+            return ['priority' => $ticket, 'promoted' => $promoted];
+        });
     }
 
     /**

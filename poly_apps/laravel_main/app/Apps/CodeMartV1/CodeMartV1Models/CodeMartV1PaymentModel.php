@@ -2,6 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Constants\AppKeys;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -9,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1PaymentModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_payments';
 

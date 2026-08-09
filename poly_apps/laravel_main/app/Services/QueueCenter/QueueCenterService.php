@@ -7,6 +7,7 @@ use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Queue Center — single definition for queue operations over global_tasks.
@@ -137,8 +138,9 @@ class QueueCenterService
     /**
      * Move one item to the queue head: enqueue-if-missing on the interactive
      * fast lane, bump the still-pending task, then emit the queue's outbox
-     * event (word_audio.priority / sentence.priority) so a connected pycore
-     * wakes immediately instead of waiting out its poll interval.
+     * event (word_audio.priority / sentence.priority). Laravel's typed pull
+     * returns immediately to a waiting Pycore worker, while UI subscribers use
+     * the outbox event for live queue-head updates.
      *
      * @return array{ok:bool,task_id:string,created:bool,bump:string,status:string}
      *         bump is one of TaskManagerService::bumpTaskPriority outcomes
@@ -160,6 +162,10 @@ class QueueCenterService
         $bump = 'bumped';
         if (!$result['created']) {
             $bump = $this->taskManager->bumpTaskPriority((string) $task->task_id);
+            $refreshedTask = $task->fresh();
+            if ($refreshedTask !== null) {
+                $task = $refreshedTask;
+            }
         } else {
             // bumpTaskPriority promotes the head ID page for existing tasks; a
             // fresh task skips that path, so record it on the head page here.
@@ -170,7 +176,13 @@ class QueueCenterService
         }
 
         if ($emitEvent) {
-            $this->emitQueueEvent($taskType, $task, $dedupKey, $this->normalizeAudioPayload($taskType, $payload));
+            $this->emitQueueEvent(
+                $taskType,
+                $task,
+                $dedupKey,
+                $this->normalizeAudioPayload($taskType, $payload),
+                $bump
+            );
         }
 
         return [
@@ -178,6 +190,51 @@ class QueueCenterService
             'task_id' => (string) $task->task_id,
             'created' => $result['created'],
             'bump' => $bump,
+            'status' => (string) $task->status,
+        ];
+    }
+
+    /**
+     * Canonical enqueue-or-promote entry for audio producers.
+     *
+     * @return array{ok:bool,task_id:string,created:bool,bump:string,status:string}
+     */
+    public function schedule(
+        string $taskType,
+        array $payload,
+        string $dedupKey,
+        bool $moveToHead,
+        bool $emitEvent = true,
+        array $linkAttributes = [],
+        ?int $priority = null,
+        ?int $timeoutSeconds = null
+    ): array {
+        if ($moveToHead) {
+            return $this->moveToHead(
+                $taskType,
+                $dedupKey,
+                $payload,
+                $emitEvent,
+                $linkAttributes
+            );
+        }
+
+        $result = $this->enqueue(
+            $taskType,
+            $payload,
+            $dedupKey,
+            false,
+            $linkAttributes,
+            $priority,
+            $timeoutSeconds
+        );
+        $task = $result['task'];
+
+        return [
+            'ok' => true,
+            'task_id' => (string) $task->task_id,
+            'created' => (bool) $result['created'],
+            'bump' => 'not_requested',
             'status' => (string) $task->status,
         ];
     }
@@ -605,11 +662,16 @@ class QueueCenterService
      * Emit the queue's priority outbox event. The payload is a compact
      * superset of the legacy wire shapes (word_audio.priority carried
      * md5/language/priority; sentence.priority carried
-     * content_id/language/priority/text) so existing pycore consumers keep
-     * working, plus queue/task_id/dedup_key for the queue-center consumer.
+     * content_id/language/priority/text) so existing realtime consumers keep
+     * working, plus queue/task_id/dedup_key/bump for Queue Center.
      */
-    private function emitQueueEvent(string $taskType, GlobalTask $task, string $dedupKey, array $payload): void
-    {
+    private function emitQueueEvent(
+        string $taskType,
+        GlobalTask $task,
+        string $dedupKey,
+        array $payload,
+        string $bump
+    ): void {
         $event = self::OUTBOX_EVENTS[$taskType] ?? null;
         if ($event === null) {
             return;
@@ -621,6 +683,7 @@ class QueueCenterService
             'dedup_key' => $dedupKey,
             'language' => $payload['language'] ?? null,
             'priority' => (int) $task->priority,
+            'bump' => $bump,
         ];
         if ($taskType === self::QUEUE_WORD_AUDIO) {
             $data['md5'] = $payload['md5'] ?? null;
@@ -637,6 +700,18 @@ class QueueCenterService
         }
 
         AppQyV1TranslationEventModel::emit($event, $data);
+        $logMessage = $bump === 'bumped'
+            ? '[QueueCenter] Queue head changed'
+            : '[QueueCenter] Queue priority unchanged';
+        Log::info($logMessage, [
+            'event' => $event,
+            'queue' => $taskType,
+            'task_id' => (string) $task->task_id,
+            'priority' => (int) $task->priority,
+            'bump' => $bump,
+            'language' => $data['language'],
+            'label' => $data['word'] ?? ($data['text'] ?? null),
+        ]);
     }
 
     private function assertSupportedQueue(string $taskType): string

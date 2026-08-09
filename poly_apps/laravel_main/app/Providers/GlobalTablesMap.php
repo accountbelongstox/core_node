@@ -12,6 +12,8 @@ namespace App\Providers;
 
 class GlobalTablesMap
 {
+    public const CONNECTION = 'main';
+
     /**
      * Global Database Table Mappings
      * This class provides centralized table name and field mappings for global tables
@@ -113,6 +115,11 @@ class GlobalTablesMap
             return constant("self::{$constantName}")['tablename'];
         }
         throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
+    }
+
+    public static function getConnection(): string
+    {
+        return self::CONNECTION;
     }
 
     /**

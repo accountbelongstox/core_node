@@ -1,16 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   pycoreApi,
-  refreshAgentHistoryRuntime,
   setAgentHistoryArticleConfig,
   useAgentHistoryRuntime,
 } from '@/apps/pycore-manager/api';
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
+import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
-import PcLlmEnginesStrip from '../../components/PcLlmEnginesStrip';
+import { AGENT_HISTORY_TOOLS } from '../../../../components/views/dev-history/shared';
+import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
 
 const REFERENCE_LANGUAGE = 'CN';
 const TARGET_LANGUAGE = 'EN';
+const AGENT_HISTORY_TOOL_SET = new Set<string>(AGENT_HISTORY_TOOLS);
 
 /**
  * Article config panel — master ON/OFF toggle bound to config.enabled (backend
@@ -19,29 +21,55 @@ const TARGET_LANGUAGE = 'EN';
  */
 const PcAgentHistoryConfigPanel: React.FC<{
   tk: (k: string) => string;
-  onEnabledToolsChange?: (tools: string[]) => void;
-}> = ({ tk, onEnabledToolsChange }) => {
+  selectedTool: string;
+  restoredEnabledTools: string[];
+  storeRevision?: string;
+  onEnabledToolsChange?: (tools: string[], initialHydration?: boolean) => void;
+  onSelectedToolChange: (tool: string) => void;
+  taskPeriod: AgentHistoryTaskPeriod;
+  onTaskPeriodChange: (period: AgentHistoryTaskPeriod) => void;
+}> = ({
+  tk,
+  selectedTool,
+  restoredEnabledTools,
+  storeRevision,
+  onEnabledToolsChange,
+  onSelectedToolChange,
+  taskPeriod,
+  onTaskPeriodChange,
+}) => {
   const {
     articleConfig: articleCfg,
     operationSnapshot,
     configError,
+    authoritative,
   } = useAgentHistoryRuntime();
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [minRawWords, setMinRawWords] = useState(200);
-  const [enabledTools, setEnabledTools] = useState<string[]>([]);
+  const [enabledTools, setEnabledTools] = useState<string[]>(restoredEnabledTools);
+  const toolsHydrated = useRef(false);
 
   useEffect(() => {
     if (!articleCfg) return;
     setEnabled(!!articleCfg.enabled);
     setMinRawWords(Number(articleCfg.min_raw_words || 200));
+    if (!authoritative) return;
     const tools = Array.isArray(articleCfg.enabled_tools)
-      ? (articleCfg.enabled_tools as unknown[]).map(String)
+      ? (articleCfg.enabled_tools as unknown[])
+        .map(String)
+        .filter((tool) => AGENT_HISTORY_TOOL_SET.has(tool))
       : [];
     setEnabledTools(tools);
-    onEnabledToolsChange?.(tools);
-  }, [articleCfg, onEnabledToolsChange]);
+    const initialHydration = !toolsHydrated.current;
+    toolsHydrated.current = true;
+    onEnabledToolsChange?.(tools, initialHydration);
+  }, [articleCfg, authoritative, onEnabledToolsChange]);
+
+  useEffect(() => {
+    if (!authoritative) setEnabledTools(restoredEnabledTools);
+  }, [authoritative, restoredEnabledTools]);
 
   const opStatus = operationSnapshot?.operation as Record<string, any> | undefined;
   const currentItem = operationSnapshot?.current_item as Record<string, any> | undefined;
@@ -58,6 +86,14 @@ const PcAgentHistoryConfigPanel: React.FC<{
   const processing = enabled
     && Boolean(opStatus)
     && !['completed', 'failed', 'cancelled'].includes(String(opStatus?.status || ''));
+  const operationStatus = String(opStatus?.status || '');
+  const phaseText = !enabled
+    ? tk('phasePaused')
+    : operationStatus === 'failed'
+      ? tk('phaseFailed')
+      : processing
+        ? tk('phaseRunning')
+        : tk('phaseWaiting');
 
   const saveConfig = async (enabledOverride?: boolean, toolsOverride?: string[]) => {
     setBusy(true);
@@ -76,7 +112,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
       });
       if (res.success && res.data) {
         setAgentHistoryArticleConfig(res.data);
-        setMsg(tk('save'));
+        setMsg(tk('settingsSaved'));
       } else {
         setMsg(res.error || tk('loadError'));
       }
@@ -94,25 +130,6 @@ const PcAgentHistoryConfigPanel: React.FC<{
     setEnabledTools(tools);
     onEnabledToolsChange?.(tools);
     void saveConfig(undefined, tools);
-  };
-
-  const restartBackfill = async () => {
-    setBusy(true);
-    setMsg(null);
-    try {
-      const res = await pycoreApi.startAgentHistoryArticlePipeline();
-      if (res.success) {
-        setEnabled(true);
-        setMsg(tk('pipelineQueued'));
-        await refreshAgentHistoryRuntime();
-      } else {
-        setMsg(res.error || tk('loadError'));
-      }
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : tk('loadError'));
-    } finally {
-      setBusy(false);
-    }
   };
 
   const inputCls = 'mt-1 w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 text-sm';
@@ -148,7 +165,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
           <span className="text-sm text-slate-700 dark:text-slate-200">{tk('autoProcess')}</span>
           {articleCfg && (
             <span className="text-[11px] font-mono text-slate-500">
-              {tk('phase')}: {String(opStatus?.status || (articleCfg as any).phase || 'idle')}
+              {tk('phase')}: {phaseText}
               {opStatus?.error ? (
                 <span className="text-rose-500 ml-2">
                   {tk('lastError')}: {typeof opStatus.error === 'string' ? opStatus.error : JSON.stringify(opStatus.error)}
@@ -181,32 +198,43 @@ const PcAgentHistoryConfigPanel: React.FC<{
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="text-xs text-slate-500">
             {tk('referenceLang')}
-            <div className={inputCls}>Chinese · CN</div>
+            <div className={inputCls}>{tk('referenceLanguageValue')}</div>
           </div>
           <div className="text-xs text-slate-500">
             {tk('targetLang')}
-            <div className={inputCls}>English · EN</div>
+            <div className={inputCls}>{tk('targetLanguageValue')}</div>
           </div>
           <label className="text-xs text-slate-500">
             {tk('minRawWords')}
-            <input type="number" min={120} max={2000} value={minRawWords}
-              onChange={(e) => setMinRawWords(Number(e.target.value) || 200)}
-              className={inputCls} />
+            <div className="relative">
+              <input type="number" min={120} max={2000} value={minRawWords}
+                onChange={(e) => setMinRawWords(Number(e.target.value) || 200)}
+                className={`${inputCls} pr-14`} />
+              <span className="pointer-events-none absolute right-2 top-1/2 mt-0.5 -translate-y-1/2 text-[11px] text-slate-400">
+                {tk('words')}
+              </span>
+            </div>
           </label>
-          <div className="flex items-end gap-2">
+          <div className="flex items-end">
             <button type="button" onClick={() => saveConfig()} disabled={busy}
               className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-300 dark:border-white/10">
-              {tk('save')}
-            </button>
-            <button type="button" onClick={() => void restartBackfill()} disabled={busy}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50"
-              title={tk('startPipeline')}>
-              {tk('startPipeline')}
+              {tk('saveSettings')}
             </button>
           </div>
         </div>
-        <PcAgentHistoryToolCheckboxes tk={tk} enabledTools={enabledTools} onToggle={handleToolToggle} />
-        <PcLlmEnginesStrip tk={tk} />
+        <PcAgentHistoryToolCheckboxes
+          tk={tk}
+          enabledTools={enabledTools}
+          selectedTool={selectedTool}
+          refreshRevision={`${storeRevision || ''}|${String(opStatus?.revision || '')}`}
+          onToggle={handleToolToggle}
+          onSelect={onSelectedToolChange}
+        />
+        <PcAgentHistoryAiPanel
+          tk={tk}
+          taskPeriod={taskPeriod}
+          onTaskPeriodChange={onTaskPeriodChange}
+        />
         {articleCfg && (
           <div className="text-[11px] font-mono text-slate-500">
             {tk('publishedArticles')}: {Array.isArray((articleCfg as any).published) ? (articleCfg as any).published.length : 0}

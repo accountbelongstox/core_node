@@ -9,7 +9,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1UserRoleModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1DepositCtl extends Controller
 {
@@ -62,7 +61,7 @@ class CodeMartV1DepositCtl extends Controller
             return $this->error('User role not found');
         }
 
-        DB::beginTransaction();
+        CodeMartV1DepositModel::beginModelTransaction();
 
         $deposit = CodeMartV1DepositModel::create([
             'user_id' => $user->id,
@@ -73,7 +72,7 @@ class CodeMartV1DepositCtl extends Controller
             'payment_url' => $this->generatePaymentUrl($request->payment_method, $request->amount),
         ]);
 
-        DB::commit();
+        CodeMartV1DepositModel::commitModelTransaction();
 
         return $this->success([
             'deposit_id' => $deposit->id,
@@ -119,7 +118,7 @@ class CodeMartV1DepositCtl extends Controller
             return $this->notFound('Deposit not found or already processed');
         }
 
-        DB::beginTransaction();
+        CodeMartV1DepositModel::beginModelTransaction();
 
         $deposit->update([
             'status' => 'paid',
@@ -131,7 +130,7 @@ class CodeMartV1DepositCtl extends Controller
             $userRole->update(['role_status' => 'active']);
         }
 
-        DB::commit();
+        CodeMartV1DepositModel::commitModelTransaction();
 
         return $this->success([
             'deposit_id' => $deposit->id,

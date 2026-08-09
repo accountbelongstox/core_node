@@ -3,8 +3,8 @@
  *
  * Mirrors WordNewBookReaderPlayback but simpler: each node is ONE word (single
  * language, no bilingual sequence, no chapters). Backend MP3 first; when a word
- * has no ready clip the deps.resolveAudioUrl polls the sentence-audio scheduler
- * (which both resolves AND bumps priority). On clip end -> advanceFrom to the
+ * has no ready clip the deps.resolveAudioUrl polls the canonical word-audio
+ * gateway (which both resolves and bumps priority). On clip end -> advanceFrom to the
  * next word in the page (autoAdvance), or stop.
  *
  * Clicking another row calls playFrom(thatWord) which re-roots currentNode and
@@ -23,8 +23,8 @@ export interface WordNewLibraryPlaybackDeps {
   onPlaying: (playing: boolean) => void;
   onPaused: (paused: boolean) => void;
   onWordActive: (word: WfNewLibraryWord | null) => void;
-  /** Resolve an absolute MP3 url for the word (may poll the sentence-audio
-   *  scheduler). Return null to give up on this word. */
+  /** Resolve an absolute MP3 URL for the word through the word-audio gateway.
+   * Return null to give up on this word. */
   resolveAudioUrl: (word: WfNewLibraryWord, shouldContinue?: () => boolean) => Promise<string | null>;
   /** Priority nudge for a word whose clip is missing (Laravel relay). */
   bumpMissingAudio: (word: WfNewLibraryWord, lang: string) => void;
@@ -139,11 +139,15 @@ export class WordNewLibraryPlayback {
     };
     audio.onerror = () => {
       if (this.playToken !== token) return;
+      this.deps.bumpMissingAudio(word, lang);
       this.emptyCross += 1;
       if (this.emptyCross >= this.maxEmptyCross) { this.stop(); return; }
       void this.advanceFrom(word);
     };
-    void audio.play().catch(() => { void this.advanceFrom(word); });
+    void audio.play().catch(() => {
+      this.deps.bumpMissingAudio(word, lang);
+      void this.advanceFrom(word);
+    });
   }
 
   private async advanceFrom(word: WfNewLibraryWord): Promise<void> {

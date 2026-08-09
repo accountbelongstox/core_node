@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 
 /**
  * Two-way friend request (SOCIAL_FEATURE_SPECIFICATION.md §1/§2). Kept alongside
@@ -52,6 +53,92 @@ class AppQyV1FriendRequestModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function sendOrReset(int $requesterId, int $addresseeId): self
+    {
+        $request = null;
+
+        $request = static::query()->firstOrCreate(
+            ['requester_id' => $requesterId, 'addressee_id' => $addresseeId],
+            ['status' => self::STATUS_PENDING]
+        );
+
+        if ((string) $request->status === self::STATUS_REJECTED) {
+            $request->status = self::STATUS_PENDING;
+            $request->save();
+        }
+
+        return $request;
+    }
+
+    public static function findRequest(int $requestId): ?self
+    {
+        return static::query()->find($requestId);
+    }
+
+    public function acceptRequest(): self
+    {
+        $this->status = self::STATUS_ACCEPTED;
+        $this->save();
+
+        return $this;
+    }
+
+    public function rejectRequest(): self
+    {
+        $this->status = self::STATUS_REJECTED;
+        $this->save();
+
+        return $this;
+    }
+
+    public static function pendingForUser(int $userId, string $direction): Collection
+    {
+        $query = null;
+
+        $query = static::query()->where('status', self::STATUS_PENDING);
+        if ($direction === 'incoming') {
+            $query->where('addressee_id', $userId);
+        } else {
+            $query->where('requester_id', $userId);
+        }
+
+        return $query->orderByDesc('id')->get();
+    }
+
+    public static function blockPair(int $blockerId, int $blockedUserId): self
+    {
+        $request = null;
+
+        $request = static::query()
+            ->where(function ($query) use ($blockerId, $blockedUserId) {
+                $query
+                    ->where(function ($forwardQuery) use ($blockerId, $blockedUserId) {
+                        $forwardQuery
+                            ->where('requester_id', $blockerId)
+                            ->where('addressee_id', $blockedUserId);
+                    })
+                    ->orWhere(function ($reverseQuery) use ($blockerId, $blockedUserId) {
+                        $reverseQuery
+                            ->where('requester_id', $blockedUserId)
+                            ->where('addressee_id', $blockerId);
+                    });
+            })
+            ->first();
+
+        if (!$request) {
+            return static::query()->create([
+                'requester_id' => $blockerId,
+                'addressee_id' => $blockedUserId,
+                'status' => self::STATUS_BLOCKED,
+            ]);
+        }
+
+        $request->status = self::STATUS_BLOCKED;
+        $request->save();
+
+        return $request;
+    }
 
     /**
      * The set of user ids that are ACCEPTED friends of $userId (either direction).

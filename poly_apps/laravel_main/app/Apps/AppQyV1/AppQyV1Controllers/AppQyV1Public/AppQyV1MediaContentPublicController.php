@@ -15,12 +15,12 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use App\Models\Book;
-use App\Models\Subtitle;
-use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
-use App\Models\LangSentence;
-use App\Models\PunctuationMarker;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PunctuationMarkerModel as PunctuationMarker;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
@@ -77,9 +77,9 @@ class AppQyV1MediaContentPublicController
         $pagination = $this->resolvePagination($request);
 
         if ($type === 'book') {
-            $source = Book::find($id);
+            $source = Book::findSource($id);
         } else {
-            $source = Subtitle::find($id);
+            $source = Subtitle::findSource($id);
         }
 
         if (!$source) {
@@ -125,21 +125,15 @@ class AppQyV1MediaContentPublicController
             }
         }
 
-        $baseQuery = SourceSentence::where('source_type', $type)
-            ->where('source_key', $source->source_key);
-
-        $grain = 'sentence';
-        $totalSentences = (clone $baseQuery)->where('grain', 'sentence')->count();
-        if ($totalSentences === 0) {
-            $grain = 'cue';
-            $totalSentences = (clone $baseQuery)->where('grain', 'cue')->count();
-        }
-
-        $sentences = (clone $baseQuery)->where('grain', $grain)
-            ->orderBy('seq')
-            ->skip($pagination['start'])
-            ->take($pagination['limit'])
-            ->get()
+        $sourcePage = SourceSentence::sourceGrainPage(
+            $type,
+            $source->source_key,
+            $pagination['start'],
+            $pagination['limit']
+        );
+        $grain = $sourcePage['grain'];
+        $totalSentences = $sourcePage['total'];
+        $sentences = $sourcePage['rows']
             ->map(function (SourceSentence $link) {
                 // Books v3.1: when the slot carries a per-language correspondence
                 // map, resolve text/audio from the per-language sentence tables
@@ -235,7 +229,7 @@ class AppQyV1MediaContentPublicController
                 continue;
             }
 
-            $row = LangSentence::onLang((string) $lang)->where('content_id', (string) $contentId)->first();
+            $row = LangSentence::findByContentId((string) $lang, (string) $contentId);
             if ($row === null) {
                 $languages[$lang] = [
                     'text' => null,
@@ -338,9 +332,8 @@ class AppQyV1MediaContentPublicController
             // shared sentence table is removed; there is no fallback.
             $langCode = $this->normalizeLangCodeForLookup($language);
             if ($langCode !== '') {
-                $model = LangSentence::for($langCode);
-                if (\Illuminate\Support\Facades\Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
-                    $rows = LangSentence::onLang($langCode)->whereIn('content_id', $ids)->get();
+                if (LangSentence::tableExists($langCode)) {
+                    $rows = LangSentence::rowsByContentIds($langCode, $ids);
                     foreach ($rows as $row) {
                         $sentenceMap[$row->content_id] = $row;
                     }
@@ -349,10 +342,7 @@ class AppQyV1MediaContentPublicController
         }
 
         // marker code -> glyph (whitespace-only structure markers skipped on join)
-        $markers = PunctuationMarker::all();
-        foreach ($markers as $marker) {
-            $markerChar[$marker->code] = $marker->char;
-        }
+        $markerChar = PunctuationMarker::cachedGlyphMap();
 
         $index = 0;
         foreach ($page as $unit) {

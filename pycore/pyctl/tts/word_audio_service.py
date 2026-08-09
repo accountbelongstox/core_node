@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.secret_manager import get_secret_key_indexed
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
@@ -385,7 +386,11 @@ def edge_synth(word: str, lang: str = "en", accent=None):
     tmp_path: Optional[Path] = None
     try:
         client = edge_tts_client
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(
+            suffix=".mp3",
+            delete=False,
+            dir=str(TMP_DIR),
+        ) as tmp:
             tmp_path = Path(tmp.name)
         ok = client.synthesize(word, voice, tmp_path)
         if not ok or not tmp_path.exists() or tmp_path.stat().st_size == 0:

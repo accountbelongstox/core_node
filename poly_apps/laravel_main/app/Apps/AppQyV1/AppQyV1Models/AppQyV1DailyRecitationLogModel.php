@@ -67,4 +67,18 @@ class AppQyV1DailyRecitationLogModel extends Model
     {
         return self::where('user_id', $userId)->where('date', $date);
     }
+
+    public static function uniqueWordsByDate(int $userId, ?string $startDate = null)
+    {
+        $query = self::query()->where('user_id', $userId);
+        if ($startDate !== null) {
+            $query->where('date', '>=', $startDate);
+        }
+
+        return $query
+            ->groupBy('date')
+            ->orderBy('date')
+            ->selectRaw('date, COUNT(DISTINCT word) as unique_words')
+            ->get();
+    }
 }

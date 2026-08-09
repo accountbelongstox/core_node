@@ -380,7 +380,7 @@ def _check_rate_limit(provider: str, model: Optional[str] = None) -> RateCheckRe
 
 
 def _record_request(provider: str) -> None:
-    """Record one successful chat request for local rate counters."""
+    """Record one dispatched provider request for local rate counters."""
     if resolve_limit(provider) is None:
         return
     now = time.time()
@@ -400,6 +400,17 @@ def _record_request(provider: str) -> None:
     month_map[month_key] = int(month_map.get(month_key, 0)) + 1
     bucket["month"] = {month_key: month_map[month_key]}
     _save_usage(data)
+
+
+def _acquire_rate_limit(
+    provider: str,
+    model: Optional[str] = None,
+) -> RateCheckResult:
+    """Atomically check and reserve one provider request slot."""
+    result = _check_rate_limit(provider, model)
+    if result.allowed:
+        _record_request(provider)
+    return result
 
 
 def _prune_expired() -> Dict[str, Any]:
@@ -546,6 +557,13 @@ def check_rate_limit(
     return call_serialized(_WORK_QUEUE, _check_rate_limit, provider, model)
 
 
+def acquire_rate_limit(
+    provider: str,
+    model: Optional[str] = None,
+) -> RateCheckResult:
+    return call_serialized(_WORK_QUEUE, _acquire_rate_limit, provider, model)
+
+
 def record_request(provider: str) -> None:
     call_serialized(_WORK_QUEUE, _record_request, provider)
 
@@ -568,6 +586,7 @@ def chat_nickname(provider: str, model: str) -> str:
 
 __all__ = [
     "RATE_LIMITS_LAST_UPDATED",
+    "acquire_rate_limit",
     "check_rate_limit",
     "record_request",
     "rate_status",

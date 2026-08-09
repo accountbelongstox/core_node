@@ -17,6 +17,7 @@ export type QueueCenterControlName = 'assist_translation' | 'word_audio' | 'sent
 export type QueueCenterScope = 'assist_translation' | 'word_audio' | 'sentence_audio' | 'media_image';
 export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'error';
 export type PcQueueHandler = 'chrome' | 'pycore';
+export type QueueDeliveryStage = 'waiting' | 'laravel_received' | 'worker_received' | 'completed' | 'failed';
 
 export type GlobalTaskStatus = string;
 export type GlobalTaskExecutionType = string;
@@ -345,6 +346,11 @@ interface ContractDocument {
     ready_ttl_seconds: number;
     consumed_ttl_seconds: number;
   };
+  delivery_receipt: {
+    stages: Record<string, QueueDeliveryStage>;
+    worker_kinds: string[];
+    task_id_limit_source: string;
+  };
   control_names: QueueCenterControlName[];
   callback_queue_roles: Record<string, 'transport' | 'consumer' | 'monitor' | 'signal' | 'maintainer'>;
   section_contract_defaults: Omit<QueueCenterSectionContract, 'type' | 'category' | 'observed_at'>;
@@ -446,6 +452,7 @@ const GLOBAL_TASK_WIRE_DTO_FIELDS = {
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
 export const QUEUE_CENTER_DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
+export const QUEUE_CENTER_DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const QUEUE_CENTER_TASK_PROGRESS = QUEUE_CENTER_CONTRACT.task_contract.progress_stages;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const QUEUE_CENTER_CALLBACK_ROLES = QUEUE_CENTER_CONTRACT.callback_queue_roles;

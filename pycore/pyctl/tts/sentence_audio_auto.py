@@ -2,7 +2,7 @@
 """
 Sentence-audio auto-start settings (Queue Center toggle).
 
-When enabled, turns on the sentence_audio processor used by the UI task pump.
+When enabled, turns on Pycore's persistent sentence-audio pull worker.
 """
 
 from typing import Any, Dict, Optional
@@ -52,7 +52,7 @@ def get_config() -> Dict[str, Any]:
 
 
 def restore_persisted_auto_start() -> None:
-    """Apply persisted concurrency (worker lifecycle is UI-pump driven)."""
+    """Apply persisted concurrency before the pull callback starts."""
     try:
         laravel_sentence_audio_worker.set_concurrency(get_config()["concurrency"])
         laravel_sentence_audio_worker.set_speaker(get_config()["speaker"])

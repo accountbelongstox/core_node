@@ -5,7 +5,6 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
@@ -17,8 +16,6 @@ use App\Apps\AppQyV1\AppQyV1Requests\Group\AppQyV1PreviewAddLibraryToGroupReques
 use App\Apps\AppQyV1\AppQyV1Requests\Group\AppQyV1RemoveLibraryFromGroupRequest;
 use App\Apps\AppQyV1\AppQyV1Requests\Group\AppQyV1GetGroupLibrariesRequest;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 /**
@@ -231,7 +228,7 @@ class AppQyV1WordGroupLibraryController
         // word_ids order with ONE whereIn on tts_cache_{lang}.
         $libraryWords = $library->dictionaryWords(0, count($library->getWordIdsArray()));
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $libraryId, $library, $user, $libraryWords, $languageCode) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $libraryId, $library, $user, $libraryWords, $languageCode) {
             // Serialize concurrent add_library calls for the same group: the
             // row lock makes the link re-check and the text-identity dedupe
             // below race-safe (dedupe decisions use in-transaction state).

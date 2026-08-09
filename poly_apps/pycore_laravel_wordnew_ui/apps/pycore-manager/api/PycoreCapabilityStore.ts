@@ -96,7 +96,7 @@ async function settleCapabilitySnapshot(refresh: boolean): Promise<void> {
   }
 }
 
-/** Refresh the unified capability exchange; live probes are explicit only. */
+/** Refresh the unified exchange; provider tests use the dedicated AI probe API. */
 export async function refreshPycoreCapabilities(refresh = false): Promise<void> {
   if (inFlight) return inFlight;
 
@@ -140,7 +140,7 @@ export function stopPycoreCapabilityPoll(): void {
 export interface PycoreCapabilityHook extends PycoreCapabilityState {
   /** Refresh the shared cached exchange without live probes. */
   refresh: () => Promise<void>;
-  /** One-click retry with explicit live probes. */
+  /** One-click retry that bypasses the local snapshot TTL. */
   retry: () => Promise<void>;
 }
 

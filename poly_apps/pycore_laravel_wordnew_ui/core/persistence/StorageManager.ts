@@ -1,5 +1,12 @@
 import type { StorageKey } from './StorageKeys';
 
+export const STORAGE_MANAGER_CHANGED_EVENT = 'core-storage-manager-changed';
+
+export interface StorageManagerChangedDetail {
+  key: StorageKey;
+  rawValue: string | null;
+}
+
 /**
  * StorageManager
  * Small, type-friendly wrapper for browser localStorage.
@@ -11,6 +18,14 @@ import type { StorageKey } from './StorageKeys';
 export class StorageManager {
   private static isBrowser(): boolean {
     return typeof window !== 'undefined' && !!window.localStorage;
+  }
+
+  private static notifyChanged(key: StorageKey, rawValue: string | null): void {
+    if (!this.isBrowser()) return;
+    window.dispatchEvent(new CustomEvent<StorageManagerChangedDetail>(
+      STORAGE_MANAGER_CHANGED_EVENT,
+      { detail: { key, rawValue } },
+    ));
   }
 
   static has(key: StorageKey): boolean {
@@ -48,10 +63,13 @@ export class StorageManager {
       // Treat undefined as "remove" to avoid storing invalid JSON.
       if (value === undefined) {
         window.localStorage.removeItem(key);
+        this.notifyChanged(key, null);
         return;
       }
 
-      window.localStorage.setItem(key, JSON.stringify(value));
+      const rawValue = JSON.stringify(value);
+      window.localStorage.setItem(key, rawValue);
+      this.notifyChanged(key, rawValue);
     } catch (error) {
       console.error('[StorageManager] set failed:', { key, error });
     }
@@ -61,6 +79,7 @@ export class StorageManager {
     if (!this.isBrowser()) return;
     try {
       window.localStorage.removeItem(key);
+      this.notifyChanged(key, null);
     } catch (error) {
       console.error('[StorageManager] remove failed:', { key, error });
     }
@@ -80,6 +99,7 @@ export class StorageManager {
     try {
       if (value === null) window.localStorage.removeItem(key);
       else window.localStorage.setItem(key, value);
+      this.notifyChanged(key, value);
     } catch {
       /* best-effort persistence */
     }
@@ -131,6 +151,8 @@ export class StorageManager {
       if (raw === null) return false;
       window.localStorage.setItem(targetKey, raw);
       window.localStorage.removeItem(sourceKey);
+      this.notifyChanged(sourceKey, null);
+      this.notifyChanged(targetKey, raw);
       return true;
     } catch {
       return false;

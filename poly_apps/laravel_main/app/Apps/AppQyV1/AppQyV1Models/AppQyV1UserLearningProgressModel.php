@@ -4,6 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
@@ -67,6 +68,91 @@ class AppQyV1UserLearningProgressModel extends Model
             ->orderBy('next_review_at')
             ->limit($limit)
             ->get();
+    }
+
+    public function scopeDueFirst($query)
+    {
+        return $query->orderByRaw('next_review_at IS NULL, next_review_at ASC');
+    }
+
+    public static function socialStatsForUserIds(array $userIds, $since = null, bool $reviewedOnly = false)
+    {
+        $query = self::query()->whereIn('user_id', $userIds);
+
+        if ($since !== null) {
+            $query->where('updated_at', '>=', $since);
+        }
+        if ($reviewedOnly) {
+            $query->where('review_count', '>', 0);
+        }
+
+        return $query
+            ->groupBy('user_id')
+            ->selectRaw('user_id')
+            ->selectRaw("SUM(CASE WHEN learning_status IN ('learning', 'reviewing', 'learned') THEN 1 ELSE 0 END) as learned_count")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_count")
+            ->selectRaw('MAX(updated_at) as last_activity_at')
+            ->get()
+            ->keyBy('user_id');
+    }
+
+    public static function aggregateProgressStats(?array $userIds = null, $since = null)
+    {
+        $query = self::query();
+
+        if ($userIds !== null) {
+            $query->whereIn('user_id', $userIds);
+        }
+        if ($since !== null) {
+            $query->where('updated_at', '>=', $since);
+        }
+
+        return $query
+            ->groupBy('user_id')
+            ->selectRaw('user_id')
+            ->selectRaw('COUNT(*) as total_words')
+            ->selectRaw("SUM(CASE WHEN learning_status IN ('learning', 'reviewing', 'learned') THEN 1 ELSE 0 END) as learned_words")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_words")
+            ->selectRaw('SUM(correct_count) as correct_answers')
+            ->get();
+    }
+
+    public static function recentlyStudyingUserIds(array $userIds, int $windowMinutes): array
+    {
+        $normalizedIds = [];
+
+        $normalizedIds = array_values(array_unique(array_map('intval', $userIds)));
+        if (empty($normalizedIds)) {
+            return [];
+        }
+
+        return static::query()
+            ->whereIn('user_id', $normalizedIds)
+            ->where('updated_at', '>=', now()->subMinutes($windowMinutes))
+            ->distinct()
+            ->pluck('user_id')
+            ->map(fn ($userId) => (int) $userId)
+            ->all();
+    }
+
+    public static function profileStatsForUser(int $userId)
+    {
+        return self::query()
+            ->where('user_id', $userId)
+            ->groupBy('user_id')
+            ->selectRaw('user_id')
+            ->selectRaw('COUNT(*) as total_words')
+            ->selectRaw("SUM(CASE WHEN learning_status IN ('learning', 'reviewing', 'learned') THEN 1 ELSE 0 END) as learned_words")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_words")
+            ->selectRaw('SUM(correct_count) as correct_answers')
+            ->first();
+    }
+
+    public static function tableExists(): bool
+    {
+        $model = new self();
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
     }
 
     public static function createOrUpdateProgress(int $userId, string $langCode, string $wordContent, array $data = [])

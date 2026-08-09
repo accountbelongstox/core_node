@@ -17,6 +17,9 @@ class SseEventDecoder:
     """Incrementally decode SSE field lines into complete events."""
 
     def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
         self._event = ""
         self._event_id = ""
         self._data = []

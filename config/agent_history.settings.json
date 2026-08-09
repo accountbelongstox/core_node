@@ -10,6 +10,8 @@
     "live_listen": false,
     "enabled_tools": [],
     "cursors": {},
+    "live_cursors": {},
+    "backfill_targets": {},
     "last_tool": "",
     "cursor": {
       "fragment_index": 0,

@@ -3,12 +3,16 @@ namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Constants\AppKeys;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 
 class CodeMartV1ProjectModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_projects';
 
@@ -69,6 +73,31 @@ class CodeMartV1ProjectModel extends Model
         return $this->hasOne(CodeMartV1MilestoneModel::class, 'project_id')
             ->where('status', '!=', 'completed')
             ->orderBy('order', 'asc');
+    }
+
+    public static function architectProjects(int $architectId, int $limit = 20): Collection
+    {
+        return self::query()
+            ->where(function ($query) use ($architectId) {
+                $query->where('architect_id', $architectId)
+                    ->orWhere('status', 'awaiting_architect');
+            })
+            ->latest('created_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function acceptForArchitect(int $projectId, int $architectId): bool
+    {
+        return self::query()
+            ->whereKey($projectId)
+            ->where('status', 'awaiting_architect')
+            ->whereNull('architect_id')
+            ->update([
+                'architect_id' => $architectId,
+                'status' => 'in_progress',
+                'updated_at' => now(),
+            ]) === 1;
     }
 
     public function isOpen(): bool

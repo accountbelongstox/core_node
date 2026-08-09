@@ -21,22 +21,9 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_FAST_LANE_CAPABILITIES,
 )
 
-def ai_translate_enabled() -> bool:
-    """Return the live Assist AI-translation capability setting."""
-    if not translation_enabled():
-        return False
-    try:
-        return assist_capability_enabled("ai_translate", True)
-    except Exception:
-        return False
-
-
 def translation_enabled() -> bool:
-    """Translation lanes follow the existing translation-worker UI toggle."""
-    try:
-        return shared_heartbeat_system.is_callback_enabled("translation_worker")
-    except Exception:
-        return assist_capability_enabled("translation")
+    """Return the live prompt-translation capability setting."""
+    return assist_capability_enabled("translation")
 
 
 def subtitle_enabled() -> bool:
@@ -90,10 +77,6 @@ def sentence_audio_enabled() -> bool:
 def effective_capabilities() -> List[str]:
     """Capabilities advertised on register and status."""
     caps: List[str] = []
-    if translation_enabled():
-        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["translate"])
-    if ai_translate_enabled():
-        caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["ai_translate"])
     if stt_enabled():
         caps.append(GLOBAL_TASK_CAPABILITIES_BY_ROLE["stt"])
     # audio / sentence_audio are intentionally NOT advertised here: those lanes

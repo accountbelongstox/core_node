@@ -15,19 +15,15 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Routing\Controller as BaseController;
 use App\Models\User;
 use App\Services\AvatarService;
 use App\Traits\ApiResponse;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostImageModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostLikeModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PostCommentModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserFollowModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1FriendRequestModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 
@@ -66,8 +62,6 @@ class AppQyV1PostController extends BaseController
         $filter = 'all';
         $authorId = 0;
         $followedIds = [];
-        $visibleAuthorIds = [];
-        $builder = null;
         $rows = null;
         $postIds = [];
         $imagesByPost = [];
@@ -98,49 +92,14 @@ class AppQyV1PostController extends BaseController
 
         $followedIds = AppQyV1UserFollowModel::getFollowedUserIds($myId);
 
-        if ($authorId > 0) {
-            // Author-scoped: one author, viewer-visibility applied.
-            $builder = AppQyV1PostModel::query()
-                ->where('user_id', $authorId)
-                ->where(function ($q) use ($authorId, $myId, $followedIds) {
-                    $this->applyAuthorVisibility($q, $authorId, $myId, $followedIds);
-                });
-        } else {
-            $visibleAuthorIds = $followedIds;
-            $visibleAuthorIds[] = $myId;
-            $visibleAuthorIds = array_values(array_unique(array_map('intval', $visibleAuthorIds)));
-
-            // Feed = my own posts + followed users' posts + any public post.
-            // Visibility 'private' is only ever shown to the author; 'followers'
-            // shows to the author and their followers (i.e. anyone who follows them).
-            $builder = AppQyV1PostModel::query()
-                ->where(function ($q) use ($myId, $visibleAuthorIds) {
-                    $q->where('user_id', $myId)
-                        ->orWhere(function ($q2) use ($visibleAuthorIds) {
-                            $q2->whereIn('user_id', $visibleAuthorIds)
-                                ->whereIn('visibility', [
-                                    AppQyV1PostModel::VISIBILITY_PUBLIC,
-                                    AppQyV1PostModel::VISIBILITY_FOLLOWERS,
-                                ]);
-                        })
-                        ->orWhere('visibility', AppQyV1PostModel::VISIBILITY_PUBLIC);
-                });
-        }
-
-        if ($authorId <= 0 && $filter === 'following') {
-            // Strictly posts authored by users I follow.
-            $builder->whereIn('user_id', $followedIds);
-        } elseif ($filter === 'images') {
-            $builder->where('post_type', AppQyV1PostModel::TYPE_IMAGES);
-        } elseif ($filter === 'videos') {
-            $builder->where('post_type', AppQyV1PostModel::TYPE_VIDEO);
-        }
-
-        if ($cursor > 0) {
-            $builder->where('id', '<', $cursor);
-        }
-
-        $rows = $builder->orderByDesc('id')->limit($limit)->get();
+        $rows = AppQyV1PostModel::timelineForViewer(
+            $myId,
+            $followedIds,
+            $authorId,
+            $filter,
+            $cursor,
+            $limit
+        );
 
         $postIds = $rows->pluck('id')->map(fn ($id) => (int) $id)->all();
         $imagesByPost = $this->imagesByPost($postIds);
@@ -202,17 +161,13 @@ class AppQyV1PostController extends BaseController
             return $this->error('A text post requires content', 422);
         }
 
-        $post = AppQyV1PostModel::query()->create([
-            'user_id' => $myId,
-            'content' => is_string($content) ? $content : null,
-            'post_type' => $postType,
-            'external_url' => is_string($externalUrl) && $externalUrl !== '' ? $externalUrl : null,
-            'visibility' => $visibility,
-            'like_count' => 0,
-            'comment_count' => 0,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $post = AppQyV1PostModel::createForUser(
+            $myId,
+            is_string($content) ? $content : null,
+            $postType,
+            is_string($externalUrl) && $externalUrl !== '' ? $externalUrl : null,
+            $visibility
+        );
 
         $shape = $this->postShape(
             $post,
@@ -244,11 +199,11 @@ class AppQyV1PostController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
-        if (!$this->canView($post, $myId)) {
+        if (!$post->canBeViewedBy($myId)) {
             return $this->forbidden('You cannot view this post');
         }
 
@@ -276,7 +231,7 @@ class AppQyV1PostController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
@@ -284,7 +239,7 @@ class AppQyV1PostController extends BaseController
             return $this->forbidden('Only the author can delete this post');
         }
 
-        $post->delete();
+        $post->deletePost();
 
         return $this->success(['post_id' => $id], 'Post deleted');
     }
@@ -297,7 +252,7 @@ class AppQyV1PostController extends BaseController
         $currentUser = $request->user();
         $myId = 0;
         $post = null;
-        $created = null;
+        $likeResult = [];
         $likeCount = 0;
 
         if (!$currentUser) {
@@ -305,23 +260,16 @@ class AppQyV1PostController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
-        if (!$this->canView($post, $myId)) {
+        if (!$post->canBeViewedBy($myId)) {
             return $this->forbidden('You cannot like this post');
         }
 
-        // Idempotent: a second like is a no-op (UNIQUE on the pair).
-        $created = AppQyV1PostLikeModel::query()->firstOrCreate(
-            ['post_id' => $id, 'user_id' => $myId],
-            ['created_at' => now()]
-        );
-
-        if ($created->wasRecentlyCreated) {
-            AppQyV1PostModel::query()->where('id', $id)->increment('like_count');
-
+        $likeResult = $post->registerLike($myId);
+        if ($likeResult['was_created']) {
             // Notify + SSE the post author (skip self-likes).
             if ((int) $post->user_id !== $myId) {
                 AppQyV1SocialEventModel::emit((int) $post->user_id, 'post.liked', [
@@ -344,7 +292,7 @@ class AppQyV1PostController extends BaseController
             }
         }
 
-        $likeCount = (int) AppQyV1PostModel::query()->where('id', $id)->value('like_count');
+        $likeCount = (int) $likeResult['like_count'];
 
         return $this->success([
             'like_count' => $likeCount,
@@ -360,7 +308,7 @@ class AppQyV1PostController extends BaseController
         $currentUser = $request->user();
         $myId = 0;
         $post = null;
-        $deleted = 0;
+        $unlikeResult = [];
         $likeCount = 0;
 
         if (!$currentUser) {
@@ -368,25 +316,13 @@ class AppQyV1PostController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
 
-        $deleted = AppQyV1PostLikeModel::query()
-            ->where('post_id', $id)
-            ->where('user_id', $myId)
-            ->delete();
-
-        if ($deleted > 0) {
-            // Guard the counter against going negative.
-            AppQyV1PostModel::query()
-                ->where('id', $id)
-                ->where('like_count', '>', 0)
-                ->decrement('like_count');
-        }
-
-        $likeCount = (int) AppQyV1PostModel::query()->where('id', $id)->value('like_count');
+        $unlikeResult = $post->removeLike($myId);
+        $likeCount = (int) $unlikeResult['like_count'];
 
         return $this->success([
             'like_count' => $likeCount,
@@ -424,23 +360,18 @@ class AppQyV1PostController extends BaseController
             return $this->validationErrorWithParams($validator);
         }
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
-        if (!$this->canView($post, $myId)) {
+        if (!$post->canBeViewedBy($myId)) {
             return $this->forbidden('You cannot view this post');
         }
 
         $cursor = (int) $request->query('cursor', 0);
         $limit = (int) $request->query('limit', self::COMMENT_DEFAULT_LIMIT);
 
-        $rows = AppQyV1PostCommentModel::query()
-            ->where('post_id', $id)
-            ->where('id', '>', $cursor)
-            ->orderBy('id', 'asc')
-            ->limit($limit)
-            ->get();
+        $rows = AppQyV1PostCommentModel::afterCursor($id, $cursor, $limit);
 
         $authors = $this->authorsFor($rows->pluck('user_id')->map(fn ($uid) => (int) $uid)->all());
 
@@ -485,11 +416,11 @@ class AppQyV1PostController extends BaseController
             return $this->validationErrorWithParams($validator);
         }
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
-        if (!$this->canView($post, $myId)) {
+        if (!$post->canBeViewedBy($myId)) {
             return $this->forbidden('You cannot comment on this post');
         }
 
@@ -498,24 +429,13 @@ class AppQyV1PostController extends BaseController
         if ($parentId !== null) {
             $parentId = (int) $parentId;
             // Parent must belong to THIS post (one-level threading).
-            $parent = AppQyV1PostCommentModel::query()
-                ->where('id', $parentId)
-                ->where('post_id', $id)
-                ->first();
+            $parent = AppQyV1PostCommentModel::findOnPost($parentId, $id);
             if (!$parent) {
                 return $this->error('Parent comment not found on this post', 422);
             }
         }
 
-        $comment = AppQyV1PostCommentModel::query()->create([
-            'post_id' => $id,
-            'user_id' => $myId,
-            'parent_comment_id' => $parentId,
-            'body' => $body,
-            'created_at' => now(),
-        ]);
-
-        AppQyV1PostModel::query()->where('id', $id)->increment('comment_count');
+        $comment = AppQyV1PostCommentModel::createForPost($id, $myId, $body, $parentId);
 
         $shape = $this->commentShape($comment, $this->authorsFor([$myId]));
 
@@ -560,10 +480,7 @@ class AppQyV1PostController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $comment = AppQyV1PostCommentModel::query()
-            ->where('id', $cid)
-            ->where('post_id', $id)
-            ->first();
+        $comment = AppQyV1PostCommentModel::findOnPost($cid, $id);
         if (!$comment) {
             return $this->notFound('Comment not found');
         }
@@ -571,12 +488,7 @@ class AppQyV1PostController extends BaseController
             return $this->forbidden('Only the author can delete this comment');
         }
 
-        $comment->delete();
-
-        AppQyV1PostModel::query()
-            ->where('id', $id)
-            ->where('comment_count', '>', 0)
-            ->decrement('comment_count');
+        $comment->deleteFromPost();
 
         return $this->success(['comment_id' => $cid, 'post_id' => $id], 'Comment deleted');
     }
@@ -584,64 +496,12 @@ class AppQyV1PostController extends BaseController
     // ---- Shared shaping / visibility / fanout helpers ----
 
     /**
-     * Whether $userId may view $post given its visibility.
-     * public  -> anyone; followers -> author + their followers; private -> author.
-     */
-    private function canView(AppQyV1PostModel $post, int $userId): bool
-    {
-        $authorId = (int) $post->user_id;
-        if ($authorId === $userId) {
-            return true;
-        }
-        $visibility = (string) $post->visibility;
-        if ($visibility === AppQyV1PostModel::VISIBILITY_PUBLIC) {
-            return true;
-        }
-        if ($visibility === AppQyV1PostModel::VISIBILITY_FOLLOWERS) {
-            return AppQyV1UserFollowModel::isFollowing($userId, $authorId);
-        }
-        return false;
-    }
-
-    /**
-     * Constrain a builder (already scoped to a single $authorId) to the posts
-     * VISIBLE to $viewerId. Author sees all of their own; otherwise public
-     * always, followers if the viewer follows the author, private never.
-     * $followedIds = the ids the viewer follows (so a single query covers the
-     * followers test without a per-post lookup).
-     *
-     * @param array<int, int> $followedIds
-     */
-    private function applyAuthorVisibility($query, int $authorId, int $viewerId, array $followedIds): void
-    {
-        if ($viewerId === $authorId) {
-            // The author sees every one of their own posts.
-            $query->whereIn('visibility', [
-                AppQyV1PostModel::VISIBILITY_PUBLIC,
-                AppQyV1PostModel::VISIBILITY_FOLLOWERS,
-                AppQyV1PostModel::VISIBILITY_PRIVATE,
-            ]);
-            return;
-        }
-
-        $allowed = [AppQyV1PostModel::VISIBILITY_PUBLIC];
-        if (in_array($authorId, array_map('intval', $followedIds), true)) {
-            $allowed[] = AppQyV1PostModel::VISIBILITY_FOLLOWERS;
-        }
-        $query->whereIn('visibility', $allowed);
-    }
-
-    /**
      * Emit $event to every follower of $authorId (the followers are the users
      * whose user_follows.followed_user_id == authorId). Best-effort.
      */
     private function fanoutToFollowers(int $authorId, string $event, array $data): void
     {
-        $followerIds = AppQyV1UserFollowModel::query()
-            ->where('followed_user_id', $authorId)
-            ->pluck('user_id')
-            ->map(fn ($uid) => (int) $uid)
-            ->all();
+        $followerIds = AppQyV1UserFollowModel::followerUserIds($authorId);
         foreach (array_unique($followerIds) as $followerId) {
             if ((int) $followerId === $authorId) {
                 continue;
@@ -662,12 +522,7 @@ class AppQyV1PostController extends BaseController
         if (empty($postIds)) {
             return $out;
         }
-        $rows = AppQyV1PostImageModel::query()
-            ->whereIn('post_id', $postIds)
-            ->orderBy('post_id')
-            ->orderBy('sequence')
-            ->orderBy('id')
-            ->get();
+        $rows = AppQyV1PostImageModel::orderedForPosts($postIds);
         foreach ($rows as $row) {
             $out[(int) $row->post_id][] = [
                 'id' => (int) $row->id,
@@ -686,13 +541,7 @@ class AppQyV1PostController extends BaseController
      */
     private function authorsFor(array $userIds)
     {
-        $userIds = array_values(array_unique(array_map('intval', $userIds)));
-        if (empty($userIds)) {
-            return collect();
-        }
-        return User::whereIn('id', $userIds)
-            ->get(['id', 'username', 'nickname', 'name', 'avatar'])
-            ->keyBy('id');
+        return User::indexedByIds($userIds, ['id', 'username', 'nickname', 'name', 'avatar']);
     }
 
     /** FE-facing Post shape. */

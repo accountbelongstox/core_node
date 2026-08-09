@@ -12,7 +12,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1CodeReviewModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1MilestoneModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CodeMartV1TaskCtl extends Controller
@@ -93,7 +92,7 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1TaskModel::beginModelTransaction();
 
         $order = CodeMartV1TaskModel::where('milestone_id', $request->milestone_id)->max('order') ?? 0;
 
@@ -110,7 +109,7 @@ class CodeMartV1TaskCtl extends Controller
             'status' => 'pending',
         ]);
 
-        DB::commit();
+        CodeMartV1TaskModel::commitModelTransaction();
 
         return $this->success($task->load(['milestone', 'assignee']), 'Task created successfully', 201);
     }
@@ -189,7 +188,7 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1TaskModel::beginModelTransaction();
 
         $submission = CodeMartV1TaskSubmissionModel::create([
             'task_id' => $taskId,
@@ -201,7 +200,7 @@ class CodeMartV1TaskCtl extends Controller
 
         $task->update(['status' => 'review']);
 
-        DB::commit();
+        CodeMartV1TaskModel::commitModelTransaction();
 
         return $this->success($submission->load(['task', 'submitter']), 'Task submitted successfully', 201);
     }
@@ -258,7 +257,7 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1TaskModel::beginModelTransaction();
 
         $review = CodeMartV1CodeReviewModel::create([
             'task_submission_id' => $submissionId,
@@ -278,7 +277,7 @@ class CodeMartV1TaskCtl extends Controller
             $task->update(['status' => 'in_progress']);
         }
 
-        DB::commit();
+        CodeMartV1TaskModel::commitModelTransaction();
 
         return $this->success($review->load(['submission', 'reviewer']), 'Review submitted successfully', 201);
     }

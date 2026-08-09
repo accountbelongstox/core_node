@@ -31,7 +31,7 @@ export { invalidateGroupProgressCache } from './methods/learning';
 // app calls (verified against laravel_main routes/AppQyV1Router/*). The http
 // impl routes through it; import it anywhere a raw path would otherwise be typed.
 export {
-  WfNewApiPaths, WfNewAdminPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH,
+  WfNewApiPaths, WfNewAdminPaths, WFNEW_API_BASE, WFNEW_ROOT_API_BASE, WFNEW_HEALTH_PATH,
   WFNEW_ADMIN_DEBUG_STATUS_PATH,
 } from './WfNewApiPaths';
 

@@ -4,8 +4,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Models\User;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
+use App\Providers\GlobalTablesMap;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 
@@ -131,7 +130,7 @@ class AppQyV1LanguageStudyGroupService
         $userCount = 0;
         $groupCount = 0;
 
-        User::on(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))
+        User::on(GlobalTablesMap::getConnection())
             ->select(['id', 'learning_languages'])
             ->orderBy('id')
             ->chunkById(200, function ($users) use (&$userCount, &$groupCount): void {

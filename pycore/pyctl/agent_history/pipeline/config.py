@@ -9,7 +9,7 @@ _SECTION = "agent_history_article"
 # this order; only checked tools are planned into the article pipeline.
 SUPPORTED_TOOLS: List[str] = [
     "agent", "claude", "codex", "cursor", "gemini",
-    "kimi", "antigravity", "cline", "ark-cli",
+    "kimi", "antigravity", "cline",
 ]
 
 def _default_cursor() -> Dict[str, Any]:
@@ -36,6 +36,10 @@ def get_config() -> Dict[str, Any]:
         out["cursor"] = _default_cursor()
     if not isinstance(out.get("cursors"), dict):
         out["cursors"] = {}
+    if not isinstance(out.get("live_cursors"), dict):
+        out["live_cursors"] = {}
+    if not isinstance(out.get("backfill_targets"), dict):
+        out["backfill_targets"] = {}
     out["enabled_tools"] = normalize_enabled_tools(out.get("enabled_tools"))
     if not isinstance(out.get("published"), list):
         out["published"] = []
@@ -53,20 +57,63 @@ def get_tool_cursor(cfg: Dict[str, Any], tool: str) -> Dict[str, Any]:
         "after_fragment_id": str(legacy.get("after_fragment_id") or ""),
     }
 
-def advance_tool_cursor(cfg: Dict[str, Any], tool: str, after_ts: int, after_fragment_id: str) -> None:
-    """Move a tool cursor forward only — newest-first processing must never
-    rewind a cursor onto older fragments."""
-    cursors = cfg.setdefault("cursors", {})
+def get_tool_live_cursor(cfg: Dict[str, Any], tool: str) -> Dict[str, Any]:
+    cursors = cfg.get("live_cursors") if isinstance(cfg.get("live_cursors"), dict) else {}
+    cursor = cursors.get(tool)
+    return dict(cursor) if isinstance(cursor, dict) else {}
+
+def get_tool_backfill_target(cfg: Dict[str, Any], tool: str) -> Dict[str, Any]:
+    targets = cfg.get("backfill_targets") if isinstance(cfg.get("backfill_targets"), dict) else {}
+    target = targets.get(tool)
+    return dict(target) if isinstance(target, dict) else {}
+
+def initialize_tool_lanes(
+    cfg: Dict[str, Any],
+    tool: str,
+    target_ts: int,
+    target_fragment_id: str,
+) -> bool:
+    targets = cfg.setdefault("backfill_targets", {})
+    live_cursors = cfg.setdefault("live_cursors", {})
+    if tool in targets and tool in live_cursors:
+        return False
+    boundary = {
+        "after_ts": int(target_ts or 0),
+        "after_fragment_id": str(target_fragment_id or ""),
+    }
+    targets.setdefault(tool, dict(boundary))
+    live_cursors.setdefault(tool, dict(boundary))
+    return True
+
+def _advance_cursor_map(
+    cfg: Dict[str, Any],
+    map_key: str,
+    tool: str,
+    after_ts: int,
+    after_fragment_id: str,
+) -> None:
+    cursors = cfg.setdefault(map_key, {})
     if not isinstance(cursors, dict):
         cursors = {}
-        cfg["cursors"] = cursors
-    cur = get_tool_cursor(cfg, tool)
-    old_ts = int(cur.get("after_ts") or 0)
+        cfg[map_key] = cursors
+    current = cursors.get(tool) if isinstance(cursors.get(tool), dict) else {}
+    old_ts = int(current.get("after_ts") or 0)
+    old_fragment_id = str(current.get("after_fragment_id") or "")
     new_ts = int(after_ts or 0)
-    if new_ts > old_ts:
-        cursors[tool] = {"after_ts": new_ts, "after_fragment_id": str(after_fragment_id or "")}
-    elif new_ts == old_ts and str(after_fragment_id or "") > str(cur.get("after_fragment_id") or ""):
-        cursors[tool] = {"after_ts": new_ts, "after_fragment_id": str(after_fragment_id or "")}
+    new_fragment_id = str(after_fragment_id or "")
+    if new_ts > old_ts or (new_ts == old_ts and new_fragment_id > old_fragment_id):
+        cursors[tool] = {
+            "after_ts": new_ts,
+            "after_fragment_id": new_fragment_id,
+        }
+
+def advance_tool_cursor(cfg: Dict[str, Any], tool: str, after_ts: int, after_fragment_id: str) -> None:
+    """Move one tool's backfill cursor forward only."""
+    _advance_cursor_map(cfg, "cursors", tool, after_ts, after_fragment_id)
+
+def advance_tool_live_cursor(cfg: Dict[str, Any], tool: str, after_ts: int, after_fragment_id: str) -> None:
+    """Advance only the live priority lane for one tool."""
+    _advance_cursor_map(cfg, "live_cursors", tool, after_ts, after_fragment_id)
 
 def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg = get_config()
@@ -86,6 +133,10 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
         cfg["cursor"] = patch["cursor"]
     if isinstance(patch.get("cursors"), dict):
         cfg["cursors"] = patch["cursors"]
+    if isinstance(patch.get("live_cursors"), dict):
+        cfg["live_cursors"] = patch["live_cursors"]
+    if isinstance(patch.get("backfill_targets"), dict):
+        cfg["backfill_targets"] = patch["backfill_targets"]
     if "last_tool" in patch:
         cfg["last_tool"] = str(patch.get("last_tool") or "")
     if patch.get("enabled") is True:

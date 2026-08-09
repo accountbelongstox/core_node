@@ -12,6 +12,7 @@ from typing import Dict, Any
 import json
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.flutter_dev_tools.utils.pageview_updater import (
     update_pageview_map,
     cleanup_orphaned_entries,
@@ -140,7 +141,11 @@ def upload_actual_image(
             }
 
         # Create temporary file for image
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as temp_file:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix='.png',
+            dir=str(TMP_DIR),
+        ) as temp_file:
             temp_file.write(image_data)
             temp_path = Path(temp_file.name)
 

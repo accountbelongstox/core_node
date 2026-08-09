@@ -7,7 +7,6 @@ Provides a unified way to create desktop shortcuts for any application
 import sys
 import platform
 from pathlib import Path
-import tempfile
 
 import traceback
 

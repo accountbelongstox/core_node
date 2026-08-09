@@ -40,7 +40,6 @@ const PcAgentHistoryPromptItem: React.FC<{
       <div className="flex items-center gap-2 mb-1 text-[11px] text-slate-400">
         <span className={toolPill(p.tool)}>{toolLabel(p.tool)}</span>
         <UserIcon size={11} /> {p.os_user}
-        <span className="truncate">· {p.project}</span>
         {p.edited && <span className="text-amber-500">({labels.edited})</span>}
         <span className="ml-auto">{p.time}</span>
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">

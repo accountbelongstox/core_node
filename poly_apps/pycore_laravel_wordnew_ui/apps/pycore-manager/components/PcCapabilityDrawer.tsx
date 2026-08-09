@@ -11,16 +11,16 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SlidersHorizontal, RefreshCw, X, Loader2, AlertTriangle, Save, ChevronUp, ChevronDown,
-  Mic, AudioLines, Languages,
+  Mic, AudioLines,
 } from 'lucide-react';
 import { pycoreApi, ttsEngineUiState, ttsEngineBadgeLabel } from '@/apps/pycore-manager/api';
 import type { PcCapabilitySettings, PcCapabilityBlock, PcCapabilityKey, PcCapabilityOptions } from '@/apps/pycore-manager/api';
 
-type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image'>;
+type DisplayedCapabilityKey = Exclude<PcCapabilityKey, 'image' | 'translation'>;
 
-const CAP_KEYS: DisplayedCapabilityKey[] = ['stt', 'tts', 'sentence_tts', 'word_tts', 'translation'];
+const CAP_KEYS: DisplayedCapabilityKey[] = ['stt', 'tts', 'sentence_tts', 'word_tts'];
 const CAP_ICON: Record<DisplayedCapabilityKey, React.FC<{ className?: string }>> = {
-  stt: Mic, tts: AudioLines, translation: Languages,
+  stt: Mic, tts: AudioLines,
   sentence_tts: AudioLines, word_tts: AudioLines,
 };
 const CAP_DEFAULT_PRIORITY: Record<DisplayedCapabilityKey, string[]> = {
@@ -30,7 +30,6 @@ const CAP_DEFAULT_PRIORITY: Record<DisplayedCapabilityKey, string[]> = {
   sentence_tts: ['qwen3tts', 'chattts', 'cosyvoice', 'fishspeech', 'bark', 'voxcpm2', 'kokoro', 'gptsovits', 'f5tts', 'melotts', 'sherpa', 'edge', 'streamelements', 'gtts_web', 'azure'],
   // Word TTS: edge-first (fast lightweight single-word pronunciation).
   word_tts: ['edge', 'streamelements', 'gtts_web', 'sherpa', 'melotts', 'gptsovits', 'chattts', 'cosyvoice', 'fishspeech', 'qwen3tts', 'bark', 'voxcpm2', 'kokoro', 'f5tts', 'azure'],
-  translation: ['google', 'ecdict', 'wordnet', 'ai'],
 };
 /** Clear English titles for each capability block (the translation keys are not
  *  defined in the i18n tables, so raw keys would show otherwise). */
@@ -39,7 +38,6 @@ const CAP_LABEL: Record<DisplayedCapabilityKey, string> = {
   tts: 'Text-to-Speech (Default)',
   sentence_tts: 'Text-to-Speech (Sentence)',
   word_tts: 'Text-to-Speech (Word)',
-  translation: 'Translation',
 };
 
 export const PcCapabilityDrawer: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {

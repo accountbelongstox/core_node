@@ -15,7 +15,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1RegistrationCtl extends Controller
 {
@@ -49,7 +48,7 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1UserModel::beginModelTransaction();
 
         $user = CodeMartV1UserModel::create([
             'username' => $request->username,
@@ -69,7 +68,7 @@ class CodeMartV1RegistrationCtl extends Controller
         $emailToken = $this->emailService->createEmailVerification($request->email);
         $this->emailService->sendVerificationEmail($request->email, $emailToken);
 
-        DB::commit();
+        CodeMartV1UserModel::commitModelTransaction();
 
         return $this->success([
             'user_id' => $user->id,
@@ -169,7 +168,7 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1UserModel::beginModelTransaction();
 
         $idFrontPath = $this->fileUploadService->uploadKycImage(
             $request->file('id_front_image'),
@@ -190,7 +189,7 @@ class CodeMartV1RegistrationCtl extends Controller
         );
 
         if (!$idFrontPath || !$selfiePath) {
-            DB::rollBack();
+            CodeMartV1UserModel::rollBackModelTransaction();
             return $this->error('File upload failed', 500);
         }
 
@@ -206,7 +205,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'verification_status' => 'pending',
         ]);
 
-        DB::commit();
+        CodeMartV1UserModel::commitModelTransaction();
 
         return $this->success([
             'kyc_id' => $kycVerification->id,

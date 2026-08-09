@@ -794,7 +794,7 @@ class InitializeApps extends Command
 
         $rowsRenamed = 0;
         try {
-            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article();
+            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel();
             $conn = $model->getConnection();
             $table = $model->getTable();
             if (\Illuminate\Support\Facades\Schema::connection($conn->getName())->hasTable($table)

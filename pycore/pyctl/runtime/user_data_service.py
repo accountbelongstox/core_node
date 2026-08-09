@@ -15,6 +15,7 @@ from pycore.pyutils.common.user_data_store import user_data_store
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyutils.native_ui.step0_i18n.i18n_manager import i18n
 from pycore.pyctl.runtime.user_data_models import (
     SystemSettingsResponse,
@@ -72,9 +73,7 @@ VIDEO_EXTRACT_SECTION = "video_extract"
 
 def _default_base_dir() -> str:
     """Default working directory for video-extract sources."""
-    if os.name == "nt":
-        return r"D:\.tmp"
-    return str(Path.home() / ".tmp")
+    return str(TMP_DIR)
 
 
 def _norm(path: str) -> str:

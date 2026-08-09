@@ -38,7 +38,6 @@ interface PollEntry {
   bumpOnly: boolean;
   state: EntryState;
   timer: ReturnType<typeof setTimeout> | null;
-  bumped: boolean;
   outerTries: number;
   stintStartedAt: number;
   shouldContinue?: () => boolean;
@@ -54,15 +53,7 @@ function cellKey(text: string, lang: string, variantKey?: string): string {
 }
 
 async function resolveOnce(text: string, lang: string, variantKey?: string) {
-  return wfNewApi.resolveSentenceAudio(text, lang, variantKey);
-}
-
-async function bumpOnce(contentId: string, lang: string): Promise<void> {
-  try {
-    await wordNewAudioQueueCenter.prioritizeSentence(contentId, lang);
-  } catch {
-    /* ignore */
-  }
+  return wfNewApi.resolveSentenceAudio(text, lang, variantKey, true);
 }
 
 class SentenceAudioScheduler {
@@ -99,7 +90,6 @@ class SentenceAudioScheduler {
       bumpOnly: !!opts?.bumpOnly,
       state: 'queued',
       timer: null,
-      bumped: false,
       outerTries: 0,
       stintStartedAt: 0,
       shouldContinue: opts?.shouldContinue,
@@ -114,10 +104,8 @@ class SentenceAudioScheduler {
     else this.queue.push(key);
     // Bump immediately at enqueue: content_id is only known after the first
     // resolve response, and a queued entry may wait long for a free poller
-    // slot, so notify laravel now via the text-based batch endpoint (single
-    // item). e.bumped dedupes the later tick bump for this stint; requeue()
-    // still resets it, so stint/retry caps and per-stint re-bump are unchanged.
-    entry.bumped = true;
+    // slot, so notify Laravel now via the text-based batch endpoint. Polling is
+    // passive after this single notification and never changes queue order.
     void wordNewAudioQueueCenter.prioritizeSentences([
       { text: trimmed, language: lang },
     ]).catch(() => { /* ignore */ });
@@ -214,7 +202,6 @@ class SentenceAudioScheduler {
     this.releaseSlot(e);
     e.state = 'queued';
     e.outerTries += 1;
-    e.bumped = false;
     if (e.outerTries >= MAX_OUTER_RETRIES) {
       this.finish(e, null);
       return;
@@ -263,12 +250,6 @@ class SentenceAudioScheduler {
         }
       }
       const cid = r.content_id || r.hash;
-      if (!e.bumped && cid) {
-        e.bumped = true;
-        // Laravel bump raises tts_priority; Laravel may also best-effort nudge
-        // co-located pycore. Wordnew never calls pycore directly.
-        await bumpOnce(cid, e.lang);
-      }
       if (e.bumpOnly) {
         this.finish(e, null);
         return;

@@ -58,9 +58,6 @@ class AppQyV1NearbyController extends BaseController
         $radius = 50.0;
         $limit = 50;
         $origin = null;
-        $latitudeDelta = 0.0;
-        $longitudeDelta = 0.0;
-        $longitudeScale = 1.0;
         $rows = null;
         $distances = [];
         $userIds = [];
@@ -79,26 +76,17 @@ class AppQyV1NearbyController extends BaseController
         }
         $radius = (float) $request->query('radius_km', 50);
         $limit = (int) $request->query('limit', 50);
-        $origin = AppQyV1UserPresenceModel::query()->where('user_id', (int) $currentUser->id)->first();
+        $origin = AppQyV1UserPresenceModel::findByUserId((int) $currentUser->id);
         if (!$origin || $origin->latitude === null || $origin->longitude === null) {
             return $this->success(['users' => [], 'location_required' => true]);
         }
 
-        $latitudeDelta = $radius / 111.0;
-        $longitudeScale = max(0.01, cos(deg2rad((float) $origin->latitude)));
-        $longitudeDelta = $radius / (111.0 * $longitudeScale);
-
-        $rows = AppQyV1UserPresenceModel::query()
-            ->where('user_id', '!=', (int) $currentUser->id)
-            ->where('location_visible', true)
-            ->whereNotNull('latitude')
-            ->whereNotNull('longitude')
-            ->where('location_updated_at', '>=', now()->subDay())
-            ->whereBetween('latitude', [(float) $origin->latitude - $latitudeDelta, (float) $origin->latitude + $latitudeDelta])
-            ->whereBetween('longitude', [(float) $origin->longitude - $longitudeDelta, (float) $origin->longitude + $longitudeDelta])
-            ->orderByDesc('location_updated_at')
-            ->limit(500)
-            ->get();
+        $rows = AppQyV1UserPresenceModel::nearbyCandidates(
+            (int) $currentUser->id,
+            (float) $origin->latitude,
+            (float) $origin->longitude,
+            $radius
+        );
         foreach ($rows as $row) {
             $distance = $this->distanceKm((float) $origin->latitude, (float) $origin->longitude, (float) $row->latitude, (float) $row->longitude);
             if ($distance <= $radius) {
@@ -108,7 +96,7 @@ class AppQyV1NearbyController extends BaseController
         asort($distances);
         $distances = array_slice($distances, 0, $limit, true);
         $userIds = array_map('intval', array_keys($distances));
-        $users = User::query()->whereIn('id', $userIds)->get()->keyBy('id');
+        $users = User::indexedByIds($userIds);
         foreach ($userIds as $userId) {
             $user = $users->get($userId);
             if (!$user) {

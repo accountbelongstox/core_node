@@ -2,9 +2,11 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Constants\AppKeys;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 class CodeMartV1TaskSubmissionModel extends Model
 {
@@ -46,6 +48,23 @@ class CodeMartV1TaskSubmissionModel extends Model
     public function isApproved(): bool
     {
         return $this->status === 'approved';
+    }
+
+    public static function pendingReviewRows(int $reviewerId, int $limit = 10): Collection
+    {
+        $model = new self();
+
+        return $model->getConnection()
+            ->table('codemart_v1_code_submissions')
+            ->whereNotExists(function ($query) use ($reviewerId) {
+                $query->select('id')
+                    ->from('codemart_v1_code_reviews')
+                    ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
+                    ->where('codemart_v1_code_reviews.reviewer_id', $reviewerId);
+            })
+            ->where('status', 'completed')
+            ->limit($limit)
+            ->get();
     }
 
     public function isPending(): bool

@@ -25,7 +25,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -227,7 +226,7 @@ class AppQyV1TranslationQueueController extends Controller
                 if (!in_array($taskId, $taskIds, true)) {
                     $taskIds[] = $taskId;
                 }
-                $results[] = ['word' => $word, 'status' => 'moved_to_front'];
+                $results[] = ['word' => $word, 'status' => 'moved_to_front', 'task_id' => $taskId];
                 $moved++;
                 continue;
             }
@@ -242,6 +241,12 @@ class AppQyV1TranslationQueueController extends Controller
         foreach (array_chunk($toQueue, self::WORDS_PER_TASK) as $chunk) {
             $task = $this->createWordTranslationTask($language, $targetLanguage, $chunk, $priority, $interactive, $engine);
             $taskIds[] = $task->task_id;
+            foreach ($results as &$result) {
+                if (($result['status'] ?? null) === 'queued' && in_array($result['word'] ?? '', $chunk, true)) {
+                    $result['task_id'] = (string) $task->task_id;
+                }
+            }
+            unset($result);
         }
 
         return [
@@ -361,44 +366,42 @@ class AppQyV1TranslationQueueController extends Controller
             ->where('app_name', 'AppQyV1')
             ->where('task_type', 'word_translation');
 
-        $summary = Cache::remember('appqyv1:wordtrans_queue_summary', 8, static function () {
-            $grouped = GlobalTask::query()
-                ->where('app_name', 'AppQyV1')
-                ->where('task_type', 'word_translation')
-                ->groupBy('status')
-                ->select('status', DB::raw('count(*) as total'))
-                ->pluck('total', 'status');
+        $grouped = GlobalTask::cachedStatusCounts(
+            'appqyv1:wordtrans_queue_summary',
+            8,
+            'AppQyV1',
+            'word_translation'
+        );
 
-            $countFor = static function (array $statuses) use ($grouped): int {
-                $sum = 0;
-                foreach ($statuses as $status) {
-                    if ($grouped->has($status)) {
-                        $sum += (int) $grouped->get($status);
-                    }
+        $countFor = static function (array $statuses) use ($grouped): int {
+            $sum = 0;
+            foreach ($statuses as $status) {
+                if ($grouped->has($status)) {
+                    $sum += (int) $grouped->get($status);
                 }
-                return $sum;
-            };
-
-            $pending = $countFor([GlobalTask::status('pending')]);
-            $processing = $countFor([GlobalTask::status('processing')]);
-            $leased = $countFor([GlobalTask::status('assigned')]);
-            $completed = $countFor([GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
-            $failed = $countFor([GlobalTask::status('failed')]);
-
-            $total = 0;
-            foreach ($grouped as $value) {
-                $total += (int) $value;
             }
+            return $sum;
+        };
 
-            return [
-                'pending' => $pending,
-                'processing' => $processing,
-                'leased' => $leased,
-                'completed' => $completed,
-                'failed' => $failed,
-                'total' => $total,
-            ];
-        });
+        $pending = $countFor([GlobalTask::status('pending')]);
+        $processing = $countFor([GlobalTask::status('processing')]);
+        $leased = $countFor([GlobalTask::status('assigned')]);
+        $completed = $countFor([GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
+        $failed = $countFor([GlobalTask::status('failed')]);
+
+        $total = 0;
+        foreach ($grouped as $value) {
+            $total += (int) $value;
+        }
+
+        $summary = [
+            'pending' => $pending,
+            'processing' => $processing,
+            'leased' => $leased,
+            'completed' => $completed,
+            'failed' => $failed,
+            'total' => $total,
+        ];
 
         // Page query uses the same mutually exclusive status buckets as the
         // Queue Center contract; unknown/empty status returns all. The status
@@ -580,42 +583,16 @@ class AppQyV1TranslationQueueController extends Controller
 
         // Dictionary-driven counts. Cached briefly (the panel reloads on demand,
         // not on a tight interval) so repeated loads reuse one set of table counts.
-        $summary = Cache::remember(
-            'appqyv1:wordtrans_pending_summary:' . $langCode,
-            60,
-            static function () use ($langCode) {
-                $counts = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->selectRaw('count(*) as total')
-                    ->selectRaw('sum(case when has_translation = false and is_valid = true then 1 else 0 end) as pending')
-                    ->selectRaw('sum(case when has_translation = true then 1 else 0 end) as completed')
-                    ->selectRaw('sum(case when is_valid = false then 1 else 0 end) as failed')
-                    ->first();
-
-                return [
-                    'pending' => (int) ($counts->pending ?? 0),
-                    'completed' => (int) ($counts->completed ?? 0),
-                    'failed' => (int) ($counts->failed ?? 0),
-                    'total' => (int) ($counts->total ?? 0),
-                ];
-            }
-        );
+        $summary = AppQyV1LangDictionaryModel::cachedPendingTranslationSummary($langCode);
 
         // Live crawl activity: word_translation tasks currently assigned/processing
         // for this language pair (real-time, uncached).
-        $activity = Cache::remember(
+        $activity = GlobalTask::cachedStatusCounts(
             'appqyv1:wordtrans_pending_activity:' . $langCode . ':' . $targetCode,
             10,
-            static function () use ($langCode, $targetCode) {
-                return GlobalTask::query()
-                    ->where('app_name', 'AppQyV1')
-                    ->where('task_type', 'word_translation')
-                    ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-                    ->where('payload->language', $langCode)
-                    ->where('payload->target_language', $targetCode)
-                    ->groupBy('status')
-                    ->select('status', DB::raw('count(*) as total'))
-                    ->pluck('total', 'status');
-            }
+            'AppQyV1',
+            'word_translation',
+            ['language' => $langCode, 'target_language' => $targetCode]
         );
         $leased = (int) ($activity[GlobalTask::status('assigned')] ?? 0);
         $processing = $leased + (int) ($activity[GlobalTask::status('processing')] ?? 0);
@@ -964,6 +941,7 @@ class AppQyV1TranslationQueueController extends Controller
             'queued' => $outcome['queued'],
             'skipped' => $outcome['skipped'],
             'task_ids' => $outcome['task_ids'],
+            'results' => $outcome['results'],
         ], 'Words stacked into translation queue');
     }
 

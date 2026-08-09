@@ -12,6 +12,7 @@ from pycore.pyctl.queue_center.control_service import (
     normalize_control_name,
     record_control_intent,
 )
+from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.sentence_audio_auto import (
     apply_auto_start as apply_sentence_auto_start,
 )
@@ -70,7 +71,7 @@ def set_queue_center_control(
     if canonical_name == "assist_translation":
         assist_state = load_assist_settings()
         capabilities = dict(assist_state.get("capabilities") or {})
-        capabilities.update({"translation": enabled, "ai_translate": enabled})
+        capabilities.update({"translation": False, "ai_translate": False})
         result = assist_config({
             "enabled": bool(any(capabilities.values())),
             "capabilities": capabilities,
@@ -111,3 +112,8 @@ def get_local_task_detail(task_id: str) -> Dict[str, Any]:
     if not task:
         raise ValueError(f"Task not found: {task_id}")
     return {"success": True, "task": task.to_dict()}
+
+
+def get_queue_center_snapshot(refresh: bool = False) -> Dict[str, Any]:
+    """Return the Pycore-owned cached Queue Center state."""
+    return queue_center_snapshot_service.get_snapshot(request_refresh=refresh)

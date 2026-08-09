@@ -26,7 +26,24 @@ from pycore.pyctl.ai.rate_reset_service import ai_rate_reset_service
 from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
+from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
+from pycore.pyctl.assist.assist_settings import (
+    assist_callback_states,
+    load_assist_settings,
+)
+from pycore.pyctl.assist.capability_sync import apply_assist_runtime
+from pycore.pyctl.translation.worker.worker import translation_worker_service
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
+from pycore.pyctl.tts.sentence_audio_auto import (
+    restore_persisted_auto_start as restore_sentence_audio_settings,
+)
+from pycore.pyctl.tts.word_tts_auto import (
+    restore_persisted_auto_start as restore_word_audio_settings,
+)
 from pycore.pyutils.tts.tts_orchestrator import report_tts_engine_startup
 from pycore.pylauncher.tray_menu import (
     TRAY_SET_LANGUAGE_SIGNAL,
@@ -38,6 +55,14 @@ from pycore.pylauncher.tray_codesync_cache import (
     apply_tray_codesync_cache_refresh,
     on_code_sync_update,
     start_tray_codesync_cache,
+)
+
+
+_RUNTIME_WORKERS_REGISTERED = False
+_QUEUE_WORKER_CALLBACKS = (
+    ("translation_worker", translation_worker_service.pull_once, 5),
+    ("tts_queue_poller", laravel_word_audio_worker.pull_once, 1),
+    ("tts_sentence_worker", laravel_sentence_audio_worker.pull_once, 1),
 )
 
 
@@ -325,13 +350,30 @@ def register_runtime_workers() -> None:
     """
     Register pycore's periodic PyHeartbeat workers (idempotent).
 
-    Queue workers (translation / TTS audio) are NOT registered here anymore:
-    pycore never starts its own pull loop — the UI pump dispatches tasks to
-    pycore over RPC (FIX_20260802_UI_EXCHANGE_HUB_ARCHITECTURE.md).
+    Queue worker callbacks are always registered. Persisted UI switches decide
+    which callbacks are enabled, so processing continues after the UI closes.
     """
+    global _RUNTIME_WORKERS_REGISTERED
+    if _RUNTIME_WORKERS_REGISTERED:
+        return
+
     heartbeat = shared_heartbeat_system
     if not heartbeat.is_running():
         heartbeat.start()
+
+    assist_settings = load_assist_settings()
+    callback_states = assist_callback_states(assist_settings)
+    restore_word_audio_settings()
+    restore_sentence_audio_settings()
+    for callback_name, callback, interval in _QUEUE_WORKER_CALLBACKS:
+        heartbeat.register_callback(
+            name=callback_name,
+            callback=callback,
+            interval=interval,
+            enabled=callback_states[callback_name],
+        )
+    apply_assist_runtime(assist_settings)
+    queue_center_snapshot_service.start()
 
     # Agent-history extraction worker (backfill -> live article pipeline):
     # previously registered ONLY on the native_ui path (callmodule_main), so
@@ -357,6 +399,7 @@ def register_runtime_workers() -> None:
     except Exception as e:
         ColorPrint.yellow(f"[EventHandlers] Worker prefs / system_settings restore: {e}")
     report_tts_engine_startup()
+    _RUNTIME_WORKERS_REGISTERED = True
 
 
 __all__ = ["register_event_handlers", "register_runtime_workers"]

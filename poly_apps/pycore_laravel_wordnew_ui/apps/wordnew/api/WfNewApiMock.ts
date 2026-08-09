@@ -24,6 +24,7 @@ import type {
   WfNewBookChapters, WfNewBookChapter, WfNewBookVersesPage, WfNewBookVerse,
   WfNewSubtitleDetail, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewDictWord, WfNewWordPage,
   WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordMedia, WfNewWordAccent,
+  WfNewWordMediaOptions,
 } from './WfNewApiTypes';
 import { WFNEW_BUILTIN_LANGUAGES, WFNEW_BUILTIN_PRESET_AVATARS } from './WfNewApiDefaults';
 import {
@@ -640,7 +641,7 @@ export const wfNewApiMock: WfNewApi = {
   async getWordMedia(
     language: string,
     word: string,
-    opts: { accent?: WfNewWordAccent } = {},
+    opts: WfNewWordMediaOptions = {},
   ): Promise<WfNewWordMedia> {
     const key = `${language}/${word}`;
     const n = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
@@ -670,7 +671,7 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async resolveSentenceAudio(text: string, language: string, _variantKey?: string) {
+  async resolveSentenceAudio(text: string, language: string, _variantKey?: string, _passive = false) {
     const key = `${language}:${text.slice(0, 32)}`;
     const n = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
     MOCK_WORD_MEDIA_CALLS.set(key, n);
@@ -708,7 +709,13 @@ export const wfNewApiMock: WfNewApi = {
   },
 
   async bumpSentenceAudioBatch(items: Array<{ text: string; language: string }>) {
-    return delay({ success: true, queued: items.length, total: items.length, error: undefined });
+    return delay({
+      success: true,
+      queued: items.length,
+      total: items.length,
+      items: items.map((item) => ({ ...item, task_id: null })),
+      error: undefined,
+    });
   },
 
   async boostWordAudioPriority(_md5: string, _language: string) {
@@ -716,7 +723,13 @@ export const wfNewApiMock: WfNewApi = {
   },
 
   async prioritizeWordAudio(words: string[], _language: string) {
-    return delay({ success: true, queued: words.length, error: undefined });
+    return delay({
+      success: true,
+      queued: words.length,
+      total: words.length,
+      results: words.map((content) => ({ content, language: _language, queue_task_id: null })),
+      error: undefined,
+    });
   },
 
   async getBookReadingProgress(sourceKey: string) {
@@ -736,6 +749,18 @@ export const wfNewApiMock: WfNewApi = {
 
   async listBookReadingProgress(_limit = 100) {
     return delay([]);
+  },
+
+  async getDailyReadingProgress() {
+    return delay(null);
+  },
+
+  async saveDailyReadingProgress(articleId, selectionMode = 'latest') {
+    return delay({
+      articleId,
+      selectionMode,
+      updatedAt: new Date().toISOString(),
+    });
   },
 
   async getClientDeviceSettings(clientKey: string) {

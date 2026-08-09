@@ -15,6 +15,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -100,5 +101,107 @@ class User extends Authenticatable
     public function hasMinimumRoleLevel(int $level): bool
     {
         return $this->rolelevel >= $level;
+    }
+
+    public static function indexedByIds(array $userIds, array $columns = ['*']): Collection
+    {
+        $normalizedIds = [];
+
+        $normalizedIds = array_values(array_unique(array_map('intval', $userIds)));
+        if (empty($normalizedIds)) {
+            return collect();
+        }
+
+        return static::query()
+            ->whereIn('id', $normalizedIds)
+            ->get($columns)
+            ->keyBy('id');
+    }
+
+    public static function findById(int $userId): ?self
+    {
+        return static::query()->find($userId);
+    }
+
+    public static function searchSocialProfiles(
+        int $excludedUserId,
+        string $search,
+        string $nativeLanguage,
+        string $targetLanguage,
+        int $limit
+    ): Collection {
+        $query = null;
+
+        $query = static::query()
+            ->where('id', '!=', $excludedUserId)
+            ->profileSearchInsensitive($search);
+
+        if ($nativeLanguage !== '') {
+            $query->nativeLanguageInsensitive($nativeLanguage);
+        }
+        if ($targetLanguage !== '') {
+            $query->learningLanguage($targetLanguage);
+        }
+
+        return $query
+            ->orderBy('username')
+            ->limit($limit)
+            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+    }
+
+    public static function discoverSocialProfiles(
+        array $excludedUserIds,
+        string $search,
+        string $nativeLanguage,
+        string $targetLanguage,
+        int $limit
+    ): Collection {
+        $normalizedExcludedIds = [];
+        $query = null;
+
+        $normalizedExcludedIds = array_values(array_unique(array_map('intval', $excludedUserIds)));
+        $query = static::query()->whereNotIn('id', $normalizedExcludedIds);
+
+        if ($search !== '') {
+            $query->profileSearchInsensitive($search);
+        }
+        if ($nativeLanguage !== '') {
+            $query->nativeLanguageInsensitive($nativeLanguage);
+        }
+        if ($targetLanguage !== '') {
+            $query->learningLanguage($targetLanguage);
+        }
+
+        return $query
+            ->orderByDesc('id')
+            ->limit(max(1, min(100, $limit)) * 3)
+            ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+    }
+
+    public function scopeProfileSearchInsensitive($query, string $value)
+    {
+        $needle = '%' . strtolower($value) . '%';
+
+        return $query->where(function ($builder) use ($needle) {
+            $builder->whereRaw('LOWER(username) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
+                ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
+        });
+    }
+
+    public function scopeNativeLanguageInsensitive($query, string $language)
+    {
+        return $query->whereRaw('LOWER(native_language) = ?', [strtolower($language)]);
+    }
+
+    public function scopeLearningLanguage($query, string $language)
+    {
+        $code = strtolower($language);
+        $like = '%"' . $code . '"%';
+
+        return $query->where(function ($builder) use ($code, $like) {
+            $builder->whereJsonContains('learning_languages', $code)
+                ->orWhereRaw('LOWER(CAST(learning_languages AS CHAR(500))) LIKE ?', [$like]);
+        });
     }
 }

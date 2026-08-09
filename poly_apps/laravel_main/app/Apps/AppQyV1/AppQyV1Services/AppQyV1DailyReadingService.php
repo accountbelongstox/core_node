@@ -11,7 +11,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 

@@ -4,6 +4,16 @@
 ## Project Overview
 Develop a comprehensive server management application within Laravel Main (`ServerManagerV1`) to provide complete server administration capabilities including system information, file management, code execution, nginx management, unified manager integration, and SSL certificate management.
 
+## Database Access Architecture
+
+- `app/Models` is reserved for models shared by multiple applications; every application-owned model must live in `app/Apps/{AppNameWithVersion}/{AppNameWithVersion}Models`, use that directory's namespace, and follow `{AppNameWithVersion}{DomainName}Model.php` naming.
+- Controllers must not use the `DB` facade, connection/query builders, raw SQL, or raw query clauses.
+- All database reads, writes, transactions, aggregates, filters, and reusable query logic must be exposed by the owning Eloquent model through relationships, scopes, model methods, or model query APIs.
+- Controllers may validate requests, authorize actions, coordinate model APIs, and format responses; they must not contain persistence implementation details.
+- Prefer Eloquent relationships, eager loading, constrained column selection, `withCount`, `exists`, `value`, `pluck`, chunking, and database-side aggregates over repeated queries or in-memory filtering.
+- Cache stable or expensive read results through model-owned cache methods with bounded TTLs and explicit invalidation after related writes. Do not cache transactional writes, authorization decisions, or user-sensitive results under shared keys.
+- Keep connection and table resolution inside models and existing table-map providers. Never hardcode connection names, table names, or field names in controllers.
+
 ## Application Structure
 
 ### Application Name: `ServerManagerV1`

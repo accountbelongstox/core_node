@@ -8,6 +8,14 @@ export interface WfNewBookReadingProgress {
   updatedAt?: string | null;
 }
 
+export type WfNewDailyReadingSelectionMode = 'latest' | 'resume' | 'random';
+
+export interface WfNewDailyReadingProgress {
+  articleId: string | null;
+  selectionMode: WfNewDailyReadingSelectionMode;
+  updatedAt?: string | null;
+}
+
 /** One step in the bilingual playback sequence (lang + repeat count). */
 export interface WfNewReaderPlayStep {
   lang: string;

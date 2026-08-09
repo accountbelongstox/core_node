@@ -1,10 +1,10 @@
 /**
- * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline/Ark sessions extracted by pycore.
+ * Agent History — installed Agent/Claude/Codex/Cursor/Gemini/Kimi/Antigravity/Cline sessions extracted by pycore.
  * DIFF read surface: ID page tables (IDs + status metadata only) are cached in
  * the frontend store and aligned by revision; only the visible page is
  * materialized. No full loads.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RefreshCw, MessageSquareText, ListTree, User as UserIcon, Search, Radio } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
@@ -20,15 +20,20 @@ import type {
 } from '@/apps/pycore-manager/api';
 import {
   agentHistoryPageTableStore,
+  type AgentHistoryPageTable,
 } from '@/core/tasks/AgentHistoryPageTableStore';
-import { PAGE_SIZE, toolLabel } from '../../../components/views/dev-history/shared';
+import { AGENT_HISTORY_TOOLS, PAGE_SIZE, toolLabel } from '../../../components/views/dev-history/shared';
 import SessionRow from '../../../components/views/dev-history/SessionRow';
 import SessionDetailView from '../../../components/views/dev-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
-
-type TabId = 'sessions' | 'prompts';
+import {
+  agentHistoryUiStateStore,
+  type AgentHistoryTabId as TabId,
+  type AgentHistoryTaskPeriod,
+  type AgentHistoryUiState,
+} from '../persistence/AgentHistoryUiStateStore';
 
 type HeaderState = {
   generatedAt: string;
@@ -37,50 +42,129 @@ type HeaderState = {
   counts: Record<string, number>;
 };
 
+const STORE_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
+const MONITORED_AGENT_TOOLS = new Set<string>(AGENT_HISTORY_TOOLS);
+
+function validCachedPage<T extends { id: string }>(
+  table: AgentHistoryPageTable<T> | null,
+): table is AgentHistoryPageTable<T> {
+  return Boolean(
+    table
+    && typeof table.revision === 'string'
+    && Number.isFinite(table.total)
+    && table.total >= 0
+    && table.items.every((item) => typeof item?.id === 'string' && item.id.length > 0),
+  );
+}
+
+function normalizeGeneratedAt(value: unknown): string {
+  const timestamp = String(value || '').trim();
+  const match = STORE_TIMESTAMP_PATTERN.exec(timestamp);
+  if (!match) return '';
+  const parts = match.slice(1).map(Number);
+  const [year, month, day, hour, minute, second] = parts;
+  const parsed = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (year < 2000 || year > 2100) return '';
+  if (
+    parsed.getUTCFullYear() !== year
+    || parsed.getUTCMonth() !== month - 1
+    || parsed.getUTCDate() !== day
+    || parsed.getUTCHours() !== hour
+    || parsed.getUTCMinutes() !== minute
+    || parsed.getUTCSeconds() !== second
+  ) return '';
+  return timestamp;
+}
+
+function readUiState(): AgentHistoryUiState {
+  const stored = agentHistoryUiStateStore.getSnapshot();
+  return {
+    tab: stored.tab === 'prompts' ? 'prompts' : 'sessions',
+    filterTool: String(stored.filterTool || ''),
+    filterUser: String(stored.filterUser || ''),
+    search: String(stored.search || ''),
+    sessionPage: stored.sessionPage,
+    promptPage: stored.promptPage,
+    selectedId: String(stored.selectedId || ''),
+    selectedTool: MONITORED_AGENT_TOOLS.has(String(stored.selectedTool || ''))
+      ? String(stored.selectedTool)
+      : '',
+    enabledTools: Array.isArray(stored.enabledTools)
+      ? stored.enabledTools.map(String).filter((tool) => MONITORED_AGENT_TOOLS.has(tool))
+      : [],
+    live: stored.live !== false,
+    taskPeriod: stored.taskPeriod === 'history' ? 'history' : 'today',
+  };
+}
+
 const PcAgentHistoryPage: React.FC = () => {
   const { t } = useTranslation('pc');
   const tk = useCallback((k: string): string => t(`agentHistory.${k}`), [t]);
+  const initialUiState = useRef(readUiState()).current;
 
   const [header, setHeader] = useState<HeaderState>({ generatedAt: '', tools: [], users: [], counts: {} });
   const [sessionRows, setSessionRows] = useState<AgentHistorySessionSummary[]>([]);
   const [sessionTotal, setSessionTotal] = useState(0);
-  const [sessionPage, setSessionPage] = useState(1);
+  const [sessionPage, setSessionPage] = useState(initialUiState.sessionPage);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [prompts, setPrompts] = useState<AgentHistoryPrompt[]>([]);
   const [promptTotal, setPromptTotal] = useState(0);
-  const [promptPage, setPromptPage] = useState(1);
+  const [promptPage, setPromptPage] = useState(initialUiState.promptPage);
   const [promptLoading, setPromptLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [live, setLive] = useState(true);
+  const [live, setLive] = useState(initialUiState.live);
 
-  const [tab, setTab] = useState<TabId>('sessions');
-  const [filterTool, setFilterTool] = useState('');
-  const [filterUser, setFilterUser] = useState('');
-  const [enabledTools, setEnabledTools] = useState<string[]>([]);
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [tab, setTab] = useState<TabId>(initialUiState.tab);
+  const [filterTool, setFilterTool] = useState(initialUiState.filterTool);
+  const [filterUser, setFilterUser] = useState(initialUiState.filterUser);
+  const [enabledTools, setEnabledTools] = useState<string[]>(initialUiState.enabledTools);
+  const [search, setSearch] = useState(initialUiState.search);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialUiState.search.trim());
+  const [selectedTool, setSelectedTool] = useState(initialUiState.selectedTool);
+  const [taskPeriod, setTaskPeriod] = useState<AgentHistoryTaskPeriod>(initialUiState.taskPeriod);
 
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(initialUiState.selectedId);
   const [detail, setDetail] = useState<AgentHistorySessionDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const sessionMaterializedKey = useRef('');
   const promptMaterializedKey = useRef('');
+  const filterResetReady = useRef(false);
+  const skipNextFilterReset = useRef(false);
+  const manualRefreshPending = useRef(false);
+
+  useLayoutEffect(() => {
+    agentHistoryUiStateStore.save({
+      tab,
+      filterTool,
+      filterUser,
+      search,
+      sessionPage,
+      promptPage,
+      selectedId,
+      selectedTool,
+      enabledTools,
+      live,
+      taskPeriod,
+    });
+  }, [enabledTools, filterTool, filterUser, live, promptPage, search, selectedId, selectedTool, sessionPage, tab, taskPeriod]);
 
   const loadSessionPage = useCallback(async () => {
     setSessionLoading(true);
     setError(null);
     const scope = `sessions|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|page=${sessionPage}`;
     try {
-      const cached = agentHistoryPageTableStore.read<AgentHistorySessionIdItem>(scope);
+      const cachedPage = agentHistoryPageTableStore.read<AgentHistorySessionIdItem>(scope);
+      const cached = validCachedPage(cachedPage) ? cachedPage : null;
+      const cachedGeneratedAt = normalizeGeneratedAt(cached?.meta?.generatedAt);
       const res = await pycoreApi.getAgentHistorySessionIdPages({
         tool: filterTool || undefined,
         user: filterUser || undefined,
         q: debouncedSearch || undefined,
         page: sessionPage,
         pageSize: PAGE_SIZE,
-        sinceRevision: cached?.revision,
+        sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
@@ -88,7 +172,7 @@ const PcAgentHistoryPage: React.FC = () => {
       }
       if (!res.data.unchanged) {
         const nextHeader = {
-          generatedAt: res.data.generated_at || '',
+          generatedAt: normalizeGeneratedAt(res.data.generated_at),
           tools: res.data.tools || [],
           users: res.data.users || [],
           counts: res.data.counts || {},
@@ -102,7 +186,7 @@ const PcAgentHistoryPage: React.FC = () => {
           total: res.data.total,
           items: res.data.items || [],
           meta: {
-            generatedAt: res.data.generated_at || '',
+            generatedAt: normalizeGeneratedAt(res.data.generated_at),
             tools: res.data.tools || [],
             users: res.data.users || [],
             counts: res.data.counts || {},
@@ -112,7 +196,7 @@ const PcAgentHistoryPage: React.FC = () => {
         agentHistoryPageTableStore.write(scope, table);
       } else if (table.meta) {
         setHeader({
-          generatedAt: String(table.meta.generatedAt || ''),
+          generatedAt: normalizeGeneratedAt(table.meta.generatedAt),
           tools: Array.isArray(table.meta.tools) ? table.meta.tools.map(String) : [],
           users: Array.isArray(table.meta.users) ? table.meta.users.map(String) : [],
           counts: (table.meta.counts || {}) as Record<string, number>,
@@ -149,7 +233,9 @@ const PcAgentHistoryPage: React.FC = () => {
     const tools = filterTool ? undefined : enabledTools;
     const scope = `prompts|tool=${filterTool}|user=${filterUser}|q=${debouncedSearch}|tools=${(tools || []).join(',')}|page=${promptPage}`;
     try {
-      const cached = agentHistoryPageTableStore.read<AgentHistoryPromptIdItem>(scope);
+      const cachedPage = agentHistoryPageTableStore.read<AgentHistoryPromptIdItem>(scope);
+      const cached = validCachedPage(cachedPage) ? cachedPage : null;
+      const cachedGeneratedAt = normalizeGeneratedAt(cached?.meta?.generatedAt);
       const res = await pycoreApi.getAgentHistoryPromptIdPages({
         tool: filterTool || undefined,
         user: filterUser || undefined,
@@ -157,16 +243,42 @@ const PcAgentHistoryPage: React.FC = () => {
         tools,
         page: promptPage,
         pageSize: PAGE_SIZE,
-        sinceRevision: cached?.revision,
+        sinceRevision: cached?.meta && cachedGeneratedAt ? cached.revision : undefined,
       });
       if (!res.success || !res.data) {
         setError(res.error || t('agentHistory.loadError'));
         return;
       }
+      if (!res.data.unchanged) {
+        setHeader({
+          generatedAt: normalizeGeneratedAt(res.data.generated_at),
+          tools: res.data.tools || [],
+          users: res.data.users || [],
+          counts: res.data.counts || {},
+        });
+      }
       let table = cached;
       if (!res.data.unchanged || !table) {
-        table = { revision: res.data.revision, total: res.data.total, items: res.data.items || [], updatedAt: Date.now() };
+        table = {
+          revision: res.data.revision,
+          total: res.data.total,
+          items: res.data.items || [],
+          meta: {
+            generatedAt: normalizeGeneratedAt(res.data.generated_at),
+            tools: res.data.tools || [],
+            users: res.data.users || [],
+            counts: res.data.counts || {},
+          },
+          updatedAt: Date.now(),
+        };
         agentHistoryPageTableStore.write(scope, table);
+      } else if (table.meta) {
+        setHeader({
+          generatedAt: normalizeGeneratedAt(table.meta.generatedAt),
+          tools: Array.isArray(table.meta.tools) ? table.meta.tools.map(String) : [],
+          users: Array.isArray(table.meta.users) ? table.meta.users.map(String) : [],
+          counts: (table.meta.counts || {}) as Record<string, number>,
+        });
       }
       setPromptTotal(table.total);
       const materializedKey = `${scope}|${table.revision}`;
@@ -206,12 +318,13 @@ const PcAgentHistoryPage: React.FC = () => {
   }, [tab, loadPromptPage]);
 
   useEffect(() => {
-    if (!live) return undefined;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
     const off = pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.agentHistorySessionsChanged, () => {
+      if (!live && !manualRefreshPending.current) return;
       if (refreshTimer !== null) clearTimeout(refreshTimer);
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
+        manualRefreshPending.current = false;
         if (tab === 'prompts') void loadPromptPage();
         else void loadSessionPage();
       }, 250);
@@ -227,26 +340,46 @@ const PcAgentHistoryPage: React.FC = () => {
     return () => clearTimeout(h);
   }, [search]);
 
-  useEffect(() => { setSessionPage(1); setPromptPage(1); }, [debouncedSearch, enabledTools, filterTool, filterUser]);
+  useEffect(() => {
+    if (!filterResetReady.current) {
+      filterResetReady.current = true;
+      return;
+    }
+    if (skipNextFilterReset.current) {
+      skipNextFilterReset.current = false;
+      return;
+    }
+    setSessionPage(1);
+    setPromptPage(1);
+  }, [debouncedSearch, enabledTools, filterTool, filterUser]);
+
+  const handleEnabledToolsChange = useCallback((tools: string[], initialHydration = false) => {
+    setEnabledTools((current) => {
+      if (current.join('\u0000') === tools.join('\u0000')) return current;
+      if (initialHydration) skipNextFilterReset.current = true;
+      return tools;
+    });
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     setError(null);
+    manualRefreshPending.current = true;
     try {
       const res = await pycoreApi.refreshAgentHistory();
       if (!res.success) {
+        manualRefreshPending.current = false;
         setError(res.error || t('agentHistory.loadError'));
       }
-      if (tab === 'prompts') await loadPromptPage();
-      else await loadSessionPage();
     } catch (e) {
+      manualRefreshPending.current = false;
       setError(e instanceof Error ? e.message : t('agentHistory.loadError'));
     } finally {
       setRefreshing(false);
     }
   };
 
-  const handleSelect = async (id: string) => {
+  const handleSelect = useCallback(async (id: string) => {
     setSelectedId(id);
     setDetail(null);
     setDetailError(null);
@@ -263,7 +396,11 @@ const PcAgentHistoryPage: React.FC = () => {
     } finally {
       setDetailLoading(false);
     }
-  };
+  }, [tk]);
+
+  useEffect(() => {
+    if (initialUiState.selectedId) void handleSelect(initialUiState.selectedId);
+  }, [handleSelect, initialUiState.selectedId]);
 
   const handlePromptSaved = (id: string, text: string) => {
     setPrompts((prev) => prev.map((p) => (p.id === id ? { ...p, text, edited: true } : p)));
@@ -352,7 +489,16 @@ const PcAgentHistoryPage: React.FC = () => {
         </div>
       )}
 
-      <PcAgentHistoryConfigPanel tk={tk} onEnabledToolsChange={setEnabledTools} />
+      <PcAgentHistoryConfigPanel
+        tk={tk}
+        selectedTool={selectedTool}
+        restoredEnabledTools={enabledTools}
+        storeRevision={header.generatedAt}
+        onEnabledToolsChange={handleEnabledToolsChange}
+        onSelectedToolChange={setSelectedTool}
+        taskPeriod={taskPeriod}
+        onTaskPeriodChange={setTaskPeriod}
+      />
 
       <PcAgentHistoryRecords tk={tk} />
 

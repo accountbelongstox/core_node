@@ -1,5 +1,5 @@
 {
-  "schema_version": 10,
+  "schema_version": 11,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "realtime": {
@@ -31,6 +31,17 @@
     },
     "ready_ttl_seconds": 300,
     "consumed_ttl_seconds": 86400
+  },
+  "delivery_receipt": {
+    "stages": {
+      "waiting": "waiting",
+      "laravel_received": "laravel_received",
+      "worker_received": "worker_received",
+      "completed": "completed",
+      "failed": "failed"
+    },
+    "worker_kinds": ["pycore", "chrome", "laravel"],
+    "task_id_limit_source": "diff_delivery.data_segment_limit"
   },
   "metric_semantics": {
     "pending": "Ready work that has not been claimed.",
@@ -64,8 +75,8 @@
     "stale": false
   },
   "capability_claimants": {
-    "translate": ["pycore", "chrome"],
-    "ai_translate": ["pycore", "chrome"],
+    "translate": ["chrome"],
+    "ai_translate": ["chrome"],
     "puter_translate": ["chrome"],
     "audio": ["pycore", "chrome"],
     "image": ["chrome"],
@@ -184,9 +195,9 @@
     "capability_labels": {
       "audio": "Audio",
       "image": "Image",
-      "translate": "Translate",
+      "translate": "Translate (Chrome)",
       "sentence_audio": "Sentence Audio",
-      "ai_translate": "AI Translate",
+      "ai_translate": "AI Translate (Chrome)",
       "puter_translate": "Puter Translate",
       "subtitle": "Subtitle",
       "poster": "Poster",
@@ -279,7 +290,7 @@
     "task_types": [
       {
         "key": "word_translation",
-        "label": "Word Translation",
+        "label": "Word Translation (Chrome)",
         "execution_type": "remote_translation",
         "capability": "translate",
         "capability_mode": "selectable",
@@ -483,19 +494,19 @@
   "categories": [
     {
       "key": "word_translation",
-      "label": "Word Translation",
+      "label": "Word Translation (Chrome)",
       "laravel_task_type": "word_translation",
       "summary_task_type": "word_translation",
       "capability": "translate",
-      "primary_handler": "pycore"
+      "primary_handler": "chrome"
     },
     {
       "key": "ai_translate",
-      "label": "AI Translate",
+      "label": "AI Translate (Chrome)",
       "laravel_task_type": "word_translation",
       "summary_task_type": "word_translation",
       "capability": "ai_translate",
-      "primary_handler": "pycore"
+      "primary_handler": "chrome"
     },
     {
       "key": "word_media",
@@ -534,14 +545,14 @@
       "label": "Subtitle Add-Language",
       "laravel_task_type": null,
       "capability": "ai_translate",
-      "primary_handler": "pycore"
+      "primary_handler": "chrome"
     },
     {
       "key": "book_lang",
       "label": "Book Add-Language",
       "laravel_task_type": null,
       "capability": "ai_translate",
-      "primary_handler": "pycore"
+      "primary_handler": "chrome"
     },
     {
       "key": "cover",

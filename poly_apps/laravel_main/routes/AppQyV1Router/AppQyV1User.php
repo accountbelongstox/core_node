@@ -71,5 +71,10 @@ Route::prefix($apiVersionPrefix)->group(function () {
         Route::get('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'get']);
         Route::put('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'save']);
         Route::post('/book-progress/{sourceKey}', [AppQyV1BookReadingProgressController::class, 'save']);
+
+        // Daily-reading playback progress (one row per authenticated user)
+        Route::get('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'getDailyReading']);
+        Route::put('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
+        Route::post('/daily-reading-progress', [AppQyV1BookReadingProgressController::class, 'saveDailyReading']);
     });
 });

@@ -25,7 +25,9 @@ const SessionDetailView: React.FC<SessionDetailViewProps> = ({ detail, subagentL
       <div className="text-sm font-semibold text-slate-800 dark:text-white truncate">
         {detail.title || detail.project || detail.raw_id}
       </div>
-      <div className="text-[11px] text-slate-400 truncate">{detail.project}</div>
+      {detail.project && (
+        <div className="text-[11px] text-slate-400 truncate">{detail.project}</div>
+      )}
     </div>
 
     <div className="p-3 space-y-2">

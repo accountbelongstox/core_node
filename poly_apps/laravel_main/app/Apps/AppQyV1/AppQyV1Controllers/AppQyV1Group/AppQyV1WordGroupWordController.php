@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
@@ -14,8 +13,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Traits\ApiResponse;
 
 class AppQyV1WordGroupWordController
@@ -78,7 +75,7 @@ class AppQyV1WordGroupWordController
             ]);
         }
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $wordIds, $user) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $wordIds, $user) {
             // Serialize concurrent membership writes for the same group: the
             // group row lock plus the single-row JSON write keep the merge
             // race-safe (the progress row is keyed by the same group).
@@ -182,7 +179,7 @@ class AppQyV1WordGroupWordController
             ]);
         }
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $wordIds) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $wordIds) {
             $progressRow = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
 
             $removedCount = 0;

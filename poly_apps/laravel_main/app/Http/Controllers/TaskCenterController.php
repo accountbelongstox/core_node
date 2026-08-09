@@ -161,18 +161,7 @@ class TaskCenterController extends Controller
             ->get();
         $types = collect();
         if ($includeTypes) {
-            $types = Cache::remember('task-center:completed-types', 60, static function () use ($terminal) {
-                return GlobalTask::query()
-                    ->whereIn('status', $terminal)
-                    ->whereNotNull('task_type')
-                    ->groupBy('task_type')
-                    ->selectRaw('task_type, count(*) as total')
-                    ->orderBy('task_type')
-                    ->get()
-                    ->mapWithKeys(static function ($row) {
-                        return [(string) $row->task_type => (int) $row->total];
-                    });
-            });
+            $types = GlobalTask::cachedCountsByTaskType('task-center:completed-types', 60, $terminal);
         }
         $records = $tasks->map(static function (GlobalTask $task) {
             return [

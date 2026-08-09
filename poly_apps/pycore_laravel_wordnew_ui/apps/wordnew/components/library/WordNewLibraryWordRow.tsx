@@ -25,7 +25,7 @@ export interface WordNewLibraryWordRowProps {
   playingKey: string | null;
   /** Current playback node key or null (active row highlight). */
   activeKey: string | null;
-  /** Live cell-status overrides from the sentence-audio scheduler. */
+  /** Live cell-status overrides from the word-audio queue gateway. */
   cellStatuses: Record<string, WordNewAudioCellState>;
   /** Per-word selected variant key. */
   variantByKey: Record<string, string>;

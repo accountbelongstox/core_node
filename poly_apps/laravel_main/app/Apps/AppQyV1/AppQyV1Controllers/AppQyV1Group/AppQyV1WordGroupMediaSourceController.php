@@ -16,17 +16,14 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupMediaSourceModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
-use App\Models\Book;
-use App\Models\Subtitle;
-use App\Models\SourceSentence;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Utils\StrTool;
 use App\Traits\ApiResponse;
 
@@ -58,9 +55,9 @@ class AppQyV1WordGroupMediaSourceController
     private function findMediaSource(string $sourceType, string $sourceKey)
     {
         if ($sourceType === 'book') {
-            return Book::where('source_key', $sourceKey)->first();
+            return Book::findBySourceKey($sourceKey);
         }
-        return Subtitle::where('source_key', $sourceKey)->first();
+        return Subtitle::findBySourceKey($sourceKey);
     }
 
     /**
@@ -69,33 +66,7 @@ class AppQyV1WordGroupMediaSourceController
      */
     private function collectSourceTexts(string $sourceType, string $sourceKey): array
     {
-        $grain = 'sentence';
-        $count = SourceSentence::where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->where('grain', 'sentence')
-            ->count();
-        if ($count === 0) {
-            $grain = 'cue';
-        }
-
-        $texts = [];
-        SourceSentence::where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->where('grain', $grain)
-            ->orderBy('seq')
-            ->chunk(500, function ($links) use (&$texts) {
-                foreach ($links as $link) {
-                    // Books v3.1: the shared `sentence` relation was removed;
-                    // resolve the slot's primary-language text from the
-                    // per-language store ({prefix}_sentences_{lang}).
-                    $sentence = $link->langSentence($link->primary_language ?: 'en');
-                    if ($sentence && !empty($sentence->text)) {
-                        $texts[] = $sentence->text;
-                    }
-                }
-            });
-
-        return $texts;
+        return SourceSentence::collectSourceTexts($sourceType, $sourceKey);
     }
 
     /**
@@ -187,7 +158,7 @@ class AppQyV1WordGroupMediaSourceController
             $newFrequency = $extractResult['frequency'];
         }
 
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $source, $sourceType, $sourceKey, $newWords, $newFrequency, $groupWordsCount) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $source, $sourceType, $sourceKey, $newWords, $newFrequency, $groupWordsCount) {
             // Serialize concurrent add_media_source calls for the same group:
             // the row lock makes the link re-check below race-safe without
             // try-catch around the unique (group_id, source_type, source_key) index.

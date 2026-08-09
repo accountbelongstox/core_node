@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Subtitle;
-use App\Models\Book;
-use App\Models\MediaSegment;
-use App\Models\SourceSentence;
-use App\Models\LangSentence;
-use App\Models\LangChapter;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
@@ -53,23 +53,12 @@ class MediaBrowseController extends Controller
 
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
 
-        $query = Subtitle::query();
-
-        if (!empty($validated['language'])) {
-            $query->where('language', $validated['language']);
-        }
-        if (!empty($validated['search'])) {
-            $search = $validated['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('original_name', 'like', "%{$search}%");
-            });
-        }
-
-        $query->orderByDesc('synced_at');
-
         $posterStore = new MoviePosterStore();
-        $paginator = $query->paginate($perPage)->through(function (Subtitle $subtitle) use ($posterStore) {
+        $paginator = Subtitle::browsePage(
+            $validated['language'] ?? null,
+            $validated['search'] ?? null,
+            $perPage
+        )->through(function (Subtitle $subtitle) use ($posterStore) {
             $posterUrl = $posterStore->imageUrlFor($subtitle);
             $imageUrls = $this->resolveImageUrls($subtitle, $posterUrl);
             return [
@@ -108,23 +97,12 @@ class MediaBrowseController extends Controller
 
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
 
-        $query = Book::query();
-
-        if (!empty($validated['language'])) {
-            $query->where('language', $validated['language']);
-        }
-        if (!empty($validated['search'])) {
-            $search = $validated['search'];
-            $query->where(function ($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                    ->orWhere('original_name', 'like', "%{$search}%");
-            });
-        }
-
-        $query->orderByDesc('synced_at');
-
         $posterStore = new MoviePosterStore();
-        $paginator = $query->paginate($perPage)->through(function (Book $book) use ($posterStore) {
+        $paginator = Book::browsePage(
+            $validated['language'] ?? null,
+            $validated['search'] ?? null,
+            $perPage
+        )->through(function (Book $book) use ($posterStore) {
             $posterUrl = $posterStore->imageUrlFor($book);
             $imageUrls = $this->resolveImageUrls($book, $posterUrl);
             return [
@@ -226,14 +204,12 @@ class MediaBrowseController extends Controller
             'chapter_index' => 'nullable|integer|min:0',
         ]);
 
-        $subtitle = Subtitle::where('source_key', $source_key)->first();
+        $subtitle = Subtitle::findBySourceKey($source_key);
         if (!$subtitle) {
             return $this->error('Subtitle not found', 404);
         }
 
-        $segments = MediaSegment::where('source_key', $source_key)
-            ->orderBy('seg_index')
-            ->get()
+        $segments = MediaSegment::orderedForSource($source_key)
             ->map(function (MediaSegment $segment) use ($source_key) {
                 return [
                     'seg_index' => $segment->seg_index,
@@ -279,7 +255,7 @@ class MediaBrowseController extends Controller
             'chapter_index' => 'nullable|integer|min:0',
         ]);
 
-        $book = Book::where('source_key', $source_key)->first();
+        $book = Book::findBySourceKey($source_key);
         // Agent-history articles live in app_qy_v1_articles (keyed 'article_<uuid>'),
         // never in books — MediaIngestService deliberately skips source rows for
         // them. Resolve them as source_type='article' so the read-along reader
@@ -332,7 +308,7 @@ class MediaBrowseController extends Controller
             return $this->error('Invalid source key', 404);
         }
 
-        $book = Book::where('source_key', $source_key)->first();
+        $book = Book::findBySourceKey($source_key);
         // Same article fallback as bookDetail (see there): agent-history
         // articles carry their chapter rows under source_type='article'.
         $sourceType = 'book';
@@ -505,20 +481,7 @@ class MediaBrowseController extends Controller
     {
         // Books v3.1: the shared `sentence` relation is gone; per-language text is
         // resolved per row via resolveSlotPrimary()/langSentence() below.
-        $query = SourceSentence::where('source_key', $sourceKey);
-
-        if ($grain !== 'all') {
-            $query->where('grain', $grain);
-        }
-
-        // Books v3.1: scope to a single chapter (book -> chapter -> verses).
-        if ($chapterIndex !== null) {
-            $query->where('chapter_index', $chapterIndex);
-        }
-
-        $query->orderBy('grain')->orderBy('seq');
-
-        $paginator = $query->paginate($perPage);
+        $paginator = SourceSentence::orderedSourcePage($sourceKey, $grain, $chapterIndex, $perPage);
 
         // Books v3.1: batch-load every per-language sentence row referenced by this
         // page in ONE query per language (previously an N+1 — one query per language
@@ -647,9 +610,7 @@ class MediaBrowseController extends Controller
 
         $out = [];
         foreach ($idsByLang as $lang => $ids) {
-            $rows = LangSentence::onLang((string) $lang)
-                ->whereIn('content_id', array_values(array_unique($ids)))
-                ->get();
+            $rows = LangSentence::rowsByContentIds((string) $lang, $ids);
             $byId = [];
             foreach ($rows as $row) {
                 $byId[(string) $row->content_id] = $row;
@@ -699,10 +660,7 @@ class MediaBrowseController extends Controller
             : [];
 
         if (empty($raw)) {
-            $sample = SourceSentence::where('source_type', $sourceType)
-                ->where('source_key', $source->source_key)
-                ->whereNotNull('lang_content_ids')
-                ->first();
+            $sample = SourceSentence::languageSample($sourceType, $source->source_key);
             if ($sample && is_array($sample->lang_content_ids)) {
                 $raw = array_keys($sample->lang_content_ids);
             }
@@ -732,11 +690,7 @@ class MediaBrowseController extends Controller
         $byIndex = [];
 
         foreach ($languages as $lang) {
-            $rows = LangChapter::onLang($lang)
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->orderBy('chapter_index')
-                ->get();
+            $rows = LangChapter::rowsForSource($lang, $sourceType, $sourceKey);
 
             foreach ($rows as $row) {
                 $ci = (int) $row->chapter_index;

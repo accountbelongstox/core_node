@@ -10,7 +10,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1DepositModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class CodeMartV1ArchitectCtl extends Controller
 {
@@ -92,11 +91,11 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('You do not meet the requirements for architect promotion');
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $userRole->update(['role_status' => 'architect_pending']);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success([
             'message' => 'Architect application submitted. Please pay additional deposit to complete.',
@@ -117,15 +116,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can access this endpoint');
         }
 
-        $model = new CodeMartV1ProjectModel();
-        $dbConnection = $model->getConnection();
-        $projects = $dbConnection
-            ->table('codemart_v1_projects')
-            ->where('architect_id', $user->id)
-            ->orWhere('status', 'awaiting_architect')
-            ->orderBy('created_at', 'desc')
-            ->limit(20)
-            ->get();
+        $projects = CodeMartV1ProjectModel::architectProjects($user->id);
 
         return $this->success([
             'assigned_projects' => $projects->where('architect_id', $user->id)->values(),
@@ -146,27 +137,9 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->forbidden('Only architects can accept projects');
         }
 
-        $model = new CodeMartV1ProjectModel();
-        $dbConnection = $model->getConnection();
-        $project = $dbConnection
-            ->table('codemart_v1_projects')
-            ->where('id', $projectId)
-            ->where('status', 'awaiting_architect')
-            ->whereNull('architect_id')
-            ->first();
-
-        if (!$project) {
+        if (!CodeMartV1ProjectModel::acceptForArchitect((int) $projectId, $user->id)) {
             return $this->notFound('Project not found or already assigned');
         }
-
-        $dbConnection
-            ->table('codemart_v1_projects')
-            ->where('id', $projectId)
-            ->update([
-                'architect_id' => $user->id,
-                'status' => 'in_progress',
-                'updated_at' => now(),
-            ]);
 
         return $this->success(['message' => 'Project accepted. You can now create tasks for developers.']);
     }
@@ -193,11 +166,11 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('Insufficient architect deposit. Required: 10000, Current: ' . $architectDeposit);
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $userRole->update(['role_status' => 'architect']);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success(['message' => 'Congratulations! You are now an architect.']);
     }

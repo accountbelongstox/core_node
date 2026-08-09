@@ -18,6 +18,7 @@ import { ShellLayout } from './ShellLayout';
 import { ShellHome } from './ShellHome';
 import { TaskPersistenceProvider } from '../core/tasks/TaskPersistenceProvider';
 import { AppToaster } from '../core/notify/notify';
+import { GlobalLoginHost } from './GlobalLoginHost';
 
 const LmApp = lazy(() => import('../apps/laravel-manager/LmApp'));
 const PcApp = lazy(() => import('../apps/pycore-manager/PcApp'));
@@ -36,6 +37,7 @@ export const ShellApp: React.FC = () => {
       <ShellProvider>
         {/* Global toast viewport (core/notify) — one per app, top-right desktop stack. */}
         <AppToaster />
+        <GlobalLoginHost />
         <Routes>
           <Route element={<ShellLayout />}>
             {/* Default to the pycore end. ShellHome stays reachable at /home. */}

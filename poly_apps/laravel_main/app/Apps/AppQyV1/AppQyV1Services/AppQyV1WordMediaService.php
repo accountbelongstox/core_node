@@ -16,7 +16,6 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Models\GlobalTask;
 use App\Providers\PathMapper;
 use App\Services\TaskManagerService;
-use App\Services\WordAudio\WordAudioClient;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -86,13 +85,11 @@ class AppQyV1WordMediaService
 
     protected TaskManagerService $taskManager;
     protected AppQyV1WordImageQueueService $imageQueue;
-    protected WordAudioClient $wordAudioClient;
 
     public function __construct()
     {
         $this->taskManager = app(TaskManagerService::class);
         $this->imageQueue = new AppQyV1WordImageQueueService();
-        $this->wordAudioClient = new WordAudioClient();
     }
 
     /**
@@ -102,6 +99,8 @@ class AppQyV1WordMediaService
      * @param string $language       Source/library language (name or code).
      * @param string|null $targetLang Optional target language for translation.
      * @param bool $bumpFront         True for an active query (move-to-front).
+     * @param bool $tryRealPronunciation Retained compatibility flag; request-path
+     *                                    pronunciation lookup now belongs to Pycore.
      * @param bool $enqueueMissing    False for read-only aggregate queries.
      * @return array The contract data block:
      *   { word, md5, language, image_url|null, audio_url|null,
@@ -152,19 +151,10 @@ class AppQyV1WordMediaService
                 $this->imageQueue->add($word, $langCode, $position);
             }
 
-            if (!$hasAudio && $tryRealPronunciation) {
-                // Synchronously try REAL pronunciation sources (Free Dictionary
-                // API, then Forvo) before falling back to TTS synthesis, so a
-                // successful hit is already reflected in THIS response. Only
-                // when it misses does the existing async TTS path below run.
-                if ($this->fetchRealPronunciation($word, $langCode, $md5)) {
-                    $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
-                    $audioUrl = $row ? $this->resolveAudioUrl($row) : null;
-                    $hasAudio = $audioUrl !== null;
-                }
-            }
-
             if (!$hasAudio) {
+                // Notify Laravel's canonical queue immediately. The persistent
+                // Pycore worker owns the real-pronunciation lookup and TTS
+                // fallback, so this request never waits on an external source.
                 $this->enqueueTts($word, $langCode, $position);
             }
 
@@ -501,45 +491,6 @@ class AppQyV1WordMediaService
             $interactive,
             $capability
         );
-    }
-
-    /**
-     * Try the REAL pronunciation source chain (Free Dictionary API -> Forvo)
-     * for a word missing audio, and persist a hit via the existing
-     * source-agnostic coordinator. Returns true only when audio was newly
-     * stored (i.e. the caller can skip the TTS fallback for this response).
-     * NEVER throws — any failure is logged and treated as a miss so the
-     * caller falls through to the existing TTS enqueue path.
-     */
-    private function fetchRealPronunciation(string $word, string $langCode, string $md5): bool
-    {
-        try {
-            $result = $this->wordAudioClient->findPronunciation($word, $langCode);
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1WordMedia] real pronunciation lookup failed', [
-                'word' => $word,
-                'language' => $langCode,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
-
-        if ($result === null) {
-            return false;
-        }
-
-        try {
-            $coordinator = new AppQyV1DictionaryTTSCoordinator();
-            return $coordinator->storeWordAudioBytes($langCode, $md5, $result['binary'], $result['provider']);
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1WordMedia] failed to store real pronunciation audio', [
-                'word' => $word,
-                'language' => $langCode,
-                'provider' => $result['provider'] ?? null,
-                'error' => $e->getMessage(),
-            ]);
-            return false;
-        }
     }
 
     /**

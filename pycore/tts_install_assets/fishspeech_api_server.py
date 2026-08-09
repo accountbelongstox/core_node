@@ -23,11 +23,15 @@ Env:
 """
 
 import os
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+
+TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI()
 _upstream = (os.environ.get("FISHSPEECH_UPSTREAM") or "").rstrip("/")
@@ -73,7 +77,11 @@ def tts(req: TtsRequest):
         audio = client.tts.convert(text=text)
         if hasattr(audio, "read"):
             return Response(content=audio.read(), media_type="audio/mpeg")
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(
+            suffix=".mp3",
+            delete=False,
+            dir=str(TMP_DIR),
+        ) as tmp:
             path = tmp.name
         save(audio, path)
         data = open(path, "rb").read()

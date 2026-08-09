@@ -4,16 +4,19 @@ namespace App\Http\Controllers;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Services\QueueCenter\QueueCenterService;
+use App\Services\QueueCenter\QueueTaskReceiptService;
+use App\Services\QueueCenter\QueueWorkerPresenceService;
 use App\Support\QueueCenterContract;
 use App\Support\ServerRuntime;
 use App\Traits\ApiResponse;
+use App\Utils\SseStreamResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\StreamedEvent;
 
 /**
- * Queue Center — centralized control plane for the two audio queues
- * (word_audio, sentence_audio) on top of global_tasks.
+ * Queue Center — centralized control plane and priority event stream for
+ * Laravel-owned task queues on top of global_tasks.
  *
  * Routes (public control-plane group, same trust level as /api/task/*):
  *   GET  /api/queue-center/overview
@@ -46,14 +49,28 @@ class QueueCenterController extends Controller
     private const PRUNE_AGE_SECONDS = 600;
     private const PRUNE_EVERY_SECONDS = 60;
 
-    /** Outbox event names belonging to the audio queues. */
-    private const AUDIO_STREAM_EVENTS = ['word_audio.priority', 'sentence.priority'];
+    /** Queue-head events mirrored through the shared Queue Center stream. */
+    private const QUEUE_STREAM_EVENTS = [
+        'task.priority',
+        'word_audio.priority',
+        'sentence.priority',
+        'word_image.priority',
+        'cover.priority',
+        'poster.priority',
+    ];
 
     protected QueueCenterService $queueCenter;
+    protected QueueTaskReceiptService $taskReceipts;
+    protected QueueWorkerPresenceService $workerPresence;
 
-    public function __construct(QueueCenterService $queueCenter)
-    {
+    public function __construct(
+        QueueCenterService $queueCenter,
+        QueueTaskReceiptService $taskReceipts,
+        QueueWorkerPresenceService $workerPresence
+    ) {
         $this->queueCenter = $queueCenter;
+        $this->taskReceipts = $taskReceipts;
+        $this->workerPresence = $workerPresence;
     }
 
     /**
@@ -64,7 +81,22 @@ class QueueCenterController extends Controller
     {
         return $this->success([
             'queues' => $this->queueCenter->stats(),
+            'workers' => $this->workerPresence->snapshot(),
         ], 'Queue center overview');
+    }
+
+    public function receipts(Request $request): JsonResponse
+    {
+        $limit = max(1, (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128));
+        $validated = $request->validate([
+            'task_ids' => 'required|array|min:1|max:' . $limit,
+            'task_ids.*' => 'required|string|max:100',
+        ]);
+
+        return $this->success(
+            $this->taskReceipts->receipts($validated['task_ids']),
+            'Queue delivery receipts'
+        );
     }
 
     /**
@@ -216,8 +248,8 @@ class QueueCenterController extends Controller
      * GET /api/queue-center/stream?cursor=<lastId>
      *
      * SSE long connection replaying the shared translation_events outbox,
-     * filtered to the audio-queue events (word_audio.priority,
-     * sentence.priority). Modeled on AppQyV1TranslationStreamController:
+     * filtered to Queue Center priority events. Modeled on
+     * AppQyV1TranslationStreamController:
      * cursor resume (every payload carries `_id`), periodic ping, bounded
      * lifetime under the Octane per-request watchdog. NO new DB tables.
      */
@@ -251,7 +283,7 @@ class QueueCenterController extends Controller
             $maxLifetime = self::SINGLE_WORKER_LIFETIME_SECONDS;
         }
 
-        $response = response()->eventStream(function () use ($cursor, $maxLifetime) {
+        return SseStreamResponse::make(function () use ($cursor, $maxLifetime) {
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -265,9 +297,9 @@ class QueueCenterController extends Controller
                 if (!empty($events)) {
                     foreach ($events as $evt) {
                         // The cursor ALWAYS advances (filtered events included) so
-                        // resume never replays non-audio rows.
+                        // resume never replays filtered Queue Center rows.
                         $current = $evt['id'];
-                        if (!in_array($evt['event'], self::AUDIO_STREAM_EVENTS, true)) {
+                        if (!in_array($evt['event'], self::QUEUE_STREAM_EVENTS, true)) {
                             continue;
                         }
                         $payload = $evt['data'];
@@ -298,12 +330,5 @@ class QueueCenterController extends Controller
 
             yield new StreamedEvent(event: 'stream.close', data: json_encode(['cursor' => $current]));
         });
-
-        // SSE hygiene: disable nginx/proxy buffering so events flush immediately.
-        $response->headers->set('X-Accel-Buffering', 'no');
-        $response->headers->set('Cache-Control', 'no-cache, no-transform');
-        $response->headers->set('Connection', 'keep-alive');
-
-        return $response;
     }
 }

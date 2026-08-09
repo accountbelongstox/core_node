@@ -5,18 +5,15 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Vocabulary;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1VocabularyImporter;
-use App\Constants\AppKeys;
 use App\Http\Controllers\Controller;
-use App\Models\LangSentence;
-use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\MediaIngestService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Re-processing of previously uploaded plain-text documents:
@@ -162,7 +159,7 @@ class AppQyV1VocabularyDocumentController extends Controller
         // One transaction for the whole document (same rationale as
         // MediaIngestService::ingest): thousands of row-by-row writes would
         // otherwise auto-commit individually.
-        DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($sentences, $langCode, $sourceKey, $documentId, $documentName, &$stored, &$skipped) {
+        LangSentence::runInTransaction(function () use ($sentences, $langCode, $sourceKey, $documentId, $documentName, &$stored, &$skipped) {
             foreach ($sentences as $idx => $text) {
                 // content_id is the language-agnostic dedup key shared with media
                 // ingest, so document sentences merge with subtitle/book sentences
@@ -171,11 +168,12 @@ class AppQyV1VocabularyDocumentController extends Controller
                 $sentenceId = MediaIngestService::computeSentenceId($text, $langCode);
                 $corrId = MediaIngestService::computeCorrId($sourceKey, self::SENTENCE_GRAIN, $idx);
 
-                $existingLink = SourceSentence::where('source_type', self::SENTENCE_SOURCE_TYPE)
-                    ->where('source_key', $sourceKey)
-                    ->where('grain', self::SENTENCE_GRAIN)
-                    ->where('seq', $idx)
-                    ->first();
+                $existingLink = SourceSentence::findSlot(
+                    self::SENTENCE_SOURCE_TYPE,
+                    $sourceKey,
+                    self::SENTENCE_GRAIN,
+                    $idx
+                );
 
                 if ($existingLink) {
                     // Idempotent re-run: this position was already ingested.
@@ -185,31 +183,21 @@ class AppQyV1VocabularyDocumentController extends Controller
                     continue;
                 }
 
-                $sentenceRow = LangSentence::onLang($langCode)->where('content_id', $contentId)->first();
-                if (!$sentenceRow) {
-                    $newRow = LangSentence::for($langCode);
-                    $newRow->fill([
-                        'content_id' => $contentId,
-                        'sentence_id' => $sentenceId,
-                        'corr_id' => $corrId,
-                        'text' => $text,
-                        'language' => $langCode,
-                        'occurrence_count' => 1,
-                        'metadata' => [
-                            'source' => 'vocabulary_document',
-                            'document_id' => $documentId,
-                            'document_name' => $documentName,
-                        ],
-                    ]);
-                    $newRow->save();
-                } else {
-                    // Per-language dedupe semantics: never rewrite text or AI
-                    // enrichment fields, only bump the occurrence count.
-                    $sentenceRow->occurrence_count = (int) $sentenceRow->occurrence_count + 1;
-                    $sentenceRow->save();
-                }
+                LangSentence::storeOccurrence($langCode, [
+                    'content_id' => $contentId,
+                    'sentence_id' => $sentenceId,
+                    'corr_id' => $corrId,
+                    'text' => $text,
+                    'language' => $langCode,
+                    'occurrence_count' => 1,
+                    'metadata' => [
+                        'source' => 'vocabulary_document',
+                        'document_id' => $documentId,
+                        'document_name' => $documentName,
+                    ],
+                ]);
 
-                SourceSentence::create([
+                SourceSentence::createLink([
                     'source_type' => self::SENTENCE_SOURCE_TYPE,
                     'source_key' => $sourceKey,
                     // No sentence_id on source_sentences (Books v3.1 §3.3): the

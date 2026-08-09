@@ -5,82 +5,34 @@ Generates bash scripts for Linux systems.
 This is the Linux-specific version of CommandContentGenerator.ps1
 """
 
-import os
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List
 
-from config.path_config import get_path_config
-from script_sections.mcp_section import MCPSectionGenerator
-from script_sections.user_directory_section import UserDirectorySectionGenerator
-from script_sections.env_loading_section import EnvLoadingSectionGenerator
-from script_sections.ssh_command_generator import SSHCommandGenerator
-from script_sections.backup_restore_section import BackupRestoreSectionGenerator
+from generators import CliUpgradeConfig, CommandContentGeneratorBase
 
 
-class LinuxCommandContentGenerator:
+LINUX_CLI_UPGRADE_ACTIONS = {
+    'claude': '''echo "[INFO] Upgrading Claude Code..."
+    claude update
+    hash -r
+    echo "[INFO] Claude Code upgrade command completed."''',
+    'codex': '''echo "[INFO] Upgrading Codex CLI with pnpm..."
+    pnpm add --global @openai/codex@latest
+    hash -r
+    echo "[INFO] Codex CLI upgrade command completed."''',
+    'kimi': '''if command -v curl >/dev/null 2>&1; then
+        echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
+        curl -fsSL "https://code.kimi.com/kimi-code/install.sh" | bash
+        hash -r
+        echo "[INFO] Kimi Code CLI native upgrade command completed."
+    fi''',
+}
+
+
+class LinuxCommandContentGenerator(CommandContentGeneratorBase):
     """Generate Linux bash command scripts"""
 
     def __init__(self):
-        self.path_config = get_path_config()
-        self.project_root = self.path_config.project_root
-        self.scripts_dir = self.path_config.scripts_dir
-        self.mcp_generator = MCPSectionGenerator(self.path_config)
-        self.user_dir_generator = UserDirectorySectionGenerator()
-        self.env_loading_generator = EnvLoadingSectionGenerator()
-        self.ssh_generator = SSHCommandGenerator()
-        self.backup_restore_generator = BackupRestoreSectionGenerator(self.path_config)
-
-    def get_mcp_sync_script_path(self, tool_type: str) -> Path:
-        """Get MCP sync script path for a specific tool"""
-        return self.path_config.get_mcp_sync_script_path(tool_type)
-
-    def get_pre_launch_script_path(self, tool_type: str) -> Path:
-        """Get pre-launch script path for a specific tool"""
-        return self.path_config.get_pre_launch_script_path(tool_type, 'linux')
-
-    def get_update_script_path(self, tool_type: str) -> Path:
-        """Get update/upgrade script path for a specific tool"""
-        return self.path_config.get_update_script_path(tool_type, 'linux')
-
-    def generate_mcp_section(self, tool_type: str, tool_display_name: str,
-                           target_name: str, support_upgrade: bool = True, support_npm_update: bool = False,
-                           include_launch_pause: bool = True) -> str:
-        """Generate MCP synchronization section for any AI tool
-
-        Args:
-            tool_type: Type of AI tool (e.g., 'claude', 'codex')
-            tool_display_name: Display name for the tool (e.g., 'Claude Code')
-            target_name: Target name for MCP sync (e.g., 'claude')
-            support_upgrade: Whether to include upgrade option
-            support_npm_update: Whether to include npm/npx update option
-            include_launch_pause: Whether to include the trailing 'Press Enter' pause
-        """
-        return self.mcp_generator.generate_linux_mcp_section(
-            tool_type, tool_display_name, target_name, support_upgrade, support_npm_update,
-            include_launch_pause
-        )
-
-    @staticmethod
-    def _has_model_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'ANTHROPIC_MODEL':
-                return True
-        return False
-
-    @staticmethod
-    def _has_codex_model_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'CODEX_MODEL':
-                return True
-        return False
-
-    @staticmethod
-    def _has_kimi_var(variables: List[Dict[str, Any]]) -> bool:
-        for var in variables:
-            if var.get('Name') == 'KIMI_API_KEY':
-                return True
-        return False
+        super().__init__('linux')
 
     def generate_codex_linux_user_dir_section(self, file_number: int) -> str:
         """Linux path-init + custom user dir override for codex.
@@ -150,26 +102,72 @@ fi
 
 """
 
-    def generate_codex_linux_upgrade_section(self) -> str:
-        """Codex-only: npm upgrade prompt at the SCRIPT START (default y/N)."""
-        return """
-#region Upgrade Codex CLI (npm)
-echo ""
-echo "============================================================"
-echo "Codex CLI - Upgrade Check"
-echo "============================================================"
-read -p "Upgrade Codex CLI via 'npm install -g @openai/codex'? (y/N) " codex_upgrade_choice
-if [ "$codex_upgrade_choice" = "y" ] || [ "$codex_upgrade_choice" = "Y" ]; then
-    echo "[INFO] Running: npm install -g @openai/codex"
-    npm install -g @openai/codex
-    echo "[SUCCESS] Codex CLI upgrade complete"
-else
-    echo "[INFO] Skipping Codex CLI upgrade"
+    def _render_cli_upgrade_prompt_section(
+        self,
+        command_prefix: str,
+        tool_config: CliUpgradeConfig,
+    ) -> str:
+        """Render a bash version-aware upgrade section."""
+        action = LINUX_CLI_UPGRADE_ACTIONS[command_prefix]
+        template = r'''
+#region Version-Aware CLI Upgrade
+run_version_aware_cli_upgrade() {
+local upgrade_choice=""
+local upgrade_current_output=""
+local upgrade_latest_output=""
+local upgrade_version_gap_large="0"
+
+if command -v __COMMAND__ >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    upgrade_current_output="$(__COMMAND__ --version 2>/dev/null || true)"
+    upgrade_latest_output="$(pnpm view __PACKAGE__ version 2>/dev/null || true)"
+    upgrade_version_gap_large="$(node -e '
+const currentInput = process.argv[1];
+const latestInput = process.argv[2];
+const parseVersion = (value) => {
+    const tokens = value.trim().split(/\s+/);
+    for (const token of tokens) {
+        const candidate = token.startsWith("v") ? token.slice(1) : token;
+        const parts = candidate.split(".");
+        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
+        if (valid) {
+            return parts.map(Number);
+        }
+    }
+    return null;
+};
+const current = parseVersion(currentInput);
+const latest = parseVersion(latestInput);
+const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
+const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
+process.stdout.write(large ? "1" : "0");
+' "$upgrade_current_output" "$upgrade_latest_output" 2>/dev/null || true)"
 fi
-echo ""
+if [ "$upgrade_version_gap_large" = "1" ]; then
+    printf '\033[33m__PROMPT__\033[0m'
+    read -r upgrade_choice || upgrade_choice=""
+fi
+if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
+    __ACTION__
+elif [ "$upgrade_version_gap_large" = "1" ]; then
+    echo "[INFO] CLI upgrade skipped."
+fi
+}
+
+run_version_aware_cli_upgrade
+unset -f run_version_aware_cli_upgrade
 #endregion
 
-"""
+'''
+        return (
+            template.replace('__COMMAND__', tool_config.command)
+            .replace('__PACKAGE__', tool_config.package)
+            .replace('__PROMPT__', tool_config.prompt)
+            .replace('__ACTION__', action)
+        )
+
+    def generate_codex_linux_upgrade_section(self) -> str:
+        """Generate the Codex version-aware upgrade section."""
+        return self.generate_cli_upgrade_prompt_section('codex')
 
     def generate_codex_linux_config_section(self) -> str:
         """Codex-only: write ~/.codex/config.toml + global AGENTS.md (idempotent).
@@ -319,13 +317,12 @@ echo ""
         # and a Python helper writes ~/.codex/config.toml (wire_api=chat) to stop the
         # OpenAI WebSocket fallback. Other tools: MyBest dir.
         is_codex = (command_prefix or "").lower() == "codex"
+        cli_upgrade_section = self.generate_cli_upgrade_prompt_section(command_prefix)
         if is_codex:
             user_directory_section = self.generate_codex_linux_user_dir_section(file_number)
-            codex_upgrade_section = self.generate_codex_linux_upgrade_section()
             codex_config_section = self.generate_codex_linux_config_call_section()
         else:
             user_directory_section = self.user_dir_generator.generate_linux_user_directory_section()
-            codex_upgrade_section = ""
             codex_config_section = ""
 
         # Path resolution section (for backward compatibility, now included in user_directory_section)
@@ -570,9 +567,9 @@ read
 
         # Codex: upgrade prompt at SCRIPT START; config section after env; no user dir.
         if is_codex:
-            return f"""{header}{file_name_display}{codex_upgrade_section}{user_directory_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+            return f"""{header}{file_name_display}{cli_upgrade_section}{user_directory_section}{env_section}{codex_config_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
-        return f"""{header}{file_name_display}{user_directory_section}{path_resolution}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
+        return f"""{header}{file_name_display}{cli_upgrade_section}{user_directory_section}{path_resolution}{env_section}{mcp_section_content}{backup_restore_section}{npx_fallback_section}{launch_section}"""
 
     def generate_ssh_command_content(self, config_name: str, file_number: int,
                                     user_inputs: Dict[str, str], file_name: str = "") -> str:
@@ -581,4 +578,3 @@ read
 
 
 __all__ = ['LinuxCommandContentGenerator']
-

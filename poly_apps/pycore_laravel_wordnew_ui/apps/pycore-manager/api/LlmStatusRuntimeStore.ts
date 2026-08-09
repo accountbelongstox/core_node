@@ -83,7 +83,7 @@ function startLlmStatusRuntime(): void {
       void refreshLlmStatusRuntime();
     }),
   ];
-  if (!state.status) void refreshLlmStatusRuntime();
+  void refreshLlmStatusRuntime();
 }
 
 function stopLlmStatusRuntime(): void {

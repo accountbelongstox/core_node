@@ -1,10 +1,12 @@
 /**
  * PcQueueBumpToasts — cross-lane priority bump notifications (translation, sentence, …).
- * Events come from the shared Queue Center snapshot and therefore obey the
- * page's single auto-refresh switch.
+ * Laravel queue-head changes are consumed once by Pycore and forwarded through
+ * the shared Pycore event stream; the cached snapshot is the bounded fallback.
+ * Architecture reference: `_prompts/队列中心.txt`.
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Zap, X } from 'lucide-react';
+import { pycoreEventBus, PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import type { QueueBumpEvent } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
@@ -37,6 +39,13 @@ export const PcQueueBumpToasts: React.FC = () => {
   useEffect(() => {
     pushEvents(hub.sentenceQueue?.bumps?.events ?? []);
   }, [hub.timestamp, hub.sentenceQueue, pushEvents]);
+
+  useEffect(() => {
+    return pycoreEventBus.subscribe(PYCORE_EVENT_TOPICS.queueBump, (payload) => {
+      if (!payload || typeof payload !== 'object') return;
+      pushEvents([payload as QueueBumpEvent]);
+    });
+  }, [pushEvents]);
 
   if (!toasts.length) return null;
 

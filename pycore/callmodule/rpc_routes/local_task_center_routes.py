@@ -4,6 +4,7 @@
 from pycore.callmodule.rpc_routes import route_names
 from pycore.pyctl.queue_center.task_center_service import (
     QueueCenterControlRequest,
+    get_queue_center_snapshot,
     get_local_task_detail,
     set_queue_center_control,
 )
@@ -32,7 +33,15 @@ def register_local_task_center_routes(server) -> None:
             return {"success": False, "error": "task_id is required"}
         return get_local_task_detail(task_id)
 
+    def snapshot_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        return {
+            "success": True,
+            "data": get_queue_center_snapshot(bool(request.get("refresh"))),
+        }
+
     routes = (
+        (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
         (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),
     )

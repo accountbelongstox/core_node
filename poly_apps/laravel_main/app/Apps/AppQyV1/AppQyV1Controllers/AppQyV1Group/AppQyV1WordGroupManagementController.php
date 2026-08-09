@@ -16,7 +16,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1GetGroupByGidRequest;
@@ -54,13 +53,7 @@ class AppQyV1WordGroupManagementController
         $gid = $request->input('gid');
         $uid = Auth::id();
 
-        $cacheKey = "word_group:{$uid}:{$gid}";
-
-        $group = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($gid, $user) {
-            return AppQyV1WordGroupModel::where('gid', $gid)
-                ->where('uid', $user->id)
-                ->first();
-        });
+        $group = AppQyV1WordGroupModel::cachedForUserByGid($user->id, $gid);
 
         if (!$group) {
             return $this->groupNotFound(['uid' => $uid]);
@@ -103,13 +96,7 @@ class AppQyV1WordGroupManagementController
         $gname = $request->input('gname');
         $uid = Auth::id();
 
-        $cacheKey = "word_group_by_name:{$uid}:{$gname}";
-
-        $group = Cache::remember($cacheKey, now()->addMinutes(10), function () use ($gname, $user) {
-            return AppQyV1WordGroupModel::where('gname', $gname)
-                ->where('uid', $user->id)
-                ->first();
-        });
+        $group = AppQyV1WordGroupModel::cachedForUserByName($user->id, $gname);
 
         if (!$group) {
             return $this->groupNotFound(['uid' => $uid]);
@@ -268,4 +255,3 @@ class AppQyV1WordGroupManagementController
         ]);
     }
 }
-

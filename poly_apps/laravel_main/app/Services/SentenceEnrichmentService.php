@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;

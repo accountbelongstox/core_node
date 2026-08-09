@@ -12,7 +12,7 @@
 namespace App\Http\Clash;
 
 use App\Models\ClashUrlsConfig;
-use App\Models\Group;
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 

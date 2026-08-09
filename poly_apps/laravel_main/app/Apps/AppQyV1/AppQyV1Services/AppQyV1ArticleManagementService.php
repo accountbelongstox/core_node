@@ -11,8 +11,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWord;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;

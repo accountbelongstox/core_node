@@ -14,6 +14,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -47,6 +48,11 @@ class AppQyV1PostLikeModel extends Model
         'user_id' => 'integer',
         'created_at' => 'datetime',
     ];
+
+    public function post(): BelongsTo
+    {
+        return $this->belongsTo(AppQyV1PostModel::class, 'post_id');
+    }
 
     /**
      * The subset of $postIds the given user has liked.

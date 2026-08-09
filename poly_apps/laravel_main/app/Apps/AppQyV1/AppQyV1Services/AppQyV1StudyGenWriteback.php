@@ -11,11 +11,11 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Models\LangSentence;
-use App\Models\SourceSentence;
-use App\Models\StudyGrammarPoint;
-use App\Models\StudyPhrase;
-use App\Models\StudySegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyGrammarPointModel as StudyGrammarPoint;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyPhraseModel as StudyPhrase;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
 use App\Services\MediaIngestService;
 
 /**

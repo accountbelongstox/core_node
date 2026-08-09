@@ -39,7 +39,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $testCases = $this->generateTestCases();
 
-        DB::beginTransaction();
+        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
         $application = CodeMartV1ReviewerApplicationModel::create([
             'user_id' => $user->id,
@@ -47,7 +47,7 @@ class CodeMartV1ReviewerCtl extends Controller
             'test_cases' => json_encode($testCases),
         ]);
 
-        DB::commit();
+        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
 
         return $this->success([
             'application_id' => $application->id,
@@ -88,7 +88,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
         $similarity = $this->calculateReviewSimilarity($testCases, $userReviews);
 
-        DB::beginTransaction();
+        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
         $application->update([
             'status' => $similarity >= 85 ? 'passed' : 'failed',
@@ -113,7 +113,7 @@ class CodeMartV1ReviewerCtl extends Controller
             }
         }
 
-        DB::commit();
+        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
 
         return $this->success([
             'status' => $application->status,
@@ -138,20 +138,7 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->forbidden('Only active reviewers can access review tasks');
         }
 
-        $model = new CodeMartV1TaskSubmissionModel();
-        $dbConnection = $model->getConnection();
-        $pendingReviews = $dbConnection
-            ->table('codemart_v1_code_submissions')
-            ->whereNotExists(function ($query) use ($user, $dbConnection) {
-                // SELECT 1 inside an EXISTS subquery: standard SQL, cross-DB safe.
-                $query->selectRaw('1')
-                    ->from('codemart_v1_code_reviews')
-                    ->whereColumn('codemart_v1_code_reviews.submission_id', 'codemart_v1_code_submissions.id')
-                    ->where('codemart_v1_code_reviews.reviewer_id', $user->id);
-            })
-            ->where('status', 'completed')
-            ->limit(10)
-            ->get();
+        $pendingReviews = CodeMartV1TaskSubmissionModel::pendingReviewRows($user->id);
 
         return $this->success(['pending_reviews' => $pendingReviews]);
     }
@@ -189,7 +176,7 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->error('You have already reviewed this submission');
         }
 
-        DB::beginTransaction();
+        CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
         $review = CodeMartV1CodeReviewModel::create([
             'submission_id' => $submissionId,
@@ -200,7 +187,7 @@ class CodeMartV1ReviewerCtl extends Controller
             'comments' => $request->comments,
         ]);
 
-        DB::commit();
+        CodeMartV1ReviewerApplicationModel::commitModelTransaction();
 
         return $this->success([
             'review_id' => $review->id,

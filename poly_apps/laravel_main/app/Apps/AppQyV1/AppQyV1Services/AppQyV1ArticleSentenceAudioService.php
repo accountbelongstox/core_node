@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Providers\PathMapper;
@@ -40,6 +40,15 @@ class AppQyV1ArticleSentenceAudioService
         if ($articleId === '' || $text === '') {
             return ['ok' => false, 'created' => false, 'audio_url' => null];
         }
+        if ($article->isAgentHistoryDaily()) {
+            return [
+                'ok' => false,
+                'created' => false,
+                'audio_url' => $metadata['audio_url'] ?? null,
+                'audio_status' => !empty($metadata['audio_url']) ? 'ready' : 'missing',
+                'reason' => 'agent_history_audio_is_uploaded_with_article',
+            ];
+        }
         if (!$forceMissing && (bool) $article->tts_generated && !empty($metadata['audio_url'])) {
             return [
                 'ok' => true,
@@ -65,24 +74,17 @@ class AppQyV1ArticleSentenceAudioService
             $language,
             'article:' . $articleId
         );
-        $result = $interactive
-            ? $this->queueCenter->moveToHead(
-                QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                $dedupKey,
-                $payload,
-                true
-            )
-            : $this->queueCenter->enqueue(
-                QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                $payload,
-                $dedupKey,
-                false,
-                [],
-                null,
-                300
-            );
-        $task = $interactive ? null : $result['task'];
-        $taskId = $interactive ? ($result['task_id'] ?? null) : ($task?->task_id);
+        $result = $this->queueCenter->schedule(
+            QueueCenterService::QUEUE_SENTENCE_AUDIO,
+            $payload,
+            $dedupKey,
+            $interactive,
+            true,
+            [],
+            null,
+            300
+        );
+        $taskId = $result['task_id'] ?? null;
 
         $metadata['audio_url'] = $audioUrl;
         $metadata['audio_status'] = 'queued';
@@ -127,26 +129,19 @@ class AppQyV1ArticleSentenceAudioService
             $language,
             'article-library:' . $md5
         );
-        $result = $interactive
-            ? $this->queueCenter->moveToHead(
-                QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                $dedupKey,
-                $payload,
-                true
-            )
-            : $this->queueCenter->enqueue(
-                QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                $payload,
-                $dedupKey,
-                false,
-                [],
-                null,
-                300
-            );
-        $task = $interactive ? null : $result['task'];
+        $result = $this->queueCenter->schedule(
+            QueueCenterService::QUEUE_SENTENCE_AUDIO,
+            $payload,
+            $dedupKey,
+            $interactive,
+            true,
+            [],
+            null,
+            300
+        );
         $article->tts_status = AppQyV1DictionaryTTSCoordinator::STATUS_PENDING;
         $article->tts_requested_at = $article->tts_requested_at ?: now();
-        $article->tts_global_task_id = $interactive ? ($result['task_id'] ?? null) : ($task?->task_id);
+        $article->tts_global_task_id = $result['task_id'] ?? null;
         $article->save();
 
         return ['ok' => true, 'created' => (bool) ($result['created'] ?? false)];

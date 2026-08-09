@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 """Persistent DIFF cursor, ID-page, and lazy task-data segments."""
 
-import threading
 import time
 from typing import Any, Dict, List
 
+from pycore.pyfoundations.serialized_worker import (
+    init_serialized_owner,
+    serialized_method,
+)
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
 from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 from pycore.pyutils.common.user_data_store import UserDataStore
@@ -18,132 +21,189 @@ STORE_DEFAULTS_DIR = APP_CONFIG_DIR / "queue_center_empty_defaults"
 PAGE_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_page_limit"])
 ID_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["id_limit"])
 DATA_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
+RETRY_AFTER_KEY = "_segment_retry_after"
 
 
-class DiffTaskSegmentStore:
-    """Keep task IDs persistent and full payloads only while locally owned."""
+class _DiffTaskSegmentCenter:
+    """Own all persistent DIFF segments through one shared serialized instance."""
 
     def __init__(self) -> None:
-        self._lock = threading.RLock()
         self._delivered: set[str] = set()
         self._store = UserDataStore(
             file_name=STORE_FILE_NAME,
             defaults_dir=STORE_DEFAULTS_DIR,
         )
+        init_serialized_owner(
+            self,
+            "queue_center.diff_segments",
+            "DiffTaskSegmentCenter",
+        )
 
+    @serialized_method
     def stage(self, scope: str, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        with self._lock:
-            cursors = self._store.get_section(CURSOR_NAMESPACE)
-            pages = self._store.get_section(ID_PAGE_NAMESPACE)
-            segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-            scope_segments = dict(segments.get(scope) or {})
-            new_tasks: List[Dict[str, Any]] = []
-            ids: List[str] = []
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        pages = self._store.get_section(ID_PAGE_NAMESPACE)
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        new_tasks: List[Dict[str, Any]] = []
+        ids: List[str] = []
 
-            for task in tasks:
-                task_id = str(task.get("task_id") or "")
-                if not task_id or task_id in scope_segments:
-                    continue
-                scope_segments[task_id] = dict(task)
-                self._delivered.add(self._delivery_key(scope, task_id))
-                ids.append(task_id)
-                new_tasks.append(task)
+        for task in tasks:
+            task_id = str(task.get("task_id") or "")
+            if not task_id or task_id in scope_segments:
+                continue
+            if len(scope_segments) >= DATA_LIMIT:
+                break
+            scope_segments[task_id] = dict(task)
+            self._delivered.add(self._delivery_key(scope, task_id))
+            ids.append(task_id)
+            new_tasks.append(task)
 
-            if not ids:
-                return []
+        if not ids:
+            return []
 
-            cursor = dict(cursors.get(scope) or {})
-            cursor["revision"] = int(cursor.get("revision") or 0) + 1
-            cursor["last_id"] = ids[-1]
-            cursor["updated_at"] = time.time()
-            cursors[scope] = cursor
+        cursor = dict(cursors.get(scope) or {})
+        cursor["revision"] = int(cursor.get("revision") or 0) + 1
+        cursor["last_id"] = ids[-1]
+        cursor["updated_at"] = time.time()
+        cursors[scope] = cursor
 
-            scope_pages = list(pages.get(scope) or [])
-            scope_pages.append({
-                "page_id": cursor["revision"],
-                "ids": ids,
-                "state": "ready",
-                "created_at": time.time(),
-            })
-            pages[scope] = self._trim_pages(scope_pages)
-            segments[scope] = self._trim_segments(scope_segments)
-            self._store.set_section(CURSOR_NAMESPACE, cursors)
-            self._store.set_section(ID_PAGE_NAMESPACE, pages)
+        scope_pages = list(pages.get(scope) or [])
+        scope_pages.append({
+            "page_id": cursor["revision"],
+            "ids": ids,
+            "state": "ready",
+            "created_at": time.time(),
+        })
+        pages[scope] = self._trim_pages(scope_pages)
+        segments[scope] = scope_segments
+        self._store.set_sections({
+            CURSOR_NAMESPACE: cursors,
+            ID_PAGE_NAMESPACE: pages,
+            DATA_SEGMENT_NAMESPACE: segments,
+        })
+        return new_tasks
+
+    @serialized_method
+    def pending(self, scope: str, limit: int = DATA_LIMIT) -> List[Dict[str, Any]]:
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        pending: List[Dict[str, Any]] = []
+        now = time.time()
+        for task_id, task in scope_segments.items():
+            if len(pending) >= max(0, int(limit)):
+                break
+            delivery_key = self._delivery_key(scope, task_id)
+            if delivery_key in self._delivered or not isinstance(task, dict):
+                continue
+            if float(task.get(RETRY_AFTER_KEY) or 0) > now:
+                continue
+            self._delivered.add(delivery_key)
+            item = dict(task)
+            item.pop(RETRY_AFTER_KEY, None)
+            pending.append(item)
+        return pending
+
+    @serialized_method
+    def release(self, scope: str, task_ids: List[Any]) -> None:
+        """Make staged payloads dispatchable again without dropping ownership data."""
+        for task_id in task_ids:
+            task_key = str(task_id or "")
+            if task_key:
+                self._delivered.discard(self._delivery_key(scope, task_key))
+
+    @serialized_method
+    def defer(self, scope: str, task_ids: List[Any], delay_seconds: float) -> None:
+        """Persist a retry deadline and release staged payloads after a failure."""
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        retry_after = time.time() + max(0.0, float(delay_seconds))
+        changed = False
+        for task_id in task_ids:
+            task_key = str(task_id or "")
+            task = scope_segments.get(task_key)
+            if not task_key or not isinstance(task, dict):
+                continue
+            deferred = dict(task)
+            deferred[RETRY_AFTER_KEY] = retry_after
+            scope_segments[task_key] = deferred
+            self._delivered.discard(self._delivery_key(scope, task_key))
+            changed = True
+        if changed:
+            segments[scope] = scope_segments
             self._store.set_section(DATA_SEGMENT_NAMESPACE, segments)
-            return new_tasks
 
-    def pending(self, scope: str) -> List[Dict[str, Any]]:
-        with self._lock:
-            segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-            scope_segments = dict(segments.get(scope) or {})
-            pending: List[Dict[str, Any]] = []
-            for task_id, task in scope_segments.items():
-                delivery_key = self._delivery_key(scope, task_id)
-                if delivery_key in self._delivered or not isinstance(task, dict):
-                    continue
-                self._delivered.add(delivery_key)
-                pending.append(dict(task))
-            return pending
+    @serialized_method
+    def available_capacity(self, scope: str) -> int:
+        """Return free persistent payload slots without loading business rows."""
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = segments.get(scope) or {}
+        return max(0, DATA_LIMIT - len(scope_segments))
 
+    @serialized_method
     def consume(self, scope: str, task_id: Any) -> None:
         self.consume_many(scope, [task_id])
 
+    @serialized_method
     def consume_many(self, scope: str, task_ids: List[Any]) -> None:
-        with self._lock:
-            task_keys = {str(task_id or "") for task_id in task_ids if str(task_id or "")}
-            if not task_keys:
-                return
-            pages = self._store.get_section(ID_PAGE_NAMESPACE)
-            segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-            scope_segments = dict(segments.get(scope) or {})
-            for task_key in task_keys:
-                scope_segments.pop(task_key, None)
-                self._delivered.discard(self._delivery_key(scope, task_key))
+        task_keys = {str(task_id or "") for task_id in task_ids if str(task_id or "")}
+        if not task_keys:
+            return
+        pages = self._store.get_section(ID_PAGE_NAMESPACE)
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        for task_key in task_keys:
+            scope_segments.pop(task_key, None)
+            self._delivered.discard(self._delivery_key(scope, task_key))
 
-            scope_pages = list(pages.get(scope) or [])
-            remaining = set(scope_segments)
-            for page in scope_pages:
-                ids = [str(value) for value in page.get("ids", [])]
-                if task_keys.intersection(ids) and not any(value in remaining for value in ids):
-                    page["state"] = "consumed"
-                    page["consumed_at"] = time.time()
+        scope_pages = list(pages.get(scope) or [])
+        remaining = set(scope_segments)
+        for page in scope_pages:
+            ids = [str(value) for value in page.get("ids", [])]
+            if task_keys.intersection(ids) and not any(value in remaining for value in ids):
+                page["state"] = "consumed"
+                page["consumed_at"] = time.time()
 
-            pages[scope] = self._trim_pages(scope_pages)
-            segments[scope] = scope_segments
-            self._store.set_section(ID_PAGE_NAMESPACE, pages)
-            self._store.set_section(DATA_SEGMENT_NAMESPACE, segments)
+        pages[scope] = self._trim_pages(scope_pages)
+        segments[scope] = scope_segments
+        self._store.set_sections({
+            ID_PAGE_NAMESPACE: pages,
+            DATA_SEGMENT_NAMESPACE: segments,
+        })
 
+    @serialized_method
     def promote(self, scope: str, task_id: Any, priority: int) -> None:
-        with self._lock:
-            task_key = str(task_id or "")
-            cursors = self._store.get_section(CURSOR_NAMESPACE)
-            pages = self._store.get_section(ID_PAGE_NAMESPACE)
-            segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
-            cursor = dict(cursors.get(scope) or {})
-            cursor["revision"] = int(cursor.get("revision") or 0) + 1
-            cursor["head_id"] = task_key
-            cursor["updated_at"] = time.time()
-            cursors[scope] = cursor
+        task_key = str(task_id or "")
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        pages = self._store.get_section(ID_PAGE_NAMESPACE)
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        cursor = dict(cursors.get(scope) or {})
+        cursor["revision"] = int(cursor.get("revision") or 0) + 1
+        cursor["head_id"] = task_key
+        cursor["updated_at"] = time.time()
+        cursors[scope] = cursor
 
-            scope_pages = list(pages.get(scope) or [])
-            scope_pages.insert(0, {
-                "page_id": f"head-{cursor['revision']}",
-                "ids": [task_key],
-                "state": "priority",
-                "created_at": time.time(),
-            })
-            pages[scope] = self._trim_pages(scope_pages)
+        scope_pages = list(pages.get(scope) or [])
+        scope_pages.insert(0, {
+            "page_id": f"head-{cursor['revision']}",
+            "ids": [task_key],
+            "state": "priority",
+            "created_at": time.time(),
+        })
+        pages[scope] = self._trim_pages(scope_pages)
 
-            scope_segments = dict(segments.get(scope) or {})
-            task = scope_segments.get(task_key)
-            if isinstance(task, dict):
-                task["priority"] = max(int(task.get("priority") or 0), int(priority))
-                scope_segments[task_key] = task
-                segments[scope] = scope_segments
+        scope_segments = dict(segments.get(scope) or {})
+        task = scope_segments.get(task_key)
+        if isinstance(task, dict):
+            task["priority"] = max(int(task.get("priority") or 0), int(priority))
+            scope_segments[task_key] = task
+            segments[scope] = scope_segments
 
-            self._store.set_section(CURSOR_NAMESPACE, cursors)
-            self._store.set_section(ID_PAGE_NAMESPACE, pages)
-            self._store.set_section(DATA_SEGMENT_NAMESPACE, segments)
+        self._store.set_sections({
+            CURSOR_NAMESPACE: cursors,
+            ID_PAGE_NAMESPACE: pages,
+            DATA_SEGMENT_NAMESPACE: segments,
+        })
 
     @staticmethod
     def _trim_pages(pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -164,18 +224,11 @@ class DiffTaskSegmentStore:
         return bounded
 
     @staticmethod
-    def _trim_segments(segments: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
-        if len(segments) <= DATA_LIMIT:
-            return segments
-        keys = list(segments)[-DATA_LIMIT:]
-        return {key: segments[key] for key in keys}
-
-    @staticmethod
     def _delivery_key(scope: str, task_id: Any) -> str:
         return f"{scope}:{task_id}"
 
 
-diff_task_segment_store = DiffTaskSegmentStore()
+diff_task_segment_store = _DiffTaskSegmentCenter()
 
 
-__all__ = ["DiffTaskSegmentStore", "diff_task_segment_store"]
+__all__ = ["diff_task_segment_store"]

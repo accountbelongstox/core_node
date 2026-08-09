@@ -11,11 +11,11 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
-use App\Models\Book;
-use App\Models\StudyGrammarPoint;
-use App\Models\StudyPhrase;
-use App\Models\StudySegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyGrammarPointModel as StudyGrammarPoint;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyPhraseModel as StudyPhrase;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
 use Illuminate\Support\Facades\DB;
 
 /**

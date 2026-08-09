@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 import { useShell } from '../../shell/ShellContext';
+import { requestAuthLogin } from '../../core/auth/AuthRequestCenter';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
 import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from './api';
@@ -667,7 +668,7 @@ export const WfNewApp: React.FC = () => {
                 addToast={addToast}
                 trans={trans}
                 currentUser={currentUser}
-                onRequireAuth={() => setActiveTab('auth')}
+                onRequireAuth={() => requestAuthLogin({ source: 'wordnew-social', reason: 'protected-feature' })}
               />
             </motion.div>
           )}
@@ -695,7 +696,7 @@ export const WfNewApp: React.FC = () => {
                   wfNewSettings.setField('avatar', url);
                   setCurrentUser(prev => ({ ...prev, avatar: url }));
                 }}
-                onLogin={() => setActiveTab('auth')}
+                onLogin={() => requestAuthLogin({ source: 'wordnew-profile', reason: 'protected-feature' })}
                 onLogout={handleLogout}
                 learnedWordsCount={courseWords.length || 72}
               />

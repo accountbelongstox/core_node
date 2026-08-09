@@ -13,8 +13,6 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Cache;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
@@ -420,125 +418,26 @@ class AppQyV1SystemInitializationController extends Controller
      * Delegates to the model so reads and the write-side invalidation
      * (AppQyV1LangDictionaryModel::forgetMetricsCache) share one definition.
      */
-    private function dictStatsCacheKey(string $langCode): string
-    {
-        return AppQyV1LangDictionaryModel::sysInitStatsCacheKey($langCode);
-    }
-
     /**
      * Compute ALL per-language dictionary metrics in a SINGLE table scan.
      *
-     * Previously every stats method ran 1 COUNT plus up to 8 separate
-     * COUNT/whereRaw scans of the SAME tts_cache_{lang} table (197k+ rows for
-     * EN). This collapses them into one selectRaw with SUM(CASE WHEN ...)
-     * aggregates, cached for a short window. SUM(CASE WHEN ...) and LENGTH()
-     * have no native builder form, so they stay raw; all boolean comparisons
-     * use true/false (never 1/0) so the SQL runs unchanged on sqlite + pgsql.
+     * Metrics are computed by the dictionary model in one cached aggregate.
      *
      * Returns an associative array of integer counts, or all-zero when the
      * table is missing.
      */
-    private function getDictStats(string $langCode, string $connectionName): array
+    private function getDictStats(string $langCode): array
     {
-        return Cache::remember(
-            $this->dictStatsCacheKey($langCode),
-            self::SYSINIT_STATS_TTL,
-            function () use ($langCode, $connectionName) {
-                $zero = [
-                    'table_exists' => false,
-                    'words' => 0,
-                    'sentences' => 0,
-                    'audio' => 0,
-                    'complete_words' => 0,
-                    'missing_translation' => 0,
-                    'missing_phonetic' => 0,
-                    'missing_audio' => 0,
-                    'missing_images' => 0,
-                    'complete_sentences' => 0,
-                    'missing_sentence_translation' => 0,
-                    'missing_sentence_audio' => 0,
-                ];
-
-                $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
-                $table = $dictModel->getTable();
-
-                if (!Schema::connection($connectionName)->hasTable($table)) {
-                    return $zero;
-                }
-
-                // Reusable raw fragments. Booleans compared with true/false (not
-                // 1/0); LENGTH() works identically on sqlite + pgsql.
-                $isSentence = "LENGTH(content) > 50 AND LENGTH(content) < 500";
-                $hasTranslation = "(has_translation = true OR (translations IS NOT NULL AND translations <> '' AND translations <> '{}' AND translations <> '[]'))";
-                $missingTranslation = "(has_translation = false OR translations IS NULL OR translations = '' OR translations = '{}' OR translations = '[]')";
-                $missingPhonetic = "((us_phonetic IS NULL OR us_phonetic = '') AND (uk_phonetic IS NULL OR uk_phonetic = ''))";
-                $missingAudio = "(has_audio = false OR tts_files IS NULL OR tts_files = '' OR tts_files = '{}' OR tts_files = '[]')";
-                $missingImages = "(image_files IS NULL OR image_files = '' OR image_files = '{}' OR image_files = '[]')";
-
-                $selects = implode(', ', [
-                    'COUNT(*) as words',
-                    "SUM(CASE WHEN {$isSentence} THEN 1 ELSE 0 END) as sentences",
-                    'SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as audio',
-                    "SUM(CASE WHEN {$hasTranslation} THEN 1 ELSE 0 END) as complete_words",
-                    "SUM(CASE WHEN {$missingTranslation} THEN 1 ELSE 0 END) as missing_translation",
-                    "SUM(CASE WHEN {$missingPhonetic} THEN 1 ELSE 0 END) as missing_phonetic",
-                    "SUM(CASE WHEN {$missingAudio} THEN 1 ELSE 0 END) as missing_audio",
-                    "SUM(CASE WHEN {$missingImages} THEN 1 ELSE 0 END) as missing_images",
-                    "SUM(CASE WHEN {$isSentence} AND {$hasTranslation} THEN 1 ELSE 0 END) as complete_sentences",
-                    "SUM(CASE WHEN {$isSentence} AND {$missingTranslation} THEN 1 ELSE 0 END) as missing_sentence_translation",
-                    "SUM(CASE WHEN {$isSentence} AND {$missingAudio} THEN 1 ELSE 0 END) as missing_sentence_audio",
-                ]);
-
-                $row = DB::connection($connectionName)
-                    ->table($table)
-                    ->selectRaw($selects)
-                    ->first();
-
-                if ($row === null) {
-                    return array_merge($zero, ['table_exists' => true]);
-                }
-
-                return [
-                    'table_exists' => true,
-                    'words' => (int) $row->words,
-                    'sentences' => (int) $row->sentences,
-                    'audio' => (int) $row->audio,
-                    'complete_words' => (int) $row->complete_words,
-                    'missing_translation' => (int) $row->missing_translation,
-                    'missing_phonetic' => (int) $row->missing_phonetic,
-                    'missing_audio' => (int) $row->missing_audio,
-                    'missing_images' => (int) $row->missing_images,
-                    'complete_sentences' => (int) $row->complete_sentences,
-                    'missing_sentence_translation' => (int) $row->missing_sentence_translation,
-                    'missing_sentence_audio' => (int) $row->missing_sentence_audio,
-                ];
-            }
-        );
+        return AppQyV1LangDictionaryModel::cachedSystemInitStats($langCode, self::SYSINIT_STATS_TTL);
     }
 
     /**
      * Consolidated per-language article stats in a SINGLE scan: total rows and
      * audio rows. has_audio compared with true (cross-DB safe).
      */
-    private function getArticleStats(string $langCode, string $connectionName): array
+    private function getArticleStats(string $langCode): array
     {
-        $articleModel = AppQyV1ArticleLibraryModel::forLanguage($langCode);
-        $table = $articleModel->getTable();
-
-        if (!Schema::connection($connectionName)->hasTable($table)) {
-            return ['articles' => 0, 'audio' => 0];
-        }
-
-        $row = DB::connection($connectionName)
-            ->table($table)
-            ->selectRaw('COUNT(*) as articles, SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as audio')
-            ->first();
-
-        if ($row === null) {
-            return ['articles' => 0, 'audio' => 0];
-        }
-
-        return ['articles' => (int) $row->articles, 'audio' => (int) $row->audio];
+        return AppQyV1ArticleLibraryModel::aggregateStats($langCode);
     }
 
     /**
@@ -613,10 +512,8 @@ class AppQyV1SystemInitializationController extends Controller
     public function getSystemStatistics()
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
-        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
-        
-        $languageStats = $supportedLanguages->map(function ($langCode) use ($connectionName) {
-            $dictStats = $this->getDictStats($langCode, $connectionName);
+        $languageStats = $supportedLanguages->map(function ($langCode) {
+            $dictStats = $this->getDictStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 return [
@@ -628,7 +525,7 @@ class AppQyV1SystemInitializationController extends Controller
                 ];
             }
 
-            $articleStats = $this->getArticleStats($langCode, $connectionName);
+            $articleStats = $this->getArticleStats($langCode);
             $ttsCounts = $this->getTtsLangCounts($langCode);
 
             return [
@@ -724,8 +621,6 @@ class AppQyV1SystemInitializationController extends Controller
     private function computeSystemStatisticsSummary(): array
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
-        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
-
         $summary = [
             'total_languages' => $supportedLanguages->count(),
             'total_words' => 0,
@@ -743,7 +638,7 @@ class AppQyV1SystemInitializationController extends Controller
         $audioExtensions = ['mp3', 'wav', 'ogg', 'aac', 'm4a', 'flac'];
 
         foreach ($supportedLanguages as $langCode) {
-            $dictStats = $this->getDictStats($langCode, $connectionName);
+            $dictStats = $this->getDictStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 continue;
@@ -761,7 +656,7 @@ class AppQyV1SystemInitializationController extends Controller
             $langSentences = $dictStats['sentences'];
             $langAudio = $dictStats['audio'];
 
-            $articleStats = $this->getArticleStats($langCode, $connectionName);
+            $articleStats = $this->getArticleStats($langCode);
             $langArticles = $articleStats['articles'];
             $langAudio += $articleStats['audio'];
 
@@ -816,10 +711,8 @@ class AppQyV1SystemInitializationController extends Controller
     public function getSystemStatisticsLanguages()
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
-        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
-        
-        $languageStats = $supportedLanguages->map(function ($langCode) use ($connectionName) {
-            $dictStats = $this->getDictStats($langCode, $connectionName);
+        $languageStats = $supportedLanguages->map(function ($langCode) {
+            $dictStats = $this->getDictStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 return [
@@ -831,7 +724,7 @@ class AppQyV1SystemInitializationController extends Controller
                 ];
             }
 
-            $articleStats = $this->getArticleStats($langCode, $connectionName);
+            $articleStats = $this->getArticleStats($langCode);
             $ttsCounts = $this->getTtsLangCounts($langCode);
 
             $wordCount = $dictStats['words'];
@@ -1022,8 +915,6 @@ class AppQyV1SystemInitializationController extends Controller
     private function getUntranslatedWordsStatistics(): array
     {
         $supportedLanguages = collect(AppQyV1TableMaps::getSupportedLanguages());
-        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
-        
         $totalWords = 0;
         $totalSentences = 0;
         $completeWords = 0;
@@ -1039,7 +930,7 @@ class AppQyV1SystemInitializationController extends Controller
         // single cached aggregate scan (getDictStats) instead of ~9 separate
         // scans of the same tts_cache_{lang} table.
         foreach ($supportedLanguages as $langCode) {
-            $dictStats = $this->getDictStats($langCode, $connectionName);
+            $dictStats = $this->getDictStats($langCode);
 
             if (!$dictStats['table_exists']) {
                 continue;

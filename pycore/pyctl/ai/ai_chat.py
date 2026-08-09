@@ -34,7 +34,7 @@ from typing import Dict, Any, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
-from pycore.pyctl.ai.ai_rate_limits import check_rate_limit, record_request, chat_nickname
+from pycore.pyctl.ai.ai_rate_limits import acquire_rate_limit, chat_nickname
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
 from pycore.pyctl.ai.ai_usage_log import record_usage
 
@@ -388,7 +388,7 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         return out
 
     use_model = requested_model or default_model(provider)
-    rate = check_rate_limit(provider, use_model)
+    rate = acquire_rate_limit(provider, use_model)
     if not rate.allowed:
         out["error"] = rate.message
         out["retry_after_s"] = rate.retry_after_s
@@ -407,8 +407,6 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         out["model"] = default_model(provider)
     out["nickname"] = chat_nickname(provider, out["model"])
     out["latency_ms"] = round((time.time() - start) * 1000, 1)
-    if out.get("success"):
-        record_request(provider)
     record_usage("text", provider, out["model"], bool(out.get("success")),
                  out["latency_ms"], source, out.get("error"))
     return out

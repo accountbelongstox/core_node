@@ -54,6 +54,20 @@ final class QueueCenterContract
         return self::document()['diff_delivery'] ?? [];
     }
 
+    public static function deliveryReceipt(): array
+    {
+        return self::document()['delivery_receipt'] ?? [];
+    }
+
+    public static function deliveryReceiptStage(string $role): string
+    {
+        $stages = self::deliveryReceipt()['stages'] ?? [];
+        if (!array_key_exists($role, $stages)) {
+            throw new RuntimeException("Unknown delivery receipt stage: {$role}");
+        }
+        return (string) $stages[$role];
+    }
+
     public static function realtime(): array
     {
         return self::document()['realtime'] ?? [];

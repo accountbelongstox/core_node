@@ -59,11 +59,12 @@ class BaseExtractor(ABC):
             return None
 
     def descriptor(self, path: str) -> Dict[str, Any]:
+        real = os.path.realpath(path)
         try:
-            st = os.stat(path)
-            return {"path": path, "mtime": int(st.st_mtime), "bytes": int(st.st_size)}
+            st = os.stat(real)
+            return {"path": real, "mtime": int(st.st_mtime), "bytes": int(st.st_size)}
         except OSError:
-            return {"path": path, "mtime": 0, "bytes": 0}
+            return {"path": real, "mtime": 0, "bytes": 0}
 
     def ts_to_epoch(self, ts: Any) -> int:
         if ts is None or ts == "":
@@ -84,6 +85,13 @@ class BaseExtractor(ABC):
     def stringify_content(self, content: Any) -> str:
         if isinstance(content, str):
             return content
+        if isinstance(content, dict):
+            if content.get("type") == "image":
+                return "[image]"
+            for key in ("text", "content", "parts"):
+                if key in content:
+                    return self.stringify_content(content.get(key))
+            return ""
         if isinstance(content, list):
             parts: List[str] = []
             for block in content:
@@ -94,7 +102,7 @@ class BaseExtractor(ABC):
                     elif btype == "image":
                         parts.append("[image]")
                     else:
-                        parts.append(str(block.get("text", "")))
+                        parts.append(self.stringify_content(block))
                 else:
                     parts.append(str(block))
             return "\n".join(p for p in parts if p)

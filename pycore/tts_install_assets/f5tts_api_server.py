@@ -21,6 +21,9 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 import uvicorn
 
+TMP_DIR = Path(r"D:\.tmp" if os.name == "nt" else "/var/_core_node/_tmp")
+TMP_DIR.mkdir(parents=True, exist_ok=True)
+
 app = FastAPI()
 _f5 = None
 _device = None
@@ -62,7 +65,7 @@ async def process(
     gen_text: str = Form(...),
 ):
     f5 = _get_f5()
-    tmp_dir = Path(tempfile.mkdtemp(prefix="f5tts_"))
+    tmp_dir = Path(tempfile.mkdtemp(prefix="f5tts_", dir=str(TMP_DIR)))
     ref_path = tmp_dir / (ref_audio.filename or "ref.wav")
     out_path = tmp_dir / "out.wav"
     ref_path.write_bytes(await ref_audio.read())

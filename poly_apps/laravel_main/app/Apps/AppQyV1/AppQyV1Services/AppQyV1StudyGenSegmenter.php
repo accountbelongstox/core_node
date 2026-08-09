@@ -11,11 +11,11 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
-use App\Models\Book;
-use App\Models\LangSentence;
-use App\Models\SourceSentence;
-use App\Models\StudySegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 

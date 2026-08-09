@@ -606,7 +606,7 @@ class AppQyV1WordQueryController extends BaseController
         // Case-insensitive prefix match on BOTH drivers: plain LIKE is
         // case-insensitive on sqlite but case-SENSITIVE on pgsql.
         $rows = AppQyV1LangDictionaryModel::forLanguage($language)
-            ->whereRaw('LOWER(content) LIKE ?', [strtolower($query) . '%'])
+            ->contentStartsWithInsensitive($query)
             ->limit(20)
             ->get();
 

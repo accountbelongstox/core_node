@@ -93,12 +93,11 @@ def assist_callback_states(
     enabled = bool(current.get("enabled"))
     capabilities = current.get("capabilities") or {}
     translation = enabled and bool(capabilities.get("translation"))
-    ai_translate = enabled and bool(capabilities.get("ai_translate"))
     word_audio = enabled and bool(capabilities.get("tts"))
     sentence_audio = enabled and bool(capabilities.get("sentence_audio"))
     subtitle = enabled and bool(capabilities.get("subtitle"))
     stt = enabled and bool(capabilities.get("stt"))
-    translation_worker = translation or ai_translate or subtitle or stt
+    translation_worker = translation or subtitle or stt
     return {
         "translation_worker": translation_worker,
         "tts_queue_poller": word_audio,

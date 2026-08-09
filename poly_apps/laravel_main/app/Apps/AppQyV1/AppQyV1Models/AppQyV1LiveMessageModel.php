@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 
 /**
  * Live chat message (Social Center expansion §LIVE chat). Append-only; polled by
@@ -49,4 +50,24 @@ class AppQyV1LiveMessageModel extends Model
         'user_id' => 'integer',
         'created_at' => 'datetime',
     ];
+
+    public static function afterCursor(int $sessionId, int $cursor, int $limit): Collection
+    {
+        return static::query()
+            ->where('session_id', $sessionId)
+            ->where('id', '>', $cursor)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function append(int $sessionId, int $userId, string $body): self
+    {
+        return static::query()->create([
+            'session_id' => $sessionId,
+            'user_id' => $userId,
+            'body' => $body,
+            'created_at' => now(),
+        ]);
+    }
 }

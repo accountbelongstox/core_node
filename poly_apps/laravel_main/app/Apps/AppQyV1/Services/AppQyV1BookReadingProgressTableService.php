@@ -37,6 +37,8 @@ class AppQyV1BookReadingProgressTableService
                 'verse_seq' => ['type' => 'integer', 'nullable' => false, 'default' => 0],
                 'grain' => ['type' => 'string', 'length' => 32, 'nullable' => true, 'default' => 'sentence'],
                 'page' => ['type' => 'integer', 'nullable' => false, 'default' => 1],
+                'article_id' => ['type' => 'string', 'length' => 255, 'nullable' => true],
+                'selection_mode' => ['type' => 'string', 'length' => 32, 'nullable' => true, 'default' => 'latest'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],
                 'updated_at' => ['type' => 'timestamp', 'nullable' => true],
             ],

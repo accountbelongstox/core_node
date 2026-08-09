@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
-use App\Models\AppQyV1AssistRequest;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel as AppQyV1AssistRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -55,25 +55,13 @@ class AppQyV1AssistRequestController extends Controller
             ], 422);
         }
 
-        $query = AppQyV1AssistRequest::query();
-
-        if ($request->filled('record_type')) {
-            $query->where('record_type', $request->input('record_type'));
-        }
-        if ($request->filled('source_key')) {
-            $query->where('source_key', $request->input('source_key'));
-        }
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
-        if ($request->filled('request_type')) {
-            $query->where('request_type', $request->input('request_type'));
-        }
-
         $perPage = (int) $request->input('per_page', 50);
-        $page = $query->orderByDesc('priority')
-            ->orderByDesc('id')
-            ->paginate($perPage);
+        $page = AppQyV1AssistRequest::filteredPage($request->only([
+            'record_type',
+            'source_key',
+            'status',
+            'request_type',
+        ]), $perPage);
 
         return response()->json([
             'success' => true,
@@ -117,58 +105,8 @@ class AppQyV1AssistRequestController extends Controller
         $priority = (int) $request->input('priority', 0);
         $items = $request->input('items');
 
-        $created = 0;
-        $existing = 0;
-        $rows = [];
-
         try {
-            foreach ($items as $item) {
-                $requestType = $item['request_type'];
-                // cover/poster are record-level, never language-scoped.
-                $language = in_array($requestType, ['cover', 'poster'], true)
-                    ? null
-                    : (isset($item['language']) && $item['language'] !== '' ? (string) $item['language'] : null);
-                $payload = $item['payload'] ?? null;
-
-                $row = AppQyV1AssistRequest::query()
-                    ->where('record_type', $recordType)
-                    ->where('source_key', $sourceKey)
-                    ->where('request_type', $requestType)
-                    ->where(function ($q) use ($language) {
-                        $language === null ? $q->whereNull('language') : $q->where('language', $language);
-                    })
-                    ->first();
-
-                if ($row) {
-                    // Idempotent: re-filing the same gap leaves a live row alone
-                    // but re-queues a previously failed one.
-                    if ($row->status === AppQyV1AssistRequest::STATUS_FAILED) {
-                        $row->status = AppQyV1AssistRequest::STATUS_PENDING;
-                        $row->error = null;
-                        $row->claimed_at = null;
-                        $row->claimed_by = null;
-                        if ($payload !== null) {
-                            $row->payload = $payload;
-                        }
-                        $row->save();
-                    }
-                    $existing++;
-                    $rows[] = $row;
-                    continue;
-                }
-
-                $row = AppQyV1AssistRequest::create([
-                    'record_type' => $recordType,
-                    'source_key' => $sourceKey,
-                    'request_type' => $requestType,
-                    'language' => $language,
-                    'status' => AppQyV1AssistRequest::STATUS_PENDING,
-                    'priority' => $priority,
-                    'payload' => $payload,
-                ]);
-                $created++;
-                $rows[] = $row;
-            }
+            $result = AppQyV1AssistRequest::fileRequests($recordType, $sourceKey, $priority, $items);
         } catch (\Throwable $e) {
             Log::error('[AssistRequest] create failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during create'], 500);
@@ -176,9 +114,9 @@ class AppQyV1AssistRequestController extends Controller
 
         return response()->json([
             'success' => true,
-            'created' => $created,
-            'existing' => $existing,
-            'items' => $rows,
+            'created' => $result['created'],
+            'existing' => $result['existing'],
+            'items' => $result['items'],
         ]);
     }
 
@@ -210,30 +148,7 @@ class AppQyV1AssistRequestController extends Controller
 
         $items = [];
         try {
-            $probe = new AppQyV1AssistRequest();
-            $items = $probe->getConnection()->transaction(function () use ($types, $limit, $claimer) {
-                $leaseFloor = now()->subMinutes(AppQyV1AssistRequest::LEASE_MINUTES);
-
-                $rows = AppQyV1AssistRequest::query()
-                    ->whereIn('request_type', $types)
-                    ->where('status', AppQyV1AssistRequest::STATUS_PENDING)
-                    ->where(function ($q) use ($leaseFloor) {
-                        $q->whereNull('claimed_at')
-                            ->orWhere('claimed_at', '<', $leaseFloor);
-                    })
-                    ->orderByDesc('priority')
-                    ->orderBy('id')
-                    ->limit($limit)
-                    ->lockForUpdate()
-                    ->get();
-
-                $claimed = [];
-                foreach ($rows as $row) {
-                    $row->claim($claimer);
-                    $claimed[] = $row;
-                }
-                return $claimed;
-            }, 1);
+            $items = AppQyV1AssistRequest::claimPending($types, $limit, $claimer);
         } catch (\Throwable $e) {
             Log::error('[AssistRequest] claim failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during claim'], 500);
@@ -273,7 +188,7 @@ class AppQyV1AssistRequestController extends Controller
         $status = $request->input('status');
 
         try {
-            $row = AppQyV1AssistRequest::query()->find($id);
+            $row = AppQyV1AssistRequest::findRequest($id);
             if (!$row) {
                 return response()->json(['ok' => false, 'status' => 'not_found', 'error' => 'Request not found'], 404);
             }
@@ -324,15 +239,7 @@ class AppQyV1AssistRequestController extends Controller
 
         $released = 0;
         try {
-            $rows = AppQyV1AssistRequest::query()
-                ->whereIn('id', $ids)
-                ->whereIn('status', [AppQyV1AssistRequest::STATUS_CLAIMED, AppQyV1AssistRequest::STATUS_PROCESSING])
-                ->get();
-
-            foreach ($rows as $row) {
-                $row->release($error);
-                $released++;
-            }
+            $released = AppQyV1AssistRequest::releaseRequests($ids, $error);
         } catch (\Throwable $e) {
             Log::error('[AssistRequest] release failed', ['error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during release'], 500);
@@ -356,7 +263,7 @@ class AppQyV1AssistRequestController extends Controller
         }
 
         try {
-            $deleted = AppQyV1AssistRequest::query()->where('id', $id)->delete();
+            $deleted = AppQyV1AssistRequest::deleteRequest($id);
         } catch (\Throwable $e) {
             Log::error('[AssistRequest] destroy failed', ['id' => $id, 'error' => $e->getMessage()]);
             return response()->json(['success' => false, 'error' => 'Internal error during delete'], 500);

@@ -1,9 +1,9 @@
 /**
  * useWordMediaPoller — reusable "poll word media until available" engine for
  * word tables (extracted from WfNewLibraryPage.requestWordMedia, which was a
- * fixed 3-try chain). Each getWordMedia call both READS current media AND tells
- * the backend to enqueue + escalate the missing files, so re-polling IS the
- * realtime "repeat request" that bumps task priority server-side (contract D4).
+ * fixed 3-try chain). The first request is active and prioritizes missing media;
+ * later polls are passive reads so polling cannot repeatedly raise priority or
+ * emit duplicate queue events.
  *
  * Behavior:
  *   - open-ended retry: ~4s cadence for the first ~30s, then backoff ~15–30s;
@@ -57,6 +57,8 @@ interface PollEntry {
   fastElapsedMs: number;
   activeSince: number;
   slowPolls: number;
+  /** True for the initial or explicit active backend notification. */
+  notifyBackend: boolean;
 }
 
 /** The non-React polling engine (all state private; hook below binds to React). */
@@ -85,6 +87,7 @@ class WordMediaPollScheduler {
     const existing = this.entries.get(md5);
     if (existing) {
       existing.urgent = true;
+      existing.notifyBackend = true;
       if (existing.state === 'queued') {
         this.queue = this.queue.filter((m) => m !== md5);
         this.queue.unshift(md5);
@@ -187,7 +190,7 @@ class WordMediaPollScheduler {
   private makeEntry(md5: string, word: string, urgent: boolean): PollEntry {
     const e: PollEntry = {
       md5, word, urgent, state: 'queued', timer: null,
-      fastElapsedMs: 0, activeSince: 0, slowPolls: 0,
+      fastElapsedMs: 0, activeSince: 0, slowPolls: 0, notifyBackend: true,
     };
     this.entries.set(md5, e);
     return e;
@@ -309,8 +312,13 @@ class WordMediaPollScheduler {
       return;
     }
     const accent = this.cfg.getAccent();
+    const notifyBackend = e.notifyBackend;
+    e.notifyBackend = false;
     wfNewApi
-      .getWordMedia(this.cfg.getLanguage(), e.word, accent ? { accent } : undefined)
+      .getWordMedia(this.cfg.getLanguage(), e.word, {
+        accent,
+        passive: !notifyBackend,
+      })
       .then((m) => {
         if (this.destroyed) return;
         this.cfg.onMedia(e.md5, m);

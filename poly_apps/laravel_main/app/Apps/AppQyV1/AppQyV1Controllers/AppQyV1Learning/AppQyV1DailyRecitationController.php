@@ -424,11 +424,7 @@ class AppQyV1DailyRecitationController extends BaseController
 
         // One grouped query over the log table: distinct active days with
         // their unique-word counts, ordered by day.
-        $rows = AppQyV1DailyRecitationLogModel::where('user_id', $user->id)
-            ->selectRaw('date, COUNT(DISTINCT word) as unique_words')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
+        $rows = AppQyV1DailyRecitationLogModel::uniqueWordsByDate($user->id);
 
         $dayList = [];
         foreach ($rows as $row) {

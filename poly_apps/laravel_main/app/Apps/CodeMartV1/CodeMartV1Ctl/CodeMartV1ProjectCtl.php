@@ -10,7 +10,6 @@ use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectAttachmentModel;
 use App\Apps\CodeMartV1\CodeMartV1Utils\CodeMartV1FileUploadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
 class CodeMartV1ProjectCtl extends Controller
@@ -91,7 +90,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $project = CodeMartV1ProjectModel::create([
             'client_id' => $user->id,
@@ -110,7 +109,7 @@ class CodeMartV1ProjectCtl extends Controller
             'status' => 'draft',
         ]);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success($project, 'Project created successfully', 201);
     }
@@ -160,7 +159,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $project->update($request->only([
             'title',
@@ -170,7 +169,7 @@ class CodeMartV1ProjectCtl extends Controller
             'budget',
         ]));
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success($project, 'Project updated successfully');
     }
@@ -194,14 +193,14 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Only draft projects can be published');
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $project->update([
             'status' => 'open',
             'published_at' => now(),
         ]);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success($project, 'Project published successfully');
     }
@@ -233,7 +232,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $milestone = CodeMartV1MilestoneModel::create([
             'project_id' => $projectId,
@@ -245,7 +244,7 @@ class CodeMartV1ProjectCtl extends Controller
             'status' => 'pending',
         ]);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success($milestone, 'Milestone created successfully', 201);
     }
@@ -273,7 +272,7 @@ class CodeMartV1ProjectCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        DB::beginTransaction();
+        CodeMartV1ProjectModel::beginModelTransaction();
 
         $uploadResult = $this->fileUploadService->uploadFile($request->file('file'), 'projects');
 
@@ -286,7 +285,7 @@ class CodeMartV1ProjectCtl extends Controller
             'uploaded_by' => $user->id,
         ]);
 
-        DB::commit();
+        CodeMartV1ProjectModel::commitModelTransaction();
 
         return $this->success($attachment, 'Attachment uploaded successfully', 201);
     }

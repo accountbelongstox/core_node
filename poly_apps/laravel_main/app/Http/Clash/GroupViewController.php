@@ -11,7 +11,7 @@
 
 namespace App\Http\Clash;
 
-use App\Models\Group;
+use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -24,13 +24,11 @@ class GroupViewController
 
     public function list()
     {
-        $groups = Group::orderBy('created_at', 'desc')
-            ->withCount('configs')
-            ->get();
+        $groups = Group::orderedWithConfigCounts();
 
         if ($groups->isEmpty()) {
             // Create the default group
-            $defaultGroup = Group::create([
+            $defaultGroup = Group::createGroup([
                 'name' => 'Default Group'
             ]);
             $groups = collect([$defaultGroup]);
@@ -41,20 +39,7 @@ class GroupViewController
 
     public function findGroup($identifier)
     {
-        // First try to find by group name
-        $group = Group::where('name', $identifier)->first();
-
-        if (!$group) {
-            // If not found, try to find by ID
-            $group = is_numeric($identifier) ? Group::find($identifier) : null;
-        }
-
-        // If still not found, return the first group or create the default group
-        if (!$group) {
-            $group = Group::first() ?? Group::create(['name' => 'Default Group']);
-        }
-
-        return $group;
+        return Group::resolveOrDefault($identifier);
     }
 
     public function store(Request $request)
@@ -63,7 +48,7 @@ class GroupViewController
             'name' => 'required|string|max:255',
         ]);
 
-        $group = Group::create($validated);
+        $group = Group::createGroup($validated);
         return response()->json($group, 201);
     }
 
@@ -86,7 +71,7 @@ class GroupViewController
     public function destroy(Group $group)
     {
         // Check if group has any configs
-        if ($group->configs()->exists()) {
+        if ($group->hasConfigs()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Cannot delete group with existing configurations'

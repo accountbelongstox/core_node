@@ -17,6 +17,8 @@ class AppQyV1UserBookReadingProgressModel extends Model
         'verse_seq',
         'grain',
         'page',
+        'article_id',
+        'selection_mode',
     ];
 
     protected $casts = [

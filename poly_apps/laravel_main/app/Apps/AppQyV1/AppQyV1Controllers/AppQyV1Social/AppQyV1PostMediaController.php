@@ -63,6 +63,9 @@ class AppQyV1PostMediaController extends BaseController
         $myId = 0;
         $post = null;
         $files = [];
+        $existingCount = 0;
+        $imageRows = [];
+        $imageState = [];
         $startSeq = 0;
         $storageDir = '';
         $seq = 0;
@@ -78,7 +81,7 @@ class AppQyV1PostMediaController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
@@ -100,8 +103,9 @@ class AppQyV1PostMediaController extends BaseController
         }
 
         // Cap total images on the post at MAX_IMAGES across calls.
-        $startSeq = (int) AppQyV1PostImageModel::query()->where('post_id', $id)->max('sequence');
-        $existingCount = (int) AppQyV1PostImageModel::query()->where('post_id', $id)->count();
+        $imageState = AppQyV1PostImageModel::storageStateForPost($id);
+        $startSeq = (int) $imageState['max_sequence'];
+        $existingCount = (int) $imageState['image_count'];
         if (($existingCount + count($files)) > self::MAX_IMAGES) {
             return $this->error('A post can have at most ' . self::MAX_IMAGES . ' images', 422);
         }
@@ -133,13 +137,11 @@ class AppQyV1PostMediaController extends BaseController
             }
 
             $relativeUrl = self::POST_IMAGES_URL_PREFIX . '/' . $id . '/' . $seq . '.jpg';
-            AppQyV1PostImageModel::query()->create([
-                'post_id' => $id,
+            $imageRows[] = [
                 'image_url' => $relativeUrl,
                 'sequence' => $seq,
                 'caption' => null,
-                'created_at' => now(),
-            ]);
+            ];
             $stored++;
         }
 
@@ -147,12 +149,8 @@ class AppQyV1PostMediaController extends BaseController
             return $this->error('Failed to process uploaded images', 422);
         }
 
-        // Promote to an images post if it was plain text.
-        if ((string) $post->post_type === AppQyV1PostModel::TYPE_TEXT) {
-            $post->post_type = AppQyV1PostModel::TYPE_IMAGES;
-            $post->updated_at = now();
-            $post->save();
-        }
+        AppQyV1PostImageModel::storeForPost($id, $imageRows);
+        $post->promoteToImages();
 
         return $this->success([
             'post' => $this->freshPostShape($id, $myId),
@@ -179,7 +177,7 @@ class AppQyV1PostMediaController extends BaseController
         }
         $myId = (int) $currentUser->id;
 
-        $post = AppQyV1PostModel::query()->find($id);
+        $post = AppQyV1PostModel::findPost($id);
         if (!$post) {
             return $this->notFound('Post not found');
         }
@@ -217,12 +215,7 @@ class AppQyV1PostMediaController extends BaseController
 
         $relativeUrl = self::POST_VIDEOS_URL_PREFIX . '/' . $myId . '/' . $id . '.mp4';
 
-        $post->video_url = $relativeUrl;
-        if ((string) $post->post_type !== AppQyV1PostModel::TYPE_VIDEO) {
-            $post->post_type = AppQyV1PostModel::TYPE_VIDEO;
-        }
-        $post->updated_at = now();
-        $post->save();
+        $post->attachVideo($relativeUrl);
 
         return $this->success([
             'post' => $this->freshPostShape($id, $myId),
@@ -302,18 +295,14 @@ class AppQyV1PostMediaController extends BaseController
         $images = [];
         $liked = false;
 
-        $post = AppQyV1PostModel::query()->find($postId);
+        $post = AppQyV1PostModel::findPost($postId);
         if (!$post) {
             return [];
         }
 
-        $authorUser = User::find((int) $post->user_id);
+        $authorUser = User::findById((int) $post->user_id);
 
-        $imageRows = AppQyV1PostImageModel::query()
-            ->where('post_id', $postId)
-            ->orderBy('sequence')
-            ->orderBy('id')
-            ->get();
+        $imageRows = AppQyV1PostImageModel::orderedForPosts([$postId]);
         foreach ($imageRows as $row) {
             $images[] = [
                 'id' => (int) $row->id,

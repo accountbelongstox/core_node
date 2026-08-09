@@ -14,12 +14,12 @@ import sys
 import os
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pybasecommon.commander import exec_silent, exec_realtime
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pathlib import Path
 import subprocess
 
 import time
 
-import tempfile
 
 
 
@@ -94,7 +94,7 @@ def restart_as_background() -> bool:
             CREATE_NEW_PROCESS_GROUP = 0x00000200
 
             # Create log file for debugging
-            log_dir = Path(tempfile.gettempdir()) / 'device_sync'
+            log_dir = TMP_DIR / 'device_sync'
             log_dir.mkdir(exist_ok=True)
             log_file = log_dir / 'device_sync.log'
 

@@ -21,6 +21,7 @@ import { wfNewSettings } from '../../WfNewSettingsStore';
 import { accentToBcp47, mapUiAccent, resolvePracticeVoice } from '../../hooks/wordNewWordAudioFallback';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
+import { wordNewAudioQueueCenter } from '../../services/WordNewAudioQueueCenter';
 
 interface ReciteOptions {
   gid: string;
@@ -123,6 +124,9 @@ export function useWfNewReciteController(opts: ReciteOptions): ReciteApi {
       };
       // Hard ceiling so a missing/stuck clip can never freeze the loop.
       const guard = setTimeout(finish, 8000);
+      const queueMissingAudio = () => {
+        wordNewAudioQueueCenter.notifyMissingWord(word.text, language || 'en');
+      };
 
       if (isAbsoluteUrl(word.audioUrl)) {
         try {
@@ -142,17 +146,22 @@ export function useWfNewReciteController(opts: ReciteOptions): ReciteApi {
           audio.onended = finish;
           audio.onerror = () => {
             // Real file failed — fall back to speech synthesis once.
+            queueMissingAudio();
             speak(word.text, speed, finish);
           };
-          void audio.play().catch(() => speak(word.text, speed, finish));
+          void audio.play().catch(() => {
+            queueMissingAudio();
+            speak(word.text, speed, finish);
+          });
           return;
         } catch {
           /* fall through to speech */
         }
       }
+      queueMissingAudio();
       speak(word.text, speed, finish);
     });
-  }, []);
+  }, [language]);
 
   const runLoop = useCallback(async () => {
     const myGen = ++genRef.current;

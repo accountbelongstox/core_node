@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Agent History workflows exposed to the Pycore UI."""
 
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 import pycore.pyutils.agent_history.article_records as article_record_store
@@ -8,14 +9,65 @@ import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.heartbeat import set_agent_history_callbacks_enabled
 from pycore.pyctl.agent_history.pipeline.config import (
+    SUPPORTED_TOOLS,
     get_config,
+    get_tool_backfill_target,
+    get_tool_cursor,
+    get_tool_live_cursor,
     get_status as get_pipeline_status,
     list_articles,
     save_config,
 )
-from pycore.pyctl.agent_history.pipeline.worker import start_backfill
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
+from pycore.pyctl.ai.ai_rate_limits import rate_status
+from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
 from pycore.pyutils.common.operation_service import operation_service
+from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
+from pycore.pyutils.common.usage_rollup import usage_rollup
+
+
+_AI_USAGE_SOURCES = {"agent_history_article", "agent_history_translate"}
+_AI_USAGE_CACHE_KEY = "agent_history.ai_usage_dashboard"
+
+
+def _agent_history_ai_usage_snapshot(day: str) -> Dict[str, Any]:
+    usage_data = usage_log(400, "text", "openrouter", list(_AI_USAGE_SOURCES))
+    entries = usage_data.get("entries", [])
+    today_entries = [
+        entry for entry in entries if str(entry.get("iso") or "").startswith(day)
+    ]
+    source_stats = usage_data.get("source_stats") or {}
+    today_summary = usage_rollup.summarize(source_stats, _AI_USAGE_SOURCES, day)
+    history_summary = usage_rollup.summarize(source_stats, _AI_USAGE_SOURCES)
+    return {
+        "usage": {
+            "today": today_summary,
+            "history": history_summary,
+            "retained_limit": 5000,
+        },
+        "tasks": entries,
+        "task_total": int(history_summary["requests"]),
+        "today_task_total": int(today_summary["requests"]),
+        "retained_task_total": len(entries),
+        "retained_today_task_total": len(today_entries),
+    }
+
+
+def _agent_history_ai_dashboard(config: Dict[str, Any]) -> Dict[str, Any]:
+    day = datetime.now(timezone.utc).date().isoformat()
+    usage_snapshot = status_snapshot_cache.get(
+        _AI_USAGE_CACHE_KEY,
+        lambda: _agent_history_ai_usage_snapshot(day),
+        ttl_seconds=float("inf"),
+        version=f"{day}:{usage_revision()}",
+    )
+    return {
+        "provider": "openrouter",
+        "model": str(config.get("openrouter_model") or "openrouter/free"),
+        "day": day,
+        "rate": rate_status("openrouter").get("status") or {},
+        **usage_snapshot,
+    }
 
 
 def index(_params: Any, _request_id: str) -> Dict[str, Any]:
@@ -102,7 +154,7 @@ def prompt_page(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.read_prompt_page(_id_list(request))}
 
 def refresh(_params: Any, _request_id: str) -> Dict[str, Any]:
-    return {"success": True, "data": agent_history_service.extract(force=True)}
+    return {"success": True, "data": agent_history_tick_service.request_extract(force=True)}
 
 def update_prompt(params: Any, _request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
@@ -117,18 +169,51 @@ def update_prompt(params: Any, _request_id: str) -> Dict[str, Any]:
         return {"success": False, "error": "invalid id"}
     return {"success": True, "data": result}
 
-def status(_params: Any, _request_id: str) -> Dict[str, Any]:
+def status(params: Any, _request_id: str) -> Dict[str, Any]:
+    request = params if isinstance(params, dict) else {}
+    tool = str(request.get("tool") or "").strip().lower()
+    raw_tools = request.get("tools") or []
+    requested_tools = [str(item).strip().lower() for item in raw_tools] if isinstance(raw_tools, list) else []
+    if tool and tool not in requested_tools:
+        requested_tools.append(tool)
+    unknown_tools = [item for item in requested_tools if item not in SUPPORTED_TOOLS]
+    if unknown_tools:
+        return {"success": False, "error": "unknown tool"}
+    tools = [item for item in SUPPORTED_TOOLS if item in set(requested_tools)]
+    data: Dict[str, Any] = {
+        "tick": agent_history_tick_service.get_status_snapshot(),
+        "store": agent_history_service.get_status(),
+        "article": get_pipeline_status(),
+    }
+    if tools:
+        config = get_config()
+        cursors = {}
+        for item in tools:
+            cursor = get_tool_cursor(config, item)
+            target = get_tool_backfill_target(config, item)
+            live_cursor = get_tool_live_cursor(config, item)
+            lane_aware = bool(target) and bool(live_cursor)
+            cursors[item] = {
+                "after_ts": int(cursor.get("after_ts") or 0),
+                "after_fragment_id": str(cursor.get("after_fragment_id") or ""),
+                "backfill_target_ts": int(target.get("after_ts") or 0),
+                "backfill_target_fragment_id": str(target.get("after_fragment_id") or ""),
+                "live_after_ts": int(live_cursor.get("after_ts") or 0),
+                "live_after_fragment_id": str(live_cursor.get("after_fragment_id") or ""),
+                "lane_aware": lane_aware,
+            }
+        histories = agent_history_service.read_tool_statistics_many(cursors)
+        data["tool_histories"] = histories
+        if tool and len(histories) == 1:
+            data["tool_history"] = histories[0]
     return {
         "success": True,
-        "data": {
-            "tick": agent_history_tick_service.get_status_snapshot(),
-            "store": agent_history_service.get_status(),
-            "article": get_pipeline_status(),
-        },
+        "data": data,
     }
 
 def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
-    """One combined UI bootstrap exchange for config and operation state."""
+    """One combined UI bootstrap exchange for config, load, and operation state."""
+    config = get_config()
     operation = operation_service.get_snapshot(
         scope="agent_history",
         include_items=False,
@@ -137,8 +222,9 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
     return {
         "success": True,
         "data": {
-            "article_config": get_config(),
+            "article_config": config,
             "operation_snapshot": operation,
+            "ai_dashboard": _agent_history_ai_dashboard(config),
         },
     }
 
@@ -146,20 +232,11 @@ def article_config_post(params: Any, request_id: str) -> Dict[str, Any]:
     request = params if isinstance(params, dict) else {}
     config = save_config(request)
     pipeline_enabled = bool(config.get("enabled"))
-    extraction_enabled = pipeline_enabled or bool(config.get("enabled_tools"))
-    set_agent_history_callbacks_enabled(pipeline_enabled, extraction_enabled)
+    set_agent_history_callbacks_enabled(pipeline_enabled)
     return {
         "success": True,
         "data": config,
         "operation_id": f"op_config_{request_id}",
-    }
-
-def article_start(_params: Any, request_id: str) -> Dict[str, Any]:
-    set_agent_history_callbacks_enabled(True, True)
-    return {
-        "success": True,
-        "data": start_backfill(),
-        "operation_id": f"op_start_{request_id}",
     }
 
 def article_list(params: Any, _request_id: str) -> Dict[str, Any]:
@@ -217,4 +294,4 @@ def test_extract(params: Any, _request_id: str) -> Dict[str, Any]:
     return {"success": True, "data": agent_history_service.test_extract(tool)}
 
 
-__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_start", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "test_extract"]
+__all__ = ["index", "prompts", "session_detail", "session_id_pages", "session_page", "prompt_id_pages", "prompt_page", "refresh", "update_prompt", "status", "runtime_get", "article_config_post", "article_list", "article_logs", "article_records", "article_record_id_pages", "article_record_page", "test_extract"]

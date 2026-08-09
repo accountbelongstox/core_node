@@ -17,6 +17,7 @@ class GenericAgentExtractor(BaseExtractor):
         patterns = (
             os.path.join(home, ".agent", "**", "*.jsonl"),
             os.path.join(home, ".agent", "**", "*.json"),
+            os.path.join(home, ".openclaw", "agents", "*", "sessions", "*.jsonl"),
         )
         found: Dict[str, Dict[str, Any]] = {}
         for pattern in patterns:
@@ -45,26 +46,43 @@ class GenericAgentExtractor(BaseExtractor):
         for index, row in enumerate(records):
             if not isinstance(row, dict):
                 continue
+            if str(row.get("type") or "").lower() == "session":
+                continue
             message = row.get("message") if isinstance(row.get("message"), dict) else row
             role_value = str(message.get("role") or row.get("role") or row.get("type") or "assistant").lower()
-            role = "user" if role_value in ("user", "human", "prompt") else "assistant"
+            if role_value in ("user", "human", "prompt"):
+                role = "user"
+            elif role_value in ("toolresult", "tool_result"):
+                role = "tool_result"
+            elif role_value == "system":
+                role = "system"
+            else:
+                role = "assistant"
             content = message.get("content") or message.get("text") or row.get("content") or row.get("text") or ""
             body = self.stringify_content(content).strip()
             if not body:
                 continue
-            timestamp = self.ts_to_epoch(row.get("timestamp") or row.get("ts") or row.get("created_at"))
+            timestamp = self.ts_to_epoch(
+                row.get("timestamp") or message.get("timestamp") or row.get("ts") or row.get("created_at")
+            )
             if timestamp <= 0:
                 timestamp = int(os.path.getmtime(path)) + index
             first_ts = timestamp if first_ts <= 0 else min(first_ts, timestamp)
             last_ts = max(last_ts, timestamp)
-            turns.append(self.turn(timestamp, role, body, model=message.get("model") or row.get("model")))
+            turns.append(self.turn(
+                timestamp,
+                role,
+                body,
+                model=message.get("model") or row.get("model"),
+                name=message.get("toolName") or row.get("toolName"),
+            ))
             if role == "user":
                 prompts.append({"ts": timestamp, "text": self.truncate(body)})
         if not turns:
             return []
         raw_id = os.path.splitext(os.path.basename(path))[0]
         return [self.session(self.tool(), user, raw_id, {
-            "project": os.path.basename(os.path.dirname(path)),
+            "project": "",
             "title": prompts[0]["text"][:120] if prompts else raw_id,
             "firstTs": first_ts,
             "lastTs": last_ts,

@@ -32,6 +32,7 @@ export interface LaravelQueuePriorityEvent {
   dedup_key?: string;
   language?: string | null;
   priority?: number;
+  bump?: string;
   /** word_audio only. */
   md5?: string | null;
   word?: string;

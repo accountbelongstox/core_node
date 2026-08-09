@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 from pycore.pyctl.ai.ai_text_log import log_ai_call
+from pycore.pyutils.common.usage_rollup import usage_rollup
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
@@ -52,7 +53,7 @@ _OLD_SHARED_DIR = get_core_node_root() / ".ai_state"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state"
 
 # Newest-last ring buffer cap.
-_MAX_ENTRIES = 400
+_MAX_ENTRIES = 5000
 # Every AI/capability call kind the unified usage log accepts. text/vision/probe
 # flow through the AI gateway; image/tts/stt are folded in so the global usage
 # history + per-provider rollup reflect EVERY AI call, not just chat/vision.
@@ -99,11 +100,26 @@ def _load() -> Dict[str, Any]:
             if isinstance(data, dict):
                 data.setdefault("entries", [])
                 data.setdefault("stats", {})
-                if isinstance(data["entries"], list) and isinstance(data["stats"], dict):
+                data.setdefault("source_stats", {})
+                if (
+                    isinstance(data["entries"], list)
+                    and isinstance(data["stats"], dict)
+                    and isinstance(data["source_stats"], dict)
+                ):
+                    if not data["source_stats"]:
+                        data["source_stats"] = usage_rollup.rebuild(data["entries"])
+                        if data["entries"]:
+                            _save(data)
                     return data
     except Exception as e:  # noqa: BLE001 — a corrupt log must never crash callers
         ColorPrint.yellow(f"[ai_usage_log] log unreadable ({e}); starting fresh")
-    return {"version": 1, "saved_at": 0.0, "entries": [], "stats": {}}
+    return {
+        "version": 1,
+        "saved_at": 0.0,
+        "entries": [],
+        "stats": {},
+        "source_stats": {},
+    }
 
 
 def _save(doc: Dict[str, Any]) -> None:
@@ -172,6 +188,9 @@ def _record_usage(
     provider_stats["last_ts"] = ts
     provider_stats["last_model"] = entry["model"]
     doc["stats"] = stats
+    source_stats = doc.get("source_stats") or {}
+    usage_rollup.update(source_stats, entry)
+    doc["source_stats"] = source_stats
     _save(doc)
     # Mirror to the shared flat operator log AND print one CLI line (the
     # per-call visibility that was missing). Outside the lock — the file write
@@ -183,27 +202,41 @@ def _record_usage(
     )
 
 
-def _usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
+def _usage_log(
+    limit: int = 100,
+    kind: Optional[str] = None,
+    provider: Optional[str] = None,
+    sources: Optional[List[str]] = None,
+) -> Dict[str, Any]:
     """Newest-first records (+ per-provider/kind rollup) for the UI.
 
-    ``kind`` optionally filters the returned records (stats are always the full
-    rollup). The Laravel ``/api/local/ai/usage`` endpoint returns the same shape.
+    ``kind``, ``provider``, and ``sources`` optionally filter returned records;
+    aggregate stats always cover the full store. The Laravel usage endpoint
+    returns the same base shape.
     """
     try:
         limit = max(1, min(_MAX_ENTRIES, int(limit)))
     except (TypeError, ValueError):
         limit = 100
     kind = (kind or "").strip().lower() or None
+    provider = (provider or "").strip().lower() or None
+    source_set = {str(source) for source in (sources or []) if str(source)}
     doc = _load()
     entries = list(doc.get("entries") or [])
     stats = dict(doc.get("stats") or {})
+    source_stats = dict(doc.get("source_stats") or {})
     records = list(reversed(entries))
     if kind:
         records = [r for r in records if r.get("kind") == kind]
+    if provider:
+        records = [r for r in records if str(r.get("provider") or "").lower() == provider]
+    if source_set:
+        records = [r for r in records if str(r.get("source") or "") in source_set]
     return {
         "success": True,
         "storage_path": str(_usage_file()),
         "stats": stats,
+        "source_stats": source_stats,
         "entries": records[:limit],
     }
 
@@ -214,6 +247,7 @@ def _clear_usage() -> int:
     removed_count = len(doc.get("entries") or [])
     doc["entries"] = []
     doc["stats"] = {}
+    doc["source_stats"] = {}
     _save(doc)
     return removed_count
 
@@ -246,12 +280,35 @@ def record_usage(
     )
 
 
-def usage_log(limit: int = 100, kind: Optional[str] = None) -> Dict[str, Any]:
-    return call_serialized(_WORK_QUEUE, _usage_log, limit, kind)
+def usage_log(
+    limit: int = 100,
+    kind: Optional[str] = None,
+    provider: Optional[str] = None,
+    sources: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    return call_serialized(_WORK_QUEUE, _usage_log, limit, kind, provider, sources)
+
+
+def _usage_revision() -> str:
+    path = _usage_file()
+    if not path.is_file():
+        return "0:0"
+    stat = path.stat()
+    return f"{stat.st_mtime_ns}:{stat.st_size}"
+
+
+def usage_revision() -> str:
+    return str(call_serialized(_WORK_QUEUE, _usage_revision))
 
 
 def clear_usage() -> int:
     return int(call_serialized(_WORK_QUEUE, _clear_usage))
 
 
-__all__ = ["record_usage", "usage_log", "clear_usage", "RUNTIME"]
+__all__ = [
+    "RUNTIME",
+    "clear_usage",
+    "record_usage",
+    "usage_log",
+    "usage_revision",
+]

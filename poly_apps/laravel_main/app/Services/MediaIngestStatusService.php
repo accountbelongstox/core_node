@@ -5,10 +5,10 @@ namespace App\Services;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
-use App\Models\Book;
-use App\Models\LangChapter;
-use App\Models\LangSentence;
-use App\Models\SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 
 /**
  * Idempotent ingest progress for external importers (mcp-chrome Duoreader, pycore).

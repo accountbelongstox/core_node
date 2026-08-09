@@ -470,12 +470,12 @@ def generate_image(
     return last or _no_image_provider()
 
 
-def _build_gateway_status(refresh: bool = False) -> Dict[str, Any]:
+def _build_gateway_status() -> Dict[str, Any]:
     """
     Full gateway snapshot for the UI: per-provider tier/quota/usage/cooldown and
     the recent task records (which AI handled what, newest first).
     """
-    avail = {p["name"]: p for p in _all_probed_providers(refresh)}
+    avail = {p["name"]: p for p in _all_probed_providers(False)}
     now = time.time()
     providers = []
     for name in PROVIDER_ORDER:
@@ -497,7 +497,7 @@ def _build_gateway_status(refresh: bool = False) -> Dict[str, Any]:
             "paused": paused,
             "key_masked": probed.get("key_masked"),
             "models": probed.get("models") or [],
-            "quota": get_quota(name, refresh=refresh),
+            "quota": get_quota(name, refresh=False),
             "calls": st["calls"],
             "ok": st["ok"],
             "failed": st["failed"],
@@ -515,10 +515,10 @@ def _build_gateway_status(refresh: bool = False) -> Dict[str, Any]:
 
 
 def gateway_status(refresh: bool = False) -> Dict[str, Any]:
-    """Return cached local AI state; network quota probes require explicit refresh."""
+    """Return local AI state; live provider probes use the dedicated probe API."""
     return status_snapshot_cache.get(
         STATUS_SNAPSHOT_AI_KEY,
-        lambda: _build_gateway_status(refresh),
+        _build_gateway_status,
         refresh=refresh,
     )
 

@@ -2,8 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Models\Book;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 
 class AppQyV1PosterPriorityService
 {

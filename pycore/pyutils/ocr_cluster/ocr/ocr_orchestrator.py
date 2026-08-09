@@ -24,7 +24,6 @@ import base64
 import importlib.metadata
 import importlib.util
 import os
-import tempfile
 import time
 from pathlib import Path
 from pycore.pyfoundations.serialized_worker import (
@@ -34,6 +33,7 @@ from pycore.pyfoundations.serialized_worker import (
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.third_party.api import get_third_package_easyocr
 
 from pycore.pyutils.ocr_cluster.ocr_windows_engine import create_windows_ocr
@@ -359,7 +359,7 @@ def ocr_test(engine: Optional[str] = None, image_path: Optional[str] = None,
             # Strip an optional data-URL prefix: data:image/png;base64,XXXX
             if raw.startswith("data:") and "," in raw:
                 raw = raw.split(",", 1)[1]
-            tmp_dir = Path(tempfile.gettempdir()) / "pycore_ocr_test"
+            tmp_dir = TMP_DIR / "pycore_ocr_test"
             tmp_dir.mkdir(parents=True, exist_ok=True)
             tmp_path = str(tmp_dir / "sample.png")
             with open(tmp_path, "wb") as fh:

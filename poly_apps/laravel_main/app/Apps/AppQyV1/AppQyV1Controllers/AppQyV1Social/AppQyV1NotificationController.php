@@ -41,7 +41,6 @@ class AppQyV1NotificationController extends BaseController
         $cursor = 0;
         $limit = self::DEFAULT_LIMIT;
         $unreadOnly = false;
-        $query = null;
         $rows = null;
         $items = [];
         $nextCursor = null;
@@ -63,19 +62,12 @@ class AppQyV1NotificationController extends BaseController
         $limit = (int) $request->query('limit', self::DEFAULT_LIMIT);
         $unreadOnly = filter_var($request->query('unread', false), FILTER_VALIDATE_BOOLEAN);
 
-        $query = AppQyV1NotificationModel::query()
-            ->where('user_id', (int) $currentUser->id)
-            ->orderByDesc('id');
-
-        // Newest-first: a cursor is the smallest id already seen; fetch older.
-        if ($cursor > 0) {
-            $query->where('id', '<', $cursor);
-        }
-        if ($unreadOnly) {
-            $query->whereNull('read_at');
-        }
-
-        $rows = $query->limit($limit)->get();
+        $rows = AppQyV1NotificationModel::inboxForUser(
+            (int) $currentUser->id,
+            $cursor,
+            $unreadOnly,
+            $limit
+        );
 
         foreach ($rows as $row) {
             $items[] = [
@@ -109,10 +101,7 @@ class AppQyV1NotificationController extends BaseController
             return $this->unauthorized();
         }
 
-        $count = (int) AppQyV1NotificationModel::query()
-            ->where('user_id', (int) $currentUser->id)
-            ->whereNull('read_at')
-            ->count();
+        $count = AppQyV1NotificationModel::unreadCountForUser((int) $currentUser->id);
 
         return $this->success(['count' => $count]);
     }
@@ -147,15 +136,10 @@ class AppQyV1NotificationController extends BaseController
             return $this->error('Provide a notification id or all:true', 422);
         }
 
-        $query = AppQyV1NotificationModel::query()
-            ->where('user_id', (int) $currentUser->id)
-            ->whereNull('read_at');
-
-        if (!$all) {
-            $query->where('id', $id);
-        }
-
-        $updated = (int) $query->update(['read_at' => now()]);
+        $updated = AppQyV1NotificationModel::markReadForUser(
+            (int) $currentUser->id,
+            $all ? null : $id
+        );
 
         return $this->success(['updated' => $updated], 'Notifications marked read');
     }

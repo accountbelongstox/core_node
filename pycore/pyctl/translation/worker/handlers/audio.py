@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from pycore.pyfoundations.system_paths import get_edge_tts_voice_cache_dir
+from pycore.pyfoundations.pygvar import TMP_DIR
 import pycore.pyutils.tts.tts_orchestrator as tts_orchestrator
 
 
@@ -18,11 +18,10 @@ def synthesize_word_audio(
     priority_profile: str = "word",
 ) -> Tuple[str, str, str, Dict[str, Any]]:
     """Synthesize text and return base64 MP3, engine, accent and metadata."""
-    voice_dir = get_edge_tts_voice_cache_dir(language)
     descriptor, temporary_path = tempfile.mkstemp(
         prefix="worker_tts_",
         suffix=".mp3",
-        dir=str(voice_dir),
+        dir=str(TMP_DIR),
     )
     os.close(descriptor)
     temporary_file = Path(temporary_path)

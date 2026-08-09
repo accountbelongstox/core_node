@@ -24,9 +24,9 @@ use Illuminate\Support\Facades\Log;
  * REST-API-only chain. YouGlish is excluded everywhere (no downloadable
  * audio by design, ToS forbids it).
  *
- * NEVER throws — every failure path returns null and logs. The caller
- * (AppQyV1WordMediaService::resolve) decides whether to persist the result
- * or fall through to the existing TTS enqueue path.
+ * NEVER throws — every failure path returns null and logs. Persistent queue
+ * processors may use this client; interactive word-media resolve never waits
+ * for this external chain.
  */
 class WordAudioClient
 {

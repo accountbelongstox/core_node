@@ -27,6 +27,8 @@ export interface WfNewAgentArticle {
   article_en?: string | null;
   source_key?: string | null;
   article_id?: string | null;
+  article_type?: string | null;
+  source?: string | null;
   audio_url?: string | null;
   audio_ready?: boolean;
   audio_status?: string | null;
@@ -37,6 +39,51 @@ export interface WfNewAgentArticle {
   reading_date?: string | null;
   created_at?: string | null;
   document_id?: string | null;
+}
+
+export type WfNewQueueDeliveryStage =
+  | 'waiting'
+  | 'laravel_received'
+  | 'worker_received'
+  | 'completed'
+  | 'failed';
+
+export interface WfNewQueueWorkerPresence {
+  id: string;
+  kind: 'pycore' | 'chrome' | 'laravel' | string;
+  name: string;
+  processorTypes: string[];
+  capabilities: string[];
+  online: boolean;
+  lastSeen?: string | null;
+  claimed?: number;
+  hostname?: string | null;
+}
+
+export interface WfNewQueueDeliveryReceipt {
+  taskId: string;
+  stage: WfNewQueueDeliveryStage;
+  status?: string | null;
+  workerId?: string | null;
+  workerKind?: string | null;
+}
+
+export interface WfNewQueuePriorityItem {
+  content?: string;
+  text?: string;
+  language?: string;
+  content_id?: string;
+  task_id?: string | null;
+  queue_task_id?: string | null;
+}
+
+export interface WfNewQueuePriorityResult {
+  success: boolean;
+  queued?: number;
+  total?: number;
+  items?: WfNewQueuePriorityItem[];
+  results?: WfNewQueuePriorityItem[];
+  error?: string;
 }
 
 /** One audio variant on a sentence or word row. */
@@ -221,8 +268,8 @@ export interface WfNewWordAudioVariant {
 
 /**
  * On-demand media + dictionary detail for ONE word, from the file-first resolve
- * endpoint GET /api/app_qy_v1/word/{lang}/{word}/media. Calling this both READS
- * the current state AND triggers/prioritizes backend generation:
+ * endpoint GET /api/app_qy_v1/word/{lang}/{word}/media. Active calls both READ
+ * current state and prioritize generation; passive calls are read-only:
  *
  *   - `imageUrl` / `audioUrl` are non-null ONLY when the file already exists on
  *     disk (absolute, resolved against the endpoint host by the HTTP impl).
@@ -233,6 +280,7 @@ export interface WfNewWordAudioVariant {
  *     serves it (`accentFallback` true) and keeps a preferred-accent task
  *     pending — the UI plays the fallback but may keep polling for the
  *     preferred rendition (see `audioVariants`).
+ *   - With `?passive=1`, no missing-media task is created or reprioritized.
  */
 export interface WfNewWordMedia {
   word: string;
@@ -262,6 +310,12 @@ export interface WfNewWordMedia {
   phonetic?: string;
   usPhonetic?: string;
   ukPhonetic?: string;
+}
+
+export interface WfNewWordMediaOptions {
+  accent?: WfNewWordAccent;
+  /** Read current file state without enqueueing or changing queue priority. */
+  passive?: boolean;
 }
 
 // ---- Auth -----------------------------------------------------------------

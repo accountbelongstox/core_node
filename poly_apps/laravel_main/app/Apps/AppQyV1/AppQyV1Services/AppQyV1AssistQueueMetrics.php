@@ -10,9 +10,9 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
-use App\Models\Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Models\GlobalTask;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
 use Illuminate\Database\Eloquent\Model;
@@ -414,17 +414,17 @@ trait AppQyV1AssistQueueMetrics
 
         foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
             try {
-                $model = \App\Models\LangSentence::for($lang);
+                $model = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::for($lang);
                 if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
                     continue;
                 }
-                $count = (int) \App\Models\LangSentence::onLang($lang)->where('has_audio', false)->count();
+                $count = (int) \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::onLang($lang)->where('has_audio', false)->count();
                 if ($count > 0) {
                     $byLanguage[$lang] = $count;
                 }
                 // Collect a few sample rows until the display limit is reached.
                 if (count($sample) < self::OVERVIEW_SAMPLE_LIMIT && $count > 0) {
-                    $rows = \App\Models\LangSentence::onLang($lang)
+                    $rows = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::onLang($lang)
                         ->where('has_audio', false)
                         ->orderByDesc('tts_priority')
                         ->orderByDesc('occurrence_count')
@@ -488,7 +488,7 @@ trait AppQyV1AssistQueueMetrics
         }
 
         try {
-            $base = fn () => \App\Models\AppQyV1AssistRequest::query()
+            $base = fn () => \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::query()
                 ->where('record_type', $recordType)
                 ->where('request_type', $requestType);
 
@@ -519,9 +519,9 @@ trait AppQyV1AssistQueueMetrics
 
             $sample = $base()
                 ->whereIn('status', [
-                    \App\Models\AppQyV1AssistRequest::STATUS_PENDING,
-                    \App\Models\AppQyV1AssistRequest::STATUS_CLAIMED,
-                    \App\Models\AppQyV1AssistRequest::STATUS_PROCESSING,
+                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PENDING,
+                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_CLAIMED,
+                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PROCESSING,
                 ])
                 ->orderByDesc('priority')
                 ->orderBy('id')
@@ -534,9 +534,9 @@ trait AppQyV1AssistQueueMetrics
                 ])->all();
 
             return [
-                'pending' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_PENDING] ?? 0),
-                'processing' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_PROCESSING] ?? 0),
-                'leased' => (int) ($statusMap[\App\Models\AppQyV1AssistRequest::STATUS_CLAIMED] ?? 0),
+                'pending' => (int) ($statusMap[\App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PENDING] ?? 0),
+                'processing' => (int) ($statusMap[\App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PROCESSING] ?? 0),
+                'leased' => (int) ($statusMap[\App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_CLAIMED] ?? 0),
                 'total' => $total,
                 'by_language' => $byLanguage,
                 'by_status' => $statusMap,
@@ -554,7 +554,7 @@ trait AppQyV1AssistQueueMetrics
     {
         if (self::$assistRequestsTable === null) {
             try {
-                $model = new \App\Models\AppQyV1AssistRequest();
+                $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel();
                 self::$assistRequestsTable = $model->getConnection()
                     ->getSchemaBuilder()
                     ->hasTable($model->getTable());
@@ -577,62 +577,6 @@ trait AppQyV1AssistQueueMetrics
      */
     public function workers(): array
     {
-        try {
-            $model = new \App\Models\Worker();
-            if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-                return [];
-            }
-        } catch (\Throwable $e) {
-            return [];
-        }
-
-        try {
-            $rows = \App\Models\Worker::query()
-                ->orderByDesc('last_heartbeat_at')
-                ->limit(100)
-                ->get(['worker_id', 'worker_name', 'processor_types', 'status', 'last_heartbeat_at']);
-
-            // One grouped query for claimed (assigned/processing) global tasks per
-            // worker, instead of a COUNT per worker row.
-            $claimedByWorker = GlobalTask::query()
-                ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-                ->whereNotNull('assigned_to')
-                ->groupBy('assigned_to')
-                ->select('assigned_to', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-                ->pluck('total', 'assigned_to');
-
-            $heartbeatFloor = now()->subSeconds(\App\Models\Worker::HEARTBEAT_TIMEOUT);
-
-            $out = [];
-            foreach ($rows as $row) {
-                $types = is_array($row->processor_types) ? array_values($row->processor_types) : [];
-                $online = $row->last_heartbeat_at !== null && $row->last_heartbeat_at >= $heartbeatFloor;
-                // Normalize kind to a canonical token the Queue Center FE matches
-                // EXACTLY ('chrome' -> ChromeIcon, 'pycore' -> CpuIcon). Workers
-                // register descriptive names (chrome-bing-assist / pycore-translation-*)
-                // so we map them down; the full original name stays on 'name'.
-                $name = (string) ($row->worker_name ?? '');
-                $nameLower = strtolower($name);
-                if (str_contains($nameLower, 'chrome')) {
-                    $kind = 'chrome';
-                } elseif (str_contains($nameLower, 'pycore') || in_array(GlobalTask::executionType('remote_audio'), $types, true)) {
-                    $kind = 'pycore';
-                } else {
-                    $kind = $types[0] ?? 'worker';
-                }
-                $out[] = [
-                    'id' => (string) $row->worker_id,
-                    'kind' => $kind,
-                    'name' => $name,
-                    'processor_types' => $types,
-                    'online' => $online,
-                    'last_seen' => $row->last_heartbeat_at !== null ? $row->last_heartbeat_at->toIso8601String() : null,
-                    'claimed' => (int) ($claimedByWorker->get($row->worker_id) ?? 0),
-                ];
-            }
-            return $out;
-        } catch (\Throwable $e) {
-            return [];
-        }
+        return app(\App\Services\QueueCenter\QueueWorkerPresenceService::class)->snapshot();
     }
 }

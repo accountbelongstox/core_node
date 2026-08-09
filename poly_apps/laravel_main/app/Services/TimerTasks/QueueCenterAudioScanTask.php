@@ -4,12 +4,13 @@ namespace App\Services\TimerTasks;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Models\GlobalTask;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Services\QueueCenter\QueueCenterService;
 use App\Support\QueueCenterContract;
 
@@ -249,6 +250,10 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                         ->get(['id', 'content_id', 'text', 'tts_priority'])
                         ->all()
                 );
+                $excludedContentIds = AppQyV1SourceSentenceModel::contentIdsExclusiveToAgentHistory(
+                    $lang,
+                    array_map(static fn ($row): string => (string) ($row->content_id ?? ''), $rows)
+                );
             } catch (\Throwable $e) {
                 $this->logWarning('Sentence scan skipped language', [
                     'language' => $lang,
@@ -258,10 +263,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
             }
 
             $pageFailed = false;
+            $excludedContentIdMap = array_fill_keys($excludedContentIds, true);
             foreach ($rows as $row) {
                 $contentId = trim((string) ($row->content_id ?? ''));
                 $text = trim((string) ($row->text ?? ''));
-                if ($contentId === '' || $text === '') {
+                if ($contentId === '' || $text === '' || isset($excludedContentIdMap[$contentId])) {
                     continue;
                 }
 
@@ -307,10 +313,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
         try {
             $page = $this->rowsForPendingPage(
                 $scope,
-                AppQyV1Article::query(),
+                AppQyV1Article::query()->sentenceAudioQueueEligible(),
                 self::ARTICLES_PER_TICK,
                 static fn (array $ids): array => AppQyV1Article::query()
                     ->whereIn('id', $ids)
+                    ->sentenceAudioQueueEligible()
                     ->where('tts_generated', false)
                     ->whereNotNull('content')
                     ->where('content', '<>', '')
@@ -330,7 +337,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
         $pageFailed = false;
         foreach ($page['rows'] as $row) {
             try {
-                $result = $this->articleAudioService->enqueueArticle($row, false);
+                $result = $this->articleAudioService->enqueueArticle(
+                    $row,
+                    false,
+                    $row->sentenceAudioScope()
+                );
                 if ($result['created'] ?? false) {
                     $created++;
                 }

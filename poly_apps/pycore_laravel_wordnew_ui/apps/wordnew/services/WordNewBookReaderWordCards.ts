@@ -2,6 +2,7 @@ import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
 import { getSentenceWordTable } from './WordNewSentenceWordTable';
 import { wordNewProgressCenter } from './WordNewProgressCenter';
 import { speakBookText } from './WordNewBookReaderSpeech';
+import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
 
 const WORD_CLIP_TIMEOUT_MS = 8000;
 const MAX_WORDS_PER_SENTENCE = 40;
@@ -13,6 +14,7 @@ async function playWordClip(
 ): Promise<void> {
   const url = audioUrl ? resolveAudioSync(audioUrl) ?? audioUrl : null;
   if (!url || !/^https?:\/\//.test(url)) {
+    wordNewAudioQueueCenter.notifyMissingWord(word, 'en');
     if (!shouldContinue()) return;
     await speakBookText(word, 'en', 0.9).catch(() => undefined);
     return;
@@ -35,8 +37,14 @@ async function playWordClip(
       if (!shouldContinue()) finish();
     }, 150);
     audio.onended = finish;
-    audio.onerror = finish;
-    void audio.play().catch(finish);
+    audio.onerror = () => {
+      wordNewAudioQueueCenter.notifyMissingWord(word, 'en');
+      finish();
+    };
+    void audio.play().catch(() => {
+      wordNewAudioQueueCenter.notifyMissingWord(word, 'en');
+      finish();
+    });
   });
 }
 

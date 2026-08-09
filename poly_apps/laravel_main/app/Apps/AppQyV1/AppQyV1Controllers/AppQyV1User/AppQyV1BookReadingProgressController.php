@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
+use App\Helpers\AuthHelper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookReadingProgressService;
 
 class AppQyV1BookReadingProgressController extends BaseController
@@ -20,7 +21,7 @@ class AppQyV1BookReadingProgressController extends BaseController
 
     public function list(Request $request): JsonResponse
     {
-        $user = $request->user();
+        $user = AuthHelper::requireAuth($request);
         if (!$user) {
             return $this->error('Unauthorized', 401);
         }
@@ -33,7 +34,7 @@ class AppQyV1BookReadingProgressController extends BaseController
 
     public function get(Request $request, string $sourceKey): JsonResponse
     {
-        $user = $request->user();
+        $user = AuthHelper::requireAuth($request);
         if (!$user) {
             return $this->error('Unauthorized', 401);
         }
@@ -45,7 +46,7 @@ class AppQyV1BookReadingProgressController extends BaseController
 
     public function save(Request $request, string $sourceKey): JsonResponse
     {
-        $user = $request->user();
+        $user = AuthHelper::requireAuth($request);
         if (!$user) {
             return $this->error('Unauthorized', 401);
         }
@@ -65,5 +66,41 @@ class AppQyV1BookReadingProgressController extends BaseController
         $progress = $this->progressService->saveForBook((int) $user->id, $sourceKey, $validated);
 
         return $this->success(['progress' => $progress], 'Book reading progress saved');
+    }
+
+    public function getDailyReading(Request $request): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $progress = $this->progressService->getDailyReadingForUser((int) $user->id);
+
+        return $this->success(['progress' => $progress], 'Daily reading progress retrieved');
+    }
+
+    public function saveDailyReading(Request $request): JsonResponse
+    {
+        $user = AuthHelper::requireAuth($request);
+        if (!$user) {
+            return $this->error('Unauthorized', 401);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'article_id' => 'nullable|required_without:selection_mode|string|max:255',
+            'selection_mode' => 'nullable|required_without:article_id|string|in:latest,resume,random',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation failed: ' . $validator->errors()->first(), 422);
+        }
+
+        $progress = $this->progressService->saveDailyReadingForUser(
+            (int) $user->id,
+            $validator->validated(),
+        );
+
+        return $this->success(['progress' => $progress], 'Daily reading progress saved');
     }
 }

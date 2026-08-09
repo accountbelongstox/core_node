@@ -31,7 +31,6 @@ import json
 import os
 import ctypes
 import ctypes.wintypes as wintypes
-import tempfile
 import time
 import threading
 from pathlib import Path
@@ -39,6 +38,7 @@ from typing import List, Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.pygvar import TMP_DIR
 
 # Reuse the canonical tray menu item dataclass (same one build_tray_menu produces)
 from pycore.pyutils.native_ui.step6_tray.tkinter_system_tray import TrayMenuItem
@@ -246,7 +246,7 @@ class Win32SystemTray:
         try:
             mtime = os.path.getmtime(img_path)
             key = hashlib.md5(f"{img_path}:{mtime}".encode("utf-8")).hexdigest()[:12]
-            ico_path = os.path.join(tempfile.gettempdir(), f"pycore_tray_{key}.ico")
+            ico_path = str(TMP_DIR / f"pycore_tray_{key}.ico")
             if not os.path.exists(ico_path):
                 img = Image.open(img_path).convert("RGBA")
                 img.save(ico_path, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48)])

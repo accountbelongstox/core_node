@@ -5,6 +5,7 @@
  * through the wordnew data-model layer (wfNewApi), never to pycore directly.
  */
 import { wfNewApi } from '../api';
+import type { WfNewWordAccent, WfNewWordMedia } from '../api';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 
@@ -14,8 +15,17 @@ export interface WordNewSentenceAudioPriorityItem {
   content_id?: string;
 }
 
+const WORD_AUDIO_POLL_INTERVAL_MS = 1200;
+const WORD_AUDIO_POLL_LIMIT = 40;
+
+export interface WordNewWordAudioWaitOptions {
+  accent?: WfNewWordAccent;
+  shouldContinue?: () => boolean;
+}
+
 class WordNewAudioQueueCenterClass {
   private readonly inFlight = new Map<string, Promise<unknown>>();
+  private readonly wordAudioWaits = new Map<string, Promise<WfNewWordMedia | null>>();
 
   prioritizeSentences(items: WordNewSentenceAudioPriorityItem[]): Promise<unknown> {
     const normalized = this.normalizeSentences(items);
@@ -65,6 +75,56 @@ class WordNewAudioQueueCenterClass {
       // Reversed for the same move-to-front ticket reason as prioritizeSentences.
       () => wfNewApi.prioritizeWordAudio(normalizedWords.slice().reverse(), normalizedLanguage),
     );
+  }
+
+  notifyMissingWord(word: string, language: string): void {
+    void this.prioritizeWords([word], language).catch((error) => {
+      console.warn('[WordNewAudioQueueCenter] Missing word notification failed', error);
+    });
+  }
+
+  waitForWordAudio(
+    word: string,
+    language: string,
+    options: WordNewWordAudioWaitOptions = {},
+  ): Promise<WfNewWordMedia | null> {
+    const normalizedWord = word.trim();
+    const normalizedLanguage = language.trim();
+    if (!normalizedWord || !normalizedLanguage) return Promise.resolve(null);
+    const key = `word-audio:${normalizedLanguage}:${options.accent ?? ''}:${normalizedWord}`;
+    const current = this.wordAudioWaits.get(key);
+    if (current) return current;
+    if (this.wordAudioWaits.size >= QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit) {
+      return Promise.resolve(null);
+    }
+    const pending = this.pollWordAudio(normalizedWord, normalizedLanguage, options)
+      .catch(() => null)
+      .finally(() => {
+        if (this.wordAudioWaits.get(key) === pending) this.wordAudioWaits.delete(key);
+      });
+    this.wordAudioWaits.set(key, pending);
+    return pending;
+  }
+
+  private async pollWordAudio(
+    word: string,
+    language: string,
+    options: WordNewWordAudioWaitOptions,
+  ): Promise<WfNewWordMedia | null> {
+    await this.prioritizeWords([word], language);
+    for (let attempt = 0; attempt < WORD_AUDIO_POLL_LIMIT; attempt += 1) {
+      if (options.shouldContinue && !options.shouldContinue()) return null;
+      const media = await wfNewApi.getWordMedia(language, word, {
+        accent: options.accent,
+        passive: true,
+      });
+      const readyVariant = media.audioVariants?.find((variant) => variant.status === 'ready' && variant.url);
+      if (media.audioUrl || readyVariant) return media;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, WORD_AUDIO_POLL_INTERVAL_MS);
+      });
+    }
+    return null;
   }
 
   private normalizeSentences(items: WordNewSentenceAudioPriorityItem[]): WordNewSentenceAudioPriorityItem[] {

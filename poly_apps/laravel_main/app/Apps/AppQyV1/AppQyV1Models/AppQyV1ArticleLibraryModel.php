@@ -5,6 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Multi-Language Article Library Model
@@ -169,5 +170,25 @@ class AppQyV1ArticleLibraryModel extends Model
                 'has_audio' => $hasAudio,
                 'updated_at' => now()
             ]);
+    }
+
+    public static function aggregateStats(string $langCode): array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return ['articles' => 0, 'audio' => 0];
+        }
+
+        $row = $model->newQuery()
+            ->selectRaw('COUNT(*) as articles, SUM(CASE WHEN has_audio = true THEN 1 ELSE 0 END) as audio')
+            ->first();
+
+        return [
+            'articles' => (int) ($row->articles ?? 0),
+            'audio' => (int) ($row->audio ?? 0),
+        ];
     }
 }

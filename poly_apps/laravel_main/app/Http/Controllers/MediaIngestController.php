@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioFiles;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
-use App\Models\LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Services\MediaIngestService;
 use App\Services\SentenceEnrichmentService;
 use App\Providers\PathMapper;
@@ -231,9 +231,7 @@ class MediaIngestController extends Controller
 
         $service = new AppQyV1SentenceAudioService();
 
-        $sentence = LangSentence::onLang($language)
-            ->where('content_id', $contentId)
-            ->first();
+        $sentence = LangSentence::findByContentId($language, $contentId);
 
         if (!$sentence) {
             return response()->json(['ok' => false, 'status' => 'no_sentence', 'error' => 'No sentence row for content_id; ingest text first'], 200);

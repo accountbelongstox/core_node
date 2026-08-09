@@ -13,6 +13,7 @@ Availability is a cheap local check (HTTP client importable) — no network
 probe.
 """
 
+import shlex
 from pathlib import Path
 from typing import Tuple
 
@@ -46,6 +47,35 @@ def available() -> bool:
         return get_third_package_requests() is not None
     except Exception:  # noqa: BLE001 — engine simply unavailable
         return False
+
+
+def describe_command(text: str, lang: str, output_mp3: Path) -> str:
+    """Return a complete curl command equivalent to the synthesis request."""
+    cleaned = (text or "").strip()
+    code = (lang or "en").strip().lower() or "en"
+    tl = _TL_BY_LANG.get(code, code)
+    command = [
+        "curl",
+        "--fail",
+        "--location",
+        "--get",
+        "--output",
+        str(output_mp3),
+        "--user-agent",
+        _BROWSER_USER_AGENT,
+        "--referer",
+        "https://translate.google.com/",
+        "--data-urlencode",
+        "ie=UTF-8",
+        "--data-urlencode",
+        "client=tw-ob",
+        "--data-urlencode",
+        f"tl={tl}",
+        "--data-urlencode",
+        f"q={cleaned}",
+        GTTS_WEB_URL,
+    ]
+    return shlex.join(command)
 
 
 def synthesize(text: str, lang: str, output_mp3: Path) -> bool:
@@ -89,4 +119,4 @@ def synthesize(text: str, lang: str, output_mp3: Path) -> bool:
         return False
 
 
-__all__ = ["available", "synthesize"]
+__all__ = ["available", "describe_command", "synthesize"]

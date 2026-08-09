@@ -13,8 +13,6 @@ use App\Services\UnifiedAuthService;
 use App\Providers\PathMapper;
 use App\Constants\AppKeys;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Carbon\Carbon;
 
 class AppQyV1ProfileController extends BaseController
@@ -270,10 +268,6 @@ class AppQyV1ProfileController extends BaseController
             return $this->error('Unauthorized', 401);
         }
 
-        $progress = new AppQyV1UserLearningProgressModel();
-        $connection = $progress->getConnectionName();
-        $table = $progress->getTable();
-
         $totalWords = 0;
         $newWords = 0;
         $learningWords = 0;
@@ -299,7 +293,7 @@ class AppQyV1ProfileController extends BaseController
             $dailyGoal = 20;
         }
 
-        $tableReady = Schema::connection($connection)->hasTable($table);
+        $tableReady = AppQyV1UserLearningProgressModel::tableExists();
 
         if ($tableReady) {
             $base = AppQyV1UserLearningProgressModel::where('user_id', $user->id);

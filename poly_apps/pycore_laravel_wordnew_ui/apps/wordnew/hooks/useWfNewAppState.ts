@@ -25,7 +25,7 @@ import {
 import type { WfNewCachedKind } from '../runtime-store/WfNewContentCache';
 import { useWfNewContentHandlers } from './useWfNewContentHandlers';
 import { StorageManager } from '../../../core/persistence';
-import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
+import { requestAuthLogin, subscribeAuthLoginSuccess } from '../../../core/auth/AuthRequestCenter';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 
 /** Every navigable page/tab in the wordnew shell (drives the history stack). */
@@ -213,10 +213,10 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     }
     if (activeTab === 'daily-reading') {
       const current = window.location.hash;
-      next = /^#\/daily-reading(?:\?sort=(latest|oldest|source|unread|random))?$/.test(current)
+      next = /^#\/daily-reading$/.test(current)
         || /^#\/daily-reading\/[^?]+$/.test(current)
         ? current
-        : '#/daily-reading?sort=latest';
+        : '#/daily-reading';
     }
     if (window.location.hash !== next) {
       window.history.replaceState(null, '', next);
@@ -434,6 +434,35 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
       }
     })();
   };
+
+  useEffect(() => subscribeAuthLoginSuccess((detail) => {
+    const identity = detail.user as Record<string, unknown> | null;
+    if (!identity || !wfNewApi.isAuthenticated()) return;
+    const nextNickname = String(identity.nickname ?? identity.username ?? '');
+    const nextAvatar = String(identity.avatar_url ?? identity.avatar ?? '');
+    const nextEmail = String(identity.email ?? '');
+    const nextUserId = String(identity.id ?? identity.username ?? identity.email ?? '');
+    const nextBio = String(identity.bio ?? '');
+    setNickname(nextNickname);
+    setAvatarUrl(nextAvatar);
+    wfNewSettings.setField('nickname', nextNickname);
+    wfNewSettings.setField('avatar', nextAvatar);
+    wfNewSettings.setField('email', nextEmail);
+    wfNewSettings.setField('userId', nextUserId);
+    wfNewSettings.setField('bio', nextBio);
+    wfNewSettings.setField('isLoggedIn', true);
+    setCurrentUser((previous) => ({
+      ...previous,
+      nickname: nextNickname,
+      avatar: nextAvatar,
+      email: nextEmail,
+      userId: nextUserId,
+      bio: nextBio,
+      isLoggedIn: true,
+    }));
+    applyCacheScope(nextUserId || null);
+    addToast(trans('toast.loginOk'), 'success');
+  }), []);
 
   const handleLogout = () => {
     // Persist any pending reader-settings change to the STILL-authenticated

@@ -23,28 +23,15 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $minBudget = $request->input('min_budget', 0);
         $maxBudget = $request->input('max_budget', 999999);
 
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $query = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('status', 'open')
-            ->whereNull('assigned_to')
-            ->whereBetween('budget_allocation', [$minBudget, $maxBudget]);
-
-        if (!empty($skills)) {
-            $query->where(function($q) use ($skills) {
-                foreach ($skills as $skill) {
-                    $q->orWhereRaw('JSON_CONTAINS(required_skills, ?)', [json_encode($skill)]);
-                }
-            });
-        }
-
-        $total = $query->count();
-        $tasks = $query
-            ->orderBy('created_at', 'desc')
-            ->offset(($page - 1) * $pageSize)
-            ->limit($pageSize)
-            ->get();
+        $result = CodeMartV1TaskModel::marketplacePage(
+            $skills,
+            (float) $minBudget,
+            (float) $maxBudget,
+            (int) $page,
+            (int) $pageSize
+        );
+        $total = $result['total'];
+        $tasks = $result['tasks'];
 
         return $this->success([
             'tasks' => $tasks,
@@ -62,28 +49,9 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $task = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('id', $taskId)
-            ->where('status', 'open')
-            ->whereNull('assigned_to')
-            ->first();
-
-        if (!$task) {
+        if (!CodeMartV1TaskModel::acceptOpenTask((int) $taskId, $user->id)) {
             return $this->notFound('Task not found or already assigned');
         }
-
-        $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('id', $taskId)
-            ->update([
-                'assigned_to' => $user->id,
-                'status' => 'in_progress',
-                'assigned_at' => now(),
-                'updated_at' => now(),
-            ]);
 
         return $this->success([
             'message' => 'Task accepted successfully',
@@ -96,14 +64,7 @@ class CodeMartV1TaskMarketplaceCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $model = new CodeMartV1TaskModel();
-        $dbConnection = $model->getConnection();
-        $tasks = $dbConnection
-            ->table('codemart_v1_tasks')
-            ->where('assigned_to', $user->id)
-            ->whereIn('status', ['in_progress', 'review', 'completed'])
-            ->orderBy('updated_at', 'desc')
-            ->get();
+        $tasks = CodeMartV1TaskModel::assignedTasks($user->id);
 
         return $this->success(['my_tasks' => $tasks]);
     }

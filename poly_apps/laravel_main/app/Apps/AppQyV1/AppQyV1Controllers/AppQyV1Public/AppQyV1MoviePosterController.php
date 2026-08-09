@@ -15,13 +15,11 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Database\Eloquent\Model;
-use App\Models\Book;
-use App\Models\Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1PosterPriorityService;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Traits\ApiResponse;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Movie/TV poster queue status and priority endpoint.
@@ -72,50 +70,12 @@ class AppQyV1MoviePosterController
             'owner' => 'mcp-chrome',
             'source' => 'search-engine',
             'counts' => [
-                'book' => $this->countByPosterStatus(Book::query()),
-                'subtitle' => $this->countByPosterStatus(Subtitle::query()),
+                'book' => Book::posterStatusCounts(),
+                'subtitle' => Subtitle::posterStatusCounts(),
             ],
         ];
 
         return $this->success($payload, 'mcp-chrome poster queue status');
-    }
-
-    /**
-     * Per-poster_status distribution for one media table, in a single grouped
-     * query. Returns a fixed-shape map (every status key present, defaulting to
-     * 0) plus the total. Guarded: any DB error (e.g. the poster_status column
-     * not yet migrated) returns the zeroed shape rather than throwing, so the
-     * status endpoint never fails because of one table.
-     *
-     * @param \Illuminate\Database\Eloquent\Builder $query
-     * @return array{pending:int,ready:int,failed:int,none:int,total:int}
-     */
-    private function countByPosterStatus($query): array
-    {
-        $base = ['pending' => 0, 'ready' => 0, 'failed' => 0, 'none' => 0, 'total' => 0];
-
-        try {
-            $rows = $query
-                ->selectRaw('poster_status, COUNT(*) as aggregate')
-                ->groupBy('poster_status')
-                ->pluck('aggregate', 'poster_status');
-        } catch (\Throwable $e) {
-            Log::warning('[MoviePoster] poster_status count failed', ['error' => $e->getMessage()]);
-            return $base;
-        }
-
-        $total = 0;
-        foreach ($rows as $statusKey => $count) {
-            $count = (int) $count;
-            $total += $count;
-            $key = (string) $statusKey;
-            if (array_key_exists($key, $base)) {
-                $base[$key] = $count;
-            }
-        }
-        $base['total'] = $total;
-
-        return $base;
     }
 
     /**
@@ -181,13 +141,9 @@ class AppQyV1MoviePosterController
      */
     private function resolveModel(string $type, ?int $id, ?string $sourceKey): ?Model
     {
-        $query = $type === 'book' ? Book::query() : Subtitle::query();
-
-        if ($id !== null) {
-            return $query->find($id);
-        }
-
-        return $query->where('source_key', $sourceKey)->first();
+        return $type === 'book'
+            ? Book::findByIdOrSourceKey($id, $sourceKey)
+            : Subtitle::findByIdOrSourceKey($id, $sourceKey);
     }
 
 }

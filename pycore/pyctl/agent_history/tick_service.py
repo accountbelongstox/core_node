@@ -8,13 +8,13 @@ import threading
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
 from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
-EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", "60"))
+EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
 PIPELINE_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_PIPELINE_INTERVAL", str(DEFAULT_INTERVAL)))
 
 CALLBACK_EXTRACT = "agent_history_extraction"
@@ -34,8 +34,8 @@ class _ExtractGate:
         )
 
     @serialized_method
-    def run(self) -> None:
-        self._owner._run_extract()
+    def run(self, force: bool = False) -> None:
+        self._owner._run_extract(force)
 
 
 class _PipelineGate:
@@ -119,6 +119,24 @@ class AgentHistoryTickService:
         finally:
             self._extract_busy.clear()
 
+    def request_extract(self, force: bool = True) -> Dict[str, Any]:
+        """Queue a UI-requested extraction without blocking the HTTP request."""
+        if self._extract_busy.is_set():
+            return {"queued": False, "busy": True}
+        self._extract_busy.set()
+        start_bus_task(
+            self._run_requested_extract,
+            force,
+            thread_name="AgentHistoryRefreshThread",
+        )
+        return {"queued": True, "busy": False}
+
+    def _run_requested_extract(self, force: bool) -> None:
+        try:
+            self._extract_gate.run(force)
+        finally:
+            self._extract_busy.clear()
+
     def tick_pipeline(self) -> None:
         """Heartbeat: at most one article batch (skipped while busy)."""
         if self._pipeline_busy.is_set():
@@ -134,10 +152,10 @@ class AgentHistoryTickService:
         self.tick_extract()
         self.tick_pipeline()
 
-    def _run_extract(self) -> None:
+    def _run_extract(self, force: bool = False) -> None:
         self._extract_count += 1
         try:
-            result = agent_history_service.extract(force=False)
+            result = agent_history_service.extract(force=force)
             self._last_summary = result if isinstance(result, dict) else {}
             if result.get("changed"):
                 ColorPrint.gray(

@@ -7,7 +7,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -120,12 +119,7 @@ class AppQyV1VocabularyExportController extends Controller
         int $limit,
         bool $includeTranslations
     ): array {
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($languageCode);
-        $dictTable = $dictModel->getTable();
-        $dictConnection = $dictModel->getConnection();
-        $hasDictionaryTable = Schema::connection($dictModel->getConnectionName())->hasTable($dictTable);
-
-        if (!$hasDictionaryTable) {
+        if (!AppQyV1LangDictionaryModel::languageTableExists($languageCode)) {
             return [];
         }
 
@@ -151,17 +145,7 @@ class AppQyV1VocabularyExportController extends Controller
             return [];
         }
 
-        // Chunked plain-table reads keep translations as raw JSON strings
-        // (the shape decodeSimpleTranslations expects).
-        $rowsById = [];
-        foreach (array_chunk($orderedIds, 1000) as $chunk) {
-            $rows = $dictConnection->table($dictTable)
-                ->whereIn('id', $chunk)
-                ->get(['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic']);
-            foreach ($rows as $row) {
-                $rowsById[(int) $row->id] = $row;
-            }
-        }
+        $rowsById = AppQyV1LangDictionaryModel::exportRowsByIds($languageCode, $orderedIds);
 
         if ($library === null) {
             // Whole-language mode: order by word text like the old SQL.

@@ -1,10 +1,14 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Constants\AppKeys;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Model;
 
 class CodeMartV1DepositModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_deposits';
 

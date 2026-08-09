@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -52,6 +53,47 @@ class AppQyV1NotificationModel extends Model
         'read_at' => 'datetime',
         'created_at' => 'datetime',
     ];
+
+    public static function inboxForUser(int $userId, int $cursor, bool $unreadOnly, int $limit): Collection
+    {
+        $query = null;
+
+        $query = static::query()
+            ->where('user_id', $userId)
+            ->orderByDesc('id');
+
+        if ($cursor > 0) {
+            $query->where('id', '<', $cursor);
+        }
+        if ($unreadOnly) {
+            $query->whereNull('read_at');
+        }
+
+        return $query->limit($limit)->get();
+    }
+
+    public static function unreadCountForUser(int $userId): int
+    {
+        return (int) static::query()
+            ->where('user_id', $userId)
+            ->whereNull('read_at')
+            ->count();
+    }
+
+    public static function markReadForUser(int $userId, ?int $notificationId = null): int
+    {
+        $query = null;
+
+        $query = static::query()
+            ->where('user_id', $userId)
+            ->whereNull('read_at');
+
+        if ($notificationId !== null) {
+            $query->where('id', $notificationId);
+        }
+
+        return (int) $query->update(['read_at' => now()]);
+    }
 
     /**
      * Create a notification for a recipient. Best-effort: a failure is logged and

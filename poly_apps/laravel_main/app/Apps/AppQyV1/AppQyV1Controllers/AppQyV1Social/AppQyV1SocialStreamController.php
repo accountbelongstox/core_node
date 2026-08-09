@@ -15,6 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
+use App\Utils\SseStreamResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\StreamedEvent;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -94,7 +95,7 @@ class AppQyV1SocialStreamController extends Controller
             ? max(5, min(self::MAX_LIFETIME_SECONDS, $maxExec - 5))
             : self::MAX_LIFETIME_SECONDS;
 
-        $response = response()->eventStream(function () use ($userId, $cursor, $maxLifetime) {
+        return SseStreamResponse::make(function () use ($userId, $cursor, $maxLifetime) {
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -139,13 +140,6 @@ class AppQyV1SocialStreamController extends Controller
             // Final envelope carries the cursor so the client resumes exactly.
             yield new StreamedEvent(event: 'stream.close', data: json_encode(['cursor' => $current]));
         });
-
-        // SSE hygiene: disable nginx/proxy buffering so events flush immediately.
-        $response->headers->set('X-Accel-Buffering', 'no');
-        $response->headers->set('Cache-Control', 'no-cache, no-transform');
-        $response->headers->set('Connection', 'keep-alive');
-
-        return $response;
     }
 
     /**

@@ -4,17 +4,20 @@ import { User as UserIcon, Bot, Wrench, Brain, Cpu } from 'lucide-react';
 /** Shared presentational vocabulary for the dev-history surfaces (badges, roles). */
 
 export const PAGE_SIZE = 50;
+export const AGENT_HISTORY_TOOLS = [
+  'agent', 'claude', 'codex', 'cursor', 'gemini',
+  'kimi', 'antigravity', 'cline',
+] as const;
 
 export const TOOL_LABELS: Record<string, string> = {
-  claude: 'Claude Code',
+  claude: 'Claude',
   codex: 'Codex',
   gemini: 'Gemini',
   cursor: 'Cursor',
   kimi: 'Kimi',
   antigravity: 'Antigravity',
   cline: 'Cline',
-  'ark-cli': 'Ark CLI',
-  agent: 'Agent'
+  agent: 'Local Agent'
 };
 
 export const TOOL_BADGE: Record<string, string> = {
@@ -25,7 +28,6 @@ export const TOOL_BADGE: Record<string, string> = {
   kimi: 'bg-pink-500/15 text-pink-600 dark:text-pink-300 border-pink-500/30',
   antigravity: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
   cline: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30',
-  'ark-cli': 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 border-indigo-500/30',
   agent: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30'
 };
 

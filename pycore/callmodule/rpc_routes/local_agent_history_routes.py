@@ -22,7 +22,6 @@ def register_local_agent_history_routes(server) -> None:
         (route_names.UI_AGENT_HISTORY_STATUS, agent_history_ui_service.status),
         (route_names.UI_AGENT_HISTORY_RUNTIME_GET, agent_history_ui_service.runtime_get),
         (route_names.UI_AGENT_HISTORY_ARTICLE_CONFIG_POST, agent_history_ui_service.article_config_post),
-        (route_names.UI_AGENT_HISTORY_ARTICLE_START, agent_history_ui_service.article_start),
         (route_names.UI_AGENT_HISTORY_ARTICLE_LIST, agent_history_ui_service.article_list),
         (route_names.UI_AGENT_HISTORY_ARTICLE_LOGS, agent_history_ui_service.article_logs),
         (route_names.UI_AGENT_HISTORY_ARTICLE_RECORDS, agent_history_ui_service.article_records),
