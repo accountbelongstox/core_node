@@ -24,8 +24,6 @@ from typing import Dict, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.speech_models import ItemType
-from pycore.pyutils.tts.edge.worker_base import BaseTTSWorkerThread
-
 from pycore.pyutils.tts.edge.worker_thread import EdgeTTSWorkerThread
 
 
@@ -242,4 +240,3 @@ class TTSThreadManager:
                 state = THREAD_BUS.get_thread_state(thread_name)
                 status[thread_name] = state or 'unknown'
             return status
-

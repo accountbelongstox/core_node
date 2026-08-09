@@ -26,12 +26,10 @@ _COMMON_LANGS: List[Dict[str, str]] = [
 TTS_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
     # -- inline / cloud engines (not managed by tts_service_manager) ----------
     "edge": {
-        "fields": ["text", "language", "rate", "gender"],
+        "fields": ["text", "language", "gender"],
         "text_default": "The quick brown fox jumps over the lazy dog.",
         "language_options": _COMMON_LANGS,
         "language_default": "en",
-        "rate_hint": "e.g. -20% or +10%",
-        "rate_placeholder": "-20%",
         "gender_options": [
             {"value": "", "label": "Default"},
             {"value": "female", "label": "Female"},
