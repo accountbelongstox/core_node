@@ -345,13 +345,13 @@ def report_tts_engine_startup() -> None:
     )
 
 
-def _synth_edge(text: str, lang: Optional[str], output_path: Path, rate: Optional[str],
+def _synth_edge(text: str, lang: Optional[str], output_path: Path,
                 accent: Optional[str] = None, gender: Optional[str] = None) -> bool:
     client = edge_tts_client
     if not client.initialize():
         return False
     voice = _edge_voice(lang, accent, gender)
-    return client.synthesize(text, voice, output_path, rate=rate)
+    return client.synthesize(text, voice, output_path)
 
 
 def _synth_offline(
@@ -555,7 +555,7 @@ def synthesize(
                         client_job_id=client_job_id,
                     )
                 elif name == "edge":
-                    ok = _synth_edge(cleaned, language, output_path, rate, want_accent, gender)
+                    ok = _synth_edge(cleaned, language, output_path, want_accent, gender)
                 else:
                     ok = synth(cleaned, language, output_path, rate, want_accent)
         except Exception as e:  # noqa: BLE001— fall through to next engine

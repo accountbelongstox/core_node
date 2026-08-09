@@ -349,8 +349,6 @@ def pycore_constants() -> List[Dict[str, Any]]:
          "note": "edge-tts is kept at latest; old versions 403 on a stale Sec-MS-GEC handshake"},
         {"key": "tts_engine_priority", "value": " → ".join(default_tts_engine_priority()),
          "note": "TTS engine fallback order (override with TTS_ENGINE_PRIORITY)"},
-        {"key": "tts_rate", "value": "-20%",
-         "note": "Default speech rate for the subtitle pipeline (override with EDGE_TTS_RATE)"},
         {"key": "ocr_engine_priority", "value": "windows → easyocr → cnocr → ai-vision",
          "note": "OCR engine fallback order for the screenshot pipeline"},
         {"key": "model_tiers", "value": " | ".join(tier_summary_lines()),

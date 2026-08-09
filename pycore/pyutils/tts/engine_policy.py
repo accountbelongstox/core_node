@@ -405,7 +405,6 @@ def format_tts_synth_command(
         command = build_edge_tts_command(
             "edge-tts",
             voice,
-            rate,
             text_value,
             Path(output),
             proxy=proxy or None,

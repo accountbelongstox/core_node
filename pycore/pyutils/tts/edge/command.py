@@ -1,30 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import os
 from pathlib import Path
 from typing import Optional
-
-
-_DEFAULT_RATE = "-20%"
-
-
-def normalize_edge_tts_rate(rate: Optional[str]) -> str:
-    if rate is None:
-        rate = (os.environ.get("EDGE_TTS_RATE") or "").strip() or _DEFAULT_RATE
-    value = str(rate).strip()
-    if not value:
-        return "+0%"
-    if not value.endswith("%"):
-        value += "%"
-    if value[0] not in "+-":
-        value = "+" + value
-    return value
 
 
 def build_edge_tts_command(
     binary: str,
     voice: str,
-    rate: Optional[str],
     text: str,
     output_path: Path,
     subtitle_path: Optional[Path] = None,
@@ -37,7 +19,6 @@ def build_edge_tts_command(
     command.extend([
         "--voice",
         voice,
-        f"--rate={normalize_edge_tts_rate(rate)}",
         "--text",
         text,
         "--write-media",
@@ -50,4 +31,4 @@ def build_edge_tts_command(
     return command
 
 
-__all__ = ["build_edge_tts_command", "normalize_edge_tts_rate"]
+__all__ = ["build_edge_tts_command"]

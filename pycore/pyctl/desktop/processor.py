@@ -141,9 +141,8 @@ async def generate_tts_for_paragraph(text: str, lang: str) -> Optional[Path]:
     cache_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Synthesize via the multi-engine orchestrator (by priority: edge -> sherpa
-    # -> melotts -> gptsovits). edge-tts is serialized + rate-aware internally;
-    # rate=None uses EDGE_TTS_RATE / the -20% default. Run the blocking call in a
-    # thread so the event loop stays free.
+    # -> melotts -> gptsovits). edge-tts is serialized internally. Run the
+    # blocking call in a thread so the event loop stays free.
     result = await await_bus_task(
         tts_synthesize,
         cleaned_text,   # text

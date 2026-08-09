@@ -21,10 +21,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.pygvar import TMP_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.third_party.api import get_third_package_edge_tts
-from pycore.pyutils.tts.edge.command import (
-    build_edge_tts_command,
-    normalize_edge_tts_rate,
-)
+from pycore.pyutils.tts.edge.command import build_edge_tts_command
 
 import tempfile
 
@@ -264,8 +261,7 @@ class EdgeTTSClient:
         return voices
     
     def _synthesize(self, text: str, voice: str, output_path: Path,
-                    subtitle_path: Optional[Path] = None,
-                    rate: Optional[str] = None) -> bool:
+                    subtitle_path: Optional[Path] = None) -> bool:
         """
         Synthesize text to speech (synchronous wrapper).
 
@@ -278,9 +274,6 @@ class EdgeTTSClient:
             voice: Voice name (e.g., 'en-US-JennyNeural')
             output_path: Output audio file path
             subtitle_path: Output subtitle file path (optional)
-            rate: Speech rate as a signed percentage ("-20%", "+0%"). None ->
-                  EDGE_TTS_RATE env or the -20% default.
-
         Returns:
             bool: True if successful
         """
@@ -289,8 +282,6 @@ class EdgeTTSClient:
 
         # Ensure output directory exists
         output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        rate = normalize_edge_tts_rate(rate)
 
         self._mark_task_start()
         try:
@@ -308,7 +299,7 @@ class EdgeTTSClient:
                     async def _synthesize_async():
                         # Fresh Communicate per attempt; edge-tts is one-shot per save.
                         kwargs = {"proxy": proxy} if proxy else {}
-                        communicate = edge_tts.Communicate(text, voice, rate=rate, **kwargs)
+                        communicate = edge_tts.Communicate(text, voice, **kwargs)
                         # Bound each attempt: edge-tts's save() has no timeout, so a
                         # stalled WebSocket otherwise hangs ~180s (Python socket
                         # default). wait_for cancels the coroutine + raises on stall.
@@ -356,7 +347,6 @@ class EdgeTTSClient:
                 cmd = build_edge_tts_command(
                     binary,
                     voice,
-                    rate,
                     text,
                     output_path,
                     subtitle_path=subtitle_path,
@@ -372,8 +362,7 @@ class EdgeTTSClient:
             self._mark_task_end()
 
     def synthesize(self, text: str, voice: str, output_path: Path,
-                   subtitle_path: Optional[Path] = None,
-                   rate: Optional[str] = None) -> bool:
+                   subtitle_path: Optional[Path] = None) -> bool:
         """Synthesize through the process-wide edge-tts owner thread."""
         return call_serialized(
             _EDGE_SYNTH_QUEUE,
@@ -382,7 +371,6 @@ class EdgeTTSClient:
             voice,
             output_path,
             subtitle_path,
-            rate,
             timeout=300.0,
         )
     
