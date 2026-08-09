@@ -15,7 +15,9 @@ Config:
   VOXCPM2_TIMESTEPS - inference_timesteps int (default 10)
 """
 
+import importlib.util
 import os
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -29,14 +31,11 @@ from pycore.pyfoundations.third_party.api import (
 )
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
+from pycore.pyutils.common.python_env.runtime_policy import engine_compatibility
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-
-import importlib.util
-
-
 
 _MODEL_QUEUE = 'pyutils.tts.voxcpm2.model'
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'VoxCPM2ModelThread')
@@ -81,6 +80,10 @@ def _timesteps() -> int:
 
 
 def available() -> bool:
+    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    compatibility = engine_compatibility("voxcpm2", python_version)
+    if not compatibility["compatible"]:
+        return False
     try:
         return (
             importlib.util.find_spec("voxcpm") is not None

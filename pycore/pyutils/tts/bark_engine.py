@@ -16,6 +16,7 @@ Config:
   BARK_VOICE_PRESET   - voice preset string (default v2/en_speaker_6)
 """
 
+import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -24,21 +25,17 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.tts.audio_utils import wav_to_mp3
 
 from pycore.pyfoundations.third_party.api import (
-    get_third_package_soundfile,
+    get_third_package_numpy,
+    get_third_package_scipy,
     get_third_package_torch,
     get_third_package_transformers,
 )
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
-from pycore.pyfoundations.third_party.api import get_third_package_numpy
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-
-import importlib.util
-
-
 
 _MODEL_QUEUE = 'pyutils.tts.bark.model'
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'BarkModelThread')
@@ -86,7 +83,7 @@ def available() -> bool:
     try:
         return (
             importlib.util.find_spec("transformers") is not None
-            and importlib.util.find_spec("soundfile") is not None
+            and importlib.util.find_spec("scipy") is not None
         )
     except Exception:
         return False
@@ -150,11 +147,11 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             arr = arr.reshape(-1)
         rate = getattr(model.generation_config, "sample_rate", 24000)
         tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-        soundfile = get_third_package_soundfile()
-        if soundfile is None:
-            ColorPrint.red("[bark] soundfile is unavailable")
+        scipy = get_third_package_scipy()
+        if scipy is None:
+            ColorPrint.red("[bark] scipy is unavailable")
             return False
-        soundfile.write(str(tmp_wav), arr.astype(np.float32), int(rate))
+        scipy.io.wavfile.write(str(tmp_wav), int(rate), arr.astype(np.float32))
     except Exception as exc:
         ColorPrint.red(f"[bark] synth failed: {exc}")
         return False

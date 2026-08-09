@@ -6,6 +6,7 @@ use App\Models\GlobalTask;
 use App\Models\Worker;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class QueueWorkerPresenceService
 {
@@ -19,6 +20,11 @@ class QueueWorkerPresenceService
             self::CACHE_KEY,
             self::CACHE_SECONDS,
             function (): array {
+                $workerTable = (new Worker())->getTable();
+                $taskTable = (new GlobalTask())->getTable();
+                if (!Schema::hasTable($workerTable)) {
+                    return [];
+                }
                 $rows = Worker::query()
                     ->orderByDesc('last_heartbeat_at')
                     ->limit(self::WORKER_LIMIT)
@@ -31,12 +37,15 @@ class QueueWorkerPresenceService
                         'last_heartbeat_at',
                         'hostname',
                     ]);
-                $claimedByWorker = GlobalTask::query()
-                    ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-                    ->whereNotNull('assigned_to')
-                    ->groupBy('assigned_to')
-                    ->select('assigned_to', DB::raw('count(*) as total'))
-                    ->pluck('total', 'assigned_to');
+                $claimedByWorker = collect();
+                if (Schema::hasTable($taskTable)) {
+                    $claimedByWorker = GlobalTask::query()
+                        ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
+                        ->whereNotNull('assigned_to')
+                        ->groupBy('assigned_to')
+                        ->select('assigned_to', DB::raw('count(*) as total'))
+                        ->pluck('total', 'assigned_to');
+                }
                 $heartbeatFloor = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
                 $workers = [];
 
@@ -50,7 +59,9 @@ class QueueWorkerPresenceService
                         'name' => $name,
                         'processor_types' => $processorTypes,
                         'capabilities' => $capabilities,
-                        'online' => $row->last_heartbeat_at !== null && $row->last_heartbeat_at >= $heartbeatFloor,
+                        'online' => $row->status !== Worker::STATUS_OFFLINE
+                            && $row->last_heartbeat_at !== null
+                            && $row->last_heartbeat_at >= $heartbeatFloor,
                         'last_seen' => $row->last_heartbeat_at?->toIso8601String(),
                         'claimed' => (int) ($claimedByWorker->get($row->worker_id) ?? 0),
                         'hostname' => $row->hostname !== null ? (string) $row->hostname : null,

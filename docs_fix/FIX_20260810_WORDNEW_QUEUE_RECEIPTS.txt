@@ -1,0 +1,12 @@
+WordNew queue delivery receipt progress
+
+- Extended the canonical Queue Center contract with bounded delivery receipt stages.
+- Centralized Laravel worker presence for multiple Pycore and mcp-chrome workers.
+- Added a bounded task receipt service and Queue Center receipt endpoint without payload materialization.
+- Ensured visible sentence priority requests create or reuse canonical global tasks.
+- Added task IDs to word audio, sentence audio, and translation priority responses.
+- Added one WordNew queue runtime for shared receipt polling, resource keys, and worker presence.
+- Routed missing translations through the shared runtime and retained Laravel as the only backend entry point.
+- Added reusable audio and translation receipt icons to Daily Reading, Library, Shelf, and Book Reader surfaces.
+- Added a global WordNew status bar for Laravel, multiple Pycore workers, and multiple mcp-chrome workers.
+- Kept Agent History full Daily article audio outside duplicate distribution while preserving sentence-level generation.

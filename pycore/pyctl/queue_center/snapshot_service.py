@@ -72,7 +72,7 @@ QUEUE_CENTER_REMOTE_SLICES = (
 )
 QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS = 8
 QUEUE_CENTER_COLD_WAIT_SECONDS = (
-    QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS * len(QUEUE_CENTER_REMOTE_SLICES) + 2
+    QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS * len(QUEUE_CENTER_REMOTE_SLICES) + 10
 )
 QUEUE_CENTER_REFRESH_INTERVAL_SECONDS = 15.0
 QUEUE_CENTER_RECONNECT_MIN_SECONDS = 1.0
@@ -172,10 +172,10 @@ class QueueCenterRealtimeThread(threading.Thread):
                         f"{content_type or 'missing'}"
                     )
                 self._service.note_realtime_connected(endpoint)
-                self._service.request_refresh_if_due()
                 reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
                 refresh_after_close = self._consume(response, endpoint)
             except Exception as exc:
+                refresh_after_close = True
                 self._service.note_realtime_disconnected(str(exc))
                 ColorPrint.yellow(f"[QueueCenterCache] realtime reconnect: {exc}")
                 THREAD_BUS.wait_signal(QUEUE_CENTER_STOP_SIGNAL, timeout=reconnect_seconds)
@@ -191,11 +191,18 @@ class QueueCenterRealtimeThread(threading.Thread):
                         response.close()
                     except Exception as exc:
                         ColorPrint.yellow(f"[QueueCenterCache] stream cleanup failed: {exc}")
-            if refresh_after_close and not THREAD_BUS.is_shutdown_requested() and not THREAD_BUS.get_signal(
-                QUEUE_CENTER_STOP_SIGNAL,
-                False,
-            ):
-                self._service.refresh_if_due(wait_for_existing=True)
+            should_refresh = (
+                refresh_after_close
+                and not THREAD_BUS.is_shutdown_requested()
+                and not THREAD_BUS.get_signal(QUEUE_CENTER_STOP_SIGNAL, False)
+            )
+            if should_refresh:
+                try:
+                    self._service.refresh_if_due(wait_for_existing=True)
+                except Exception as exc:
+                    ColorPrint.yellow(
+                        f"[QueueCenterCache] refresh before reconnect failed: {exc}"
+                    )
 
     def _consume(self, response: Any, endpoint: str) -> bool:
         self._decoder.reset()
@@ -203,8 +210,10 @@ class QueueCenterRealtimeThread(threading.Thread):
             if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(
                 QUEUE_CENTER_STOP_SIGNAL,
                 False,
-            ) or self._service.endpoint() != endpoint:
+            ):
                 return False
+            if self._service.endpoint() != endpoint:
+                return True
             event = self._decoder.feed_line(raw_line)
             if event is None:
                 continue
@@ -274,7 +283,6 @@ class QueueCenterSnapshotService:
         THREAD_BUS.clear_signal(QUEUE_CENTER_STOP_SIGNAL)
         self._thread = QueueCenterRealtimeThread(self)
         self._thread.start()
-        self.request_refresh()
         THREAD_BUS.register_shutdown_handler(
             self.stop,
             priority=60,
@@ -310,7 +318,11 @@ class QueueCenterSnapshotService:
     def get_snapshot(self, request_refresh: bool = False) -> Dict[str, Any]:
         self.start()
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY)
-        cache = snapshot.get("cache") if isinstance(snapshot, dict) and isinstance(snapshot.get("cache"), dict) else {}
+        cache = (
+            snapshot.get("cache")
+            if isinstance(snapshot, dict) and isinstance(snapshot.get("cache"), dict)
+            else {}
+        )
         remote_attempted = float(cache.get("last_refresh_attempt_at") or 0) > 0
         if snapshot is None or not remote_attempted:
             snapshot = self.refresh_remote(wait_for_existing=True)
@@ -322,12 +334,6 @@ class QueueCenterSnapshotService:
         start_bus_task(
             self.refresh_remote,
             thread_name="QueueCenterSnapshotRefreshThread",
-        )
-
-    def request_refresh_if_due(self) -> None:
-        start_bus_task(
-            self.refresh_if_due,
-            thread_name="QueueCenterSnapshotRefreshIfDueThread",
         )
 
     def refresh_if_due(self, wait_for_existing: bool = False) -> Dict[str, Any]:
@@ -501,10 +507,34 @@ class QueueCenterSnapshotService:
         queue = QUEUE_CENTER_PRIORITY_EVENTS[event_name]
         task_id = str(payload.get("task_id") or "").strip()
         priority = int(payload.get("priority") or 0)
-        move_to_head = str(payload.get("bump") or "bumped") != "reprioritized"
+        bump_action = str(payload.get("bump") or "bumped")
+        move_to_head = bump_action in ("bumped", "head", "queue")
         old_priority = payload.get("old_priority")
         old_priority = int(old_priority) if isinstance(old_priority, (int, float)) else None
         label = self._priority_label(payload, task_id, queue)
+        batch_items = payload.get("items")
+        if not task_id and isinstance(batch_items, list):
+            for batch_item in batch_items[:QUEUE_CENTER_HEAD_LIMIT]:
+                if not isinstance(batch_item, dict):
+                    continue
+                batch_task_id = str(batch_item.get("task_id") or "").strip()
+                if not batch_task_id:
+                    continue
+                batch_priority = int(batch_item.get("priority") or priority)
+                if queue in ("word_audio", "sentence_audio"):
+                    batch_worker = (
+                        laravel_word_audio_worker
+                        if queue == "word_audio"
+                        else laravel_sentence_audio_worker
+                    )
+                    if move_to_head:
+                        batch_worker.promote_cached_task(batch_task_id, batch_priority)
+                    else:
+                        batch_worker.reprioritize_cached_task(batch_task_id, batch_priority)
+                elif move_to_head:
+                    translation_worker_service.promote_cached_task(batch_task_id, batch_priority)
+                else:
+                    translation_worker_service.reprioritize_cached_task(batch_task_id, batch_priority)
         if task_id and queue in ("word_audio", "sentence_audio"):
             worker = (
                 laravel_word_audio_worker
@@ -562,9 +592,17 @@ class QueueCenterSnapshotService:
             snapshot["generatedAt"] = _utc_now()
             snapshot["laravelReachable"] = True
             if queue == "sentence_audio" and task_id:
-                snapshot["sentenceQueue"] = self._promote_sentence_row(
-                    snapshot.get("sentenceQueue"),
-                    payload,
+                snapshot["sentenceQueue"] = (
+                    self._promote_sentence_row(
+                        snapshot.get("sentenceQueue"),
+                        payload,
+                    )
+                    if move_to_head
+                    else self._reprioritize_sentence_row(
+                        snapshot.get("sentenceQueue"),
+                        task_id,
+                        priority,
+                    )
                 )
             if queue == "word_translation" and task_id:
                 snapshot["translation"] = (
@@ -811,6 +849,26 @@ class QueueCenterSnapshotService:
         row["tts_priority"] = int(payload.get("priority") or 0)
         row["recently_bumped"] = True
         queue["items"] = [row, *[item for item in items if item is not row]][:QUEUE_CENTER_HEAD_LIMIT]
+        snapshot["queue"] = queue
+        return snapshot
+
+    @staticmethod
+    def _reprioritize_sentence_row(
+        sentence_queue: Any,
+        task_id: str,
+        priority: int,
+    ) -> Dict[str, Any]:
+        snapshot = dict(sentence_queue) if isinstance(sentence_queue, dict) else {"success": True}
+        queue = dict(snapshot.get("queue") or {})
+        items = [dict(item) for item in queue.get("items") or [] if isinstance(item, dict)]
+        for item in items:
+            if str(item.get("task_id") or "") != task_id:
+                continue
+            item["tts_priority"] = priority
+            item["recently_bumped"] = False
+            break
+        items.sort(key=lambda item: int(item.get("tts_priority") or 0), reverse=True)
+        queue["items"] = items[:QUEUE_CENTER_HEAD_LIMIT]
         snapshot["queue"] = queue
         return snapshot
 

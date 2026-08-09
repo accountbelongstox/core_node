@@ -15,6 +15,7 @@ Config:
   PARLER_DESCRIPTION  - natural-language voice/style prompt for the speaker
 """
 
+import importlib.util
 import os
 from pathlib import Path
 from typing import Any, Optional
@@ -35,11 +36,6 @@ from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
-
-import importlib.util
-
-
-
 
 _MODEL_QUEUE = 'pyutils.tts.parler.model'
 _MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'ParlerModelThread')

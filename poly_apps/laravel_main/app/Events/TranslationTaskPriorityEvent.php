@@ -66,6 +66,7 @@ class TranslationTaskPriorityEvent implements ShouldBroadcastNow
         if ($this->oldPriority !== null) {
             $payload['old_priority'] = $this->oldPriority;
         }
+
         return $payload;
     }
 }

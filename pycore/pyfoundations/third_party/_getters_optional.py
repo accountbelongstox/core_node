@@ -417,6 +417,17 @@ def get_third_package_transformers():
     return _PACKAGE_CACHE['transformers']
 
 
+def get_third_package_scipy():
+    """Get scipy without runtime installation."""
+    if 'scipy' not in _PACKAGE_CACHE:
+        _PACKAGE_CACHE['scipy'] = (
+            importlib.import_module('scipy')
+            if importlib.util.find_spec('scipy') is not None
+            else None
+        )
+    return _PACKAGE_CACHE['scipy']
+
+
 def get_third_package_soundfile():
     """Get soundfile without runtime installation."""
     if 'soundfile' not in _PACKAGE_CACHE:

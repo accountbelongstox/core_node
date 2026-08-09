@@ -16,10 +16,12 @@ those pinned packages are never installed in the main interpreter.
 
 import importlib.util
 import os
+import sys
 from pathlib import Path
 from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root, get_local_data_dir
+from pycore.pyutils.common.python_env.runtime_policy import engine_compatibility
 
 import pycore.pyutils.tts.streamelements_engine as streamelements_engine
 import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
@@ -135,6 +137,12 @@ def engine_installed(name: str) -> bool:
 
 def engine_unavailable_reason(name: str) -> Optional[str]:
     """Why an engine cannot synthesize now; None when no hint applies."""
+    if name == "voxcpm2":
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        compatibility = engine_compatibility(name, python_version)
+        if not compatibility["compatible"]:
+            return str(compatibility["reason"])
+
     if name == "qwen3tts":
         return qwen_engine.disabled_reason()
 

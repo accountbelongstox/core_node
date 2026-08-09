@@ -80,6 +80,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
 OPTIONAL_PACKAGES: Dict[str, str] = {
     "edge_tts": "edge-tts",
     "parler_tts": "git+https://github.com/huggingface/parler-tts.git",
+    "scipy": "scipy",
     "soundfile": "soundfile",
     "transformers": "transformers",
     "voxcpm": "voxcpm",
@@ -137,6 +138,7 @@ SPECIALIZED_IMPORTS = frozenset(
         "edge_tts",
         "gi",
         "parler_tts",
+        "scipy",
         "soundfile",
         "torch",
         "transformers",

@@ -190,8 +190,9 @@ export class PycoreTaskCenterStateService {
         try {
             const r = await laravelApi.setQueuePriority(taskId, next);
             if (r?.success === false) throw new Error(r?.error || 'Action failed');
+            const appliedPriority = Number(r?.data?.priority ?? r?.priority ?? next);
             this.translationNotice = 'Priority updated';
-            promoteTask(taskId, next);
+            promoteTask(taskId, appliedPriority);
         } catch (e: any) {
             this.translationNotice = `Action failed: ${e?.message || ''}`.trim();
         } finally {

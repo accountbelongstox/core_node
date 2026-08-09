@@ -217,7 +217,9 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
                   onClick={() => onSpeak(word)}
                   size="md"
                   className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-300"
-                  title={studyT(lang, 'study.recite.play')}
+                  title={word.audioUrl || (word.audioFiles?.length ?? 0) > 0
+                    ? studyT(lang, 'study.recite.play')
+                    : undefined}
                 />
                 {/* Played mark — the backend-mirrored read count; shown once the
                     word has been read/played at least once. */}

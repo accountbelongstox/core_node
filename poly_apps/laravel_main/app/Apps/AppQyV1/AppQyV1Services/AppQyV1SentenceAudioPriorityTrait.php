@@ -149,6 +149,7 @@ trait AppQyV1SentenceAudioPriorityTrait
                         'language' => $language,
                         'content_id' => $contentId,
                         'task_id' => $result['task_id'] ?? null,
+                        'priority' => $result['tts_priority'] ?? null,
                     ];
                 }
             } catch (\Throwable $e) {
@@ -163,6 +164,12 @@ trait AppQyV1SentenceAudioPriorityTrait
                 'batch' => true,
                 'count' => $queued,
                 'languages' => array_keys($bumpedLanguages),
+                'items' => array_map(static fn (array $receipt): array => [
+                    'task_id' => $receipt['task_id'] ?? null,
+                    'content_id' => $receipt['content_id'] ?? null,
+                    'language' => $receipt['language'] ?? null,
+                    'priority' => $receipt['priority'] ?? null,
+                ], $receipts),
             ]);
         }
         return ['ok' => true, 'queued' => $queued, 'total' => $total, 'items' => $receipts];

@@ -86,3 +86,13 @@ pycore 如果开启处理，UI如果显式开启，将一直和lravel建立连�
 9：wordnew 的可见句子、单词优先请求和轮询映射必须服从 data segment 上限与并发上限；请求完成、取消或调度器重置时移除实际数据映射并更新已消费 ID 上下文，达到上限的新请求必须明确结束而不能留下悬空 Promise。
 10：`code-last-modified` 必须继续覆盖全部配置代码目录，但优先使用单次原生扫描；原生扫描、PHP 兜底和冷缓存锁等待都必须有独立短预算，失败时快速返回 scan-busy/空快照，不得占满调用端 6 秒超时。
 
+第四部份：WordNew 缺失资源的分发回执与全局状态
+
+4.1 WordNew 请求任何单词音频或句子音频时，只要 Laravel 判断文件缺失，就必须由 Laravel 创建或复用 Queue Center 任务、调到队首并交给 Pycore。禁止 WordNew 直接调用 Pycore。Agent History 在本地生成并随 Daily 文章提交的整篇音频不重复分发，但文章内逐句缺失音频仍进入 sentence_audio 队列。
+4.2 缺失音频统一显示三段回执图标：等待 Laravel 接收；Laravel 已接收并调到服务端队首；在线 Pycore 已领取并调到本地队首。完成、处理和失败可继续使用公共状态图标，但不得覆盖三段回执含义。
+4.3 回执图标必须覆盖 Daily Reading 文章单词、Vocabulary Library 表格、Shelf 单词以及 Book Reader 句子。各页面只传资源键、当前可用状态和播放动作，不得复制回执轮询、Worker 判定或图标映射。
+4.4 Laravel 必须返回全部已注册 Pycore Worker 和 apps/mcp-chrome Worker 的独立在线状态，支持多个同类 Worker，不得折叠成单个布尔值。WordNew 使用全局状态组件显示 Laravel、每个 Pycore、每个 mcp-chrome 及其领取数量。
+4.5 缺少翻译的单词必须由 Laravel 的 word_translation 队列交给 mcp-chrome，并显示与音频相同的等待、Laravel 已接收、在线 Worker 已领取回执。已存在翻译时不得重复创建任务。
+4.6 通信库必须以 canonical Queue Center contract 为唯一状态定义，使用有界 task ID 回执段。前端不得按单元格独立轮询，不得在回执接口或实时事件中传输完整 payload；一次查询数量服从 diff_delivery.data_segment_limit，实际数据继续按 ID 页惰性读取。
+4.7 Laravel 控制器不得直接查询数据库。Worker 在线归一化和任务回执必须由 Queue Center 服务集中提供；Pycore 和 mcp-chrome 继续复用 typed pull、accept、result 与实时置顶通道。
+
