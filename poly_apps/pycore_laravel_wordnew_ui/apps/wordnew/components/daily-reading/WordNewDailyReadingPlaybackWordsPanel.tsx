@@ -86,8 +86,8 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
                   />
                 ) : null}
                 {word.in_default_group
-                  ? <BookMarked className="w-3.5 h-3.5 text-indigo-300" aria-label={groupLabel} title={groupLabel} />
-                  : <CircleDashed className="w-3.5 h-3.5 text-zinc-500" aria-label={groupLabel} title={groupLabel} />}
+                  ? <span title={groupLabel}><BookMarked className="w-3.5 h-3.5 text-indigo-300" aria-label={groupLabel} /></span>
+                  : <span title={groupLabel}><CircleDashed className="w-3.5 h-3.5 text-zinc-500" aria-label={groupLabel} /></span>}
                 <span
                   className="min-w-8 text-right font-mono text-zinc-500"
                   title={trans('home.dailyReading.readCount', { count: word.play_count })}
