@@ -504,16 +504,35 @@ function Test-NeuralTtsLocalWeightsReady {
         [Parameter(Mandatory = $true)][string]$WeightsDir,
         [string]$RepoId = ''
     )
+    $catalog = @{}
+    $cfg = $null
+    $expectedBytes = 0L
+    $relativePath = ''
+    $resolvedWeightsDir = ''
+    $totalBytes = 0L
+    $weightFiles = @()
+
     if (-not (Test-Path -LiteralPath $WeightsDir)) { return $false }
     $cfg = Get-ChildItem -Path $WeightsDir -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $cfg) { return $false }
 
     $weightFiles = @(Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
-    $totalBytes = 0L
     if (-not $weightFiles -or $weightFiles.Count -eq 0) { return $false }
+    $resolvedWeightsDir = (Resolve-Path -LiteralPath $WeightsDir).Path.TrimEnd('\')
+    if ($RepoId) {
+        $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
+    }
 
     foreach ($file in $weightFiles) {
         if ($file.Length -le 0) { return $false }
+        $relativePath = $file.FullName.Substring($resolvedWeightsDir.Length + 1).Replace('\', '/')
+        $expectedBytes = 0L
+        if ($catalog.ContainsKey($relativePath)) {
+            $expectedBytes = [long]$catalog[$relativePath]
+        }
+        if ($expectedBytes -gt 0 -and $file.Length -lt $expectedBytes) {
+            return $false
+        }
         $totalBytes += $file.Length
     }
     if ($script:LastReportedLocalModelPath -ne $WeightsDir) {

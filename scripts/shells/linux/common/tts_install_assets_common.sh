@@ -452,13 +452,20 @@ install_hf_repo_flat() {
 
 neural_tts_local_weights_ready() {
     local dir="$1" repo="${2:-}" py="${3:-python3}"
-    local weight_count=0 f="" file_size=0 total_bytes=0
+    local catalog="" expected=0 f="" file_size=0 rel="" total_bytes=0 weight_count=0
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
+    if [[ -n "$repo" ]]; then
+        catalog="$(_hf_repo_catalog "$repo" || true)"
+    fi
     while IFS= read -r -d '' f; do
         weight_count=$((weight_count + 1))
         [[ -s "$f" ]] || return 1
         file_size="$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
+        rel="${f#"${dir%/}/"}"
+        expected="$(printf '%s\n' "$catalog" | awk -F '\t' -v key="$rel" '$1 == key { print $2; exit }')"
+        expected="${expected:-0}"
+        [[ "$expected" -le 0 || "${file_size:-0}" -ge "$expected" ]] || return 1
         total_bytes=$((total_bytes + ${file_size:-0}))
     done < <(find "$dir" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -print0 2>/dev/null)
     if [[ "$weight_count" -gt 0 ]]; then
