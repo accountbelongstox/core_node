@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 use Laravel\Octane\Facades\Octane;
 
 /**
@@ -35,6 +36,8 @@ use Laravel\Octane\Facades\Octane;
  */
 class OctaneTimerService
 {
+    private const TASK_LEASE_SECONDS = 900;
+
     /**
      * Registered tasks (callback storage - cannot be shared across workers)
      * Format: ['name' => ['callback' => callable, 'interval' => int]]
@@ -286,8 +289,9 @@ class OctaneTimerService
     protected static function executeTaskWithInterceptor(string $name, array &$task): void
     {
         $now = time();
-
         $taskStats = self::stateGet('timer_tasks', $name);
+        $lock = null;
+
         if (!$taskStats) {
             return;
         }
@@ -299,8 +303,35 @@ class OctaneTimerService
             return;
         }
 
-        // Execute the task
+        $lock = Cache::store('file')->lock(
+            'octane_timer:task:' . sha1($name),
+            self::TASK_LEASE_SECONDS
+        );
+        if (!$lock->get()) {
+            return;
+        }
+
         try {
+            $taskStats = self::stateGet('timer_tasks', $name);
+            if (!$taskStats) {
+                return;
+            }
+
+            $now = time();
+            $timeSinceLastRun = $now - $taskStats['last_run'];
+            if ($task['interval'] > 0 && $timeSinceLastRun < $task['interval']) {
+                return;
+            }
+
+            self::stateSet('timer_tasks', $name, [
+                'name' => $name,
+                'interval' => $taskStats['interval'],
+                'last_run' => $now,
+                'run_count' => $taskStats['run_count'],
+                'error_count' => $taskStats['error_count'],
+                'last_duration' => $taskStats['last_duration'],
+            ]);
+
             $startTime = microtime(true);
             call_user_func($task['callback']);
             $duration = microtime(true) - $startTime;
@@ -324,7 +355,7 @@ class OctaneTimerService
             self::stateSet('timer_tasks', $name, [
                 'name' => $name,
                 'interval' => $taskStats['interval'],
-                'last_run' => $taskStats['last_run'],
+                'last_run' => $now,
                 'run_count' => $taskStats['run_count'],
                 'error_count' => $taskStats['error_count'] + 1,
                 'last_duration' => $taskStats['last_duration'],
@@ -335,6 +366,8 @@ class OctaneTimerService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
+        } finally {
+            $lock->release();
         }
     }
 

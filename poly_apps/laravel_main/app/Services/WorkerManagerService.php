@@ -3,12 +3,19 @@
 namespace App\Services;
 
 use App\Models\Worker;
+use App\Services\QueueCenter\QueueWorkerPresenceService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class WorkerManagerService
 {
     private const PULL_HEARTBEAT_REFRESH_SECONDS = 30;
+    private QueueWorkerPresenceService $workerPresence;
+
+    public function __construct(QueueWorkerPresenceService $workerPresence)
+    {
+        $this->workerPresence = $workerPresence;
+    }
 
     /**
      * Register a new worker or update existing one
@@ -31,7 +38,9 @@ class WorkerManagerService
         ?array $capabilities = null,
         bool $fromPull = false
     ): Worker {
-        $worker = null;
+        $existingWorker = Worker::findByWorkerId($workerId);
+        $wasOnline = $this->isVisibleOnline($existingWorker);
+        $worker = $fromPull ? $existingWorker : null;
         $attributes = [
             'worker_name' => $workerName,
             'processor_types' => $processorTypes,
@@ -47,13 +56,9 @@ class WorkerManagerService
             $attributes['capabilities'] = array_values(array_filter($capabilities, 'is_string'));
         }
 
-        if ($fromPull) {
-            $worker = Worker::where('worker_id', $workerId)->first();
-        }
-
         if ($worker === null) {
-            $worker = Worker::updateOrCreate(
-                ['worker_id' => $workerId],
+            $worker = Worker::registerWorker(
+                $workerId,
                 array_merge($attributes, [
                     'status' => Worker::STATUS_ONLINE,
                     'last_heartbeat_at' => now(),
@@ -71,8 +76,12 @@ class WorkerManagerService
                 $worker->last_heartbeat_at = now();
             }
             if ($worker->isDirty()) {
-                $worker->save();
+                $worker->saveRecord();
             }
+        }
+
+        if (!$wasOnline) {
+            $this->workerPresence->publishChange($workerId, true);
         }
 
         $logContext = [
@@ -101,7 +110,8 @@ class WorkerManagerService
      */
     public function heartbeat(string $workerId, ?array $capabilities = null): bool
     {
-        $worker = Worker::where('worker_id', $workerId)->first();
+        $worker = Worker::findByWorkerId($workerId);
+        $wasOnline = $this->isVisibleOnline($worker);
 
         if (!$worker) {
             Log::warning('Heartbeat from unregistered worker', ['worker_id' => $workerId]);
@@ -112,6 +122,10 @@ class WorkerManagerService
             $worker->capabilities = array_values(array_filter($capabilities, 'is_string'));
         }
         $worker->heartbeat();
+
+        if (!$wasOnline) {
+            $this->workerPresence->publishChange($workerId, true);
+        }
 
         Log::debug('Worker heartbeat', [
             'worker_id' => $workerId,
@@ -129,13 +143,18 @@ class WorkerManagerService
      */
     public function unregister(string $workerId): bool
     {
-        $worker = Worker::where('worker_id', $workerId)->first();
+        $worker = Worker::findByWorkerId($workerId);
+        $wasOnline = $this->isVisibleOnline($worker);
 
         if (!$worker) {
             return false;
         }
 
         $worker->markOffline();
+
+        if ($wasOnline) {
+            $this->workerPresence->publishChange($workerId, false);
+        }
 
         Log::info('Worker unregistered', ['worker_id' => $workerId]);
 
@@ -149,7 +168,29 @@ class WorkerManagerService
      */
     public function getAllWorkers()
     {
-        return Worker::orderBy('status')->orderBy('worker_name')->get();
+        return Worker::orderedWorkers();
+    }
+
+    /**
+     * Return the canonical worker summaries shared by list and overview APIs.
+     */
+    public function getWorkerSummaries()
+    {
+        return $this->getAllWorkers()->map(static function (Worker $worker): array {
+            return [
+                'worker_id' => $worker->worker_id,
+                'worker_name' => $worker->worker_name,
+                'processor_types' => $worker->processor_types,
+                'status' => $worker->isAlive() ? $worker->status : Worker::STATUS_OFFLINE,
+                'hostname' => $worker->hostname,
+                'platform' => $worker->platform,
+                'completed_tasks' => $worker->completed_tasks,
+                'failed_tasks' => $worker->failed_tasks,
+                'current_task_id' => $worker->current_task_id,
+                'last_heartbeat_at' => $worker->last_heartbeat_at?->toISOString(),
+                'created_at' => $worker->created_at?->toISOString(),
+            ];
+        })->values();
     }
 
     /**
@@ -168,22 +209,15 @@ class WorkerManagerService
         // is not provisioned by any migration); persists across php -S requests.
         return Cache::store('file')->remember('workers:stats', 3, static function (): array {
             $aliveCutoff = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
-            $total = Worker::count();
-            $online = Worker::where('status', Worker::STATUS_ONLINE)
-                ->where('last_heartbeat_at', '>=', $aliveCutoff)
-                ->count();
-            $busy = Worker::where('status', Worker::STATUS_BUSY)
-                ->where('last_heartbeat_at', '>=', $aliveCutoff)
-                ->count();
-
-            return [
-                'total' => $total,
-                'online' => $online,
-                'busy' => $busy,
-                'offline' => max(0, $total - $online - $busy),
-                'total_completed' => Worker::sum('completed_tasks'),
-                'total_failed' => Worker::sum('failed_tasks'),
-            ];
+            return Worker::statistics($aliveCutoff);
         });
+    }
+
+    private function isVisibleOnline(?Worker $worker): bool
+    {
+        return $worker !== null
+            && $worker->status !== Worker::STATUS_OFFLINE
+            && $worker->last_heartbeat_at !== null
+            && $worker->last_heartbeat_at->gte(now()->subSeconds(Worker::HEARTBEAT_TIMEOUT));
     }
 }

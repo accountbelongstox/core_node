@@ -4,7 +4,7 @@ import {
   Sparkles, Award, Settings, Activity, Save, Upload, Lock,
   Sprout, Rocket, Star, Crown, Gem, LogIn, LogOut, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wfNewApi } from '../api';
 import type { WfNewStatistics } from '../api';

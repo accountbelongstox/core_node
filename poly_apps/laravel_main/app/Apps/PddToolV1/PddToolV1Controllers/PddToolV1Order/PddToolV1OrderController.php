@@ -55,7 +55,7 @@ class PddToolV1OrderController extends BaseController
         $header->batch_id = $batchId;
         $header->order_count = count($purchaseOrders);
         $header->status = 'created';
-        $header->save();
+        $header->saveRecord();
 
         foreach ($purchaseOrders as $po) {
             $po = (array) $po;
@@ -67,7 +67,7 @@ class PddToolV1OrderController extends BaseController
             $row->sku_id = (string) ($po['sku_id'] ?? '');
             $row->quantity = (int) ($po['quantity'] ?? 1);
             $row->status = 'pending';
-            $row->save();
+            $row->saveRecord();
         }
 
         PddToolV1UsageLogModel::record($user->id, 'batch_order', [
@@ -94,11 +94,7 @@ class PddToolV1OrderController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $rows = PddToolV1BatchPurchaseOrderModel::query()
-            ->where('user_id', $user->id)
-            ->where('batch_id', $batchId)
-            ->orderBy('id')
-            ->get();
+        $rows = PddToolV1BatchPurchaseOrderModel::forUserBatch((int) $user->id, $batchId);
 
         $purchaseOrders = $rows->map(fn ($r) => [
             'purchase_order_no' => (string) $r->purchase_order_no,

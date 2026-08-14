@@ -1,38 +1,27 @@
 import { Capacitor } from '@capacitor/core';
-import { Device } from '@capacitor/device';
 import {
   CapResourceAssetCache,
   getStorageEstimate,
   requestPersistentStorage,
-} from '@/shared/capabilities';
+} from '@/apps/wordnew/platform/capabilities';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 
 export const MAX_AUDIO_CACHE_BYTES = 20 * 1024 ** 3;
-export const MIN_NATIVE_AUDIO_CACHE_BYTES = MAX_AUDIO_CACHE_BYTES;
 
-const MAX_NATIVE_AUDIO_CACHE_BYTES = 100 * 1024 ** 3;
+const MIN_WEB_AUDIO_CACHE_BYTES = 64 * 1024 ** 2;
 const WEB_FALLBACK_CACHE_BYTES = 2 * 1024 ** 3;
+const WEB_QUOTA_SHARE = 0.5;
+const AUDIO_PRELOAD_CONCURRENCY = 4;
 
 async function resolveCacheBudget(): Promise<number> {
-  if (Capacitor.isNativePlatform()) {
-    try {
-      const info = await Device.getInfo() as Awaited<ReturnType<typeof Device.getInfo>> & {
-        diskFree?: number;
-        diskTotal?: number;
-      };
-      const free = Number(info.diskFree ?? 0);
-      const total = Number(info.diskTotal ?? 0);
-      const capacityTarget = Math.max(free * 0.8, total * 0.25);
-      return Math.max(MIN_NATIVE_AUDIO_CACHE_BYTES, Math.min(MAX_NATIVE_AUDIO_CACHE_BYTES, capacityTarget));
-    } catch {
-      return MIN_NATIVE_AUDIO_CACHE_BYTES;
-    }
-  }
+  if (Capacitor.isNativePlatform()) return MAX_AUDIO_CACHE_BYTES;
   await requestPersistentStorage().catch(() => false);
   const estimate = await getStorageEstimate();
-  return estimate.quotaBytes > 0
-    ? Math.max(64 * 1024 ** 2, Math.floor(estimate.quotaBytes * 0.98))
-    : WEB_FALLBACK_CACHE_BYTES;
+  if (estimate.quotaBytes <= 0) return WEB_FALLBACK_CACHE_BYTES;
+  return Math.max(
+    MIN_WEB_AUDIO_CACHE_BYTES,
+    Math.min(MAX_AUDIO_CACHE_BYTES, Math.floor(estimate.quotaBytes * WEB_QUOTA_SHARE)),
+  );
 }
 
 function audioMime(url: string): string {
@@ -82,7 +71,7 @@ const audioAssets = new CapResourceAssetCache({
   budget: resolveCacheBudget,
   extractUrls: payloadAudioUrls,
   mimeFor: audioMime,
-  concurrency: 4,
+  concurrency: AUDIO_PRELOAD_CONCURRENCY,
 });
 
 export function ensureAudio(url: string): Promise<string | null> {
@@ -109,6 +98,31 @@ export function collectAudioUrls(words: Array<{
 
 export function preloadAudio(urls: string[]): void {
   audioAssets.preload(urls);
+}
+
+export async function preloadAudioTracked(
+  urls: Iterable<string>,
+  onSettled: (url: string, ready: boolean) => void,
+): Promise<void> {
+  const queue = [...new Set(urls)].filter((url) => /^https?:\/\//i.test(url));
+  let cursor = 0;
+  const worker = async (): Promise<void> => {
+    while (cursor < queue.length) {
+      const url = queue[cursor];
+      cursor += 1;
+      try {
+        const localUrl = await audioAssets.ensure(url);
+        onSettled(url, !!localUrl);
+      } catch {
+        onSettled(url, false);
+      }
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(AUDIO_PRELOAD_CONCURRENCY, queue.length) },
+    () => worker(),
+  );
+  await Promise.all(workers);
 }
 
 /**

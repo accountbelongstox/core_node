@@ -13,6 +13,7 @@ import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { BING_DICT_MSG } from '@/common/message-types';
 import { readJson, writeJson } from './useCacheStore';
 import { localStorage } from '@/services/ExtensionStorage';
+import { IntervalController, TimeoutController } from '@/utils/async';
 
 const LOG = 'Bing Client';
 
@@ -178,7 +179,7 @@ export function useBingDictionaryClient() {
   // Pager → fetch that page from the server.
   const setQueuePage = (page: number) => loadQueueOverview(page);
 
-  let statsPollingInterval: ReturnType<typeof setInterval> | null = null;
+  const statsPolling = new IntervalController();
 
   const toggleClientMode = async () => {
     clientMode.value = !clientMode.value;
@@ -229,20 +230,15 @@ export function useBingDictionaryClient() {
   };
 
   // Debounced live-apply of the current config to a running worker.
-  let liveApplyTimer: ReturnType<typeof setTimeout> | null = null;
+  const liveApplyTimeout = new TimeoutController();
   let unsubscribeClientConfig: (() => void) | null = null;
   // Centralized clear so both the re-debounce path and unmount teardown release
   // the pending timer (mirrors stopStatsPolling for the stats interval).
   const cancelLiveApply = () => {
-    if (liveApplyTimer) {
-      clearTimeout(liveApplyTimer);
-      liveApplyTimer = null;
-    }
+    liveApplyTimeout.cancel();
   };
   const pushLiveConfig = () => {
-    cancelLiveApply();
-    liveApplyTimer = setTimeout(async () => {
-      liveApplyTimer = null;
+    liveApplyTimeout.restart(async () => {
       if (!clientService.value.isRunning) return;
       try {
         await chrome.runtime.sendMessage({
@@ -446,18 +442,11 @@ export function useBingDictionaryClient() {
   };
 
   const startStatsPolling = () => {
-    if (statsPollingInterval) return;
-
-    statsPollingInterval = setInterval(async () => {
-      await loadClientServiceState();
-    }, 3000);
+    statsPolling.start(() => void loadClientServiceState(), 3000);
   };
 
   const stopStatsPolling = () => {
-    if (statsPollingInterval) {
-      clearInterval(statsPollingInterval);
-      statsPollingInterval = null;
-    }
+    statsPolling.stop();
   };
 
   const initialize = async () => {

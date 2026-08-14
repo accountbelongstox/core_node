@@ -1,6 +1,7 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
+import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterContract';
 
 export type { BookChapter, BookSlot, BookTopWord } from '../../../../core/contracts/books';
 
@@ -145,10 +146,22 @@ export interface TaskStatusResponse {
 
 // ========== Vocabulary stat drill-down: dictionary words ==========
 
+export type DictionaryWordSort =
+  | 'id'
+  | 'word'
+  | 'translation'
+  | 'phonetic'
+  | 'us_phonetic'
+  | 'uk_phonetic'
+  | 'audio'
+  | 'queries'
+  | 'is_valid';
+
 export type DictionaryWordFilter =
   | 'all'
   | 'with_translation'
   | 'without_translation'
+  | 'valid'
   | 'invalid'
   | 'with_audio'
   | 'without_audio';
@@ -161,6 +174,8 @@ export interface DictionaryWordRow {
   has_translation: boolean;
   has_audio: boolean;
   is_valid: boolean;
+  /** Raw nullable dictionary field; null is treated as valid by the backend. */
+  is_valid_value?: boolean | null;
 
   // ----- Rich per-word detail (all optional / nullable) -----
   /** Actual translation strings (preferred over the has_translation flag). */
@@ -198,6 +213,8 @@ export interface DictionaryWordsResponse {
   total: number;
   start: number;
   limit: number;
+  sort?: DictionaryWordSort | '';
+  order?: 'asc' | 'desc';
   items: DictionaryWordRow[];
   error?: string;
 }
@@ -237,7 +254,7 @@ export interface WordSentencesResponse {
 // ========== Vocabulary stat drill-down: TTS queue items ==========
 
 export type TtsQueueItemStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'leased';
-export type TtsQueueItemType = 'word' | 'sentence' | 'article';
+export type TtsQueueItemType = GlobalQueuePositionTaskAlias;
 
 export interface TtsQueueItemsResponse {
   success: boolean;
@@ -252,15 +269,19 @@ export interface TtsQueueItemsResponse {
 
 export interface LanguageBreakdownRow {
   language: string;
+  language_code: string;
   words: number;
   with_translation: number;
+  without_translation: number;
   with_audio: number;
+  without_audio: number;
+  valid: number;
   invalid: number;
 }
 
 export interface LanguageBreakdownResponse {
   success: boolean;
-  items: LanguageBreakdownRow[];
+  languages: LanguageBreakdownRow[];
   error?: string;
 }
 
@@ -360,8 +381,8 @@ export class BooksAPI extends BaseAPI {
     q?: string;
     start?: number;
     limit?: number;
-    /** Full-dataset server-side sort key (word|translation|phonetic|queries|status). */
-    sort?: string;
+    /** Full-dataset server-side sort key. */
+    sort?: DictionaryWordSort;
     order?: 'asc' | 'desc';
   }): Promise<APIResponse<DictionaryWordsResponse>> {
     return this.get<DictionaryWordsResponse>('/dictionary/words', params, false);

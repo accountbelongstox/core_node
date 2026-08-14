@@ -1,7 +1,7 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -118,5 +118,48 @@ class CodeMartV1ProjectModel extends Model
     public function isCompleted(): bool
     {
         return $this->status === 'completed';
+    }
+
+    public static function filteredPage(array $filters, int $page, int $pageSize): array
+    {
+        $query = static::query();
+
+        foreach (['status', 'complexity'] as $field) {
+            if (array_key_exists($field, $filters)) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+        if (array_key_exists('search', $filters)) {
+            $search = (string) $filters['search'];
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        return [
+            'total' => (clone $query)->count(),
+            'projects' => $query->orderByDesc('created_at')->forPage($page, $pageSize)->get(),
+        ];
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findById(int $projectId): ?self
+    {
+        return static::query()->find($projectId);
+    }
+
+    public static function findDetailed(int $projectId): ?self
+    {
+        return static::query()->with(['milestones', 'attachments'])->find($projectId);
+    }
+
+    public static function findOwnedByClient(int $projectId, int $clientId): ?self
+    {
+        return static::query()->whereKey($projectId)->where('client_id', $clientId)->first();
     }
 }

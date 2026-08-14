@@ -9,7 +9,6 @@ function payload() {
     speaker: element('speaker').value || null,
     instruct: element('instruct').value || null,
     format: element('format').value,
-    priority: Number(element('priority').value || 0),
   };
 }
 

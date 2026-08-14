@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { prepareFirefoxUploadFile } from './file-upload-firefox';
@@ -177,21 +177,13 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       // Clean up debugger
       await this.detachDebugger(tabId);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'File(s) uploaded successfully',
-              files: files,
-              selector: selector,
-              fileCount: files.length,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: 'File(s) uploaded successfully',
+        files,
+        selector,
+        fileCount: files.length,
+      });
     } catch (error) {
       console.error('Error in file upload operation:', error);
       
@@ -201,7 +193,7 @@ class FileUploadTool extends BaseBrowserToolExecutor {
       }
 
       return createErrorResponse(
-        `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
+        `Error uploading file: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -323,26 +315,18 @@ class FileUploadTool extends BaseBrowserToolExecutor {
         ],
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'File(s) uploaded successfully',
-              files: [file.name],
-              selector: selector,
-              fileCount: result?.fileCount ?? 1,
-              size: file.size,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: 'File(s) uploaded successfully',
+        files: [file.name],
+        selector,
+        fileCount: result?.fileCount ?? 1,
+        size: file.size,
+      });
     } catch (error) {
       console.error('Error in Firefox file upload operation:', error);
       return createErrorResponse(
-        `Error uploading file: ${error instanceof Error ? error.message : String(error)}`,
+        `Error uploading file: ${toErrorMessage(error)}`,
       );
     }
   }

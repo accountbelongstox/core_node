@@ -5,9 +5,7 @@ import uuid
 from typing import Any, Dict
 
 from pycore.pyfoundations.system_paths import get_app_cache_dir
-from pycore.pyutils.tts.engine_policy import configured_tts_priority
 from pycore.pyutils.tts.tts_orchestrator import synthesize
-from pycore.pyutils.tts.tts_orchestrator import engine_available
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
 _NO_LOCAL_TTS = "no local TTS engine available"
@@ -31,10 +29,6 @@ def synthesize_audio(text: str) -> Dict[str, Any]:
     tts_lang = _tts_lang_code(str(cfg.get("target_lang") or "EN"))
     accent = "us" if tts_lang == "en" else None
     
-    local_order = configured_tts_priority("agent_history")
-    if not any(engine_available(name) for name in local_order):
-        raise RuntimeError(_NO_LOCAL_TTS)
-        
     cache_dir = get_app_cache_dir() / "agent_history_tts"
     cache_dir.mkdir(parents=True, exist_ok=True)
     out = cache_dir / f"article_{uuid.uuid4().hex}.mp3"

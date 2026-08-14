@@ -31,7 +31,7 @@ import type {
   WordNewGroupProgressUpdate,
   WordNewProgressEntry,
 } from '../api';
-import { isQueuedError } from '../../../core/api-libs/base';
+import { isQueuedError } from '../../../core/network/api-client';
 import { wordNewEventBus } from './WordNewEventBus';
 import { markSentenceWordsPlayed } from './WordNewSentenceWordTable';
 
@@ -40,6 +40,12 @@ const PROGRESS_FLUSH_MS = 5000;
 interface PendingSentenceRead {
   word: string;
   count: number;
+}
+
+interface PendingSentenceReadBatch {
+  language: string;
+  groupId: string | null;
+  reads: Map<string, PendingSentenceRead>;
 }
 
 /** One due/recent list row: the word id with its expanded progress entry. */
@@ -72,7 +78,7 @@ class WordNewProgressCenterClass {
   /** Group ids seen by this domain center, used only for scoped invalidation. */
   private knownGids = new Set<string>();
   private pendingGroupUpdates = new Map<string, WordNewGroupProgressUpdate[]>();
-  private pendingSentenceReads = new Map<string, Map<string, PendingSentenceRead>>();
+  private pendingSentenceReads = new Map<string, PendingSentenceReadBatch>();
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private flushChain: Promise<void> = Promise.resolve();
 
@@ -257,20 +263,26 @@ class WordNewProgressCenterClass {
     return this.reportAnswers(gid, [update]);
   }
 
-  /** Cache sentence-player reads and submit one request per language every five seconds. */
-  reportSentenceReads(words: string[], language = 'en'): void {
+  /** Cache sentence-player reads and submit one request per language+group every five seconds. */
+  reportSentenceReads(words: string[], language = 'en', groupId: string | null = null): void {
     if (words.length === 0 || !wfNewApi.isAuthenticated()) return;
     const languageKey = language.trim().toLowerCase() || 'en';
-    const pending = this.pendingSentenceReads.get(languageKey) ?? new Map<string, PendingSentenceRead>();
+    const normalizedGroupId = groupId?.trim() || null;
+    const batchKey = JSON.stringify([languageKey, normalizedGroupId]);
+    const batch = this.pendingSentenceReads.get(batchKey) ?? {
+      language: languageKey,
+      groupId: normalizedGroupId,
+      reads: new Map<string, PendingSentenceRead>(),
+    };
     for (const rawWord of words) {
       const word = rawWord.trim();
-      const key = word.toLocaleLowerCase();
+      const key = word.toLowerCase();
       if (!word || !key) continue;
-      const current = pending.get(key);
-      pending.set(key, { word: current?.word ?? word, count: (current?.count ?? 0) + 1 });
+      const current = batch.reads.get(key);
+      batch.reads.set(key, { word: current?.word ?? word, count: (current?.count ?? 0) + 1 });
     }
-    if (pending.size === 0) return;
-    this.pendingSentenceReads.set(languageKey, pending);
+    if (batch.reads.size === 0) return;
+    this.pendingSentenceReads.set(batchKey, batch);
     this.scheduleFlush();
   }
 
@@ -298,7 +310,7 @@ class WordNewProgressCenterClass {
     const groupBatches = this.pendingGroupUpdates;
     const sentenceBatches = this.pendingSentenceReads;
     this.pendingGroupUpdates = new Map<string, WordNewGroupProgressUpdate[]>();
-    this.pendingSentenceReads = new Map<string, Map<string, PendingSentenceRead>>();
+    this.pendingSentenceReads = new Map<string, PendingSentenceReadBatch>();
 
     for (const [gidKey, updates] of groupBatches) {
       const gid = gidKey || undefined;
@@ -314,28 +326,33 @@ class WordNewProgressCenterClass {
       wordNewEventBus.emit('learning-stats-updated', { gid, batch: updates.length });
     }
 
-    for (const [language, reads] of sentenceBatches) {
+    for (const [batchKey, batch] of sentenceBatches) {
       const words: string[] = [];
-      for (const item of reads.values()) {
+      for (const item of batch.reads.values()) {
         for (let index = 0; index < item.count; index += 1) words.push(item.word);
       }
       try {
-        await markSentenceWordsPlayed(words, language);
+        await markSentenceWordsPlayed(words, batch.language, batch.groupId);
         wordNewEventBus.emit('learning-stats-updated', {
           sentenceWords: words.length,
-          language,
+          language: batch.language,
+          gid: batch.groupId ?? undefined,
         });
       } catch (error) {
         if (isQueuedError(error) || this.isAuthFailure(error)) continue;
-        const current = this.pendingSentenceReads.get(language) ?? new Map<string, PendingSentenceRead>();
-        for (const [key, item] of reads) {
-          const existing = current.get(key);
-          current.set(key, {
+        const current = this.pendingSentenceReads.get(batchKey) ?? {
+          language: batch.language,
+          groupId: batch.groupId,
+          reads: new Map<string, PendingSentenceRead>(),
+        };
+        for (const [key, item] of batch.reads) {
+          const existing = current.reads.get(key);
+          current.reads.set(key, {
             word: existing?.word ?? item.word,
             count: (existing?.count ?? 0) + item.count,
           });
         }
-        this.pendingSentenceReads.set(language, current);
+        this.pendingSentenceReads.set(batchKey, current);
       }
     }
 

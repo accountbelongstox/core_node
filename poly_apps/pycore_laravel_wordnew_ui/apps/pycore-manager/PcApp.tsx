@@ -2,8 +2,7 @@
  * pycore-manager end (Pc*). Mounted by the shell at /pycore-manager/*.
  * Sidebar layout + one lazy route PER page, GENERATED from PC_PAGES (the single
  * registry the sidebar also derives from) so the route table and the registry
- * can never drift apart — adding a page entry is enough. Only the legacy
- * `<Navigate>` redirects (old slugs that merged into tabbed pages) stay manual.
+ * can never drift apart — adding a page entry is enough.
  */
 import React, { Suspense, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
@@ -65,27 +64,6 @@ const PcApp: React.FC = () => {
         {/* Page routes are generated from PC_PAGES (above) — add a registry
             entry, get a route. */}
         {pcPageRoutes}
-        {/* Legacy redirects (manual): old slugs that merged into tabbed pages,
-            each landing on the matching ?tab=. These have no PC_PAGES entry, so
-            they are intentionally kept here rather than generated. */}
-        <Route path="voice-subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
-        <Route path="voice-player" element={<Navigate to="/pycore-manager/agent-history" replace />} />
-        <Route path="subtitle" element={<Navigate to="/pycore-manager/agent-history" replace />} />
-        <Route path="agent-historyf" element={<Navigate to="/pycore-manager/agent-history" replace />} />
-        <Route path="queue" element={<Navigate to="/pycore-manager/queue-center?tab=manager" replace />} />
-        <Route path="task-queue" element={<Navigate to="/pycore-manager/queue-center?tab=tasks" replace />} />
-        <Route path="translation-queue" element={<Navigate to="/pycore-manager/queue-center" replace />} />
-        <Route path="video-extract" element={<Navigate to="/pycore-manager/content?tab=subtitles" replace />} />
-        <Route path="books" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
-        <Route path="corebook" element={<Navigate to="/pycore-manager/content?tab=books" replace />} />
-        <Route path="movie-poster" element={<Navigate to="/pycore-manager/queue-center?tab=overview" replace />} />
-        <Route path="ai-status" element={<Navigate to="/pycore-manager/ai?tab=capability" replace />} />
-        <Route path="ai-image" element={<Navigate to="/pycore-manager/ai?tab=studio" replace />} />
-        <Route path="ai-keys" element={<Navigate to="/pycore-manager/ai?tab=keys" replace />} />
-        {/* Translate / Image Search / Subtitle Search folded into the AI page as tabs. */}
-        <Route path="translate" element={<Navigate to="/pycore-manager/ai?tab=translate" replace />} />
-        <Route path="image-search" element={<Navigate to="/pycore-manager/ai?tab=imageSearch" replace />} />
-        <Route path="subtitle-search" element={<Navigate to="/pycore-manager/ai?tab=subtitleSearch" replace />} />
         <Route path="*" element={<Navigate to="/pycore-manager" replace />} />
           </Route>
         </Routes>

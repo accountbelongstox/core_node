@@ -44,7 +44,7 @@ class ProfileController extends Controller
             $request->user()->email_verified_at = null;
         }
 
-        $request->user()->save();
+        $request->user()->saveRecord();
 
         return to_route('profile.edit');
     }
@@ -62,7 +62,7 @@ class ProfileController extends Controller
 
         Auth::logout();
 
-        $user->delete();
+        $user->deleteRecord();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

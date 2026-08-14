@@ -50,7 +50,7 @@ class AppQyV1WordLearningStatusController
     public function markAsLearned(Request $request, $id): JsonResponse
     {
         $language = $request->input('language', 'en');
-        $dictionaryRow = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+        $dictionaryRow = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
 
         if ($dictionaryRow === null) {
             return $this->notFound('Word not found');
@@ -74,7 +74,7 @@ class AppQyV1WordLearningStatusController
     public function markAsReviewed(Request $request, $id): JsonResponse
     {
         $language = $request->input('language', 'en');
-        $dictionaryRow = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+        $dictionaryRow = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
 
         if ($dictionaryRow === null) {
             return $this->notFound('Word not found');
@@ -90,4 +90,3 @@ class AppQyV1WordLearningStatusController
     }
 
 }
-

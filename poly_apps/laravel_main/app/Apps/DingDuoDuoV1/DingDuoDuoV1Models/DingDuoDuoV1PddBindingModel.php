@@ -10,7 +10,7 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
@@ -52,4 +52,41 @@ class DingDuoDuoV1PddBindingModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function adminPage(string $ownerType, string $ownerId, int $perPage)
+    {
+        $query = static::query()->orderByDesc('id');
+
+        if ($ownerType !== '') {
+            $query->where('owner_type', $ownerType);
+        }
+        if ($ownerId !== '') {
+            $query->where('owner_id', $ownerId);
+        }
+
+        return $query->paginate($perPage);
+    }
+
+    public static function findOrNewBinding(string $ownerType, string $ownerId, string $pddUserId): self
+    {
+        return static::query()->firstOrNew([
+            'owner_type' => $ownerType,
+            'owner_id' => $ownerId,
+            'pdd_user_id' => $pddUserId,
+        ]);
+    }
+
+    public static function findBinding(string $ownerType, string $ownerId, string $pddUserId): ?self
+    {
+        return static::query()
+            ->where('owner_type', $ownerType)
+            ->where('owner_id', $ownerId)
+            ->where('pdd_user_id', $pddUserId)
+            ->first();
+    }
+
+    public static function findById(int $bindingId): ?self
+    {
+        return static::query()->find($bindingId);
+    }
 }

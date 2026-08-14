@@ -3,17 +3,15 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import {
-  CallToolRequestSchema,
   CallToolResult,
-  ListToolsRequestSchema,
   ListResourcesRequestSchema,
   ListPromptsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { TOOL_SCHEMAS } from 'chrome-mcp-shared';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { createToolErrorResult, setupToolHandlers } from './tool-handlers';
 
 let stdioMcpServer: Server | null = null;
 let mcpClient: Client | null = null;
@@ -48,7 +46,9 @@ export const getStdioMcpServer = () => {
     },
   );
 
-  setupTools(stdioMcpServer);
+  setupToolHandlers(stdioMcpServer, handleToolCall);
+  stdioMcpServer.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
+  stdioMcpServer.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
   return stdioMcpServer;
 };
 
@@ -73,22 +73,6 @@ export const ensureMcpClient = async () => {
   }
 };
 
-export const setupTools = (server: Server) => {
-  // List tools handler
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOL_SCHEMAS }));
-
-  // Call tool handler
-  server.setRequestHandler(CallToolRequestSchema, async (request) =>
-    handleToolCall(request.params.name, request.params.arguments || {}),
-  );
-
-  // List resources handler - REQUIRED BY MCP PROTOCOL
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [] }));
-
-  // List prompts handler - REQUIRED BY MCP PROTOCOL
-  server.setRequestHandler(ListPromptsRequestSchema, async () => ({ prompts: [] }));
-};
-
 const handleToolCall = async (name: string, args: any): Promise<CallToolResult> => {
   try {
     const client = await ensureMcpClient();
@@ -100,15 +84,7 @@ const handleToolCall = async (name: string, args: any): Promise<CallToolResult> 
     });
     return result as CallToolResult;
   } catch (error: any) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `Error calling tool: ${error.message}`,
-        },
-      ],
-      isError: true,
-    };
+    return createToolErrorResult(error);
   }
 };
 

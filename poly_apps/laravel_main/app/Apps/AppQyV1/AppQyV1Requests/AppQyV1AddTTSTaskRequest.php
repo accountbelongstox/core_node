@@ -2,6 +2,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Requests;
 
+use App\Support\QueueCenterContract;
+use Illuminate\Validation\Rule;
+
 /**
  * Add TTS Task Request
  *
@@ -19,8 +22,9 @@ class AppQyV1AddTTSTaskRequest extends AppQyV1BaseRequest
         return [
             'content' => 'required|string|max:10000',
             'language' => 'required|string|max:10',
-            'type' => 'nullable|string|in:word,sentence,article',
-            'priority' => 'nullable|integer|min:0|max:100',
+            'type' => ['nullable', 'string', Rule::in(QueueCenterContract::queuePositionOrderedTaskAliases())],
+            'position' => 'nullable|string|in:beginning,end',
+            'priority' => 'prohibited',
             // FE fast-track flag: when true the row jumps to the front of the
             // audio queue (handled in the controller).
             'interactive' => 'nullable|boolean',
@@ -39,9 +43,6 @@ class AppQyV1AddTTSTaskRequest extends AppQyV1BaseRequest
             'content.max' => 'Content must not exceed 10000 characters.',
             'language.required' => 'Language is required.',
             'language.max' => 'Language code must not exceed 10 characters.',
-            'type.in' => 'Task type must be word, sentence, or article.',
-            'priority.min' => 'Priority must be at least 0.',
-            'priority.max' => 'Priority must not exceed 100.',
         ];
     }
 }

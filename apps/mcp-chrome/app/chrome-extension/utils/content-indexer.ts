@@ -6,13 +6,13 @@
 import { TextChunker } from './text-chunker';
 import { VectorDatabase, getGlobalVectorDatabase } from './vector-database';
 import {
-  SemanticSimilarityEngine,
   SemanticSimilarityEngineProxy,
   PREDEFINED_MODELS,
   type ModelPreset,
 } from './semantic-similarity-engine';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { AsyncOperationController } from './async';
 
 export interface IndexingOptions {
   autoIndex?: boolean;
@@ -23,10 +23,9 @@ export interface IndexingOptions {
 export class ContentIndexer {
   private textChunker: TextChunker;
   private vectorDatabase!: VectorDatabase;
-  private semanticEngine!: SemanticSimilarityEngine | SemanticSimilarityEngineProxy;
+  private semanticEngine!: SemanticSimilarityEngineProxy;
   private isInitialized = false;
-  private isInitializing = false;
-  private initPromise: Promise<void> | null = null;
+  private readonly initialization = new AsyncOperationController<void>();
   // Map pageKey -> set of tabIds that indexed it, so removeTabIndex can drop
   // a pageKey only when no remaining tab references it (two tabs can index the
   // same URL). Replaces a plain Set that could never be cleaned up because the
@@ -94,14 +93,7 @@ export class ContentIndexer {
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitialize().finally(() => {
-      this.isInitializing = false;
-    });
-
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitialize());
   }
 
   private async _doInitialize(): Promise<void> {
@@ -323,9 +315,7 @@ export class ContentIndexer {
    * Check if semantic engine is initializing
    */
   public isSemanticEngineInitializing(): boolean {
-    return (
-      this.isInitializing || (this.semanticEngine && (this.semanticEngine as any).isInitializing)
-    );
+    return this.initialization.isRunning;
   }
 
   /**
@@ -335,8 +325,7 @@ export class ContentIndexer {
     console.log('ContentIndexer: Reinitializing for model switch...');
 
     this.isInitialized = false;
-    this.isInitializing = false;
-    this.initPromise = null;
+    this.initialization.reset();
 
     await this.performCompleteDataCleanupForModelSwitch();
 
@@ -458,7 +447,7 @@ export class ContentIndexer {
    * Note: This should only be called after the semantic engine is already initialized
    */
   public startSemanticEngineInitialization(): void {
-    if (!this.isInitialized && !this.isInitializing) {
+    if (!this.isInitialized && !this.initialization.isRunning) {
       console.log('ContentIndexer: Checking if semantic engine is ready...');
 
       // Check if global semantic engine is ready before initializing ContentIndexer

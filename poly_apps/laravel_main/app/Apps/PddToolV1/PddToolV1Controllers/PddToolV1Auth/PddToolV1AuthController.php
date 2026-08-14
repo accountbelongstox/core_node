@@ -70,7 +70,7 @@ class PddToolV1AuthController extends BaseController
             $user = $this->ensureSuperUser($username, $password);
             $profile = PddToolV1ProfileModel::ensureUltimate((int) $user->id);
             $profile->last_login = now();
-            $profile->save();
+            $profile->saveRecord();
 
             return response()->json([
                 'access_token' => $user->createToken(self::TOKEN_NAME)->plainTextToken,
@@ -79,7 +79,7 @@ class PddToolV1AuthController extends BaseController
             ]);
         }
 
-        $user = User::query()->where('username', $username)->first();
+        $user = User::findByUsername($username);
         if (!$user || !Hash::check($password, (string) $user->password)) {
             return response()->json(['detail' => 'Incorrect username or password'], 401);
         }
@@ -92,7 +92,7 @@ class PddToolV1AuthController extends BaseController
         }
 
         $profile->last_login = now();
-        $profile->save();
+        $profile->saveRecord();
 
         return response()->json([
             'access_token' => $user->createToken(self::TOKEN_NAME)->plainTextToken,
@@ -157,19 +157,19 @@ class PddToolV1AuthController extends BaseController
      */
     private function ensureSuperUser(string $username, string $password): User
     {
-        $user = User::query()->where('username', $username)->first();
+        $user = User::findByUsername($username);
         if (!$user) {
             $created = CommonUserGen::createUser($username, $password);
             if ($created && !empty($created['user'])) {
                 return $created['user'];
             }
             // Fallback: re-read in case of a creation race.
-            $user = User::query()->where('username', $username)->first();
+            $user = User::findByUsername($username);
         }
 
         if ($user && !Hash::check($password, (string) $user->password)) {
             $user->password = Hash::make($password);
-            $user->save();
+            $user->saveRecord();
         }
 
         return $user;

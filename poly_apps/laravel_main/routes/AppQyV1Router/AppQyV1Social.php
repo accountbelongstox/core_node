@@ -16,7 +16,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1SocialController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1ChatController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1PresenceController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1NotificationController;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1SocialStreamController;
+use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1SocialRealtimeController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1PostController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1PostMediaController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social\AppQyV1LiveController;
@@ -28,6 +28,8 @@ $apiVersionPrefix = 'app_qy_v1';
 Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function () {
 
     Route::prefix('social')->group(function () {
+        Route::get('/realtime/connection', [AppQyV1SocialRealtimeController::class, 'connection']);
+        Route::get('/realtime/events', [AppQyV1SocialRealtimeController::class, 'events']);
         // ---- Discover / friends ----
         Route::get('/discover', [AppQyV1SocialController::class, 'discover']);
         Route::get('/friends', [AppQyV1SocialController::class, 'getFriends']);
@@ -75,7 +77,7 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::post('/posts/{id}/images', [AppQyV1PostMediaController::class, 'uploadImages'])->whereNumber('id');
         Route::post('/posts/{id}/video', [AppQyV1PostMediaController::class, 'uploadVideo'])->whereNumber('id');
 
-        // ---- Live (external embed + SSE chat; Social Center expansion §LIVE) ----
+        // ---- Live (external embed + realtime chat; Social Center expansion §LIVE) ----
         Route::get('/live', [AppQyV1LiveController::class, 'list']);
         Route::post('/live', [AppQyV1LiveController::class, 'start']);
         Route::post('/live/{id}/end', [AppQyV1LiveController::class, 'end'])->whereNumber('id');
@@ -84,10 +86,4 @@ Route::prefix($apiVersionPrefix)->middleware(['auth:sanctum'])->group(function (
         Route::post('/live/{id}/chat', [AppQyV1LiveController::class, 'sendChat'])->whereNumber('id');
 
     });
-});
-
-// EventSource cannot attach an Authorization header. This endpoint validates
-// its short-lived Sanctum token from the query string inside the controller.
-Route::prefix($apiVersionPrefix)->group(function () {
-    Route::get('/social/stream', [AppQyV1SocialStreamController::class, 'stream']);
 });

@@ -65,6 +65,39 @@ import {
 
 // --- implementation -------------------------------------------------------- #
 
+const mapWordAudioState = (
+  res: any,
+  word: string,
+  language: string,
+): WfNewWordMedia => {
+  const isAccent = (value: any): value is WfNewWordAccent | 'unknown' => (
+    value === 'us' || value === 'uk' || value === 'unknown'
+  );
+  const rawVariants = Array.isArray(res?.audio_files)
+    ? res.audio_files
+    : Array.isArray(res?.audio_variants) ? res.audio_variants : [];
+  const audioVariants: WfNewWordAudioVariant[] = rawVariants
+    .filter((variant: any) => variant && isAccent(variant.accent))
+    .map((variant: any): WfNewWordAudioVariant => ({
+      accent: variant.accent,
+      url: absUrl(variant.url) ?? null,
+      status: variant.status === 'pending' ? 'pending' : 'ready',
+    }));
+  return {
+    word: res?.word ?? word,
+    md5: res?.md5 ?? '',
+    language: res?.language ?? language,
+    imageUrl: null,
+    audioUrl: absUrl(res?.audio_url) ?? null,
+    imageStatus: 'pending',
+    audioStatus: res?.audio_status === 'ready' ? 'ready' : 'pending',
+    audioAccent: isAccent(res?.audio_accent) ? res.audio_accent : null,
+    accentFallback: !!res?.accent_fallback,
+    audioVariants,
+    translations: [],
+  };
+};
+
 
 export const wfNewApiHttp: WfNewApi = {
   // ---- Session ----
@@ -554,27 +587,17 @@ export const wfNewApiHttp: WfNewApi = {
       hash: res?.hash ?? res?.content_id ?? undefined,
       tts_status: res?.tts_status ?? null,
       audio_files: Array.isArray(res?.audio_files) ? res.audio_files : [],
+      queue_task_id: res?.queue_task_id ?? undefined,
+      queue_position: res?.queue_position != null ? Number(res.queue_position) : undefined,
+      queue_status: res?.queue_status ?? undefined,
     };
   },
 
-  async bumpSentenceAudio(contentId: string, language: string) {
-    const res = await postJSON<any>(WfNewApiPaths.sentenceBump, {
-      content_id: contentId,
-      language,
-      interactive: true,
-      create_task: true,
-    });
+  async moveSentenceAudioToHead(items: Array<{ text: string; language: string }>) {
+    const raw = await postJSON<any>(WfNewApiPaths.sentenceAudioHead, { items });
+    const res = unwrapEnvelope(raw) || {};
     return {
-      success: !!(res?.success ?? res?.ok),
-      priority: res?.priority != null ? Number(res.priority) : undefined,
-      error: res?.error ?? undefined,
-    };
-  },
-
-  async bumpSentenceAudioBatch(items: Array<{ text: string; language: string }>) {
-    const res = await postJSON<any>(WfNewApiPaths.sentenceBumpBatch, { items });
-    return {
-      success: !!(res?.success ?? res?.ok),
+      success: !!(res?.success ?? res?.ok ?? raw?.success),
       queued: res?.queued != null ? Number(res.queued) : undefined,
       total: res?.total != null ? Number(res.total) : undefined,
       items: Array.isArray(res?.items) ? res.items : [],
@@ -582,27 +605,25 @@ export const wfNewApiHttp: WfNewApi = {
     };
   },
 
-  async boostWordAudioPriority(md5: string, language: string) {
-    const res = await postJSON<any>(WfNewApiPaths.wordAudioBoostPriority, {
-      md5,
-      lang: language,
-    });
-    return {
-      success: !!(res?.success ?? res?.ok),
-      priority: res?.priority != null ? Number(res.priority) : undefined,
-      error: res?.error ?? undefined,
-    };
+  async getWordAudio(
+    language: string,
+    word: string,
+    opts: WfNewWordMediaOptions = {},
+  ): Promise<WfNewWordMedia> {
+    const res = await getJSON<any>(WfNewApiPaths.wordAudio(language, word, opts));
+    return mapWordAudioState(res, word, language);
   },
 
-  async prioritizeWordAudio(words: string[], language: string) {
-    const res = await postJSON<any>(WfNewApiPaths.ttsQueueBatchAdd, {
-      tasks: words.map((word) => ({ content: word, language, type: 'word' })),
-      interactive: true,
-    });
+  async moveWordAudioToHead(words: string[], language: string) {
+    const raw = await postJSON<any>(WfNewApiPaths.wordAudioHead, { words, language });
+    const res = unwrapEnvelope(raw) || {};
     const results = Array.isArray(res?.results) ? res.results : [];
+    const queued = res?.queued != null
+      ? Number(res.queued)
+      : results.filter((item: any) => item?.status === 'queued' || item?.status === 'moved_to_front').length;
     return {
-      success: !!res?.success,
-      queued: results.filter((item: any) => item?.success !== false).length,
+      success: !!(res?.success ?? raw?.success),
+      queued,
       total: res?.total != null ? Number(res.total) : words.length,
       results,
       error: res?.error ?? undefined,

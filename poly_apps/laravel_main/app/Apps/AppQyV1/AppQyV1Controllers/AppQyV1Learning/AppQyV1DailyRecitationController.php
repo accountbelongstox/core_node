@@ -99,10 +99,7 @@ class AppQyV1DailyRecitationController extends BaseController
         // logged for this user is a replay - return the stored day's summary
         // and write nothing, so replays never double-count.
         if ($batchId !== null && $batchId !== '') {
-            $existingBatch = AppQyV1DailyRecitationLogModel::where('user_id', $user->id)
-                ->where('batch_id', $batchId)
-                ->orderBy('id')
-                ->get(['date']);
+            $existingBatch = AppQyV1DailyRecitationLogModel::findBatch((int) $user->id, $batchId);
             if ($existingBatch->count() > 0) {
                 $batchDate = (string) $existingBatch->first()->date;
                 return $this->success([
@@ -148,7 +145,7 @@ class AppQyV1DailyRecitationController extends BaseController
             return $this->error('No valid words provided', 400);
         }
 
-        AppQyV1DailyRecitationLogModel::insert($rows);
+        AppQyV1DailyRecitationLogModel::insertRows($rows);
 
         // Drive the EXISTING personal_dicts counters (single source of
         // long-lived per-word state). Missing words are auto-wrapped by
@@ -222,10 +219,7 @@ class AppQyV1DailyRecitationController extends BaseController
 
         $today = Carbon::today()->toDateString();
 
-        $recitedToday = AppQyV1DailyRecitationLogModel::forUserDate($user->id, $today)
-            ->distinct()
-            ->pluck('word')
-            ->all();
+        $recitedToday = AppQyV1DailyRecitationLogModel::recitedWordsForDate($user->id, $today);
         $recitedSet = array_fill_keys($recitedToday, true);
         $doneToday = count($recitedToday);
 
@@ -383,9 +377,7 @@ class AppQyV1DailyRecitationController extends BaseController
         $goal = $this->resolveDailyGoal($user);
         $summaryData = $this->buildDaySummary($user->id, $date, $goal);
 
-        $rows = AppQyV1DailyRecitationLogModel::forUserDate($user->id, $date)
-            ->orderBy('id')
-            ->get(['word', 'action']);
+        $rows = AppQyV1DailyRecitationLogModel::actionRowsForDate($user->id, $date, true);
         $wordActions = [];
         foreach ($rows as $row) {
             if (!isset($wordActions[$row->word])) {
@@ -528,8 +520,7 @@ class AppQyV1DailyRecitationController extends BaseController
 
     private function buildDaySummary(int $userId, string $date, int $goal): array
     {
-        $rows = AppQyV1DailyRecitationLogModel::forUserDate($userId, $date)
-            ->get(['word', 'action']);
+        $rows = AppQyV1DailyRecitationLogModel::actionRowsForDate($userId, $date);
 
         $uniqueWords = [];
         $actions = [
@@ -658,7 +649,7 @@ class AppQyV1DailyRecitationController extends BaseController
             }
         }
 
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $groupId)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $groupId);
         if ($progressRow) {
             $orderedIds = $progressRow->orderedWordIds();
             $resolved = $progressRow->resolveDictionaryRows($orderedIds);

@@ -171,6 +171,10 @@ export function shouldFilterRequestByExtension(url: string, includeStatic: boole
   }
 }
 
+export function shouldFilterRequest(url: string, includeStatic: boolean): boolean {
+  return shouldFilterRequestByUrl(url) || shouldFilterRequestByExtension(url, includeStatic);
+}
+
 /**
  * Check if a response should be filtered by MIME type (when includeStatic is false).
  * API MIME types are never filtered.

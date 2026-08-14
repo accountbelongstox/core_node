@@ -119,46 +119,7 @@ class TaskCenterController extends Controller
         $taskType = trim((string) $request->input('task_type', ''));
         $includeTypes = $request->boolean('include_types', $cursorId === 0);
         $terminal = GlobalTask::statuses('terminal');
-        $query = GlobalTask::query()->whereIn('status', $terminal);
-        if ($cursorId > 0) {
-            $query->where('id', '<', $cursorId);
-        }
-        if ($taskType !== '' && $taskType !== 'all') {
-            if ($taskType === 'word_audio') {
-                $query->where('task_type', 'like', '%word%')->where(function ($q) {
-                    $q->where('task_type', 'like', '%audio%')->orWhere('task_type', 'like', '%tts%');
-                });
-            } elseif ($taskType === 'sentence_audio') {
-                $query->where('task_type', 'like', '%sentence%')->where(function ($q) {
-                    $q->where('task_type', 'like', '%audio%')->orWhere('task_type', 'like', '%tts%');
-                });
-            } elseif ($taskType === 'media_image') {
-                $query->where(function ($q) {
-                    $q->where('task_type', 'like', '%media%')
-                      ->orWhere('task_type', 'like', '%image%')
-                      ->orWhere('task_type', 'like', '%cover%')
-                      ->orWhere('task_type', 'like', '%poster%');
-                });
-            } elseif ($taskType === 'translation') {
-                $query->where(function ($q) {
-                    $q->where('task_type', 'like', '%translate%')
-                      ->orWhere('task_type', 'like', '%translation%');
-                });
-            } elseif ($taskType === 'assist') {
-                $query->where('task_type', 'like', '%assist%');
-            } else {
-                $query->where('task_type', $taskType);
-            }
-        }
-        $tasks = $query
-            ->select([
-                'id', 'task_id', 'app_name', 'task_type', 'execution_type',
-                'capability', 'status', 'assigned_to', 'payload', 'result',
-                'error', 'retry_count', 'created_at', 'updated_at', 'completed_at',
-            ])
-            ->orderByDesc('id')
-            ->limit($limit)
-            ->get();
+        $tasks = GlobalTask::terminalHistory($cursorId, $taskType, $limit);
         $types = collect();
         if ($includeTypes) {
             $types = GlobalTask::cachedCountsByTaskType('task-center:completed-types', 60, $terminal);

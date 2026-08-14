@@ -65,24 +65,13 @@ class AppQyV1DictionaryTranslationTask extends DiffQueueFeederTaskAbstract
             $limit = self::BATCH_SIZE * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
             $page = $this->rowsForPendingPage(
                 $scope,
-                $model->newQuery(),
+                $model,
                 $limit,
-                static function (array $ids) use ($model): array {
-                    return $model->newQuery()
-                        ->whereIn('id', $ids)
-                        ->where('has_translation', false)
-                        ->where('is_valid', true)
-                        ->orderByDesc('query_count')
-                        ->get(['id', 'content', 'md5', 'query_count'])
-                        ->map(static fn ($row): array => [
-                            'word' => (string) ($row->content ?? ''),
-                            'md5' => (string) ($row->md5 ?? ''),
-                            'query_count' => (int) ($row->query_count ?? 0),
-                        ])
-                        ->filter(static fn (array $row): bool => $row['word'] !== '')
-                        ->values()
-                        ->all();
-                }
+                static fn (array $ids): array => AppQyV1LangDictionaryModel::pendingTranslationRows(
+                    $langCode,
+                    $ids,
+                    true
+                )
             );
 
             try {
@@ -113,12 +102,12 @@ class AppQyV1DictionaryTranslationTask extends DiffQueueFeederTaskAbstract
      */
     private function countPendingForLanguage(string $languageCode): int
     {
-        return GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
-            ->whereIn('status', QueueCenterContract::taskStatuses('live'))
-            ->where('payload->language', $languageCode)
-            ->count();
+        return GlobalTask::liveTaskCount(
+            'AppQyV1',
+            ['dictionary_explanation', 'dictionary_explanation_demo'],
+            QueueCenterContract::taskStatuses('live'),
+            ['language' => $languageCode]
+        );
     }
 
     private function createTask(string $language, array $words): void

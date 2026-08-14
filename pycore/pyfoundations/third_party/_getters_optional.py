@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Optional / special getters (azure, edge_tts, vosk, whisper, watchdog, tkinter,
+Optional / special getters (azure, edge_tts, vosk, whisper, faster-whisper, watchdog, tkinter,
 pyside6, pyaudio, win32* family, windows_ocr, sherpa_onnx, melo, pywinauto,
 pygetwindow, uiautomation, pyaudiowpatch, PIL_*_optional, speechsdk).
 """
@@ -90,6 +90,7 @@ def get_third_package_speechsdk():
     if 'speechsdk' not in _PACKAGE_CACHE:
         if skip_install:
             try:
+                import azure.cognitiveservices.speech as speechsdk
                 _PACKAGE_CACHE['speechsdk'] = speechsdk
             except ImportError:
                 ColorPrint.yellow("[WARNING] Azure Speech SDK not available (install skipped)")
@@ -129,6 +130,18 @@ def get_third_package_whisper():
             ColorPrint.yellow("[WARNING] Install with: pip install -U openai-whisper")
             _PACKAGE_CACHE['whisper'] = None
     return _PACKAGE_CACHE['whisper']
+
+
+def get_third_package_faster_whisper():
+    """Get Faster-Whisper package (lazy load, optional)."""
+    if 'faster_whisper' not in _PACKAGE_CACHE:
+        try:
+            import faster_whisper
+            _PACKAGE_CACHE['faster_whisper'] = faster_whisper
+        except ImportError:
+            ColorPrint.yellow("[WARNING] Faster-Whisper not available")
+            _PACKAGE_CACHE['faster_whisper'] = None
+    return _PACKAGE_CACHE['faster_whisper']
 
 
 def get_third_package_easyocr():

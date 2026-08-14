@@ -170,6 +170,74 @@ class CommonApiInfo
             [
                 'path' => $baseUrl . '/broadcast_session',
                 'feature' => 'no_auth_required/POST|Broadcast session to clients|TokenSessionController|params:session_id(string,required,session-123),broadcast_data(object,required,{"message":"hello"})|response:broadcast_status(string,Broadcast status)|tags:system'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync',
+                'feature' => 'auth_required:dashboard.auth/GET|List persistent local machine data synchronization sessions|DataSyncController|response:sessions(array,Source and receiver synchronization sessions)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync',
+                'feature' => 'auth_required:dashboard.auth/POST|Collect a local manifest and optionally start machine data synchronization|DataSyncController|params:target(string,optional,192.168.1.20),databases(boolean,required,true),resources(boolean,required,true),compression(boolean,required,false)|response:session(object,Persistent synchronization session)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync/{id}',
+                'feature' => 'auth_required:dashboard.auth/GET|Get synchronization progress and steps|DataSyncController|params:id(string,required,session-id)|response:session(object,Persistent synchronization session)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync/{id}/target',
+                'feature' => 'auth_required:dashboard.auth/POST|Bind a receiver address after local manifest collection|DataSyncController|params:id(string,required,session-id),target(string,required,192.168.1.20)|response:session(object,Updated synchronization session)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync/{id}/pause',
+                'feature' => 'auth_required:dashboard.auth/POST|Pause backend synchronization|DataSyncController|params:id(string,required,session-id)|response:session(object,Paused synchronization session)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync/{id}/resume',
+                'feature' => 'auth_required:dashboard.auth/POST|Resume backend synchronization|DataSyncController|params:id(string,required,session-id)|response:session(object,Running synchronization session)|tags:system,database,sync'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/health',
+                'feature' => 'no_auth_required/GET|Probe machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version),compression_available(boolean,System 7-Zip availability)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/prepare',
+                'feature' => 'no_auth_required/POST|Create automatic receiver session and start pre-transfer backups|DataSyncController|params:source_job_id(string,required,source-session-id),prepare_token(string,required,64-character-retry-secret),options(object,required,{"databases":true,"resources":true,"compression":false})|response:id(string,Receiver session ID),token(string,Session token),backup_directory(string,Mapped backup directory)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}',
+                'feature' => 'no_auth_required/GET|Read receiver synchronization state|DataSyncController|params:id(string,required,receiver-session-id)|headers:X-Data-Sync-Token(string,required,session-token)|response:status(string,Receiver status),steps(array,Receiver steps),backup_directory(string,Backup directory)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/resources/{key}/manifest',
+                'feature' => 'no_auth_required/GET|Read receiver resource SHA-256 manifest|DataSyncController|params:id(string,required,receiver-session-id),key(string,required,static)|headers:X-Data-Sync-Token(string,required,session-token)|response:files(object,Relative resource manifest)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/database-inventory',
+                'feature' => 'no_auth_required/GET|Read live receiver database inventory for verification|DataSyncController|params:id(string,required,receiver-session-id)|headers:X-Data-Sync-Token(string,required,session-token)|response:databases(array,Database and table counts)|tags:system,database,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/database-chunks',
+                'feature' => 'no_auth_required/POST|Apply and verify an idempotent database difference chunk|DataSyncController|params:id(string,required,receiver-session-id),connection(string,required,main),table(string,required,users),rows(array,required)|headers:X-Data-Sync-Token(string,required,session-token)|response:inserted(int),updated(int),unchanged(int),verified(int)|tags:system,database,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/database-sequences',
+                'feature' => 'no_auth_required/POST|Advance a synchronized PostgreSQL sequence|DataSyncController|params:id(string,required,receiver-session-id),connection(string,required,main),table(string,required,users)|headers:X-Data-Sync-Token(string,required,session-token)|response:success(boolean)|tags:system,database,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/database-complete',
+                'feature' => 'no_auth_required/POST|Mark receiver database transfer steps complete|DataSyncController|params:id(string,required,receiver-session-id)|headers:X-Data-Sync-Token(string,required,session-token)|response:success(boolean)|tags:system,database,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/resource-chunks',
+                'feature' => 'no_auth_required/POST|Receive an optional 7-Zip resource chunk|DataSyncController|params:id(string,required,receiver-session-id),key(string,required,static),offset(int,required,0),content(string,required),sha256(string,required),final(boolean,required,false)|headers:X-Data-Sync-Token(string,required,session-token)|response:offset(int,Next byte offset),complete(boolean)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/resource-file-chunks',
+                'feature' => 'no_auth_required/POST|Receive an uncompressed resource file chunk|DataSyncController|params:id(string,required,receiver-session-id),key(string,required,static),relative_path(string,required,app/file.png),offset(int,required,0),content(string,required),sha256(string,required),final(boolean,required,false)|headers:X-Data-Sync-Token(string,required,session-token)|response:offset(int,Next byte offset),complete(boolean)|tags:system,sync,peer'
+            ],
+            [
+                'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}/finalize',
+                'feature' => 'no_auth_required/POST|Finalize receiver synchronization|DataSyncController|params:id(string,required,receiver-session-id)|headers:X-Data-Sync-Token(string,required,session-token)|response:success(boolean)|tags:system,sync,peer'
             ]
         ];
     }

@@ -34,14 +34,9 @@ return new class extends Migration
 
     public function up(): void
     {
-        $schema = Schema::connection($this->connection);
-
-        foreach (AppQyV1TableMaps::getSupportedLanguages() as $langCode) {
-            $schema->dropIfExists($this->prefix . '_' . $langCode . '_dictionaries');
-        }
-
-        // Defensive: a singular shared name some old installs may have created.
-        $schema->dropIfExists($this->prefix . '_multi_language_dictionaries');
+        // Neutralized: initialization never drops a table (empty or not).
+        // Legacy dictionary tables are left in place — dead, unread, harmless.
+        return;
     }
 
     public function down(): void

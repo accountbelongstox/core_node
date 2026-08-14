@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""In-memory Qwen3-TTS priority queue used by the standalone API server."""
+"""In-memory Qwen3-TTS FIFO queue used by the standalone API server.
+
+Submission order is the only local order: Laravel's Queue Center owns which
+job is submitted first (queue_position head tickets), so this queue must not
+re-order accepted synthesis work behind a second priority authority."""
 from __future__ import annotations
 
 import asyncio
-import heapq
 import os
 import time
 import uuid
+from collections import deque
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 DEFAULT_QUEUE_MAX = 200
 DEFAULT_RESULT_TTL_S = 900.0
@@ -42,7 +46,7 @@ class QueueFullError(RuntimeError):
 
 
 class QwenQueue:
-    """One event-loop-owned FIFO priority queue with authoritative job state."""
+    """One event-loop-owned FIFO queue with authoritative job state."""
 
     def __init__(
         self,
@@ -65,8 +69,7 @@ class QwenQueue:
         )
         self._jobs: Dict[str, Dict[str, Any]] = {}
         self._client_jobs: Dict[str, str] = {}
-        self._heap: List[Tuple[int, int, str]] = []
-        self._order = 0
+        self._queue: Deque[str] = deque()
         self._seq = 0
         self._instance_id = uuid.uuid4().hex
         self._wake = asyncio.Event()
@@ -124,7 +127,6 @@ class QwenQueue:
         job_id = client_job_id or uuid.uuid4().hex
         if job_id in self._jobs:
             return self._public_job(self._jobs[job_id], include_summary=False)
-        self._order += 1
         now = _utc_now()
         job: Dict[str, Any] = {
             "job_id": job_id,
@@ -134,7 +136,6 @@ class QwenQueue:
             "speaker": str(params.get("speaker") or "").strip() or None,
             "instruct": str(params.get("instruct") or "").strip() or None,
             "format": "wav" if str(params.get("format") or "mp3").lower() == "wav" else "mp3",
-            "priority": int(params.get("priority") or 0),
             "submitted_at": now,
             "started_at": None,
             "finished_at": None,
@@ -145,12 +146,13 @@ class QwenQueue:
             "_audio": None,
             "_media_type": None,
             "_terminal_monotonic": None,
+            "_started_monotonic": None,
             "_cancel_requested": False,
         }
         self._jobs[job_id] = job
         if client_job_id:
             self._client_jobs[client_job_id] = job_id
-        heapq.heappush(self._heap, (-job["priority"], self._order, job_id))
+        self._queue.append(job_id)
         self._emit("queue.job.queued", job)
         self._wake.set()
         return self._public_job(job, include_summary=False)
@@ -181,12 +183,33 @@ class QwenQueue:
             for state in ("pending", "running", "done", "failed", "cancelled")
         }
         synthesized = self._completed_count + self._failed_count
+        running_elapsed = [
+            max(
+                0,
+                round(
+                    (time.monotonic() - float(job.get("_started_monotonic") or 0))
+                    * 1000
+                ),
+            )
+            for job in jobs
+            if job.get("status") == "running" and job.get("_started_monotonic")
+        ]
+        oldest_running_ms = max(running_elapsed, default=0)
+        consumer_running = bool(
+            self._consumer is not None and not self._consumer.done()
+        )
         return {
             "queue_max": self._queue_max,
             "task_timeout_s": self._task_timeout_s,
             "result_ttl_s": self._result_ttl_s,
             "seq": self._seq,
             "instance_id": self._instance_id,
+            "consumer_running": consumer_running,
+            "oldest_running_ms": oldest_running_ms,
+            "stalled": bool(
+                not consumer_running
+                or oldest_running_ms > round(self._task_timeout_s * 1000)
+            ),
             "counts": counts,
             "jobs": [self._public_job(job) for job in jobs],
             "synthesized_count": synthesized,
@@ -201,7 +224,7 @@ class QwenQueue:
             batch = self._take_batch(limit)
             if not batch:
                 self._wake.clear()
-                if self._heap:
+                if self._queue:
                     self._wake.set()
                     continue
                 await self._wake.wait()
@@ -210,6 +233,7 @@ class QwenQueue:
             for job in batch:
                 job["status"] = "running"
                 job["started_at"] = _utc_now()
+                job["_started_monotonic"] = time.monotonic()
                 self._emit("queue.job.running", job)
             try:
                 results = await asyncio.wait_for(
@@ -229,23 +253,21 @@ class QwenQueue:
         limit = max(1, int(max_parallel or 1))
         language = first.get("language")
         batch = [first]
-        deferred: List[Tuple[int, int, str]] = []
-        while self._heap and len(batch) < limit:
-            entry = heapq.heappop(self._heap)
-            job = self._jobs.get(entry[2])
+        while self._queue and len(batch) < limit:
+            job_id = self._queue[0]
+            job = self._jobs.get(job_id)
             if job is None or job.get("status") != "pending":
+                self._queue.popleft()
                 continue
-            if job.get("language") == language:
-                batch.append(job)
-            else:
-                deferred.append(entry)
-        for entry in deferred:
-            heapq.heappush(self._heap, entry)
+            if job.get("language") != language:
+                break
+            self._queue.popleft()
+            batch.append(job)
         return batch
 
     def _pop_pending(self) -> Optional[Dict[str, Any]]:
-        while self._heap:
-            _priority, _order, job_id = heapq.heappop(self._heap)
+        while self._queue:
+            job_id = self._queue.popleft()
             job = self._jobs.get(job_id)
             if job is not None and job.get("status") == "pending":
                 return job
@@ -345,12 +367,24 @@ class QwenQueue:
             "language": job.get("language"),
             "speaker": job.get("speaker"),
             "format": job.get("format"),
-            "priority": job.get("priority"),
             "submitted_at": job.get("submitted_at"),
             "started_at": job.get("started_at"),
             "finished_at": job.get("finished_at"),
             "status": job.get("status"),
             "elapsed_ms": job.get("elapsed_ms"),
+            "running_elapsed_ms": (
+                max(
+                    0,
+                    round(
+                        (
+                            time.monotonic()
+                            - float(job.get("_started_monotonic") or 0)
+                        ) * 1000
+                    ),
+                )
+                if job.get("status") == "running" and job.get("_started_monotonic")
+                else None
+            ),
             "error": job.get("error"),
             "result_url": result.get("result_url"),
             "result_bytes": result.get("bytes"),

@@ -4,23 +4,7 @@
 from typing import Any, Dict, Optional, Tuple
 
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
-
-_LANGUAGE_ALIASES = {
-    "english": "en",
-    "chinese": "zh",
-    "spanish": "es",
-    "french": "fr",
-    "german": "de",
-    "japanese": "ja",
-    "korean": "ko",
-    "vietnamese": "vi",
-    "lao": "lo",
-}
-
-
-def _language_key(language: Any) -> str:
-    value = str(language or "").strip().lower()
-    return _LANGUAGE_ALIASES.get(value, value)
+from pycore.pyutils.tts.engine_policy import normalize_tts_language
 
 
 class WordTaskQueue:
@@ -36,7 +20,7 @@ class WordTaskQueue:
     def _key(task: Dict[str, Any]) -> Tuple[str, str]:
         return (
             str(task.get("md5") or "").strip(),
-            _language_key(task.get("language")),
+            normalize_tts_language(task.get("language")),
         )
 
     @serialized_method
@@ -45,7 +29,7 @@ class WordTaskQueue:
 
     @serialized_method
     def prioritize(self, md5: str, language: str) -> None:
-        key = (str(md5 or "").strip(), _language_key(language))
+        key = (str(md5 or "").strip(), normalize_tts_language(language))
         if not key[0] or not key[1]:
             return
         self._sequence += 1

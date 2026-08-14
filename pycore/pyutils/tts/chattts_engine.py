@@ -50,8 +50,8 @@ def _prompt_prefix() -> str:
     return (os.environ.get("CHATTTS_PROMPT") or "").strip()
 
 
-def _probe_health() -> tuple[bool, bool]:
-    """Return (reachable, model_ready). Legacy servers without model_loaded count as ready."""
+def health_state() -> tuple[bool, bool]:
+    """Return transport reachability and explicit model readiness."""
     requests = get_third_package_requests()
     if requests is None:
         return False, False
@@ -60,7 +60,7 @@ def _probe_health() -> tuple[bool, bool]:
             resp = requests.get(f"{base_url()}{path}", timeout=2)
             if resp.status_code >= 500:
                 continue
-            model_ready = True
+            model_ready = False
             try:
                 body = resp.json()
                 if isinstance(body, dict) and "model_loaded" in body:
@@ -73,14 +73,19 @@ def _probe_health() -> tuple[bool, bool]:
     return False, False
 
 
+def probe_ready() -> bool:
+    """Uncached managed-service readiness probe."""
+    reachable, model_ready = health_state()
+    return reachable and model_ready
+
+
 def available() -> bool:
     """True when the ChatTTS API server answers and the model is loaded (cached ~30s)."""
     now = time.time()
     cache = THREAD_BUS.get_signal(_AVAIL_SIGNAL, {}) or {}
     if now - float(cache.get("ts", 0.0)) < _AVAIL_TTL_S:
         return bool(cache.get("ok"))
-    reachable, model_ready = _probe_health()
-    ok = reachable and model_ready
+    ok = probe_ready()
     THREAD_BUS.signal(_AVAIL_SIGNAL, {"ts": now, "ok": ok})
     return ok
 
@@ -116,7 +121,7 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
             timeout=120,
         )
         if resp.status_code != 200 or not resp.content:
-            err = (resp.text or "").strip()[:160] or f"HTTP {resp.status_code}"
+            err = (resp.text or "").strip()[:500] or f"HTTP {resp.status_code}"
             _LAST_SYNTH_ERROR.set(err)
             ColorPrint.red(
                 f"[chattts] /v1/audio/speech HTTP {resp.status_code}: {err}"
@@ -148,4 +153,11 @@ def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bo
         return False
 
 
-__all__ = ["available", "last_synth_error", "synthesize", "base_url"]
+__all__ = [
+    "available",
+    "base_url",
+    "health_state",
+    "last_synth_error",
+    "probe_ready",
+    "synthesize",
+]

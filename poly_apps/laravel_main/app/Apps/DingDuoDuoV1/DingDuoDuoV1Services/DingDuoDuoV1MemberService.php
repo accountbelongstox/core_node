@@ -31,7 +31,7 @@ class DingDuoDuoV1MemberService
      */
     public static function login(string $username, string $password, ?string $deviceId = null): ?array
     {
-        $member = DingDuoDuoV1MemberModel::query()->where('username', $username)->first();
+        $member = DingDuoDuoV1MemberModel::findByUsername($username);
 
         if (!$member || !Hash::check($password, (string) $member->password)) {
             return null;
@@ -47,7 +47,7 @@ class DingDuoDuoV1MemberService
             self::upsertDevice($deviceId, (int) $member->id);
         }
 
-        $member->refresh();
+        $member->refreshRecord();
 
         return [
             'token' => $token,
@@ -62,10 +62,10 @@ class DingDuoDuoV1MemberService
     {
         do {
             $token = 'ddm_' . Str::random(48);
-        } while (DingDuoDuoV1MemberModel::query()->where('token', $token)->exists());
+        } while (DingDuoDuoV1MemberModel::tokenExists($token));
 
         $member->token = $token;
-        $member->save();
+        $member->saveRecord();
 
         return $token;
     }
@@ -76,7 +76,7 @@ class DingDuoDuoV1MemberService
     public static function upsertDevice(string $deviceId, ?int $memberId = null, array $info = []): DingDuoDuoV1DeviceModel
     {
         /** @var DingDuoDuoV1DeviceModel $device */
-        $device = DingDuoDuoV1DeviceModel::query()->firstOrNew(['device_id' => $deviceId]);
+        $device = DingDuoDuoV1DeviceModel::findOrNewByDeviceId($deviceId);
         if ($memberId !== null) {
             $device->member_id = $memberId;
         }
@@ -84,7 +84,7 @@ class DingDuoDuoV1MemberService
             $device->info = $info;
         }
         $device->last_seen_at = now();
-        $device->save();
+        $device->saveRecord();
 
         return $device;
     }
@@ -95,7 +95,7 @@ class DingDuoDuoV1MemberService
     public static function setExpiry(DingDuoDuoV1MemberModel $member, ?string $expiresAt): DingDuoDuoV1MemberModel
     {
         $member->expires_at = ($expiresAt === null || $expiresAt === '') ? null : Carbon::parse($expiresAt);
-        $member->save();
+        $member->saveRecord();
 
         return $member;
     }
@@ -106,7 +106,7 @@ class DingDuoDuoV1MemberService
     public static function setPermissions(DingDuoDuoV1MemberModel $member, array $permissions): DingDuoDuoV1MemberModel
     {
         $member->permissions = array_values($permissions);
-        $member->save();
+        $member->saveRecord();
 
         return $member;
     }
@@ -120,7 +120,7 @@ class DingDuoDuoV1MemberService
         if ($maxBinds !== null) {
             $member->max_binds = $maxBinds;
         }
-        $member->save();
+        $member->saveRecord();
 
         return $member;
     }
@@ -149,7 +149,7 @@ class DingDuoDuoV1MemberService
             $member->max_binds = (int) $package['max_binds'];
         }
 
-        $member->save();
+        $member->saveRecord();
 
         return $member;
     }

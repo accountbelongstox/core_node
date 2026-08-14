@@ -1,5 +1,5 @@
 import { StorageManager } from './StorageManager';
-import type { StorageKey } from './StorageKeys';
+import type { StorageKey } from './StorageKey';
 
 export interface RevisionedStorageDocument {
   exists: boolean;

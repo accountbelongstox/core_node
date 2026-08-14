@@ -21,3 +21,40 @@ export interface AiUsageProviderStat {
   last_ts?: number;
   last_model?: string;
 }
+
+export interface AiChatMessageMeta {
+  provider?: string;
+  model?: string;
+  nickname?: string;
+  latency_ms?: number | null;
+}
+
+export interface AiChatUiMessage extends AiChatMessage {
+  meta?: AiChatMessageMeta;
+}
+
+export interface AiChatSendResult {
+  text: string;
+  meta?: AiChatMessageMeta;
+}
+
+export interface AiChatProvider {
+  id: string;
+  label: string;
+  models?: string[];
+  available?: boolean;
+  probeError?: string | null;
+}
+
+export interface AiChatSendOptions {
+  provider?: string;
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export interface AiChatAdapter {
+  id: string;
+  label: string;
+  listProviders?: () => Promise<AiChatProvider[]>;
+  send: (messages: AiChatUiMessage[], options: AiChatSendOptions) => Promise<AiChatSendResult>;
+}

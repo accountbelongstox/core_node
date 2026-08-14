@@ -195,8 +195,20 @@ class OpenRouterClient:
                 return response.json()
 
         except Exception as e:
+            provider_reached = not isinstance(
+                e,
+                (
+                    requests.exceptions.ConnectionError,
+                    requests.exceptions.ConnectTimeout,
+                ),
+            )
+            if isinstance(e, requests.exceptions.ReadTimeout):
+                provider_reached = True
             ColorPrint.red(f"[OpenRouterClient] Request failed: {e}")
-            return {'error': str(e)}
+            return {
+                'error': str(e),
+                '_provider_reached': provider_reached,
+            }
 
     def chat_completion_stream(
         self,

@@ -4,7 +4,7 @@
  * Mirrors WordNewBookReaderPlayback but simpler: each node is ONE word (single
  * language, no bilingual sequence, no chapters). Backend MP3 first; when a word
  * has no ready clip the deps.resolveAudioUrl polls the canonical word-audio
- * gateway (which both resolves and bumps priority). On clip end -> advanceFrom to the
+ * gateway (which resolves and moves missing audio to the queue head). On clip end -> advanceFrom to the
  * next word in the page (autoAdvance), or stop.
  *
  * Clicking another row calls playFrom(thatWord) which re-roots currentNode and
@@ -16,7 +16,7 @@ import { ensureAudio } from '../runtime-store/WfNewAudioCache';
 export interface WordNewLibraryPlaybackDeps {
   /** Current ordered word list (the rendered page). */
   getWords: () => WfNewLibraryWord[];
-  /** Library language used to resolve/bump missing audio. */
+  /** Library language used to resolve and move missing audio to the queue head. */
   getLang: () => string;
   autoAdvance: () => boolean;
   onPlayingKey: (key: string | null) => void;
@@ -26,8 +26,8 @@ export interface WordNewLibraryPlaybackDeps {
   /** Resolve an absolute MP3 URL for the word through the word-audio gateway.
    * Return null to give up on this word. */
   resolveAudioUrl: (word: WfNewLibraryWord, shouldContinue?: () => boolean) => Promise<string | null>;
-  /** Priority nudge for a word whose clip is missing (Laravel relay). */
-  bumpMissingAudio: (word: WfNewLibraryWord, lang: string) => void;
+  /** Queue-head request for a word whose clip is missing (Laravel relay). */
+  moveMissingAudioToHead: (word: WfNewLibraryWord, lang: string) => void;
 }
 
 const keyOf = (w: WfNewLibraryWord, lang: string) => `${w.md5 || w.index}:${lang}`;
@@ -116,7 +116,7 @@ export class WordNewLibraryPlayback {
     this.deps.onPlayingKey(keyOf(word, lang));
 
     const hasReady = !!word.audioUrl || !!(word.audioFiles ?? word.audioVariants)?.some((f) => f.hasFile && f.url);
-    if (!hasReady) this.deps.bumpMissingAudio(word, lang);
+    if (!hasReady) this.deps.moveMissingAudioToHead(word, lang);
 
     const remoteUrl = await this.deps.resolveAudioUrl(word, () => this.playing && this.playToken === token);
     const url = remoteUrl ? (await ensureAudio(remoteUrl)) ?? remoteUrl : null;
@@ -139,13 +139,13 @@ export class WordNewLibraryPlayback {
     };
     audio.onerror = () => {
       if (this.playToken !== token) return;
-      this.deps.bumpMissingAudio(word, lang);
+      this.deps.moveMissingAudioToHead(word, lang);
       this.emptyCross += 1;
       if (this.emptyCross >= this.maxEmptyCross) { this.stop(); return; }
       void this.advanceFrom(word);
     };
     void audio.play().catch(() => {
-      this.deps.bumpMissingAudio(word, lang);
+      this.deps.moveMissingAudioToHead(word, lang);
       void this.advanceFrom(word);
     });
   }

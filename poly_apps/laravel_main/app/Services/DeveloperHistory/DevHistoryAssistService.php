@@ -111,12 +111,7 @@ class DevHistoryAssistService
         // File store (the configured `database` default has no provisioned
         // `cache` table); persists across the single-worker php -S requests.
         return Cache::store('file')->remember('devhistory:assist:summary', 5, static function (): array {
-            $byStatus = GlobalTask::query()
-                ->where('task_type', 'prompt_translation')
-                ->selectRaw('status, COUNT(*) as c')
-                ->groupBy('status')
-                ->pluck('c', 'status')
-                ->toArray();
+            $byStatus = GlobalTask::statusCountsForTaskType('prompt_translation')->toArray();
 
             return [
                 'pending' => (int) ($byStatus['pending'] ?? 0),
@@ -134,11 +129,11 @@ class DevHistoryAssistService
     {
         $limit = max(1, min(200, $limit));
         return Cache::store('file')->remember('devhistory:assist:recent:' . $limit, 5, static function () use ($limit): array {
-            return GlobalTask::query()
-                ->where('task_type', 'prompt_translation')
-                ->orderByDesc('id')
-                ->limit($limit)
-                ->get(['task_id', 'status', 'payload', 'priority', 'retry_count', 'created_at', 'updated_at'])
+            return GlobalTask::recentForTaskType(
+                'prompt_translation',
+                $limit,
+                ['task_id', 'status', 'payload', 'priority', 'retry_count', 'created_at', 'updated_at']
+            )
                 ->map(function (GlobalTask $t) {
                 $payload = is_array($t->payload) ? $t->payload : [];
                 return [

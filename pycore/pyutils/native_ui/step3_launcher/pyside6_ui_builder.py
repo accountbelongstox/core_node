@@ -160,24 +160,25 @@ def _create_pyside6_ui(config: NativeUIConfig, url: str, callback_manager: "Call
     # Create and start PySide6 framework
     framework = PySide6Framework(ui_config, startup_config)
 
-    # Register shutdown handler to close window after all services stopped
+    # Register shutdown handler before service teardown so Qt queues WebEngine
+    # cleanup before RPC and background workers close.
     # This must be registered AFTER framework is created and BEFORE framework.start()
-    # Priority 0 ensures it runs LAST (after all other shutdown handlers complete)
-    def handle_final_quit():
+    # Priority 0 executes before the service handlers with higher priorities.
+    def handle_ui_quit():
         """
-        Final shutdown handler - quit PySide6 framework after all services stopped
+        Queue PySide6 shutdown on the Qt main thread.
 
-        This handler runs LAST (priority=0) to ensure all services are stopped before quitting Qt.
-        It calls framework.quit() which will:
-        1. Set _force_close=True on main window
-        2. Call window.close() again (this time it will accept the close)
-        3. Quit Qt application
+        THREAD_BUS shutdown may run on a background event thread. The framework
+        signal bridge marshals the operation to the Qt main thread, where it:
+        1. Sets _force_close=True on the main window
+        2. Calls window.close() again so it accepts the close
+        3. Quits the Qt application
         """
-        ColorPrint.blue("[NativeLauncher] All services stopped, calling framework.quit()...")
-        framework.quit()
+        ColorPrint.blue("[NativeLauncher] Queueing framework quit on the Qt main thread...")
+        framework.request_quit()
 
-    THREAD_BUS.register_shutdown_handler(handle_final_quit, priority=0, name="pyside6_quit")
-    ColorPrint.blue("[NativeLauncher] Registered final shutdown handler (priority=0) to quit framework")
+    THREAD_BUS.register_shutdown_handler(handle_ui_quit, priority=0, name="pyside6_quit")
+    ColorPrint.blue("[NativeLauncher] Registered Qt-thread shutdown handler (priority=0)")
 
     if config.debug:
         ColorPrint.print_success("[NativeLauncher] Phase 7: PySide6 UI created, starting event loop...")

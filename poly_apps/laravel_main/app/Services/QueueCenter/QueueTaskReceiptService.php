@@ -4,7 +4,6 @@ namespace App\Services\QueueCenter;
 
 use App\Models\GlobalTask;
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Schema;
 
 class QueueTaskReceiptService
 {
@@ -20,13 +19,14 @@ class QueueTaskReceiptService
             static fn (string $value): bool => $value !== ''
         ))), 0, $limit);
         $workers = $this->workerPresence->snapshot();
-        if (!Schema::hasTable((new GlobalTask())->getTable())) {
+        if (!GlobalTask::tableExists()) {
             return [
                 'receipts' => array_map(static fn (string $taskId): array => [
                     'task_id' => $taskId,
                     'task_type' => null,
                     'stage' => QueueCenterContract::deliveryReceiptStage('waiting'),
                     'task_status' => null,
+                    'queue_position' => null,
                     'priority' => null,
                     'worker' => null,
                     'updated_at' => null,
@@ -34,10 +34,7 @@ class QueueTaskReceiptService
                 'workers' => $workers,
             ];
         }
-        $tasks = GlobalTask::query()
-            ->whereIn('task_id', $ids)
-            ->get(['task_id', 'task_type', 'status', 'priority', 'assigned_to', 'updated_at'])
-            ->keyBy('task_id');
+        $tasks = GlobalTask::receiptTasks($ids);
         $workersById = [];
         foreach ($workers as $worker) {
             $workersById[(string) $worker['id']] = $worker;
@@ -51,6 +48,7 @@ class QueueTaskReceiptService
                     'task_type' => null,
                     'stage' => QueueCenterContract::deliveryReceiptStage('waiting'),
                     'task_status' => null,
+                    'queue_position' => null,
                     'priority' => null,
                     'worker' => null,
                     'updated_at' => null,
@@ -60,15 +58,19 @@ class QueueTaskReceiptService
             $worker = $task->assigned_to !== null
                 ? ($workersById[(string) $task->assigned_to] ?? null)
                 : null;
-            $receipts[] = [
+            $receipt = [
                 'task_id' => (string) $task->task_id,
                 'task_type' => (string) $task->task_type,
                 'stage' => $this->stage((string) $task->status, $worker),
                 'task_status' => (string) $task->status,
-                'priority' => (int) $task->priority,
+                'queue_position' => (int) $task->queue_position,
                 'worker' => $worker,
                 'updated_at' => $task->updated_at?->toIso8601String(),
             ];
+            if (!QueueCenterService::isSupportedQueue((string) $task->task_type)) {
+                $receipt['priority'] = (int) $task->priority;
+            }
+            $receipts[] = $receipt;
         }
 
         return ['receipts' => $receipts, 'workers' => $workers];

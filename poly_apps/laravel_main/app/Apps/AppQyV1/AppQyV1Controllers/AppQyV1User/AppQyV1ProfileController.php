@@ -134,7 +134,7 @@ class AppQyV1ProfileController extends BaseController
             // Canonical identity: write only to the main users table.
             // The legacy per-sub-app users duplication was removed (Phase A),
             // so there is no sub-app users row to sync anymore.
-            $user->update($updateData);
+            $user->updateRecord($updateData);
         }
 
         $userProfile = [
@@ -211,7 +211,7 @@ class AppQyV1ProfileController extends BaseController
             return $this->error('Failed to process avatar image', 422);
         }
 
-        $user->update(['avatar' => $avatarPath]);
+        $user->updateRecord(['avatar' => $avatarPath]);
 
         if ($oldAvatar && $oldAvatar !== $avatarPath && $oldAvatar !== 'avatars/1.png') {
             $this->deleteOldAvatar($oldAvatar);
@@ -296,24 +296,19 @@ class AppQyV1ProfileController extends BaseController
         $tableReady = AppQyV1UserLearningProgressModel::tableExists();
 
         if ($tableReady) {
-            $base = AppQyV1UserLearningProgressModel::where('user_id', $user->id);
-
-            $totalWords = (clone $base)->count();
-            $newWords = (clone $base)->where('learning_status', 'new')->count();
-            $learningWords = (clone $base)->where('learning_status', 'learning')->count();
-            $masteredWords = (clone $base)->where('learning_status', 'mastered')->count();
-            $needsReview = (clone $base)
-                ->whereIn('learning_status', ['learning', 'reviewing'])
-                ->where('next_review_at', '<=', now())
-                ->count();
-            $weakWords = (clone $base)->whereColumn('wrong_count', '>', 'correct_count')->count();
-            $correctSum = (int) (clone $base)->sum('correct_count');
-            $wrongSum = (int) (clone $base)->sum('wrong_count');
+            $metrics = AppQyV1UserLearningProgressModel::profileMetrics((int) $user->id);
+            $totalWords = $metrics['total'];
+            $newWords = $metrics['new'];
+            $learningWords = $metrics['learning'];
+            $masteredWords = $metrics['mastered'];
+            $needsReview = $metrics['needs_review'];
+            $weakWords = $metrics['weak'];
+            $correctSum = $metrics['correct_sum'];
+            $wrongSum = $metrics['wrong_sum'];
 
             // Pull activity timestamps once and derive day-based metrics in PHP
             // (driver-agnostic: avoids sqlite/mysql date-function differences).
-            $timestamps = (clone $base)
-                ->get(['last_reviewed_at', 'updated_at', 'created_at']);
+            $timestamps = $metrics['timestamps'];
 
             foreach ($timestamps as $row) {
                 $when = $row->last_reviewed_at ?? $row->updated_at ?? $row->created_at;
@@ -515,7 +510,7 @@ class AppQyV1ProfileController extends BaseController
         $updatedPreferences = array_merge($defaultPreferences, $currentPreferences, $validated);
 
         $user->preferences = $updatedPreferences;
-        $user->save();
+        $user->saveRecord();
 
         return $this->success($updatedPreferences, 'Preferences updated successfully');
     }

@@ -21,6 +21,7 @@ APP_NAME="$(basename "$LARAVEL_DIR")"
 PORT="${PORT:-9000}"
 WORKERS="${WORKERS:-4}"
 OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
+RUNTIME_SCRIPT="${SCRIPT_DIR}/run_runtime.sh"
 
 echo "=== Laravel Production Service ==="
 echo "Project: $APP_NAME"
@@ -81,11 +82,8 @@ if command -v systemctl >/dev/null 2>&1; then
     fi
 fi
 
-# ── Phase 5: Start Octane ────────────────────────────────────────────────────
+# ── Phase 5: Start realtime and HTTP runtimes ───────────────────────────────
 echo ""
 echo "Starting Octane ($OCTANE_SERVER) on 0.0.0.0:$PORT with $WORKERS workers..."
-exec php artisan octane:start \
-    --server="$OCTANE_SERVER" \
-    --host=0.0.0.0 \
-    --port="$PORT" \
-    --workers="$WORKERS"
+PORT="$PORT" WORKERS="$WORKERS" OCTANE_SERVER="$OCTANE_SERVER" \
+    exec /bin/bash "$RUNTIME_SCRIPT"

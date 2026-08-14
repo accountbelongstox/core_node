@@ -8,7 +8,7 @@ import {
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
   requestPycoreHttp,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 
 const STORE_EVENT = 'pycore-agent-history-runtime-changed';
 const OPERATION_REFRESH_MIN_MS = 5000;
@@ -17,6 +17,7 @@ const PIPELINE_SCOPES = new Set(['agent_history', 'agent_history_pipeline']);
 
 export interface AgentHistoryRuntimeState {
   articleConfig: Record<string, any> | null;
+  articleSummary: Record<string, any> | null;
   operationSnapshot: Record<string, any> | null;
   aiDashboard: Record<string, any> | null;
   configLoading: boolean;
@@ -29,6 +30,7 @@ export interface AgentHistoryRuntimeState {
 
 let state: AgentHistoryRuntimeState = {
   articleConfig: null,
+  articleSummary: null,
   operationSnapshot: null,
   aiDashboard: null,
   configLoading: true,
@@ -112,6 +114,7 @@ export async function refreshAgentHistoryRuntime(): Promise<void> {
       }
       patch({
         articleConfig: response.data.article_config || null,
+        articleSummary: response.data.article_summary || null,
         operationSnapshot: response.data.operation_snapshot || null,
         aiDashboard: response.data.ai_dashboard || null,
         configError: null,

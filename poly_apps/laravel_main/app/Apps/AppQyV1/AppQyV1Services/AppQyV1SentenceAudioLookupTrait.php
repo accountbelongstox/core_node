@@ -35,7 +35,7 @@ trait AppQyV1SentenceAudioLookupTrait
                 'content_id' => (string) ($payload['content_id'] ?? ''),
                 'text' => (string) ($payload['text'] ?? ($payload['content'] ?? '')),
                 'language' => (string) ($payload['language'] ?? ''),
-                'tts_priority' => (int) ($task['priority'] ?? 0),
+                'queue_position' => (int) ($task['queue_position'] ?? 0),
                 'tts_status' => (string) ($task['status'] ?? 'pending'),
                 'progress' => (float) ($task['progress'] ?? 0),
                 'stage' => (string) ($task['stage'] ?? ($task['status'] ?? 'pending')),
@@ -115,7 +115,7 @@ trait AppQyV1SentenceAudioLookupTrait
         if (!$this->tableExists($language)) {
             return null;
         }
-        return LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        return LangSentence::findByContentId($language, $contentId);
     }
 
     private function ensureSentenceRow(string $contentId, string $language, string $text): ?LangSentence
@@ -124,13 +124,13 @@ trait AppQyV1SentenceAudioLookupTrait
             return null;
         }
 
-        $existing = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        $existing = LangSentence::findByContentId($language, $contentId);
         if ($existing) {
             $existing->occurrence_count = (int) ($existing->occurrence_count ?? 0) + 1;
             if ($this->isEmptyValue($existing->getAttribute('text'))) {
                 $existing->text = $text;
             }
-            $existing->save();
+            $existing->saveRecord();
             return $existing;
         }
 
@@ -143,10 +143,9 @@ trait AppQyV1SentenceAudioLookupTrait
             'language' => $language,
             'occurrence_count' => 1,
             'has_audio' => false,
-            'tts_priority' => self::PRIORITY_DEFAULT,
             'tts_status' => 'pending',
         ]);
-        $model->save();
+        $model->saveRecord();
 
         Log::info('[SentenceAudio] Ensured sentence row for reader resolve', [
             'content_id' => $contentId,

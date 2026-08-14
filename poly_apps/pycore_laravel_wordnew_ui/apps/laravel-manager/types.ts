@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Transport-level API types are defined once in the shared core library and
  * re-exported here for laravel-manager consumers.
  */
@@ -7,7 +7,7 @@ export type {
   APIRequestConfig,
   APIModuleConfig,
   CacheEntry,
-} from '../../core/api-libs/laravel/transport/TransportTypes';
+} from '../../core/integrations/laravel/transport/TransportTypes';
 
 /**
  * Validation Result

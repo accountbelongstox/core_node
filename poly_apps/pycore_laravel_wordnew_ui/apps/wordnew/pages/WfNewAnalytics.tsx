@@ -4,7 +4,7 @@ import {
   BarChart2, Award, Zap, Clock, BrainCircuit, RefreshCw, Calendar,
   ChevronRight, Smile, TrendingUp, ShieldAlert, CheckCircle, Flame
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type AnalyticsStats } from '../api';
 
 interface WfNewAnalyticsProps {

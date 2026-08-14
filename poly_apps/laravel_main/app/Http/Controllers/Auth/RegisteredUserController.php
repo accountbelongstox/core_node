@@ -82,7 +82,7 @@ class RegisteredUserController extends Controller
                 ]);
             } else {
                 // Check database for invite code
-                $invite = InviteCode::where('code', $inviteCode)->first();
+                $invite = InviteCode::findByCode($inviteCode);
 
                 if (!$invite) {
                     Log::warning('[Registration] Invalid invite code', [
@@ -123,7 +123,7 @@ class RegisteredUserController extends Controller
             }
         }
 
-        $user = User::create([
+        $user = User::createRecord([
             'username' => $request->username,
             'nickname' => $request->nickname,
             'name' => $request->name,
@@ -157,7 +157,7 @@ class RegisteredUserController extends Controller
 
     public function checkUsernameIsExist($username)
     {
-        $user = User::where('username', $username)->first();
+        $user = User::findByUsername($username);
         if ($user) {
             return true;
         }

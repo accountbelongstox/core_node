@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Headphones, Layers, Volume2, Minus, Plus, ChevronRight } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 
 /**

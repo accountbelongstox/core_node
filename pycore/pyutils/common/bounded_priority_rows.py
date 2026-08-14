@@ -21,6 +21,11 @@ class BoundedPriorityRows:
         row_index = BoundedPriorityRows._find_index(rows, identity_groups)
         if row_index < 0:
             if create_row is None:
+                if not move_to_head:
+                    rows.sort(
+                        key=lambda item: int(item.get(priority_field) or 0),
+                        reverse=True,
+                    )
                 return rows[:max(0, int(limit))]
             row = dict(create_row)
         else:
@@ -31,7 +36,10 @@ class BoundedPriorityRows:
         if move_to_head:
             rows.insert(0, row)
         else:
-            rows.append(row)
+            if row_index < 0:
+                rows.append(row)
+            else:
+                rows.insert(row_index, row)
             rows.sort(
                 key=lambda item: int(item.get(priority_field) or 0),
                 reverse=True,
@@ -46,7 +54,11 @@ class BoundedPriorityRows:
         groups = [group for group in identity_groups if group]
         for index, row in enumerate(rows):
             for group in groups:
-                if all(str(row.get(key) or "") == str(value or "") for key, value in group.items()):
+                matches = all(
+                    str(row.get(key) or "") == str(value or "")
+                    for key, value in group.items()
+                )
+                if matches:
                     return index
         return -1
 

@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { Server, ChevronRight, Wifi, WifiOff, Loader2 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewEndpoints, useWfNewEndpoints } from '../api';
 import { WfNewApiServerDialog } from './WfNewApiServerDialog';
 

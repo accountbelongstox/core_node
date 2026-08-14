@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-import { mediaUrl } from '../../../config/constants';
+import type { ElementTheme } from '../WfNewThemes';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewPost } from '../api';
 import { WfNewActorAvatar, wfNewRelativeTime } from './WfNewSocialPlaza';
 

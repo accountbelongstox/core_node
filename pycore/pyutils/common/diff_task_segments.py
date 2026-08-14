@@ -9,7 +9,10 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
 )
 from pycore.pyfoundations.system_paths import APP_CONFIG_DIR
-from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
+from pycore.pyutils.common.queue_center_contract import (
+    QUEUE_CENTER_DIFF_DELIVERY,
+    task_order_key,
+)
 from pycore.pyutils.common.user_data_store import UserDataStore
 
 
@@ -38,6 +41,24 @@ class _DiffTaskSegmentCenter:
             "queue_center.diff_segments",
             "DiffTaskSegmentCenter",
         )
+
+    @serialized_method
+    def remote_cursor(self, scope: str, task_type: str) -> int:
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        cursor = dict(cursors.get(scope) or {})
+        remote_revisions = dict(cursor.get("remote_revisions") or {})
+        return max(0, int(remote_revisions.get(str(task_type)) or 0))
+
+    @serialized_method
+    def set_remote_cursor(self, scope: str, task_type: str, revision: int) -> None:
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        cursor = dict(cursors.get(scope) or {})
+        remote_revisions = dict(cursor.get("remote_revisions") or {})
+        remote_revisions[str(task_type)] = max(0, int(revision))
+        cursor["remote_revisions"] = remote_revisions
+        cursor["updated_at"] = time.time()
+        cursors[scope] = cursor
+        self._store.set_section(CURSOR_NAMESPACE, cursors)
 
     @serialized_method
     def stage(self, scope: str, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -88,20 +109,23 @@ class _DiffTaskSegmentCenter:
     def pending(self, scope: str, limit: int = DATA_LIMIT) -> List[Dict[str, Any]]:
         segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
         scope_segments = dict(segments.get(scope) or {})
-        pending: List[Dict[str, Any]] = []
+        candidates: List[Dict[str, Any]] = []
         now = time.time()
         for task_id, task in scope_segments.items():
-            if len(pending) >= max(0, int(limit)):
-                break
             delivery_key = self._delivery_key(scope, task_id)
             if delivery_key in self._delivered or not isinstance(task, dict):
                 continue
             if float(task.get(RETRY_AFTER_KEY) or 0) > now:
                 continue
-            self._delivered.add(delivery_key)
             item = dict(task)
             item.pop(RETRY_AFTER_KEY, None)
-            pending.append(item)
+            candidates.append(item)
+        candidates.sort(key=self._task_order)
+        pending = candidates[:max(0, int(limit))]
+        for task in pending:
+            self._delivered.add(
+                self._delivery_key(scope, str(task.get("task_id") or ""))
+            )
         return pending
 
     @serialized_method
@@ -226,6 +250,49 @@ class _DiffTaskSegmentCenter:
             DATA_SEGMENT_NAMESPACE: segments,
         })
 
+    @serialized_method
+    def move_to_head(self, scope: str, task_id: Any, queue_position: int) -> None:
+        task_key = str(task_id or "")
+        if not task_key:
+            return
+        cursors = self._store.get_section(CURSOR_NAMESPACE)
+        pages = self._store.get_section(ID_PAGE_NAMESPACE)
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        cursor = dict(cursors.get(scope) or {})
+        cursor["revision"] = int(cursor.get("revision") or 0) + 1
+        cursor["head_id"] = task_key
+        cursor["updated_at"] = time.time()
+        cursors[scope] = cursor
+
+        scope_pages: List[Dict[str, Any]] = []
+        for page in list(pages.get(scope) or []):
+            if page.get("state") != "head":
+                scope_pages.append(page)
+                continue
+            ids = [str(value) for value in page.get("ids", []) if str(value) != task_key]
+            if ids:
+                scope_pages.append({**page, "ids": ids})
+        scope_pages.insert(0, {
+            "page_id": f"head-{cursor['revision']}",
+            "ids": [task_key],
+            "state": "head",
+            "created_at": time.time(),
+        })
+        pages[scope] = self._trim_pages(scope_pages)
+
+        scope_segments = dict(segments.get(scope) or {})
+        task = scope_segments.get(task_key)
+        if isinstance(task, dict):
+            task["queue_position"] = int(queue_position)
+            scope_segments[task_key] = task
+            segments[scope] = scope_segments
+
+        self._store.set_sections({
+            CURSOR_NAMESPACE: cursors,
+            ID_PAGE_NAMESPACE: pages,
+            DATA_SEGMENT_NAMESPACE: segments,
+        })
+
     def promote(self, scope: str, task_id: Any, priority: int) -> None:
         self.set_priority(scope, task_id, priority, True)
 
@@ -234,10 +301,11 @@ class _DiffTaskSegmentCenter:
 
     @staticmethod
     def _trim_pages(pages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        head = [page for page in pages if page.get("state") == "head"]
         priority = [page for page in pages if page.get("state") == "priority"]
         ready = [page for page in pages if page.get("state") == "ready"]
         consumed = [page for page in pages if page.get("state") == "consumed"]
-        candidates = priority + list(reversed(ready)) + list(reversed(consumed))
+        candidates = head + priority + list(reversed(ready)) + list(reversed(consumed))
         total_ids = 0
         bounded: List[Dict[str, Any]] = []
         for page in candidates:
@@ -249,6 +317,10 @@ class _DiffTaskSegmentCenter:
             bounded.append(page)
             total_ids += len(ids)
         return bounded
+
+    @staticmethod
+    def _task_order(task: Dict[str, Any]) -> tuple[int]:
+        return task_order_key(task)
 
     @staticmethod
     def _delivery_key(scope: str, task_id: Any) -> str:

@@ -1072,6 +1072,12 @@
   "taskCenterSortPriority": {
     "message": "Priority"
   },
+  "taskCenterSortOrder": {
+    "message": "Queue order"
+  },
+  "taskCenterQueuePosition": {
+    "message": "Queue position"
+  },
   "taskCenterStatusLabel": {
     "message": "Status"
   },

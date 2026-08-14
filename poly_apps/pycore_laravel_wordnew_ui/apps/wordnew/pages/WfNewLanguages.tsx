@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Languages, Globe, Check, Save, Target } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type WfNewLanguage } from '../api';
 
 /**

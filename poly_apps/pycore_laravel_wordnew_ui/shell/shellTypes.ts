@@ -10,8 +10,6 @@
  * the architecture (which end a file implements) is visible in its name.
  */
 
-import type { AiChatMessage as CoreAiChatMessage } from '../core/contracts/ai';
-
 export type EndId = 'home' | 'laravel-manager' | 'pycore-manager' | 'wordnew' | 'vortex';
 
 export type ThemeId = 'nexus' | 'pycore' | 'iris';
@@ -60,52 +58,6 @@ export const SHELL_LANGUAGES: { code: string; label: string }[] = [
   { code: 'fr', label: 'Français' },
   { code: 'de', label: 'Deutsch' },
 ];
-
-// ---- AI ChatKit contract (shared chat framework, one per end via adapters) ----
-
-export interface AiChatMessageMeta {
-  provider?: string;
-  model?: string;
-  /** Display label, e.g. huggingface/meta-llama/Llama-3.1-8B-Instruct */
-  nickname?: string;
-  latency_ms?: number | null;
-}
-
-export interface AiChatMessage extends CoreAiChatMessage {
-  meta?: AiChatMessageMeta;
-}
-
-export interface AiChatSendResult {
-  text: string;
-  meta?: AiChatMessageMeta;
-}
-
-export interface AiChatProvider {
-  id: string;
-  label: string;
-  models?: string[];
-  /** Live probe succeeded — false still allows manual retry when configured. */
-  available?: boolean;
-  probeError?: string | null;
-}
-
-export interface AiChatSendOptions {
-  provider?: string;
-  model?: string;
-  signal?: AbortSignal;
-}
-
-/**
- * A chat adapter binds the shared AiChatKit UI to one end's existing chat backend.
- * `send` returns the assistant reply text; `listProviders` is optional (pycore
- * exposes a multi-provider probe, others may be single-provider).
- */
-export interface AiChatAdapter {
-  id: string;
-  label: string;
-  listProviders?: () => Promise<AiChatProvider[]>;
-  send: (messages: AiChatMessage[], opts: AiChatSendOptions) => Promise<AiChatSendResult>;
-}
 
 export interface ShellContextValue {
   end: EndId;

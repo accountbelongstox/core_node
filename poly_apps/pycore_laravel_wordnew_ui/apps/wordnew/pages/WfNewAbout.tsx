@@ -10,8 +10,7 @@
 import React from 'react';
 import { Sparkles, Repeat, BookOpen, FlaskConical } from 'lucide-react';
 import { WfNewLogo } from '../WfNewBrand';
-import { ElementTheme } from '../WfNewTypes';
-
+import type { ElementTheme } from '../WfNewThemes';
 interface WfNewAboutProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;

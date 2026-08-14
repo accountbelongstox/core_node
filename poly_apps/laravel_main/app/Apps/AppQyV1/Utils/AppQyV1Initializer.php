@@ -273,9 +273,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                 // the DB. If the database was reset empty, force a re-seed.
                 // Wave A consolidation: the importer seeds vocabulary_libraries
                 // rows with word_ids (collections/items are gone), so check that.
-                return \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel::query()
-                    ->whereNotNull('word_ids')
-                    ->exists();
+                return \App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel::populatedLibraryExists();
             } catch (\Throwable $e) {
                 return false;
             }

@@ -234,7 +234,6 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         // Fast lane + live drilldown control plane.
         Route::post('{taskId}/bump', [TaskController::class, 'bump']);
         Route::get('{taskId}/detail', [TaskController::class, 'detail']);
-        Route::get('{taskId}/stream', [TaskController::class, 'stream']);
         Route::get('list', [TaskController::class, 'list']);
         Route::get('stats', [TaskController::class, 'stats']);
         Route::post('clean-invalid', [TaskController::class, 'cleanInvalid']);
@@ -242,8 +241,11 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
     });
 
     Route::prefix('worker')->group(function () {
+        // Paths mirror config/queue_center_contract.json `endpoints` (worker_*);
+        // that block is the single source pycore / mcp-chrome / the UIs render.
         Route::post('register', [WorkerController::class, 'register']);
         Route::post('heartbeat', [WorkerController::class, 'heartbeat']);
+        Route::post('unregister', [WorkerController::class, 'unregister']);
         // Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}.
         // {taskType} must be a key from config/queue_center_contract.json
         // task_types (validated in the controller).
@@ -363,14 +365,17 @@ Route::prefix('internal/pycore')->middleware('pycore.client')->group(function ()
 use App\Http\Controllers\QueueCenterController;
 
 Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->prefix('queue-center')->group(function () {
+    // Paths mirror config/queue_center_contract.json `endpoints` (queue_center_*);
+    // keep both in lockstep so every end renders the same URLs.
     Route::get('overview', [QueueCenterController::class, 'overview']);
+    Route::get('events', [QueueCenterController::class, 'events']);
     Route::get('receipts', [QueueCenterController::class, 'receipts']);
     Route::get('queues/{queue}/items', [QueueCenterController::class, 'items']);
+    Route::get('queues/{queue}/diff', [QueueCenterController::class, 'diff']);
     // UI pump reads: high-water ID page table + lazy page data materialization.
     Route::get('queues/{queue}/id-pages', [QueueCenterController::class, 'idPages']);
     Route::get('queues/{queue}/page-data', [QueueCenterController::class, 'pageData']);
-    Route::post('queues/{queue}/bump', [QueueCenterController::class, 'bump']);
+    Route::post('queues/{queue}/head', [QueueCenterController::class, 'moveToHead']);
     Route::post('tasks/{taskId}/cancel', [QueueCenterController::class, 'cancel']);
     Route::post('tasks/{taskId}/retry', [QueueCenterController::class, 'retry']);
-    Route::get('stream', [QueueCenterController::class, 'stream']);
 });

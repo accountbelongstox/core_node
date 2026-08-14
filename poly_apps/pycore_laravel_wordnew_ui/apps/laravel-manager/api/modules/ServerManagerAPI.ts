@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type {
   GlobalTaskCapability,
@@ -14,9 +14,8 @@ import type {
   GlobalTaskSummary,
 } from '../../integrations/pycore';
 import {
-  GLOBAL_TASK_EVENTS_BY_ROLE,
   GLOBAL_TASK_PRIORITIES,
-  GLOBAL_TASK_STREAM_EVENTS_BY_ROLE,
+  isGlobalTaskQueuePositionOrdered,
 } from '../../integrations/pycore';
 
 // ==================== Global Task / Worker substrate types ====================
@@ -32,12 +31,11 @@ import {
 export type GlobalTaskItem = GlobalTaskSummary;
 export type GlobalTaskDetail = GlobalTaskStatusRecord;
 
-// ==================== Live task drilldown (detail / events / SSE stream) ====================
+// ==================== Live task drilldown (detail / events) ====================
 // laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
 //   GET  /api/task/{id}/detail        — full detail snapshot (task + events + phase)
-//   POST /api/task/{id}/bump          — raise priority (central fast tier)
-//   GET  /api/task/{id}/stream        — SSE: task.detail-initial / task.event / ping / stream.close
-// These power the QueuePanel live drilldown modal + "Bump to top".
+//   POST /api/task/{id}/bump          — move by the task type's contract ordering
+// Queue Center Reverb events wake the shared detail refresh owner.
 
 /** null means lane-only routing; non-null values come from the central capability catalog. */
 export type FastCapability = GlobalTaskCapability | null;
@@ -50,28 +48,8 @@ export type GlobalTaskPhase = GlobalTaskCurrentPhase;
 /** Retry / timeout bookkeeping. */
 export type GlobalTaskMeta = GlobalTaskDetailMetadata;
 
-/** Full GET /api/task/{id}/detail payload (envelope already unwrapped). Also the
- *  EXACT shape pushed on the SSE `task.detail-initial` event. */
+/** Full GET /api/task/{id}/detail payload (envelope already unwrapped). */
 export type GlobalTaskDetailBundle = CanonicalGlobalTaskDetailBundle;
-
-/** Handlers for subscribeTaskDetail()'s EventSource lifecycle. */
-export interface TaskDetailStreamHandlers {
-  /** SSE `task.detail-initial` — the full detail bundle on open (and on each reconnect). */
-  onInitial?: (bundle: GlobalTaskDetailBundle) => void;
-  /** SSE `task.event` — one new status transition. */
-  onEvent?: (event: GlobalTaskEvent) => void;
-  /** SSE `ping` keep-alive (carries the cursor). */
-  onPing?: (cursor: string | null) => void;
-  /** SSE `stream.close` — server closed; the helper auto-reconnects from the cursor. */
-  onClose?: (cursor: string | null) => void;
-  /** Transport error (the browser EventSource auto-reconnects). */
-  onError?: (err: Event) => void;
-}
-
-/** Handle returned by subscribeTaskDetail(); call close() to tear the stream down. */
-export interface TaskDetailStreamHandle {
-  close: () => void;
-}
 
 /** Laravel task statistics over the central status vocabulary. */
 export type GlobalTaskStats = GlobalTaskStatsRecord;
@@ -159,15 +137,34 @@ export interface TaskCenterOverview {
     running: boolean;
     uptime: number | null;
     total_ticks: number;
+    summary: {
+      total_discovered: number;
+      total_registered: number;
+      total_running: number;
+      timer_running: boolean;
+      timer_uptime: number | null;
+      total_ticks: number;
+    };
+    heartbeat: {
+      exists: boolean;
+      last_modified?: string;
+      seconds_ago?: number;
+      is_fresh?: boolean;
+      status?: string;
+      message?: string;
+    };
     tasks: TaskCenterSchedulerTask[];
   };
   queue: {
     stats: GlobalTaskStats;
+    items: GlobalTaskItem[];
+    total: number;
     categories: TaskCenterCategory[];
     by_type: Record<string, TaskCenterLiveTypeCounts>;
   };
   workers: {
     stats: GlobalWorkerStats;
+    items: GlobalWorkerInfo[];
   };
   relations: TaskCenterRelation[];
   timestamp: string;
@@ -357,15 +354,23 @@ export class ServerManagerAPI extends BaseAPI {
   }
 
   /**
-   * Raise a pending task to the centrally defined interactive fast priority,
-   * bumping it to the front of the queue. POST /api/task/{taskId}/bump.
+   * Move a pending task to the front of its queue. POST /api/task/{taskId}/bump.
+   * Queue-position-ordered (audio) tasks move by head ticket and return
+   * `queue_position`; priority-ordered tasks return the bumped `priority`.
    * 404 if unknown, 409 if the task is no longer pending.
    */
-  async bumpTaskPriority(
+  async bumpTaskToFront(
     taskId: string,
+    taskType: string,
     priority: number = GLOBAL_TASK_PRIORITIES.fast,
-  ): Promise<APIResponse<{ task_id: string; priority: number; status: GlobalTaskStatus }>> {
-    return this.post(`/task/${encodeURIComponent(taskId)}/bump`, { priority });
+  ): Promise<APIResponse<{
+    task_id: string;
+    priority?: number;
+    queue_position?: number;
+    status: GlobalTaskStatus;
+  }>> {
+    const body = isGlobalTaskQueuePositionOrdered(taskType) ? {} : { priority };
+    return this.post(`/task/${encodeURIComponent(taskId)}/bump`, body);
   }
 
   /**
@@ -387,109 +392,6 @@ export class ServerManagerAPI extends BaseAPI {
       interactive: true,
       capability: data.capability ?? null,
     });
-  }
-
-  /**
-   * Subscribe to a task's live event stream over SSE (EventSource).
-   * GET /api/task/{taskId}/stream?cursor=<lastEventId>.
-   *
-   * Frames:
-   *   - "task.detail-initial" → onInitial(bundle)  (the EXACT getTaskDetail shape)
-   *   - "task.event"          → onEvent(event)      (one status transition; carries _id)
-   *   - "ping"                → onPing(cursor)       (keep-alive)
-   *   - "stream.close"        → onClose(cursor)      (server close → we reconnect with ?cursor=)
-   *
-   * The browser EventSource auto-reconnects on transport error; on an explicit
-   * server `stream.close` we close + reopen from the last `_id` seen so no event
-   * is dropped. Returns a handle whose close() tears everything down.
-   *
-   * NOTE: EventSource cannot send custom headers; this stream is a no-auth
-   * control-plane route, so the module's resolved base URL is sufficient.
-   */
-  subscribeTaskDetail(taskId: string, handlers: TaskDetailStreamHandlers): TaskDetailStreamHandle {
-    let source: EventSource | null = null;
-    let cursor: string | null = null;
-    let closed = false;
-    let terminal = false;
-
-    const buildUrl = (): string => {
-      const base = `${this.baseURL}/api/task/${encodeURIComponent(taskId)}/stream`;
-      return cursor !== null ? `${base}?cursor=${encodeURIComponent(cursor)}` : base;
-    };
-
-    const parse = (raw: string): any => {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return null;
-      }
-    };
-
-    const open = (): void => {
-      if (closed || typeof EventSource === 'undefined') return;
-
-      const es = new EventSource(buildUrl());
-      source = es;
-
-      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.initial, (ev) => {
-        const data = parse((ev as MessageEvent).data) as GlobalTaskDetailBundle | null;
-        if (data) handlers.onInitial?.(data);
-      });
-
-      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.transition, (ev) => {
-        const data = parse((ev as MessageEvent).data) as GlobalTaskEvent | null;
-        if (!data) return;
-        // Advance the resume cursor (server keys reconnects by `_id`).
-        const id = data._id ?? data.id;
-        if (id !== undefined && id !== null) cursor = String(id);
-        // Track terminal arrival locally (belt-and-suspenders for the SSE close
-        // contract). Deliberately NOT 'failed'/'timeout', which may be retryable.
-        if (data.event === GLOBAL_TASK_EVENTS_BY_ROLE.completed
-          || data.event === GLOBAL_TASK_EVENTS_BY_ROLE.cancelled) {
-          terminal = true;
-        }
-        handlers.onEvent?.(data);
-      });
-
-      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.ping, (ev) => {
-        const data = parse((ev as MessageEvent).data);
-        if (data && data.cursor != null) cursor = String(data.cursor);
-        handlers.onPing?.(cursor);
-      });
-
-      es.addEventListener(GLOBAL_TASK_STREAM_EVENTS_BY_ROLE.close, (ev) => {
-        const data = parse((ev as MessageEvent).data);
-        if (data && data.cursor != null) cursor = String(data.cursor);
-        handlers.onClose?.(cursor);
-        // SSE close contract: reopen ONLY when the task is still live. `done:true`
-        // means a terminal status (completed/completed_demo/failed/cancelled) —
-        // do NOT reconnect. `done!==true` means the ~25-50s Octane lifetime cap
-        // closed a still-running task, so resume from the cursor.
-        try { es.close(); } catch { /* ignore */ }
-        source = null;
-        if (!closed && data?.done !== true && !terminal) open();
-      });
-
-      es.onerror = (err) => {
-        handlers.onError?.(err);
-        // The browser EventSource will auto-reconnect to buildUrl()'s URL; since
-        // `cursor` is captured per-open in the URL it would resume from the old
-        // cursor. That is acceptable (the server de-dupes by cursor), so we let
-        // the native reconnect run rather than tearing down here.
-      };
-    };
-
-    open();
-
-    return {
-      close: () => {
-        closed = true;
-        if (source) {
-          try { source.close(); } catch { /* ignore */ }
-          source = null;
-        }
-      },
-    };
   }
 
   /**

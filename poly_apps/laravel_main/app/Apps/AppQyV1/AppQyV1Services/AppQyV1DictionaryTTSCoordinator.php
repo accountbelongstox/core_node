@@ -9,8 +9,8 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
+use App\Support\QueueCenterContract;
 use App\Utils\FileSystemManager;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -121,95 +121,6 @@ class AppQyV1DictionaryTTSCoordinator
         return array_keys(self::LANG_INDEX);
     }
 
-    // ------------------------------------------------------------------
-    // Lock/lease predicates (shared by pending queries, claim, reap, stats)
-    // ------------------------------------------------------------------
-
-    /**
-     * Constrain $query to rows whose lock does NOT block a new claim:
-     * never locked, expired assist lease (60 min), or stale non-assist lock
-     * (10 min). PG-safe: plain timestamp comparisons + (NOT) LIKE.
-     */
-    public static function applyClaimableLockPredicate($query): void
-    {
-        $staleBefore = now()->subMinutes(self::LOCK_STALE_MINUTES);
-        $assistStaleBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES);
-
-        $query->where(function ($q) use ($staleBefore, $assistStaleBefore) {
-            $q->whereNull('tts_locked_at')
-                ->orWhere('tts_locked_at', '<', $assistStaleBefore)
-                ->orWhere(function ($qq) use ($staleBefore) {
-                    $qq->where('tts_locked_at', '<', $staleBefore)
-                        ->where(function ($w) {
-                            $w->whereNull('tts_locked_by')
-                                ->orWhere('tts_locked_by', 'not like', self::ASSIST_WORKER_PREFIX . '%');
-                        });
-                });
-        });
-    }
-
-    /**
-     * Constrain $query to rows holding a LIVE lock: a non-assist lock newer
-     * than 10 minutes, or an assist lease newer than 60 minutes.
-     */
-    public static function applyLiveLockPredicate($query): void
-    {
-        $staleBefore = now()->subMinutes(self::LOCK_STALE_MINUTES);
-        $assistStaleBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES);
-
-        $query->where(function ($q) use ($staleBefore, $assistStaleBefore) {
-            $q->where('tts_locked_at', '>=', $staleBefore)
-                ->orWhere(function ($qq) use ($assistStaleBefore) {
-                    $qq->where('tts_locked_by', 'like', self::ASSIST_WORKER_PREFIX . '%')
-                        ->where('tts_locked_at', '>=', $assistStaleBefore);
-                });
-        });
-    }
-
-    // ------------------------------------------------------------------
-    // Pending queries (the former queue, derived live)
-    // ------------------------------------------------------------------
-
-    /**
-     * Pending-word rows for one language: needs audio, valid, not currently
-     * claimed (or claim stale/lease expired), retry budget left. Highest
-     * priority first, then most-queried (user demand) first.
-     */
-    public function pendingWordsQuery(string $langCode)
-    {
-        $query = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('has_audio', false)
-            ->where('is_valid', true)
-            ->where(function ($q) {
-                $q->whereNull('tts_status')
-                    ->orWhere('tts_status', self::STATUS_PENDING);
-            })
-            ->where('tts_attempts', '<', self::MAX_ATTEMPTS)
-            ->orderByDesc('tts_priority')
-            ->orderByDesc('query_count');
-
-        self::applyClaimableLockPredicate($query);
-
-        return $query;
-    }
-
-    /** Pending-article rows for one language (per-language article tables). */
-    public function pendingArticlesQuery(string $langCode)
-    {
-        $query = AppQyV1ArticleLibraryModel::forLanguage($langCode)->newQuery()
-            ->where('has_audio', false)
-            ->where(function ($q) {
-                $q->whereNull('tts_status')
-                    ->orWhere('tts_status', self::STATUS_PENDING);
-            })
-            ->where('tts_attempts', '<', self::MAX_ATTEMPTS)
-            ->orderByDesc('tts_priority');
-
-        self::applyClaimableLockPredicate($query);
-
-        return $query;
-    }
-
     /**
      * Reset stale processing claims back to pending so crashed processors
      * (timer worker or pycore) never strand rows. Cheap, idempotent; called
@@ -220,37 +131,25 @@ class AppQyV1DictionaryTTSCoordinator
         $reaped = 0;
 
         foreach (self::supportedLanguages() as $lang) {
-            $table = AppQyV1TableMaps::getDictionaryTableName($lang);
-            $conn = $this->dictConnection();
-            if (!$conn->getSchemaBuilder()->hasTable($table)) {
-                continue;
-            }
-            $query = $conn->table($table)
-                ->where('tts_status', self::STATUS_PROCESSING)
-                ->whereNotNull('tts_locked_at');
-            self::applyClaimableLockPredicate($query);
-            $reaped += $query->update([
-                'tts_status' => self::STATUS_PENDING,
-                'tts_locked_at' => null,
-                'tts_locked_by' => null,
-            ]);
+            $reaped += AppQyV1LangDictionaryModel::reapStaleTtsLocks(
+                $lang,
+                self::STATUS_PROCESSING,
+                self::STATUS_PENDING,
+                now()->subMinutes(self::LOCK_STALE_MINUTES),
+                now()->subMinutes(self::ASSIST_LEASE_MINUTES),
+                self::ASSIST_WORKER_PREFIX
+            );
         }
 
         foreach (self::supportedLanguages() as $lang) {
-            $articles = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            $conn = $this->dictConnection();
-            if ($conn->getSchemaBuilder()->hasTable($articles)
-                && $conn->getSchemaBuilder()->hasColumn($articles, 'tts_status')) {
-                $query = $conn->table($articles)
-                    ->where('tts_status', self::STATUS_PROCESSING)
-                    ->whereNotNull('tts_locked_at');
-                self::applyClaimableLockPredicate($query);
-                $reaped += $query->update([
-                    'tts_status' => self::STATUS_PENDING,
-                    'tts_locked_at' => null,
-                    'tts_locked_by' => null,
-                ]);
-            }
+            $reaped += AppQyV1ArticleLibraryModel::reapStaleTtsLocks(
+                $lang,
+                self::STATUS_PROCESSING,
+                self::STATUS_PENDING,
+                now()->subMinutes(self::LOCK_STALE_MINUTES),
+                now()->subMinutes(self::ASSIST_LEASE_MINUTES),
+                self::ASSIST_WORKER_PREFIX
+            );
         }
 
         return $reaped;
@@ -279,9 +178,7 @@ class AppQyV1DictionaryTTSCoordinator
                 continue;
             }
 
-            $table = AppQyV1TableMaps::getDictionaryTableName($lang);
-            $conn = $this->dictConnection();
-            if (!$conn->getSchemaBuilder()->hasTable($table)) {
+            if (!AppQyV1LangDictionaryModel::ttsTableReady($lang, true)) {
                 continue;
             }
 
@@ -290,30 +187,29 @@ class AppQyV1DictionaryTTSCoordinator
             // Two-step atomic claim: select candidate ids, then UPDATE guarded
             // by the same pending predicates so concurrent claimers can't
             // double-take a row (the guarded update simply affects 0 rows).
-            $candidates = $this->pendingWordsQuery($lang)->limit($remaining)->get(['id', 'content', 'md5']);
+            $candidates = AppQyV1LangDictionaryModel::pendingTtsClaimRows(
+                $lang,
+                $remaining,
+                self::STATUS_PENDING,
+                self::MAX_ATTEMPTS,
+                now()->subMinutes(self::LOCK_STALE_MINUTES),
+                now()->subMinutes(self::ASSIST_LEASE_MINUTES),
+                self::ASSIST_WORKER_PREFIX
+            );
 
             foreach ($candidates as $row) {
-                $updated = $conn->table($table)
-                    ->where('id', $row->id)
-                    ->where('has_audio', false)
-                    ->where(function ($q) {
-                        $q->whereNull('tts_status')->orWhere('tts_status', self::STATUS_PENDING)
-                            ->orWhere(function ($qq) {
-                                $qq->where('tts_status', self::STATUS_PROCESSING);
-                                // Stale local lock OR expired assist lease:
-                                // taking over clears/overwrites the stale
-                                // lease fields in this same UPDATE.
-                                self::applyClaimableLockPredicate($qq);
-                            });
-                    })
-                    ->update([
-                        'tts_status' => self::STATUS_PROCESSING,
-                        'tts_locked_at' => now(),
-                        'tts_locked_by' => $workerId,
-                        'tts_requested_at' => $conn->raw('COALESCE(tts_requested_at, CURRENT_TIMESTAMP)'),
-                    ]);
+                $updated = AppQyV1LangDictionaryModel::claimTtsRow(
+                    $lang,
+                    (int) $row->id,
+                    $workerId,
+                    self::STATUS_PENDING,
+                    self::STATUS_PROCESSING,
+                    now()->subMinutes(self::LOCK_STALE_MINUTES),
+                    now()->subMinutes(self::ASSIST_LEASE_MINUTES),
+                    self::ASSIST_WORKER_PREFIX
+                );
 
-                if ($updated === 1) {
+                if ($updated) {
                     $claimed[] = [
                         'task_id' => self::encodeTaskId((int) $row->id, self::TYPE_WORD, $lang),
                         'type' => self::TYPE_WORD,
@@ -356,14 +252,14 @@ class AppQyV1DictionaryTTSCoordinator
         }
 
         $lang = $decoded['language'];
-        $entry = AppQyV1LangDictionaryModel::forLanguage($lang)->find($decoded['row_id']);
+        $entry = AppQyV1LangDictionaryModel::findLanguageRow($lang, $decoded['row_id']);
         if (!$entry) {
             return ['success' => false, 'http_status' => 404, 'error' => 'Task row not found'];
         }
 
         if (!$success) {
             $this->markWordFailed($entry, $lang, $error ?: 'Worker reported failure', $workerId);
-            return ['success' => true, 'status' => self::statusOf($entry->fresh() ?? $entry)];
+            return ['success' => true, 'status' => self::statusOf($entry->freshRecord() ?? $entry)];
         }
 
         // --- Result validation (never trust the wire) ---
@@ -454,9 +350,7 @@ class AppQyV1DictionaryTTSCoordinator
         ?array $variantMeta = null,
         ?string $mime = null
     ): array {
-        $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('md5', $md5)
-            ->first();
+        $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
         if (!$entry) {
             return ['stored' => false, 'reason' => 'not_found'];
         }
@@ -581,8 +475,7 @@ class AppQyV1DictionaryTTSCoordinator
         // Write phase: commit all stale-flag heals in ONE transaction (up to `limit`
         // rows) so the missing-batch GET stays fast instead of paying per-row commits.
         if (!empty($heal)) {
-            $conn = $heal[0][0]->getConnectionName();
-            DB::connection($conn)->transaction(function () use ($heal) {
+            AppQyV1LangDictionaryModel::runLanguageTransaction($langCode, function () use ($heal) {
                 foreach ($heal as [$entry, $path, $vkey]) {
                     $this->markWordCompleted($entry, $path, $entry->tts_provider ?: 'disk', ['variant_key' => $vkey]);
                 }
@@ -610,7 +503,7 @@ class AppQyV1DictionaryTTSCoordinator
             return false;
         }
 
-        $entry = AppQyV1LangDictionaryModel::forLanguage($decoded['language'])->find($decoded['row_id']);
+        $entry = AppQyV1LangDictionaryModel::findLanguageRow($decoded['language'], $decoded['row_id']);
         if (!$entry || !empty($entry->has_audio)) {
             return false;
         }
@@ -623,7 +516,7 @@ class AppQyV1DictionaryTTSCoordinator
         $entry->tts_status = self::STATUS_PENDING;
         $entry->tts_locked_at = null;
         $entry->tts_locked_by = null;
-        $entry->save();
+        $entry->saveRecord();
 
         return true;
     }
@@ -635,38 +528,24 @@ class AppQyV1DictionaryTTSCoordinator
      */
     public function assistLeasedCount(): int
     {
-        $leaseBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES);
-        $conn = $this->dictConnection();
-        $count = 0;
-
+        $leaseBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES)->toDateTimeString();
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+        $dictTables = [];
+        $articleTables = [];
         foreach (self::supportedLanguages() as $lang) {
-            $table = AppQyV1TableMaps::getDictionaryTableName($lang);
-            if (!$conn->getSchemaBuilder()->hasTable($table)) {
-                continue;
-            }
-            $count += (int) $conn->table($table)
-                ->where('has_audio', false)
-                ->where('tts_status', self::STATUS_PROCESSING)
-                ->where('tts_locked_by', 'like', self::ASSIST_WORKER_PREFIX . '%')
-                ->where('tts_locked_at', '>=', $leaseBefore)
-                ->count();
+            $dictTables[$lang] = AppQyV1TableMaps::getDictionaryTableName($lang);
+            $articleTables[$lang] = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
         }
 
-        foreach (self::supportedLanguages() as $lang) {
-            $articles = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            if (!$conn->getSchemaBuilder()->hasTable($articles)
-                || !$conn->getSchemaBuilder()->hasColumn($articles, 'tts_status')) {
-                continue;
-            }
-            $count += (int) $conn->table($articles)
-                ->where('has_audio', false)
-                ->where('tts_status', self::STATUS_PROCESSING)
-                ->where('tts_locked_by', 'like', self::ASSIST_WORKER_PREFIX . '%')
-                ->where('tts_locked_at', '>=', $leaseBefore)
-                ->count();
-        }
+        $dictTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $dictTables);
+        $articleTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $articleTables);
 
-        return $count;
+        $whereSql = "has_audio = false AND tts_status = '" . self::STATUS_PROCESSING . "'"
+            . ' AND tts_locked_by LIKE ? AND tts_locked_at >= ?';
+        $bindings = [self::ASSIST_WORKER_PREFIX . '%', $leaseBefore];
+
+        return array_sum(AppQyV1PerLanguageMetrics::countByLanguage($connection, $dictTables, $whereSql, $bindings))
+            + array_sum(AppQyV1PerLanguageMetrics::countByLanguage($connection, $articleTables, $whereSql, $bindings));
     }
 
     /** MP3 sniffing: ID3v2 header or an MPEG frame-sync at byte 0. */
@@ -719,7 +598,7 @@ class AppQyV1DictionaryTTSCoordinator
             'uploaded_at' => now()->toIso8601String(),
         ], $meta));
 
-        $entry->save();
+        $entry->saveRecord();
     }
 
     public function markWordFailed(AppQyV1LangDictionaryModel $entry, string $langCode, string $error, string $by): void
@@ -730,7 +609,7 @@ class AppQyV1DictionaryTTSCoordinator
         $entry->tts_status = $attempts >= self::MAX_ATTEMPTS ? self::STATUS_FAILED : self::STATUS_PENDING;
         $entry->tts_locked_at = null;
         $entry->tts_locked_by = null;
-        $entry->save();
+        $entry->saveRecord();
 
         Log::warning('[DictTTS] Word generation failed', [
             'language' => $langCode,
@@ -777,76 +656,86 @@ class AppQyV1DictionaryTTSCoordinator
     public function statistics(): array
     {
         $byStatus = ['pending' => 0, 'processing' => 0, 'completed' => 0, 'failed' => 0];
-        $byType = ['word' => 0, 'sentence' => 0, 'article' => 0];
+        $byType = array_fill_keys(QueueCenterContract::queuePositionOrderedTaskAliases(), 0);
         $totalRetries = 0;
 
-        $conn = $this->dictConnection();
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+        $dictTables = [];
+        $articleTables = [];
         foreach (self::supportedLanguages() as $lang) {
-            $table = AppQyV1TableMaps::getDictionaryTableName($lang);
-            if (!$conn->getSchemaBuilder()->hasTable($table)) {
-                continue;
-            }
-
-            $completed = (int) $conn->table($table)->where('has_audio', true)->count();
-            $failed = (int) $conn->table($table)->where('has_audio', false)->where('tts_status', self::STATUS_FAILED)->count();
-            $processingQuery = $conn->table($table)
-                ->where('has_audio', false)
-                ->where('tts_status', self::STATUS_PROCESSING);
-            self::applyLiveLockPredicate($processingQuery);
-            $processing = (int) $processingQuery->count();
-            $pending = (int) $conn->table($table)
-                ->where('has_audio', false)
-                ->where('is_valid', true)
-                ->where(function ($q) {
-                    $q->whereNull('tts_status')
-                        ->orWhere('tts_status', self::STATUS_PENDING)
-                        ->orWhere(function ($qq) {
-                            $qq->where('tts_status', self::STATUS_PROCESSING);
-                            self::applyClaimableLockPredicate($qq);
-                        });
-                })
-                ->where('tts_attempts', '<', self::MAX_ATTEMPTS)
-                ->count();
-
-            $byStatus['completed'] += $completed;
-            $byStatus['failed'] += $failed;
-            $byStatus['processing'] += $processing;
-            $byStatus['pending'] += $pending;
-            $byType['word'] += $pending + $processing + $completed + $failed;
-            $totalRetries += (int) $conn->table($table)->sum('tts_attempts');
+            $dictTables[$lang] = AppQyV1TableMaps::getDictionaryTableName($lang);
+            $articleTables[$lang] = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
         }
 
-        foreach (self::supportedLanguages() as $lang) {
-            $articles = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            if (!$conn->getSchemaBuilder()->hasTable($articles) || !$conn->getSchemaBuilder()->hasColumn($articles, 'tts_status')) {
-                continue;
-            }
-            $aCompleted = (int) $conn->table($articles)->where('has_audio', true)->count();
-            $aFailed = (int) $conn->table($articles)->where('has_audio', false)->where('tts_status', self::STATUS_FAILED)->count();
-            $aProcessingQuery = $conn->table($articles)
-                ->where('has_audio', false)
-                ->where('tts_status', self::STATUS_PROCESSING);
-            self::applyLiveLockPredicate($aProcessingQuery);
-            $aProcessing = (int) $aProcessingQuery->count();
-            $aPending = (int) $conn->table($articles)
-                ->where('has_audio', false)
-                ->where(function ($q) {
-                    $q->whereNull('tts_status')
-                        ->orWhere('tts_status', self::STATUS_PENDING)
-                        ->orWhere(function ($qq) {
-                            $qq->where('tts_status', self::STATUS_PROCESSING);
-                            self::applyClaimableLockPredicate($qq);
-                        });
-                })
-                ->where('tts_attempts', '<', self::MAX_ATTEMPTS)
-                ->count();
+        $dictTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $dictTables);
+        $articleTables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $articleTables);
 
-            $byStatus['completed'] += $aCompleted;
-            $byStatus['failed'] += $aFailed;
-            $byStatus['processing'] += $aProcessing;
-            $byStatus['pending'] += $aPending;
-            $byType['article'] += $aPending + $aProcessing + $aCompleted + $aFailed;
-            $totalRetries += (int) $conn->table($articles)->sum('tts_attempts');
+        // One column listing for BOTH table sets, then keep only tables that
+        // carry the full tts_* column set (a partially migrated language is
+        // skipped instead of aborting the whole aggregate).
+        $columns = AppQyV1PerLanguageMetrics::columnsOfTables(
+            $connection,
+            array_merge(array_values($dictTables), array_values($articleTables))
+        );
+        $baseColumns = ['has_audio', 'tts_status', 'tts_attempts', 'tts_locked_at', 'tts_locked_by'];
+        $dictTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($dictTables, $columns, array_merge($baseColumns, ['is_valid']));
+        $articleTables = AppQyV1PerLanguageMetrics::filterTablesByColumns($articleTables, $columns, $baseColumns);
+
+        $staleBefore = now()->subMinutes(self::LOCK_STALE_MINUTES)->toDateTimeString();
+        $assistStaleBefore = now()->subMinutes(self::ASSIST_LEASE_MINUTES)->toDateTimeString();
+        $assistPrefix = self::ASSIST_WORKER_PREFIX . '%';
+
+        // Live lock (applyLiveLockPredicate) and claimable lock
+        // (applyClaimableLockPredicate) expressed as SQL fragments — keep in
+        // sync with those methods, they remain the canonical builder version.
+        $liveLock = '(tts_locked_at >= ? OR (tts_locked_by LIKE ? AND tts_locked_at >= ?))';
+        $claimableLock = '(tts_locked_at IS NULL OR tts_locked_at < ?'
+            . ' OR (tts_locked_at < ? AND (tts_locked_by IS NULL OR tts_locked_by NOT LIKE ?)))';
+
+        $selectList = 'COUNT(*) FILTER (WHERE has_audio = true) AS completed, '
+            . "COUNT(*) FILTER (WHERE has_audio = false AND tts_status = '" . self::STATUS_FAILED . "') AS failed, "
+            . "COUNT(*) FILTER (WHERE has_audio = false AND tts_status = '" . self::STATUS_PROCESSING . "' AND {$liveLock}) AS processing, "
+            . 'COUNT(*) FILTER (WHERE has_audio = false AND %IS_VALID% tts_attempts < ?'
+            . " AND (tts_status IS NULL OR tts_status = '" . self::STATUS_PENDING . "'"
+            . " OR (tts_status = '" . self::STATUS_PROCESSING . "' AND {$claimableLock}))) AS pending, "
+            . 'COALESCE(SUM(tts_attempts), 0) AS retries';
+        // Binding order per branch: liveLock (processing), then pending
+        // (max attempts, claimableLock).
+        $bindings = [
+            $staleBefore, $assistPrefix, $assistStaleBefore,
+            self::MAX_ATTEMPTS, $assistStaleBefore, $staleBefore, $assistPrefix,
+        ];
+
+        $dictRows = AppQyV1PerLanguageMetrics::metricsByLanguage(
+            $connection,
+            $dictTables,
+            str_replace('%IS_VALID%', 'is_valid = true AND', $selectList),
+            '',
+            $bindings
+        );
+        $articleRows = AppQyV1PerLanguageMetrics::metricsByLanguage(
+            $connection,
+            $articleTables,
+            str_replace('%IS_VALID%', '', $selectList),
+            '',
+            $bindings
+        );
+
+        foreach ($dictRows as $row) {
+            foreach (array_keys($byStatus) as $status) {
+                $count = (int) ($row[$status] ?? 0);
+                $byStatus[$status] += $count;
+                $byType['word'] += $count;
+            }
+            $totalRetries += (int) ($row['retries'] ?? 0);
+        }
+        foreach ($articleRows as $row) {
+            foreach (array_keys($byStatus) as $status) {
+                $count = (int) ($row[$status] ?? 0);
+                $byStatus[$status] += $count;
+                $byType['article'] += $count;
+            }
+            $totalRetries += (int) ($row['retries'] ?? 0);
         }
 
         return [
@@ -857,8 +746,4 @@ class AppQyV1DictionaryTTSCoordinator
         ];
     }
 
-    private function dictConnection(): \Illuminate\Database\Connection
-    {
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1));
-    }
 }

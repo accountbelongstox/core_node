@@ -3,7 +3,6 @@
 namespace App\Services\QueueCenter;
 
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Cache;
 
 class LazyDataSegmentStore
 {
@@ -19,14 +18,14 @@ class LazyDataSegmentStore
         }
 
         $key = $this->key($scope, $segment);
-        $stored = Cache::get($key);
+        $stored = QueueCenterCacheStore::get()->get($key);
         if (is_array($stored) && ($stored['state'] ?? '') === 'ready') {
             return is_array($stored['rows'] ?? null) ? $stored['rows'] : [];
         }
 
         $rows = $loader($ids);
         $rows = is_array($rows) ? array_values($rows) : [];
-        Cache::put($key, [
+        QueueCenterCacheStore::get()->put($key, [
             'version' => self::VERSION,
             'state' => 'ready',
             'ids' => array_values($ids),
@@ -39,7 +38,7 @@ class LazyDataSegmentStore
 
     public function consume(string $scope, int|string $segment, array $ids): void
     {
-        Cache::put($this->key($scope, $segment), [
+        QueueCenterCacheStore::get()->put($this->key($scope, $segment), [
             'version' => self::VERSION,
             'state' => 'consumed',
             'ids' => array_values($ids),
@@ -50,7 +49,7 @@ class LazyDataSegmentStore
 
     public function forget(string $scope, int|string $segment): void
     {
-        Cache::forget($this->key($scope, $segment));
+        QueueCenterCacheStore::get()->forget($this->key($scope, $segment));
     }
 
     private function key(string $scope, int|string $segment): string

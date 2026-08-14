@@ -31,17 +31,7 @@ class BookChapterIndexAdapter
             return $this->slotCountCache[$cacheKey];
         }
 
-        $query = SourceSentence::where('source_key', $sourceKey);
-        if ($grain !== 'all') {
-            $query->where('grain', $grain);
-        }
-
-        $counts = [];
-        foreach ($query->selectRaw('chapter_index, COUNT(*) as slot_count')
-            ->groupBy('chapter_index')
-            ->pluck('slot_count', 'chapter_index') as $ci => $n) {
-            $counts[(int) $ci] = (int) $n;
-        }
+        $counts = SourceSentence::slotCountsByChapter($sourceKey, $grain);
 
         $this->slotCountCache[$cacheKey] = $counts;
         return $counts;
@@ -73,11 +63,7 @@ class BookChapterIndexAdapter
             if ($lang === '') {
                 continue;
             }
-            foreach (LangChapter::onLang($lang)
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->orderBy('chapter_index')
-                ->pluck('chapter_index') as $ci) {
+            foreach (LangChapter::chapterIndicesForSource($lang, $sourceType, $sourceKey) as $ci) {
                 $seen[(int) $ci] = true;
             }
         }

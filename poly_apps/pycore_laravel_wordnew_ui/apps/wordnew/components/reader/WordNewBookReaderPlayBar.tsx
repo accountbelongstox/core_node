@@ -3,8 +3,7 @@ import {
   Play, Pause, Square, ChevronLeft, ChevronRight, SkipForward, SkipBack,
   ChevronsLeft, ChevronsRight,
 } from 'lucide-react';
-import type { ElementTheme } from '../../WfNewTypes';
-
+import type { ElementTheme } from '../../WfNewThemes';
 /**
  * WordNewBookReaderPlayBar — the reader's floating read-aloud console, docked at
  * the bottom of the reader page (sticky bottom-6, mirroring the practice

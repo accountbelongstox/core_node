@@ -21,7 +21,7 @@ import { wfNewSettings } from '../../WfNewSettingsStore';
 import { accentToBcp47, mapUiAccent, resolvePracticeVoice } from '../../hooks/wordNewWordAudioFallback';
 import { wfNewStudyProgress } from './WfNewStudyProgress';
 import { resolveAudioSync } from '../../runtime-store/WfNewAudioCache';
-import { wordNewAudioQueueCenter } from '../../services/WordNewAudioQueueCenter';
+import { wordNewQueueCenter } from '../../services/WordNewQueueCenter';
 
 interface ReciteOptions {
   gid: string;
@@ -125,7 +125,7 @@ export function useWfNewReciteController(opts: ReciteOptions): ReciteApi {
       // Hard ceiling so a missing/stuck clip can never freeze the loop.
       const guard = setTimeout(finish, 8000);
       const queueMissingAudio = () => {
-        wordNewAudioQueueCenter.notifyMissingWord(word.text, language || 'en');
+        wordNewQueueCenter.notifyMissingWord(word.text, language || 'en');
       };
 
       if (isAbsoluteUrl(word.audioUrl)) {

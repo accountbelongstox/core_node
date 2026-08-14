@@ -67,7 +67,7 @@ class AppQyV1VocabularyCoverService
         }
 
         $library->cover_last_requested_at = now();
-        $library->save();
+        $library->saveRecord();
 
         $url = $this->buildCoverUrl($library->cover_filename);
         $logEntry = $this->buildLog($library);
@@ -76,7 +76,7 @@ class AppQyV1VocabularyCoverService
             if ($library->cover_status !== 'ready') {
                 $library->cover_status = 'ready';
                 $library->cover_last_generated_at = $library->cover_last_generated_at ?? now();
-                $library->save();
+                $library->saveRecord();
             }
 
             return [
@@ -92,7 +92,7 @@ class AppQyV1VocabularyCoverService
         if (!in_array($library->cover_status, ['pending', 'processing', 'retry'])) {
             $library->cover_status = 'pending';
             $library->cover_error_message = null;
-            $library->save();
+            $library->saveRecord();
         }
 
         return [

@@ -5,6 +5,7 @@
  * Returns null on ANY failure so callers can fall back to another provider.
  */
 import { geminiImageTool } from '../tools/browser/gemini-image';
+import { delay as waitForDelay } from '@/utils/async';
 
 const GENERATION_TIMEOUT_MS = 110000;
 const POLL_INTERVAL_MS = 3000;
@@ -31,7 +32,7 @@ export async function generateViaGemini(prompt: string): Promise<GeminiGenerated
   const deadline = Date.now() + GENERATION_TIMEOUT_MS;
   let last: Awaited<ReturnType<typeof geminiImageTool.status>> | null = null;
   while (Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    await waitForDelay(POLL_INTERVAL_MS);
     last = await geminiImageTool
       .status(started.jobId)
       .catch((error: any) => ({ ok: false, status: 'failed' as const, error: error?.message }));

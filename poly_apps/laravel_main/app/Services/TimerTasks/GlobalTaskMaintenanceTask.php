@@ -102,16 +102,7 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
     {
         $cutoff = now()->subDays(self::RETAIN_OFFLINE_WORKER_DAYS);
 
-        return Worker::query()
-            ->where('status', Worker::STATUS_OFFLINE)
-            ->where(function ($query) use ($cutoff) {
-                $query->where('last_heartbeat_at', '<', $cutoff)
-                    ->orWhere(function ($q) use ($cutoff) {
-                        $q->whereNull('last_heartbeat_at')
-                            ->where('created_at', '<', $cutoff);
-                    });
-            })
-            ->delete();
+        return Worker::purgeOfflineBefore($cutoff);
     }
 
     /**
@@ -123,8 +114,6 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
      */
     private function purgeExpiredTerminalTasks(): int
     {
-        $purged = 0;
-
         $batches = [
             [
                 'statuses' => [
@@ -140,26 +129,7 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
             ],
         ];
 
-        foreach ($batches as $batch) {
-            $remaining = self::PURGE_BATCH_LIMIT - $purged;
-            if ($remaining <= 0) {
-                break;
-            }
-
-            // Select-then-delete by primary key keeps the delete bounded
-            // (SQLite/Postgres lack DELETE ... LIMIT portability).
-            $ids = GlobalTask::query()
-                ->whereIn('status', $batch['statuses'])
-                ->where('updated_at', '<', $batch['before'])
-                ->limit($remaining)
-                ->pluck('id');
-
-            if ($ids->isNotEmpty()) {
-                $purged += GlobalTask::whereIn('id', $ids)->delete();
-            }
-        }
-
-        return $purged;
+        return GlobalTask::purgeTerminalBatches($batches, self::PURGE_BATCH_LIMIT);
     }
 
     /**
@@ -170,27 +140,25 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
      */
     private function retagLegacyDictionaryTasks(): int
     {
-        return GlobalTask::query()
-            ->whereIn('task_type', ['dictionary_explanation', 'dictionary_explanation_demo'])
-            ->where('execution_type', GlobalTask::executionType('remote_translation'))
-            ->where('status', GlobalTask::status('pending'))
-            ->update(['execution_type' => GlobalTask::executionType('remote_client')]);
+        return GlobalTask::retagPendingTasks(
+            ['dictionary_explanation', 'dictionary_explanation_demo'],
+            [GlobalTask::executionType('remote_translation')],
+            GlobalTask::executionType('remote_client')
+        );
     }
 
     /** Move legacy word_media rows onto the image-capability fast lane. */
     private function retagLegacyWordMediaTasks(): int
     {
-        return GlobalTask::query()
-            ->where('task_type', 'word_media')
-            ->whereIn('execution_type', [
+        return GlobalTask::retagPendingTasks(
+            ['word_media'],
+            [
                 GlobalTask::executionType('remote_client'),
                 GlobalTask::executionType('remote_translation'),
-            ])
-            ->where('status', GlobalTask::status('pending'))
-            ->update([
-                'execution_type' => GlobalTask::executionType('remote_fast'),
-                'capability' => GlobalTask::capability('image'),
-            ]);
+            ],
+            GlobalTask::executionType('remote_fast'),
+            GlobalTask::capability('image')
+        );
     }
 
     /**
@@ -208,32 +176,6 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
     {
         $cutoff = now()->subDays(self::STALE_PENDING_NEVER_ASSIGNED_DAYS);
 
-        // Fetch id + execution_type together (no per-row subquery in the loop).
-        $rows = GlobalTask::query()
-            ->where('status', GlobalTask::status('pending'))
-            ->whereNull('assigned_to')
-            ->whereNull('assigned_at')
-            ->where('created_at', '<', $cutoff)
-            ->limit(self::PURGE_BATCH_LIMIT)
-            ->get(['id', 'execution_type']);
-
-        if ($rows->isEmpty()) {
-            return 0;
-        }
-
-        // Fail each with a lane-specific reason so the "stuck" cause is visible.
-        $expired = 0;
-        foreach ($rows as $task) {
-            $updated = GlobalTask::where('id', $task->id)
-                ->where('status', GlobalTask::status('pending'))
-                ->update([
-                    'status' => GlobalTask::status('failed'),
-                    'error' => 'expired: no worker registered for lane ' . $task->execution_type,
-                    'updated_at' => now(),
-                ]);
-            $expired += (int) $updated;
-        }
-
-        return $expired;
+        return GlobalTask::expireNeverAssignedPending($cutoff, self::PURGE_BATCH_LIMIT);
     }
 }

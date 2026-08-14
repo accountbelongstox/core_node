@@ -6,28 +6,22 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\EdgeTTS\EdgeTTSService;
 use App\Services\WordAudio\WordAudioClient;
-use App\Services\UserConfig\UserConfigService;
+use App\Services\MediaIngestService;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 /**
- * Unified TTS Queue Service — queue-less edition.
+ * Unified TTS compatibility service over canonical rows and Queue Center.
  *
  * The intermediate app_qy_v1_tts_queue table is decommissioned. All task
- * state now lives on the canonical tables, coordinated through
- * AppQyV1DictionaryTTSCoordinator:
- *   - word:    {prefix}_tts_cache_{lang} rows (tts_status / tts_attempts /
- *              tts_priority / tts_locked_* / tts_requested_at / tts_completed_at)
- *   - article: {prefix}_{lang}_article_library rows (same tts_* columns)
- *   - sentence: file check first. When useServerBinaryAssist is OFF (default),
- *              bump for pycore and return queued — never call generateAudio.
- *              When assist is ON, generate synchronously via EdgeTTSService.
+ * domain state lives on canonical tables; distributed order and execution
+ * live on GlobalTask Queue Center lanes:
+ *   - word:    {prefix}_tts_cache_{lang} rows plus the word_audio global queue
+ *   - article: article rows materialized into sentence_audio global tasks
+ *   - sentence: the shared audio gateway schedules sentence_audio for pycore
  *
  * External response shapes are byte-compatible with the legacy queue API
  * (qy_capacitor + WordNew FE poll these): status strings
@@ -56,12 +50,6 @@ class AppQyV1UnifiedTTSQueueService
 
     /** Worker identity used for tts_locked_by claims made by the local Octane timer. */
     const PROCESSOR_ID = 'octane-timer';
-
-    /** Default priority floor applied when a row is queued without 'beginning'. */
-    const PRIORITY_DEFAULT = 30;
-
-    /** Max ARTICLE rows processed per processQueue() run (articles are heavy). */
-    const ARTICLES_PER_RUN = 2;
 
     // Dynamic interval settings
     const INTERVAL_NORMAL = 2000000;    // 2 seconds in microseconds
@@ -295,16 +283,12 @@ class AppQyV1UnifiedTTSQueueService
      * WORD / ARTICLE: idempotent against the canonical row — when the audio
      * already exists 'already_available' is returned; otherwise the row is
      * marked tts_status='pending' (created first when absent) and the encoded
-     * task_id is returned with status 'queued' (or 'moved_to_front' when
-     * position === 'beginning', which also raises tts_priority to 100).
+     * task_id is returned with status 'queued' or 'moved_to_front'.
      *
-     * SENTENCE — SEMANTICS CHANGE: sentences have no backing row anymore.
-     * The deterministic file path is checked; on a miss the audio is
-     * generated SYNCHRONOUSLY inline. Success returns 'already_completed'
-     * with audio_url; failure returns success=false with the error. No
-     * task_id is ever issued for sentences.
+     * SENTENCE: the deterministic file path is checked first; a miss is
+     * scheduled through the shared sentence_audio Queue Center gateway.
      *
-     * @param string $content Content text (word/sentence/article)
+     * @param string $content Content text for a contract-defined audio task
      * @param string $language Language code
      * @param string|null $type Task type (auto-detect if null)
      * @param string $position Position in queue: 'beginning'|'end' (default: 'end')
@@ -357,6 +341,7 @@ class AppQyV1UnifiedTTSQueueService
     {
         $contentHash = md5($content);
         $queueTaskId = null;
+        $queuePosition = 0;
 
         $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $contentHash);
 
@@ -422,15 +407,15 @@ class AppQyV1UnifiedTTSQueueService
                 $position === 'beginning',
                 true,
                 $queueLinks,
-                min((int) ($dictEntry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
                 300
             );
             $queueTaskId = (string) ($queueResult['task_id'] ?? '');
+            $queuePosition = (int) ($queueResult['queue_position'] ?? 0);
             if ($queueTaskId !== '') {
                 // Link the canonical row to its queue-center task (same column
                 // the retired dual-write maintained).
                 $dictEntry->tts_global_task_id = $queueTaskId;
-                $dictEntry->save();
+                $dictEntry->saveRecord();
             }
         } catch (\Throwable $e) {
             Log::warning('[AppQyV1UnifiedTTSQueueService] queue-center word_audio ensure failed', [
@@ -438,6 +423,18 @@ class AppQyV1UnifiedTTSQueueService
                 'language' => $language,
                 'error' => $e->getMessage(),
             ]);
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'error' => 'Queue Center task creation failed',
+            ];
+        }
+        if ($queueTaskId === null || $queueTaskId === '') {
+            return [
+                'success' => false,
+                'status' => 'failed',
+                'error' => 'Queue Center did not return a task ID',
+            ];
         }
 
         $this->clearQueueCache();
@@ -447,6 +444,7 @@ class AppQyV1UnifiedTTSQueueService
             'status' => $status,
             'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $dictEntry->id, self::TYPE_WORD, $language),
             'queue_task_id' => $queueTaskId,
+            'queue_position' => $queuePosition,
             'task_type' => self::TYPE_WORD,
             'position' => $position,
         ];
@@ -504,81 +502,61 @@ class AppQyV1UnifiedTTSQueueService
         ];
     }
 
-    /**
-     * SENTENCE task: file check first. When useServerBinaryAssist is OFF
-     * (default), enqueue for pycore and return queued — never call generateAudio.
-     * When assist is ON, generate synchronously via EdgeTTSService (desktop).
-     */
+    /** SENTENCE task: delegate file lookup and queue-head insertion to the gateway. */
     private function addSentenceTask(string $content, string $language): array
     {
-        $relativePath = $this->ttsService->buildRelativePath($content, $language, 'sentence');
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-
-        if ($fullPath) {
+        $contentId = MediaIngestService::computeContentId($content);
+        $gatewayResult = (new AppQyV1AudioGateway())->requestSentence(
+            $contentId,
+            $content,
+            $language,
+            null,
+            null,
+            true
+        );
+        if (!(bool) ($gatewayResult['success'] ?? false)) {
+            return [
+                'success' => false,
+                'error' => $gatewayResult['error'] ?? 'Sentence audio gateway failed',
+            ];
+        }
+        if ((bool) ($gatewayResult['exists'] ?? false)) {
             return [
                 'success' => true,
                 'status' => 'already_available',
-                'audio_path' => $relativePath,
-                'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
+                'audio_path' => null,
+                'audio_url' => $gatewayResult['url'] ?? null,
+                'content_id' => $contentId,
             ];
         }
-
-        // Default OFF: Laravel must not synthesize — leave pending for pycore.
-        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
-            try {
-                $contentId = md5($content);
-                (new AppQyV1SentenceAudioService())->bumpPriority(
-                    $contentId,
-                    $language,
-                    true,
-                    true,
-                    $content
-                );
-            } catch (\Throwable $e) {
-                Log::warning('[UnifiedTTSQueue] sentence bump for pycore failed', [
-                    'language' => $language,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-
+        if ((bool) ($gatewayResult['queued'] ?? false)) {
             return [
                 'success' => true,
-                'status' => 'queued',
+                'status' => ($gatewayResult['queue_head_action'] ?? null) === 'moved_to_head'
+                    ? 'moved_to_front'
+                    : 'queued',
                 'queued' => true,
-                'message' => 'Deferred to pycore TTS worker (use_server_binary_assist=off)',
-            ];
-        }
-
-        $result = $this->ttsService->generateAudio($content, $language, 'sentence');
-
-        if (!empty($result['success'])) {
-            $audioPath = $result['audio_path'] ?? $relativePath;
-            return [
-                'success' => true,
-                'status' => 'already_completed',
-                'audio_path' => $audioPath,
-                'audio_url' => AppQyV1TtsUrl::forPath($audioPath),
+                'content_id' => $contentId,
+                'queue_task_id' => $gatewayResult['queue_task_id'] ?? null,
+                'queue_position' => $gatewayResult['queue_position'] ?? null,
             ];
         }
 
         return [
             'success' => false,
-            'error' => $result['error'] ?? 'Sentence TTS generation failed',
+            'error' => $gatewayResult['error'] ?? 'Sentence audio was not queued',
         ];
     }
 
     /**
      * Flip a canonical row (word or article) to tts_status='pending' and
-     * return the external add-status string (queued|moved_to_front).
-     * 'beginning' assigns a move-to-front ticket — MAX(tts_priority)+1 on the
-     * row's table under a transaction-scoped advisory lock, so the newest
-     * front-add always sorts strictly ahead of every existing row and two
-     * concurrent front-adds cannot share a ticket (the MAX+1 subquery alone
-     * is not atomic across rows - an aggregate read locks nothing).
+     * return the external add-status string (queued|moved_to_front). Queue
+     * order is owned by the linked GlobalTask queue_position; canonical rows
+     * carry no queue-order state.
      */
     private function markRowPending($row, string $position): string
     {
-        return $row->getConnection()->transaction(function () use ($row, $position) {
+        return $row::runInTransaction(function () use ($row, $position) {
             $row->tts_status = self::STATUS_PENDING;
             if (!$row->tts_requested_at) {
                 $row->tts_requested_at = now();
@@ -590,120 +568,11 @@ class AppQyV1UnifiedTTSQueueService
             $row->tts_locked_at = null;
             $row->tts_locked_by = null;
 
-            if ($position === 'beginning') {
-                $conn = $row->getConnection();
-                $table = $row->getTable();
-                AppQyV1TableMaps::lockTableForFrontTicket($conn, $table);
-                $row->save();
-                $id = $row->id;
-                $conn->statement(
-                    "UPDATE {$table} SET tts_priority = (SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$table}) x) WHERE id = ?",
-                    [$id]
-                );
-                $row->refresh();
-                $status = 'moved_to_front';
-            } else {
-                $row->tts_priority = max((int) ($row->tts_priority ?? 0), self::PRIORITY_DEFAULT);
-                $row->save();
-                $status = 'queued';
-            }
+            $row->saveRecord();
+            $status = $position === 'beginning' ? 'moved_to_front' : 'queued';
 
             return $status;
         });
-    }
-
-    /**
-     * Phase 5 dual-write: when APPQYV1_DUAL_WRITE_GLOBAL is enabled, mirror a
-     * pending audio row as a linked GlobalTask on the pycore audio lane so the
-     * unified task system tracks it alongside the canonical dict row. Best-effort
-     * and idempotent — it never throws into the enqueue path and skips when an
-     * active linked task already exists. The legacy dict-row timer remains the
-     * canonical generator during the dual-write window; on completion the worker
-     * path's syncToDictRow() projects status back (fill-missing), and double
-     * synthesis is guarded by TaskManagerService::claimAudioLock().
-     *
-     * word_audio no longer uses this path — the queue center
-     * (App\Services\QueueCenter\QueueCenterService) owns word-audio tasks;
-     * article_audio still dual-writes here.
-     *
-     * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
-     * @param string $language Language code
-     * @param string $taskType 'article_audio' (word_audio moved to the queue center)
-     */
-    private function maybeCreateGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
-    {
-        if (!app(\App\Services\UserConfig\UserConfigService::class)->get('appqyv1_dual_write_global', false)) {
-            return;
-        }
-        $this->ensureGlobalAudioTask($row, $language, $taskType, $interactive);
-    }
-
-    /**
-     * Create an idempotent article_audio GlobalTask linked to a canonical row.
-     * Pycore or the enabled Chrome Qwen3-TTS worker may consume the shared
-     * audio lane. Ungated variant of maybeCreateGlobalAudioTask. Best-effort
-     * and idempotent - skips when an active linked task already exists and
-     * never throws into the caller.
-     *
-     * word_audio no longer passes through here — the queue center
-     * (App\Services\QueueCenter\QueueCenterService) owns word-audio tasks.
-     *
-     * @param mixed  $row      AppQyV1LangDictionaryModel (word) or article model
-     * @param string $language Language code
-     * @param string $taskType 'article_audio' (word_audio moved to the queue center)
-     */
-    private function ensureGlobalAudioTask($row, string $language, string $taskType, bool $interactive = false): void
-    {
-        try {
-            // Skip when an active linked global task already exists for this row.
-            if (!empty($row->tts_global_task_id)) {
-                $active = \App\Models\GlobalTask::where('task_id', $row->tts_global_task_id)
-                    ->whereIn('status', [
-                        \App\Models\GlobalTask::status('pending'),
-                        \App\Models\GlobalTask::status('assigned'),
-                        \App\Models\GlobalTask::status('processing'),
-                    ])
-                    ->exists();
-                if ($active) {
-                    return;
-                }
-            }
-
-            $task = app(\App\Services\TaskManagerService::class)->createTask(
-                'AppQyV1',
-                $taskType,
-                \App\Models\GlobalTask::executionType('remote_audio'),
-                [
-                    'language' => $language,
-                    'content' => $row->content ?? null,
-                    'md5' => $row->md5 ?? null,
-                ],
-                300,
-                (int) ($row->tts_priority ?? 0),
-                3,
-                // Interactive (FE position='beginning') audio jumps to task-top:
-                // createTask rewrites it onto remote_fast + PRIORITY_FAST. The
-                // capability=audio routes it only to workers that advertise audio.
-                $interactive,
-                \App\Models\GlobalTask::capability('audio'),
-                [
-                    'dict_row_id' => (int) $row->id,
-                    'dict_language' => $language,
-                    'dict_row_table' => $row->getTable(),
-                    'group_key' => $row->md5 ?? null,
-                ]
-            );
-
-            // Direct property set persists even if the column is not in $fillable.
-            $row->tts_global_task_id = $task->task_id;
-            $row->save();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('[AppQyV1UnifiedTTSQueueService] global audio task ensure failed', [
-                'dict_row_id' => $row->id ?? null,
-                'language' => $language,
-                'error' => $e->getMessage(),
-            ]);
-        }
     }
 
     /**
@@ -763,17 +632,10 @@ class AppQyV1UnifiedTTSQueueService
     private function collectTrackedRows(?string $type, int $perLanguageCap): array
     {
         $entries = [];
-        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-
         foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
             if ($type === null || $type === self::TYPE_WORD) {
-                $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
-                if (Schema::connection($connName)->hasTable($dictTable)) {
-                    $rows = AppQyV1LangDictionaryModel::forLanguage($lang)
-                        ->whereNotNull('tts_status')
-                        ->orderByDesc('updated_at')
-                        ->limit($perLanguageCap)
-                        ->get();
+                if (AppQyV1LangDictionaryModel::ttsTableReady($lang, true)) {
+                    $rows = AppQyV1LangDictionaryModel::recentTtsRows($lang, $perLanguageCap);
                     foreach ($rows as $row) {
                         $entries[] = [
                             'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
@@ -784,14 +646,8 @@ class AppQyV1UnifiedTTSQueueService
             }
 
             if ($type === null || $type === self::TYPE_ARTICLE) {
-                $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-                if (Schema::connection($connName)->hasTable($articleTable)
-                    && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
-                    $rows = AppQyV1ArticleLibraryModel::forLanguage($lang)
-                        ->whereNotNull('tts_status')
-                        ->orderByDesc('updated_at')
-                        ->limit($perLanguageCap)
-                        ->get();
+                if (AppQyV1ArticleLibraryModel::ttsTableReady($lang, true)) {
+                    $rows = AppQyV1ArticleLibraryModel::recentTtsRows($lang, $perLanguageCap);
                     foreach ($rows as $row) {
                         $entries[] = [
                             'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
@@ -824,27 +680,23 @@ class AppQyV1UnifiedTTSQueueService
         }
 
         $lang = $decoded['language'];
-        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-
         if ($decoded['type'] === self::TYPE_WORD) {
-            $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
-            if (!Schema::connection($connName)->hasTable($dictTable)) {
+            if (!AppQyV1LangDictionaryModel::ttsTableReady($lang, true)) {
                 return null;
             }
-            $row = AppQyV1LangDictionaryModel::forLanguage($lang)->find($decoded['row_id']);
+            $row = AppQyV1LangDictionaryModel::findLanguageRow($lang, $decoded['row_id']);
             return $row ? $this->formatWordRow($row, $lang) : null;
         }
 
         if ($decoded['type'] === self::TYPE_ARTICLE) {
-            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            if (!Schema::connection($connName)->hasTable($articleTable)) {
+            if (!AppQyV1ArticleLibraryModel::ttsTableReady($lang, true)) {
                 return null;
             }
-            $row = AppQyV1ArticleLibraryModel::forLanguage($lang)->find($decoded['row_id']);
+            $row = AppQyV1ArticleLibraryModel::findLanguageRow($lang, $decoded['row_id']);
             return $row ? $this->formatArticleRow($row, $lang) : null;
         }
 
-        // Sentences are stateless — no task ids are ever issued for them.
+        // Sentence tasks are owned by Queue Center, outside this legacy encoded-row lookup.
         return null;
     }
 
@@ -976,7 +828,6 @@ class AppQyV1UnifiedTTSQueueService
             'content_text' => $row->content,
             'language' => $lang,
             'status' => $status,
-            'priority' => (int) ($row->tts_priority ?? 0),
             'retry_count' => (int) ($row->tts_attempts ?? 0),
         ];
 
@@ -1008,7 +859,8 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Legacy TaskDetail shape for a canonical ARTICLE row.
+     * Legacy TaskDetail shape for a canonical ARTICLE row. Queue order is not
+     * exposed here: it lives on the linked GlobalTask queue_position.
      */
     private function formatArticleRow($row, string $lang): array
     {
@@ -1020,7 +872,6 @@ class AppQyV1UnifiedTTSQueueService
             'content_text' => $row->content,
             'language' => $lang,
             'status' => $status,
-            'priority' => (int) ($row->tts_priority ?? 0),
             'retry_count' => (int) ($row->tts_attempts ?? 0),
         ];
 
@@ -1199,6 +1050,8 @@ class AppQyV1UnifiedTTSQueueService
 
                     if (isset($existingAudio['audio_path'])) {
                         $result['audio_path'] = $existingAudio['audio_path'];
+                    }
+                    if (isset($existingAudio['audio_url'])) {
                         $result['audio_url'] = $existingAudio['audio_url'];
                     }
 
@@ -1245,7 +1098,7 @@ class AppQyV1UnifiedTTSQueueService
                             ]
                         );
                     } else {
-                        // Stateless sentence: synchronous result, no row.
+                        // Queue-backed sentence result has no legacy encoded row.
                         $result = [
                             'index' => $index,
                             'query_type' => 'content',
@@ -1315,7 +1168,7 @@ class AppQyV1UnifiedTTSQueueService
             return null;
         }
 
-        // Sentences are stateless — never tracked.
+        // Sentence tracking is owned by Queue Center, not this legacy row projection.
         return null;
     }
 
@@ -1361,15 +1214,22 @@ class AppQyV1UnifiedTTSQueueService
             return null;
         }
 
-        // Sentences: stateless deterministic file check.
+        // Sentences: use the unified file-first gateway without enqueueing.
         if ($type === self::TYPE_SENTENCE) {
-            $relativePath = $this->ttsService->buildRelativePath($content, $language, 'sentence');
-            $fullPath = $this->ttsService->getAudioPath($relativePath);
-            if ($fullPath) {
+            $gatewayResult = (new AppQyV1AudioGateway())->requestSentence(
+                MediaIngestService::computeContentId($content),
+                $content,
+                $language,
+                null,
+                null,
+                false
+            );
+            if ((bool) ($gatewayResult['success'] ?? false)
+                && (bool) ($gatewayResult['exists'] ?? false)) {
                 return [
                     'exists' => true,
-                    'audio_path' => $relativePath,
-                    'audio_url' => AppQyV1TtsUrl::forPath($relativePath),
+                    'audio_path' => null,
+                    'audio_url' => $gatewayResult['url'] ?? null,
                 ];
             }
             return null;
@@ -1420,18 +1280,10 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
-     * Process pending items (called by timer task) — queue-less flow.
-     *
-     * 1. Reap stale processing claims (crashed workers).
-     * 2. Claim pending WORD rows via the coordinator (atomic, per row) and
-     *    generate them inline, reporting completion/failure straight onto the
-     *    canonical rows.
-     * 3. Process a small number of pending ARTICLE rows: split into
-     *    sentences, generate each, and write audio_files + has_audio back to
-     *    the ARTICLE row (the old queue never wrote articles back — fixed).
-     *
-     * Keeps the adaptive batch-size/interval/error tracking and zero-byte
-     * file verification of the legacy implementation.
+     * Process legacy pending word rows for the disabled-by-default timer.
+     * Stale word claims are reaped first. Each row probes the pronunciation
+     * API chain; a miss is released and delegated to the shared word_audio
+     * Queue Center lane. Article and sentence rows are never consumed here.
      *
      * @param int|null $batchSize Number of word items to process (null = intelligent batch size)
      * @return array Processing results
@@ -1515,9 +1367,7 @@ class AppQyV1UnifiedTTSQueueService
                     // claim. This is a delegation, not a failure - the retry
                     // budget is NOT consumed and tts_status returns to pending so
                     // pycore (or a later API hit) can own the row. The queue
-                    // center owns the word_audio global task (deduped by
-                    // group_key); the old direct ensureGlobalAudioTask dual-write
-                    // is superseded for word_audio.
+                    // center owns the deduplicated word_audio global task.
                     if (!$knownMiss) {
                         Cache::put($missCacheKey, true, now()->addMinutes(30));
                     }
@@ -1535,17 +1385,15 @@ class AppQyV1UnifiedTTSQueueService
                                 $lang,
                                 (string) ($entry->md5 ?? '')
                             ),
-                            false,
                             [
                                 'dict_row_id' => (int) $entry->id,
                                 'dict_language' => $lang,
                                 'dict_row_table' => $entry->getTable(),
                             ],
-                            min((int) ($entry->tts_priority ?? 0), \App\Models\GlobalTask::priority('fast') - 1),
                             300
                         );
                         $entry->tts_global_task_id = (string) $missQueueResult['task']->task_id;
-                        $entry->save();
+                        $entry->saveRecord();
                     } catch (\Throwable $e) {
                         Log::warning('[UnifiedTTSQueue] queue-center word_audio delegation failed', [
                             'dict_row_id' => $entry->id ?? null,
@@ -1597,12 +1445,6 @@ class AppQyV1UnifiedTTSQueueService
             }
         }
 
-        // ---- ARTICLES: a small fixed number per run ----
-        $articleStats = $this->processPendingArticles(self::ARTICLES_PER_RUN);
-        $processed += $articleStats['processed'];
-        $succeeded += $articleStats['succeeded'];
-        $failed += $articleStats['failed'];
-
         // Clear cache after processing
         if ($processed > 0) {
             $this->clearQueueCache();
@@ -1622,234 +1464,6 @@ class AppQyV1UnifiedTTSQueueService
             'interval_seconds' => $currentInterval / 1000000,
             'rate_limit_detected' => Cache::get(self::RATE_LIMIT_DETECTED_KEY, false),
         ];
-    }
-
-    /**
-     * Process up to $maxArticles pending ARTICLE rows across languages:
-     * claim the row, split into sentences, generate each sentence, then write
-     * audio_files + has_audio + tts_* completion back to the article row.
-     *
-     * @return array{processed:int, succeeded:int, failed:int}
-     */
-    private function processPendingArticles(int $maxArticles): array
-    {
-        // Default OFF: do not claim/synthesize articles locally — pycore owns TTS.
-        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
-            return ['processed' => 0, 'succeeded' => 0, 'failed' => 0];
-        }
-
-        $processed = 0;
-        $succeeded = 0;
-        $failed = 0;
-
-        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-
-        foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
-            if ($processed >= $maxArticles) {
-                break;
-            }
-
-            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            if (!Schema::connection($connName)->hasTable($articleTable)
-                || !Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
-                continue;
-            }
-
-            $articles = $this->coordinator->pendingArticlesQuery($lang)
-                ->limit($maxArticles - $processed)
-                ->get();
-
-            foreach ($articles as $article) {
-                // Claim: flip to processing with the local worker identity.
-                $article->tts_status = self::STATUS_PROCESSING;
-                $article->tts_locked_at = now();
-                $article->tts_locked_by = self::PROCESSOR_ID;
-                if (!$article->tts_requested_at) {
-                    $article->tts_requested_at = now();
-                }
-                $article->save();
-
-                $startTime = microtime(true);
-
-                try {
-                    $generation = $this->generateArticleAudio($article->content, $lang);
-
-                    if ($generation['success']) {
-                        // Write-back the old pipeline never did: the article row
-                        // is now the durable holder of its audio file list.
-                        $article->tts_status = self::STATUS_COMPLETED;
-                        $article->tts_completed_at = now();
-                        $article->tts_error = null;
-                        $article->tts_locked_at = null;
-                        $article->tts_locked_by = null;
-                        $article->addAudioFiles($generation['audio_files']); // saves; sets has_audio + tts_provider
-                        $succeeded++;
-
-                        $processingTimeMs = (microtime(true) - $startTime) * 1000;
-                        AppQyV1TTSQueueMetrics::recordProcessingTime(self::TYPE_ARTICLE, $processingTimeMs);
-
-                        $this->handleProcessingSuccess();
-
-                        Log::info('[UnifiedTTSQueue] Article task completed', [
-                            'language' => $lang,
-                            'article_id' => $article->id,
-                            'sentences' => count($generation['audio_files']),
-                            'processing_time_ms' => round($processingTimeMs, 2),
-                        ]);
-                    } else {
-                        $this->markArticleFailed($article, $generation['error']);
-                        $this->handleProcessingError($generation['error']);
-                        if ($article->tts_status === self::STATUS_FAILED) {
-                            $failed++;
-                        }
-                    }
-                } catch (\Throwable $e) {
-                    $this->markArticleFailed($article, $e->getMessage());
-                    $this->handleProcessingError($e->getMessage());
-                    if ($article->tts_status === self::STATUS_FAILED) {
-                        $failed++;
-                    }
-
-                    Log::error('[UnifiedTTSQueue] Exception during article task processing', [
-                        'language' => $lang,
-                        'article_id' => $article->id,
-                        'error' => $e->getMessage(),
-                        'trace' => $e->getTraceAsString(),
-                    ]);
-                }
-
-                $processed++;
-
-                if ($processed >= $maxArticles) {
-                    break;
-                }
-            }
-        }
-
-        return ['processed' => $processed, 'succeeded' => $succeeded, 'failed' => $failed];
-    }
-
-    /**
-     * Generate per-sentence audio for an article (legacy processArticleTask
-     * flow, including zero-byte verification per sentence file).
-     *
-     * @return array{success:bool, audio_files?:array, error?:string}
-     */
-    private function generateArticleAudio(string $content, string $language): array
-    {
-        // Safety gate: never fork EdgeTTS when binary assist is OFF.
-        if (!app(UserConfigService::class)->useServerBinaryAssist()) {
-            return [
-                'success' => false,
-                'error' => 'Local article TTS disabled; deferred to pycore (use_server_binary_assist=off)',
-            ];
-        }
-
-        $sentences = $this->splitIntoSentences($content);
-
-        if (empty($sentences)) {
-            return [
-                'success' => false,
-                'error' => 'No sentences found in article',
-            ];
-        }
-
-        $audioFiles = [];
-
-        foreach ($sentences as $sentence) {
-            $sentence = trim($sentence);
-            if (empty($sentence)) {
-                continue;
-            }
-
-            $result = $this->ttsService->generateAudio($sentence, $language, 'sentence');
-
-            if (empty($result['success'])) {
-                Log::error('[UnifiedTTSQueue] Failed to generate audio for sentence', [
-                    'language' => $language,
-                    'sentence' => $sentence,
-                    'error' => $result['error'] ?? 'Unknown error',
-                ]);
-                return [
-                    'success' => false,
-                    'error' => 'Failed to generate audio for some sentences',
-                ];
-            }
-
-            $audioPath = $result['audio_path'] ?? null;
-            $verifyError = $this->verifyGeneratedFile($audioPath);
-            if ($verifyError !== null) {
-                return [
-                    'success' => false,
-                    'error' => $verifyError,
-                ];
-            }
-
-            $audioFiles[] = [
-                'sentence' => $sentence,
-                'path' => $audioPath,
-                'created_at' => now()->toDateTimeString(),
-            ];
-
-            usleep(100000); // 100ms delay between sentences
-        }
-
-        if (empty($audioFiles)) {
-            return [
-                'success' => false,
-                'error' => 'No sentences found in article',
-            ];
-        }
-
-        return [
-            'success' => true,
-            'audio_files' => $audioFiles,
-        ];
-    }
-
-    /**
-     * Record a failed attempt on an article row (retry budget on the row).
-     */
-    private function markArticleFailed($article, string $error): void
-    {
-        $attempts = (int) $article->tts_attempts + 1;
-        $article->tts_attempts = $attempts;
-        $article->tts_error = mb_substr($error, 0, 2000);
-        $article->tts_status = $attempts >= AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS
-            ? self::STATUS_FAILED
-            : self::STATUS_PENDING;
-        $article->tts_locked_at = null;
-        $article->tts_locked_by = null;
-        $article->save();
-    }
-
-    /**
-     * Zero-byte / existence verification of a freshly generated audio file.
-     * Returns an error string (and removes a zero-byte file) or null when OK.
-     */
-    private function verifyGeneratedFile(?string $relativePath): ?string
-    {
-        if (!$relativePath) {
-            return 'Audio file not found after generation';
-        }
-
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        if (!$fullPath || !file_exists($fullPath)) {
-            Log::error('[UnifiedTTSQueue] Audio file not found after generation', [
-                'audio_path' => $relativePath,
-            ]);
-            return 'Audio file not found after generation';
-        }
-
-        if (filesize($fullPath) === 0) {
-            @unlink($fullPath);
-            Log::error('[UnifiedTTSQueue] Zero-byte audio file detected and deleted', [
-                'audio_path' => $relativePath,
-            ]);
-            return 'Generated audio file is 0 bytes';
-        }
-
-        return null;
     }
 
     /**
@@ -1908,34 +1522,7 @@ class AppQyV1UnifiedTTSQueueService
         $entry->tts_status = self::STATUS_PENDING;
         $entry->tts_locked_at = null;
         $entry->tts_locked_by = null;
-        $entry->save();
-    }
-
-    /**
-     * Split article into sentences
-     */
-    private function splitIntoSentences(string $text): array
-    {
-        // Split by common sentence terminators
-        $sentences = preg_split('/([.!?。！？]+)\s*/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-
-        $result = [];
-        $buffer = '';
-
-        foreach ($sentences as $part) {
-            $buffer .= $part;
-
-            if (preg_match('/[.!?。！？]+$/u', $part)) {
-                $result[] = trim($buffer);
-                $buffer = '';
-            }
-        }
-
-        if (!empty($buffer)) {
-            $result[] = trim($buffer);
-        }
-
-        return array_filter($result);
+        $entry->saveRecord();
     }
 
     /**
@@ -1960,7 +1547,7 @@ class AppQyV1UnifiedTTSQueueService
         // Clear summary cache pattern
         foreach (range(1, 10) as $page) {
             foreach ([null, 'pending', 'processing', 'completed', 'failed'] as $status) {
-                foreach ([null, 'word', 'sentence', 'article'] as $type) {
+                foreach (array_merge([null], QueueCenterContract::queuePositionOrderedTaskAliases()) as $type) {
                     Cache::forget("tts_queue_summary:{$page}:50:{$status}:{$type}");
                 }
             }
@@ -2000,16 +1587,9 @@ class AppQyV1UnifiedTTSQueueService
 
         return Cache::remember($cacheKey, now()->addSeconds(10), function () use ($limit) {
             $entries = [];
-            $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-
             foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
-                $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
-                if (Schema::connection($connName)->hasTable($dictTable)) {
-                    $rows = AppQyV1LangDictionaryModel::forLanguage($lang)
-                        ->whereNotNull('tts_status')
-                        ->orderByDesc('updated_at')
-                        ->limit($limit)
-                        ->get();
+                if (AppQyV1LangDictionaryModel::ttsTableReady($lang, true)) {
+                    $rows = AppQyV1LangDictionaryModel::recentTtsRows($lang, $limit);
                     foreach ($rows as $row) {
                         $entries[] = [
                             'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
@@ -2018,14 +1598,8 @@ class AppQyV1UnifiedTTSQueueService
                     }
                 }
 
-                $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-                if (Schema::connection($connName)->hasTable($articleTable)
-                    && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
-                    $rows = AppQyV1ArticleLibraryModel::forLanguage($lang)
-                        ->whereNotNull('tts_status')
-                        ->orderByDesc('updated_at')
-                        ->limit($limit)
-                        ->get();
+                if (AppQyV1ArticleLibraryModel::ttsTableReady($lang, true)) {
+                    $rows = AppQyV1ArticleLibraryModel::recentTtsRows($lang, $limit);
                     foreach ($rows as $row) {
                         $entries[] = [
                             'sort' => $row->updated_at ? $row->updated_at->getTimestamp() : 0,
@@ -2053,13 +1627,12 @@ class AppQyV1UnifiedTTSQueueService
     {
         $audioPath = $type === self::TYPE_WORD ? $this->firstTtsFilePath($row) : null;
 
-        return [
+        $formatted = [
             'id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $row->id, $type, $lang),
             'task_type' => $type,
             'content_text' => mb_substr((string) $row->content, 0, 50),
             'language' => $lang,
             'status' => AppQyV1DictionaryTTSCoordinator::statusOf($row),
-            'priority' => (int) ($row->tts_priority ?? 0),
             'retry_count' => (int) ($row->tts_attempts ?? 0),
             'error_message' => $row->tts_error,
             'audio_path' => $audioPath,
@@ -2069,24 +1642,23 @@ class AppQyV1UnifiedTTSQueueService
             'created_at' => $row->created_at?->toIso8601String(),
             'updated_at' => $row->updated_at?->toIso8601String(),
         ];
+
+        return $formatted;
     }
 
     /**
-     * Re-queue failed tasks to front of queue (move-to-front ticket).
+     * Re-queue failed canonical rows.
      *
      * Per-language UPDATE on the canonical tables: failed rows that still
-     * lack audio get tts_status='pending', a fresh retry budget and the
-     * table's front ticket (MAX(tts_priority)+1, assigned by one atomic
-     * same-table derived subquery per table).
+     * lack audio get tts_status='pending' and a fresh retry budget. Article
+     * ordering lives on the linked GlobalTask queue_position; canonical rows
+     * carry no queue-order state.
      *
      * @return array
      */
     public function requeueFailedTasks(): array
     {
         $requeued = 0;
-        $connName = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-        $conn = DB::connection($connName);
-
         $resetValues = [
             'tts_status' => self::STATUS_PENDING,
             'tts_attempts' => 0,
@@ -2096,38 +1668,16 @@ class AppQyV1UnifiedTTSQueueService
         ];
 
         foreach (AppQyV1DictionaryTTSCoordinator::supportedLanguages() as $lang) {
-            $dictTable = AppQyV1TableMaps::getDictionaryTableName($lang);
-            if (Schema::connection($connName)->hasTable($dictTable)) {
-                $requeued += $conn->transaction(function () use ($conn, $dictTable, $resetValues) {
-                    AppQyV1TableMaps::lockTableForFrontTicket($conn, $dictTable);
-                    return $conn->table($dictTable)
-                        ->where('tts_status', self::STATUS_FAILED)
-                        ->where('has_audio', false)
-                        ->update(array_merge($resetValues, [
-                            // Batch move-to-front: every requeued failed row in this
-                            // table shares the table's current MAX+1 front ticket (they
-                            // are re-queued as one batch; the claim tiebreaker orders
-                            // them). The advisory lock prevents a concurrent user bump
-                            // from reading the same MAX and colliding. No backticks -
-                            // PG uses double-quotes for identifiers, not backticks.
-                            'tts_priority' => DB::raw("(SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$dictTable}) x)"),
-                        ]));
-                });
-            }
-
-            $articleTable = AppTablePrefixServiceProvider::buildTableName(AppKeys::APPQYV1, "{$lang}_article_library");
-            if (Schema::connection($connName)->hasTable($articleTable)
-                && Schema::connection($connName)->hasColumn($articleTable, 'tts_status')) {
-                $requeued += $conn->transaction(function () use ($conn, $articleTable, $resetValues) {
-                    AppQyV1TableMaps::lockTableForFrontTicket($conn, $articleTable);
-                    return $conn->table($articleTable)
-                        ->where('tts_status', self::STATUS_FAILED)
-                        ->where('has_audio', false)
-                        ->update(array_merge($resetValues, [
-                            'tts_priority' => DB::raw("(SELECT m FROM (SELECT COALESCE(MAX(tts_priority), 0) + 1 AS m FROM {$articleTable}) x)"),
-                        ]));
-                });
-            }
+            $requeued += AppQyV1LangDictionaryModel::resetFailedTts(
+                $lang,
+                self::STATUS_FAILED,
+                $resetValues
+            );
+            $requeued += AppQyV1ArticleLibraryModel::resetFailedTts(
+                $lang,
+                self::STATUS_FAILED,
+                $resetValues
+            );
         }
 
         $this->clearQueueCache();

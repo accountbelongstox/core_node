@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Play, Minus, Plus, ChevronDown } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewSettings } from '../WfNewSettingsStore';
 
 /**

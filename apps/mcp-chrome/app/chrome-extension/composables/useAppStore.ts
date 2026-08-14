@@ -6,6 +6,7 @@ import { ref, watch } from 'vue';
 import type { Ref } from 'vue';
 import { DEFAULT_SERVER_PORT } from 'chrome-mcp-shared';
 import { localStorage } from '@/services/ExtensionStorage';
+import { InitializationController } from '@/utils/async';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 // ============================================================
@@ -44,7 +45,7 @@ const serverStatus: Ref<ServerStatus> = ref({
   lastUpdated: Date.now(),
 });
 
-let initialization: Promise<void> | null = null;
+const initialization = new InitializationController<void>();
 let watcherActive = false;
 let persistedSnapshot = '';
 
@@ -102,8 +103,7 @@ async function initializeState(): Promise<void> {
 
 export function useAppStore() {
   const initialize = async () => {
-    initialization ??= initializeState();
-    await initialization;
+    await initialization.run(initializeState);
   };
 
   // ============================================================

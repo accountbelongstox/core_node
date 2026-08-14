@@ -34,9 +34,10 @@ from typing import Dict, Any, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyctl.ai.ai_keys import PROVIDERS, first_secret, default_model, OPENAI_COMPAT_PROVIDERS, is_configured
-from pycore.pyctl.ai.ai_rate_limits import acquire_rate_limit, chat_nickname
+from pycore.pyctl.ai.ai_rate_limits import acquire_rate_limit, chat_nickname, finalize_rate_limit
 from pycore.pyctl.ai.ai_compat_helpers import chat_openai_compat, chat_cloudflare, chat_spark
 from pycore.pyctl.ai.ai_usage_log import record_usage
+from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 
 from pycore.pyutils.ai_cluster.openrouter.openrouter_client import OpenRouterClient
 from pycore.pyutils.ai_cluster.gemini.gemini_client import GeminiClient
@@ -93,6 +94,11 @@ def _result(provider: str, model: str) -> Dict[str, Any]:
         "latency_ms": None,
         "error": None,
         "retry_after_s": None,
+        "attempted": False,
+        "error_code": None,
+        "retriable": False,
+        "provider_reached": None,
+        "quota_counted": False,
     }
 
 
@@ -132,10 +138,12 @@ def _chat_openrouter(messages, model, key, out):
     resp = client.chat_completion(messages=messages, model=model)
     if isinstance(resp, dict) and resp.get("error"):
         out["error"] = str(resp["error"])
+        out["provider_reached"] = bool(resp.get("_provider_reached"))
         return out
     message = (resp.get("choices") or [{}])[0].get("message", {}) if isinstance(resp, dict) else {}
     out["text"] = client._extract_message_content(message)
     out["success"] = bool(out["text"])
+    out["provider_reached"] = True
     if not out["success"]:
         out["error"] = "Empty response from provider"
     return out
@@ -356,7 +364,7 @@ for _pname in OPENAI_COMPAT_PROVIDERS:
 
 
 def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str] = None,
-              source: str = "") -> Dict[str, Any]:
+              source: str = "", context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Send one chat turn to ``provider`` and return the unified contract.
 
@@ -394,10 +402,13 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         out["retry_after_s"] = rate.retry_after_s
         out["model"] = use_model
         out["nickname"] = chat_nickname(provider, use_model)
-        record_usage("text", provider, use_model, False, None, source, rate.message)
+        failure = classify_ai_failure(rate.message)
+        out["error_code"] = failure["code"]
+        out["retriable"] = failure["retriable"]
         return out
 
     start = time.time()
+    out["attempted"] = True
     try:
         handler(msgs, requested_model, key, out)
     except Exception as e:  # noqa: BLE001 — surface any SDK failure to the UI
@@ -407,8 +418,42 @@ def chat_once(provider: str, messages: List[Dict[str, Any]], model: Optional[str
         out["model"] = default_model(provider)
     out["nickname"] = chat_nickname(provider, out["model"])
     out["latency_ms"] = round((time.time() - start) * 1000, 1)
-    record_usage("text", provider, out["model"], bool(out.get("success")),
-                 out["latency_ms"], source, out.get("error"))
+    failure = classify_ai_failure(out.get("error"))
+    out["error_code"] = None if out.get("success") else failure["code"]
+    out["retriable"] = False if out.get("success") else bool(failure["retriable"])
+    reached_value = out.get("provider_reached")
+    provider_reached = bool(out.get("success")) or (
+        bool(failure["provider_reached"])
+        if reached_value is None
+        else bool(reached_value)
+    )
+    settlement = finalize_rate_limit(
+        provider,
+        rate.reservation_id,
+        provider_reached,
+        str(out.get("error_code") or ""),
+        out.get("retry_after_s"),
+    )
+    out["provider_reached"] = bool(settlement.get("provider_reached"))
+    out["quota_counted"] = bool(settlement.get("quota_counted"))
+    if out.get("retriable"):
+        out["retry_after_s"] = max(
+            float(out.get("retry_after_s") or 0.0),
+            float(settlement.get("retry_after_s") or 0.0),
+        )
+    record_usage(
+        "text",
+        provider,
+        out["model"],
+        bool(out.get("success")),
+        out["latency_ms"],
+        source,
+        out.get("error"),
+        error_code=str(out.get("error_code") or ""),
+        provider_reached=out["provider_reached"],
+        quota_counted=out["quota_counted"],
+        context=context,
+    )
     return out
 
 

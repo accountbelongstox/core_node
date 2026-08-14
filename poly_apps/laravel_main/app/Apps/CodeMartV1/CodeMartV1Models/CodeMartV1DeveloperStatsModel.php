@@ -1,7 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 
 class CodeMartV1DeveloperStatsModel extends Model
 {
@@ -24,4 +25,9 @@ class CodeMartV1DeveloperStatsModel extends Model
         'total_earnings' => 'decimal:2',
         'on_time_delivery_rate' => 'decimal:2',
     ];
+
+    public static function forUser(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
 }

@@ -65,9 +65,7 @@ class AppQyV1WordGroupWordController
             $wordIds = [$wordId];
         }
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -79,9 +77,7 @@ class AppQyV1WordGroupWordController
             // Serialize concurrent membership writes for the same group: the
             // group row lock plus the single-row JSON write keep the merge
             // race-safe (the progress row is keyed by the same group).
-            AppQyV1WordGroupModel::where('id', $group->id)
-                ->lockForUpdate()
-                ->first();
+            AppQyV1WordGroupModel::lockById((int) $group->id);
 
             $languageCode = self::resolveGroupLanguageCode($group);
             $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($user->id, $group->id, $languageCode);
@@ -111,9 +107,7 @@ class AppQyV1WordGroupWordController
             // group's language (single language per group) selects the table.
             $weights = [];
             $validIds = [];
-            $rows = AppQyV1LangDictionaryModel::forLanguage($languageCode)
-                ->whereIn('id', $wordsToAdd)
-                ->get(['id', 'content']);
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, $wordsToAdd, ['id', 'content']);
             foreach ($rows as $row) {
                 $validIds[] = (int) $row->id;
                 $weights[(int) $row->id] = strlen((string) $row->content);
@@ -127,7 +121,7 @@ class AppQyV1WordGroupWordController
             $assignRandomPosition = ($group->gname === DGroupAPublic::$default_group_name);
             $addedCount = $progressRow->putWords($validIds, (string) now(), $weights, $assignRandomPosition);
             if ($addedCount > 0) {
-                $progressRow->save();
+                $progressRow->saveRecord();
             }
 
             return $this->success([
@@ -169,9 +163,7 @@ class AppQyV1WordGroupWordController
             $wordIds = [$wordId];
         }
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -186,7 +178,7 @@ class AppQyV1WordGroupWordController
             if ($progressRow) {
                 $removedCount = $progressRow->removeWords($wordIds);
                 if ($removedCount > 0) {
-                    $progressRow->save();
+                    $progressRow->saveRecord();
                 }
             }
 
@@ -229,9 +221,7 @@ class AppQyV1WordGroupWordController
         $unreadOnly = (bool) $request->input('unread_only', false);
         $limit = (int) $request->input('limit', 0);
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -240,7 +230,7 @@ class AppQyV1WordGroupWordController
         }
 
         // ONE row read: the whole membership + progress map.
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
 
         // For the Default Vocabulary Group, ensure the one-time shuffle has
         // been applied before reading the order (design §5.3 R2). Wrapped

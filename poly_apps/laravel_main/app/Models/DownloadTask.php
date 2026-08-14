@@ -11,10 +11,13 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\UsesMainConnection;
+use App\Models\Model;
 
 class DownloadTask extends Model
 {
+    use UsesMainConnection;
+
     protected $fillable = [
         'url',
         'save_path',
@@ -38,5 +41,10 @@ class DownloadTask extends Model
             return round(($this->downloaded_size / $this->total_size) * 100);
         }
         return 0;
+    }
+
+    public static function newestFirst()
+    {
+        return self::query()->orderByDesc('created_at')->get();
     }
 } 

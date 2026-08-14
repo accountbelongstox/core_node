@@ -11,46 +11,35 @@
  * lightweight `/api/health` endpoint (laravel_main returns `{status:'healthy'}`),
  * reads the status, and reports whether the API is genuinely healthy.
  */
-export function initApiHealthListener() {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== 'api_health_check') return;
+import { fetchWithTimeout } from '@/utils/async';
+import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
 
+export function initApiHealthListener() {
+  registerRuntimeMessageHandler('api_health_check', async (message: any) => {
     const base = String(message.url || '').trim().replace(/\/+$/, '');
     const timeoutMs = Number(message.timeoutMs) > 0 ? Number(message.timeoutMs) : 3000;
-
-    (async () => {
-      const started = Date.now();
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        // Real read (CORS bypassed in the background). /api/health is tiny JSON.
-        const res = await fetch(`${base}/api/health`, {
-          method: 'GET',
-          signal: controller.signal,
-          cache: 'no-store',
-        });
-        const responseTime = Date.now() - started;
-        sendResponse({
-          ok: true,
-          reachable: true,
-          healthy: res.ok, // a real 2xx from /api/health => the API truly works
-          status: res.status,
-          responseTime,
-        });
-      } catch (error: any) {
-        sendResponse({
-          ok: false,
-          reachable: false,
-          healthy: false,
-          error: error?.message || 'unreachable',
-          responseTime: Date.now() - started,
-        });
-      } finally {
-        clearTimeout(timer);
-      }
-    })();
-
-    return true; // async sendResponse
+    const started = Date.now();
+    try {
+      const response = await fetchWithTimeout(`${base}/api/health`, timeoutMs, {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      return {
+        ok: true,
+        reachable: true,
+        healthy: response.ok,
+        status: response.status,
+        responseTime: Date.now() - started,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        reachable: false,
+        healthy: false,
+        error: toErrorMessage(error) || 'unreachable',
+        responseTime: Date.now() - started,
+      };
+    }
   });
 
   console.log('[API Health Listener] Initialized');

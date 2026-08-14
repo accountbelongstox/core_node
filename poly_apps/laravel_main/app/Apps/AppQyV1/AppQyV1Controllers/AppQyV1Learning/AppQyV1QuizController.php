@@ -69,27 +69,11 @@ class AppQyV1QuizController extends Controller
 
         $nativeLang = $this->resolveNativeLanguage($user);
 
-        $candidatePool = AppQyV1UserLearningProgressModel::where('user_id', $userId)
-            ->where('lang_code', $language)
-            ->whereIn('learning_status', ['learning', 'reviewing', 'mastered'])
-            // Cross-DB "NULLS LAST then ascending" trick: (col IS NULL) sorts non-null
-            // first (boolean 0) before null (1), then by col ASC. Valid on both sqlite
-            // and pgsql; do NOT switch to "NULLS LAST" (sqlite does not support it).
-            ->dueFirst()
-            ->limit(200)
-            ->get();
-
-        if ($candidatePool->count() < ($count + 3)) {
-            $newWords = AppQyV1UserLearningProgressModel::where('user_id', $userId)
-                ->where('lang_code', $language)
-                ->where('learning_status', 'new')
-                ->orderBy('created_at')
-                ->limit(200)
-                ->get();
-            $candidatePool = $candidatePool->concat($newWords);
-        }
-
-        $candidatePool = $candidatePool->unique('word_md5')->values();
+        $candidatePool = AppQyV1UserLearningProgressModel::quizCandidates(
+            $userId,
+            $language,
+            $count + 3
+        );
 
         $meaningByMd5 = [];
         $wordByMd5 = [];

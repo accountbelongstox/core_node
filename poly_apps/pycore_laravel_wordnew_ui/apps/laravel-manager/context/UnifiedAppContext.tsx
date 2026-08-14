@@ -26,6 +26,7 @@ import {
 } from '../routing/viewRoute';
 import { userModel } from '../models';
 import { getAuthErrorMessage } from '../utils/authErrors';
+import { useShell } from '../../../shell/ShellContext';
 import { UnifiedAppContext } from './unifiedAppContext.core';
 import type { UnifiedAppContextType, UnifiedAppState } from './unifiedAppContext.core';
 
@@ -34,8 +35,6 @@ import type { UnifiedAppContextType, UnifiedAppState } from './unifiedAppContext
  */
 const DEFAULT_STATE: UnifiedAppState = {
   activeView: ViewType.MEDIA_BROWSER,
-  lang: 'en',
-  theme: 'dark',
   UnifiedUser: null,
   isLoggedIn: false,
   preferences: {
@@ -46,34 +45,6 @@ const DEFAULT_STATE: UnifiedAppState = {
   },
   loading: false,
   error: null
-};
-
-/**
- * Supported UI languages (the config lives in code, never env vars).
- */
-const SUPPORTED_LANGS: Language[] = ['en', 'zh'];
-
-/**
- * Read an explicit language from the URL — this is the channel the host (pycore)
- * uses to notify the shell of a language change. Supports both the path-routed
- * ends (`…?lang=zh`) and the hash-routed ends (`…#/ai-tools?lang=zh`). Returns
- * null when absent or not a supported language. No environment variables.
- */
-const readLangFromUrl = (): Language | null => {
-  if (typeof window === 'undefined' || !window.location) return null;
-  try {
-    const { search, hash } = window.location;
-    const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?')) : '';
-    const candidate =
-      new URLSearchParams(search).get('lang') ||
-      new URLSearchParams(hashQuery).get('lang');
-    if (candidate && (SUPPORTED_LANGS as string[]).includes(candidate)) {
-      return candidate as Language;
-    }
-  } catch {
-    /* malformed URL — ignore */
-  }
-  return null;
 };
 
 /**
@@ -90,14 +61,8 @@ const loadStateFromStorage = (): UnifiedAppState => {
     // remembers something else. Unknown / absent hash falls through to the
     // saved view, then the default.
     const fromUrl = readViewFromHash();
-    // Language is likewise URL-driven (pycore notifies via `?lang=`); it wins
-    // over the stored preference and the default.
-    const langFromUrl = readLangFromUrl();
-
     return {
       activeView: fromUrl ?? saved.activeView ?? DEFAULT_STATE.activeView,
-      lang: langFromUrl ?? saved.lang ?? DEFAULT_STATE.lang,
-      theme: saved.theme || DEFAULT_STATE.theme,
       UnifiedUser: savedUser,
       isLoggedIn: !!savedUser,
       preferences: savedPreferences,
@@ -117,8 +82,6 @@ const saveStateToStorage = (state: UnifiedAppState): void => {
   try {
     StorageManager.set(StorageKeys.APP_STATE, {
       activeView: state.activeView,
-      lang: state.lang,
-      theme: state.theme
     });
 
     if (state.UnifiedUser) {
@@ -146,6 +109,9 @@ interface UnifiedAppProviderProps {
  * Unified App Provider
  */
 export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children }) => {
+  const { dark, lang: shellLanguage, setDark, setLang: setShellLanguage } = useShell();
+  const language: Language = shellLanguage === 'zh' ? 'zh' : 'en';
+  const theme: Theme = dark ? 'dark' : 'light';
   const [state, setState] = useState<UnifiedAppState>(() => {
     const loadedState = loadStateFromStorage();
     console.log('[UnifiedAppContext] Initial state loaded:', loadedState);
@@ -181,17 +147,6 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     saveStateToStorage(state);
   }, [state]);
 
-  // Apply theme to DOM
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (state.theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    console.log('[UnifiedAppContext] Theme applied:', state.theme);
-  }, [state.theme]);
-
   // ── Routing: activeView ⇄ URL hash ─────────────────────────────────
   // Every `setActiveView` call (sidebar click, deep nav, programmatic) flows
   // through this single context, so wiring the URL here means every route
@@ -209,22 +164,6 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
     });
   }, []);
 
-  // pycore can switch the language at runtime by updating the URL (`?lang=zh`,
-  // or `#/…?lang=zh` on the hash-routed ends): apply it live, mirroring the
-  // view hash-listener above. No env vars, no polling — URL is the channel.
-  useEffect(() => {
-    const applyLangFromUrl = () => {
-      const next = readLangFromUrl();
-      if (next) setState(prev => (prev.lang === next ? prev : { ...prev, lang: next }));
-    };
-    window.addEventListener('popstate', applyLangFromUrl);
-    window.addEventListener('hashchange', applyLangFromUrl);
-    return () => {
-      window.removeEventListener('popstate', applyLangFromUrl);
-      window.removeEventListener('hashchange', applyLangFromUrl);
-    };
-  }, []);
-
   // Set active view
   const setActiveView = useCallback((view: ViewType) => {
     setState(prev => ({ ...prev, activeView: view }));
@@ -233,7 +172,7 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
 
   // Set language with optional reload
   const setLang = useCallback((lang: Language, reload = false) => {
-    setState(prev => ({ ...prev, lang }));
+    setShellLanguage(lang);
     console.log('[UnifiedAppContext] Language changed to:', lang);
 
     if (reload) {
@@ -242,11 +181,11 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
         window.location.reload();
       }, 300);
     }
-  }, []);
+  }, [setShellLanguage]);
 
   // Set theme with optional reload
   const setTheme = useCallback((theme: Theme, reload = false) => {
-    setState(prev => ({ ...prev, theme }));
+    setDark(theme === 'dark');
     console.log('[UnifiedAppContext] Theme changed to:', theme);
 
     if (reload) {
@@ -255,35 +194,29 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
         window.location.reload();
       }, 300);
     }
-  }, []);
+  }, [setDark]);
 
   // Toggle theme
   const toggleTheme = useCallback((reload = false) => {
-    setState(prev => ({
-      ...prev,
-      theme: prev.theme === 'dark' ? 'light' : 'dark'
-    }));
+    setDark(!dark);
 
     if (reload) {
       setTimeout(() => {
         window.location.reload();
       }, 300);
     }
-  }, []);
+  }, [dark, setDark]);
 
   // Toggle language
   const toggleLang = useCallback((reload = false) => {
-    setState(prev => ({
-      ...prev,
-      lang: prev.lang === 'en' ? 'zh' : 'en'
-    }));
+    setShellLanguage(language === 'en' ? 'zh' : 'en');
 
     if (reload) {
       setTimeout(() => {
         window.location.reload();
       }, 300);
     }
-  }, []);
+  }, [language, setShellLanguage]);
 
   // Login
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
@@ -306,12 +239,12 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
       return true;
     } catch (err: any) {
       const errorCode = err.errorCode as string | undefined;
-      const displayMessage = getAuthErrorMessage(errorCode, err.message || 'Login failed', stateRef.current.lang);
+      const displayMessage = getAuthErrorMessage(errorCode, err.message || 'Login failed', language);
       setState(prev => ({ ...prev, loading: false, error: displayMessage }));
       console.error('[UnifiedAppContext] Login failed:', displayMessage);
       return false;
     }
-  }, []);
+  }, [language]);
 
   // Register
   const register = useCallback(async (
@@ -436,11 +369,13 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
   // Reset all
   const resetAll = useCallback(() => {
     setState(DEFAULT_STATE);
+    setShellLanguage('en');
+    setDark(true);
     StorageManager.remove(StorageKeys.APP_STATE);
     StorageManager.remove(StorageKeys.USER);
     StorageManager.remove(StorageKeys.SETTINGS);
     console.log('[UnifiedAppContext] All state reset');
-  }, []);
+  }, [setDark, setShellLanguage]);
 
   // Subscribe to storage events for cross-tab sync
   useEffect(() => {
@@ -467,8 +402,8 @@ export const UnifiedAppProvider: React.FC<UnifiedAppProviderProps> = ({ children
   const value: UnifiedAppContextType = {
     // State
     activeView: state.activeView,
-    lang: state.lang,
-    theme: state.theme,
+    lang: language,
+    theme,
     UnifiedUser: state.UnifiedUser,
     isLoggedIn: state.isLoggedIn,
     preferences: state.preferences,

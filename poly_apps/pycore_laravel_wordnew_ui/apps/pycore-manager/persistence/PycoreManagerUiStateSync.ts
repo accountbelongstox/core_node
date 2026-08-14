@@ -6,7 +6,7 @@ import {
   PYCORE_HEALTH_EVENT,
   PYCORE_HTTP_ROUTES,
   requestPycoreHttp,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 import {
   RevisionedStorageReplica,
   STORAGE_MANAGER_CHANGED_EVENT,

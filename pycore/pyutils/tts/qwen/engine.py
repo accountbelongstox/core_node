@@ -24,8 +24,8 @@ Config:
 """
 
 import base64
+import hashlib
 import os
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -103,6 +103,15 @@ def get_queue_status() -> Optional[Dict[str, Any]]:
     return info if ok and isinstance(info, dict) and info.get("ok") else None
 
 
+def queue_healthy() -> bool:
+    snapshot = get_queue_status()
+    return bool(
+        snapshot
+        and snapshot.get("consumer_running") is True
+        and not snapshot.get("stalled")
+    )
+
+
 def model_loaded() -> bool:
     return is_model_loaded()
 
@@ -153,11 +162,10 @@ def synthesize_queued(
     output_path: Path,
     client_job_id: Optional[str] = None,
     timeout: float = _REQUEST_TIMEOUT_S,
-    priority: int = 0,
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
 ) -> bool:
-    """Submit through the service queue, wait by HTTP long poll, and write audio."""
+    """Submit through the FIFO service queue, long poll, and write audio."""
 
     _LAST_SYNTH_ERROR.set(None)
     cleaned = (text or "").strip()
@@ -165,12 +173,20 @@ def synthesize_queued(
         _LAST_SYNTH_ERROR.set("empty text")
         return False
     output = Path(output_path)
-    stable_id = str(client_job_id or "").strip() or uuid.uuid4().hex
+    identity = "\x1f".join((
+        cleaned,
+        lang or "en",
+        _fmt_for(output),
+        str(speaker or "").strip(),
+        str(instruct or "").strip(),
+    ))
+    stable_id = str(client_job_id or "").strip() or (
+        f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+    )
     payload: Dict[str, Any] = {
         "text": cleaned,
         "language": lang or "en",
         "format": _fmt_for(output),
-        "priority": int(priority),
     }
     if (speaker or "").strip():
         payload["speaker"] = speaker
@@ -255,6 +271,7 @@ __all__ = [
     "get_capabilities",
     "get_status",
     "get_queue_status",
+    "queue_healthy",
     "health",
     "load_model",
     "unload_model",

@@ -3,7 +3,7 @@
  * under the 800-line modular limit. */
 import React from 'react';
 import { Search, ShieldCheck, LogIn, Settings } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewSuperAdminStatus } from '../api';
 import { WfNewNavLogo } from './WfNewNavLogo';
 import { WfNewNotificationBell } from './WfNewNotificationBell';

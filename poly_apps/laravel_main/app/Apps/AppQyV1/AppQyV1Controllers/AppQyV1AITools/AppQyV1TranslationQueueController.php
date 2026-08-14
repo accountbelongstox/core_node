@@ -17,15 +17,13 @@ use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationRealtimeService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Events\TranslationTaskQueuedEvent;
-use App\Events\TranslationTaskPriorityEvent;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Word Translation Queue Controller
@@ -36,7 +34,7 @@ use Illuminate\Support\Facades\Log;
  * word whether a translation already exists in the dictionary.
  *
  * Consumers of the created tasks (atomic claim, no double work):
- *   - pycore worker  (Google, processor_types ["remote_translation"])
+ *   - mcp-chrome worker (processor_types ["remote_translation"])
  *   - Laravel AI self-filler timer (AppQyV1WordTranslationFillerTask)
  * Both write back through WordTranslationTaskProcessor.
  */
@@ -65,10 +63,15 @@ class AppQyV1TranslationQueueController extends Controller
     private const WORDS_PER_TASK = 40;
 
     private $taskManager;
+    private AppQyV1TranslationRealtimeService $realtime;
 
-    public function __construct(TaskManagerService $taskManager)
+    public function __construct(
+        TaskManagerService $taskManager,
+        AppQyV1TranslationRealtimeService $realtime
+    )
     {
         $this->taskManager = $taskManager;
+        $this->realtime = $realtime;
     }
 
     /**
@@ -93,13 +96,13 @@ class AppQyV1TranslationQueueController extends Controller
             'target_language' => 'required|string',
             // FE fast-track: a user-initiated single lookup sends interactive=true
             // so the new task lands on the shared remote_fast lane (capability
-            // 'translate') at the FAST priority tier, claimable by either client.
+            // 'translate') at the FAST priority tier, claimable by mcp-chrome.
             'interactive' => 'nullable|boolean',
             // Opt-in translation engine. 'google' (default) keeps the existing
             // Google/Bing-eligible path (capability 'translate'). 'ai' tags the
-            // interactive task with capability 'ai_translate' instead, so the
-            // first idle pycore OR chrome client that advertises ai_translate
-            // wins the race. task_type stays 'word_translation' either way.
+            // interactive task with capability 'ai_translate' instead. Both
+            // capabilities remain mcp-chrome-owned; task_type stays
+            // 'word_translation' either way.
             'engine' => 'nullable|string|in:google,ai',
         ]);
 
@@ -173,9 +176,11 @@ class AppQyV1TranslationQueueController extends Controller
         foreach ($words as $word) {
             $md5ByWord[$word] = md5($word);
         }
-        $existing = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->whereIn('md5', array_values($md5ByWord))
-            ->get(['md5', 'translations', 'is_valid'])
+        $existing = AppQyV1LangDictionaryModel::rowsByHashes(
+            $langCode,
+            array_values($md5ByWord),
+            ['md5', 'translations', 'is_valid']
+        )
             ->keyBy('md5');
 
         $now = now();
@@ -193,7 +198,7 @@ class AppQyV1TranslationQueueController extends Controller
             }
         }
         if (!empty($missingRows)) {
-            AppQyV1LangDictionaryModel::forLanguage($langCode)->insertOrIgnore($missingRows);
+            AppQyV1LangDictionaryModel::insertRows($langCode, $missingRows);
             AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
         }
 
@@ -287,9 +292,11 @@ class AppQyV1TranslationQueueController extends Controller
                 $md5ByWord[$word] = md5($word);
             }
         }
-        $existing = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->whereIn('md5', array_values($md5ByWord))
-            ->get(['md5', 'translations'])
+        $existing = AppQyV1LangDictionaryModel::rowsByHashes(
+            $langCode,
+            array_values($md5ByWord),
+            ['md5', 'translations']
+        )
             ->keyBy('md5');
 
         $results = [];
@@ -362,10 +369,6 @@ class AppQyV1TranslationQueueController extends Controller
         // (status, count(*) ... GROUP BY status) instead of five counts. The
         // `items` page query below stays live (uncached). Response shape (keys
         // pending/processing/completed/failed/total) is byte-identical.
-        $base = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation');
-
         $grouped = GlobalTask::cachedStatusCounts(
             'appqyv1:wordtrans_queue_summary',
             8,
@@ -407,18 +410,6 @@ class AppQyV1TranslationQueueController extends Controller
         // Queue Center contract; unknown/empty status returns all. The status
         // filter is applied to a base BEFORE counting so the pagination total
         // matches exactly what the (status-filtered) page draws from.
-        $pageQuery = (clone $base);
-        if (isset($validated['status']) && $validated['status'] !== '') {
-            $status = $validated['status'];
-            if ($status === 'processing') {
-                $pageQuery->where('status', GlobalTask::status('processing'));
-            } elseif ($status === 'completed') {
-                $pageQuery->whereIn('status', [GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
-            } else {
-                $pageQuery->where('status', $status);
-            }
-        }
-
         $requestedStatus = $validated['status'] ?? '';
         $summaryTotalKey = match ($requestedStatus) {
             'pending' => 'pending',
@@ -429,20 +420,26 @@ class AppQyV1TranslationQueueController extends Controller
             '' => 'total',
             default => null,
         };
+        $statuses = match ($requestedStatus) {
+            'completed' => [GlobalTask::status('completed'), GlobalTask::status('completed_demo')],
+            '' => [],
+            default => [$requestedStatus],
+        };
+        $page = GlobalTask::filteredPageForAppType(
+            'AppQyV1',
+            'word_translation',
+            $statuses,
+            $offset,
+            $limit,
+            ['task_id', 'payload', 'priority', 'status', 'created_at', 'assigned_to']
+        );
         $filteredTotal = $summaryTotalKey !== null
             ? (int) ($summary[$summaryTotalKey] ?? 0)
-            : (clone $pageQuery)->count();
-
-        $query = $pageQuery
-            ->select(['task_id', 'payload', 'priority', 'status', 'created_at', 'assigned_to'])
-            ->orderBy('priority', 'desc')
-            ->orderBy('created_at', 'asc')
-            ->offset($offset)
-            ->limit($limit);
+            : (int) $page['total'];
 
         $now = now();
         $items = [];
-        foreach ($query->get() as $task) {
+        foreach ($page['rows'] as $task) {
             $payload = $task->payload;
             if (!is_array($payload)) {
                 $payload = [];
@@ -598,14 +595,7 @@ class AppQyV1TranslationQueueController extends Controller
         $processing = $leased + (int) ($activity[GlobalTask::status('processing')] ?? 0);
 
         // The requested page of untranslated words to preview (most-queried first).
-        $pageWords = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('has_translation', false)
-            ->where('is_valid', true)
-            ->orderBy('query_count', 'desc')
-            ->offset($offset)
-            ->limit($limit)
-            ->pluck('content')
-            ->all();
+        $pageWords = AppQyV1LangDictionaryModel::untranslatedContents($langCode, $offset, $limit);
 
         // One synthetic batch item per page so the existing panel (which renders
         // item.words) shows the untranslated words without any UI change.
@@ -697,13 +687,7 @@ class AppQyV1TranslationQueueController extends Controller
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($language);
 
-        $words = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('has_translation', false)
-            ->where('is_valid', true)
-            ->orderBy('query_count', 'desc')
-            ->limit($limit)
-            ->pluck('content')
-            ->all();
+        $words = AppQyV1LangDictionaryModel::untranslatedContents($langCode, 0, $limit);
 
         if (empty($words)) {
             return $this->success([
@@ -756,34 +740,32 @@ class AppQyV1TranslationQueueController extends Controller
             $offset = 0;
         }
 
-        $base = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation');
-
-        // Terminal-only by default (completed + failed); a status filter narrows it.
+        $statuses = [];
         if (isset($validated['status']) && $validated['status'] !== '') {
             if ($validated['status'] === 'completed') {
-                $base->whereIn('status', [GlobalTask::status('completed'), GlobalTask::status('completed_demo')]);
+                $statuses = [GlobalTask::status('completed'), GlobalTask::status('completed_demo')];
             } else {
-                $base->where('status', $validated['status']);
+                $statuses = [$validated['status']];
             }
         } else {
-            $base->whereIn('status', [
+            $statuses = [
                 GlobalTask::status('completed'),
                 GlobalTask::status('completed_demo'),
                 GlobalTask::status('failed'),
-            ]);
+            ];
         }
 
-        $filteredTotal = (clone $base)->count();
-
-        // Newest first by insert order (id is monotonic) — portable across PG /
-        // sqlite and free of NULL-ordering surprises on completed_at.
-        $rows = (clone $base)
-            ->orderByDesc('id')
-            ->offset($offset)
-            ->limit($limit)
-            ->get();
+        $page = GlobalTask::filteredPageForAppType(
+            'AppQyV1',
+            'word_translation',
+            $statuses,
+            $offset,
+            $limit,
+            ['*'],
+            true
+        );
+        $filteredTotal = (int) $page['total'];
+        $rows = $page['rows'];
 
         $items = [];
         foreach ($rows as $task) {
@@ -874,11 +856,11 @@ class AppQyV1TranslationQueueController extends Controller
             $priority = self::PRIORITY_MAX;
         }
 
-        $task = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->where('task_id', $validated['task_id'])
-            ->first();
+        $task = GlobalTask::findForAppTypeByTaskId(
+            'AppQyV1',
+            'word_translation',
+            $validated['task_id']
+        );
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -886,12 +868,9 @@ class AppQyV1TranslationQueueController extends Controller
 
         $oldPriority = (int) $task->priority;
         $task->priority = $priority;
-        $task->save();
+        $task->saveRecord();
 
-        // Real-time re-order hint for pycore workers (Phase-C `task.priority`).
-        $this->broadcastSafely(static function () use ($task, $priority, $oldPriority) {
-            event(new TranslationTaskPriorityEvent($task->task_id, $priority, $oldPriority));
-        }, 'task.priority', ['task_id' => $task->task_id]);
+        $this->realtime->priority($task->task_id, $priority, $oldPriority);
 
         return $this->success([
             'task_id' => $task->task_id,
@@ -990,13 +969,12 @@ class AppQyV1TranslationQueueController extends Controller
         // THIS (language, target) pair rather than every pending word_translation
         // task. The (app_name, task_type, status) predicate is index-backed; the
         // JSON predicate then runs on that narrow subset in the DB.
-        $tasks = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->where('status', GlobalTask::status('pending'))
-            ->where('payload->language', $langCode)
-            ->where('payload->target_language', $targetCode)
-            ->get(['task_id', 'payload']);
+        $tasks = GlobalTask::pendingPayloadTasksForPair(
+            'AppQyV1',
+            'word_translation',
+            $langCode,
+            $targetCode
+        );
 
         foreach ($tasks as $task) {
             $payload = $task->payload;
@@ -1022,23 +1000,17 @@ class AppQyV1TranslationQueueController extends Controller
 
     private function bumpTaskPriority(string $taskId, int $priority): void
     {
-        $updated = GlobalTask::query()
-            ->where('task_id', $taskId)
-            ->where('status', GlobalTask::status('pending'))
-            ->where('priority', '<', $priority)
-            ->update(['priority' => $priority]);
+        $updated = GlobalTask::raisePendingPriority($taskId, $priority);
 
         // Only signal when a row was actually bumped (Phase-C `task.priority`).
         if ($updated > 0) {
-            $this->broadcastSafely(static function () use ($taskId, $priority) {
-                event(new TranslationTaskPriorityEvent($taskId, $priority));
-            }, 'task.priority', ['task_id' => $taskId]);
+            $this->realtime->priority($taskId, $priority);
         }
     }
 
     /**
      * Create a single word_translation global task. Payload matches the shared
-     * contract so pycore and the self-filler can both consume it.
+     * contract so mcp-chrome and the Laravel fallback can consume it.
      */
     private function createWordTranslationTask(
         string $language,
@@ -1069,11 +1041,10 @@ class AppQyV1TranslationQueueController extends Controller
         ];
 
         // interactive=true promotes the task onto the shared remote_fast lane at
-        // the FAST priority tier inside createTask, so both the pycore and chrome
-        // clients can claim it immediately. The capability tag narrows WHICH
-        // client may claim it: engine='ai' tags it 'ai_translate' (both clients
-        // advertise it -> intelligent first-idle-wins), otherwise the default
-        // 'translate' (Google/Bing-eligible) path is kept unchanged. A
+        // the FAST priority tier inside createTask so mcp-chrome can claim it
+        // immediately. The capability tag selects the browser execution mode:
+        // engine='ai' tags it 'ai_translate'; otherwise the default 'translate'
+        // (Google/Bing-eligible) path is kept unchanged. A
         // non-interactive task carries no capability (any-eligible backfill).
         $capability = null;
         if ($interactive) {
@@ -1093,37 +1064,15 @@ class AppQyV1TranslationQueueController extends Controller
             $capability
         );
 
-        // Real-time wake-up for pycore workers (Phase-C `task.queued`). Reverb is
-        // the signaling layer only; the HTTP pull/claim flow stays the work
-        // transport, so a broadcast failure must never break enqueue.
-        $this->broadcastSafely(static function () use ($task, $words, $langCode, $targetCode, $priority) {
-            event(new TranslationTaskQueuedEvent(
-                $task->task_id,
-                array_values($words),
-                $langCode,
-                $targetCode,
-                $priority
-            ));
-        }, 'task.queued', ['task_id' => $task->task_id]);
+        $this->realtime->queued(
+            $task->task_id,
+            $words,
+            $langCode,
+            $targetCode,
+            $priority
+        );
 
         return $task;
-    }
-
-    /**
-     * Run a broadcast closure best-effort. Broadcasting is a non-blocking signal
-     * on top of the reliable HTTP transport, so any failure (Reverb down, etc.)
-     * is logged and swallowed rather than allowed to fail the HTTP request.
-     */
-    private function broadcastSafely(callable $broadcast, string $eventName, array $context = []): void
-    {
-        try {
-            $broadcast();
-        } catch (\Throwable $e) {
-            Log::warning('[TranslationQueue] broadcast failed', array_merge($context, [
-                'event' => $eventName,
-                'error' => $e->getMessage(),
-            ]));
-        }
     }
 
     /**

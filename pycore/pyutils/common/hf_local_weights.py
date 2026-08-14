@@ -31,7 +31,7 @@ import os
 import urllib.error
 import urllib.request
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Sequence, Tuple
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
 
@@ -51,6 +51,14 @@ def weights_dir(staging: Path) -> Path:
     return staging / "weights"
 
 
+def configured_weights_dir(env_var: str, staging: Path) -> Path:
+    """Resolve an optional model-directory override without changing staging ownership."""
+    explicit = (os.environ.get(env_var) or "").strip()
+    if explicit:
+        return Path(explicit)
+    return weights_dir(staging)
+
+
 def sentinel_model_id(staging: Optional[Path] = None) -> Optional[str]:
     """Read .model_installed sentinel; returns the repo id that was staged, or None."""
     root = staging if staging is not None else Path()
@@ -59,6 +67,37 @@ def sentinel_model_id(staging: Optional[Path] = None) -> Optional[str]:
         return None
     value = sentinel.read_text(encoding="utf-8-sig").strip()
     return value or None
+
+
+def required_files_ready(root: Path, relative_paths: Sequence[str]) -> bool:
+    """Validate one engine's exact local model manifest without network access."""
+    for relative_path in relative_paths:
+        path = root / relative_path
+        if not path.is_file() or path.stat().st_size <= 0:
+            return False
+    return True
+
+
+def load_required_file_manifest(path: Path) -> Tuple[str, ...]:
+    """Load a shared installer/runtime model manifest without probing the network."""
+    entries = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        value = line.strip()
+        if value and not value.startswith("#"):
+            entries.append(value)
+    return tuple(entries)
+
+
+def installed_model_files_ready(
+    staging: Path,
+    model_root: Path,
+    relative_paths: Sequence[str],
+) -> bool:
+    """Require the installer sentinel and the engine's exact local file manifest."""
+    return bool(
+        sentinel_model_id(staging)
+        and required_files_ready(model_root, relative_paths)
+    )
 
 
 def _hf_mirror_bases() -> list:
@@ -214,12 +253,16 @@ def resolve_model_id(env_var: str, subdir: str, default_repo: str, static_sizes:
 __all__ = [
     "WEIGHT_SUFFIXES",
     "catalog_bytes",
+    "configured_weights_dir",
     "staging_dir",
     "weights_dir",
     "sentinel_model_id",
     "hf_repo_catalog",
     "local_weights_ready",
+    "installed_model_files_ready",
+    "load_required_file_manifest",
     "local_weights_dir",
     "resolve_model_id",
+    "required_files_ready",
     "safetensors_readable",
 ]

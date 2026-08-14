@@ -160,12 +160,12 @@ class DingDuoDuoV1Initializer implements AppInitializerInterface
                 return $this->allTablesExist();
             }
             if ($step === 'seed_recharge_config') {
-                return DingDuoDuoV1RechargeConfigModel::query()->count() > 0;
+                return DingDuoDuoV1RechargeConfigModel::anyExists();
             }
             if ($step === 'seed_master_codes') {
-                return DingDuoDuoV1SuperCodeModel::query()
-                    ->whereIn('code', DingDuoDuoV1SuperCodeService::MASTER_CODES)
-                    ->count() === count(DingDuoDuoV1SuperCodeService::MASTER_CODES);
+                return DingDuoDuoV1SuperCodeModel::countMatchingCodes(
+                    DingDuoDuoV1SuperCodeService::MASTER_CODES
+                ) === count(DingDuoDuoV1SuperCodeService::MASTER_CODES);
             }
         } catch (\Throwable $e) {
             return true;
@@ -221,11 +221,11 @@ class DingDuoDuoV1Initializer implements AppInitializerInterface
     private function seedRechargeConfig(): array
     {
         try {
-            if (DingDuoDuoV1RechargeConfigModel::query()->count() > 0) {
+            if (DingDuoDuoV1RechargeConfigModel::anyExists()) {
                 return ['status' => 'success', 'message' => 'Recharge config already present'];
             }
 
-            DingDuoDuoV1RechargeConfigModel::query()->create([
+            DingDuoDuoV1RechargeConfigModel::createRecord([
                 'provider' => DingDuoDuoV1Constants::DEFAULT_PROVIDER,
                 'enabled' => true,
                 'packages' => DingDuoDuoV1Constants::DEFAULT_PACKAGES,
@@ -248,13 +248,13 @@ class DingDuoDuoV1Initializer implements AppInitializerInterface
             $existing = 0;
 
             foreach (DingDuoDuoV1SuperCodeService::MASTER_CODES as $code) {
-                $row = DingDuoDuoV1SuperCodeModel::query()->where('code', $code)->first();
+                $row = DingDuoDuoV1SuperCodeModel::findByCode($code);
                 if ($row) {
                     $existing++;
                     continue;
                 }
 
-                DingDuoDuoV1SuperCodeModel::query()->create([
+                DingDuoDuoV1SuperCodeModel::createRecord([
                     'code' => $code,
                     'label' => 'Master Code',
                     'tier' => DingDuoDuoV1Constants::TIER_UNLIMITED,

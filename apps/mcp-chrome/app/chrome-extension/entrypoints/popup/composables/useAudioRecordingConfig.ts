@@ -1,7 +1,9 @@
 import { ref } from 'vue';
 import { getMessage } from '@/utils/i18n';
 import { localStorage } from '@/services/ExtensionStorage';
+import { InitializationController } from '@/utils/async';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { toErrorMessage } from '@/utils/errors';
 
 export interface AudioApiServer {
   id: string;
@@ -46,7 +48,7 @@ const backgroundStreaming = ref<BackgroundStreamingSettings>({ enabled: false })
 const sessionMetadataText = ref('');
 const sessionMetadata = ref<Record<string, unknown>>({});
 const sessionMetadataError = ref('');
-let initialization: Promise<void> | null = null;
+const initialization = new InitializationController<void>();
 let unsubscribe: (() => void) | null = null;
 
 function applyConfig(config?: StoredAudioRecordingConfig): void {
@@ -77,7 +79,7 @@ function applyConfig(config?: StoredAudioRecordingConfig): void {
 }
 
 async function initialize(): Promise<void> {
-  initialization ??= (async () => {
+  await initialization.run(async () => {
     applyConfig(
       await localStorage.getOptional<StoredAudioRecordingConfig>(
         STORAGE_KEYS.AUDIO_RECORDING_CONFIG,
@@ -87,8 +89,7 @@ async function initialize(): Promise<void> {
       STORAGE_KEYS.AUDIO_RECORDING_CONFIG,
       applyConfig,
     );
-  })();
-  await initialization;
+  });
 }
 
 function updateSessionMetadata(alertOnError = false): boolean {
@@ -108,7 +109,7 @@ function updateSessionMetadata(alertOnError = false): boolean {
     sessionMetadataError.value = '';
     return true;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Invalid JSON';
+    const message = toErrorMessage(error) || 'Invalid JSON';
     sessionMetadataError.value = message;
     if (alertOnError) alert(getMessage('invalidJsonError', [message]));
     return false;
@@ -168,7 +169,7 @@ export function useAudioRecordingConfig() {
     dispose: () => {
       unsubscribe?.();
       unsubscribe = null;
-      initialization = null;
+      initialization.reset();
     },
   };
 }

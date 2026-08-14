@@ -1,5 +1,5 @@
 /** PDD Manager-owned API boundary over the shared Laravel transport. */
-import { createLaravelModuleConfig } from '../../../core/api-libs/laravel/transport/ApiContract';
+import { createLaravelModuleConfig } from '../../../core/integrations/laravel/transport/ApiContract';
 import { PddAdminAPI } from './PddAdminAPI';
 
 const pddAdmin = new PddAdminAPI(createLaravelModuleConfig('/api/pdd/admin'));

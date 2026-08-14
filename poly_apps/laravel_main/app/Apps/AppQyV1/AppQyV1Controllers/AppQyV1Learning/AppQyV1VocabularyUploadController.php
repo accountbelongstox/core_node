@@ -78,7 +78,7 @@ class AppQyV1VocabularyUploadController extends Controller
                     'language' => $langCode,
                     'content' => $document,
                 ]);
-                $documentRecord->save();
+                $documentRecord->saveRecord();
 
                 $result['document_id'] = (int) $documentRecord->id;
 
@@ -102,7 +102,7 @@ class AppQyV1VocabularyUploadController extends Controller
 
             // Wave A consolidation: user uploads are vocabulary_libraries rows
             // now (ownership column is owner_user_id). Response shape unchanged.
-            $library = AppQyV1VocabularyLibraryModel::find($library_id);
+            $library = AppQyV1VocabularyLibraryModel::findById((int) $library_id);
 
             if (!$library) {
                 return response()->json([
@@ -118,7 +118,7 @@ class AppQyV1VocabularyUploadController extends Controller
                 ], 403);
             }
 
-            $library->delete();
+            $library->deleteRecord();
 
             return response()->json([
                 'success' => true,

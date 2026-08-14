@@ -7,9 +7,9 @@
  * slice through one exchange, and this store keeps one browser-side flight.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
-import { PYCORE_BROWSER_EVENTS } from '../../../core/api-libs/pycore/PycoreNetwork';
-import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
+import { PYCORE_BROWSER_EVENTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from '../../../core/integrations/pycore/pycoreTypes';
 
 export const PYCORE_CAPABILITY_EVENT = PYCORE_BROWSER_EVENTS.capabilityChanged;
 const CAPABILITY_CLIENT_TTL_MS = 30_000;

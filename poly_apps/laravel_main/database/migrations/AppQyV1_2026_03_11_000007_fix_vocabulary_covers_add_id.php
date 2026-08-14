@@ -157,73 +157,13 @@ return new class extends Migration
             return;
         }
 
-        $quotedTable = '"' . $this->tableName . '"';
-        $tempTable = $this->tableName . '_tmp_with_id';
-        $quotedTemp = '"' . $tempTable . '"';
-
-        $connection->statement("
-            CREATE TABLE {$quotedTemp} (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                library_id INTEGER NOT NULL UNIQUE,
-                cover_filename VARCHAR(255) NOT NULL,
-                status VARCHAR(50) NOT NULL DEFAULT 'pending',
-                prompt TEXT NULL,
-                description TEXT NULL,
-                priority INTEGER NOT NULL DEFAULT 0,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                error_message TEXT NULL,
-                width INTEGER NOT NULL DEFAULT 1280,
-                height INTEGER NOT NULL DEFAULT 720,
-                last_requested_at DATETIME NULL,
-                last_generated_at DATETIME NULL,
-                started_at DATETIME NULL,
-                finished_at DATETIME NULL,
-                created_at DATETIME NULL,
-                updated_at DATETIME NULL
-            )
-        ");
-
-        $connection->statement("
-            INSERT INTO {$quotedTemp} (
-                library_id,
-                cover_filename,
-                status,
-                prompt,
-                description,
-                priority,
-                attempts,
-                error_message,
-                width,
-                height,
-                last_requested_at,
-                last_generated_at,
-                started_at,
-                finished_at,
-                created_at,
-                updated_at
-            )
-            SELECT
-                library_id,
-                cover_filename,
-                status,
-                prompt,
-                description,
-                priority,
-                attempts,
-                error_message,
-                width,
-                height,
-                last_requested_at,
-                last_generated_at,
-                started_at,
-                finished_at,
-                created_at,
-                updated_at
-            FROM {$quotedTable}
-        ");
-
-        $connection->statement("DROP TABLE {$quotedTable}");
-        $connection->statement("ALTER TABLE {$quotedTemp} RENAME TO {$quotedTable}");
+        // This app is PostgreSQL-only. The historical sqlite copy-drop-rename
+        // rebuild branch was removed: initialization may adjust tables but
+        // never rebuild/destroy them. On any non-pgsql driver, skip.
+        \Illuminate\Support\Facades\Log::warning(
+            '[fix_vocabulary_covers_add_id] non-pgsql driver ' . $driver . ': id column not added (rebuild path removed).'
+        );
+        return;
     }
 
     public function down(): void

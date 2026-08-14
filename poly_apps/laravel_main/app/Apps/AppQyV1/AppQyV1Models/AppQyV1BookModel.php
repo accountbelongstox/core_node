@@ -14,18 +14,28 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaSourceQueries;
-use App\Utils\CountsPosterStatuses;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\QueriesPosterMedia;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Book source. Maps sentences + audio only, NO video.
  */
 class AppQyV1BookModel extends Model
 {
-    use AppQyV1MediaSourceQueries, CountsPosterStatuses;
+    use AppQyV1MediaSourceQueries, QueriesPosterMedia;
+
+    public static function legacyCollectionBooks(string $collection)
+    {
+        return self::query()
+            ->where('metadata->collection', $collection)
+            ->whereNotNull('metadata->abbr')
+            ->get();
+    }
 
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
@@ -78,6 +88,55 @@ class AppQyV1BookModel extends Model
     public function sourceSentences(): HasMany
     {
         return $this->hasMany(AppQyV1SourceSentenceModel::class, 'source_key', 'source_key');
+    }
+
+    public static function studyMarkerColumnsReady(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())
+            ->hasColumn($model->getTable(), 'study_gen_status');
+    }
+
+    public static function studySourceCount(?string $search): int
+    {
+        $query = self::query();
+        if ($search !== null && $search !== '') {
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        return $query->count();
+    }
+
+    public static function studySourceRows(?string $search, int $offset, int $limit): EloquentCollection
+    {
+        $columns = ['id', 'source_key', 'title', 'language', 'sentence_count'];
+        if (self::studyMarkerColumnsReady()) {
+            $columns[] = 'study_gen_status';
+            $columns[] = 'study_gen_progress';
+        }
+
+        $query = self::query();
+        if ($search !== null && $search !== '') {
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        return $query->select($columns)->orderBy('id')->skip($offset)->take($limit)->get();
+    }
+
+    public static function sourceMetadata(string $sourceKey): mixed
+    {
+        return self::query()->where('source_key', $sourceKey)->value('metadata');
+    }
+
+    public static function sourceLanguage(string $sourceKey): string
+    {
+        return (string) (self::query()->where('source_key', $sourceKey)->value('language') ?? '');
+    }
+
+    public static function updateStudyMarker(string $sourceKey, array $attributes): int
+    {
+        return self::query()->where('source_key', $sourceKey)->update($attributes);
     }
 
     /**

@@ -4,7 +4,8 @@ import {
   Play, Pause, Volume2, Star, Sparkles, Languages, Info, SkipBack, SkipForward,
   Repeat, Settings2, ListMusic, ChevronLeft, ChevronRight, Film
 } from 'lucide-react';
-import { ElementTheme, Word } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word } from '../api/WfNewApiTypes';
 import {
   wfNewApi,
   type WfNewContentGroup,
@@ -15,7 +16,7 @@ import {
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { resolveAudioSync } from '../runtime-store/WfNewAudioCache';
-import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 
 interface WfNewSubtitlesProps {
   activeTheme: ElementTheme;
@@ -379,13 +380,13 @@ export const WfNewSubtitles: React.FC<WfNewSubtitlesProps> = ({
       if (el) {
         el.src = resolveAudioSync(w.audioUrl) ?? w.audioUrl;
         el.play().catch(() => {
-          wordNewAudioQueueCenter.notifyMissingWord(w.content, language);
+          wordNewQueueCenter.notifyMissingWord(w.content, language);
           speakWord(w.content);
         });
         return;
       }
     }
-    wordNewAudioQueueCenter.notifyMissingWord(w.content, language);
+    wordNewQueueCenter.notifyMissingWord(w.content, language);
     speakWord(w.content);
   };
 

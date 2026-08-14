@@ -563,7 +563,7 @@ class PySide6MainWindow(QMainWindow):
                 ColorPrint.blue("[MainWindow] app.close event triggered, waiting for shutdown...")
 
             # IMPORTANT: Ignore this close event to prevent window from closing immediately
-            # Window will be closed later by framework.quit() after shutdown completes
+            # The shutdown handler queues framework.quit() on the Qt main thread.
             event.ignore()
             ColorPrint.blue("[MainWindow] Close event ignored, waiting for shutdown to complete...")
             return

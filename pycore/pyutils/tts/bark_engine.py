@@ -19,11 +19,9 @@ Config:
 import importlib.util
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts.audio_utils import wav_to_mp3
-
 from pycore.pyfoundations.third_party.api import (
     get_third_package_numpy,
     get_third_package_scipy,
@@ -32,16 +30,11 @@ from pycore.pyfoundations.third_party.api import (
 )
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
-from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
-    call_serialized,
-)
+from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
 
 _MODEL_QUEUE = 'pyutils.tts.bark.model'
-_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'BarkModelThread')
-_MODEL_WORKER.start()
-_processor: Any = None
-_model: Any = None
+_MODEL_THREAD = 'BarkModelThread'
+_WAV_SUFFIX = '.bark.wav'
 _STATIC_MODEL_MIN_BYTES = {
     "suno/bark": {"pytorch_model.bin": 4_000_000_000},
     "suno/bark-small": {"pytorch_model.bin": 1_500_000_000},
@@ -79,104 +72,78 @@ def _voice_preset() -> str:
     return (os.environ.get("BARK_VOICE_PRESET") or "v2/en_speaker_6").strip() or "v2/en_speaker_6"
 
 
-def available() -> bool:
-    try:
+class BarkEngine(SerializedModelEngine):
+    def available(self) -> bool:
         return (
             importlib.util.find_spec("transformers") is not None
             and importlib.util.find_spec("scipy") is not None
         )
-    except Exception:
-        return False
 
-
-def _load_model() -> tuple[Any, Any]:
-    global _processor, _model
-    if _model is not None and _processor is not None:
-        return _processor, _model
-    model_id = _model_id()
-    dev = _device()
-    transformers = get_third_package_transformers()
-    processor_class = getattr(transformers, "AutoProcessor", None)
-    model_class = getattr(transformers, "BarkModel", None)
-    if processor_class is None or model_class is None:
-        ColorPrint.red("[bark] transformers Bark classes are unavailable")
-        return None, None
-    _processor = processor_class.from_pretrained(model_id)
-    _model = model_class.from_pretrained(model_id)
-    if dev != "cpu":
-        _model = _model.to(dev)
-    ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
-    return _processor, _model
-
-
-def _get_model() -> tuple[Any, Any]:
-    """Load or read the model through its owner thread."""
-    return call_serialized(_MODEL_QUEUE, _load_model, timeout=900.0)
-
-
-def _generate_audio(model: Any, inputs: dict[str, Any]) -> Any:
-    """Generate audio on the model-owner thread."""
-    return model.generate(**inputs)
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    del lang, speed
-    cleaned = (text or "").strip()
-    if not cleaned or not available():
-        return False
-    tmp_wav = output_mp3.with_suffix(".bark.wav")
-    try:
-        processor, model = _get_model()
-        if processor is None or model is None:
-            return False
+    def load_resource(self) -> Any:
+        model_id = _model_id()
         dev = _device()
-        preset = _voice_preset()
-        inputs = processor(cleaned, voice_preset=preset, return_tensors="pt")
+        transformers = get_third_package_transformers()
+        processor_class = getattr(transformers, "AutoProcessor", None)
+        model_class = getattr(transformers, "BarkModel", None)
+        if processor_class is None or model_class is None:
+            ColorPrint.red("[bark] transformers Bark classes are unavailable")
+            return None
+        processor = processor_class.from_pretrained(model_id)
+        model = model_class.from_pretrained(model_id)
         if dev != "cpu":
-            inputs = {k: v.to(dev) for k, v in inputs.items()}
-        audio = call_serialized(
-            _MODEL_QUEUE,
-            _generate_audio,
-            model,
-            inputs,
-            timeout=900.0,
+            model = model.to(dev)
+        ColorPrint.green(f"[bark] loaded {model_id} (device={dev})")
+        return processor, model
+
+    def render_wav(
+        self,
+        resource: Any,
+        text: str,
+        lang: str,
+        output_wav: Path,
+        speed: float,
+    ) -> bool:
+        del lang, speed
+        processor, model = resource
+        dev = _device()
+        inputs = processor(
+            text,
+            voice_preset=_voice_preset(),
+            return_tensors="pt",
         )
+        if dev != "cpu":
+            inputs = {key: value.to(dev) for key, value in inputs.items()}
+        audio = model.generate(**inputs)
         np = get_third_package_numpy()
         arr = audio.cpu().numpy().squeeze()
         if arr.ndim > 1:
             arr = arr.reshape(-1)
         rate = getattr(model.generation_config, "sample_rate", 24000)
-        tmp_wav.parent.mkdir(parents=True, exist_ok=True)
         scipy = get_third_package_scipy()
         if scipy is None:
             ColorPrint.red("[bark] scipy is unavailable")
             return False
-        scipy.io.wavfile.write(str(tmp_wav), int(rate), arr.astype(np.float32))
-    except Exception as exc:
-        ColorPrint.red(f"[bark] synth failed: {exc}")
-        return False
-    try:
-        return wav_to_mp3(tmp_wav, output_mp3)
-    finally:
-        try:
-            tmp_wav.unlink()
-        except OSError:
-            pass
+        scipy.io.wavfile.write(str(output_wav), int(rate), arr.astype(np.float32))
+        return True
+
+
+bark_engine = BarkEngine(_MODEL_QUEUE, _MODEL_THREAD, _WAV_SUFFIX)
+
+
+def available() -> bool:
+    return bark_engine.available()
+
+
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    return bark_engine.synthesize(text, lang, output_mp3, speed)
 
 
 def is_model_loaded() -> bool:
-    return _model is not None
-
-
-def _unload_model() -> None:
-    global _processor, _model
-    _processor = None
-    _model = None
+    return bark_engine.is_loaded()
 
 
 def unload_model() -> None:
-    """Unload model state through its owner thread."""
-    call_serialized(_MODEL_QUEUE, _unload_model)
+    bark_engine.unload()
 
 
 __all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]

@@ -18,6 +18,7 @@
  * so Chrome behavior is unchanged.
  */
 import { NETWORK_FILTERS } from '@/common/constants';
+import { bytesToBase64 } from '@/utils/binary';
 
 // Same body size cap as network-capture-debugger.ts (MAX_RESPONSE_BODY_SIZE_BYTES)
 const MAX_RESPONSE_BODY_SIZE_BYTES = 1 * 1024 * 1024; // 1MB
@@ -91,8 +92,6 @@ const STATIC_RESOURCE_EXTENSIONS = [
 
 const AD_ANALYTICS_DOMAINS = NETWORK_FILTERS.EXCLUDED_DOMAINS;
 const REQUEST_URL_FILTER = { urls: ['http://*/*', 'https://*/*'] };
-const BASE64_CHUNK_SIZE = 0x8000;
-
 /** Minimal typing for the Firefox StreamFilter object (not in chrome types). */
 interface FirefoxStreamFilter {
   ondata: ((event: { data: ArrayBuffer }) => void) | null;
@@ -301,14 +300,6 @@ function removeListenersIfIdle(): void {
   console.log('FirefoxBodyCapture: StreamFilter listeners removed.');
 }
 
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = '';
-  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE));
-  }
-  return btoa(binary);
-}
-
 function decodeBody(record: BodyRecord): { body: string; base64Encoded: boolean } {
   const merged = new Uint8Array(record.bufferedBytes);
   let offset = 0;
@@ -326,7 +317,7 @@ function decodeBody(record: BodyRecord): { body: string; base64Encoded: boolean 
       // Truncation can split a multi-byte character; decode lossily.
       return { body: new TextDecoder('utf-8').decode(merged), base64Encoded: false };
     }
-    return { body: uint8ArrayToBase64(merged), base64Encoded: true };
+    return { body: bytesToBase64(merged), base64Encoded: true };
   }
 }
 

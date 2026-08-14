@@ -57,21 +57,12 @@ class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
             $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
             $page = $this->rowsForPendingPage(
                 $scope,
-                $model->newQuery(),
+                $model,
                 $limit,
-                static function (array $ids) use ($model): array {
-                    return $model->newQuery()
-                        ->whereIn('id', $ids)
-                        ->where('has_translation', false)
-                        ->where('is_valid', true)
-                        ->orderByDesc('query_count')
-                        ->get(['id', 'content', 'md5'])
-                        ->map(static fn ($row): array => [
-                            'word' => (string) ($row->content ?? ''),
-                            'md5' => (string) ($row->md5 ?? ''),
-                        ])
-                        ->all();
-                }
+                static fn (array $ids): array => AppQyV1LangDictionaryModel::pendingTranslationRows(
+                    $langCode,
+                    $ids
+                )
             );
             $words = array_values(array_filter(
                 $page['rows'],
@@ -115,17 +106,16 @@ class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
         // instead of loading every pending task's payload and counting in PHP
         // once per language per 60s tick. The (app_name, task_type, status)
         // predicate is index-backed; the JSON predicate runs on that subset.
-        return GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->whereIn('status', [
+        return GlobalTask::liveTaskCount(
+            'AppQyV1',
+            ['word_translation'],
+            [
                 GlobalTask::status('pending'),
                 GlobalTask::status('assigned'),
                 GlobalTask::status('processing'),
-            ])
-            ->where('payload->language', $langCode)
-            ->where('payload->target_language', $targetCode)
-            ->count();
+            ],
+            ['language' => $langCode, 'target_language' => $targetCode]
+        );
     }
 
     private function createTask(string $language, array $words): void

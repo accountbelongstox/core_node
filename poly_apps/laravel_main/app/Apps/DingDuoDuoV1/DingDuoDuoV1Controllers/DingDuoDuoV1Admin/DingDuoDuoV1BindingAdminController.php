@@ -30,21 +30,12 @@ class DingDuoDuoV1BindingAdminController extends BaseController
     public function index(Request $request): JsonResponse
     {
         $perPage = max(1, min(200, (int) $request->input('per_page', 50)));
-        $query = DingDuoDuoV1PddBindingModel::query()->orderByDesc('id');
-
         $ownerType = trim((string) $request->input('owner_type', ''));
-        if ($ownerType !== '') {
-            $query->where('owner_type', $ownerType);
-        }
-
         $ownerId = trim((string) $request->input('owner_id', ''));
-        if ($ownerId !== '') {
-            $query->where('owner_id', $ownerId);
-        }
 
         return response()->json([
             'success' => true,
-            'data' => $query->paginate($perPage),
+            'data' => DingDuoDuoV1PddBindingModel::adminPage($ownerType, $ownerId, $perPage),
         ]);
     }
 
@@ -64,20 +55,20 @@ class DingDuoDuoV1BindingAdminController extends BaseController
 
         try {
             /** @var DingDuoDuoV1PddBindingModel $binding */
-            $binding = DingDuoDuoV1PddBindingModel::query()->firstOrNew([
-                'owner_type' => $data['owner_type'],
-                'owner_id' => $data['owner_id'],
-                'pdd_user_id' => $data['pdd_user_id'],
-            ]);
+            $binding = DingDuoDuoV1PddBindingModel::findOrNewBinding(
+                $data['owner_type'],
+                $data['owner_id'],
+                $data['pdd_user_id']
+            );
             $binding->nickname = $data['nickname'] ?? $binding->nickname;
             $binding->status = $data['status'] ?? ($binding->status ?: 'active');
-            $binding->save();
+            $binding->saveRecord();
         } catch (QueryException $e) {
-            $binding = DingDuoDuoV1PddBindingModel::query()
-                ->where('owner_type', $data['owner_type'])
-                ->where('owner_id', $data['owner_id'])
-                ->where('pdd_user_id', $data['pdd_user_id'])
-                ->first();
+            $binding = DingDuoDuoV1PddBindingModel::findBinding(
+                $data['owner_type'],
+                $data['owner_id'],
+                $data['pdd_user_id']
+            );
             if (!$binding) {
                 throw $e;
             }
@@ -94,7 +85,7 @@ class DingDuoDuoV1BindingAdminController extends BaseController
      */
     public function destroy(int $id): JsonResponse
     {
-        $binding = DingDuoDuoV1PddBindingModel::query()->find($id);
+        $binding = DingDuoDuoV1PddBindingModel::findById($id);
         if (!$binding) {
             return response()->json([
                 'success' => false,
@@ -103,7 +94,7 @@ class DingDuoDuoV1BindingAdminController extends BaseController
             ], 404);
         }
 
-        $binding->delete();
+        $binding->deleteRecord();
 
         return response()->json([
             'success' => true,

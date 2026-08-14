@@ -12,7 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * Fan-out idempotency ledger: one row per (request_id, prompt_key) pair
@@ -36,4 +36,17 @@ class AppQyV1AiPromptRequestTaskModel extends Model
         'prompt_key',
         'task_id',
     ];
+
+    public static function promptKeysForRequest(int $requestId): array
+    {
+        return self::query()
+            ->where('request_id', $requestId)
+            ->pluck('prompt_key')
+            ->all();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
 }

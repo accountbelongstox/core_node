@@ -1,8 +1,10 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { delay as waitForDelay } from '@/utils/async';
 // The single, parameter-free dictionary URL (no ?mkt / ?q=). Aliased as
 // BING_DICT_HOME: we load it once per tab then drive the search box via WebOps.
 import { BING_DICT_URL as BING_DICT_HOME } from '../../services/bing-tab-pool';
@@ -11,6 +13,11 @@ import { BING_DICT_URL as BING_DICT_HOME } from '../../services/bing-tab-pool';
 // self.__WebOps (humanType/submitForm/waitFor) to operate the page like a human.
 const WEB_OPS_SCRIPT = 'inject-scripts/web-ops.js';
 const BING_HELPER_SCRIPT = 'inject-scripts/bing-dictionary-helper.js';
+const BING_TAB_COMPLETE_OPTIONS = {
+  timeoutMs: 15000,
+  settleDelayMs: 400,
+  statusProbeDelayMs: 600,
+};
 
 const LOG = 'Bing Dictionary';
 
@@ -122,14 +129,11 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
         logger.warn(LOG, 'Translation extraction failed', translationData.error);
       }
 
-      return {
-        content: [{ type: 'text', text: JSON.stringify(translationData, null, 2) }],
-        isError: false,
-      };
+      return createJsonResponse(translationData, { space: 2 });
     } catch (error) {
       logger.error(LOG, 'Lookup error', error);
       return createErrorResponse(
-        `Error looking up word in Bing Dictionary: ${error instanceof Error ? error.message : String(error)}`,
+        `Error looking up word in Bing Dictionary: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -153,7 +157,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     if (!searchRes?.found) {
       // The tab wasn't on a usable dictionary page — load the home and retry once.
       await chrome.tabs.update(tabId, { url: BING_DICT_HOME });
-      await this.waitForTabComplete(tabId);
+      await waitForTabComplete(tabId, BING_TAB_COMPLETE_OPTIONS);
       searchRes = await this.searchInTab(tabId, word);
       if (!searchRes?.found) {
         return {
@@ -175,7 +179,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     }
 
     // The click triggers a navigation to the result page; wait then extract.
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, BING_TAB_COMPLETE_OPTIONS);
     const tab = await this.tryGetTab(tabId);
     return this.extractFromTab(tabId, tab?.url || BING_DICT_HOME, includeMedia);
   }
@@ -195,7 +199,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     if (unique.length === 0) return [];
     await this.injectContentScript(tabId, ['inject-scripts/bing-media-fetcher.js']);
     // Let the freshly-injected listener register before messaging it.
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await waitForDelay(150);
     const resp = await this.sendMessageToTab(tabId, {
       action: 'bingDictionaryFetchMedia',
       urls: unique,
@@ -208,7 +212,7 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
     const tab = await this.tryGetTab(tabId);
     if (!tab || !tab.url || !tab.url.includes('bing.com/dict')) {
       await chrome.tabs.update(tabId, { url: BING_DICT_HOME });
-      await this.waitForTabComplete(tabId);
+      await waitForTabComplete(tabId, BING_TAB_COMPLETE_OPTIONS);
     }
   }
 
@@ -235,14 +239,14 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
   ): Promise<any> {
     await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
     // Give the freshly-injected content script a moment to register its listener.
-    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    await waitForDelay(settleMs);
     try {
       return await chrome.tabs.sendMessage(tabId, message);
     } catch (err) {
-      const m = err instanceof Error ? err.message : String(err);
+      const m = toErrorMessage(err);
       if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
         await this.injectContentScript(tabId, [WEB_OPS_SCRIPT, BING_HELPER_SCRIPT]);
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await waitForDelay(400);
         return await chrome.tabs.sendMessage(tabId, message);
       }
       throw err;
@@ -297,55 +301,9 @@ class BingDictionaryTool extends BaseBrowserToolExecutor {
    * never trusted. Bounded by waitForTabComplete's 15s hard timeout.
    */
   async waitForTabIdle(tabId: number): Promise<void> {
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, BING_TAB_COMPLETE_OPTIONS);
   }
 
-  /**
-   * Resolve once the tab finishes loading. Prefers the chrome.tabs "complete"
-   * status event over a fixed sleep, with a hard timeout fallback so a hung
-   * navigation can never wedge the worker.
-   */
-  private waitForTabComplete(tabId: number, timeoutMs = 15000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // listener may already be gone
-        }
-        clearTimeout(timer);
-        // Small settle delay so late-rendered dictionary nodes are present.
-        setTimeout(resolve, 400);
-      };
-
-      const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
-        if (updatedTabId === tabId && info.status === 'complete') {
-          finish();
-        }
-      };
-
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-
-      // A just-triggered navigation can still report the PREVIOUS page as
-      // "complete" for a few ms. Probe the status only after a short delay so a
-      // stale "complete" can't resolve us onto the old page; by then the tab has
-      // flipped to "loading" and we wait for the real "complete" event.
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then(
-          (tab) => {
-            if (tab.status === 'complete') {
-              finish();
-            }
-          },
-          () => finish(),
-        );
-      }, 600);
-    });
-  }
 }
 
 export const bingDictionaryTool = new BingDictionaryTool();

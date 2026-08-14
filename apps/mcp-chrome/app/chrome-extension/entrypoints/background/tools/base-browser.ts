@@ -1,6 +1,7 @@
-import { ToolExecutor } from '@/common/tool-handler';
+import { ToolExecutor, toErrorMessage } from '@/common/tool-handler';
 import type { ToolResult } from '@/common/tool-handler';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
+import { withTimeout } from '@/utils/async';
 
 const PING_TIMEOUT_MS = 300;
 
@@ -24,19 +25,15 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
 
     // check if script is already injected
     try {
-      const response = await Promise.race([
+      const response = await withTimeout(
         // Include the files being injected so a tool that injects MORE THAN ONE
         // content script under a single tool name (e.g. the Bing dictionary tool:
         // bing-dictionary-helper + bing-media-fetcher) can answer the probe only
         // for ITS OWN file. Single-file helpers ignore the extra field.
         chrome.tabs.sendMessage(tabId, { action: `${this.name}_ping`, files }),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error(`${this.name} Ping action to tab ${tabId} timed out`)),
-            PING_TIMEOUT_MS,
-          ),
-        ),
-      ]);
+        PING_TIMEOUT_MS,
+        `${this.name} Ping action to tab ${tabId} timed out`,
+      );
 
       if (response && response.status === 'pong') {
         console.log(
@@ -50,7 +47,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
       // discarded or the page reloaded). This is the normal pre-injection probe,
       // not a failure — log at debug level so it doesn't spam the console.
       console.debug(
-        `ping content script (${this.name}) miss, will inject: ${error instanceof Error ? error.message : String(error)}`,
+        `ping content script (${this.name}) miss, will inject: ${toErrorMessage(error)}`,
       );
     }
 
@@ -63,8 +60,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
       });
       console.log(`'${files.join(', ')}' injection successful for tab ${tabId}`);
     } catch (injectionError) {
-      const errorMessage =
-        injectionError instanceof Error ? injectionError.message : String(injectionError);
+      const errorMessage = toErrorMessage(injectionError);
       console.error(
         `Content script '${files.join(', ')}' injection failed for tab ${tabId}: ${errorMessage}`,
       );
@@ -87,7 +83,7 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
 
       return response;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = toErrorMessage(error);
       console.error(
         `Error sending message to tab ${tabId} for action ${message?.action || 'unknown'}: ${errorMessage}`,
       );

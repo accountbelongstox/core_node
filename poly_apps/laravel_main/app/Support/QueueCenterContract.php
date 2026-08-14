@@ -10,8 +10,8 @@ use RuntimeException;
  *
  * Source: config/queue_center_contract.json
  * Aligned adapters:
- * - pycore/callmodule/services/queue_center_contract.py
- * - poly_apps/pycore_laravel_wordnew_ui/core/api-libs/pycore/QueueCenterContract.ts
+ * - pycore/pyutils/common/queue_center_contract.py
+ * - poly_apps/pycore_laravel_wordnew_ui/core/contracts/QueueCenterContract.ts
  * - apps/mcp-chrome/app/chrome-extension/utils/queue-center-contract.ts
  *
  * A task status, lane, capability, priority, task-type route, or wire field must
@@ -21,6 +21,7 @@ use RuntimeException;
 final class QueueCenterContract
 {
     private static ?array $document = null;
+    private static ?array $taskTypeIndex = null;
 
     public static function document(): array
     {
@@ -34,9 +35,32 @@ final class QueueCenterContract
         if (!is_array($document)) {
             throw new RuntimeException("Unable to load Queue Center contract: {$path}");
         }
+        self::assertTaskTypeContract($document);
 
         self::$document = $document;
         return self::$document;
+    }
+
+    private static function assertTaskTypeContract(array $document): void
+    {
+        $names = [];
+        $definitions = $document['task_contract']['task_types'] ?? [];
+        foreach ($definitions as $definition) {
+            $key = strtolower(trim((string) ($definition['key'] ?? '')));
+            $ordering = $definition['ordering'] ?? null;
+            if ($key === '' || !in_array($ordering, ['queue_position', 'priority'], true)) {
+                throw new RuntimeException("Queue Center task type has invalid ordering: {$key}");
+            }
+            $aliases = is_array($definition['aliases'] ?? null) ? $definition['aliases'] : [];
+            foreach (array_merge([$key], $aliases) as $name) {
+                $normalized = strtolower(trim((string) $name));
+                if ($normalized === '' || isset($names[$normalized])) {
+                    throw new RuntimeException("Queue Center task type name is duplicated: {$normalized}");
+                }
+                $names[$normalized] = $definition;
+            }
+        }
+        self::$taskTypeIndex = $names;
     }
 
     public static function schemaVersion(): int
@@ -52,6 +76,45 @@ final class QueueCenterContract
     public static function diffDelivery(): array
     {
         return self::document()['diff_delivery'] ?? [];
+    }
+
+    /**
+     * Contract-owned endpoint path templates (worker + queue-center plane).
+     * Laravel registers these routes; the other three ends render the same
+     * paths from this block, so a route change starts here.
+     */
+    public static function endpoints(): array
+    {
+        return self::document()['endpoints'] ?? [];
+    }
+
+    /**
+     * Render one endpoint path; {token} segments are percent-encoded here.
+     */
+    public static function endpoint(string $role, array $tokens = []): string
+    {
+        $template = self::endpoints()[$role] ?? null;
+        if (!is_string($template) || $template === '') {
+            throw new RuntimeException("Unknown Queue Center endpoint role: {$role}");
+        }
+        foreach ($tokens as $key => $value) {
+            $template = str_replace('{' . $key . '}', rawurlencode((string) $value), $template);
+        }
+        return $template;
+    }
+
+    public static function consumerSliceLimit(string $taskType): int
+    {
+        $delivery = self::diffDelivery();
+        $limits = is_array($delivery['consumer_batch_limits'] ?? null)
+            ? $delivery['consumer_batch_limits']
+            : [];
+
+        return max(1, (int) (
+            $limits[$taskType]
+            ?? $delivery['consumer_slice_default']
+            ?? self::taskLimit('worker_pull_default')
+        ));
     }
 
     public static function deliveryReceipt(): array
@@ -71,6 +134,11 @@ final class QueueCenterContract
     public static function realtime(): array
     {
         return self::document()['realtime'] ?? [];
+    }
+
+    public static function realtimeEvents(): array
+    {
+        return array_values(self::realtime()['events'] ?? []);
     }
 
     public static function queueMetricDefaults(): array
@@ -192,14 +260,20 @@ final class QueueCenterContract
         return array_values(self::taskContract()['task_types'] ?? []);
     }
 
+    public static function taskTypeKeys(): array
+    {
+        return array_values(array_map(
+            static fn (array $definition): string => (string) $definition['key'],
+            self::taskTypes()
+        ));
+    }
+
     public static function taskTypeDefinition(string $taskType): ?array
     {
-        foreach (self::taskTypes() as $definition) {
-            if (($definition['key'] ?? null) === $taskType) {
-                return $definition;
-            }
-        }
-        return null;
+        $taskType = strtolower(trim($taskType));
+        self::document();
+
+        return self::$taskTypeIndex[$taskType] ?? null;
     }
 
     public static function taskTypeKey(string $role): ?string
@@ -219,6 +293,113 @@ final class QueueCenterContract
     {
         $value = self::taskTypeDefinition($taskType)['capability'] ?? null;
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    public static function taskTypeClaimants(string $taskType): array
+    {
+        $definition = self::taskTypeDefinition($taskType);
+        if ($definition === null) {
+            return [];
+        }
+        if (is_array($definition['claimants'] ?? null)) {
+            return array_values($definition['claimants']);
+        }
+        $capability = $definition['capability'] ?? null;
+        return is_string($capability)
+            ? array_values(self::document()['capability_claimants'][$capability] ?? [])
+            : [];
+    }
+
+    /**
+     * Single ordering authority for every end: a task type either orders by
+     * Laravel-owned `queue_position` (Queue Center audio lanes) or by the
+     * contract-defined numeric `priority`. Never branch on literal task-type
+     * lists outside this method.
+     */
+    public static function taskOrdering(string $taskType): string
+    {
+        $definition = self::taskTypeDefinition($taskType);
+        if ($definition === null) {
+            return 'priority';
+        }
+        $ordering = $definition['ordering'] ?? null;
+        if (!in_array($ordering, ['queue_position', 'priority'], true)) {
+            throw new RuntimeException("Queue Center task type has invalid ordering: {$taskType}");
+        }
+        return (string) $ordering;
+    }
+
+    public static function isQueuePositionOrdered(string $taskType): bool
+    {
+        return self::taskOrdering($taskType) === 'queue_position';
+    }
+
+    public static function queuePositionOrderedTaskTypes(): array
+    {
+        return array_values(array_map(
+            static fn (array $definition): string => (string) $definition['key'],
+            array_filter(
+                self::taskTypes(),
+                static fn (array $definition): bool => ($definition['ordering'] ?? null) === 'queue_position'
+            )
+        ));
+    }
+
+    public static function queuePositionOrderedTaskAliases(): array
+    {
+        $aliases = [];
+        foreach (self::taskTypes() as $definition) {
+            if (($definition['ordering'] ?? null) !== 'queue_position') {
+                continue;
+            }
+            foreach (($definition['aliases'] ?? []) as $alias) {
+                $aliases[] = (string) $alias;
+            }
+        }
+        return array_values(array_unique($aliases));
+    }
+
+    public static function queuePositionOrderedControlNames(): array
+    {
+        return array_values(array_filter(
+            self::controlNames(),
+            static fn (string $taskType): bool => self::isQueuePositionOrdered($taskType)
+        ));
+    }
+
+    public static function taskHistoryFilter(string $bucket): array
+    {
+        $history = self::taskContract()['history_buckets'] ?? [];
+        $exact = [$bucket];
+        $definition = self::taskTypeDefinition($bucket);
+        if ($definition !== null) {
+            $exact = array_merge($exact, $definition['aliases'] ?? []);
+        }
+        foreach (($history['exact_aliases'] ?? []) as $taskType => $aliasBucket) {
+            if ($aliasBucket === $bucket) {
+                $exact[] = (string) $taskType;
+            }
+        }
+        $tokenRules = array_values(array_filter(
+            $history['token_rules'] ?? [],
+            static fn (array $rule): bool => ($rule['bucket'] ?? null) === $bucket
+        ));
+        return [
+            'exact' => array_values(array_unique($exact)),
+            'token_rules' => $tokenRules,
+        ];
+    }
+
+    public static function taskOrderValue($task): int
+    {
+        $taskType = (string) (is_array($task) ? ($task['task_type'] ?? '') : ($task->task_type ?? ''));
+        $field = self::taskOrdering($taskType);
+        return (int) (is_array($task) ? ($task[$field] ?? 0) : ($task->{$field} ?? 0));
+    }
+
+    public static function compareTasks($left, $right): int
+    {
+        return self::taskOrderValue($right) <=> self::taskOrderValue($left);
     }
 
     public static function taskTypePromptPayloadField(string $taskType): string
@@ -285,7 +466,12 @@ final class QueueCenterContract
     public static function projectTask($task, string $shape): array
     {
         $record = [];
+        $taskType = (string) (is_array($task) ? ($task['task_type'] ?? '') : ($task->task_type ?? ''));
+        $usesQueuePosition = self::isQueuePositionOrdered($taskType);
         foreach (self::taskWireShape($shape) as $field) {
+            if ($usesQueuePosition && $field === 'priority') {
+                continue;
+            }
             $value = is_array($task) ? ($task[$field] ?? null) : ($task->{$field} ?? null);
             if ($value instanceof DateTimeInterface) {
                 $value = method_exists($value, 'toISOString')
@@ -296,6 +482,7 @@ final class QueueCenterContract
                 $value = (bool) $value;
             } elseif (in_array($field, [
                 'priority',
+                'queue_position',
                 'retry_count',
                 'max_retries',
                 'timeout_seconds',
@@ -335,22 +522,23 @@ final class QueueCenterContract
 
     public static function claimantsForCapability(?string $capability): array
     {
+        $all = [];
         if ($capability === null) {
-            $all = [];
             foreach (self::document()['capability_claimants'] ?? [] as $claimants) {
                 if (is_array($claimants)) {
                     $all = array_merge($all, $claimants);
                 }
             }
-            foreach (self::taskTypes() as $definition) {
-                if (($definition['capability'] ?? null) === null
-                    && is_array($definition['claimants'] ?? null)) {
-                    $all = array_merge($all, $definition['claimants']);
-                }
-            }
-            return array_values(array_unique($all));
+        } else {
+            $all = self::document()['capability_claimants'][$capability] ?? [];
         }
-        return array_values(self::document()['capability_claimants'][$capability] ?? []);
+        foreach (self::taskTypes() as $definition) {
+            if (($capability === null || ($definition['capability'] ?? null) === $capability)
+                && is_array($definition['claimants'] ?? null)) {
+                $all = array_merge($all, $definition['claimants']);
+            }
+        }
+        return array_values(array_unique($all));
     }
 
     /**

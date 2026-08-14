@@ -8,15 +8,16 @@
 import { puterTranslateWorkerService } from './services/puter-translate-worker-service';
 import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
+import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
 
 const LOG = 'Puter Listener';
 
 export function initPuterTranslateListener() {
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER) {
-      handleMessage(message, sendResponse);
-      return true; // async
-    }
+  registerRuntimeMessageHandler(FEATURE_MESSAGE_TYPES.PUTER_TRANSLATE_WORKER, handleMessage, {
+    createErrorResponse: (error, message) => {
+      logger.warn(LOG, `Action ${message.action} failed`, error);
+      return { success: false, error: toErrorMessage(error) || 'Unknown error' };
+    },
   });
 
   logger.info(LOG, 'Initialized');
@@ -24,41 +25,25 @@ export function initPuterTranslateListener() {
 
 async function handleMessage(
   message: { type: string; action: string; config?: any },
-  sendResponse: (response: any) => void,
 ) {
-  try {
-    switch (message.action) {
-      case 'start': {
-        if (!message.config?.apiUrl) {
-          sendResponse({ success: false, error: 'apiUrl is required' });
-          return;
-        }
-        await puterTranslateWorkerService.start({
-          apiUrl: message.config.apiUrl,
-          workerName: message.config.workerName || 'MCP Chrome Puter AI Worker',
-          batchSize: message.config.batchSize ?? 3,
-        });
-        sendResponse({ success: true, message: 'Puter translate worker started' });
-        break;
+  switch (message.action) {
+    case 'start': {
+      if (!message.config?.apiUrl) {
+        return { success: false, error: 'apiUrl is required' };
       }
-
-      case 'stop': {
-        puterTranslateWorkerService.stop();
-        sendResponse({ success: true, message: 'Puter translate worker stopped' });
-        break;
-      }
-
-      case 'get_status': {
-        const status = puterTranslateWorkerService.getStatus();
-        sendResponse({ success: true, status });
-        break;
-      }
-
-      default:
-        sendResponse({ success: false, error: `Unknown action: ${message.action}` });
+      await puterTranslateWorkerService.start({
+        apiUrl: message.config.apiUrl,
+        workerName: message.config.workerName || 'MCP Chrome Puter AI Worker',
+        batchSize: message.config.batchSize ?? 3,
+      });
+      return { success: true, message: 'Puter translate worker started' };
     }
-  } catch (err: any) {
-    logger.warn(LOG, `Action ${message.action} failed`, err);
-    sendResponse({ success: false, error: err?.message || 'Unknown error' });
+    case 'stop':
+      puterTranslateWorkerService.stop();
+      return { success: true, message: 'Puter translate worker stopped' };
+    case 'get_status':
+      return { success: true, status: puterTranslateWorkerService.getStatus() };
+    default:
+      return { success: false, error: `Unknown action: ${message.action}` };
   }
 }

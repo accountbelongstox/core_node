@@ -1,7 +1,15 @@
 // MUST stay the first import: aliases chrome -> browser on Firefox before any
 // other module top-level code touches chrome.* (no-op, tree-shaken on Chrome).
 import '@/utils/browser-shim';
+import { toErrorMessage } from '@/utils/errors';
 import { SemanticSimilarityEngine } from '@/utils/semantic-similarity-engine';
+import { classifySimilarityError } from '@/utils/similarity-error';
+import {
+  clearSimilarityVectorDatabases,
+  createSimilarityModelState,
+  getSimilarityReinitializationState,
+} from '@/utils/similarity-runtime';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 import {
   MessageTarget,
   SendMessageType,
@@ -149,28 +157,6 @@ chrome.runtime.onMessage.addListener(
 let currentModelConfig: any = null;
 
 /**
- * Check if engine reinitialization is needed
- */
-function needsReinitialization(newConfig: any): boolean {
-  if (!similarityEngine || !currentModelConfig) {
-    return true;
-  }
-
-  // Check if key configuration has changed
-  const keyFields = ['modelPreset', 'modelVersion', 'modelIdentifier', 'dimension'];
-  for (const field of keyFields) {
-    if (newConfig[field] !== currentModelConfig[field]) {
-      console.log(
-        `Offscreen: ${field} changed from ${currentModelConfig[field]} to ${newConfig[field]}`,
-      );
-      return true;
-    }
-  }
-
-  return false;
-}
-
-/**
  * Progress callback function type
  */
 type ProgressCallback = (progress: { status: string; progress: number; message?: string }) => void;
@@ -187,7 +173,16 @@ async function handleSimilarityEngineInit(config: any): Promise<void> {
   console.log('Offscreen: Config modelIdentifier:', config.modelIdentifier);
 
   // Check if reinitialization is needed
-  const needsReinit = needsReinitialization(config);
+  const reinitialization = getSimilarityReinitializationState(
+    similarityEngine,
+    currentModelConfig,
+    config,
+  );
+  const needsReinit = reinitialization.required;
+  if (reinitialization.change) {
+    const { field, previousValue, nextValue } = reinitialization.change;
+    console.log(`Offscreen: ${field} changed from ${previousValue} to ${nextValue}`);
+  }
   console.log('Offscreen: Needs reinitialization:', needsReinit);
 
   if (!needsReinit) {
@@ -212,7 +207,7 @@ async function handleSimilarityEngineInit(config: any): Promise<void> {
     // Clear vector data in IndexedDB to ensure data consistency
     try {
       console.log('Offscreen: Clearing IndexedDB vector data for model switch...');
-      await clearVectorIndexedDB();
+      await clearSimilarityVectorDatabases('Offscreen', true);
       console.log('Offscreen: IndexedDB vector data cleared successfully');
     } catch (error) {
       console.warn('Offscreen: Failed to clear IndexedDB vector data:', error);
@@ -251,79 +246,14 @@ async function handleSimilarityEngineInit(config: any): Promise<void> {
   } catch (error) {
     console.error('Offscreen: Failed to initialize semantic similarity engine:', error);
     // Update status to error
-    const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-    const errorType = analyzeErrorType(errorMessage);
+    const errorMessage = toErrorMessage(error) || 'Unknown initialization error';
+    const errorType = classifySimilarityError(errorMessage);
     await updateModelStatus('error', 0, errorMessage, errorType);
     // Clean up failed instance
     similarityEngine = null;
     currentModelConfig = null;
     throw error;
   }
-}
-
-/**
- * Clear vector data in IndexedDB
- */
-async function clearVectorIndexedDB(): Promise<void> {
-  try {
-    // Clear vector search related IndexedDB databases
-    const dbNames = ['VectorSearchDB', 'ContentIndexerDB', 'SemanticSimilarityDB'];
-
-    for (const dbName of dbNames) {
-      try {
-        // Try to delete database
-        const deleteRequest = indexedDB.deleteDatabase(dbName);
-        await new Promise<void>((resolve, _reject) => {
-          deleteRequest.onsuccess = () => {
-            console.log(`Offscreen: Successfully deleted database: ${dbName}`);
-            resolve();
-          };
-          deleteRequest.onerror = () => {
-            console.warn(`Offscreen: Failed to delete database: ${dbName}`, deleteRequest.error);
-            resolve(); // Don't block cleanup of other databases
-          };
-          deleteRequest.onblocked = () => {
-            console.warn(`Offscreen: Database deletion blocked: ${dbName}`);
-            resolve(); // Don't block cleanup of other databases
-          };
-        });
-      } catch (error) {
-        console.warn(`Offscreen: Error deleting database ${dbName}:`, error);
-      }
-    }
-  } catch (error) {
-    console.error('Offscreen: Failed to clear vector IndexedDB:', error);
-    throw error;
-  }
-}
-
-// Analyze error type
-function analyzeErrorType(errorMessage: string): 'network' | 'file' | 'unknown' {
-  const message = errorMessage.toLowerCase();
-
-  if (
-    message.includes('network') ||
-    message.includes('fetch') ||
-    message.includes('timeout') ||
-    message.includes('connection') ||
-    message.includes('cors') ||
-    message.includes('failed to fetch')
-  ) {
-    return 'network';
-  }
-
-  if (
-    message.includes('corrupt') ||
-    message.includes('invalid') ||
-    message.includes('format') ||
-    message.includes('parse') ||
-    message.includes('decode') ||
-    message.includes('onnx')
-  ) {
-    return 'file';
-  }
-
-  return 'unknown';
 }
 
 // Helper function to update model status
@@ -334,19 +264,12 @@ async function updateModelStatus(
   errorType?: string,
 ) {
   try {
-    const modelState = {
-      status,
-      downloadProgress: progress,
-      isDownloading: status === 'downloading' || status === 'initializing',
-      lastUpdated: Date.now(),
-      errorMessage: errorMessage || '',
-      errorType: errorType || '',
-    };
+    const modelState = createSimilarityModelState(status, progress, errorMessage, errorType);
 
     // In offscreen document, update storage through message passing to background script
     // because offscreen document may not have direct chrome.storage access
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      await chrome.storage.local.set({ modelState });
+      await chrome.storage.local.set({ [STORAGE_KEYS.SEMANTIC_MODEL_STATE]: modelState });
     } else {
       // If chrome.storage is not available, pass message to background script
       console.log('Offscreen: chrome.storage not available, sending message to background');

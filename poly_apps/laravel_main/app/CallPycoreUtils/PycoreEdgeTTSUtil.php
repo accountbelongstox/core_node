@@ -9,7 +9,7 @@ use App\Services\UserConfig\UserConfigService;
 
 /**
  * @deprecated Laravel must not autonomously synthesize TTS for queue/task-center
- * work. Prefer enqueue (global_tasks / sentence bump) and let pycore workers
+ * work. Prefer the file-first audio gateways and let pycore workers
  * (tts_queue_poller / tts_sentence_worker) own synthesis.
  *
  * When useServerBinaryAssist is false (default), generate() refuses.

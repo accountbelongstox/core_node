@@ -14,11 +14,8 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 class AppQyV1ArticleManagementService
@@ -35,32 +32,14 @@ class AppQyV1ArticleManagementService
         $limit = max(1, min($limit, 100));
         $offset = max(0, $offset);
         $category = $category !== null ? trim($category) : null;
-        $query = AppQyV1Article::query();
-
-        if ($category !== null && $category !== '') {
-            if ($category === 'daily') {
-                $query->where(function ($dailyQuery): void {
-                    $dailyQuery
-                        ->where('source', 'daily')
-                        ->orWhere('article_type', 'daily')
-                        ->orWhere('is_daily_reading', true);
-                });
-            } else {
-                $query->where('article_type', $category);
-            }
-        }
-
-        $total = (clone $query)->count();
-        $rows = $query->orderByDesc('id')->offset($offset)->limit($limit)->get();
+        $page = AppQyV1Article::managementPage($category, $offset, $limit);
+        $total = $page['total'];
+        $rows = $page['rows'];
         foreach ($rows as $row) {
             $items[] = $this->mapArticle($row);
         }
 
-        $categoryRows = AppQyV1Article::query()
-            ->select(['article_type', 'source', 'is_daily_reading'])
-            ->selectRaw('COUNT(*) as aggregate')
-            ->groupBy(['article_type', 'source', 'is_daily_reading'])
-            ->get();
+        $categoryRows = AppQyV1Article::managementCategoryRows();
 
         foreach ($categoryRows as $row) {
             $rowCategory = $this->categoryFromValues(
@@ -143,7 +122,7 @@ class AppQyV1ArticleManagementService
         $connection = '';
         $result = [];
 
-        $article = AppQyV1Article::query()->where('article_id', $articleId)->first();
+        $article = AppQyV1Article::findByArticleId($articleId);
         if ($article === null) {
             return null;
         }
@@ -166,22 +145,17 @@ class AppQyV1ArticleManagementService
             }
         }
 
-        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-        $result = DB::connection($connection)->transaction(function () use ($article, $category, $documentId): array {
+        $result = AppQyV1Article::runInTransaction(function () use ($article, $category, $documentId): array {
             $articleWordsDeleted = 0;
             $documentDeleted = 0;
 
-            $articleWordsDeleted = AppQyV1ArticleWord::query()
-                ->where('article_id', $article->article_id)
-                ->delete();
+            $articleWordsDeleted = AppQyV1ArticleWord::deleteForArticle((string) $article->article_id);
 
             if ($documentId !== null && $documentId > 0) {
-                $documentDeleted = AppQyV1UploadedDocumentModel::query()
-                    ->whereKey($documentId)
-                    ->delete();
+                $documentDeleted = AppQyV1UploadedDocumentModel::deleteById($documentId);
             }
 
-            $article->delete();
+            $article->deleteRecord();
 
             return [
                 'article_id' => $article->article_id,

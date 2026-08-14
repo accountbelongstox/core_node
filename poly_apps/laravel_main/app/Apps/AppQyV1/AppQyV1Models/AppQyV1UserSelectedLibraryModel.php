@@ -5,7 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use App\Utils\RunsModelTransactions;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -88,5 +88,15 @@ class AppQyV1UserSelectedLibraryModel extends Model
         return self::where('user_id', $userId)
             ->where('collection_id', $collectionId)
             ->update(['is_active' => false]);
+    }
+
+    public static function activeLibraryIds(int $userId): array
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('is_active', true)
+            ->pluck('collection_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
     }
 }

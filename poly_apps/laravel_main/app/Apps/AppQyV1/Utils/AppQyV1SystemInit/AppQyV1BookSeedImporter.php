@@ -10,14 +10,10 @@ namespace App\Apps\AppQyV1\Utils\AppQyV1SystemInit;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Providers\PathMapper;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Constants\AppKeys;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\MediaIngestService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * AppQyV1BookSeedImporter
@@ -102,7 +98,7 @@ class AppQyV1BookSeedImporter
     public static function isSeeded(): bool
     {
         try {
-            return Book::where('source_key', self::bibleSourceKey())->exists();
+            return Book::sourceExists(self::bibleSourceKey());
         } catch (\Throwable $e) {
             return false;
         }
@@ -346,30 +342,24 @@ class AppQyV1BookSeedImporter
     {
         $removed = 0;
         try {
-            $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
             $langs = AppQyV1TableMaps::getSupportedLanguages();
 
-            $legacy = Book::query()
-                ->where('metadata->collection', self::COLLECTION)
-                ->whereNotNull('metadata->abbr')
-                ->get();
+            $legacy = Book::legacyCollectionBooks(self::COLLECTION);
 
             foreach ($legacy as $book) {
                 $key = $book->source_key;
                 try {
-                    SourceSentence::where('source_type', 'book')->where('source_key', $key)->delete();
+                    SourceSentence::deleteForSource('book', $key);
 
                     foreach ($langs as $lang) {
-                        $table = AppQyV1TableMaps::getChapterTableName($lang);
-                        if (Schema::connection($connection)->hasTable($table)) {
-                            DB::connection($connection)->table($table)
-                                ->where('source_type', 'book')
-                                ->where('source_key', $key)
-                                ->delete();
-                        }
+                        \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel::deleteForSource(
+                            $lang,
+                            'book',
+                            $key
+                        );
                     }
 
-                    $book->delete();
+                    $book->deleteRecord();
                     $removed++;
                 } catch (\Throwable $e) {
                     Log::warning('[AppQyV1BookSeed] legacy supersede failed for ' . $key . ': ' . $e->getMessage());

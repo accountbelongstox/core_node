@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ArrowRight, Shield, Target, Paintbrush, Play, Layout, CheckCircle2 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewLogo } from '../WfNewBrand';
 

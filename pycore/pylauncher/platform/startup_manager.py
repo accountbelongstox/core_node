@@ -11,10 +11,20 @@ mechanism (Windows: a .lnk shortcut in the common Startup folder; Linux: an XDG
 
 import platform
 
-from pycore.pylauncher.platform.windows_startup_manager import WindowsStartupManager
-from pycore.pylauncher.platform.autostart_target import read_preference, normalize_mechanism
-from pycore.pylauncher.platform.systemd_user_startup_manager import SystemdUserStartupManager
-from pycore.pylauncher.platform.linux_startup_manager import LinuxStartupManager
+
+PLATFORM_SYSTEM = platform.system()
+
+if PLATFORM_SYSTEM == "Windows":
+    from pycore.pylauncher.platform.windows_startup_manager import WindowsStartupManager
+elif PLATFORM_SYSTEM == "Linux":
+    from pycore.pylauncher.platform.autostart_target import (
+        normalize_mechanism,
+        read_preference,
+    )
+    from pycore.pylauncher.platform.linux_startup_manager import LinuxStartupManager
+    from pycore.pylauncher.platform.systemd_user_startup_manager import (
+        SystemdUserStartupManager,
+    )
 
 
 
@@ -58,7 +68,7 @@ def get_startup_manager(app_name: str = "PyCore_RPC_Server", target=None, mechan
     is omitted the persisted unified user setting supplies it, so callers like
     ``refresh_startup_launcher`` (no args) recover the user's last choice.
     """
-    system = platform.system()
+    system = PLATFORM_SYSTEM
     if system == "Windows":
         return WindowsStartupManager(app_name, target=target)
     if system == "Linux":

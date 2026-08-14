@@ -288,6 +288,13 @@ def get_third_package_uvicorn():
     return _lazy_import('uvicorn', 'import uvicorn')
 
 
+def get_third_package_websockets():
+    """Get websockets with its synchronous client module."""
+    package = _lazy_import('websockets', 'import websockets')
+    package.sync_client = importlib.import_module('websockets.sync.client')
+    return package
+
+
 def get_third_package_fastapi():
     """Get fastapi package (lazy load)"""
     package = _lazy_import('fastapi', 'import fastapi')

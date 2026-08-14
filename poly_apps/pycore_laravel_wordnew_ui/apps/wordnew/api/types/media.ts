@@ -41,48 +41,29 @@ export interface WfNewAgentArticle {
   document_id?: string | null;
 }
 
-export type WfNewQueueDeliveryStage =
-  | 'waiting'
-  | 'laravel_received'
-  | 'worker_received'
-  | 'completed'
-  | 'failed';
-
-export interface WfNewQueueWorkerPresence {
-  id: string;
-  kind: 'pycore' | 'chrome' | 'laravel' | string;
-  name: string;
-  processorTypes: string[];
-  capabilities: string[];
-  online: boolean;
-  lastSeen?: string | null;
-  claimed?: number;
-  hostname?: string | null;
-}
-
-export interface WfNewQueueDeliveryReceipt {
-  taskId: string;
-  stage: WfNewQueueDeliveryStage;
-  status?: string | null;
-  workerId?: string | null;
-  workerKind?: string | null;
-}
-
-export interface WfNewQueuePriorityItem {
+export interface WfNewQueueCommandItem {
+  success?: boolean;
+  status?: string;
+  error?: string;
   content?: string;
+  word?: string;
   text?: string;
   language?: string;
   content_id?: string;
   task_id?: string | null;
   queue_task_id?: string | null;
+  queue_position?: number | null;
+  audio_path?: string | null;
+  audio_url?: string | null;
+  audio_status?: string;
 }
 
-export interface WfNewQueuePriorityResult {
+export interface WfNewQueueCommandResult {
   success: boolean;
   queued?: number;
   total?: number;
-  items?: WfNewQueuePriorityItem[];
-  results?: WfNewQueuePriorityItem[];
+  items?: WfNewQueueCommandItem[];
+  results?: WfNewQueueCommandItem[];
   error?: string;
 }
 
@@ -269,18 +250,18 @@ export interface WfNewWordAudioVariant {
 /**
  * On-demand media + dictionary detail for ONE word, from the file-first resolve
  * endpoint GET /api/app_qy_v1/word/{lang}/{word}/media. Active calls both READ
- * current state and prioritize generation; passive calls are read-only:
+ * current state and move missing audio to the queue head; passive calls are read-only:
  *
  *   - `imageUrl` / `audioUrl` are non-null ONLY when the file already exists on
  *     disk (absolute, resolved against the endpoint host by the HTTP impl).
- *   - When a file is missing the backend ENQUEUES the work + bumps its priority
+ *   - When a file is missing the backend inserts or moves the work to queue head
  *     and reports the corresponding status as 'pending'. So a UI can poll this a
  *     few times until status flips to 'ready' and the url appears.
  *   - With `?accent=us|uk`: when only ANOTHER accent's file exists the backend
  *     serves it (`accentFallback` true) and keeps a preferred-accent task
  *     pending — the UI plays the fallback but may keep polling for the
  *     preferred rendition (see `audioVariants`).
- *   - With `?passive=1`, no missing-media task is created or reprioritized.
+ *   - With `?passive=1`, no missing-media task is created or moved.
  */
 export interface WfNewWordMedia {
   word: string;
@@ -314,7 +295,7 @@ export interface WfNewWordMedia {
 
 export interface WfNewWordMediaOptions {
   accent?: WfNewWordAccent;
-  /** Read current file state without enqueueing or changing queue priority. */
+  /** Read current file state without enqueueing or changing queue order. */
   passive?: boolean;
 }
 

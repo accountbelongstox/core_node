@@ -28,7 +28,7 @@ use App\Providers\PathMapper;
 class AiRateLimiter
 {
     /** Mirror of pycore RATE_LIMITS_LAST_UPDATED. */
-    public const LAST_UPDATED = '2026-06-13';
+    public const LAST_UPDATED = '2026-08-14';
 
     /**
      * provider -> limits; null = no local enforcement (paid / balance-only).
@@ -234,7 +234,7 @@ class AiRateLimiter
     }
 
     /**
-     * Record one successful request for the local rate counters (shared store).
+     * Record one request that reached the provider for the shared counters.
      */
     public static function recordRequest(string $provider): void
     {

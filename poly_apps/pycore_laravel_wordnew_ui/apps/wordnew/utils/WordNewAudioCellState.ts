@@ -2,20 +2,11 @@
  * Per-cell sentence/word audio UI state (book reader + library table).
  */
 import type { WordNewAudioFileVariant } from '../api/types/media';
+import type { QueueDeliveryVisualStage } from '../../../core/contracts/QueueCenterContract';
 
 export type { WordNewAudioFileVariant };
 
-export type WordNewAudioCellState =
-  | 'none'
-  | 'missing'
-  | 'waiting'
-  | 'queued'
-  | 'laravel_received'
-  | 'worker_received'
-  | 'processing'
-  | 'ready'
-  | 'playing'
-  | 'failed';
+export type WordNewAudioCellState = QueueDeliveryVisualStage;
 
 export const cellKeyOf = (grain: string, seq: number, lang: string) => `${grain}-${seq}-${lang}`;
 

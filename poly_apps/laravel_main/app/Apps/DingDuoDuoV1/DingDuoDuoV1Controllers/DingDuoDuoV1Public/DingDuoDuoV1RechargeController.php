@@ -74,7 +74,7 @@ class DingDuoDuoV1RechargeController extends BaseController
 
         $outTradeNo = 'DD' . date('YmdHis') . strtoupper(Str::random(8));
 
-        $order = DingDuoDuoV1RechargeOrderModel::query()->create([
+        $order = DingDuoDuoV1RechargeOrderModel::createRecord([
             'member_id' => (int) $member->id,
             'package_id' => (string) $package['id'],
             'amount' => (float) ($package['price'] ?? 0),
@@ -109,7 +109,7 @@ class DingDuoDuoV1RechargeController extends BaseController
             ], 400);
         }
 
-        $order = DingDuoDuoV1RechargeOrderModel::query()->where('out_trade_no', $outTradeNo)->first();
+        $order = DingDuoDuoV1RechargeOrderModel::findByTradeNo($outTradeNo);
         if (!$order) {
             return response()->json([
                 'success' => false,
@@ -130,9 +130,9 @@ class DingDuoDuoV1RechargeController extends BaseController
         $order->status = DingDuoDuoV1OrderStatus::Paid->value;
         $order->paid_at = now();
         $order->raw = $request->all();
-        $order->save();
+        $order->saveRecord();
 
-        $member = DingDuoDuoV1MemberModel::query()->find($order->member_id);
+        $member = DingDuoDuoV1MemberModel::findById((int) $order->member_id);
         $config = self::activeConfig();
         $package = self::findPackage($config, (string) $order->package_id);
 
@@ -143,8 +143,8 @@ class DingDuoDuoV1RechargeController extends BaseController
         return response()->json([
             'success' => true,
             'data' => [
-                'order' => $order->fresh()->toArray(),
-                'member' => $member ? $member->fresh()->toArray() : null,
+                'order' => $order->freshRecord()->toArray(),
+                'member' => $member ? $member->freshRecord()->toArray() : null,
             ],
         ]);
     }
@@ -163,10 +163,7 @@ class DingDuoDuoV1RechargeController extends BaseController
             return null;
         }
 
-        return DingDuoDuoV1MemberModel::query()
-            ->where('token', $token)
-            ->where('status', 'active')
-            ->first();
+        return DingDuoDuoV1MemberModel::activeByToken($token);
     }
 
     /**
@@ -174,7 +171,7 @@ class DingDuoDuoV1RechargeController extends BaseController
      */
     private static function activeConfig(): ?DingDuoDuoV1RechargeConfigModel
     {
-        return DingDuoDuoV1RechargeConfigModel::query()->where('enabled', true)->first();
+        return DingDuoDuoV1RechargeConfigModel::enabled();
     }
 
     /**

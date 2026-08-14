@@ -42,7 +42,7 @@ export interface WordNewBookReaderPlaybackDeps {
   getLastPage: () => number;
   goNextChapter: () => Promise<boolean>;
   resolveAudioUrl: (verse: WfNewBookVerse, lang: string, shouldContinue?: () => boolean) => Promise<string | null>;
-  bumpMissingAudio: (verse: WfNewBookVerse, lang: string, text: string) => void;
+  moveMissingAudioToHead: (verse: WfNewBookVerse, lang: string, text: string) => void;
   /** Optional word-card hook (English only) — read unrecited group words
    *  around the sentence audio. */
   wordCards?: WordNewBookReaderWordCards;
@@ -242,7 +242,7 @@ export class WordNewBookReaderPlayback {
     let url: string | null = null;
     const hasReadyClip = !!(cell?.hasAudio || cell?.audioFiles?.some((f) => f.hasFile && f.url));
     if (!hasReadyClip) {
-      this.deps.bumpMissingAudio(verse, lang, text);
+      this.deps.moveMissingAudioToHead(verse, lang, text);
     }
     url = await this.deps.resolveAudioUrl(
       verse, lang, () => this.playing && this.playToken === token,
@@ -301,8 +301,8 @@ export class WordNewBookReaderPlayback {
     if (!this.playing || this.playToken !== token) return;
     // Backend audio missing: ALWAYS try the browser's speech engine first so
     // playback never stalls on a sentence laravel is still generating. The
-    // reader bumps laravel's priority for the sentence in parallel (see
-    // bumpMissingAudio), and WordNewBookReaderSpeech.pickVoice prefers Microsoft
+    // reader moves the sentence to Laravel's queue head in parallel (see
+    // moveMissingAudioToHead), and WordNewBookReaderSpeech.pickVoice prefers Microsoft
     // Natural / Edge neural voices - i.e. the Edge Read Aloud voice. If the
     // browser has no speechSynthesis (headless / unsupported) speakBookText
     // rejects and we fall through to the skip path. The readerBrowserTts

@@ -1,8 +1,9 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
 import {
   canvasToDataURL,
   createImageBitmapFromUrl,
@@ -99,7 +100,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     try {
       await this.injectContentScript(tab.id!, ['inject-scripts/screenshot-helper.js']);
       // Wait for script initialization
-      await new Promise((resolve) => setTimeout(resolve, SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY));
+      await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
       // 1. Prepare page (hide scrollbars, potentially fixed elements)
       await this.sendMessageToTab(tab.id!, {
         action: TOOL_MESSAGE_TYPES.SCREENSHOT_PREPARE_PAGE_FOR_CAPTURE,
@@ -140,15 +141,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         // Include base64 data in response (without prefix)
         const base64Data = compressed.dataUrl.replace(/^data:image\/[^;]+;base64,/, '');
         results.base64 = base64Data;
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ base64Data, mimeType: compressed.mimeType }),
-            },
-          ],
-          isError: false,
-        };
+        return createJsonResponse({ base64Data, mimeType: compressed.mimeType });
       }
 
       if (savePng === true) {
@@ -173,7 +166,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
           // Try to get the full file path
           try {
             // Wait a moment to ensure download info is updated
-            await new Promise((resolve) => setTimeout(resolve, 100));
+            await waitForDelay(100);
 
             // Search for download item to get full path
             const [downloadItem] = await chrome.downloads.search({ id: downloadId });
@@ -186,13 +179,13 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
           }
         } catch (error) {
           console.error('Error saving PNG file:', error);
-          results.saveError = String(error instanceof Error ? error.message : error);
+          results.saveError = toErrorMessage(error);
         }
       }
     } catch (error) {
       console.error('Error during screenshot execution:', error);
       return createErrorResponse(
-        `Screenshot error: ${error instanceof Error ? error.message : JSON.stringify(error)}`,
+        `Screenshot error: ${toErrorMessage(error)}`,
       );
     } finally {
       // 3. Reset page
@@ -209,22 +202,14 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
 
     this.logInfo('Screenshot completed!');
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: `Screenshot [${name}] captured successfully`,
-            tabId: tab.id,
-            url: tab.url,
-            name: name,
-            ...results,
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      message: `Screenshot [${name}] captured successfully`,
+      tabId: tab.id,
+      url: tab.url,
+      name,
+      ...results,
+    });
   }
 
   /**
@@ -259,7 +244,7 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     };
 
     // Small delay to ensure element is fully rendered after scrollIntoView
-    await new Promise((resolve) => setTimeout(resolve, SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY));
+    await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
 
     const visibleCaptureDataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
     if (!visibleCaptureDataUrl) {

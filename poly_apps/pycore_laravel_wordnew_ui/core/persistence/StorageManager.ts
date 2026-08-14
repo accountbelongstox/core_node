@@ -1,4 +1,4 @@
-import type { StorageKey } from './StorageKeys';
+import type { StorageKey } from './StorageKey';
 
 export const STORAGE_MANAGER_CHANGED_EVENT = 'core-storage-manager-changed';
 
@@ -47,8 +47,7 @@ export class StorageManager {
       try {
         return JSON.parse(raw) as T;
       } catch {
-        // Support legacy plain-string storage when JSON.parse fails
-        return (defaultValue !== undefined ? defaultValue : (raw as unknown as T)) as T;
+        return defaultValue as T;
       }
     } catch (error) {
       console.error('[StorageManager] get failed:', { key, error });
@@ -105,60 +104,6 @@ export class StorageManager {
     }
   }
 
-  /** Read an unregistered key only for one-time migration into a canonical key. */
-  static getLegacyRaw(key: string): string | null {
-    if (!this.isBrowser()) return null;
-    try {
-      return window.localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  }
-
-  /** Enumerate unregistered keys only for one-time prefix migrations. */
-  static listLegacyRaw(prefix: string): Array<{ key: string; value: string }> {
-    if (!this.isBrowser()) return [];
-    const entries: Array<{ key: string; value: string }> = [];
-    try {
-      for (let index = 0; index < window.localStorage.length; index += 1) {
-        const key = window.localStorage.key(index);
-        if (!key || !key.startsWith(prefix)) continue;
-        const value = window.localStorage.getItem(key);
-        if (value !== null) entries.push({ key, value });
-      }
-    } catch {
-      return entries;
-    }
-    return entries;
-  }
-
-  /** Remove unregistered keys after a successful one-time migration. */
-  static removeLegacyRaw(keys: readonly string[]): void {
-    if (!this.isBrowser()) return;
-    try {
-      for (const key of keys) window.localStorage.removeItem(key);
-    } catch {
-      /* best-effort migration cleanup */
-    }
-  }
-
-  /** Move an existing serialized value without parsing or rewriting its shape. */
-  static migrateRaw(sourceKey: StorageKey, targetKey: StorageKey): boolean {
-    if (!this.isBrowser()) return false;
-    try {
-      if (window.localStorage.getItem(targetKey) !== null) return false;
-      const raw = window.localStorage.getItem(sourceKey);
-      if (raw === null) return false;
-      window.localStorage.setItem(targetKey, raw);
-      window.localStorage.removeItem(sourceKey);
-      this.notifyChanged(sourceKey, null);
-      this.notifyChanged(targetKey, raw);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   static getSession<T>(key: StorageKey, defaultValue?: T): T {
     if (typeof window === 'undefined' || !window.sessionStorage) return defaultValue as T;
     try {
@@ -167,7 +112,7 @@ export class StorageManager {
       try {
         return JSON.parse(raw) as T;
       } catch {
-        return raw as unknown as T;
+        return defaultValue as T;
       }
     } catch {
       return defaultValue as T;

@@ -477,7 +477,7 @@ class AppQyV1BooksController extends Controller
         }
 
         if ($totalSentences > self::ASYNC_SENTENCE_THRESHOLD) {
-            $task = GlobalTask::create([
+            $task = GlobalTask::createTaskRecord([
                 'task_id' => (string) Str::uuid(),
                 'app_name' => 'app_qy_v1',
                 'task_type' => 'books_ingest',
@@ -502,7 +502,7 @@ class AppQyV1BooksController extends Controller
                 } catch (\Throwable $e) {
                     $task->status = GlobalTask::status('failed');
                     $task->error = $e->getMessage();
-                    $task->save();
+                    $task->saveRecord();
                     Log::error('[AppQyV1Books] async book ingest failed', [
                         'task_id' => $task->task_id,
                         'error' => $e->getMessage(),
@@ -650,7 +650,7 @@ class AppQyV1BooksController extends Controller
 
                 if ($task !== null && $totalChunks > 0) {
                     $task->progress = round(($doneChunks / $totalChunks) * 100, 2);
-                    $task->save();
+                    $task->saveRecord();
                 }
             }
 
@@ -667,7 +667,7 @@ class AppQyV1BooksController extends Controller
             $task->progress = 100.0;
             $task->result = ['books' => $books];
             $task->completed_at = now();
-            $task->save();
+            $task->saveRecord();
         }
 
         return $books;

@@ -2,7 +2,7 @@
 
 namespace App\Apps\McpV1\McpV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 class McpV1PlaceholderImageModel extends Model
 {
@@ -30,6 +30,27 @@ class McpV1PlaceholderImageModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findByUuid(string $uuid): ?self
+    {
+        return static::query()->where('uuid', $uuid)->first();
+    }
+
+    public static function filteredPage(?bool $downloaded, int $perPage, int $page)
+    {
+        $query = static::query()->orderByDesc('created_at');
+
+        if ($downloaded !== null) {
+            $query->where('downloaded', $downloaded);
+        }
+
+        return $query->paginate($perPage, ['*'], 'page', $page);
+    }
 
     public static function cleanupOldImages(): int
     {

@@ -1,7 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
+import { delay as waitForDelay } from '@/utils/async';
 
 interface WebFetcherToolParams {
   htmlContent?: boolean; // get the visible HTML content of the current page. default: false
@@ -74,7 +75,7 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
 
           // Wait for page to load
           console.log('Waiting for page to load...');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await waitForDelay(3000);
         }
       } else {
         // Use active tab
@@ -152,19 +153,11 @@ class WebFetcherTool extends BaseBrowserToolExecutor {
 
       // Interactive elements feature has been removed
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result);
     } catch (error) {
       console.error('Error in web fetcher:', error);
       return createErrorResponse(
-        `Error fetching web content: ${error instanceof Error ? error.message : String(error)}`,
+        `Error fetching web content: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -218,28 +211,20 @@ class GetInteractiveElementsTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error || 'Failed to get interactive elements');
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              elements: result.elements,
-              count: result.elements.length,
-              query: {
-                textQuery,
-                selector,
-                types: types || 'all',
-              },
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        elements: result.elements,
+        count: result.elements.length,
+        query: {
+          textQuery,
+          selector,
+          types: types || 'all',
+        },
+      });
     } catch (error) {
       console.error('Error in get interactive elements operation:', error);
       return createErrorResponse(
-        `Error getting interactive elements: ${error instanceof Error ? error.message : String(error)}`,
+        `Error getting interactive elements: ${toErrorMessage(error)}`,
       );
     }
   }

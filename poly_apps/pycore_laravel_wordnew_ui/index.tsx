@@ -1,5 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import './core/i18n/UiI18n';
+import './shell/shellTranslations';
 import './apps/laravel-manager/i18n';
 import './themes/index.css';
 import ShellApp from './shell/ShellApp';
@@ -14,6 +16,18 @@ if (!rootElement) {
 applyFlavorDocument(FLAVOR);
 
 const root = ReactDOM.createRoot(rootElement);
+let rootMounted = true;
+const unmountRoot = (): void => {
+  if (!rootMounted) return;
+  rootMounted = false;
+  root.unmount();
+};
+const handlePageHide = (event: PageTransitionEvent): void => {
+  if (!event.persisted) unmountRoot();
+};
+
+window.addEventListener('pagehide', handlePageHide, { once: true });
+
 root.render(
   <React.StrictMode>
     {/* Central code configuration selects the full shell or standalone app. */}

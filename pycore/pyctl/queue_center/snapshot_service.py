@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pycore-owned Queue Center snapshot and Laravel incremental stream."""
+"""Pycore-owned Queue Center snapshot and Laravel WebSocket exchange."""
 
 from __future__ import annotations
 
@@ -7,16 +7,16 @@ import json
 import threading
 import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 
-from pycore.pyfoundations.http_sse import SseEventDecoder, is_sse_content_type
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
-    start_bus_task,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
+from pycore.pyfoundations.third_party.api import get_third_package_websockets
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.service import assist_status
 from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
@@ -32,7 +32,13 @@ from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
-from pycore.pyutils.common.queue_center_contract import GLOBAL_TASK_LIMITS
+from pycore.pyutils.common.queue_center_contract import (
+    GLOBAL_TASK_LIMITS,
+    QUEUE_CENTER_DIFF_DELIVERY,
+    QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
+    QUEUE_CENTER_REALTIME_EVENTS,
+    queue_center_endpoint,
+)
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
     status_snapshot_cache,
@@ -43,43 +49,25 @@ from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 
 
 QUEUE_CENTER_SNAPSHOT_TOPIC = "queue_center.snapshot.changed"
-QUEUE_CENTER_STREAM_PATH = "/api/queue-center/stream"
+QUEUE_CENTER_EVENTS_PATH = queue_center_endpoint("queue_center_events")
 QUEUE_CENTER_PRIORITY_EVENTS = {
-    "task.priority": "word_translation",
-    "word_audio.priority": "word_audio",
-    "sentence.priority": "sentence_audio",
-    "word_image.priority": "word_media",
-    "cover.priority": "cover",
-    "poster.priority": "poster",
+    QUEUE_CENTER_REALTIME_EVENTS["task_priority"]: "word_translation",
+    QUEUE_CENTER_REALTIME_EVENTS["word_image_priority"]: "word_media",
+    QUEUE_CENTER_REALTIME_EVENTS["cover_priority"]: "cover",
+    QUEUE_CENTER_REALTIME_EVENTS["poster_priority"]: "poster",
 }
-QUEUE_CENTER_CONTROL_EVENTS = frozenset(("stream.open", "ping", "stream.close"))
-QUEUE_CENTER_SSE_EVENTS = QUEUE_CENTER_CONTROL_EVENTS | frozenset(
-    QUEUE_CENTER_PRIORITY_EVENTS
-)
+QUEUE_CENTER_HEAD_EVENTS = {
+    QUEUE_CENTER_REALTIME_EVENTS["word_audio_head"]: "word_audio",
+    QUEUE_CENTER_REALTIME_EVENTS["sentence_audio_head"]: "sentence_audio",
+}
 QUEUE_CENTER_HEAD_LIMIT = 100
-QUEUE_CENTER_REMOTE_SLICES = (
-    ("overview", "/api/app_qy_v1/assist/overview", {}),
-    ("queue_overview", "/api/queue-center/overview", {}),
-    (
-        "translation_queue",
-        "/api/app_qy_v1/ai_tools/translation/queue/list",
-        {"status": "pending", "limit": QUEUE_CENTER_HEAD_LIMIT},
-    ),
-    (
-        "sentence_queue",
-        "/api/app_qy_v1/ai_tools/tts/sentence/missing",
-        {"page": 1, "per_page": GLOBAL_TASK_LIMITS["monitor"]},
-    ),
-)
+QUEUE_CENTER_EVENT_ITEM_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
 QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS = 8
-QUEUE_CENTER_COLD_WAIT_SECONDS = (
-    QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS * len(QUEUE_CENTER_REMOTE_SLICES) + 10
-)
-QUEUE_CENTER_REFRESH_INTERVAL_SECONDS = 15.0
 QUEUE_CENTER_RECONNECT_MIN_SECONDS = 1.0
 QUEUE_CENTER_RECONNECT_MAX_SECONDS = 15.0
-QUEUE_CENTER_REFRESH_SIGNAL = "queue_center.snapshot.refreshing"
-QUEUE_CENTER_REFRESH_DONE_SIGNAL = "queue_center.snapshot.refresh.done"
+QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS = 10.0
+QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS = 70.0
+QUEUE_CENTER_PUSHER_PROTOCOL = 7
 QUEUE_CENTER_STOP_SIGNAL = "queue_center.snapshot.stop"
 
 
@@ -95,17 +83,6 @@ def _response_data(response: Any) -> Dict[str, Any]:
         raise TypeError("Laravel Queue Center response must be an object")
     data = payload.get("data")
     return dict(data) if isinstance(data, dict) else dict(payload)
-
-
-def _heartbeat_callbacks() -> List[Dict[str, Any]]:
-    stats = shared_heartbeat_system.get_stats()
-    heartbeat = stats.get("heartbeat") if isinstance(stats.get("heartbeat"), dict) else {}
-    callbacks = heartbeat.get("callbacks") if isinstance(heartbeat.get("callbacks"), dict) else {}
-    return [
-        {"name": name, **dict(value)}
-        for name, value in callbacks.items()
-        if isinstance(value, dict)
-    ]
 
 
 def _queue_metrics(queue_overview: Dict[str, Any], scope: str) -> Optional[Dict[str, int]]:
@@ -124,23 +101,27 @@ def _queue_metrics(queue_overview: Dict[str, Any], scope: str) -> Optional[Dict[
     }
 
 
-class QueueCenterRealtimeThread(threading.Thread):
-    """Consume Laravel queue-head events and patch the Pycore cache."""
+class _QueueCenterRealtimeThread(threading.Thread):
+    """Consume Reverb queue events without occupying a Laravel HTTP worker."""
 
-    def __init__(self, service: "QueueCenterSnapshotService") -> None:
+    def __init__(self, service: "_QueueCenterSnapshotService") -> None:
         super().__init__(name="QueueCenterRealtimeThread", daemon=True)
         self._service = service
-        self._active_response: Any = None
-        self._decoder = SseEventDecoder()
+        self._active_socket: Any = None
 
     def stop(self) -> None:
         THREAD_BUS.signal(QUEUE_CENTER_STOP_SIGNAL, True)
-        response = self._active_response
-        if response is not None:
-            try:
-                response.close()
-            except Exception as exc:
-                ColorPrint.yellow(f"[QueueCenterCache] stream close failed: {exc}")
+        self._close_active_socket()
+
+    def _close_active_socket(self) -> None:
+        websocket = self._active_socket
+        self._active_socket = None
+        if websocket is None:
+            return
+        try:
+            websocket.close()
+        except Exception as exc:
+            ColorPrint.yellow(f"[QueueCenterCache] websocket close failed: {exc}")
 
     def run(self) -> None:
         reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
@@ -149,65 +130,96 @@ class QueueCenterRealtimeThread(threading.Thread):
             False,
         ):
             refresh_after_close = False
+            reconnect_delay = 0.0
+            endpoint = ""
             try:
                 endpoint = self._service.endpoint()
                 if not endpoint:
                     raise RuntimeError("Laravel endpoint is unavailable")
-                cursor = self._service.stream_cursor()
-                params = {"cursor": cursor} if cursor > 0 else {}
-                response = laravel_client.get_stream(
-                    QUEUE_CENTER_STREAM_PATH,
-                    base_url=endpoint,
-                    params=params,
-                    timeout=60,
+                connection = self._service.realtime_connection()
+                self._service.replay_realtime_events(endpoint)
+                websocket_url = self._websocket_url(endpoint, connection)
+                websockets = get_third_package_websockets()
+                websocket = websockets.sync_client.connect(
+                    websocket_url,
+                    open_timeout=QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS,
+                    close_timeout=2,
                 )
-                self._active_response = response
-                if response.status_code != 200:
-                    raise RuntimeError(
-                        f"Laravel Queue Center stream failed: HTTP {response.status_code}"
-                    )
-                content_type = response.headers.get("Content-Type")
-                if not is_sse_content_type(content_type):
-                    raise RuntimeError(
-                        "Laravel Queue Center stream returned unexpected content type: "
-                        f"{content_type or 'missing'}"
-                    )
-                self._service.note_realtime_connected(endpoint)
+                self._active_socket = websocket
                 reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
-                refresh_after_close = self._consume(response, endpoint)
+                refresh_after_close = self._consume(
+                    websocket,
+                    endpoint,
+                    str(connection["channel"]),
+                )
             except Exception as exc:
                 refresh_after_close = True
                 self._service.note_realtime_disconnected(str(exc))
                 ColorPrint.yellow(f"[QueueCenterCache] realtime reconnect: {exc}")
-                THREAD_BUS.wait_signal(QUEUE_CENTER_STOP_SIGNAL, timeout=reconnect_seconds)
+                if endpoint:
+                    try:
+                        self._service.replay_realtime_events(endpoint)
+                    except Exception as replay_exc:
+                        ColorPrint.yellow(
+                            f"[QueueCenterCache] fallback replay failed: {replay_exc}"
+                        )
+                reconnect_delay = reconnect_seconds
                 reconnect_seconds = min(
                     QUEUE_CENTER_RECONNECT_MAX_SECONDS,
                     reconnect_seconds * 2,
                 )
             finally:
-                response = self._active_response
-                self._active_response = None
-                if response is not None:
-                    try:
-                        response.close()
-                    except Exception as exc:
-                        ColorPrint.yellow(f"[QueueCenterCache] stream cleanup failed: {exc}")
-            should_refresh = (
-                refresh_after_close
-                and not THREAD_BUS.is_shutdown_requested()
-                and not THREAD_BUS.get_signal(QUEUE_CENTER_STOP_SIGNAL, False)
-            )
-            if should_refresh:
-                try:
-                    self._service.refresh_if_due(wait_for_existing=True)
-                except Exception as exc:
-                    ColorPrint.yellow(
-                        f"[QueueCenterCache] refresh before reconnect failed: {exc}"
-                    )
+                self._close_active_socket()
+            # After a realtime disconnect we replay missed events over the
+            # lightweight /api/queue-center/events endpoint. We no longer run
+            # a full remote slice refresh here; that path was a major source of
+            # worker contention and 8-second timeouts.
+            if reconnect_delay > 0:
+                THREAD_BUS.wait_signal(
+                    QUEUE_CENTER_STOP_SIGNAL,
+                    timeout=reconnect_delay,
+                )
 
-    def _consume(self, response: Any, endpoint: str) -> bool:
-        self._decoder.reset()
-        for raw_line in response.iter_lines(decode_unicode=True):
+    @staticmethod
+    def _websocket_url(endpoint: str, connection: Dict[str, Any]) -> str:
+        endpoint_parts = urlsplit(endpoint)
+        configured_host = str(connection.get("host") or "").strip()
+        host = (
+            endpoint_parts.hostname
+            if configured_host in ("", "0.0.0.0", "::")
+            else configured_host
+        )
+        configured_scheme = str(connection.get("scheme") or "http").lower()
+        secure = configured_scheme == "https" or endpoint_parts.scheme == "https"
+        scheme = "wss" if secure else "ws"
+        port = (
+            int(endpoint_parts.port or 443)
+            if secure
+            else int(connection.get("port") or 80)
+        )
+        hostname = f"[{host}]" if host and ":" in host and not host.startswith("[") else host
+        netloc = f"{hostname}:{port}"
+        app_key = quote(str(connection.get("app_key") or ""), safe="")
+        if not app_key:
+            raise RuntimeError("Laravel Reverb app key is unavailable")
+        query = urlencode({
+            "protocol": QUEUE_CENTER_PUSHER_PROTOCOL,
+            "client": "pycore",
+            "version": "1.0",
+            "flash": "false",
+        })
+        return urlunsplit((scheme, netloc, f"/app/{app_key}", query, ""))
+
+    @staticmethod
+    def _payload(value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return dict(value)
+        parsed = json.loads(value) if isinstance(value, str) else None
+        return dict(parsed) if isinstance(parsed, dict) else {}
+
+    def _consume(self, websocket: Any, endpoint: str, channel: str) -> bool:
+        subscribed = False
+        while not THREAD_BUS.is_shutdown_requested():
             if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(
                 QUEUE_CENTER_STOP_SIGNAL,
                 False,
@@ -215,39 +227,49 @@ class QueueCenterRealtimeThread(threading.Thread):
                 return False
             if self._service.endpoint() != endpoint:
                 return True
-            event = self._decoder.feed_line(raw_line)
-            if event is None:
+            message = websocket.recv(
+                timeout=QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS
+            )
+            frame = self._payload(message)
+            event_name = str(frame.get("event") or "")
+            if event_name == "pusher:connection_established":
+                websocket.send(json.dumps({
+                    "event": "pusher:subscribe",
+                    "data": {"auth": "", "channel": channel},
+                }))
                 continue
-            event_name, data, _event_id = event
-            if self._dispatch(event_name, data):
-                return True
-        raise ConnectionError("Laravel Queue Center stream ended before stream.close")
+            if event_name == "pusher:ping":
+                websocket.send(json.dumps({"event": "pusher:pong", "data": {}}))
+                continue
+            if event_name == "pusher_internal:subscription_succeeded":
+                subscribed = True
+                self._service.note_realtime_connected(endpoint)
+                self._service.replay_realtime_events(endpoint)
+                continue
+            if not subscribed:
+                continue
+            payload = self._payload(frame.get("data"))
+            cursor = int(payload.get("_id") or 0)
+            if event_name == QUEUE_CENTER_REALTIME_EVENTS["worker_presence"]:
+                self._service.advance_stream_cursor(cursor)
+                continue
+            if event_name == QUEUE_CENTER_REALTIME_EVENTS["queue_changed"]:
+                self._service.advance_stream_cursor(cursor)
+                self._service.wake_workers()
+                continue
+            if event_name in QUEUE_CENTER_HEAD_EVENTS:
+                self._service.apply_head_event(event_name, payload, cursor)
+                continue
+            if event_name in QUEUE_CENTER_PRIORITY_EVENTS:
+                self._service.apply_priority_event(event_name, payload, cursor)
+        raise ConnectionError("Laravel Queue Center websocket closed")
 
-    def _dispatch(self, event_name: str, data: str) -> bool:
-        if event_name not in QUEUE_CENTER_SSE_EVENTS:
-            return False
-        try:
-            payload = json.loads(data)
-        except json.JSONDecodeError as exc:
-            ColorPrint.yellow(f"[QueueCenterCache] invalid SSE frame: {exc}")
-            return False
-        if not isinstance(payload, dict):
-            return False
-        cursor = int(payload.get("_id") or payload.get("cursor") or 0)
-        if event_name in QUEUE_CENTER_CONTROL_EVENTS:
-            self._service.advance_stream_cursor(cursor)
-            return event_name == "stream.close"
-        if event_name in QUEUE_CENTER_PRIORITY_EVENTS:
-            self._service.apply_priority_event(event_name, payload, cursor)
-        return False
 
-
-class QueueCenterSnapshotService:
+class _QueueCenterSnapshotService:
     """Own one bounded Queue Center snapshot for every UI client."""
 
     def __init__(self) -> None:
-        self._refresh_generation = 0
-        self._thread: Optional[QueueCenterRealtimeThread] = None
+        self._thread: Optional[_QueueCenterRealtimeThread] = None
         init_serialized_owner(
             self,
             "queue_center.snapshot.state",
@@ -259,30 +281,11 @@ class QueueCenterSnapshotService:
         )
 
     @serialized_method
-    def _claim_refresh(self) -> Tuple[bool, int]:
-        if THREAD_BUS.get_signal(QUEUE_CENTER_REFRESH_SIGNAL, False):
-            return False, self._refresh_generation
-        self._refresh_generation += 1
-        THREAD_BUS.signal(QUEUE_CENTER_REFRESH_SIGNAL, True)
-        THREAD_BUS.clear_signal(QUEUE_CENTER_REFRESH_DONE_SIGNAL)
-        return True, self._refresh_generation
-
-    @serialized_method
-    def _finish_refresh(self, generation: int) -> None:
-        if generation != self._refresh_generation:
-            return
-        THREAD_BUS.signal(QUEUE_CENTER_REFRESH_SIGNAL, False)
-        THREAD_BUS.signal(
-            QUEUE_CENTER_REFRESH_DONE_SIGNAL,
-            {"generation": generation, "completed": True},
-        )
-
-    @serialized_method
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
             return
         THREAD_BUS.clear_signal(QUEUE_CENTER_STOP_SIGNAL)
-        self._thread = QueueCenterRealtimeThread(self)
+        self._thread = _QueueCenterRealtimeThread(self)
         self._thread.start()
         THREAD_BUS.register_shutdown_handler(
             self.stop,
@@ -298,6 +301,73 @@ class QueueCenterSnapshotService:
     def endpoint(self) -> str:
         selected = resolve_selected_endpoint_for_ui(monitor_reachable=False) or {}
         return str(selected.get("base_url") or "").rstrip("/")
+
+    def realtime_connection(self) -> Dict[str, Any]:
+        endpoint = self.endpoint()
+        if not endpoint:
+            raise RuntimeError("Laravel endpoint is unavailable")
+        response = laravel_client.get(
+            queue_center_endpoint("queue_center_overview"),
+            base_url=endpoint,
+            timeout=QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS,
+        )
+        overview = _response_data(response)
+        connection = overview.get("realtime")
+        if not isinstance(connection, dict):
+            raise RuntimeError("Laravel Queue Center realtime configuration is unavailable")
+        return dict(connection)
+
+    def replay_realtime_events(self, endpoint: str) -> None:
+        cursor = self.stream_cursor()
+        has_more = True
+        while has_more:
+            response = laravel_client.get(
+                QUEUE_CENTER_EVENTS_PATH,
+                base_url=endpoint,
+                params={
+                    "cursor": cursor,
+                    "limit": GLOBAL_TASK_LIMITS["event_batch"],
+                },
+                timeout=QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS,
+            )
+            replay = _response_data(response)
+            events = (
+                replay.get("events")
+                if isinstance(replay.get("events"), list)
+                else []
+            )
+            for row in events:
+                if not isinstance(row, dict):
+                    continue
+                event_name = str(row.get("event") or "")
+                payload = row.get("data") if isinstance(row.get("data"), dict) else {}
+                event_cursor = int(row.get("id") or payload.get("_id") or 0)
+                if event_name in QUEUE_CENTER_HEAD_EVENTS:
+                    self.apply_head_event(event_name, payload, event_cursor)
+                elif event_name in QUEUE_CENTER_PRIORITY_EVENTS:
+                    self.apply_priority_event(event_name, payload, event_cursor)
+                elif event_name == QUEUE_CENTER_REALTIME_EVENTS["worker_presence"]:
+                    self.advance_stream_cursor(event_cursor)
+                elif event_name == QUEUE_CENTER_REALTIME_EVENTS["queue_changed"]:
+                    self.advance_stream_cursor(event_cursor)
+                    self.wake_workers()
+            next_cursor = int(replay.get("cursor") or 0)
+            has_more = bool(replay.get("has_more"))
+            if has_more and next_cursor <= cursor:
+                raise RuntimeError("Laravel Queue Center replay cursor did not advance")
+            cursor = max(cursor, next_cursor)
+            self.advance_stream_cursor(cursor)
+
+    @staticmethod
+    def wake_workers() -> None:
+        workers = (
+            ("translation_worker", translation_worker_service),
+            ("tts_queue_poller", laravel_word_audio_worker),
+            ("tts_sentence_worker", laravel_sentence_audio_worker),
+        )
+        for callback_name, worker in workers:
+            if shared_heartbeat_system.is_callback_enabled(callback_name):
+                worker.request_pull()
 
     def stream_cursor(self) -> int:
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or {}
@@ -317,166 +387,18 @@ class QueueCenterSnapshotService:
         status_snapshot_cache.update(STATUS_SNAPSHOT_QUEUE_CENTER_KEY, updater)
 
     def get_snapshot(self, request_refresh: bool = False) -> Dict[str, Any]:
-        self.start()
+        # pycore never mirrors Laravel-owned queue rows into this snapshot.
+        # The browser reads Laravel directly; the shared Reverb connection
+        # wakes local workers without retaining an HTTP request.
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY)
-        cache = (
-            snapshot.get("cache")
-            if isinstance(snapshot, dict) and isinstance(snapshot.get("cache"), dict)
-            else {}
-        )
-        remote_attempted = float(cache.get("last_refresh_attempt_at") or 0) > 0
-        if snapshot is None or not remote_attempted:
-            snapshot = self.refresh_remote(wait_for_existing=True)
-        elif request_refresh:
-            self.request_refresh()
         return self._with_local_state(snapshot or self._empty_snapshot())
 
     def request_refresh(self) -> None:
-        start_bus_task(
-            self.refresh_remote,
-            thread_name="QueueCenterSnapshotRefreshThread",
-        )
-
-    def refresh_if_due(self, wait_for_existing: bool = False) -> Dict[str, Any]:
-        snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or {}
-        cache = snapshot.get("cache") if isinstance(snapshot.get("cache"), dict) else {}
-        last_attempt = float(cache.get("last_refresh_attempt_at") or 0)
-        if last_attempt > 0 and time.time() - last_attempt < QUEUE_CENTER_REFRESH_INTERVAL_SECONDS:
-            return snapshot
-        return self.refresh_remote(wait_for_existing=wait_for_existing)
-
-    def refresh_remote(self, wait_for_existing: bool = False) -> Dict[str, Any]:
-        claimed, generation = self._claim_refresh()
-        if not claimed:
-            if wait_for_existing:
-                THREAD_BUS.wait_signal(
-                    QUEUE_CENTER_REFRESH_DONE_SIGNAL,
-                    timeout=QUEUE_CENTER_COLD_WAIT_SECONDS,
-                )
-            return status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or self._empty_snapshot()
-
-        try:
-            refresh_started_at = time.time()
-            endpoint = self.endpoint()
-            current = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY) or self._empty_snapshot()
-            slices = {
-                "overview": current.get("overview"),
-                "queue_overview": current.get("queueOverview"),
-                "translation_queue": current.get("translation"),
-                "sentence_queue": current.get("sentenceQueue"),
-            }
-            errors: Dict[str, str] = {}
-            successes = 0
-            successful_names: set[str] = set()
-            if endpoint:
-                for name, path, params in QUEUE_CENTER_REMOTE_SLICES:
-                    try:
-                        response = laravel_client.get(
-                            path,
-                            base_url=endpoint,
-                            params=params,
-                            timeout=QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS,
-                        )
-                        slices[name] = _response_data(response)
-                        successes += 1
-                        successful_names.add(name)
-                    except Exception as exc:
-                        error_key = {
-                            "queue_overview": "queue_metrics",
-                            "translation_queue": "translation",
-                        }.get(name, name)
-                        errors[error_key] = str(exc)
-                        ColorPrint.yellow(
-                            f"[QueueCenterCache] {name} refresh failed: {exc}"
-                        )
-            else:
-                errors["laravel"] = "LARAVEL_ENDPOINT_UNAVAILABLE"
-
-            refreshed_at = time.time()
-            base_cursor = self.stream_cursor()
-
-            def merge(latest: Dict[str, Any]) -> Dict[str, Any]:
-                latest_cache = dict(latest.get("cache") or {})
-                latest_cursor = int(latest_cache.get("stream_cursor") or 0)
-                next_snapshot = dict(latest)
-                if slices["overview"] is not None:
-                    next_snapshot["overview"] = (
-                        self._normalize_overview(
-                            dict(slices["overview"]),
-                            True,
-                            refreshed_at,
-                        )
-                        if "overview" in successful_names
-                        else dict(slices["overview"])
-                    )
-                if slices["queue_overview"] is not None:
-                    next_snapshot["queueOverview"] = dict(slices["queue_overview"])
-                if slices["sentence_queue"] is not None:
-                    next_snapshot["sentenceQueue"] = (
-                        self._normalize_sentence_queue(dict(slices["sentence_queue"]))
-                        if "sentence_queue" in successful_names
-                        else dict(slices["sentence_queue"])
-                    )
-                if slices["translation_queue"] is not None:
-                    next_snapshot["translation"] = (
-                        self._normalize_translation_queue(
-                            dict(slices["translation_queue"]),
-                            bool(latest_cache.get("realtime_connected")),
-                            int(latest_cache.get("event_count") or 0),
-                        )
-                        if "translation_queue" in successful_names
-                        else dict(slices["translation_queue"])
-                    )
-                queue_heads = latest_cache.get("queue_heads")
-                queue_heads = queue_heads if isinstance(queue_heads, dict) else {}
-                for item in reversed(list(queue_heads.get("sentence_audio") or [])):
-                    if (
-                        not isinstance(item, dict)
-                        or float(item.get("received_at") or 0) < refresh_started_at
-                    ):
-                        continue
-                    event_payload = item.get("payload")
-            next_snapshot["sentenceQueue"] = self._update_sentence_row(
-                next_snapshot.get("sentenceQueue"),
-                event_payload if isinstance(event_payload, dict) else item,
-                True,
-            )
-                for item in reversed(list(queue_heads.get("word_translation") or [])):
-                    if (
-                        not isinstance(item, dict)
-                        or not item.get("task_id")
-                        or float(item.get("received_at") or 0) < refresh_started_at
-                    ):
-                        continue
-            next_snapshot["translation"] = self._update_translation_row(
-                next_snapshot.get("translation"),
-                str(item["task_id"]),
-                int(item.get("priority") or 0),
-                True,
-            )
-                next_snapshot["generatedAt"] = _utc_now()
-                next_snapshot["laravelReachable"] = successes > 0
-                next_snapshot["laravelActiveEndpoint"] = endpoint or None
-                next_snapshot["errors"] = errors
-                next_snapshot["cache"] = {
-                    **latest_cache,
-                    "warm": successes > 0 or bool(latest_cache.get("warm")),
-                    "revision": int(latest_cache.get("revision") or 0) + 1,
-                    "stream_cursor": max(base_cursor, latest_cursor),
-                    "last_remote_refresh_at": refreshed_at if successes > 0 else latest_cache.get("last_remote_refresh_at"),
-                    "last_refresh_attempt_at": refreshed_at,
-                    "source": "pycore",
-                }
-                return next_snapshot
-
-            snapshot = status_snapshot_cache.update(
-                STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
-                merge,
-            )
-            self._publish_changed("remote_refresh", snapshot)
-            return snapshot
-        finally:
-            self._finish_refresh(generation)
+        # Remote Laravel mirroring is retired. The browser reads Laravel-owned
+        # queue data directly; pycore only serves its own worker state from this
+        # snapshot. Keeping this method as a no-op prevents accidental Laravel
+        # polling from legacy callers.
+        pass
 
     def note_realtime_connected(self, endpoint: str) -> None:
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -517,7 +439,7 @@ class QueueCenterSnapshotService:
         label = self._priority_label(payload, task_id, queue)
         batch_items = payload.get("items")
         if not task_id and isinstance(batch_items, list):
-            for batch_item in batch_items[:QUEUE_CENTER_HEAD_LIMIT]:
+            for batch_item in batch_items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]:
                 if not isinstance(batch_item, dict):
                     continue
                 batch_task_id = str(batch_item.get("task_id") or "").strip()
@@ -573,12 +495,6 @@ class QueueCenterSnapshotService:
             snapshot["cache"] = cache
             snapshot["generatedAt"] = _utc_now()
             snapshot["laravelReachable"] = True
-            if queue == "sentence_audio" and task_id:
-                snapshot["sentenceQueue"] = self._update_sentence_row(
-                    snapshot.get("sentenceQueue"),
-                    payload,
-                    move_to_head,
-                )
             if queue == "word_translation" and task_id:
                 snapshot["translation"] = self._update_translation_row(
                     snapshot.get("translation"),
@@ -593,8 +509,79 @@ class QueueCenterSnapshotService:
             updater,
         )
         self._publish_changed(event_name, snapshot)
-        if payload.get("batch") or not move_to_head:
-            self.request_refresh()
+
+    def apply_head_event(
+        self,
+        event_name: str,
+        payload: Dict[str, Any],
+        cursor: int,
+    ) -> None:
+        if cursor > 0 and cursor <= self.stream_cursor():
+            return
+        queue = QUEUE_CENTER_HEAD_EVENTS[event_name]
+        raw_items = payload.get("items")
+        items = (
+            [dict(item) for item in raw_items if isinstance(item, dict)]
+            if isinstance(raw_items, list)
+            else [dict(payload)]
+        )
+        items = items[:QUEUE_CENTER_EVENT_ITEM_LIMIT]
+        applied: list[Dict[str, Any]] = []
+        for item in items:
+            task_id = str(item.get("task_id") or "").strip()
+            if not task_id:
+                continue
+            queue_position = int(item.get("queue_position") or 0)
+            worker = (
+                laravel_sentence_audio_worker
+                if queue == "sentence_audio"
+                else laravel_word_audio_worker
+            )
+            worker.set_cached_task_head(task_id, queue_position)
+            applied.append({
+                **item,
+                "task_id": task_id,
+                "queue_position": queue_position,
+            })
+        if applied:
+            worker.request_pull(prefer_remote=True)
+
+        def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+            cache = dict(snapshot.get("cache") or {})
+            cache["warm"] = bool(cache.get("warm"))
+            cache["revision"] = int(cache.get("revision") or 0) + 1
+            cache["stream_cursor"] = max(int(cache.get("stream_cursor") or 0), cursor)
+            cache["realtime_connected"] = True
+            cache["event_count"] = int(cache.get("event_count") or 0) + 1
+            heads = dict(cache.get("queue_heads") or {})
+            current = list(heads.get(queue) or [])
+            applied_ids = {item["task_id"] for item in applied}
+            current = [
+                item for item in current
+                if str(item.get("task_id") or "") not in applied_ids
+            ]
+            received_at = time.time()
+            event_items = [{
+                "task_id": item["task_id"],
+                "label": self._priority_label(item, item["task_id"], queue),
+                "language": item.get("language"),
+                "queue_position": item["queue_position"],
+                "cursor": cursor,
+                "received_at": received_at,
+                "payload": item,
+            } for item in applied]
+            heads[queue] = [*event_items, *current][:QUEUE_CENTER_HEAD_LIMIT]
+            cache["queue_heads"] = heads
+            snapshot["cache"] = cache
+            snapshot["generatedAt"] = _utc_now()
+            snapshot["laravelReachable"] = True
+            return snapshot
+
+        snapshot = status_snapshot_cache.update(
+            STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
+            updater,
+        )
+        self._publish_changed(event_name, snapshot)
 
     @staticmethod
     def _set_worker_priority(
@@ -604,11 +591,8 @@ class QueueCenterSnapshotService:
         move_to_head: bool,
     ) -> None:
         worker = translation_worker_service
-        if queue == "word_audio":
-            worker = laravel_word_audio_worker
-        elif queue == "sentence_audio":
-            worker = laravel_sentence_audio_worker
         worker.set_cached_task_priority(task_id, priority, move_to_head)
+        worker.request_pull()
 
     @staticmethod
     def _priority_label(payload: Dict[str, Any], task_id: str, queue: str) -> str:
@@ -633,7 +617,6 @@ class QueueCenterSnapshotService:
 
     def on_endpoint_changed(self, _new_url: str) -> None:
         status_snapshot_cache.invalidate(STATUS_SNAPSHOT_QUEUE_CENTER_KEY)
-        self.request_refresh()
 
     def _with_local_state(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(snapshot)
@@ -653,7 +636,6 @@ class QueueCenterSnapshotService:
         )
         sentence_queue = dict(result.get("sentenceQueue") or {})
         sentence_queue["worker"] = sentence_audio.get("worker")
-        sentence_queue["bumps"] = queue_bump_hub.snapshot()
         result["sentenceQueue"] = sentence_queue
         translation = result.get("translation")
         cache = result.get("cache") if isinstance(result.get("cache"), dict) else {}
@@ -700,10 +682,9 @@ class QueueCenterSnapshotService:
             errors,
             str(snapshot.get("generatedAt") or _utc_now()),
             snapshot.get("overview") if isinstance(snapshot.get("overview"), dict) else {},
-            {"scheduler": {"callbacks": _heartbeat_callbacks()}},
         )
         queue_overview = snapshot.get("queueOverview") if isinstance(snapshot.get("queueOverview"), dict) else {}
-        for scope in ("word_audio", "sentence_audio"):
+        for scope in QUEUE_CENTER_QUEUE_POSITION_CONTROLS:
             metrics = _queue_metrics(queue_overview, scope)
             if metrics is not None:
                 contracts[scope]["queue"] = metrics
@@ -722,45 +703,6 @@ class QueueCenterSnapshotService:
         return contracts
 
     @staticmethod
-    def _normalize_overview(
-        overview: Dict[str, Any],
-        reachable: bool,
-        observed_at: float,
-    ) -> Dict[str, Any]:
-        overview["laravel_reachable"] = reachable
-        overview["laravel_snapshot_age_s"] = 0
-        overview["source"] = "pycore_cache"
-        overview["degraded"] = not reachable
-        overview["stale"] = not reachable
-        overview["age_s"] = 0
-        overview["observed_at"] = overview.get("observed_at") or datetime.fromtimestamp(
-            observed_at,
-            tz=timezone.utc,
-        ).isoformat()
-        overview["engines"] = overview.get("engines") or {}
-        return overview
-
-    @staticmethod
-    def _normalize_sentence_queue(payload: Dict[str, Any]) -> Dict[str, Any]:
-        queue = payload.get("queue") if isinstance(payload.get("queue"), dict) else payload
-        queue = dict(queue)
-        queue["laravel_reachable"] = True
-        queue["snapshot_age_s"] = 0
-        return {"success": True, "queue": queue}
-
-    @staticmethod
-    def _normalize_translation_queue(
-        payload: Dict[str, Any],
-        event_connected: bool,
-        event_count: int,
-    ) -> Dict[str, Any]:
-        payload["laravel_reachable"] = True
-        payload["event_connected"] = event_connected
-        payload["event_count"] = event_count
-        payload["age_ms"] = 0
-        return payload
-
-    @staticmethod
     def _update_translation_row(
         translation: Any,
         task_id: str,
@@ -776,41 +718,6 @@ class QueueCenterSnapshotService:
             QUEUE_CENTER_HEAD_LIMIT,
             move_to_head,
         )
-        return snapshot
-
-    @staticmethod
-    def _update_sentence_row(
-        sentence_queue: Any,
-        payload: Dict[str, Any],
-        move_to_head: bool,
-    ) -> Dict[str, Any]:
-        snapshot = dict(sentence_queue) if isinstance(sentence_queue, dict) else {"success": True}
-        queue = dict(snapshot.get("queue") or {})
-        task_id = str(payload.get("task_id") or "")
-        content_id = str(payload.get("content_id") or "")
-        language = str(payload.get("language") or "")
-        identities = []
-        if task_id:
-            identities.append({"task_id": task_id})
-        if content_id:
-            identities.append({"content_id": content_id, "language": language})
-        create_row = {
-            "task_id": task_id,
-            "content_id": content_id,
-            "language": language,
-            "text": payload.get("text"),
-            "tts_status": "pending",
-        }
-        queue["items"] = BoundedPriorityRows.update(
-            queue.get("items"),
-            identities,
-            "tts_priority",
-            int(payload.get("priority") or 0),
-            QUEUE_CENTER_HEAD_LIMIT,
-            move_to_head,
-            create_row if move_to_head else None,
-        )
-        snapshot["queue"] = queue
         return snapshot
 
     @staticmethod
@@ -885,11 +792,10 @@ class QueueCenterSnapshotService:
         }
 
 
-queue_center_snapshot_service = QueueCenterSnapshotService()
+queue_center_snapshot_service = _QueueCenterSnapshotService()
 
 
 __all__ = [
     "QUEUE_CENTER_SNAPSHOT_TOPIC",
-    "QueueCenterSnapshotService",
     "queue_center_snapshot_service",
 ]

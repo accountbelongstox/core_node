@@ -161,3 +161,18 @@ code changes.
 - Each page is stored separately in Laravel's persistent cache. The timer holds
   only one ID page in process memory, acknowledges it after successful enqueue,
   and retains a failed page for idempotent retry.
+
+## 2026-08-13 section-contract drift repair
+
+- The Pycore snapshot builder treated heartbeat runtime health as a fifth Queue
+  Center section even though the canonical contract defines only the four
+  business sections. This caused every snapshot request to fail while resolving
+  the absent `heartbeat` definition.
+- Heartbeat remains lightweight scheduler state and is no longer wrapped as a
+  queue contract. Business section construction now iterates the canonical JSON
+  scope catalog instead of maintaining another hardcoded scope list.
+- The Python adapter validates control-to-section and category-to-section
+  coverage when loading the canonical contract. The UI scope type is derived
+  from the same JSON keys, preventing another manually synchronized scope union.
+- Per project instructions, this repair was reviewed statically; no tests,
+  builds, services, or runtime verification commands were run.

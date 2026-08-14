@@ -2,7 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1InvoiceModel extends Model
@@ -43,6 +44,11 @@ class CodeMartV1InvoiceModel extends Model
     public function issuer(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1UserModel::class, 'issued_by');
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
     }
 
     public function markAsPaid(): void

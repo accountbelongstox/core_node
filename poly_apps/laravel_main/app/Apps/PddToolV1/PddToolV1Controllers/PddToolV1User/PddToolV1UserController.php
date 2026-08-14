@@ -63,7 +63,7 @@ class PddToolV1UserController extends BaseController
         }
 
         $user->password = Hash::make($new);
-        $user->save();
+        $user->saveRecord();
 
         return response()->json(['success' => true, 'detail' => 'Password updated']);
     }
@@ -84,14 +84,11 @@ class PddToolV1UserController extends BaseController
             return response()->json(['detail' => 'pdd_user_id is required'], 422);
         }
 
-        $existing = PddToolV1PddAccountModel::query()
-            ->where('user_id', $user->id)
-            ->where('pdd_user_id', $pddUserId)
-            ->first();
+        $existing = PddToolV1PddAccountModel::findForUser((int) $user->id, $pddUserId);
 
         // Enforce the per-member account limit on NEW binds only.
         if (!$existing) {
-            $count = PddToolV1PddAccountModel::query()->where('user_id', $user->id)->count();
+            $count = PddToolV1PddAccountModel::countForUser((int) $user->id);
             $max = (int) ($profile->max_pdd_accounts ?? 0);
             if ($max >= 0 && $count >= $max) {
                 return response()->json(['detail' => 'PDD account limit reached'], 403);
@@ -113,7 +110,7 @@ class PddToolV1UserController extends BaseController
             $account->dd_info = $request->input('dd_info');
         }
 
-        $account->save();
+        $account->saveRecord();
 
         return response()->json(PddToolV1Presenter::pddAccount($account));
     }
@@ -128,10 +125,7 @@ class PddToolV1UserController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $account = PddToolV1PddAccountModel::query()
-            ->where('user_id', $user->id)
-            ->where('pdd_user_id', $pddUserId)
-            ->first();
+        $account = PddToolV1PddAccountModel::findForUser((int) $user->id, $pddUserId);
 
         if (!$account) {
             return response()->json(['detail' => 'PDD account not found'], 404);

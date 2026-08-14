@@ -10,9 +10,12 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Utils\RunsModelTransactions;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 
 /**
  * Study-content generation segment (Book Study-Content Generation pipeline §3.1 —
@@ -24,6 +27,8 @@ use App\Providers\AppTablePrefixServiceProvider;
  */
 class AppQyV1StudySegmentModel extends Model
 {
+    use RunsModelTransactions;
+
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
 
@@ -67,4 +72,190 @@ class AppQyV1StudySegmentModel extends Model
         'generated_at' => 'datetime',
         'metadata' => 'array',
     ];
+
+    public static function countForSource(string $sourceType, string $sourceKey): int
+    {
+        return self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey)->count();
+    }
+
+    public static function hasGeneratedSourceRows(string $sourceType, string $sourceKey): bool
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->whereIn('status', ['done', 'generating'])
+            ->exists();
+    }
+
+    public static function deleteForSource(string $sourceType, string $sourceKey): int
+    {
+        return self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey)->delete();
+    }
+
+    public static function createPlanRows(array $rows): void
+    {
+        self::runInTransaction(static function () use ($rows): void {
+            foreach ($rows as $row) {
+                self::query()->create($row);
+            }
+        });
+    }
+
+    public static function statusCountsForSources(string $sourceType, array $sourceKeys): EloquentCollection
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->whereIn('source_key', array_values(array_unique($sourceKeys)))
+            ->groupBy('source_key', 'status')
+            ->selectRaw('source_key, status, count(*) as total')
+            ->get();
+    }
+
+    public static function claimForSource(
+        string $sourceType,
+        string $sourceKey,
+        ?int $segmentIndex,
+        int $limit,
+        string $claimerId,
+        int $leaseMinutes
+    ): array {
+        return self::runInTransaction(static function () use (
+            $sourceType,
+            $sourceKey,
+            $segmentIndex,
+            $limit,
+            $claimerId,
+            $leaseMinutes
+        ): array {
+            $leaseFloor = now()->subMinutes($leaseMinutes);
+            $query = self::query()
+                ->where('source_type', $sourceType)
+                ->where('source_key', $sourceKey)
+                ->where(function ($claimable) use ($leaseFloor): void {
+                    $claimable->where('status', 'pending')
+                        ->orWhere('status', 'failed')
+                        ->orWhere(function ($expired) use ($leaseFloor): void {
+                            $expired->where('status', '!=', 'done')
+                                ->whereNotNull('claimed_at')
+                                ->where('claimed_at', '<', $leaseFloor);
+                        });
+                });
+
+            if ($segmentIndex !== null) {
+                $query->where('segment_index', $segmentIndex);
+            }
+
+            $rows = $query->orderBy('segment_index')->limit($limit)->lockForUpdate()->get();
+            $ids = [];
+
+            foreach ($rows as $row) {
+                $row->status = 'generating';
+                $row->claimed_at = now();
+                $row->claimed_by = $claimerId;
+                $row->attempts = (int) $row->attempts + 1;
+                $row->error = null;
+                $row->save();
+                $ids[] = (int) $row->id;
+            }
+
+            return $ids;
+        });
+    }
+
+    public static function orderedByIds(array $ids): EloquentCollection
+    {
+        return self::query()->whereIn('id', $ids)->orderBy('segment_index')->get();
+    }
+
+    public static function findSourceSegment(string $sourceType, string $sourceKey, int $segmentIndex): ?self
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('segment_index', $segmentIndex)
+            ->first();
+    }
+
+    public static function releaseLeases(
+        string $sourceType,
+        string $sourceKey,
+        array $segmentIndexes,
+        ?string $error
+    ): int {
+        $query = self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->whereIn('segment_index', $segmentIndexes)
+            ->whereNotNull('claimed_at')
+            ->where('status', '!=', 'done');
+        $count = (clone $query)->count();
+        $attributes = [
+            'status' => $error !== null && $error !== '' ? 'failed' : 'pending',
+            'claimed_at' => null,
+            'claimed_by' => null,
+        ];
+
+        if ($error !== null && $error !== '') {
+            $attributes['error'] = mb_substr($error, 0, 2000);
+        }
+
+        $query->update($attributes);
+
+        return $count;
+    }
+
+    public static function orderedForSource(string $sourceType, string $sourceKey): EloquentCollection
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->orderBy('segment_index')
+            ->get();
+    }
+
+    public static function findContentSegment(
+        string $sourceType,
+        string $sourceKey,
+        ?int $segmentIndex,
+        ?int $sequence
+    ): ?self {
+        $query = self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey);
+
+        if ($segmentIndex !== null) {
+            $query->where('segment_index', $segmentIndex);
+        } else {
+            $query->where('seq_start', '<=', $sequence)->where('seq_end', '>=', $sequence);
+        }
+
+        return $query->orderBy('segment_index')->first();
+    }
+
+    public static function progressForSource(string $sourceType, string $sourceKey): array
+    {
+        $byStatus = self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->groupBy('status')
+            ->selectRaw('status, count(*) as total')
+            ->pluck('total', 'status');
+        $languages = [];
+
+        self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('status', 'done')
+            ->select('languages_done')
+            ->chunk(500, static function ($rows) use (&$languages): void {
+                foreach ($rows as $row) {
+                    foreach (is_array($row->languages_done) ? $row->languages_done : [] as $code) {
+                        $languages[(string) $code] = true;
+                    }
+                }
+            });
+
+        return [
+            'counts' => $byStatus,
+            'languages' => array_keys($languages),
+        ];
+    }
 }

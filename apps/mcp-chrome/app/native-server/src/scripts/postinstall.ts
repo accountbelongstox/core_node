@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
-import fs from 'fs';
 import os from 'os';
-import path from 'path';
 import { COMMAND_NAME } from './constant';
-import { colorText, tryRegisterUserLevelHost } from './utils';
+import {
+  colorText,
+  ensureExecutionPermissions,
+  tryRegisterUserLevelHost,
+  writeNodePath,
+} from './utils';
 
 // Check if this script is run directly
 const isDirectRun = require.main === module;
@@ -57,103 +60,6 @@ function detectGlobalInstall(): boolean {
 }
 
 const isGlobalInstall = detectGlobalInstall();
-
-/**
- * Write Node.js path for run_host scripts to avoid fragile relative paths
- */
-async function writeNodePath(): Promise<void> {
-  try {
-    const nodePath = process.execPath;
-    const nodePathFile = path.join(__dirname, '..', 'node_path.txt');
-
-    console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
-    fs.writeFileSync(nodePathFile, nodePath, 'utf8');
-    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
-  } catch (error: any) {
-    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
-  }
-}
-
-/**
- * Ensure execution permissions (regardless of global installation)
- */
-async function ensureExecutionPermissions(): Promise<void> {
-  if (process.platform === 'win32') {
-    // Windows platform handling
-    await ensureWindowsFilePermissions();
-    return;
-  }
-
-  // Unix/Linux platform handling
-  const filesToCheck = [
-    path.join(__dirname, '..', 'index.js'),
-    path.join(__dirname, '..', 'run_host.sh'),
-    path.join(__dirname, '..', 'cli.js'),
-  ];
-
-  for (const filePath of filesToCheck) {
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.chmodSync(filePath, '755');
-        console.log(
-          colorText(`[OK] Set execution permissions for ${path.basename(filePath)}`, 'green'),
-        );
-      } catch (err: any) {
-        console.warn(
-          colorText(
-            `[WARNING] Unable to set execution permissions for ${path.basename(filePath)}: ${err.message}`,
-            'yellow',
-          ),
-        );
-      }
-    } else {
-      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
-    }
-  }
-}
-
-/**
- * Windows platform file permission handling
- */
-async function ensureWindowsFilePermissions(): Promise<void> {
-  const filesToCheck = [
-    path.join(__dirname, '..', 'index.js'),
-    path.join(__dirname, '..', 'run_host.bat'),
-    path.join(__dirname, '..', 'cli.js'),
-  ];
-
-  for (const filePath of filesToCheck) {
-    if (fs.existsSync(filePath)) {
-      try {
-        // Check if file is read-only, if so remove read-only attribute
-        const stats = fs.statSync(filePath);
-        if (!(stats.mode & parseInt('200', 8))) {
-          // Check write permissions
-          // Try to remove read-only attribute
-          fs.chmodSync(filePath, stats.mode | parseInt('200', 8));
-          console.log(
-            colorText(`[OK] Removed read-only attribute from ${path.basename(filePath)}`, 'green'),
-          );
-        }
-
-        // Verify file accessibility
-        fs.accessSync(filePath, fs.constants.R_OK);
-        console.log(
-          colorText(`[OK] Verified file accessibility for ${path.basename(filePath)}`, 'green'),
-        );
-      } catch (err: any) {
-        console.warn(
-          colorText(
-            `[WARNING] Unable to verify file permissions for ${path.basename(filePath)}: ${err.message}`,
-            'yellow',
-          ),
-        );
-      }
-    } else {
-      console.warn(colorText(`[WARNING] File not found: ${filePath}`, 'yellow'));
-    }
-  }
-}
 
 async function tryRegisterNativeHost(): Promise<void> {
   try {

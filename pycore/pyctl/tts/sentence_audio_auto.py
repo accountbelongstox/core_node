@@ -9,8 +9,8 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.common.user_data_store import user_data_store
-import pycore.pyutils.tts.tts_service_manager as tts_service_manager
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME as SENTENCE_AUDIO_ENGINE
 from pycore.pyutils.common.status_snapshot_cache import (
@@ -64,13 +64,11 @@ def _warm_sentence_engine() -> None:
     """Preload the sentence TTS engine (qwen3tts) into memory right after the
     ON toggle — do not wait for the first claimed task to pay the model-load
     cost. Runs on a daemon thread; the managed-service settings gates
-    (server_enabled / server_auto_manage) still apply inside ensure_running."""
+    (server_enabled / server_auto_manage) still apply inside the lease."""
     try:
-        if tts_service_manager.prepare_server_for_use(SENTENCE_AUDIO_ENGINE):
+        with managed_services.lease(SENTENCE_AUDIO_ENGINE):
             status_snapshot_cache.invalidate(STATUS_SNAPSHOT_QWEN_CAPABILITIES_KEY)
-            ColorPrint.green("[SentenceAudioAuto] qwen3tts server warm — model loaded")
-        else:
-            ColorPrint.yellow("[SentenceAudioAuto] qwen3tts warm-up skipped (disabled/unavailable)")
+        ColorPrint.green("[SentenceAudioAuto] qwen3tts server warm — model loaded")
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[SentenceAudioAuto] qwen3tts warm-up failed ({exc})")
 

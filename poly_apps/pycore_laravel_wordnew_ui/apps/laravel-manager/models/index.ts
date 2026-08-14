@@ -9,6 +9,7 @@ export type { AppSettings } from './SettingsModel';
 export { ITToolsModel, itToolsModel } from './ITToolsModel';
 export { McpModel, mcpModel } from './McpModel';
 export { AppQyV1Model, appQyV1Model } from './AppQyV1Model';
+export { DataSyncModel, dataSyncModel } from './DataSyncModel';
 
 export type { UnifiedUser, UserPreferences, ToolDefinition, ToolHistoryItem } from '../types';
 

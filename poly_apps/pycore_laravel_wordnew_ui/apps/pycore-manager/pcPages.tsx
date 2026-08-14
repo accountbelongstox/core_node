@@ -5,11 +5,12 @@
  */
 import React, { lazy } from 'react';
 import {
-  ListOrdered, AppWindow, FolderSync,
+  ListOrdered, AppWindow, FolderSync, Terminal,
   Settings, Library, Sparkles, History, BookOpen, type LucideIcon,
 } from 'lucide-react';
 
 export const PcQueueCenterPage = lazy(() => import('./pages/PcQueueCenterPage'));
+export const PcTerminalPage = lazy(() => import('./pages/PcTerminalPage'));
 export const PcWindowAutomationPage = lazy(() => import('./pages/PcWindowAutomationPage'));
 export const PcCodeSyncPage = lazy(() => import('./pages/PcCodeSyncPage'));
 // The "Content" page is the single laravel_main DATA-INGEST surface: it merges
@@ -50,6 +51,7 @@ export interface PcPageDef {
 
 export const PC_PAGES: PcPageDef[] = [
   { id: 'queue-center', labelKey: 'nav.queueCenter', Icon: ListOrdered, Component: PcQueueCenterPage },
+  { id: 'terminal', labelKey: 'nav.terminal', Icon: Terminal, Component: PcTerminalPage },
   { id: 'window-automation', labelKey: 'nav.windowAutomation', Icon: AppWindow, Component: PcWindowAutomationPage },
   { id: 'code-sync', labelKey: 'nav.codeSync', Icon: FolderSync, Component: PcCodeSyncPage },
   // One data-ingest tab: Subtitles / Books / Add Document / Movie Poster are

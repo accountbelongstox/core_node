@@ -7,6 +7,7 @@ from pycore.pyctl.agent_history.agent_history_fragments import sanitize_fragment
 from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.agent_history.pipeline.config import get_config
+from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _QUOTA_ERROR = "openrouter daily request limit reached"
@@ -35,16 +36,26 @@ def _parse_json_obj(text: str) -> Dict[str, Any]:
         raise ValueError("model returned non-object JSON")
     return data
 
-def _ensure_openrouter_quota() -> None:
+def ensure_openrouter_available() -> None:
     rate = check_rate_limit("openrouter")
     if rate.allowed:
         return
     msg = rate.message or "openrouter rate limit"
+    failure = classify_ai_failure(msg)
     if "requests/day" in msg.lower() or "day exceeded" in msg.lower():
-        raise RuntimeError(_QUOTA_ERROR)
-    raise RuntimeError(msg)
+        msg = _QUOTA_ERROR
+    raise AiRequestError(
+        msg,
+        code=str(failure["code"]),
+        retriable=bool(failure["retriable"]),
+        provider_reached=False,
+        retry_after_s=rate.retry_after_s,
+    )
 
-def generate_chinese_article(raw_text: str) -> Dict[str, Any]:
+def generate_chinese_article(
+    raw_text: str,
+    request_context: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
     """Generate a Chinese article from raw fragments."""
     cfg = get_config()
     model = str(cfg.get("openrouter_model") or "openrouter/free")
@@ -61,18 +72,25 @@ def generate_chinese_article(raw_text: str) -> Dict[str, Any]:
         f"RAW:\n{raw_text}"
     )
     
-    _ensure_openrouter_quota()
+    ensure_openrouter_available()
     
     res = chat_once(
         "openrouter",
         [{"role": "user", "content": prompt}],
         model,
         source="agent_history_article",
+        context=request_context,
     ) or {}
     
     if not res.get("success"):
         err = str(res.get("error") or "article generation failed")
-        raise RuntimeError(f"OpenRouter CN failed: {err}")
+        raise AiRequestError(
+            f"OpenRouter CN failed: {err}",
+            code=str(res.get("error_code") or "unknown"),
+            retriable=bool(res.get("retriable")),
+            provider_reached=bool(res.get("provider_reached")),
+            retry_after_s=res.get("retry_after_s"),
+        )
         
     data = _parse_json_obj(str(res.get("text") or ""))
     reference_cn = sanitize_fragment_text(str(data.get("reference_cn") or ""))
@@ -86,7 +104,10 @@ def generate_chinese_article(raw_text: str) -> Dict[str, Any]:
     
     return data
 
-def translate_to_english(article_cn: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+def translate_to_english(
+    article_cn: Dict[str, Any],
+    request_context: Dict[str, Any] | None = None,
+) -> Tuple[Dict[str, Any], str]:
     """Translate the Chinese article to English."""
     cfg = get_config()
     model = str(cfg.get("openrouter_model") or "openrouter/free")
@@ -102,18 +123,25 @@ def translate_to_english(article_cn: Dict[str, Any]) -> Tuple[Dict[str, Any], st
         f"ARTICLE_CN:\n{article_cn.get('reference_cn') or ''}"
     )
     
-    _ensure_openrouter_quota()
+    ensure_openrouter_available()
     
     res = chat_once(
         "openrouter",
         [{"role": "user", "content": prompt}],
         model,
         source="agent_history_translate",
+        context=request_context,
     ) or {}
     
     if not res.get("success"):
         err = str(res.get("error") or "translation failed")
-        raise RuntimeError(f"OpenRouter EN failed: {err}")
+        raise AiRequestError(
+            f"OpenRouter EN failed: {err}",
+            code=str(res.get("error_code") or "unknown"),
+            retriable=bool(res.get("retriable")),
+            provider_reached=bool(res.get("provider_reached")),
+            retry_after_s=res.get("retry_after_s"),
+        )
         
     data = _parse_json_obj(str(res.get("text") or ""))
     article_en = sanitize_fragment_text(str(data.get("article_en") or ""))

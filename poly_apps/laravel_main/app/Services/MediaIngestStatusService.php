@@ -41,7 +41,7 @@ class MediaIngestStatusService
         bool $includeSlots = false,
         bool $includeTextForMissingAudio = false
     ): array {
-        $book = Book::where('source_key', $sourceKey)->first();
+        $book = Book::findBySourceKey($sourceKey);
         if (!$book) {
             return [
                 'source_key' => $sourceKey,
@@ -66,19 +66,11 @@ class MediaIngestStatusService
         }
 
         $chapterRows = $this->buildChapterRows('book', $sourceKey, $sourceLanguages);
-        $slotCounts = SourceSentence::where('source_key', $sourceKey)
-            ->where('grain', 'sentence')
-            ->selectRaw('chapter_index, COUNT(*) as slot_count')
-            ->groupBy('chapter_index')
-            ->pluck('slot_count', 'chapter_index');
+        $slotCounts = SourceSentence::slotCountsByChapter($sourceKey, 'sentence');
 
         $slotsByChapter = [];
         if ($includeSlots || $languages !== []) {
-            $rows = SourceSentence::where('source_key', $sourceKey)
-                ->where('grain', 'sentence')
-                ->orderBy('chapter_index')
-                ->orderBy('seq')
-                ->get();
+            $rows = SourceSentence::rowsForSourceKeyGrain($sourceKey, 'sentence');
             foreach ($rows as $row) {
                 $ci = (int) $row->chapter_index;
                 if (!isset($slotsByChapter[$ci])) {
@@ -141,9 +133,7 @@ class MediaIngestStatusService
             $bookAudioComplete = false;
         }
 
-        $totalSlots = (int) SourceSentence::where('source_key', $sourceKey)
-            ->where('grain', 'sentence')
-            ->count();
+        $totalSlots = SourceSentence::countForSourceKeyGrain($sourceKey, 'sentence');
 
         return [
             'source_key' => $sourceKey,
@@ -262,7 +252,7 @@ class MediaIngestStatusService
             $cache[$lang][$contentId] = null;
             return null;
         }
-        $row = LangSentence::onLang($lang)->where('content_id', $contentId)->first();
+        $row = LangSentence::findByContentId($lang, $contentId);
         $cache[$lang][$contentId] = $row;
         return $row;
     }
@@ -285,10 +275,7 @@ class MediaIngestStatusService
 
     private function langTableExists(string $lang): bool
     {
-        $table = AppQyV1TableMaps::getSentenceTableName($lang);
-        return \Illuminate\Support\Facades\Schema::connection(
-            \App\Providers\AppTablePrefixServiceProvider::getConnection(\App\Constants\AppKeys::APPQYV1)
-        )->hasTable($table);
+        return LangSentence::tableExists($lang);
     }
 
     /** @return array<int,string> */
@@ -300,10 +287,7 @@ class MediaIngestStatusService
             : [];
 
         if ($raw === []) {
-            $sample = SourceSentence::where('source_type', 'book')
-                ->where('source_key', $book->source_key)
-                ->whereNotNull('lang_content_ids')
-                ->first();
+            $sample = SourceSentence::languageSample('book', (string) $book->source_key);
             if ($sample && is_array($sample->lang_content_ids)) {
                 $raw = array_keys($sample->lang_content_ids);
             }
@@ -331,11 +315,7 @@ class MediaIngestStatusService
         $byIndex = [];
 
         foreach ($languages as $lang) {
-            $rows = LangChapter::onLang($lang)
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->orderBy('chapter_index')
-                ->get();
+            $rows = LangChapter::rowsForSource($lang, $sourceType, $sourceKey);
 
             foreach ($rows as $row) {
                 $ci = (int) $row->chapter_index;
@@ -353,15 +333,10 @@ class MediaIngestStatusService
         }
 
         if ($byIndex === [] && $languages !== []) {
-            $maxChapter = SourceSentence::where('source_key', $sourceKey)
-                ->where('grain', 'sentence')
-                ->max('chapter_index');
+            $maxChapter = SourceSentence::maximumChapterIndex($sourceKey, 'sentence');
             if ($maxChapter !== null) {
                 for ($ci = 0; $ci <= (int) $maxChapter; $ci += 1) {
-                    $slotCount = SourceSentence::where('source_key', $sourceKey)
-                        ->where('grain', 'sentence')
-                        ->where('chapter_index', $ci)
-                        ->count();
+                    $slotCount = SourceSentence::countForChapter($sourceKey, 'sentence', $ci);
                     if ($slotCount > 0) {
                         $byIndex[$ci] = [
                             'chapter_index' => $ci,

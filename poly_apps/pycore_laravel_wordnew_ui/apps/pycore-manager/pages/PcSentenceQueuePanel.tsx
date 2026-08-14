@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  MessageSquareText, RefreshCw, AlertTriangle, Zap, Loader2, ChevronDown, ChevronUp, Cpu,
+  MessageSquareText, RefreshCw, AlertTriangle, Loader2, ChevronDown, ChevronUp, Cpu,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { pycoreApi, ttsConcurrencyAnnotation } from '@/apps/pycore-manager/api';
@@ -89,6 +89,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
   const totalClaimed = snap?.worker?.total_claimed ?? voiceSentence?.worker?.total_claimed ?? null;
   const totalSucceeded = snap?.worker?.total_succeeded ?? voiceSentence?.worker?.total_succeeded ?? null;
   const totalFailed = snap?.worker?.total_failed ?? voiceSentence?.worker?.total_failed ?? null;
+  const queueProgress = snap?.worker?.queue_progress ?? voiceSentence?.worker?.queue_progress;
 
   // Sentence Audio has one required engine. The shared TTS snapshot decides
   // whether qwen3tts is ready or can be started by the managed lifecycle.
@@ -236,6 +237,11 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           {' · '}{t('queueCenter.sentenceQueue.succeeded')} <b className="text-emerald-500">{totalSucceeded ?? 0}</b>
           {' · '}{t('queueCenter.sentenceQueue.failed')} <b className={totalFailed ? 'text-rose-500' : 'text-slate-700 dark:text-slate-300'}>{totalFailed ?? 0}</b>
         </span>
+        {queueProgress?.total != null && (
+          <span title={t('queueCenter.wordAudioQueue.progress')}>
+            <b className="text-emerald-500">{queueProgress.completed ?? 0}</b>/{queueProgress.total}
+          </span>
+        )}
       </div>
 
       {inFlight.length > 0 && (
@@ -266,7 +272,7 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
                   )}
                   {task.speaker && <span>{t('queueCenter.sentenceQueue.voiceLabel')} {task.speaker}</span>}
                 </div>
-                <div className="mt-1">[{task.language}] p={task.priority} · {preview(task.content as string, 96)}</div>
+                <div className="mt-1">[{task.language}] {t('queueCenter.sentenceQueue.queuePosition')} #{task.queue_position ?? 0} · {preview(task.content as string, 96)}</div>
                 <div className="mt-1 h-1 overflow-hidden rounded bg-slate-500/15">
                   <div className="h-full bg-teal-500 transition-all" style={{ width: `${progress}%` }} />
                 </div>
@@ -300,7 +306,6 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           <ul className="divide-y divide-slate-500/10 max-h-[320px] overflow-y-auto">
             {items.slice(0, 100).map((row) => {
               const key = row.task_id || `${row.language}:${row.content_id}`;
-              const bumped = !!row.recently_bumped;
               const processing = row.tts_status === 'assigned' || row.tts_status === 'processing' || !!row.processing;
               const stage = row.stage || row.tts_status || 'pending';
               const progress = Math.min(100, Math.max(0, row.progress ?? 0));
@@ -310,18 +315,16 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
                 : null;
               return (
                 <li key={key}
-                  className={`px-3 py-2 text-xs ${bumped ? 'ring-2 ring-inset ring-amber-400/50 bg-amber-500/5' : ''} ${processing ? 'bg-teal-500/5' : ''}`}>
+                  className={`px-3 py-2 text-xs ${processing ? 'bg-teal-500/5' : ''}`}>
                   <div className="flex items-start gap-2">
                     {processing
                       ? <Loader2 className="w-3.5 h-3.5 text-teal-500 shrink-0 mt-0.5 animate-spin" />
-                      : bumped
-                        ? <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
-                        : null}
+                      : null}
                     <div className="flex-1 min-w-0">
                       <p className="text-slate-700 dark:text-slate-200 truncate" title={row.text}>{preview(row.text, 120)}</p>
                       <p className="text-[10px] font-mono text-slate-400 mt-0.5">
                         {row.task_id && <>{t('queueCenter.sentenceQueue.taskLabel')} <b>{row.task_id}</b>{' · '}</>}
-                        {row.language} · prio <b className="text-amber-500">{row.tts_priority ?? 0}</b>
+                        {row.language} · {t('queueCenter.sentenceQueue.queuePosition')} <b className="text-amber-500">#{row.queue_position ?? 0}</b>
                         {' · '}{t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
                         {' · '}{progress}%
                         {elapsedSeconds != null && <>{' · '}{t('queueCenter.sentenceQueue.elapsedLabel')} {formatDuration(elapsedSeconds)}</>}

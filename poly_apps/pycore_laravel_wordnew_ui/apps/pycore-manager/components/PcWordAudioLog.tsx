@@ -10,15 +10,23 @@ export interface PcWordAudioLogRow {
   md5?: string;
   live?: boolean;
   playable?: boolean;
+  taskDisplayId?: string;
+  stage?: string;
+  progress?: number;
+  progressTotal?: number;
 }
 
 interface PcWordAudioLogProps {
   rows: PcWordAudioLogRow[];
+  progressLabel: string;
+  stageLabel: (stage: string) => string;
   onClear: () => void;
   onPlay: (row: PcWordAudioLogRow) => void;
 }
 
-export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({ rows, onClear, onPlay }) => {
+export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({
+  rows, progressLabel, stageLabel, onClear, onPlay,
+}) => {
   if (rows.length === 0) return null;
   return (
     <div className="mt-1 max-h-56 overflow-y-auto rounded border border-slate-800 bg-slate-950/60">
@@ -39,6 +47,13 @@ export const PcWordAudioLog: React.FC<PcWordAudioLogProps> = ({ rows, onClear, o
                   : 'bg-sky-500/15 text-sky-400'}`}>{row.kind}</span>
           <span className="text-[10px] text-slate-500 shrink-0">{row.at ? new Date(row.at).toLocaleTimeString() : '—'}</span>
           <span className="font-mono text-slate-300 truncate flex-1" title={row.text || row.detail}>{row.text || row.detail || '—'}</span>
+          {row.taskDisplayId && <span className="font-mono text-[10px] text-slate-500 shrink-0">{row.taskDisplayId}</span>}
+          {row.progress != null && (
+            <span className="text-[10px] text-sky-400 shrink-0" title={row.stage ? stageLabel(row.stage) : progressLabel}>
+              {row.stage ? stageLabel(row.stage) : progressLabel}{' '}
+              {Math.round(row.progress)}/{Math.max(1, Math.round(row.progressTotal || 100))}
+            </span>
+          )}
           {row.lang && <span className="text-[10px] text-slate-500 shrink-0">{row.lang}</span>}
           {row.detail && row.text && <span className="text-[10px] text-slate-500 truncate shrink-0 max-w-[40%]" title={row.detail}>{row.detail}</span>}
           {(row.playable || row.md5) && row.lang && <button onClick={() => onPlay(row)}

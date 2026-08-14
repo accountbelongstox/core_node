@@ -168,12 +168,16 @@ class LaravelClient:
     def request(self, method: str, path: str, *, base_url: Optional[str] = None,
                 params: Any = None, data: Any = None, json: Any = None,
                 files: Any = None, headers: Any = None, timeout: Any = None,
-                stream: bool = False, allow_redirects: bool = True, **kwargs):
+                stream: bool = False, allow_redirects: bool = True,
+                log_line: bool = True, **kwargs):
         """Issue a Laravel HTTP request, log + record it, return the raw Response.
 
         ``path`` may be a full URL (used as-is) or a path joined onto the resolved
         base. ``base_url`` overrides resolution (used by the :9003 OCR bridge and
         by callers that already resolved a specific endpoint).
+        ``log_line=False`` silences the console line for high-frequency polls
+        (the caller prints its own compact line); the HTTP recorder still sees
+        the request so UI diagnostics keep working.
         """
         method = (method or "GET").upper()
         url = self._build_url(path, base_url)
@@ -208,13 +212,14 @@ class LaravelClient:
             ms = (time.perf_counter() - started) * 1000.0
             status = resp.status_code
             body_summary = "" if stream else _summarize_response(resp)
-            line = f"[laravel] {method} {display_path} -> {status} ({ms:.0f}ms)"
-            if body_summary:
-                line += f" {body_summary}"
-            if status >= 400:
-                ColorPrint.yellow(line)
-            else:
-                ColorPrint.cyan(line)
+            if log_line:
+                line = f"[laravel] {method} {display_path} -> {status} ({ms:.0f}ms)"
+                if body_summary:
+                    line += f" {body_summary}"
+                if status >= 400:
+                    ColorPrint.yellow(line)
+                else:
+                    ColorPrint.cyan(line)
             laravel_http_recorder.notify({
                 "ts": time.time(), "method": method, "url": url, "path": display_path,
                 "params_summary": summary, "status": status, "ms": round(ms, 1),
@@ -226,7 +231,8 @@ class LaravelClient:
             session.close()
             ms = (time.perf_counter() - started) * 1000.0
             err = _short_err(e)
-            ColorPrint.red(f"[laravel] {method} {display_path} -> ERR ({ms:.0f}ms) {err}")
+            if log_line:
+                ColorPrint.red(f"[laravel] {method} {display_path} -> ERR ({ms:.0f}ms) {err}")
             laravel_http_recorder.notify({
                 "ts": time.time(), "method": method, "url": url, "path": display_path,
                 "params_summary": summary, "status": status, "ms": round(ms, 1),

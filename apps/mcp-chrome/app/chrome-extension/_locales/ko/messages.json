@@ -2161,6 +2161,12 @@
   "taskCenterSortPriority": {
     "message": "우선 사항"
   },
+  "taskCenterSortOrder": {
+    "message": "대기열 순서"
+  },
+  "taskCenterQueuePosition": {
+    "message": "대기열 위치"
+  },
   "taskCenterStartFailed": {
     "message": "작업 센터를 시작하지 못했습니다."
   },

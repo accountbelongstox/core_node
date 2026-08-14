@@ -89,7 +89,7 @@ class AppQyV1TaskEnqueueController extends Controller
         $taskDefinition = QueueCenterContract::taskTypeDefinition($taskType);
         if ($taskDefinition === null) {
             return $this->error(
-                'Unsupported task_type. Allowed: ' . implode(', ', array_column(QueueCenterContract::taskTypes(), 'key')),
+                'Unsupported task_type. Allowed: ' . implode(', ', QueueCenterContract::taskTypeKeys()),
                 422
             );
         }
@@ -123,9 +123,8 @@ class AppQyV1TaskEnqueueController extends Controller
             ? ($validated['capability'] ?? ($taskDefinition['capability'] ?? null))
             : ($taskDefinition['capability'] ?? null);
 
-        // Honor "jump to task-top" only for the privileged translate/audio types;
-        // for everything else interactive is ignored so they keep their natural
-        // lane/priority. createTask performs the remote_fast + PRIORITY_FAST rewrite.
+        // Honor interactive fast-lane promotion only for contract-approved types.
+        // Audio ordering is exclusively controlled by queue_position through its gateways.
         $interactive = ($validated['interactive'] ?? false)
             && in_array($taskType, QueueCenterContract::interactiveTaskTypes(), true);
 
@@ -141,14 +140,19 @@ class AppQyV1TaskEnqueueController extends Controller
             $capability
         );
 
-        return $this->success([
+        $response = [
             'task_id' => $task->task_id,
             'task_type' => $task->task_type,
             'execution_type' => $task->execution_type,
             'capability' => $task->capability,
-            'priority' => $task->priority,
+            'queue_position' => $task->queue_position,
             'status' => $task->status,
-        ], 'Task enqueued');
+        ];
+        if (!QueueCenterContract::isQueuePositionOrdered($taskType)) {
+            $response['priority'] = $task->priority;
+        }
+
+        return $this->success($response, 'Task enqueued');
     }
 
     /**
@@ -233,7 +237,7 @@ class AppQyV1TaskEnqueueController extends Controller
     {
         if ($taskType === 'sentence_audio') {
             // Engine preference for the lane (qwen3tts-first, GPU-gated by pycore).
-            // Carried so a manually enqueued task matches the claim/bump lanes.
+            // Carried so a manually enqueued task matches the sentence audio lane.
             if (!isset($payload['engine_profile'])) {
                 $payload['engine_profile'] = AppQyV1TtsEngineConfigModel::SENTENCE_PROFILE;
             }

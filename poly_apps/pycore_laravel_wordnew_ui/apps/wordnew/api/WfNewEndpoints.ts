@@ -1,9 +1,9 @@
 /**
  * WfNewEndpoints — /wordnew view over the ONE shared Laravel endpoint manager
- * (core/api-libs/laravel/ApiManager). Endpoint detection, health probing,
+ * (core/integrations/laravel/ApiManager). Endpoint detection, health probing,
  * first-run detection, custom endpoints and the persisted selection are owned by core;
- * this adapter only maps them onto the wordnew surface (reactive snapshot,
- * WfNewEndpoint shape, legacy event name) so wordnew consumers keep a single
+ * this adapter only maps them onto the wordnew surface (reactive snapshot and
+ * WfNewEndpoint shape) so wordnew consumers keep a single
  * import site while the whole UI shares one endpoint state.
  */
 import {
@@ -14,7 +14,7 @@ import {
   API_HEALTH_EVENT,
   apiManager,
   type HealthCheckResult,
-} from '../../../core/api-libs/laravel/ApiManager';
+} from '../../../core/integrations/laravel/ApiManager';
 import {
   buildApiUrl,
   getAllEndpoints as getCoreEndpoints,
@@ -25,15 +25,15 @@ import {
   getCurrentOriginEndpoint,
   FIXED_API_PORT,
   type BackendApiEndpoint,
-} from '../../../config/api-endpoints';
-import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../../core/api-libs/base/endpointIdentity';
+} from '@/core/integrations/laravel/LaravelEndpoints';
+import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../../core/network/api-client/endpointIdentity';
 import { wfNewEndpointStore } from './WfNewEndpointStore';
 import type {
   WfNewEndpoint, WfNewEndpointHealth, WfNewEndpointSnapshot,
 } from './WfNewApiTypes';
 
-export { CURRENT_URL_TYPE } from '../../../core/api-libs/base/endpointIdentity';
-export { isCurrentUrlId } from '../../../core/api-libs/base/endpointIdentity';
+export { CURRENT_URL_TYPE } from '../../../core/network/api-client/endpointIdentity';
+export { isCurrentUrlId } from '../../../core/network/api-client/endpointIdentity';
 
 /** One health event for the whole UI — the core manager's pass event. */
 export const WORDNEW_API_HEALTH_EVENT = API_HEALTH_EVENT;
@@ -76,7 +76,6 @@ class WfNewEndpointManager {
   });
 
   constructor() {
-    wfNewEndpointStore.migrateToCore();
     if (typeof window !== 'undefined') {
       window.addEventListener(API_HEALTH_EVENT, () => {
         this.emit();

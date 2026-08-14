@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\UsesMainConnection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 class Worker extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesMainConnection;
 
     protected $table = 'workers';
 
@@ -66,6 +69,135 @@ class Worker extends Model
 
     // Heartbeat timeout (seconds)
     const HEARTBEAT_TIMEOUT = 120;
+
+    public static function tableExists(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    public static function presenceRows(int $limit): EloquentCollection
+    {
+        return self::query()
+            ->orderByDesc('last_heartbeat_at')
+            ->limit($limit)
+            ->get([
+                'worker_id',
+                'worker_name',
+                'processor_types',
+                'capabilities',
+                'status',
+                'last_heartbeat_at',
+                'hostname',
+            ]);
+    }
+
+    public static function purgeOfflineBefore($cutoff): int
+    {
+        return self::query()
+            ->where('status', self::STATUS_OFFLINE)
+            ->where(function ($query) use ($cutoff): void {
+                $query->where('last_heartbeat_at', '<', $cutoff)
+                    ->orWhere(function ($neverSeenQuery) use ($cutoff): void {
+                        $neverSeenQuery->whereNull('last_heartbeat_at')
+                            ->where('created_at', '<', $cutoff);
+                    });
+            })
+            ->delete();
+    }
+
+    public static function findByWorkerId(string $workerId): ?self
+    {
+        return self::query()->where('worker_id', $workerId)->first();
+    }
+
+    public static function lockByWorkerId(string $workerId): ?self
+    {
+        return self::query()->where('worker_id', $workerId)->lockForUpdate()->first();
+    }
+
+    public static function onlineWorkers(): EloquentCollection
+    {
+        return self::query()->online()->get();
+    }
+
+    public static function processorTypesFor(string $workerId): array
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['processor_types']);
+
+        return $worker && is_array($worker->processor_types)
+            ? array_values(array_filter($worker->processor_types, 'is_string'))
+            : [];
+    }
+
+    public static function capabilitiesFor(string $workerId): array
+    {
+        $worker = self::query()->where('worker_id', $workerId)->first(['capabilities']);
+
+        return $worker?->capabilityList() ?? [];
+    }
+
+    public static function offlineCandidateIds($cutoff): array
+    {
+        return self::query()
+            ->where('last_heartbeat_at', '<', $cutoff)
+            ->whereNotNull('last_heartbeat_at')
+            ->where('status', '!=', self::STATUS_OFFLINE)
+            ->pluck('worker_id')
+            ->all();
+    }
+
+    public static function registerWorker(string $workerId, array $attributes): self
+    {
+        return self::query()->updateOrCreate(['worker_id' => $workerId], $attributes);
+    }
+
+    public static function orderedWorkers(): EloquentCollection
+    {
+        return self::query()->orderBy('status')->orderBy('worker_name')->get();
+    }
+
+    public static function statistics($aliveCutoff): array
+    {
+        $row = self::query()
+            ->selectRaw('count(*) as total')
+            ->selectRaw(
+                'sum(case when status = ? and last_heartbeat_at >= ? then 1 else 0 end) as online',
+                [self::STATUS_ONLINE, $aliveCutoff]
+            )
+            ->selectRaw(
+                'sum(case when status = ? and last_heartbeat_at >= ? then 1 else 0 end) as busy',
+                [self::STATUS_BUSY, $aliveCutoff]
+            )
+            ->selectRaw('coalesce(sum(completed_tasks), 0) as total_completed')
+            ->selectRaw('coalesce(sum(failed_tasks), 0) as total_failed')
+            ->first();
+        $total = (int) ($row->total ?? 0);
+        $online = (int) ($row->online ?? 0);
+        $busy = (int) ($row->busy ?? 0);
+
+        return [
+            'total' => $total,
+            'online' => $online,
+            'busy' => $busy,
+            'offline' => max(0, $total - $online - $busy),
+            'total_completed' => (int) ($row->total_completed ?? 0),
+            'total_failed' => (int) ($row->total_failed ?? 0),
+        ];
+    }
+
+    public static function initializationStats(): array
+    {
+        $grouped = self::query()->groupBy('status')->selectRaw('status, count(*) as aggregate')->pluck('aggregate', 'status');
+
+        return [
+            'total' => (int) $grouped->sum(),
+            'online' => (int) ($grouped[self::STATUS_ONLINE] ?? 0),
+            'busy' => (int) ($grouped[self::STATUS_BUSY] ?? 0),
+            'offline' => (int) ($grouped[self::STATUS_OFFLINE] ?? 0),
+        ];
+    }
 
     /**
      * Mark worker as online

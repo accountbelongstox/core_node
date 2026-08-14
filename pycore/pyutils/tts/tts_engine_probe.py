@@ -22,19 +22,8 @@ from typing import Dict, Optional
 
 from pycore.pyfoundations.system_paths import get_core_node_root, get_local_data_dir
 from pycore.pyutils.common.python_env.runtime_policy import engine_compatibility
-
-import pycore.pyutils.tts.streamelements_engine as streamelements_engine
-import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
-import pycore.pyutils.tts.f5tts_engine as f5tts_engine
-import pycore.pyutils.tts.chattts_engine as chattts_engine
-import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
-import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
-import pycore.pyutils.tts.sherpa_engine as sherpa_engine
-import pycore.pyutils.tts.kokoro_engine as kokoro_engine
-import pycore.pyutils.tts.azure_engine as azure_engine
-import pycore.pyutils.tts.qwen.engine as qwen_engine
-import pycore.pyutils.tts.melotts_engine as melotts_engine
 import pycore.pyutils.common.python_env.isolated_venv as isolated_venv
+from pycore.pyutils.tts.engine_registry import tts_engine_registry
 
 
 _STAGING_ENV: Dict[str, str] = {
@@ -137,6 +126,7 @@ def engine_installed(name: str) -> bool:
 
 def engine_unavailable_reason(name: str) -> Optional[str]:
     """Why an engine cannot synthesize now; None when no hint applies."""
+    adapter = tts_engine_registry.get(name)
     if name == "voxcpm2":
         python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         compatibility = engine_compatibility(name, python_version)
@@ -144,64 +134,66 @@ def engine_unavailable_reason(name: str) -> Optional[str]:
             return str(compatibility["reason"])
 
     if name == "qwen3tts":
-        return qwen_engine.disabled_reason()
+        return adapter.disabled_reason() if adapter else _NOT_INSTALLED
 
     if name == "melotts":
         # Class C: readiness is the per-engine isolated venv (see engine_installed).
         if not isolated_venv.venv_ready("melotts"):
-            return melotts_engine.disabled_reason()
+            return adapter.disabled_reason() if adapter else _NOT_INSTALLED
         return None
 
     if not engine_installed(name):
         return _NOT_INSTALLED
 
     if name == "streamelements":
-        return streamelements_engine.disabled_reason()
+        return adapter.disabled_reason() if adapter else None
 
     if name == "cosyvoice":
-        cfg = cosyvoice_engine.disabled_reason()
+        cfg = adapter.disabled_reason() if adapter else None
         if cfg:
             return cfg
-        return f"CosyVoice API server not reachable ({cosyvoice_engine.base_url()})"
+        return f"CosyVoice API server not reachable ({adapter.base_url() if adapter else ''})"
 
     if name == "f5tts":
-        cfg = f5tts_engine.disabled_reason()
+        cfg = adapter.disabled_reason() if adapter else None
         if cfg:
             return cfg
-        return f"F5-TTS API server not running ({f5tts_engine.base_url()})"
+        return f"F5-TTS API server not running ({adapter.base_url() if adapter else ''})"
 
     if name == "chattts":
-        reachable, model_ready = chattts_engine._probe_health()
+        if adapter is not None and not adapter.config_ready():
+            return "ChatTTS model weights are not installed"
+        reachable, model_ready = adapter.module.health_state() if adapter else (False, False)
         if reachable and not model_ready:
-            return "ChatTTS model not loaded (first synth downloads from HuggingFace)"
-        return f"ChatTTS API server not running ({chattts_engine.base_url()})"
+            return "ChatTTS server is reachable but its model is not ready"
+        return f"ChatTTS API server not running ({adapter.base_url() if adapter else ''})"
 
     if name == "gptsovits":
         ref = (os.environ.get("GPTSOVITS_REF_AUDIO") or "").strip()
         if not ref or not Path(ref).exists():
             return "Set GPTSOVITS_REF_AUDIO to a reference clip"
-        return f"GPT-SoVITS API server not running ({gptsovits_engine.base_url()})"
+        return f"GPT-SoVITS API server not running ({adapter.base_url() if adapter else ''})"
 
     if name == "fishspeech":
         if (os.environ.get("FISH_API_KEY") or "").strip() and _spec("fishaudio"):
             return None
         return (
-            f"Start Fish Speech server ({fishspeech_engine.base_url()}) "
+            f"Start Fish Speech server ({adapter.base_url() if adapter else ''}) "
             "or set FISH_API_KEY with fish-audio-sdk"
         )
 
     if name == "sherpa":
-        if sherpa_engine.available():
+        if adapter and adapter.available():
             return None
         return "Sherpa-ONNX model not found — run offline TTS prerequisite"
 
     if name == "kokoro":
-        if kokoro_engine.available():
+        if adapter and adapter.available():
             return None
         return "Kokoro model not found — run Kokoro / sherpa prerequisite"
 
     if name == "azure":
-        if azure_engine.available():
+        if adapter and adapter.available():
             return None
         if not _spec("azure.cognitiveservices.speech"):
             return "azure-cognitiveservices-speech package not installed"

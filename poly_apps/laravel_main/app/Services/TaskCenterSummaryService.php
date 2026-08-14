@@ -34,42 +34,43 @@ final class TaskCenterSummaryService
     private TaskManagerService $taskManager;
     private WorkerManagerService $workerManager;
     private QueueCenterRealtimeService $realtime;
+    private OctaneTaskStatusService $octaneTaskStatus;
 
     public function __construct(
         AppQyV1AssistService $assistService,
         TaskManagerService $taskManager,
         WorkerManagerService $workerManager,
-        QueueCenterRealtimeService $realtime
+        QueueCenterRealtimeService $realtime,
+        OctaneTaskStatusService $octaneTaskStatus
     ) {
         $this->assistService = $assistService;
         $this->taskManager = $taskManager;
         $this->workerManager = $workerManager;
         $this->realtime = $realtime;
+        $this->octaneTaskStatus = $octaneTaskStatus;
     }
 
     public function overview(): array
     {
-        $timerStatus = OctaneTimerService::getStatus();
-        $timerTasks = isset($timerStatus['tasks']) && is_array($timerStatus['tasks'])
-            ? $timerStatus['tasks']
-            : [];
+        $scheduler = $this->octaneTaskStatus->getAllTasksStatus();
+        $timerTasks = $scheduler['tasks'] ?? [];
         $schedulerTasks = [];
         $relations = [];
 
-        foreach ($timerTasks as $name => $stats) {
+        foreach ($timerTasks as $task) {
+            $name = (string) ($task['name'] ?? '');
             $role = self::TIMER_QUEUE_ROLES[$name] ?? null;
-            $schedulerTasks[] = [
-                'name' => $name,
-                'interval' => $stats['interval'] ?? null,
-                'run_count' => $stats['run_count'] ?? 0,
-                'error_count' => $stats['error_count'] ?? 0,
-                'last_run' => $stats['last_run'] ?? null,
-                'last_run_ago' => $stats['last_run_ago'] ?? null,
-                'last_duration' => $stats['last_duration'] ?? null,
-                'last_error' => $stats['last_error'] ?? null,
+            $runtime = is_array($task['runtime'] ?? null) ? $task['runtime'] : [];
+            $schedulerTasks[] = array_merge($task, [
+                'run_count' => (int) ($runtime['run_count'] ?? 0),
+                'error_count' => (int) ($runtime['error_count'] ?? 0),
+                'last_run' => $runtime['last_run'] ?? null,
+                'last_run_ago' => $runtime['last_run_ago'] ?? null,
+                'last_duration' => $runtime['last_duration'] ?? null,
+                'last_error' => $runtime['last_error'] ?? null,
                 'queue_role' => $role['role'] ?? null,
                 'queue_target' => $role['target'] ?? null,
-            ];
+            ]);
         }
 
         foreach (self::TIMER_QUEUE_ROLES as $timerName => $meta) {
@@ -78,20 +79,26 @@ final class TaskCenterSummaryService
                 'role' => $meta['role'],
                 'target' => $meta['target'],
                 'worker_id' => $meta['worker_id'] ?? null,
-                'registered' => array_key_exists($timerName, $timerTasks),
+                'registered' => collect($timerTasks)->contains(
+                    static fn (array $task): bool => ($task['name'] ?? null) === $timerName
+                        && (bool) ($task['registered'] ?? false)
+                ),
             ];
         }
 
         return [
             'scheduler' => [
-                'running' => (bool) ($timerStatus['running'] ?? false),
-                'uptime' => $timerStatus['uptime'] ?? null,
-                'total_ticks' => $timerStatus['total_ticks'] ?? 0,
+                'running' => (bool) ($scheduler['summary']['timer_running'] ?? false),
+                'uptime' => $scheduler['summary']['timer_uptime'] ?? null,
+                'total_ticks' => $scheduler['summary']['total_ticks'] ?? 0,
+                'summary' => $scheduler['summary'] ?? [],
+                'heartbeat' => $scheduler['heartbeat'] ?? [],
                 'tasks' => $schedulerTasks,
             ],
             'queue' => $this->queueSnapshot(),
             'workers' => [
                 'stats' => $this->workerManager->getWorkerStats(),
+                'items' => $this->workerManager->getWorkerSummaries(),
             ],
             'relations' => $relations,
             'realtime' => $this->realtime->connection(),
@@ -102,9 +109,15 @@ final class TaskCenterSummaryService
     private function queueSnapshot(): array
     {
         $liveTypeCounts = $this->liveTypeCounts();
+        $taskList = $this->taskManager->getTaskListSnapshot(
+            [],
+            QueueCenterContract::taskLimit('list_default')
+        );
 
         return [
             'stats' => $this->taskManager->getTaskStats(),
+            'items' => $taskList['tasks'],
+            'total' => $taskList['total'],
             'categories' => $this->capabilityCategories(),
             'by_type' => $liveTypeCounts,
             'summary_by_type' => $this->summaryTypeCounts($liveTypeCounts),
@@ -115,11 +128,7 @@ final class TaskCenterSummaryService
     public function liveTypeCounts(): array
     {
         $live = GlobalTask::statuses('live');
-        $rows = GlobalTask::query()
-            ->whereIn('status', $live)
-            ->groupBy('task_type', 'status')
-            ->selectRaw('task_type, status, count(*) as total')
-            ->get();
+        $rows = GlobalTask::liveCountsByTypeAndStatus($live);
         $counts = [];
 
         foreach ($rows as $row) {
@@ -174,11 +183,10 @@ final class TaskCenterSummaryService
     private function assistCategoryCounts(): array
     {
         try {
-            // The task-center card and its drill-down must observe the same
-            // queue state. Do not use the Assist overview cache here: the
-            // detail endpoint reads live rows and a stale aggregate produces
-            // "Pending N" followed by an empty list.
-            $snapshot = $this->assistService->overviewSnapshot(true);
+            // The aggregate request must stay bounded. The Octane timer owns
+            // live Assist recomputation; request workers consume its warmed
+            // snapshot and drill-down endpoints remain explicit finite reads.
+            $snapshot = $this->assistService->overviewSnapshotFast();
         } catch (\Throwable) {
             return [];
         }
@@ -197,11 +205,7 @@ final class TaskCenterSummaryService
     private function capabilityCategories(): array
     {
         $live = GlobalTask::statuses('live');
-        $rows = GlobalTask::query()
-            ->whereIn('status', $live)
-            ->groupBy('capability', 'execution_type', 'status')
-            ->selectRaw('capability, execution_type, status, count(*) as total')
-            ->get();
+        $rows = GlobalTask::liveCountsByCapabilityLaneAndStatus($live);
         $tally = [];
 
         foreach ($rows as $row) {
@@ -212,7 +216,7 @@ final class TaskCenterSummaryService
             $tally[$capability][$lane][$row->status] = (int) $row->total;
         }
 
-        $onlineWorkers = Worker::online()->get();
+        $onlineWorkers = Worker::onlineWorkers();
         $onlineFastCapabilities = [];
         $onlineExecutionTypes = [];
         $anyOnline = $onlineWorkers->isNotEmpty();

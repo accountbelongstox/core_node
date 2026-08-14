@@ -12,7 +12,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind } from '../api';
 import { wfNewPageSize, WFNEW_LIST_ROWS } from '../api';
 import { WFNEW_KIND_STYLES } from '../components/WfNewContentGroupCard';

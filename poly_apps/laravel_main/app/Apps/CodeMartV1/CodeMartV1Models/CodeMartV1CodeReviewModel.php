@@ -2,7 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1CodeReviewModel extends Model
@@ -46,5 +47,18 @@ class CodeMartV1CodeReviewModel extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findForSubmissionReviewer(int $submissionId, int $reviewerId): ?self
+    {
+        return static::query()
+            ->where('submission_id', $submissionId)
+            ->where('reviewer_id', $reviewerId)
+            ->first();
     }
 }

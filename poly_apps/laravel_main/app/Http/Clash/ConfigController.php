@@ -11,7 +11,7 @@
 
 namespace App\Http\Clash;
 
-use App\Models\ClashUrlsConfig;
+use App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel as ClashUrlsConfig;
 use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
@@ -20,9 +20,7 @@ class ConfigController
 {
     public function index($groupId)
     {
-        $configs = ClashUrlsConfig::where('group_id', $groupId)
-            ->orderBy('created_at', 'desc')
-            ->get()
+        $configs = ClashUrlsConfig::forGroup((int) $groupId)
             ->map(function ($config) {
                 // Calculate the remaining months
                 $expiryMonths = 0;
@@ -67,7 +65,7 @@ class ConfigController
         ]);
 
         // Check if content already exists
-        if (ClashUrlsConfig::where('content', $request->content)->exists()) {
+        if (ClashUrlsConfig::contentExists($request->content)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Configuration with this content already exists'
@@ -85,7 +83,7 @@ class ConfigController
         $config->md5 = md5($request->content);
         $config->content = $request->content;
         $config->expires_at = $expiryDate;
-        $config->save();
+        $config->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -113,7 +111,7 @@ class ConfigController
         $config->md5 = md5($request->content);
         $config->content = $request->content;
         $config->expires_at = $expiryDate;
-        $config->save();
+        $config->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -124,7 +122,7 @@ class ConfigController
 
     public function destroy(ClashUrlsConfig $config)
     {
-        $config->delete();
+        $config->deleteRecord();
 
         return response()->json([
             'success' => true,

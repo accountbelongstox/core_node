@@ -12,6 +12,7 @@ import {
   PRIORITY_FAST,
   TASK_CAPABILITY_BY_ROLE,
   TASK_TYPE_CATALOG,
+  isQueuePositionOrderedTask,
   type WorkerCapability,
 } from '@/utils/queue-center-contract';
 
@@ -82,10 +83,12 @@ export function isAiTranslate(capability?: string | null): boolean {
 
 /** Fast-tier when explicitly flagged, on remote_fast, or at/above the FAST priority tier. */
 export function isFastTier(opts: {
+  task_type?: string | null;
   is_fast_tier?: boolean | null;
   priority?: number | null;
   execution_type?: string | null;
 }): boolean {
+  if (isQueuePositionOrderedTask(opts.task_type)) return false;
   if (opts.is_fast_tier) return true;
   if (opts.execution_type === EXECUTION_TYPES_BY_ROLE.remote_fast) return true;
   return typeof opts.priority === 'number' && opts.priority >= PRIORITY_FAST;

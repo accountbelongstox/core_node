@@ -24,15 +24,39 @@ import win32process
 import win32clipboard
 
 PROCESS_TERMINATE = 0x0001
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+PROCESS_PATH_BUFFER_LENGTH = 32768
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 
 SW_HIDE = 0
 SW_SHOWNORMAL = 1
 SW_SHOWMINIMIZED = 2
 SW_SHOWMAXIMIZED = 3
+SW_SHOWNOACTIVATE = 4
 SW_SHOW = 5
 SW_MINIMIZE = 6
 SW_RESTORE = 9
+HWND_TOPMOST = c_void_p(-1)
+HWND_NOTOPMOST = c_void_p(-2)
+GWL_EXSTYLE = -20
+WS_EX_TOPMOST = 0x00000008
+SWP_NOSIZE = 0x0001
+SWP_NOMOVE = 0x0002
+SWP_NOACTIVATE = 0x0010
+SWP_SHOWWINDOW = 0x0040
+
+INPUT_MOUSE = 0
+INPUT_KEYBOARD = 1
+MOUSEEVENTF_LEFTDOWN = 0x0002
+MOUSEEVENTF_LEFTUP = 0x0004
+MOUSEEVENTF_RIGHTDOWN = 0x0008
+MOUSEEVENTF_RIGHTUP = 0x0010
+MOUSEEVENTF_WHEEL = 0x0800
+KEYEVENTF_KEYUP = 0x0002
+WHEEL_DELTA = 120
+MAX_WHEEL_STEPS_PER_INPUT = 120
+SPI_GETWHEELSCROLLLINES = 0x0068
+WHEEL_PAGESCROLL = 0xFFFFFFFF
 
 WM_CLOSE = 0x0010
 WM_KEYDOWN = 0x0100
@@ -48,6 +72,51 @@ MK_RBUTTON = 0x0002
 
 class RECT(Structure):
     _fields_ = [("left", c_long), ("top", c_long), ("right", c_long), ("bottom", c_long)]
+
+
+class MouseInput(Structure):
+    _fields_ = (
+        ("dx", wintypes.LONG),
+        ("dy", wintypes.LONG),
+        ("mouse_data", wintypes.DWORD),
+        ("flags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("extra_info", wintypes.WPARAM),
+    )
+
+
+class KeyboardInput(Structure):
+    _fields_ = (
+        ("virtual_key", wintypes.WORD),
+        ("scan_code", wintypes.WORD),
+        ("flags", wintypes.DWORD),
+        ("time", wintypes.DWORD),
+        ("extra_info", wintypes.WPARAM),
+    )
+
+
+class HardwareInput(Structure):
+    _fields_ = (
+        ("message", wintypes.DWORD),
+        ("parameter_low", wintypes.WORD),
+        ("parameter_high", wintypes.WORD),
+    )
+
+
+class InputValue(ctypes.Union):
+    _fields_ = (
+        ("mouse", MouseInput),
+        ("keyboard", KeyboardInput),
+        ("hardware", HardwareInput),
+    )
+
+
+class NativeInput(Structure):
+    _anonymous_ = ("value",)
+    _fields_ = (
+        ("type", wintypes.DWORD),
+        ("value", InputValue),
+    )
 
 class WindowOps:
     def __init__(self):
@@ -66,6 +135,7 @@ class WindowOps:
             'F1': 0x70, 'F2': 0x71, 'F3': 0x72, 'F4': 0x73, 'F5': 0x74,
             'F6': 0x75, 'F7': 0x76, 'F8': 0x77, 'F9': 0x78, 'F10': 0x79,
             'ESCAPE': 0x1B, 'ENTER': 0x0D, 'SPACE': 0x20, 'TAB': 0x09,
+            'CTRL': 0x11, 'CONTROL': 0x11, 'SHIFT': 0x10, 'END': 0x23,
             'UP': 0x26, 'DOWN': 0x28, 'LEFT': 0x25, 'RIGHT': 0x27
         }
     
@@ -80,6 +150,10 @@ class WindowOps:
         self.user32.ShowWindow.restype = c_bool
         self.user32.SetForegroundWindow.argtypes = [c_void_p]
         self.user32.SetForegroundWindow.restype = c_bool
+        self.user32.BringWindowToTop.argtypes = [c_void_p]
+        self.user32.BringWindowToTop.restype = c_bool
+        self.user32.GetWindowLongW.argtypes = [c_void_p, c_int]
+        self.user32.GetWindowLongW.restype = c_long
         self.user32.PostMessageW.argtypes = [c_void_p, c_uint, c_void_p, c_void_p]
         self.user32.PostMessageW.restype = c_bool
         self.user32.EnumWindows.argtypes = [ctypes.WINFUNCTYPE(c_bool, c_void_p, c_void_p), c_void_p]
@@ -88,10 +162,52 @@ class WindowOps:
         self.user32.GetWindowRect.restype = c_bool
         self.user32.GetWindowThreadProcessId.argtypes = [c_void_p, POINTER(c_ulong)]
         self.user32.GetWindowThreadProcessId.restype = c_ulong
+        self.user32.GetClassNameW.argtypes = [c_void_p, c_wchar_p, c_int]
+        self.user32.GetClassNameW.restype = c_int
+        self.user32.GetForegroundWindow.argtypes = []
+        self.user32.GetForegroundWindow.restype = c_void_p
+        self.user32.IsIconic.argtypes = [c_void_p]
+        self.user32.IsIconic.restype = c_bool
+        self.user32.SetWindowPos.argtypes = [
+            c_void_p,
+            c_void_p,
+            c_int,
+            c_int,
+            c_int,
+            c_int,
+            c_uint,
+        ]
+        self.user32.SetWindowPos.restype = c_bool
+        self.user32.SetCursorPos.argtypes = [c_int, c_int]
+        self.user32.SetCursorPos.restype = c_bool
+        self.user32.SendInput.argtypes = [
+            c_uint,
+            POINTER(NativeInput),
+            c_int,
+        ]
+        self.user32.SendInput.restype = c_uint
+        self.user32.SystemParametersInfoW.argtypes = [
+            c_uint,
+            c_uint,
+            c_void_p,
+            c_uint,
+        ]
+        self.user32.SystemParametersInfoW.restype = c_bool
         self.user32.GetCursorPos.argtypes = [POINTER(POINT)]
         self.user32.GetCursorPos.restype = c_bool
         self.user32.ScreenToClient.argtypes = [c_void_p, POINTER(POINT)]
         self.user32.ScreenToClient.restype = c_bool
+        self.kernel32.OpenProcess.argtypes = [c_ulong, c_bool, c_ulong]
+        self.kernel32.OpenProcess.restype = c_void_p
+        self.kernel32.QueryFullProcessImageNameW.argtypes = [
+            c_void_p,
+            c_ulong,
+            c_wchar_p,
+            POINTER(c_ulong),
+        ]
+        self.kernel32.QueryFullProcessImageNameW.restype = c_bool
+        self.kernel32.CloseHandle.argtypes = [c_void_p]
+        self.kernel32.CloseHandle.restype = c_bool
     
     def find_window(self, class_name: Optional[str] = None, window_title: Optional[str] = None) -> Optional[int]:
         try:
@@ -248,6 +364,150 @@ class WindowOps:
             return (thread_id, process_id.value)
         except:
             return None
+
+    def get_foreground_window(self) -> int:
+        return int(self.user32.GetForegroundWindow() or 0)
+
+    def get_window_class_name(self, hwnd: int) -> str:
+        buffer = ctypes.create_unicode_buffer(256)
+        length = self.user32.GetClassNameW(hwnd, buffer, len(buffer))
+        return buffer.value if length > 0 else ""
+
+    def get_window_process_name(self, process_id: int) -> str:
+        if process_id <= 0:
+            return ""
+        handle = self.kernel32.OpenProcess(
+            PROCESS_QUERY_LIMITED_INFORMATION,
+            False,
+            process_id,
+        )
+        if not handle:
+            return ""
+        buffer = ctypes.create_unicode_buffer(PROCESS_PATH_BUFFER_LENGTH)
+        size = c_ulong(PROCESS_PATH_BUFFER_LENGTH)
+        resolved = self.kernel32.QueryFullProcessImageNameW(
+            handle,
+            0,
+            buffer,
+            byref(size),
+        )
+        self.kernel32.CloseHandle(handle)
+        if not resolved:
+            return ""
+        return Path(buffer.value).name
+
+    def show_window_without_activation(self, hwnd: int) -> bool:
+        if self.user32.IsIconic(hwnd):
+            self.user32.ShowWindow(hwnd, SW_SHOWNOACTIVATE)
+        return True
+
+    def is_window_topmost(self, hwnd: int) -> bool:
+        extended_style = self.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        return bool(extended_style & WS_EX_TOPMOST)
+
+    def set_window_topmost(self, hwnd: int, enabled: bool) -> bool:
+        insert_after = HWND_TOPMOST if enabled else HWND_NOTOPMOST
+        return bool(self.user32.SetWindowPos(
+            hwnd,
+            insert_after,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+        ))
+
+    def bring_window_to_top(self, hwnd: int) -> bool:
+        topmost = self.set_window_topmost(hwnd, True)
+        brought = bool(self.user32.BringWindowToTop(hwnd))
+        foreground = self.set_foreground_window(hwnd)
+        return topmost or brought or foreground
+
+    def click_screen_point(self, x: int, y: int, button: str = "left") -> bool:
+        if button not in ("left", "right"):
+            return False
+        if not self.user32.SetCursorPos(x, y):
+            return False
+        inputs = (NativeInput * 2)()
+        inputs[0].type = INPUT_MOUSE
+        inputs[1].type = INPUT_MOUSE
+        if button == "right":
+            inputs[0].mouse.flags = MOUSEEVENTF_RIGHTDOWN
+            inputs[1].mouse.flags = MOUSEEVENTF_RIGHTUP
+        else:
+            inputs[0].mouse.flags = MOUSEEVENTF_LEFTDOWN
+            inputs[1].mouse.flags = MOUSEEVENTF_LEFTUP
+        sent = self.user32.SendInput(2, inputs, ctypes.sizeof(NativeInput))
+        return sent == 2
+
+    def get_wheel_scroll_lines(self) -> int:
+        lines = c_uint()
+        resolved = self.user32.SystemParametersInfoW(
+            SPI_GETWHEELSCROLLLINES,
+            0,
+            byref(lines),
+            0,
+        )
+        if not resolved:
+            return 3
+        if lines.value == WHEEL_PAGESCROLL:
+            return -1
+        return max(1, int(lines.value))
+
+    def scroll_mouse_wheel(self, steps: int) -> bool:
+        remaining = abs(int(steps))
+        if remaining == 0:
+            return False
+        direction = 1 if steps > 0 else -1
+        deltas = []
+        while remaining > 0:
+            chunk = min(remaining, MAX_WHEEL_STEPS_PER_INPUT)
+            deltas.append(direction * chunk * WHEEL_DELTA)
+            remaining -= chunk
+        inputs = (NativeInput * len(deltas))()
+        for index, delta in enumerate(deltas):
+            inputs[index].type = INPUT_MOUSE
+            inputs[index].mouse.mouse_data = delta & 0xFFFFFFFF
+            inputs[index].mouse.flags = MOUSEEVENTF_WHEEL
+        sent = self.user32.SendInput(
+            len(inputs),
+            inputs,
+            ctypes.sizeof(NativeInput),
+        )
+        return sent == len(inputs)
+
+    def press_native_key(self, key: Union[str, int]) -> bool:
+        key_code = self.get_key_code(key)
+        if not key_code:
+            return False
+        inputs = (NativeInput * 2)()
+        inputs[0].type = INPUT_KEYBOARD
+        inputs[0].keyboard.virtual_key = key_code
+        inputs[1].type = INPUT_KEYBOARD
+        inputs[1].keyboard.virtual_key = key_code
+        inputs[1].keyboard.flags = KEYEVENTF_KEYUP
+        sent = self.user32.SendInput(2, inputs, ctypes.sizeof(NativeInput))
+        return sent == 2
+
+    def press_native_key_combo(self, keys: List[Union[str, int]]) -> bool:
+        key_codes = [self.get_key_code(key) for key in keys]
+        if not key_codes or any(not key_code for key_code in key_codes):
+            return False
+        inputs = (NativeInput * (len(key_codes) * 2))()
+        for index, key_code in enumerate(key_codes):
+            inputs[index].type = INPUT_KEYBOARD
+            inputs[index].keyboard.virtual_key = key_code
+        for offset, key_code in enumerate(reversed(key_codes)):
+            index = len(key_codes) + offset
+            inputs[index].type = INPUT_KEYBOARD
+            inputs[index].keyboard.virtual_key = key_code
+            inputs[index].keyboard.flags = KEYEVENTF_KEYUP
+        sent = self.user32.SendInput(
+            len(inputs),
+            inputs,
+            ctypes.sizeof(NativeInput),
+        )
+        return sent == len(inputs)
     
     def get_window_info(self, hwnd: int) -> Optional[Dict[str, Any]]:
         try:
@@ -427,6 +687,45 @@ def hide_window(hwnd: int) -> bool:
 
 def get_window_rect(hwnd: int) -> Optional[Tuple[int, int, int, int]]:
     return _window_ops.get_window_rect(hwnd)
+
+def get_window_thread_process_id(hwnd: int) -> Optional[Tuple[int, int]]:
+    return _window_ops.get_window_thread_process_id(hwnd)
+
+def get_foreground_window() -> int:
+    return _window_ops.get_foreground_window()
+
+def get_window_class_name(hwnd: int) -> str:
+    return _window_ops.get_window_class_name(hwnd)
+
+def get_window_process_name(process_id: int) -> str:
+    return _window_ops.get_window_process_name(process_id)
+
+def show_window_without_activation(hwnd: int) -> bool:
+    return _window_ops.show_window_without_activation(hwnd)
+
+def is_window_topmost(hwnd: int) -> bool:
+    return _window_ops.is_window_topmost(hwnd)
+
+def set_window_topmost(hwnd: int, enabled: bool) -> bool:
+    return _window_ops.set_window_topmost(hwnd, enabled)
+
+def bring_window_to_top(hwnd: int) -> bool:
+    return _window_ops.bring_window_to_top(hwnd)
+
+def click_screen_point(x: int, y: int, button: str = "left") -> bool:
+    return _window_ops.click_screen_point(x, y, button)
+
+def get_wheel_scroll_lines() -> int:
+    return _window_ops.get_wheel_scroll_lines()
+
+def scroll_mouse_wheel(steps: int) -> bool:
+    return _window_ops.scroll_mouse_wheel(steps)
+
+def press_native_key(key: Union[str, int]) -> bool:
+    return _window_ops.press_native_key(key)
+
+def press_native_key_combo(keys: List[Union[str, int]]) -> bool:
+    return _window_ops.press_native_key_combo(keys)
 
 def get_window_client_rect(hwnd: int) -> Optional[Tuple[int, int, int, int]]:
     return _window_ops.get_window_client_rect(hwnd)

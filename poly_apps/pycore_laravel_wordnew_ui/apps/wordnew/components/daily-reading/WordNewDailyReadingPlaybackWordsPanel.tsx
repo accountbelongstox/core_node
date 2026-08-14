@@ -1,8 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { BookMarked, CircleDashed, ListMusic } from 'lucide-react';
-import type { WordNewSentenceWordRow } from '../../services/WordNewSentenceWordTable';
-import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import {
+  countSentenceWordsAddedToTargetGroup,
+  sentenceWordMeaning,
+  sentenceWordTranslations,
+  type WordNewSentenceWordRow,
+} from '../../services/WordNewSentenceWordTable';
+import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
 import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
+import { useDailyReadingViewportSpacing } from '../../hooks/useDailyReadingViewportSpacing';
 
 interface Props {
   words: WordNewSentenceWordRow[];
@@ -17,14 +23,25 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
   activeWordIndex,
   trans,
 }) => {
-  const activeItemRef = useRef<HTMLLIElement | null>(null);
-  const addedCount = new Set(words
-    .filter((word) => word.added_to_default_group)
-    .map((word) => word.word.trim().toLocaleLowerCase())
-    .filter(Boolean)).size;
+  const containerRef = useRef<HTMLOListElement>(null);
+  const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
+  const viewportSpacing = useDailyReadingViewportSpacing(containerRef, 'words');
+  const addedCount = countSentenceWordsAddedToTargetGroup(words);
 
+  // Word mode has no centering spacers. The active row is centered only within
+  // the list's natural scroll range, so the first word starts at the top.
   useEffect(() => {
-    activeItemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (activeWordIndex < 0) return;
+    const container = containerRef.current;
+    const element = itemRefs.current[activeWordIndex];
+    if (!container || !element) return;
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const nextTop = container.scrollTop
+      + (elementRect.top - containerRect.top)
+      - container.clientHeight / 2
+      + element.clientHeight / 2;
+    container.scrollTo({ top: Math.max(0, nextTop), behavior: 'smooth' });
   }, [activeWordIndex]);
 
   if (words.length === 0) return null;
@@ -38,7 +55,7 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
         </h3>
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 font-mono text-[10px] text-indigo-300">
           <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-200">
-            {trans('home.dailyReading.articleDefaultGroupAdded', { count: addedCount })}
+            {trans('home.dailyReading.articleTargetGroupAdded', { count: addedCount })}
           </span>
           {activeWord && <span className="truncate text-fuchsia-200">{activeWord}</span>}
           <span className="shrink-0">
@@ -49,19 +66,20 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
           </span>
         </div>
       </div>
-      <ol className="max-h-64 space-y-1 overflow-y-auto pr-1">
+      <ol ref={containerRef} className="max-h-[80vh] space-y-1 overflow-y-auto overscroll-contain pr-1">
+        {viewportSpacing > 0 && <li aria-hidden="true" style={{ height: viewportSpacing }} />}
         {words.map((word, wordIndex) => {
-          const translations = word.translations?.filter((value) => typeof value === 'string' && value.trim()) ?? [];
-          const meaning = translations.join(' / ') || word.explanation || trans('home.dailyReading.meaningPending');
+          const translations = sentenceWordTranslations(word);
+          const meaning = sentenceWordMeaning(word) || trans('home.dailyReading.meaningPending');
           const isActive = wordIndex === activeWordIndex;
           const hasAudio = word.audio_status === 'ready' && !!word.audio_url;
-          const groupLabel = trans(word.in_default_group
-            ? 'home.dailyReading.defaultGroupLinked'
-            : 'home.dailyReading.defaultGroupPending');
+          const groupLabel = trans(word.in_target_group
+            ? 'home.dailyReading.targetGroupLinked'
+            : 'home.dailyReading.targetGroupPending');
           return (
             <li
               key={`${word.word}-${wordIndex}`}
-              ref={isActive ? activeItemRef : undefined}
+              ref={(element) => { itemRefs.current[wordIndex] = element; }}
               aria-current={isActive ? 'true' : undefined}
               className={`grid grid-cols-[minmax(5rem,0.6fr)_minmax(0,1.25fr)_auto] items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
                 isActive
@@ -72,20 +90,20 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
               <span className="truncate text-xs font-semibold">{word.word}</span>
               <span className="truncate text-[11px]" title={meaning}>{meaning}</span>
               <span className="flex items-center gap-1.5 text-[10px]">
-                <WordNewAudioStatusIcon
+                <WordNewResourceStatusIcon
                   state={hasAudio ? 'ready' : 'waiting'}
                   queueKey={wordAudioQueueKey(word.word, 'en')}
                   trans={trans}
                 />
                 {translations.length === 0 ? (
-                  <WordNewAudioStatusIcon
+                  <WordNewResourceStatusIcon
                     state="waiting"
                     resource="translation"
                     queueKey={wordTranslationQueueKey(word.word, 'en', 'zh')}
                     trans={trans}
                   />
                 ) : null}
-                {word.in_default_group
+                {word.in_target_group
                   ? <span title={groupLabel}><BookMarked className="w-3.5 h-3.5 text-indigo-300" aria-label={groupLabel} /></span>
                   : <span title={groupLabel}><CircleDashed className="w-3.5 h-3.5 text-zinc-500" aria-label={groupLabel} /></span>}
                 <span
@@ -98,6 +116,7 @@ export const WordNewDailyReadingPlaybackWordsPanel: React.FC<Props> = ({
             </li>
           );
         })}
+        {viewportSpacing > 0 && <li aria-hidden="true" style={{ height: viewportSpacing }} />}
       </ol>
     </section>
   );

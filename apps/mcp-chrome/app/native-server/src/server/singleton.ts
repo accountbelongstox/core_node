@@ -8,18 +8,9 @@
  */
 
 import http from 'http';
-import { stderr } from 'process';
+import { createLogger } from '../util/logger';
 
-// Log function for debugging
-function log(level: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [Singleton] [${level}] ${message}`;
-  if (data) {
-    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
-  } else {
-    stderr.write(`${logMessage}\n`);
-  }
-}
+const log = createLogger('Singleton');
 
 // ============================================================
 // Protocol Definition

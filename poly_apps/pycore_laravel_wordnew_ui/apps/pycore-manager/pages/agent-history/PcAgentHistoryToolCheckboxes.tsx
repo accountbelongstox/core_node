@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AgentHistoryToolStatistics } from '@/apps/pycore-manager/api';
-import { AGENT_HISTORY_TOOLS, TOOL_LABELS } from '../../../../components/views/dev-history/shared';
+import { AGENT_HISTORY_TOOLS, TOOL_LABELS } from './presentation';
 
 type TestStatus = 'idle' | 'testing' | 'ok' | 'empty' | 'fail';
 

@@ -19,6 +19,7 @@ from typing import Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.third_party.api import get_third_package_requests
+from pycore.pyutils.tts.engine_policy import truncate_command_text
 
 GTTS_WEB_URL = "https://translate.google.com/translate_tts"
 # (connect, read) timeouts (seconds).
@@ -51,7 +52,7 @@ def available() -> bool:
 
 def describe_command(text: str, lang: str, output_mp3: Path) -> str:
     """Return a complete curl command equivalent to the synthesis request."""
-    cleaned = (text or "").strip()
+    cleaned = truncate_command_text((text or "").strip())
     code = (lang or "en").strip().lower() or "en"
     tl = _TL_BY_LANG.get(code, code)
     command = [

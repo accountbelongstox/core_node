@@ -19,7 +19,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Clapperboard, FileText, Layers, Library, Globe, Plus } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind } from '../api';
 import { WfNewRotatingCover } from './WfNewRotatingCover';
 

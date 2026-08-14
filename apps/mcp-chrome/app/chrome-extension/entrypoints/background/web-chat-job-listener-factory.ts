@@ -5,6 +5,7 @@
  * factory bound to its own message `type` and WebChatJobToolBase instance.
  */
 import { logger } from '@/utils/logger';
+import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
 
 export interface WebChatJobTool {
   start(prompt: string, timeoutMs?: number): Promise<{ ok: boolean; jobId?: string; [key: string]: any }>;
@@ -13,27 +14,24 @@ export interface WebChatJobTool {
 
 export function createWebChatJobListener(messageType: string, tool: WebChatJobTool, label: string): () => void {
   return function init(): void {
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type !== messageType) return;
-
-      (async () => {
-        try {
-          if (message.action === 'start') {
-            const result = await tool.start(String(message.prompt || ''), message.timeoutMs || 180000);
-            sendResponse({ success: result.ok, result });
-          } else if (message.action === 'status') {
-            const result = await tool.status(String(message.jobId || ''));
-            sendResponse({ success: result.status !== 'unknown', result });
-          } else {
-            sendResponse({ success: false, error: `Unknown action: ${message.action}` });
-          }
-        } catch (error: any) {
-          logger.error(label, 'request failed', error);
-          sendResponse({ success: false, error: error?.message || `${label} error` });
-        }
-      })();
-
-      return true; // async response
+    registerRuntimeMessageHandler(messageType, async (message: any) => {
+      if (message.action === 'start') {
+        const result = await tool.start(String(message.prompt || ''), message.timeoutMs || 180000);
+        return { success: result.ok, result };
+      }
+      if (message.action === 'status') {
+        const result = await tool.status(String(message.jobId || ''));
+        return { success: result.status !== 'unknown', result };
+      }
+      return { success: false, error: `Unknown action: ${message.action}` };
+    }, {
+      createErrorResponse: (error) => {
+        logger.error(label, 'request failed', error);
+        return {
+          success: false,
+          error: toErrorMessage(error) || `${label} error`,
+        };
+      },
     });
 
     logger.info(label, 'Initialized');

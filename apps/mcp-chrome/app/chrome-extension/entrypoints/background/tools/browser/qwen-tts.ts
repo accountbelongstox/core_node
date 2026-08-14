@@ -1,8 +1,10 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { logger } from '@/utils/logger';
 import { gradioFrameForTabUrl, waitForGradioFrame } from '@/utils/qwen-tts-frame';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { delay as waitForDelay, withTimeout } from '@/utils/async';
 import {
   QWEN_TTS_LAST_VERIFIED,
   QWEN_TTS_SPACE_URL,
@@ -36,14 +38,11 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
   async execute(args: QwenTtsRequest): Promise<ToolResult> {
     try {
       const result = await this.run(args);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        isError: !result.ok,
-      };
+      return createJsonResponse(result, { isError: !result.ok, space: 2 });
     } catch (error) {
       logger.error(LOG, 'execute failed', error);
       return createErrorResponse(
-        `Qwen TTS failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Qwen TTS failed: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -66,7 +65,11 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
 
     await phase('Opening', QWEN_TTS_SPACE_URL);
     const { tabId, tabUrl } = await this.resolveTab(request.tabId, !!request.openInNewTab);
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, {
+      timeoutMs: 60_000,
+      settleDelayMs: 1200,
+      statusProbeDelayMs: 800,
+    });
 
     await phase('Waiting', 'Gradio iframe load');
     let frameId = gradioFrameForTabUrl(tabUrl);
@@ -76,7 +79,7 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
 
     await phase('Injecting', `frame ${frameId}`);
     await this.injectInFrame(tabId, frameId, HELPER_SCRIPTS);
-    await new Promise((r) => setTimeout(r, 500));
+    await waitForDelay(500);
 
     await phase('Submitting', `${mode} · ${text.slice(0, 48)}`);
     await phase('Waiting', `GPU queue · up to ${Math.round(waitTimeoutMs / 1000)}s`);
@@ -219,16 +222,15 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
 
   private async injectInFrame(tabId: number, frameId: number, files: string[]): Promise<void> {
     try {
-      const response = await Promise.race([
+      const response = await withTimeout(
         chrome.tabs.sendMessage(
           tabId,
           { action: `${this.name}_ping`, files },
           { frameId },
         ),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('ping timeout')), PING_TIMEOUT_MS),
-        ),
-      ]);
+        PING_TIMEOUT_MS,
+        'ping timeout',
+      );
       if (response && (response as { status?: string }).status === 'pong') {
         return;
       }
@@ -242,32 +244,6 @@ class QwenTtsTool extends BaseBrowserToolExecutor {
     });
   }
 
-  private waitForTabComplete(tabId: number, timeoutMs = 60_000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // ignore
-        }
-        clearTimeout(timer);
-        setTimeout(resolve, 1200);
-      };
-      const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
-        if (updatedTabId === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then((tab) => {
-          if (tab.status === 'complete') finish();
-        }, finish);
-      }, 800);
-    });
-  }
 }
 
 export const qwenTtsTool = new QwenTtsTool();

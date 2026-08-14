@@ -7,7 +7,7 @@
  *
  * Audio parity with the book reader (WfNewBookReader):
  *   - three-state pronunciation icons (queued / processing / ready),
- *   - priority bump on visible/click through the canonical word_audio queue,
+ *   - queue-head insertion on visible/click through the canonical word_audio queue,
  *   - click row plays it through WordNewLibraryPlayback (playFrom re-roots current),
  *   - play-all top-to-bottom with auto-advance,
  *   - auto-scroll active word to upper-middle; manual scroll pauses it 2.5s,
@@ -18,7 +18,7 @@ import {
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp,
   Maximize2, Minimize2, Play, Pause, Square, Zap,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import {
   wfNewApi,
   type WfNewLibraryWord,
@@ -27,7 +27,7 @@ import {
 } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { WordNewLibraryPlayback } from '../services/WordNewLibraryPlayback';
-import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import type { WordNewAudioCellState } from '../utils/WordNewAudioCellState';
 import { mapUiAccent, pickWordAudioUrl } from '../hooks/wordNewWordAudioFallback';
 import { buildWordCell } from '../utils/WordNewLibraryWordCell';
@@ -71,21 +71,19 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
-  // Per-word priority-boost tracking: md5 → 'idle'|'boosting'|'done'
-  const [boostStatus, setBoostStatus] = useState<Record<string, 'idle' | 'boosting' | 'done'>>({});
+  const [headStatus, setHeadStatus] = useState<Record<string, 'idle' | 'moving' | 'done'>>({});
 
-  const onBoostPriority = useCallback(async (w: WfNewLibraryWord, lang: string) => {
+  const onMoveToHead = useCallback(async (w: WfNewLibraryWord, lang: string) => {
     const md5 = w.md5 || `${w.index}-${w.word}`;
-    if (boostStatus[md5] === 'boosting') return;
-    setBoostStatus((prev) => ({ ...prev, [md5]: 'boosting' }));
+    if (headStatus[md5] === 'moving') return;
+    setHeadStatus((prev) => ({ ...prev, [md5]: 'moving' }));
     try {
-      const result = await wfNewApi.boostWordAudioPriority(md5, lang);
-      if (!result.success) throw new Error(result.error || 'WORD_AUDIO_PRIORITY_FAILED');
-      setBoostStatus((prev) => ({ ...prev, [md5]: 'done' }));
+      await wordNewQueueCenter.moveWordsToHead([w.word], lang);
+      setHeadStatus((prev) => ({ ...prev, [md5]: 'done' }));
     } catch {
-      setBoostStatus((prev) => ({ ...prev, [md5]: 'idle' }));
+      setHeadStatus((prev) => ({ ...prev, [md5]: 'idle' }));
     }
-  }, [boostStatus]);
+  }, [headStatus]);
 
   // ---- On-demand word media (image/audio) --------------------------------- //
   // For a row whose image/audio is missing the first resolve prioritizes it;
@@ -165,7 +163,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     setCellStatuses((prev) => (prev[key] === state ? prev : { ...prev, [key]: state }));
   }, []);
 
-  /** Resolve and prioritize missing pronunciation through word_audio. */
+  /** Resolve missing pronunciation and move it to the word-audio queue head. */
   const queueWordAudio = useCallback((
     w: WfNewLibraryWord,
     lang: string,
@@ -177,7 +175,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (!force && requestedWordKeys.current.has(key)) return;
     requestedWordKeys.current.add(key);
     setCellStatus(key, 'queued');
-    void wordNewAudioQueueCenter.waitForWordAudio(text, lang, {
+    void wordNewQueueCenter.waitForWordAudio(text, lang, {
       accent: mapUiAccent(wfNewSettings.get('voiceAccent')),
     }).then((media) => {
       if (!media) {
@@ -189,7 +187,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     });
   }, [setCellStatus]);
 
-  /** Urgent re-bump + wait (icon click on a missing/queued word). */
+  /** Move to queue head and wait (icon click on a missing/queued word). */
   const retryWordAudio = useCallback((w: WfNewLibraryWord) => {
     queueWordAudio(w, langRef.current, true);
   }, [queueWordAudio]);
@@ -209,7 +207,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
     if (picked.url) return picked.url;
     const text = w.word?.trim();
     if (!text) return null;
-    const media = await wordNewAudioQueueCenter.waitForWordAudio(text, lang, {
+    const media = await wordNewQueueCenter.waitForWordAudio(text, lang, {
       shouldContinue,
       accent: preferredAccent,
     });
@@ -230,8 +228,8 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       onPaused: setPaused,
       onWordActive: setActiveWord,
       resolveAudioUrl,
-      bumpMissingAudio: (w, lang) => {
-        wordNewAudioQueueCenter.notifyMissingWord(w.word, lang);
+      moveMissingAudioToHead: (w, lang) => {
+        wordNewQueueCenter.notifyMissingWord(w.word, lang);
       },
     });
     return () => { playbackRef.current?.stop(); };
@@ -280,7 +278,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
       else if (cell.ttsStatus === 'processing') next[key] = 'processing';
       else if (cell.ttsStatus === 'pending') next[key] = 'queued';
       else if (!cell.hasAudio) {
-        // No audio at all -> ask the scheduler to resolve/bump (queued).
+        // No audio at all -> ask the scheduler to resolve and move to queue head.
         queueWordAudio(w, libLang);
       }
     }
@@ -496,7 +494,7 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
                   ? w.images
                   : (resolved?.imageUrl ? [resolved.imageUrl] : []);
                 const imagePending = effImages.length === 0 && requested && resolved?.imageStatus !== 'ready';
-                const bs = boostStatus[md5] || 'idle';
+                const hs = headStatus[md5] || 'idle';
                 return (
                   <div key={`${w.index}-${w.md5}`} className="relative group">
                     <WordNewLibraryWordRow
@@ -526,17 +524,16 @@ export const WfNewLibraryPage: React.FC<WfNewLibraryPageProps> = ({
                         hasImage: w.hasImage,
                       })}
                     />
-                    {/* Priority boost button — visible on hover, moves word to front of audio queue */}
+                    {/* Queue-head button for missing audio. */}
                     {!w.hasAudio && (
                       <button
                         type="button"
-                        title="Boost audio priority — move this word to the front of the batch queue"
-                        onClick={() => onBoostPriority(w, libLang)}
-                        disabled={bs === 'boosting'}
+                        onClick={() => onMoveToHead(w, libLang)}
+                        disabled={hs === 'moving'}
                         className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity
                           p-1 rounded text-[10px] font-bold z-10
-                          ${bs === 'done' ? 'text-emerald-400 bg-emerald-900/40' :
-                            bs === 'boosting' ? 'text-amber-400 bg-amber-900/40 animate-pulse' :
+                          ${hs === 'done' ? 'text-emerald-400 bg-emerald-900/40' :
+                            hs === 'moving' ? 'text-amber-400 bg-amber-900/40 animate-pulse' :
                             'text-zinc-400 bg-zinc-800/70 hover:text-amber-300 hover:bg-amber-900/40'}`}
                       >
                         <Zap className="w-3 h-3" />

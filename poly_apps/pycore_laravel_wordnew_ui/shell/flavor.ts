@@ -24,7 +24,6 @@ export interface FlavorConfig {
   entry?: string;
   platforms?: Array<'web' | 'android' | 'ios'>;
   standalone?: {
-    homeAtRoot?: boolean;
     switcher?: {
       enabled?: boolean;
       visible?: boolean;

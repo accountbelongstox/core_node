@@ -3,11 +3,12 @@
  * Ensures only one offscreen document is created across the entire extension to avoid conflicts
  */
 
+import { AsyncOperationController } from './async';
+
 export class OffscreenManager {
   private static instance: OffscreenManager | null = null;
   private isCreated = false;
-  private isCreating = false;
-  private createPromise: Promise<void> | null = null;
+  private readonly creation = new AsyncOperationController<void>();
 
   private constructor() {}
 
@@ -37,16 +38,7 @@ export class OffscreenManager {
       return;
     }
 
-    if (this.isCreating && this.createPromise) {
-      return this.createPromise;
-    }
-
-    this.isCreating = true;
-    this.createPromise = this._doCreateOffscreenDocument().finally(() => {
-      this.isCreating = false;
-    });
-
-    return this.createPromise;
+    return this.creation.run(() => this._doCreateOffscreenDocument());
   }
 
   private async _doCreateOffscreenDocument(): Promise<void> {
@@ -113,8 +105,7 @@ export class OffscreenManager {
    */
   public reset(): void {
     this.isCreated = false;
-    this.isCreating = false;
-    this.createPromise = null;
+    this.creation.reset();
   }
 }
 

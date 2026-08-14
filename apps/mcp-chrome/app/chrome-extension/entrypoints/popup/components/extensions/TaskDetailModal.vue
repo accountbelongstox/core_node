@@ -14,14 +14,14 @@
         <div class="tdm-headbadges">
           <span v-if="isFast" class="tdm-badge tdm-badge-fast">⚡ FAST</span>
           <span v-if="aiTranslate" class="tdm-badge tdm-badge-ai">✨ {{ getMessage('taskCenterAiTranslateLabel') }}</span>
-          <!-- Jump-to-task-top: only for the privileged categories
-               (translate/audio/image) and only while the task is still live. -->
+           <!-- Fast-lane promotion is only available to contract-approved
+                non-audio categories while the task is still live. -->
           <button
             v-if="canBump"
             class="tdm-badge tdm-badge-bump"
             :disabled="bumping"
             @click="bumpToTop"
-            :title="getMessage('taskCenterBumpHint', [String(PRIORITY_FAST)])"
+            :title="getMessage('taskCenterTaskTopLabel')"
           >
             {{ bumpLabel }}
           </button>
@@ -40,7 +40,10 @@
               <span class="tdm-dot" /> {{ localizedStatus }}
             </span>
             <span class="tdm-chip">{{ getMessage('taskCenterPhaseLabel') }}: {{ phase.phase || '—' }}</span>
-            <span class="tdm-chip">{{ getMessage('taskCenterSortPriority') }}: {{ task.priority }}</span>
+            <span v-if="usesQueuePosition" class="tdm-chip">
+              {{ getMessage('taskCenterQueuePosition') }}: #{{ task.queue_position }}
+            </span>
+            <span v-else class="tdm-chip">{{ getMessage('taskCenterSortPriority') }}: {{ task.priority }}</span>
             <span class="tdm-chip">{{ getMessage('taskCenterLaneLabel') }}: {{ task.execution_type }}</span>
           </div>
 
@@ -111,12 +114,13 @@ import {
 } from '../../composables/useTaskCenter';
 import { getApiBase } from '@/services/ApiManager';
 import { taskPath } from '@/utils/api-paths';
-import { WorkerApiClient, PRIORITY_FAST } from '@/entrypoints/background/api/WorkerApiClient';
+import { WorkerApiClient } from '@/entrypoints/background/api/WorkerApiClient';
 import { getMessage } from '@/utils/i18n';
 import {
   FAST_PROMOTABLE_TASK_TYPES,
   TASK_EVENT_BY_ROLE,
   TASK_STATUS_BY_ROLE,
+  isQueuePositionOrderedTask,
 } from '@/utils/queue-center-contract';
 import {
   taskIcon,
@@ -166,8 +170,12 @@ const localizedStatus = computed(() => {
   return localized === key ? status : localized;
 });
 const aiTranslate = computed(() => metaIsAiTranslate(task.value.capability));
+const usesQueuePosition = computed(() =>
+  isQueuePositionOrderedTask(task.value.task_type),
+);
 const isFast = computed(() =>
   isFastTier({
+    task_type: task.value.task_type,
     is_fast_tier: task.value.is_fast_tier,
     priority: task.value.priority,
     execution_type: task.value.execution_type,
@@ -175,8 +183,8 @@ const isFast = computed(() =>
 );
 
 // ---- Jump-to-task-top (bump) ----------------------------------------------
-// Laravel validates these same central values before moving a live task to the
-// fast lane. Changing the JSON updates the backend and both direct task UIs.
+// Laravel validates these same central values before applying the task type's
+// head-ticket or priority ordering. Changing the JSON updates every task UI.
 const PRIVILEGED_TASK_TYPES = new Set(FAST_PROMOTABLE_TASK_TYPES);
 
 const bumping = ref(false);
@@ -187,10 +195,10 @@ const isPrivileged = computed(() => {
   return PRIVILEGED_TASK_TYPES.has(tt);
 });
 
-// Only offer the bump while the task is still live and not already at the fast tier.
+// Offer the move while the task is pending and apply its contract ordering.
 const canBump = computed(
   () =>
-    isPrivileged.value &&
+    (isPrivileged.value || usesQueuePosition.value) &&
     (task.value.status || '').toLowerCase() === TASK_STATUS_BY_ROLE.pending &&
     !isFast.value,
 );
@@ -206,10 +214,10 @@ const bumpToTop = async (): Promise<void> => {
   bumping.value = true;
   try {
     const client = new WorkerApiClient(apiBase());
-    const resp = await client.bumpTask(props.taskId, PRIORITY_FAST);
+    const resp = await client.bumpTask(props.taskId, String(task.value.task_type || ''));
     if (resp.success) {
       bumped.value = true;
-      // Pull the fresh snapshot so priority / fast badge reflect the bump.
+      // Pull the fresh snapshot so contract order / fast badge reflect the bump.
       refetch();
     } else {
       loadError.value = resp.message || getMessage('taskCenterBumpFailed');
@@ -352,7 +360,7 @@ onMounted(() => {
   openStream();
 });
 
-// Close the EventSource on unmount.
+// Release the shared realtime subscription on unmount.
 onUnmounted(() => {
   userClosed = true;
   if (handle) {

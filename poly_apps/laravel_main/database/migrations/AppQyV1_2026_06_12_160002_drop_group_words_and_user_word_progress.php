@@ -31,16 +31,10 @@ return new class extends Migration
 
     public function up(): void
     {
-        $schema = Schema::connection($this->connection);
-
-        foreach ([
-            'group_words',
-            'user_word_progress',
-        ] as $suffix) {
-            $table = $this->prefix . '_' . $suffix;
-            $schema->dropIfExists($table);
-            echo "[drop] {$table} dropped\n";
-        }
+        // Neutralized: initialization adjusts table STRUCTURE in place and
+        // never drops a table (empty or not). Legacy tables are left in
+        // place — a dead table costs nothing and no data can be lost.
+        return;
     }
 
     public function down(): void

@@ -307,23 +307,10 @@ export class UserModel {
       const savedUser = StorageManager.get<UnifiedUser | null>(StorageKeys.USER, null);
       if (savedUser) {
         this.UnifiedUser = savedUser;
-      } else {
-        const legacyUser = StorageManager.getLegacyRaw('UnifiedUser');
-        if (legacyUser) {
-          this.UnifiedUser = JSON.parse(legacyUser);
-          this.save();
-          StorageManager.removeLegacyRaw(['UnifiedUser']);
-        }
       }
 
       // Load token
-      let token = getAuthToken();
-      if (!token) {
-        token = StorageManager.getLegacyRaw('auth_token');
-        if (token) {
-          StorageManager.removeLegacyRaw(['auth_token']);
-        }
-      }
+      const token = getAuthToken();
       if (token) {
         api.setAuthToken(token);
       }
@@ -332,13 +319,6 @@ export class UserModel {
       const savedPreferences = StorageManager.get<UserPreferences | null>(StorageKeys.USER_PREFERENCES, null);
       if (savedPreferences) {
         this.preferences = savedPreferences;
-      } else {
-        const legacyPreferences = StorageManager.getLegacyRaw('user_preferences');
-        if (legacyPreferences) {
-          this.preferences = JSON.parse(legacyPreferences);
-          this.savePreferences();
-          StorageManager.removeLegacyRaw(['user_preferences']);
-        }
       }
     } catch (error) {
       console.warn('Failed to load UnifiedUser data:', error);

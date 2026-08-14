@@ -1,8 +1,12 @@
-import type { ModelPreset } from '@/utils/semantic-similarity-engine';
+import {
+  hasAnyModelCache,
+  type ModelPreset,
+} from '@/utils/semantic-similarity-engine';
 import { OffscreenManager } from '@/utils/offscreen-manager';
 import { BACKGROUND_MESSAGE_TYPES, OFFSCREEN_MESSAGE_TYPES } from '@/common/message-types';
 import { STORAGE_KEYS, ERROR_MESSAGES } from '@/common/constants';
-import { hasAnyModelCache } from '@/utils/semantic-similarity-engine';
+import { classifySimilarityError } from '@/utils/similarity-error';
+import { createSimilarityModelState } from '@/utils/similarity-runtime';
 
 /**
  * Model configuration state management interface
@@ -213,14 +217,14 @@ export async function handleModelSwitch(
       return { success: true };
     } else {
       const errorMessage = response?.error || 'Failed to switch model';
-      const errorType = analyzeErrorType(errorMessage);
+      const errorType = classifySimilarityError(errorMessage);
       await updateModelStatus('error', 0, errorMessage, errorType);
       throw new Error(errorMessage);
     }
   } catch (error: any) {
     console.error('Model switch failed:', error);
     const errorMessage = error.message || 'Unknown error';
-    const errorType = analyzeErrorType(errorMessage);
+    const errorType = classifySimilarityError(errorMessage);
     await updateModelStatus('error', 0, errorMessage, errorType);
     return { success: false, error: errorMessage };
   }
@@ -289,14 +293,7 @@ export async function updateModelStatus(
       return;
     }
 
-    const modelState = {
-      status,
-      downloadProgress: progress,
-      isDownloading: status === 'downloading' || status === 'initializing',
-      lastUpdated: Date.now(),
-      errorMessage: errorMessage || '',
-      errorType: errorType || '',
-    };
+    const modelState = createSimilarityModelState(status, progress, errorMessage, errorType);
     await chrome.storage.local.set({ [STORAGE_KEYS.SEMANTIC_MODEL_STATE]: modelState });
   } catch (error) {
     console.error('Failed to update model status:', error);
@@ -324,36 +321,6 @@ export async function handleUpdateModelStatus(
   }
 }
 
-/**
- * Analyze error type based on error message
- */
-function analyzeErrorType(errorMessage: string): 'network' | 'file' | 'unknown' {
-  const message = errorMessage.toLowerCase();
-
-  if (
-    message.includes('network') ||
-    message.includes('fetch') ||
-    message.includes('timeout') ||
-    message.includes('connection') ||
-    message.includes('cors') ||
-    message.includes('failed to fetch')
-  ) {
-    return 'network';
-  }
-
-  if (
-    message.includes('corrupt') ||
-    message.includes('invalid') ||
-    message.includes('format') ||
-    message.includes('parse') ||
-    message.includes('decode') ||
-    message.includes('onnx')
-  ) {
-    return 'file';
-  }
-
-  return 'unknown';
-}
 
 /**
  * Initialize semantic similarity module message listeners

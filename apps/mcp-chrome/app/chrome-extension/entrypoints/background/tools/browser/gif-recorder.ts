@@ -3,7 +3,7 @@
  * Basic implementation
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 
@@ -64,68 +64,36 @@ class GifRecorderTool extends BaseBrowserToolExecutor {
             startedAt: Date.now(),
             fps: action === 'start' ? fps : undefined,
           });
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  message: `GIF recording ${action === 'auto_start' ? 'auto-capture' : 'fixed-FPS'} mode started`,
-                  mode: action === 'auto_start' ? 'auto' : 'fixed',
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            message: `GIF recording ${action === 'auto_start' ? 'auto-capture' : 'fixed-FPS'} mode started`,
+            mode: action === 'auto_start' ? 'auto' : 'fixed',
+          });
 
         case 'stop':
           if (!state || !state.recording) {
             return createErrorResponse('No active recording found');
           }
           recordingStates.delete(finalTabId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  message: 'GIF recording stopped',
-                  frameCount: state.frames.length,
-                  durationMs: Date.now() - state.startedAt,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            message: 'GIF recording stopped',
+            frameCount: state.frames.length,
+            durationMs: Date.now() - state.startedAt,
+          });
 
         case 'status':
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  recording: state?.recording || false,
-                  mode: state?.mode || null,
-                  frameCount: state?.frames.length || 0,
-                  durationMs: state ? Date.now() - state.startedAt : 0,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            recording: state?.recording || false,
+            mode: state?.mode || null,
+            frameCount: state?.frames.length || 0,
+            durationMs: state ? Date.now() - state.startedAt : 0,
+          });
 
         case 'clear':
           recordingStates.delete(finalTabId);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: true, message: 'Recording state cleared' }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({ success: true, message: 'Recording state cleared' });
 
         default:
           return createErrorResponse(`Action "${action}" is not yet fully implemented`);
@@ -133,7 +101,7 @@ class GifRecorderTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error('Error in GIF recorder tool:', error);
       return createErrorResponse(
-        `GIF recorder error: ${error instanceof Error ? error.message : String(error)}`,
+        `GIF recorder error: ${toErrorMessage(error)}`,
       );
     }
   }

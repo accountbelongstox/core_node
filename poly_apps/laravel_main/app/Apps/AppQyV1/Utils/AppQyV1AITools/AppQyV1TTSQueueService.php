@@ -5,14 +5,15 @@ namespace App\Apps\AppQyV1\Utils\AppQyV1AITools;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Services\EdgeTTS\EdgeTTSService;
 
 /**
  * TTS Queue Service (legacy word-level surface) — queue-less edition.
  *
  * The intermediate tts_queue table is decommissioned; word TTS state lives on
- * the canonical {prefix}_tts_cache_{lang} rows (tts_status / tts_attempts /
- * tts_priority / tts_* timestamps) coordinated by
+ * the canonical {prefix}_tts_cache_{lang} rows and the shared word-audio
+ * gateway coordinated by
  * AppQyV1DictionaryTTSCoordinator. This class keeps the legacy method
  * surface used by AppQyV1TTSController (queueBatch / queue stats / queue
  * status endpoints) with byte-compatible response shapes.
@@ -21,11 +22,13 @@ class AppQyV1TTSQueueService
 {
     private $ttsService;
     private AppQyV1DictionaryTTSCoordinator $coordinator;
+    private AppQyV1AudioGateway $audioGateway;
 
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
         $this->coordinator = new AppQyV1DictionaryTTSCoordinator($this->ttsService);
+        $this->audioGateway = new AppQyV1AudioGateway();
     }
 
     /**
@@ -33,59 +36,18 @@ class AppQyV1TTSQueueService
      * Returns audio info if available, null after queueing for generation
      * (marking the canonical dictionary row tts_status='pending').
      */
-    public function requestAudio(string $word, string $language, int $priority = 0): ?array
+    public function requestAudio(string $word, string $language): ?array
     {
-        $language = strtolower($language);
-        $md5 = md5($word);
-
-        $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
-
-        if ($dictEntry && isset($dictEntry->tts_files) && !empty($dictEntry->tts_files)) {
-            foreach ($dictEntry->tts_files as $ttsFile) {
-                if (isset($ttsFile['path'])) {
-                    $fullPath = $this->ttsService->getAudioPath($ttsFile['path']);
-                    if ($fullPath) {
-                        $dictEntry->incrementQueryCount();
-                        return [
-                            'available' => true,
-                            'audio_path' => $ttsFile['path'],
-                            'audio_url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
-                        ];
-                    }
-                }
-            }
+        $result = $this->audioGateway->requestWord($word, $language, null, true, true);
+        if (($result['audio_url'] ?? null) === null) {
+            return null;
         }
 
-        // Queue for generation on the canonical row (auto-create when absent).
-        if (!$dictEntry) {
-            $dictEntry = AppQyV1LangDictionaryModel::forLanguage($language);
-            $dictEntry->content = $word;
-            $dictEntry->md5 = $md5;
-            $dictEntry->has_translation = false;
-            $dictEntry->has_audio = false;
-            $dictEntry->is_valid = true;
-            $dictEntry->query_count = 0;
-            AppQyV1LangDictionaryModel::forgetMetricsCache($language);
-        }
-
-        // Failed rows get a fresh retry budget on re-request (legacy addToQueue
-        // re-queued failed entries that still had retries left).
-        if ($dictEntry->tts_status === AppQyV1DictionaryTTSCoordinator::STATUS_FAILED) {
-            $dictEntry->tts_attempts = 0;
-            $dictEntry->tts_error = null;
-        }
-
-        if ($dictEntry->tts_status === null
-            || $dictEntry->tts_status === AppQyV1DictionaryTTSCoordinator::STATUS_FAILED) {
-            $dictEntry->tts_status = AppQyV1DictionaryTTSCoordinator::STATUS_PENDING;
-        }
-        if (!$dictEntry->tts_requested_at) {
-            $dictEntry->tts_requested_at = now();
-        }
-        $dictEntry->tts_priority = max((int) ($dictEntry->tts_priority ?? 0), $priority);
-        $dictEntry->save();
-
-        return null;
+        return [
+            'available' => true,
+            'audio_path' => null,
+            'audio_url' => $result['audio_url'],
+        ];
     }
 
     /**
@@ -158,7 +120,6 @@ class AppQyV1TTSQueueService
             'word' => $dictEntry->content,
             'language' => $language,
             'status' => AppQyV1DictionaryTTSCoordinator::statusOf($dictEntry),
-            'priority' => (int) ($dictEntry->tts_priority ?? 0),
             'retry_count' => (int) ($dictEntry->tts_attempts ?? 0),
             'error_message' => $dictEntry->tts_error,
             'audio_path' => $audioPath,

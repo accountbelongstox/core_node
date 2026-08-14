@@ -10,7 +10,7 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
@@ -62,4 +62,48 @@ class DingDuoDuoV1MemberModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function adminPage(string $search, string $tier, int $perPage)
+    {
+        $query = static::query()->orderByDesc('id');
+
+        if ($search !== '') {
+            $query->where('username', 'like', '%' . $search . '%');
+        }
+        if ($tier !== '') {
+            $query->where('tier', $tier);
+        }
+
+        return $query->paginate($perPage);
+    }
+
+    public static function findById(int $memberId): ?self
+    {
+        return static::query()->find($memberId);
+    }
+
+    public static function findByUsername(string $username): ?self
+    {
+        return static::query()->where('username', $username)->first();
+    }
+
+    public static function usernameExists(string $username): bool
+    {
+        return static::query()->where('username', $username)->exists();
+    }
+
+    public static function tokenExists(string $token): bool
+    {
+        return static::query()->where('token', $token)->exists();
+    }
+
+    public static function activeByToken(string $token): ?self
+    {
+        return static::query()->where('token', $token)->where('status', 'active')->first();
+    }
+
+    public static function byToken(string $token): ?self
+    {
+        return static::query()->where('token', $token)->first();
+    }
 }

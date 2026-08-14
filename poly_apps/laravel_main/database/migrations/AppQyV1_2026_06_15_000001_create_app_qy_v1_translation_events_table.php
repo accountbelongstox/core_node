@@ -9,13 +9,9 @@ use App\Providers\AppTablePrefixServiceProvider;
 /**
  * Translation real-time event outbox.
  *
- * Append-only bus that replaces Laravel Reverb for the translation pipeline.
- * Every translation-queue event (task.queued / task.priority / word.translated /
- * task.completed) is mirrored here by a single listener in AppServiceProvider,
- * and the SSE endpoint
- * (GET /api/app_qy_v1/ai_tools/translation/queue/stream) streams rows with
- * id > cursor to pycore over the same Octane :9000 HTTP port — no separate
- * Reverb/WebSocket process. Rows are pruned by age from the stream loop.
+ * Append-only transactional outbox for translation queue events. A dedicated
+ * Octane task publishes committed rows through Reverb, while retained rows
+ * provide bounded cursor replay after a client reconnects.
  *
  * Idempotent via SafeMigrationHelper - re-running sys:init only ADDS missing
  * columns/indexes and NEVER drops data.
@@ -41,10 +37,15 @@ return new class extends Migration
                 'event' => ['type' => 'string', 'length' => 40, 'nullable' => false, 'index' => true, 'comment' => 'Dotted contract name: task.queued|task.priority|word.translated|task.completed'],
                 'data' => ['type' => 'text', 'nullable' => true, 'comment' => 'JSON payload (broadcastWith of the originating event)'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Emit time; drives age-based pruning'],
+                'published_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Successful Reverb publication time'],
+                'publish_after' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Earliest retry time after a publication failure'],
+                'publish_attempts' => ['type' => 'unsignedInteger', 'default' => 0, 'comment' => 'Bounded publisher attempt count'],
+                'last_publish_error' => ['type' => 'text', 'nullable' => true, 'comment' => 'Latest Reverb publication failure'],
             ],
             'indexes' => [
                 ['columns' => ['event']],
                 ['columns' => ['created_at']],
+                ['columns' => ['published_at', 'publish_after', 'id'], 'name' => 'idx_app_qy_v1_translation_evt_publish_v2'],
             ],
         ];
 

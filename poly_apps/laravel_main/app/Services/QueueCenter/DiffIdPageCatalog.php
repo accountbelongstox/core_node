@@ -15,15 +15,15 @@ class DiffIdPageCatalog
         $this->segments = new LazyDataSegmentStore();
     }
 
-    public function discover(string $scope, object $idQuery, int $pageSize): array
+    public function discover(string $scope, object $idSource, int $pageSize): array
     {
         $pageSize = max(1, min($pageSize, 1000));
 
         return $this->cursors->locked(
             $scope,
-            function (array $state) use ($scope, $idQuery, $pageSize): array {
+            function (array $state) use ($scope, $idSource, $pageSize): array {
                 if ($state === []) {
-                    $snapshotMax = (int) ((clone $idQuery)->reorder()->max('id') ?? 0);
+                    $snapshotMax = $idSource->diffIdUpperBound();
                     $state = [
                         'phase' => $snapshotMax > 0 ? 'snapshot' : 'incremental',
                         'snapshot_max_id' => $snapshotMax,
@@ -40,7 +40,7 @@ class DiffIdPageCatalog
                     : (int) ($state['incremental_cursor'] ?? 0);
                 $upperBound = $phase === 'snapshot'
                     ? (int) ($state['snapshot_max_id'] ?? 0)
-                    : (int) ((clone $idQuery)->reorder()->max('id') ?? 0);
+                    : $idSource->diffIdUpperBound();
 
                 if ($upperBound <= $cursor) {
                     if ($phase === 'snapshot') {
@@ -54,15 +54,7 @@ class DiffIdPageCatalog
                     return $this->result($scope, $state, []);
                 }
 
-                $ids = (clone $idQuery)
-                    ->reorder()
-                    ->where('id', '>', $cursor)
-                    ->where('id', '<=', $upperBound)
-                    ->orderBy('id')
-                    ->limit($pageSize)
-                    ->pluck('id')
-                    ->map(static fn ($id): int => (int) $id)
-                    ->all();
+                $ids = $idSource->diffIdsBetween($cursor, $upperBound, $pageSize);
 
                 if ($ids === []) {
                     if ($phase === 'snapshot') {
@@ -151,20 +143,19 @@ class DiffIdPageCatalog
 
     public function promote(string $scope, int|string $id): void
     {
-        $this->cursors->touch($scope, $id);
-        $this->pages->promote($scope, $id);
+        $this->moveToHead($scope, $id);
     }
 
-    public function snapshotPage(
-        string $scope,
-        int $page,
-        object $idQuery,
-        string $idColumn = 'id'
-    ): array {
-        $state = $this->cursors->read($scope);
-        $revision = (int) ($state['revision'] ?? 0);
+    public function moveToHead(string $scope, int|string $id): void
+    {
+        $this->cursors->touch($scope);
+        $this->pages->moveToHead($scope, $id);
+    }
+
+    public function snapshotIds(string $scope, int $page, array $ids): array
+    {
+        $revision = $this->cursors->revision($scope);
         $segment = 'view:' . $revision . ':' . max(1, $page);
-        $ids = (clone $idQuery)->pluck($idColumn)->all();
         $this->pages->writeTemporary($scope, $segment, $ids);
 
         return [
@@ -180,7 +171,7 @@ class DiffIdPageCatalog
     }
 
     /**
-     * Priority-promoted head IDs for one scope (rule 3: promotion only touches
+     * Queue-head IDs for one scope (rule 3: head moves only touch
      * the cursor/head page, never full rows).
      */
     public function headIds(string $scope): array

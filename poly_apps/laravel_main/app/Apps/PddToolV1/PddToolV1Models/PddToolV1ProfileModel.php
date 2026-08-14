@@ -10,8 +10,9 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Apps\PddToolV1\PddToolV1Constants\PddToolV1Defaults;
@@ -75,6 +76,64 @@ class PddToolV1ProfileModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function adminStats($now): array
+    {
+        return [
+            'users_total' => static::query()->count(),
+            'users_active' => static::query()
+                ->where('disabled', false)
+                ->where('valid_until', '>', $now)
+                ->count(),
+            'expiring_7d' => static::query()
+                ->whereBetween('valid_until', [$now, $now->copy()->addDays(7)])
+                ->count(),
+        ];
+    }
+
+    public static function adminPage(
+        array $matchingUserIds,
+        bool $filterByUserIds,
+        string $package,
+        ?bool $expired,
+        int $page,
+        int $perPage
+    ): array {
+        $query = static::query();
+
+        if ($filterByUserIds) {
+            $query->whereIn('user_id', $matchingUserIds);
+        }
+        if ($package !== '') {
+            $query->where('package_name', $package);
+        }
+        if ($expired !== null) {
+            $query->where('valid_until', $expired ? '<=' : '>', now());
+        }
+
+        return [
+            'total' => (clone $query)->count(),
+            'rows' => $query->orderByDesc('user_id')->forPage($page, $perPage)->get(),
+        ];
+    }
+
+    public static function findByUserId(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function existsForUser(int $userId): bool
+    {
+        return static::query()->where('user_id', $userId)->exists();
+    }
+
+    public static function expiringWithinDays(int $days): Collection
+    {
+        return static::query()
+            ->whereBetween('valid_until', [now(), now()->addDays($days)])
+            ->orderBy('valid_until')
+            ->get();
+    }
 
     /**
      * Get-or-create the profile for a user id and force it to the ULTIMATE /

@@ -28,32 +28,15 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $query = CodeMartV1ProjectModel::query();
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('complexity')) {
-            $query->where('complexity', $request->complexity);
-        }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
         $page = $request->get('page', 1);
         $pageSize = $request->get('pageSize', 20);
-
-        $total = $query->count();
-        $projects = $query->orderBy('created_at', 'desc')
-                          ->offset(($page - 1) * $pageSize)
-                          ->limit($pageSize)
-                          ->get();
+        $result = CodeMartV1ProjectModel::filteredPage(
+            $request->only(['status', 'complexity', 'search']),
+            (int) $page,
+            (int) $pageSize
+        );
+        $projects = $result['projects'];
+        $total = $result['total'];
 
         return $this->success([
             'projects' => $projects,
@@ -92,7 +75,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $project = CodeMartV1ProjectModel::create([
+        $project = CodeMartV1ProjectModel::createRecord([
             'client_id' => $user->id,
             'title' => $request->title,
             'description' => $request->description,
@@ -119,7 +102,7 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::with(['milestones', 'attachments'])->find($projectId);
+        $project = CodeMartV1ProjectModel::findDetailed((int) $projectId);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -137,7 +120,7 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::find($projectId);
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -161,7 +144,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $project->update($request->only([
+        $project->updateRecord($request->only([
             'title',
             'description',
             'status',
@@ -179,7 +162,7 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::find($projectId);
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -195,7 +178,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $project->update([
+        $project->updateRecord([
             'status' => 'open',
             'published_at' => now(),
         ]);
@@ -210,7 +193,7 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::find($projectId);
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -234,7 +217,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $milestone = CodeMartV1MilestoneModel::create([
+        $milestone = CodeMartV1MilestoneModel::createRecord([
             'project_id' => $projectId,
             'title' => $request->title,
             'description' => $request->description,
@@ -254,7 +237,7 @@ class CodeMartV1ProjectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::find($projectId);
+        $project = CodeMartV1ProjectModel::findById((int) $projectId);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -276,7 +259,7 @@ class CodeMartV1ProjectCtl extends Controller
 
         $uploadResult = $this->fileUploadService->uploadFile($request->file('file'), 'projects');
 
-        $attachment = CodeMartV1ProjectAttachmentModel::create([
+        $attachment = CodeMartV1ProjectAttachmentModel::createRecord([
             'project_id' => $projectId,
             'file_name' => $uploadResult['original_name'],
             'file_path' => $uploadResult['path'],

@@ -23,19 +23,22 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.system_paths import APP_DATA_DIR, get_core_node_root, get_local_data_dir
 from pycore.pyctl.ai.ai_keys import PROVIDERS, PROVIDER_ORDER
+from pycore.pyctl.ai.ai_usage_log import usage_log
+from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 from pycore.pyfoundations.serialized_worker import (
     SerializedWorkerThread,
     call_serialized,
 )
 
 # Last time limits table was verified against provider documentation.
-RATE_LIMITS_LAST_UPDATED = "2026-06-13"
+RATE_LIMITS_LAST_UPDATED = "2026-08-14"
 
 # Conservative fallback RPM for a registry free provider with no explicit row in
 # _PROVIDER_LIMITS (keeps pycore and the Laravel side in lock-step: a newly added
@@ -93,6 +96,9 @@ def _resolve_usage_file():
 
 _USAGE_FILE = _resolve_usage_file()
 _WORK_QUEUE = 'pyctl.ai.rate_limits.operations'
+_COUNTER_MODE = "provider_reached_v2"
+_COOLDOWN_BASE_SECONDS = 30.0
+_COOLDOWN_MAX_SECONDS = 900.0
 
 # provider -> default limits; optional model keys override by exact id or suffix match.
 # None = no local enforcement (paid / balance-only providers).
@@ -182,6 +188,7 @@ class RateCheckResult:
     message: str = ""
     retry_after_s: float = 0.0
     limits: Optional[RateLimitSpec] = None
+    reservation_id: str = ""
 
 
 def limits_metadata() -> Dict[str, Any]:
@@ -282,10 +289,52 @@ def _coerce_day_map(value: Any) -> Dict[str, int]:
 def _load_usage() -> Dict[str, Any]:
     try:
         if _USAGE_FILE.is_file():
-            return json.loads(_USAGE_FILE.read_text(encoding="utf-8"))
+            data = json.loads(_USAGE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return _migrate_counter_mode(data)
     except Exception:
         pass
-    return {"providers": {}}
+    return {"counter_mode": _COUNTER_MODE, "providers": {}}
+
+
+def _migrate_counter_mode(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Rebuild legacy pre-dispatch counters from retained provider-reached calls."""
+    if data.get("counter_mode") == _COUNTER_MODE:
+        return data
+    now = time.time()
+    current_day = _day_key(now)
+    current_month = _month_key(now)
+    retained = usage_log(5000).get("entries") or []
+    providers: Dict[str, Dict[str, Any]] = {}
+    for entry in retained:
+        if not isinstance(entry, dict):
+            continue
+        if str(entry.get("kind") or "") != "text":
+            continue
+        provider = str(entry.get("provider") or "").strip().lower()
+        timestamp = entry.get("ts")
+        if not provider or not isinstance(timestamp, (int, float)):
+            continue
+        failure = classify_ai_failure(entry.get("error"))
+        provider_reached = entry.get("provider_reached")
+        if provider_reached is None:
+            provider_reached = bool(entry.get("success")) or bool(failure["provider_reached"])
+        if not provider_reached:
+            continue
+        bucket = providers.setdefault(
+            provider,
+            {"minute": [], "day": {}, "month": {}, "reservations": {}},
+        )
+        if timestamp >= now - 60.0:
+            bucket["minute"].append(float(timestamp))
+        if _day_key(float(timestamp)) == current_day:
+            bucket["day"][current_day] = int(bucket["day"].get(current_day, 0)) + 1
+        if _month_key(float(timestamp)) == current_month:
+            bucket["month"][current_month] = int(bucket["month"].get(current_month, 0)) + 1
+    data["providers"] = providers
+    data["counter_mode"] = _COUNTER_MODE
+    _save_usage(data)
+    return data
 
 
 def _save_usage(data: Dict[str, Any]) -> None:
@@ -303,7 +352,10 @@ def _save_usage(data: Dict[str, Any]) -> None:
 
 def _provider_bucket(data: Dict[str, Any], provider: str) -> Dict[str, Any]:
     providers = data.setdefault("providers", {})
-    bucket = providers.setdefault(provider, {"minute": [], "day": {}, "month": {}})
+    bucket = providers.setdefault(
+        provider,
+        {"minute": [], "day": {}, "month": {}, "reservations": {}},
+    )
     return bucket
 
 
@@ -315,12 +367,22 @@ def _prune_timestamps(entries: List[float], window_s: float, now: float) -> List
 def _check_rate_limit(provider: str, model: Optional[str] = None) -> RateCheckResult:
     """Return whether a request is allowed under local counters."""
     spec = resolve_limit(provider, model)
-    if spec is None:
-        return RateCheckResult(allowed=True, limits=None)
-
     now = time.time()
     data = _load_usage()
     bucket = _provider_bucket(data, provider)
+    cooldown = bucket.get("cooldown") or {}
+    cooldown_until = float(cooldown.get("until") or 0.0)
+    if cooldown_until > now:
+        wait = cooldown_until - now
+        return RateCheckResult(
+            allowed=False,
+            message=f"Provider cooldown ({provider}): {cooldown.get('code') or 'temporary_failure'}. Retry in {max(wait, 1):.0f}s.",
+            retry_after_s=round(max(wait, 1), 1),
+            limits=spec,
+        )
+    if spec is None:
+        return RateCheckResult(allowed=True, limits=None)
+
     minute = _prune_timestamps(bucket.get("minute", []), 60.0, now)
     day_count = int(_coerce_day_map(bucket.get("day")).get(_day_key(now), 0))
     month_count = int(_as_count_map(bucket.get("month")).get(_month_key(now), 0))
@@ -379,11 +441,12 @@ def _check_rate_limit(provider: str, model: Optional[str] = None) -> RateCheckRe
     return RateCheckResult(allowed=True, limits=spec)
 
 
-def _record_request(provider: str) -> None:
-    """Record one dispatched provider request for local rate counters."""
+def _record_request(provider: str, reserve: bool = True) -> str:
+    """Reserve one dispatched provider request and return its exact token."""
     if resolve_limit(provider) is None:
-        return
+        return ""
     now = time.time()
+    reservation_id = uuid.uuid4().hex
     data = _load_usage()
     bucket = _provider_bucket(data, provider)
     bucket["minute"] = _prune_timestamps(
@@ -399,7 +462,12 @@ def _record_request(provider: str) -> None:
     month_key = _month_key(now)
     month_map[month_key] = int(month_map.get(month_key, 0)) + 1
     bucket["month"] = {month_key: month_map[month_key]}
+    if reserve:
+        reservations = dict(bucket.get("reservations") or {})
+        reservations[reservation_id] = now
+        bucket["reservations"] = reservations
     _save_usage(data)
+    return reservation_id if reserve else ""
 
 
 def _acquire_rate_limit(
@@ -409,8 +477,72 @@ def _acquire_rate_limit(
     """Atomically check and reserve one provider request slot."""
     result = _check_rate_limit(provider, model)
     if result.allowed:
-        _record_request(provider)
+        result.reservation_id = _record_request(provider)
     return result
+
+
+def _release_reservation(bucket: Dict[str, Any], reservation_id: str) -> None:
+    reservations = dict(bucket.get("reservations") or {})
+    timestamp = reservations.pop(reservation_id, None)
+    bucket["reservations"] = reservations
+    if not isinstance(timestamp, (int, float)):
+        return
+    minute = list(bucket.get("minute") or [])
+    if timestamp in minute:
+        minute.remove(timestamp)
+    bucket["minute"] = minute
+    day_map = _coerce_day_map(bucket.get("day"))
+    day_key = _day_key(float(timestamp))
+    if day_key in day_map:
+        day_map[day_key] = max(0, int(day_map[day_key]) - 1)
+    bucket["day"] = {key: value for key, value in day_map.items() if value > 0}
+    month_map = _as_count_map(bucket.get("month"))
+    month_key = _month_key(float(timestamp))
+    if month_key in month_map:
+        month_map[month_key] = max(0, int(month_map[month_key]) - 1)
+    bucket["month"] = {key: value for key, value in month_map.items() if value > 0}
+
+
+def _finalize_rate_limit(
+    provider: str,
+    reservation_id: str,
+    provider_reached: bool,
+    error_code: str = "",
+    retry_after_s: Optional[float] = None,
+) -> Dict[str, Any]:
+    data = _load_usage()
+    bucket = _provider_bucket(data, provider)
+    if reservation_id:
+        if provider_reached:
+            reservations = dict(bucket.get("reservations") or {})
+            reservations.pop(reservation_id, None)
+            bucket["reservations"] = reservations
+        else:
+            _release_reservation(bucket, reservation_id)
+    if not error_code:
+        bucket.pop("cooldown", None)
+        bucket["consecutive_failures"] = 0
+    elif error_code in {
+        "dns", "connect_timeout", "connection", "read_timeout",
+        "rate_limit", "quota", "provider_unavailable",
+    }:
+        failures = int(bucket.get("consecutive_failures") or 0) + 1
+        delay = float(retry_after_s or 0.0)
+        if delay <= 0:
+            delay = min(_COOLDOWN_MAX_SECONDS, _COOLDOWN_BASE_SECONDS * (2 ** min(failures - 1, 5)))
+        bucket["consecutive_failures"] = failures
+        bucket["cooldown"] = {
+            "code": error_code,
+            "until": time.time() + min(delay, _COOLDOWN_MAX_SECONDS),
+        }
+    _save_usage(data)
+    cooldown = bucket.get("cooldown") or {}
+    return {
+        "provider_reached": provider_reached,
+        "quota_counted": provider_reached,
+        "cooldown_until": cooldown.get("until"),
+        "retry_after_s": max(0.0, float(cooldown.get("until") or 0.0) - time.time()),
+    }
 
 
 def _prune_expired() -> Dict[str, Any]:
@@ -520,6 +652,8 @@ def _rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
                 "day": day_count,
                 "month": month_count,
             },
+            "counter_mode": data.get("counter_mode") or _COUNTER_MODE,
+            "cooldown": bucket.get("cooldown") or None,
             # Countdown to the next reset: RPM is a sliding 60s window; RPD resets
             # at UTC midnight; monthly resets on the 1st (UTC). null = nothing to reset.
             "resets_in": {
@@ -565,7 +699,25 @@ def acquire_rate_limit(
 
 
 def record_request(provider: str) -> None:
-    call_serialized(_WORK_QUEUE, _record_request, provider)
+    call_serialized(_WORK_QUEUE, _record_request, provider, False)
+
+
+def finalize_rate_limit(
+    provider: str,
+    reservation_id: str,
+    provider_reached: bool,
+    error_code: str = "",
+    retry_after_s: Optional[float] = None,
+) -> Dict[str, Any]:
+    return call_serialized(
+        _WORK_QUEUE,
+        _finalize_rate_limit,
+        provider,
+        reservation_id,
+        provider_reached,
+        error_code,
+        retry_after_s,
+    )
 
 
 def rate_status(provider: Optional[str] = None) -> Dict[str, Any]:
@@ -588,6 +740,7 @@ __all__ = [
     "RATE_LIMITS_LAST_UPDATED",
     "acquire_rate_limit",
     "check_rate_limit",
+    "finalize_rate_limit",
     "record_request",
     "rate_status",
     "prune_expired",

@@ -21,17 +21,13 @@ class CodeMartV1ReviewerCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $existingRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->first();
+        $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
         if ($existingRole && $existingRole->role_status === 'active') {
             return $this->error('You are already a reviewer');
         }
 
-        $recentApplication = CodeMartV1ReviewerApplicationModel::where('user_id', $user->id)
-            ->where('created_at', '>', now()->subDays(7))
-            ->first();
+        $recentApplication = CodeMartV1ReviewerApplicationModel::recentForUser((int) $user->id, 7);
 
         if ($recentApplication) {
             return $this->error('You can only apply once every 7 days');
@@ -41,7 +37,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
         CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
-        $application = CodeMartV1ReviewerApplicationModel::create([
+        $application = CodeMartV1ReviewerApplicationModel::createRecord([
             'user_id' => $user->id,
             'status' => 'in_progress',
             'test_cases' => json_encode($testCases),
@@ -74,10 +70,10 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $application = CodeMartV1ReviewerApplicationModel::where('id', $applicationId)
-            ->where('user_id', $user->id)
-            ->where('status', 'in_progress')
-            ->first();
+        $application = CodeMartV1ReviewerApplicationModel::findOwnedInProgress(
+            (int) $applicationId,
+            (int) $user->id
+        );
 
         if (!$application) {
             return $this->notFound('Application not found or already processed');
@@ -90,7 +86,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
         CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
-        $application->update([
+        $application->updateRecord([
             'status' => $similarity >= 85 ? 'passed' : 'failed',
             'user_reviews' => json_encode($userReviews),
             'similarity_score' => $similarity,
@@ -98,14 +94,12 @@ class CodeMartV1ReviewerCtl extends Controller
         ]);
 
         if ($similarity >= 85) {
-            $existingRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-                ->where('role_type', 'reviewer')
-                ->first();
+            $existingRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer');
 
             if ($existingRole) {
-                $existingRole->update(['role_status' => 'active']);
+                $existingRole->updateRecord(['role_status' => 'active']);
             } else {
-                CodeMartV1UserRoleModel::create([
+                CodeMartV1UserRoleModel::createRecord([
                     'user_id' => $user->id,
                     'role_type' => 'reviewer',
                     'role_status' => 'active',
@@ -129,10 +123,7 @@ class CodeMartV1ReviewerCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $reviewerRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->where('role_status', 'active')
-            ->first();
+        $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer', 'active');
 
         if (!$reviewerRole) {
             return $this->forbidden('Only active reviewers can access review tasks');
@@ -159,18 +150,16 @@ class CodeMartV1ReviewerCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $reviewerRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'reviewer')
-            ->where('role_status', 'active')
-            ->first();
+        $reviewerRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'reviewer', 'active');
 
         if (!$reviewerRole) {
             return $this->forbidden('Only active reviewers can submit reviews');
         }
 
-        $existingReview = CodeMartV1CodeReviewModel::where('submission_id', $submissionId)
-            ->where('reviewer_id', $user->id)
-            ->first();
+        $existingReview = CodeMartV1CodeReviewModel::findForSubmissionReviewer(
+            (int) $submissionId,
+            (int) $user->id
+        );
 
         if ($existingReview) {
             return $this->error('You have already reviewed this submission');
@@ -178,7 +167,7 @@ class CodeMartV1ReviewerCtl extends Controller
 
         CodeMartV1ReviewerApplicationModel::beginModelTransaction();
 
-        $review = CodeMartV1CodeReviewModel::create([
+        $review = CodeMartV1CodeReviewModel::createRecord([
             'submission_id' => $submissionId,
             'reviewer_id' => $user->id,
             'quality_rating' => $request->quality_rating,

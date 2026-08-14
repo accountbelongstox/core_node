@@ -2,6 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceAudioService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +20,7 @@ use Symfony\Component\HttpFoundation\Response;
  *
  * Routes (routes/AppQyV1Router/AppQyV1AITools.php, NO-AUTH worker surface, the
  * same trust level as /ai_tools/tts/worker/* and /assist/*):
- *   POST /api/app_qy_v1/ai_tools/tts/sentence/claim   (pycore claim by priority)
+ *   POST /api/app_qy_v1/ai_tools/tts/sentence/claim   (compatibility claim)
  *   POST /api/app_qy_v1/ai_tools/tts/sentence/report  (pycore validated report)
  *   GET  /api/app_qy_v1/ai_tools/tts/sentence/audio   (FE file-first resolve)
  *
@@ -39,10 +40,15 @@ class AppQyV1SentenceAudioController extends Controller
     ];
 
     private AppQyV1SentenceAudioService $service;
+    private AppQyV1AudioGateway $audioGateway;
 
-    public function __construct(?AppQyV1SentenceAudioService $service = null)
+    public function __construct(
+        ?AppQyV1SentenceAudioService $service = null,
+        ?AppQyV1AudioGateway $audioGateway = null
+    )
     {
         $this->service = $service ?: new AppQyV1SentenceAudioService();
+        $this->audioGateway = $audioGateway ?: new AppQyV1AudioGateway(null, $this->service);
     }
 
     /**
@@ -237,7 +243,7 @@ class AppQyV1SentenceAudioController extends Controller
         }
 
         try {
-            $result = $this->service->resolve(
+            $result = $this->audioGateway->requestSentence(
                 $hash,
                 $text,
                 $language,
@@ -256,60 +262,18 @@ class AppQyV1SentenceAudioController extends Controller
     }
 
     /**
-     * POST /api/app_qy_v1/ai_tools/tts/sentence/bump
-     * Body: { content_id|hash, language, interactive?: bool, create_task?: bool }
-     */
-    public function bump(Request $request): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'content_id' => 'nullable|string|max:64',
-            'hash' => 'nullable|string|max:64',
-            'language' => 'required|string|max:20',
-            'text' => 'nullable|string',
-            'interactive' => 'nullable|boolean',
-            'create_task' => 'nullable|boolean',
-        ]);
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'error' => 'Validation failed: ' . $validator->errors()->first(),
-            ], 422);
-        }
-        $contentId = $request->input('content_id') ?? $request->input('hash');
-        if (!$contentId) {
-            return response()->json(['success' => false, 'error' => 'content_id or hash is required'], 422);
-        }
-        try {
-            $result = $this->service->bumpPriority(
-                (string) $contentId,
-                (string) $request->input('language'),
-                filter_var($request->input('create_task', true), FILTER_VALIDATE_BOOLEAN),
-                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN),
-                $request->input('text')
-            );
-        } catch (\Throwable $e) {
-            Log::error('[SentenceAudio] bump failed', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'error' => 'Internal error during bump'], 500);
-        }
-        $ok = (bool) ($result['ok'] ?? false);
-        return response()->json(array_merge(['success' => $ok], $result), $ok ? 200 : 422);
-    }
-
-    /**
-     * POST /api/app_qy_v1/ai_tools/tts/sentence/bump-batch
-     * Body: { items: [{ text, language }], interactive?: bool }
+     * POST /api/app_qy_v1/ai_tools/tts/sentence/audio/head
+     * Body: { items: [{ text, language }] }
      *
-     * Book-reader chapter/page switch: raise tts_priority for every now-visible
-     * sentence lacking audio in ONE round-trip, then a SINGLE pycore run-once
-     * nudge so the front-of-queue sentences are processed immediately.
+     * Book-reader chapter/page switch: move every visible missing-audio sentence
+     * to the global queue head in one round-trip.
      */
-    public function bumpBatch(Request $request): JsonResponse
+    public function moveAudioToHead(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
             'items' => 'required|array|min:1|max:400',
             'items.*.text' => 'required|string',
             'items.*.language' => 'required|string|max:20',
-            'interactive' => 'nullable|boolean',
         ]);
         if ($validator->fails()) {
             return response()->json([
@@ -318,13 +282,10 @@ class AppQyV1SentenceAudioController extends Controller
             ], 422);
         }
         try {
-            $result = $this->service->bumpPriorityBatch(
-                (array) $request->input('items'),
-                filter_var($request->input('interactive', true), FILTER_VALIDATE_BOOLEAN)
-            );
+            $result = $this->audioGateway->requestSentenceBatch((array) $request->input('items'));
         } catch (\Throwable $e) {
-            Log::error('[SentenceAudio] bump-batch failed', ['error' => $e->getMessage()]);
-            return response()->json(['success' => false, 'error' => 'Internal error during bump-batch'], 500);
+            Log::error('[SentenceAudio] move-to-head batch failed', ['error' => $e->getMessage()]);
+            return response()->json(['success' => false, 'error' => 'Internal error during queue-head update'], 500);
         }
         return response()->json(array_merge(['success' => true], $result), 200);
     }

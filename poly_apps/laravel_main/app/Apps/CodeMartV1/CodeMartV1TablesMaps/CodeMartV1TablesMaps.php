@@ -4,6 +4,8 @@ namespace App\Apps\CodeMartV1\CodeMartV1TablesMaps;
 
 class CodeMartV1TablesMaps
 {
+    public const EMAIL_VERIFICATIONS_TABLE = 'codemart_email_verifications';
+
     // Global tables (shared across apps)
     public const USERS_TABLE = 'users';
     public const USERS_ID = 'id';

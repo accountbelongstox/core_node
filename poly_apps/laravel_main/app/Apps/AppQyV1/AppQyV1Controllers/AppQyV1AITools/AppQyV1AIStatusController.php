@@ -190,11 +190,7 @@ class AppQyV1AIStatusController extends Controller
             'error' => $pycoreProbe === null ? 'pycore AI endpoint unreachable' : null,
         ];
 
-        $recentFailures = AppQyV1VocabularyLibraryModel::query()
-            ->where('cover_status', 'failed')
-            ->orderByDesc('cover_finished_at')
-            ->limit(5)
-            ->get(['id', 'name', 'cover_error_message', 'cover_finished_at'])
+        $recentFailures = AppQyV1VocabularyLibraryModel::recentCoverFailures(5)
             ->map(static fn ($row) => [
                 'library_id' => (int) $row->id,
                 'name' => $row->name,
@@ -234,32 +230,13 @@ class AppQyV1AIStatusController extends Controller
     {
         $staleProcessingBefore = now()->subMinutes(10);
 
-        $reset = AppQyV1VocabularyLibraryModel::query()
-            ->whereNotNull('cover_filename')
-            ->where(function ($query) use ($staleProcessingBefore) {
-                $query->where('cover_status', 'failed')
-                    ->orWhere(function ($staleQuery) use ($staleProcessingBefore) {
-                        $staleQuery->where('cover_status', 'processing')
-                            ->where('cover_started_at', '<', $staleProcessingBefore);
-                    });
-            })
-            ->update([
-                'cover_status' => 'pending',
-                'cover_error_message' => null,
-                'cover_attempts' => 0,
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
+        $reset = AppQyV1VocabularyLibraryModel::resetFailedOrStaleCovers($staleProcessingBefore);
 
         // Clear expired assist leases on otherwise-untouched rows so they
         // re-enter the claimable pool immediately.
-        AppQyV1VocabularyLibraryModel::query()
-            ->whereNotNull('assist_claimed_at')
-            ->where('assist_claimed_at', '<', now()->subMinutes(AppQyV1AssistService::LEASE_MINUTES))
-            ->update([
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
+        AppQyV1VocabularyLibraryModel::clearExpiredAssistClaims(
+            now()->subMinutes(AppQyV1AssistService::LEASE_MINUTES)
+        );
 
         return response()->json([
             'success' => true,

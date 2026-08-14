@@ -59,21 +59,13 @@ class AppQyV1PersonalDictionaryQueryController
             $offset = 0;
         }
 
-        $query = AppQyV1PersonalDictionaryEntryModel::where('uid', $uid);
-
-        if ($word !== null && $word !== '') {
-            // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive
-            // on sqlite but case-SENSITIVE on pgsql.
-            $query->wordContainsInsensitive($word);
-        }
-        if ($language !== null && $language !== '') {
-            $query->where('language', $language);
-        }
-
-        $entries = $query->orderByDesc('id')
-            ->offset($offset)
-            ->limit($limit)
-            ->get();
+        $entries = AppQyV1PersonalDictionaryEntryModel::searchForUser(
+            (int) $uid,
+            $word,
+            $language,
+            $offset,
+            $limit
+        );
 
         $data = [];
         foreach ($entries as $entry) {
@@ -93,10 +85,7 @@ class AppQyV1PersonalDictionaryQueryController
 
         $data = [];
         if (count($words) > 0) {
-            $entries = AppQyV1PersonalDictionaryEntryModel::where('uid', $uid)
-                ->whereIn('word', $words)
-                ->orderByDesc('id')
-                ->get();
+            $entries = AppQyV1PersonalDictionaryEntryModel::forUserWords((int) $uid, $words);
             foreach ($entries as $entry) {
                 $data[] = $this->formatEntry($entry);
             }

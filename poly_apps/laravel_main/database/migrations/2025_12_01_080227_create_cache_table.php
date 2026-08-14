@@ -73,8 +73,17 @@ return new class extends Migration
 
         $connectionName = $this->connection ?? config('database.default');
         $db = DB::connection($connectionName);
-        $db->statement('DROP INDEX IF EXISTS cache_locks_key_index');
-        $db->statement('CREATE UNIQUE INDEX IF NOT EXISTS cache_locks_key_unique ON cache_locks(key)');
+        // Index adjustment only (no data touched). Guarded so a leftover
+        // duplicate transient lock key can never brick sys:init — the
+        // non-unique index simply stays until the locks expire.
+        try {
+            $db->statement('DROP INDEX IF EXISTS cache_locks_key_index');
+            $db->statement('CREATE UNIQUE INDEX IF NOT EXISTS cache_locks_key_unique ON cache_locks(key)');
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning(
+                '[create_cache_table] cache_locks unique index deferred: ' . $e->getMessage()
+            );
+        }
     }
 
     public function down(): void

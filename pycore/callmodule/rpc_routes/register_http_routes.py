@@ -43,6 +43,7 @@ from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
     register_pycore_manager_ui_state_routes,
 )
 from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_routes
+from pycore.callmodule.rpc_routes.terminal_routes import register_terminal_routes
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
@@ -93,6 +94,7 @@ HTTP_ROUTE_REGISTRARS = (
     register_operation_routes,
     register_pycore_manager_ui_state_routes,
     register_qwen_http_routes,
+    register_terminal_routes,
 )
 
 

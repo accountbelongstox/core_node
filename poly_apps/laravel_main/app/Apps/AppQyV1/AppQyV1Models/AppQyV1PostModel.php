@@ -14,7 +14,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;

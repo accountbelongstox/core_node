@@ -69,7 +69,7 @@ class AppQyV1ArticleAudioWriteback
         $article->tts_error = null;
         $article->tts_locked_at = null;
         $article->tts_locked_by = null;
-        $article->save();
+        $article->saveRecord();
 
         return true;
     }

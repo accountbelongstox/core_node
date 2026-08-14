@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\UsesMainConnection;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class InviteCodeUsage extends Model
 {
+    use UsesMainConnection;
+
     protected $table = 'invite_code_usage';
 
     protected $fillable = [
@@ -17,6 +20,11 @@ class InviteCodeUsage extends Model
         'ip_address',
         'user_agent',
     ];
+
+    public static function rowCount(): int
+    {
+        return self::query()->count();
+    }
 
     protected $casts = [
         'used_at' => 'datetime',

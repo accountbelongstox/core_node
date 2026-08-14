@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { getMessage } from '@/utils/i18n';
+import { delay as waitForDelay } from '@/utils/async';
 
 const LOG = 'Gemini Client';
 
@@ -71,7 +72,7 @@ export function useGeminiImage() {
       phase.value = 'Generating…';
       let polls = 0;
       while (polls < MAX_POLLS) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        await waitForDelay(POLL_INTERVAL_MS);
         polls++;
         const s = await send({ action: 'status', jobId });
         const res = s?.result;

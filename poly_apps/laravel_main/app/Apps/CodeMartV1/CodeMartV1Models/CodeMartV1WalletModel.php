@@ -2,7 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -33,6 +34,29 @@ class CodeMartV1WalletModel extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(CodeMartV1WalletTransactionModel::class, 'wallet_id');
+    }
+
+    public static function forUser(int $userId, bool $create = false): ?self
+    {
+        if (!$create) {
+            return static::query()->where('user_id', $userId)->first();
+        }
+
+        return static::query()->firstOrCreate(
+            ['user_id' => $userId],
+            ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
+        );
+    }
+
+    public function transactionPage(int $page, int $pageSize): array
+    {
+        $query = $this->transactions();
+        return self::paginateQuery(
+            $query->orderByDesc('created_at'),
+            'transactions',
+            $page,
+            $pageSize
+        );
     }
 
     public function deposit(float $amount, string $description = '', array $metadata = []): CodeMartV1WalletTransactionModel

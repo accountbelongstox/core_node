@@ -33,8 +33,8 @@ class AppQyV1WordGroupDeletionController
     {
         $uid = Auth::id();
         return $gid ? 
-            AppQyV1WordGroupModel::where('gid', $gid)->where('uid', $uid)->first() :
-            AppQyV1WordGroupModel::where('gname', $gname)->where('uid', $uid)->first();
+            AppQyV1WordGroupModel::findOwnedByGid($uid, $gid) :
+            AppQyV1WordGroupModel::findOwnedByName($uid, $gname);
     }
 
     public function deleteDictGroupByGname(Request $request)
@@ -59,7 +59,7 @@ class AppQyV1WordGroupDeletionController
                 'supported_params' => $supported_params,
             ], 404);
         }
-        $existGroup->delete();
+        $existGroup->deleteRecord();
         return response()->json([
             'status' => 'success',
             'message' => 'Group deleted successfully',
@@ -89,7 +89,7 @@ class AppQyV1WordGroupDeletionController
                     'supported_params' => $supported_params,
                 ], 404);
             }
-            $existGroup->delete();
+            $existGroup->deleteRecord();
             return response()->json([
                 'status' => 'success',
                 'message' => 'Group deleted successfully',
@@ -97,4 +97,3 @@ class AppQyV1WordGroupDeletionController
             ]);
     }
 }
-

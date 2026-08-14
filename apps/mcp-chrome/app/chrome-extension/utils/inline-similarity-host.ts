@@ -11,7 +11,15 @@
  * branches are compile-time dead code, so this module is never bundled there.
  */
 import { SemanticSimilarityEngine } from './semantic-similarity-engine';
+import { toErrorMessage } from './errors';
+import { classifySimilarityError } from './similarity-error';
+import {
+  clearSimilarityVectorDatabases,
+  createSimilarityModelState,
+  getSimilarityReinitializationState,
+} from './similarity-runtime';
 import { OFFSCREEN_MESSAGE_TYPES, SendMessageType } from '@/common/message-types';
+import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 interface InlineHostResponse {
   error?: string;
@@ -25,31 +33,8 @@ interface InlineHostResponse {
 
 const ENGINE_NOT_INITIALIZED_ERROR =
   'Similarity engine not initialized. Please reinitialize the engine.';
-const VECTOR_DB_NAMES = ['VectorSearchDB', 'ContentIndexerDB', 'SemanticSimilarityDB'];
-
 let inlineEngine: SemanticSimilarityEngine | null = null;
 let inlineEngineConfig: any = null;
-
-/**
- * Check if the inline engine must be (re)built for the given config
- */
-function needsReinitialization(newConfig: any): boolean {
-  if (!inlineEngine || !inlineEngineConfig) {
-    return true;
-  }
-
-  const keyFields = ['modelPreset', 'modelVersion', 'modelIdentifier', 'dimension'];
-  for (const field of keyFields) {
-    if (newConfig[field] !== inlineEngineConfig[field]) {
-      console.log(
-        `InlineSimilarityHost: ${field} changed from ${inlineEngineConfig[field]} to ${newConfig[field]}`,
-      );
-      return true;
-    }
-  }
-
-  return false;
-}
 
 /**
  * Persist model status for UI/status consumers (same shape as offscreen host)
@@ -61,72 +46,10 @@ async function updateInlineModelStatus(
   errorType?: string,
 ): Promise<void> {
   try {
-    const modelState = {
-      status,
-      downloadProgress: progress,
-      isDownloading: status === 'downloading' || status === 'initializing',
-      lastUpdated: Date.now(),
-      errorMessage: errorMessage || '',
-      errorType: errorType || '',
-    };
-    await chrome.storage.local.set({ modelState });
+    const modelState = createSimilarityModelState(status, progress, errorMessage, errorType);
+    await chrome.storage.local.set({ [STORAGE_KEYS.SEMANTIC_MODEL_STATE]: modelState });
   } catch (error) {
     console.error('InlineSimilarityHost: Failed to update model status:', error);
-  }
-}
-
-/**
- * Classify initialization errors the same way the offscreen host does
- */
-function analyzeErrorType(errorMessage: string): 'network' | 'file' | 'unknown' {
-  const message = errorMessage.toLowerCase();
-
-  if (
-    message.includes('network') ||
-    message.includes('fetch') ||
-    message.includes('timeout') ||
-    message.includes('connection') ||
-    message.includes('cors') ||
-    message.includes('failed to fetch')
-  ) {
-    return 'network';
-  }
-
-  if (
-    message.includes('corrupt') ||
-    message.includes('invalid') ||
-    message.includes('format') ||
-    message.includes('parse') ||
-    message.includes('decode') ||
-    message.includes('onnx')
-  ) {
-    return 'file';
-  }
-
-  return 'unknown';
-}
-
-/**
- * Clear vector-related IndexedDB databases on model switch (data consistency)
- */
-async function clearVectorIndexedDB(): Promise<void> {
-  for (const dbName of VECTOR_DB_NAMES) {
-    try {
-      const deleteRequest = indexedDB.deleteDatabase(dbName);
-      await new Promise<void>((resolve) => {
-        deleteRequest.onsuccess = () => resolve();
-        deleteRequest.onerror = () => {
-          console.warn(`InlineSimilarityHost: Failed to delete database: ${dbName}`);
-          resolve();
-        };
-        deleteRequest.onblocked = () => {
-          console.warn(`InlineSimilarityHost: Database deletion blocked: ${dbName}`);
-          resolve();
-        };
-      });
-    } catch (error) {
-      console.warn(`InlineSimilarityHost: Error deleting database ${dbName}:`, error);
-    }
   }
 }
 
@@ -137,7 +60,19 @@ async function handleInit(config: any): Promise<void> {
   // The background page runs the engine directly; never re-enter offscreen mode
   const effectiveConfig = { ...config, forceOffscreen: false };
 
-  if (!needsReinitialization(effectiveConfig)) {
+  const reinitialization = getSimilarityReinitializationState(
+    inlineEngine,
+    inlineEngineConfig,
+    effectiveConfig,
+  );
+  if (reinitialization.change) {
+    const { field, previousValue, nextValue } = reinitialization.change;
+    console.log(
+      `InlineSimilarityHost: ${field} changed from ${previousValue} to ${nextValue}`,
+    );
+  }
+
+  if (!reinitialization.required) {
     console.log('InlineSimilarityHost: Using existing engine (no changes detected)');
     await updateInlineModelStatus('ready', 100);
     return;
@@ -154,7 +89,7 @@ async function handleInit(config: any): Promise<void> {
     inlineEngineConfig = null;
 
     try {
-      await clearVectorIndexedDB();
+      await clearSimilarityVectorDatabases('InlineSimilarityHost');
     } catch (error) {
       console.warn('InlineSimilarityHost: Failed to clear vector IndexedDB:', error);
     }
@@ -177,8 +112,8 @@ async function handleInit(config: any): Promise<void> {
     await updateInlineModelStatus('ready', 100);
     console.log('InlineSimilarityHost: Engine initialized successfully');
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown initialization error';
-    await updateInlineModelStatus('error', 0, errorMessage, analyzeErrorType(errorMessage));
+    const errorMessage = toErrorMessage(error) || 'Unknown initialization error';
+    await updateInlineModelStatus('error', 0, errorMessage, classifySimilarityError(errorMessage));
     inlineEngine = null;
     inlineEngineConfig = null;
     throw error;
@@ -242,7 +177,7 @@ export async function dispatchInlineSimilarityMessage(message: any): Promise<Inl
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred',
+      error: toErrorMessage(error) || 'Unknown error occurred',
     };
   }
 }

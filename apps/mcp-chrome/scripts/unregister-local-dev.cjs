@@ -5,69 +5,12 @@
  */
 
 const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { execSync } = require('child_process');
-
-const HOST_NAME = 'com.chromemcp.nativehost';
-
-function getUserManifestPath() {
-  if (os.platform() === 'win32') {
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else if (os.platform() === 'darwin') {
-    return path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else {
-    return path.join(
-      os.homedir(),
-      '.config',
-      'google-chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  }
-}
-
-function getChromiumUserManifestPath() {
-  if (os.platform() === 'win32') {
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'Chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else if (os.platform() === 'darwin') {
-    return path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else {
-    return path.join(
-      os.homedir(),
-      '.config',
-      'chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  }
-}
+const {
+  SUPPORTED_BROWSERS,
+  getUserManifestPath,
+  getWindowsUserRegistryKey,
+  removeWindowsRegistryKey,
+} = require('./native-host-common.cjs');
 
 function unregisterForBrowser(manifestPath, browserName, registryKey = null) {
   let success = true;
@@ -86,9 +29,9 @@ function unregisterForBrowser(manifestPath, browserName, registryKey = null) {
   }
 
   // Remove Windows registry entry
-  if (os.platform() === 'win32' && registryKey) {
+  if (registryKey) {
     try {
-      execSync(`reg delete "${registryKey}" /f`, { stdio: 'pipe' });
+      removeWindowsRegistryKey(registryKey);
       console.log(`✓ Removed registry entry for ${browserName}`);
     } catch (err) {
       console.warn(`⚠️  Registry entry removal failed for ${browserName} (may not exist)`);
@@ -104,21 +47,13 @@ function main() {
   console.log('  MCP Chrome Bridge - Unregister Local Dev');
   console.log('=================================================\n');
 
-  // Unregister Chrome
-  const chromeManifestPath = getUserManifestPath();
-  const chromeRegistryKey = os.platform() === 'win32'
-    ? `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`
-    : null;
-
-  unregisterForBrowser(chromeManifestPath, 'Chrome', chromeRegistryKey);
-
-  // Unregister Chromium
-  const chromiumManifestPath = getChromiumUserManifestPath();
-  const chromiumRegistryKey = os.platform() === 'win32'
-    ? `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`
-    : null;
-
-  unregisterForBrowser(chromiumManifestPath, 'Chromium', chromiumRegistryKey);
+  for (const browser of SUPPORTED_BROWSERS) {
+    unregisterForBrowser(
+      getUserManifestPath(browser.type),
+      browser.displayName,
+      getWindowsUserRegistryKey(browser.type),
+    );
+  }
 
   console.log('=================================================');
   console.log('  Unregistration Complete');

@@ -6,7 +6,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT,
-  startSocialSse, stopSocialSse, subscribeSocial,
+  startSocialRealtime, stopSocialRealtime, subscribeSocial,
 } from '../api';
 import type {
   Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind,
@@ -17,7 +17,7 @@ import { wordNewReaderSettingsRoamer, applyReaderSettings } from '../services/Wo
 import { translate } from '../WfNewLocales';
 import { wfNewNotify, useWfNewToasts } from '../WfNewNotify';
 import { CUSTOM_THEMES } from '../WfNewThemes';
-import type { UserStats } from '../WfNewTypes';
+import type { UserStats } from '../api/WfNewApiTypes';
 import {
   getCachedGroups, getCachedGroupIds, putCachedGroups,
   getCachedWords, putCachedWords, setCacheScope, clearAuthScopedCache, dedupGroups,
@@ -510,15 +510,15 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   }, []);
 
   // Social realtime lifecycle — keyed on the login flag. When logged IN: open the
-  // SSE stream, beat presence immediately then every ~30s, prime the unread count,
+  // Reverb channel, beat presence immediately then every ~30s, prime the unread count,
   // and subscribe to live notifications. The cleanup tears EVERYTHING down on
-  // logout / unmount (stop SSE, clear the heartbeat interval, reset state). Guard
-  // ensures nothing runs while logged out. Offline-safe: the SSE client just keeps
+  // logout / unmount (stop realtime, clear the heartbeat interval, reset state). Guard
+  // ensures nothing runs while logged out. Offline-safe: the client keeps
   // retrying and getUnreadCount catches to 0.
   useEffect(() => {
     if (!currentUser.isLoggedIn) return;
 
-    startSocialSse();
+    startSocialRealtime();
 
     // Heartbeat: immediately, then on a ~30s interval while active.
     void wfNewApi.presenceHeartbeat().catch(() => { });
@@ -533,7 +533,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
     return () => {
       clearInterval(heartbeat);
       unsubNotif();
-      stopSocialSse();
+      stopSocialRealtime();
     };
   }, [currentUser.isLoggedIn]);
 

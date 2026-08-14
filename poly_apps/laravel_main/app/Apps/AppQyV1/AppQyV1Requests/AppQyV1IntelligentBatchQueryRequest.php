@@ -2,7 +2,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Requests;
 
+use App\Support\QueueCenterContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class AppQyV1IntelligentBatchQueryRequest extends FormRequest
 {
@@ -18,9 +20,11 @@ class AppQyV1IntelligentBatchQueryRequest extends FormRequest
             'queries.*.task_id' => 'nullable|integer|min:1',
             'queries.*.content' => 'nullable|string|max:50000',
             'queries.*.language' => 'nullable|string|max:10',
-            'queries.*.type' => 'nullable|string|in:word,sentence,article',
-            'queries.*.priority' => 'nullable|integer|min:0|max:100',
-            'default_priority' => 'nullable|integer|min:0|max:100',
+            'queries.*.type' => ['nullable', 'string', Rule::in(QueueCenterContract::queuePositionOrderedTaskAliases())],
+            'queries.*.position' => 'nullable|string|in:beginning,end',
+            'default_position' => 'nullable|string|in:beginning,end',
+            'queries.*.priority' => 'prohibited',
+            'default_priority' => 'prohibited',
         ];
     }
 
@@ -35,9 +39,6 @@ class AppQyV1IntelligentBatchQueryRequest extends FormRequest
             'queries.*.content.string' => 'Content must be a string',
             'queries.*.content.max' => 'Content cannot exceed 50000 characters',
             'queries.*.language.max' => 'Language code cannot exceed 10 characters',
-            'queries.*.type.in' => 'Task type must be one of: word, sentence, article',
-            'queries.*.priority.min' => 'Priority must be between 0 and 100',
-            'queries.*.priority.max' => 'Priority must be between 0 and 100',
         ];
     }
 

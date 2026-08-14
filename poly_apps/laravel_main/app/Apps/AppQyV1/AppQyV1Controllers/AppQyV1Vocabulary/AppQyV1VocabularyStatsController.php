@@ -10,9 +10,11 @@ use App\Constants\AppKeys;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Http\Controllers\Controller;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Vocabulary page stats drill-down (dashboard).
@@ -32,29 +34,10 @@ class AppQyV1VocabularyStatsController extends Controller
     use ApiResponse;
 
     /**
-     * UI sort key -> real dictionary DB column(s). A key absent from this map
-     * falls back to the default query_count ordering, so the request can never
-     * order by an arbitrary column (injection-safe: $column comes only from here).
-     *   word        -> content
-     *   translation -> has_translation (no scalar translation column; the text
-     *                  lives in the JSON `translations`, so we group by coverage)
-     *   phonetic    -> us_phonetic, then uk_phonetic, then phonetic
-     *   queries     -> query_count
-     *   status      -> is_valid then has_audio (mirrors the UI status badge order)
-     */
-    private const SORTABLE_COLUMNS = [
-        'word' => ['content'],
-        'translation' => ['has_translation'],
-        'phonetic' => ['us_phonetic', 'uk_phonetic', 'phonetic'],
-        'queries' => ['query_count'],
-        'status' => ['is_valid', 'has_audio'],
-    ];
-
-    /**
      * Paginated dictionary rows for a language with a coverage filter.
      *
      * GET /api/app_qy_v1/dictionary/words
-     *   ?language=&filter=all|with_translation|without_translation|invalid|with_audio|without_audio
+     *   ?language=&filter=all|with_translation|without_translation|valid|invalid|with_audio|without_audio
      *   &q=&start=&limit=
      *
      * Returns { success, total, start, limit, items:[{content,md5,has_translation,
@@ -64,14 +47,14 @@ class AppQyV1VocabularyStatsController extends Controller
     {
         $validated = $request->validate([
             'language' => 'nullable|string',
-            'filter' => 'nullable|string|in:all,with_translation,without_translation,invalid,with_audio,without_audio',
+            'filter' => ['nullable', 'string', Rule::in(AppQyV1LangDictionaryModel::MANAGEMENT_FILTER_KEYS)],
             // Narrow an `invalid` listing to a single validity_source (e.g.
             // 'region-redirect' or 'bing-assist') so the dashboard can manage
             // each class of invalid word separately.
             'validity_source' => 'nullable|string|max:64',
             'q' => 'nullable|string',
             // Server-side full-dataset sort: a whitelisted UI sort key + direction.
-            'sort' => 'nullable|string|in:word,translation,phonetic,queries,status',
+            'sort' => ['nullable', 'string', Rule::in(AppQyV1LangDictionaryModel::MANAGEMENT_SORT_KEYS)],
             'order' => 'nullable|string|in:asc,desc',
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:1000',
@@ -118,6 +101,8 @@ class AppQyV1VocabularyStatsController extends Controller
                 'language' => $language,
                 'language_code' => $languageCode,
                 'filter' => $filter,
+                'sort' => $sortKey,
+                'order' => $order,
                 'total' => 0,
                 'start' => $start,
                 'limit' => $limit,
@@ -125,40 +110,18 @@ class AppQyV1VocabularyStatsController extends Controller
             ], 'No dictionary for this language');
         }
 
-        // forLanguage() returns a model instance bound to the language table;
-        // newQuery() gives a real Builder so chained where()/clone accumulate.
-        $query = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery();
-        $this->applyDictionaryFilter($query, $filter);
-
-        // Optional validity_source narrowing (most useful with filter=invalid):
-        // 'region-redirect' = Bing region/redirect words, 'bing-assist' = no entry.
-        if ($validitySource !== '') {
-            $query->where('validity_source', $validitySource);
-        }
-
-        if ($search !== '') {
-            $query->contentContainsInsensitive($search);
-        }
-
-        $total = (clone $query)->count();
-
-        // Full-dataset ordering: a whitelisted `sort` drives orderBy over the
-        // ENTIRE filtered set (count above uses the same $query before skip/take),
-        // so pagination reflects the sorted order across all pages — not just the
-        // loaded page. Falls back to the default most-queried-first ordering.
-        if ($sortKey !== '' && isset(self::SORTABLE_COLUMNS[$sortKey])) {
-            foreach (self::SORTABLE_COLUMNS[$sortKey] as $column) {
-                $query->orderBy($column, $order);
-            }
-            $query->orderBy('id');
-        } else {
-            $query->orderByDesc('query_count')->orderBy('id');
-        }
-
-        $rows = $query
-            ->skip($start)
-            ->take($limit)
-            ->get();
+        $page = AppQyV1LangDictionaryModel::managementPage(
+            $languageCode,
+            $filter,
+            $validitySource,
+            $search,
+            $sortKey,
+            $order,
+            $start,
+            $limit
+        );
+        $total = $page['total'];
+        $rows = $page['rows'];
 
         $items = $rows->map(function (AppQyV1LangDictionaryModel $row) {
             // Reuse the canonical rich builder (translations + phonetics +
@@ -200,7 +163,8 @@ class AppQyV1VocabularyStatsController extends Controller
                 'md5' => $row->md5,
                 'has_translation' => $hasTranslation,
                 'has_audio' => (bool) $row->has_audio,
-                'is_valid' => (bool) $row->is_valid,
+                'is_valid' => (bool) $entry['is_valid'],
+                'is_valid_value' => $row->is_valid,
                 'translations' => $entry['translations'],
                 'us_phonetic' => $row->us_phonetic,
                 'uk_phonetic' => $row->uk_phonetic,
@@ -234,6 +198,8 @@ class AppQyV1VocabularyStatsController extends Controller
             'language_code' => $languageCode,
             'filter' => $filter,
             'validity_source' => $validitySource,
+            'sort' => $sortKey,
+            'order' => $order,
             'total' => $total,
             'start' => $start,
             'limit' => $limit,
@@ -276,12 +242,11 @@ class AppQyV1VocabularyStatsController extends Controller
             ], 'No dictionary for this language');
         }
 
-        $total = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()->count();
-        $invalid = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
-            ->where('is_valid', false)->count();
-        $unchecked = AppQyV1LangDictionaryModel::forLanguage($languageCode)->newQuery()
-            ->whereNull('validity_checked_at')->count();
-        $valid = $total - $invalid;
+        $summary = AppQyV1LangDictionaryModel::validitySummary($languageCode);
+        $total = $summary['total'];
+        $invalid = $summary['invalid'];
+        $unchecked = $summary['unchecked'];
+        $valid = $summary['valid'];
 
         // Group the invalid rows by validity_source (one grouped query).
         $grouped = AppQyV1LangDictionaryModel::invalidCountsBySource($languageCode);
@@ -387,52 +352,12 @@ class AppQyV1VocabularyStatsController extends Controller
     }
 
     /**
-     * Apply a coverage filter to a dictionary query.
-     *
-     * Boolean columns are compared with true/false so the predicate works on
-     * both pgsql (real boolean) and sqlite (true/false map to 1/0). Translation
-     * coverage mirrors the dashboard metric (has_translation OR non-empty
-     * translations JSON).
-     */
-    private function applyDictionaryFilter($query, string $filter): void
-    {
-        if ($filter === 'with_translation') {
-            $query->withTranslationCoverage();
-            return;
-        }
-
-        if ($filter === 'without_translation') {
-            $query->withoutTranslationCoverage();
-            return;
-        }
-
-        if ($filter === 'invalid') {
-            $query->where('is_valid', false);
-            return;
-        }
-
-        if ($filter === 'with_audio') {
-            $query->where('has_audio', true);
-            return;
-        }
-
-        if ($filter === 'without_audio') {
-            $query->where(function ($q) {
-                $q->where('has_audio', false)
-                    ->orWhereNull('has_audio');
-            });
-            return;
-        }
-        // 'all' -> no additional predicate.
-    }
-
-    /**
      * Paginated TTS queue items, served from the unified queue (canonical
      * tables). Wraps AppQyV1UnifiedTTSQueueService::getQueueSummary so the
      * status/type filters and item shape match the existing TTS queue API.
      *
      * GET /api/app_qy_v1/tts/queue/items
-     *   ?status=pending|processing|completed|failed&type=word|sentence|article
+     *   ?status=pending|processing|completed|failed&type={audio_alias}
      *   &start=&limit=
      *
      * Returns { success, total, start, limit, items, statistics }.
@@ -441,7 +366,7 @@ class AppQyV1VocabularyStatsController extends Controller
     {
         $validated = $request->validate([
             'status' => 'nullable|string|in:pending,processing,completed,failed',
-            'type' => 'nullable|string|in:word,sentence,article',
+            'type' => ['nullable', 'string', Rule::in(QueueCenterContract::queuePositionOrderedTaskAliases())],
             'start' => 'nullable|integer|min:0',
             'limit' => 'nullable|integer|min:1|max:500',
         ]);
@@ -506,14 +431,15 @@ class AppQyV1VocabularyStatsController extends Controller
      * GET /api/app_qy_v1/vocabulary/language-breakdown
      *
      * Returns { success, languages:[{language, language_code, words,
-     * with_translation, with_audio, invalid}] }.
+     * with_translation, without_translation, with_audio, without_audio,
+     * valid, invalid}] }.
      */
     public function languageBreakdown(): JsonResponse
     {
         $languages = [];
 
         foreach (AppQyV1TableMaps::getAllWordTables() as $langCode => $table) {
-            $metrics = AppQyV1LangDictionaryModel::languageBreakdownMetrics($langCode);
+            $metrics = AppQyV1LangDictionaryModel::cachedLanguageBreakdownMetrics($langCode);
             if ($metrics === null || $metrics['words'] === 0) {
                 continue;
             }
@@ -528,7 +454,10 @@ class AppQyV1VocabularyStatsController extends Controller
                 'language_code' => $langCode,
                 'words' => $metrics['words'],
                 'with_translation' => $metrics['with_translation'],
+                'without_translation' => $metrics['without_translation'],
                 'with_audio' => $metrics['with_audio'],
+                'without_audio' => $metrics['without_audio'],
+                'valid' => $metrics['valid'],
                 'invalid' => $metrics['invalid'],
             ];
         }

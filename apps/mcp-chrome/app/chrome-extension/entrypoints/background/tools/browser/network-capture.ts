@@ -3,7 +3,7 @@
  * Delegates to existing network capture tools
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { networkCaptureStartTool, networkCaptureStopTool } from './network-capture-web-request';
@@ -71,7 +71,7 @@ class NetworkCaptureTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error('Error in network capture tool:', error);
       return createErrorResponse(
-        `Network capture error: ${error instanceof Error ? error.message : String(error)}`,
+        `Network capture error: ${toErrorMessage(error)}`,
       );
     }
   }

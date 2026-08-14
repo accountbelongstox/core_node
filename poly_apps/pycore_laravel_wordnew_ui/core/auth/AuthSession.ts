@@ -1,4 +1,5 @@
-import { StorageKeys, StorageManager } from '../persistence';
+import { StorageManager } from '../persistence';
+import { AuthStorageKeys } from './AuthStorageKeys';
 
 let activeToken: string | null = null;
 
@@ -10,17 +11,17 @@ function normalizeToken(token: string | null): string | null {
 
 function persist(token: string | null): void {
   if (token) {
-    StorageManager.set(StorageKeys.AUTH_TOKEN, token);
+    StorageManager.set(AuthStorageKeys.TOKEN, token);
     return;
   }
-  StorageManager.remove(StorageKeys.AUTH_TOKEN);
+  StorageManager.remove(AuthStorageKeys.TOKEN);
 }
 
 /** Shared authentication state only; each app keeps its own network transport. */
 export function getAuthToken(): string | null {
   if (activeToken) return activeToken;
   const stored = normalizeToken(
-    StorageManager.get<string | null>(StorageKeys.AUTH_TOKEN, null),
+    StorageManager.get<string | null>(AuthStorageKeys.TOKEN, null),
   );
   if (stored) {
     activeToken = stored;

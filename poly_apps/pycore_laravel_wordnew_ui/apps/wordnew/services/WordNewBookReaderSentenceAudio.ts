@@ -1,18 +1,21 @@
 /**
- * Book-reader sentence audio: queued resolve/bump/poll (max concurrent pollers)
- * + priority bumps straight to Laravel, which owns the queue and worker wakeup.
+ * Book-reader sentence audio: queued resolve/head-move/poll (max concurrent pollers).
+ * Laravel owns queue ordering and worker wakeup.
  *
  * All network I/O is funneled through one module-level scheduler so a chapter
  * with dozens of cells cannot open hundreds of parallel connections to :9000.
  */
 import { wfNewApi } from '../api';
 import { absUrl } from '../api/WfNewApiMappers';
-import { wordNewAudioQueueCenter } from './WordNewAudioQueueCenter';
+import { wordNewQueueCenter } from './WordNewQueueCenter';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 
 const MAX_ACTIVE_POLLERS = 4;
-const POLL_INTERVAL_MS = 1200;
+const POLL_INTERVAL_MS = Math.max(
+  250,
+  Number(QUEUE_CENTER_DIFF_DELIVERY.poll_interval_ms || 1000),
+);
 const POLL_STINT_MS = 48000;
 const OUTER_RETRY_GAP_MS = 4000;
 const MAX_OUTER_RETRIES = 8;
@@ -35,7 +38,7 @@ interface PollEntry {
   lang: string;
   variantKey?: string;
   urgent: boolean;
-  bumpOnly: boolean;
+  headOnly: boolean;
   state: EntryState;
   timer: ReturnType<typeof setTimeout> | null;
   outerTries: number;
@@ -62,7 +65,7 @@ class SentenceAudioScheduler {
   private activeCount = 0;
   private destroyed = false;
 
-  request(text: string, lang: string, opts?: WaitSentenceAudioOpts & { bumpOnly?: boolean }): boolean {
+  request(text: string, lang: string, opts?: WaitSentenceAudioOpts & { headOnly?: boolean }): boolean {
     const trimmed = text.trim();
     if (!trimmed || this.destroyed) return false;
     const key = cellKey(trimmed, lang, opts?.variantKey);
@@ -87,7 +90,7 @@ class SentenceAudioScheduler {
       lang,
       variantKey: opts?.variantKey,
       urgent: !!opts?.urgent,
-      bumpOnly: !!opts?.bumpOnly,
+      headOnly: !!opts?.headOnly,
       state: 'queued',
       timer: null,
       outerTries: 0,
@@ -102,11 +105,11 @@ class SentenceAudioScheduler {
     diffQueueContext.touch('wordnew:sentence-audio:consumer', [key]);
     if (entry.urgent) this.queue.unshift(key);
     else this.queue.push(key);
-    // Bump immediately at enqueue: content_id is only known after the first
+    // Move to the queue head immediately: content_id is only known after the first
     // resolve response, and a queued entry may wait long for a free poller
     // slot, so notify Laravel now via the text-based batch endpoint. Polling is
     // passive after this single notification and never changes queue order.
-    void wordNewAudioQueueCenter.prioritizeSentences([
+    void wordNewQueueCenter.moveSentencesToHead([
       { text: trimmed, language: lang },
     ]).catch(() => { /* ignore */ });
     this.drain();
@@ -146,8 +149,8 @@ class SentenceAudioScheduler {
     });
   }
 
-  bumpOnly(text: string, lang: string, variantKey?: string): void {
-    this.request(text, lang, { variantKey, bumpOnly: true, urgent: true });
+  moveToHeadOnly(text: string, lang: string, variantKey?: string): void {
+    this.request(text, lang, { variantKey, headOnly: true, urgent: true });
   }
 
   reset(): void {
@@ -250,7 +253,7 @@ class SentenceAudioScheduler {
         }
       }
       const cid = r.content_id || r.hash;
-      if (e.bumpOnly) {
+      if (e.headOnly) {
         this.finish(e, null);
         return;
       }
@@ -273,7 +276,7 @@ class SentenceAudioScheduler {
 
 const scheduler = new SentenceAudioScheduler();
 
-/** Enqueue a cell for queued resolve/bump/poll (viewport-driven requests). */
+/** Enqueue a cell for queued resolve/head-move/poll (viewport-driven requests). */
 export function requestSentenceAudio(text: string, lang: string, opts?: WaitSentenceAudioOpts): void {
   scheduler.request(text, lang, opts);
 }
@@ -287,9 +290,9 @@ export function waitForSentenceAudioUrl(
   return scheduler.waitForUrl(text, lang, opts);
 }
 
-/** One-shot bump (playback assist) — still queued, never fires bare concurrent fetches. */
-export function bumpSentenceAudioImmediate(text: string, lang: string, variantKey?: string): Promise<void> {
-  scheduler.bumpOnly(text, lang, variantKey);
+/** One-shot queue-head move for playback assist. */
+export function moveSentenceAudioToHeadImmediate(text: string, lang: string, variantKey?: string): Promise<void> {
+  scheduler.moveToHeadOnly(text, lang, variantKey);
   return Promise.resolve();
 }
 

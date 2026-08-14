@@ -15,273 +15,168 @@ export interface BrowserConfig {
   displayName: string;
   userManifestPath: string;
   systemManifestPath: string;
-  registryKey?: string; // Windows only
-  systemRegistryKey?: string; // Windows only
+  registryKey?: string;
+  systemRegistryKey?: string;
 }
 
-/**
- * Get the user-level manifest path for a specific browser
- */
-function getUserManifestPathForBrowser(browser: BrowserType): string {
+type PlatformFamily = 'win32' | 'darwin' | 'linux';
+
+interface BrowserDefinition {
+  displayName: string;
+  userManifestSegments: Record<PlatformFamily, string[]>;
+  systemManifestSegments: Record<PlatformFamily, string[]>;
+  windowsRegistryPath: string;
+  windowsDetectionRegistryPath: string;
+  macApplicationPath: string;
+  linuxCommands: string[];
+}
+
+const MANIFEST_FILE_NAME = `${HOST_NAME}.json`;
+const BROWSER_DEFINITIONS: Record<BrowserType, BrowserDefinition> = {
+  [BrowserType.CHROME]: {
+    displayName: 'Chrome',
+    userManifestSegments: {
+      win32: ['Google', 'Chrome', 'NativeMessagingHosts'],
+      darwin: ['Library', 'Application Support', 'Google', 'Chrome', 'NativeMessagingHosts'],
+      linux: ['.config', 'google-chrome', 'NativeMessagingHosts'],
+    },
+    systemManifestSegments: {
+      win32: ['Google', 'Chrome', 'NativeMessagingHosts'],
+      darwin: ['Google', 'Chrome', 'NativeMessagingHosts'],
+      linux: ['etc', 'opt', 'chrome', 'native-messaging-hosts'],
+    },
+    windowsRegistryPath: 'Google\\Chrome',
+    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Google\\Chrome',
+    macApplicationPath: '/Applications/Google Chrome.app',
+    linuxCommands: ['google-chrome', 'google-chrome-stable'],
+  },
+  [BrowserType.CHROMIUM]: {
+    displayName: 'Chromium',
+    userManifestSegments: {
+      win32: ['Chromium', 'NativeMessagingHosts'],
+      darwin: ['Library', 'Application Support', 'Chromium', 'NativeMessagingHosts'],
+      linux: ['.config', 'chromium', 'NativeMessagingHosts'],
+    },
+    systemManifestSegments: {
+      win32: ['Chromium', 'NativeMessagingHosts'],
+      darwin: ['Application Support', 'Chromium', 'NativeMessagingHosts'],
+      linux: ['etc', 'chromium', 'native-messaging-hosts'],
+    },
+    windowsRegistryPath: 'Chromium',
+    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Chromium',
+    macApplicationPath: '/Applications/Chromium.app',
+    linuxCommands: ['chromium', 'chromium-browser'],
+  },
+  [BrowserType.FIREFOX]: {
+    displayName: 'Firefox',
+    userManifestSegments: {
+      win32: ['Mozilla', 'NativeMessagingHosts'],
+      darwin: ['Library', 'Application Support', 'Mozilla', 'NativeMessagingHosts'],
+      linux: ['.mozilla', 'native-messaging-hosts'],
+    },
+    systemManifestSegments: {
+      win32: ['Mozilla', 'NativeMessagingHosts'],
+      darwin: ['Application Support', 'Mozilla', 'NativeMessagingHosts'],
+      linux: ['usr', 'lib', 'mozilla', 'native-messaging-hosts'],
+    },
+    windowsRegistryPath: 'Mozilla',
+    windowsDetectionRegistryPath: 'HKLM\\SOFTWARE\\Mozilla\\Mozilla Firefox',
+    macApplicationPath: '/Applications/Firefox.app',
+    linuxCommands: ['firefox', 'firefox-esr'],
+  },
+};
+
+function getPlatformFamily(): PlatformFamily {
   const platform = os.platform();
-
-  if (platform === 'win32') {
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join(appData, 'Google', 'Chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      case BrowserType.CHROMIUM:
-        return path.join(appData, 'Chromium', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      case BrowserType.FIREFOX:
-        // Firefox on Windows locates the manifest via registry; file location is arbitrary
-        return path.join(appData, 'Mozilla', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      default:
-        return path.join(appData, 'Google', 'Chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-    }
-  } else if (platform === 'darwin') {
-    const home = os.homedir();
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join(
-          home,
-          'Library',
-          'Application Support',
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.CHROMIUM:
-        return path.join(
-          home,
-          'Library',
-          'Application Support',
-          'Chromium',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.FIREFOX:
-        return path.join(
-          home,
-          'Library',
-          'Application Support',
-          'Mozilla',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      default:
-        return path.join(
-          home,
-          'Library',
-          'Application Support',
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-    }
-  } else {
-    // Linux
-    const home = os.homedir();
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join(
-          home,
-          '.config',
-          'google-chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.CHROMIUM:
-        return path.join(home, '.config', 'chromium', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      case BrowserType.FIREFOX:
-        return path.join(home, '.mozilla', 'native-messaging-hosts', `${HOST_NAME}.json`);
-      default:
-        return path.join(
-          home,
-          '.config',
-          'google-chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-    }
-  }
+  return platform === 'win32' || platform === 'darwin' ? platform : 'linux';
 }
 
-/**
- * Get the system-level manifest path for a specific browser
- */
-function getSystemManifestPathForBrowser(browser: BrowserType): string {
-  const platform = os.platform();
+function getUserManifestPath(browser: BrowserType, platform: PlatformFamily): string {
+  const definition = BROWSER_DEFINITIONS[browser];
+  const rootPath =
+    platform === 'win32'
+      ? process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming')
+      : os.homedir();
 
-  if (platform === 'win32') {
-    const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join(
-          programFiles,
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.CHROMIUM:
-        return path.join(programFiles, 'Chromium', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      case BrowserType.FIREFOX:
-        // Firefox on Windows locates the manifest via registry; file location is arbitrary
-        return path.join(programFiles, 'Mozilla', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-      default:
-        return path.join(
-          programFiles,
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-    }
-  } else if (platform === 'darwin') {
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join(
-          '/Library',
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.CHROMIUM:
-        return path.join(
-          '/Library',
-          'Application Support',
-          'Chromium',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      case BrowserType.FIREFOX:
-        return path.join(
-          '/Library',
-          'Application Support',
-          'Mozilla',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-      default:
-        return path.join(
-          '/Library',
-          'Google',
-          'Chrome',
-          'NativeMessagingHosts',
-          `${HOST_NAME}.json`,
-        );
-    }
-  } else {
-    // Linux
-    switch (browser) {
-      case BrowserType.CHROME:
-        return path.join('/etc', 'opt', 'chrome', 'native-messaging-hosts', `${HOST_NAME}.json`);
-      case BrowserType.CHROMIUM:
-        return path.join('/etc', 'chromium', 'native-messaging-hosts', `${HOST_NAME}.json`);
-      case BrowserType.FIREFOX:
-        return path.join('/usr', 'lib', 'mozilla', 'native-messaging-hosts', `${HOST_NAME}.json`);
-      default:
-        return path.join('/etc', 'opt', 'chrome', 'native-messaging-hosts', `${HOST_NAME}.json`);
-    }
-  }
+  return path.join(rootPath, ...definition.userManifestSegments[platform], MANIFEST_FILE_NAME);
 }
 
-/**
- * Get Windows registry keys for a browser
- */
-function getRegistryKeys(browser: BrowserType): { user: string; system: string } | undefined {
-  if (os.platform() !== 'win32') return undefined;
+function getSystemManifestPath(browser: BrowserType, platform: PlatformFamily): string {
+  const definition = BROWSER_DEFINITIONS[browser];
+  const rootPath =
+    platform === 'win32'
+      ? process.env.ProgramFiles || 'C:\\Program Files'
+      : platform === 'darwin'
+        ? '/Library'
+        : path.parse(process.cwd()).root;
 
-  const browserPaths: Record<BrowserType, { user: string; system: string }> = {
-    [BrowserType.CHROME]: {
-      user: `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`,
-      system: `HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`,
-    },
-    [BrowserType.CHROMIUM]: {
-      user: `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`,
-      system: `HKLM\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`,
-    },
-    [BrowserType.FIREFOX]: {
-      user: `HKCU\\Software\\Mozilla\\NativeMessagingHosts\\${HOST_NAME}`,
-      system: `HKLM\\Software\\Mozilla\\NativeMessagingHosts\\${HOST_NAME}`,
-    },
+  return path.join(rootPath, ...definition.systemManifestSegments[platform], MANIFEST_FILE_NAME);
+}
+
+function getRegistryKeys(
+  browser: BrowserType,
+  platform: PlatformFamily,
+): { user: string; system: string } | undefined {
+  const registryPath = BROWSER_DEFINITIONS[browser].windowsRegistryPath;
+
+  if (platform !== 'win32') {
+    return undefined;
+  }
+
+  return {
+    user: `HKCU\\Software\\${registryPath}\\NativeMessagingHosts\\${HOST_NAME}`,
+    system: `HKLM\\Software\\${registryPath}\\NativeMessagingHosts\\${HOST_NAME}`,
   };
-
-  return browserPaths[browser];
 }
 
-/**
- * Get browser configuration
- */
 export function getBrowserConfig(browser: BrowserType): BrowserConfig {
-  const registryKeys = getRegistryKeys(browser);
+  const platform = getPlatformFamily();
+  const definition = BROWSER_DEFINITIONS[browser];
+  const registryKeys = getRegistryKeys(browser, platform);
 
   return {
     type: browser,
-    displayName: browser.charAt(0).toUpperCase() + browser.slice(1),
-    userManifestPath: getUserManifestPathForBrowser(browser),
-    systemManifestPath: getSystemManifestPathForBrowser(browser),
+    displayName: definition.displayName,
+    userManifestPath: getUserManifestPath(browser, platform),
+    systemManifestPath: getSystemManifestPath(browser, platform),
     registryKey: registryKeys?.user,
     systemRegistryKey: registryKeys?.system,
   };
 }
 
-/**
- * Detect installed browsers on the system
- */
 export function detectInstalledBrowsers(): BrowserType[] {
   const detectedBrowsers: BrowserType[] = [];
-  const platform = os.platform();
+  const platform = getPlatformFamily();
 
-  if (platform === 'win32') {
-    // Check Windows registry for installed browsers
-    const browsers: Array<{ type: BrowserType; registryPath: string }> = [
-      { type: BrowserType.CHROME, registryPath: 'HKLM\\SOFTWARE\\Google\\Chrome' },
-      { type: BrowserType.CHROMIUM, registryPath: 'HKLM\\SOFTWARE\\Chromium' },
-      { type: BrowserType.FIREFOX, registryPath: 'HKLM\\SOFTWARE\\Mozilla\\Mozilla Firefox' },
-    ];
+  for (const browser of Object.values(BrowserType)) {
+    const definition = BROWSER_DEFINITIONS[browser];
 
-    for (const browser of browsers) {
+    if (platform === 'win32') {
       try {
-        execSync(`reg query "${browser.registryPath}" 2>nul`, { stdio: 'pipe' });
-        detectedBrowsers.push(browser.type);
+        execSync(`reg query "${definition.windowsDetectionRegistryPath}" 2>nul`, {
+          stdio: 'pipe',
+        });
+        detectedBrowsers.push(browser);
       } catch {
-        // Browser not installed
+        continue;
       }
+      continue;
     }
-  } else if (platform === 'darwin') {
-    // Check macOS Applications folder
-    const browsers: Array<{ type: BrowserType; appPath: string }> = [
-      { type: BrowserType.CHROME, appPath: '/Applications/Google Chrome.app' },
-      { type: BrowserType.CHROMIUM, appPath: '/Applications/Chromium.app' },
-      { type: BrowserType.FIREFOX, appPath: '/Applications/Firefox.app' },
-    ];
 
-    for (const browser of browsers) {
-      if (fs.existsSync(browser.appPath)) {
-        detectedBrowsers.push(browser.type);
+    if (platform === 'darwin') {
+      if (fs.existsSync(definition.macApplicationPath)) {
+        detectedBrowsers.push(browser);
       }
+      continue;
     }
-  } else {
-    // Check Linux paths using which command
-    const browsers: Array<{ type: BrowserType; commands: string[] }> = [
-      { type: BrowserType.CHROME, commands: ['google-chrome', 'google-chrome-stable'] },
-      { type: BrowserType.CHROMIUM, commands: ['chromium', 'chromium-browser'] },
-      { type: BrowserType.FIREFOX, commands: ['firefox', 'firefox-esr'] },
-    ];
 
-    for (const browser of browsers) {
-      for (const cmd of browser.commands) {
-        try {
-          execSync(`which ${cmd} 2>/dev/null`, { stdio: 'pipe' });
-          detectedBrowsers.push(browser.type);
-          break; // Found one command, no need to check others
-        } catch {
-          // Command not found
-        }
+    for (const command of definition.linuxCommands) {
+      try {
+        execSync(`which ${command} 2>/dev/null`, { stdio: 'pipe' });
+        detectedBrowsers.push(browser);
+        break;
+      } catch {
+        continue;
       }
     }
   }
@@ -289,16 +184,10 @@ export function detectInstalledBrowsers(): BrowserType[] {
   return detectedBrowsers;
 }
 
-/**
- * Get all supported browser configs
- */
 export function getAllBrowserConfigs(): BrowserConfig[] {
   return Object.values(BrowserType).map((browser) => getBrowserConfig(browser));
 }
 
-/**
- * Parse browser type from string
- */
 export function parseBrowserType(browserStr: string): BrowserType | undefined {
   const normalized = browserStr.toLowerCase();
   return Object.values(BrowserType).find((type) => type === normalized);

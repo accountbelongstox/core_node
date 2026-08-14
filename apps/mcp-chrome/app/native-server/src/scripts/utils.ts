@@ -9,6 +9,18 @@ import { BrowserType, getBrowserConfig, detectInstalledBrowsers } from './browse
 export const access = promisify(fs.access);
 export const mkdir = promisify(fs.mkdir);
 export const writeFile = promisify(fs.writeFile);
+let isAdmin: () => boolean = () => false;
+
+if (process.platform === 'win32') {
+  try {
+    isAdmin = require('is-admin');
+  } catch (error) {
+    console.warn(
+      'Missing is-admin dependency, may not be able to correctly detect administrator permissions on Windows',
+    );
+    console.warn(error);
+  }
+}
 
 /**
  * Print colored text
@@ -23,64 +35,6 @@ export function colorText(text: string, color: string): string {
   };
 
   return colors[color] + text + colors.reset;
-}
-
-/**
- * Get user-level manifest file path
- */
-export function getUserManifestPath(): string {
-  if (os.platform() === 'win32') {
-    // Windows: %APPDATA%\Google\Chrome\NativeMessagingHosts\
-    return path.join(
-      process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'),
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`,
-    );
-  } else if (os.platform() === 'darwin') {
-    // macOS: ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
-    return path.join(
-      os.homedir(),
-      'Library',
-      'Application Support',
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`,
-    );
-  } else {
-    // Linux: ~/.config/google-chrome/NativeMessagingHosts/
-    return path.join(
-      os.homedir(),
-      '.config',
-      'google-chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`,
-    );
-  }
-}
-
-/**
- * Get system-level manifest file path
- */
-export function getSystemManifestPath(): string {
-  if (os.platform() === 'win32') {
-    // Windows: %ProgramFiles%\Google\Chrome\NativeMessagingHosts\
-    return path.join(
-      process.env.ProgramFiles || 'C:\\Program Files',
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`,
-    );
-  } else if (os.platform() === 'darwin') {
-    // macOS: /Library/Google/Chrome/NativeMessagingHosts/
-    return path.join('/Library', 'Google', 'Chrome', 'NativeMessagingHosts', `${HOST_NAME}.json`);
-  } else {
-    // Linux: /etc/opt/chrome/native-messaging-hosts/
-    return path.join('/etc', 'opt', 'chrome', 'native-messaging-hosts', `${HOST_NAME}.json`);
-  }
 }
 
 /**
@@ -186,6 +140,22 @@ async function ensureWindowsFilePermissions(packageDistDir: string): Promise<voi
 }
 
 /**
+ * Write Node.js path for run_host scripts to avoid fragile relative paths
+ */
+export async function writeNodePath(): Promise<void> {
+  try {
+    const nodePath = process.execPath;
+    const nodePathFile = path.join(__dirname, '..', 'node_path.txt');
+
+    console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
+    fs.writeFileSync(nodePathFile, nodePath, 'utf8');
+    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
+  } catch (error: any) {
+    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
+  }
+}
+
+/**
  * Create Native Messaging host manifest content
  * Defaults to Chromium-family format; Firefox uses allowed_extensions instead of allowed_origins
  */
@@ -233,6 +203,23 @@ function verifyWindowsRegistryEntry(registryKey: string, expectedPath: string): 
   }
 }
 
+function createWindowsRegistryCommand(registryKey: string, manifestPath: string): string {
+  const escapedPath = manifestPath.replace(/\\/g, '\\\\');
+  return `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
+}
+
+function writeWindowsRegistryEntry(registryKey: string, manifestPath: string): boolean {
+  const command = createWindowsRegistryCommand(registryKey, manifestPath);
+  execSync(command, { stdio: 'pipe' });
+  return verifyWindowsRegistryEntry(registryKey, manifestPath);
+}
+
+export function hasElevatedPermissions(): boolean {
+  const isRoot = Boolean(process.getuid && process.getuid() === 0);
+  const hasAdminRights = process.platform === 'win32' && isAdmin();
+  return isRoot || hasAdminRights;
+}
+
 /**
  * Try to register user-level Native Messaging host
  */
@@ -277,11 +264,7 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
         // Windows requires additional registry entries
         if (os.platform() === 'win32' && config.registryKey) {
           try {
-            const escapedPath = config.userManifestPath.replace(/\\/g, '\\\\');
-            const regCommand = `reg add "${config.registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
-            execSync(regCommand, { stdio: 'pipe' });
-
-            if (verifyWindowsRegistryEntry(config.registryKey, config.userManifestPath)) {
+            if (writeWindowsRegistryEntry(config.registryKey, config.userManifestPath)) {
               console.log(colorText(`[OK] Registry entry created for ${config.displayName}`, 'green'));
             } else {
               throw new Error('Registry verification failed');
@@ -324,17 +307,6 @@ export async function tryRegisterUserLevelHost(targetBrowsers?: BrowserType[]): 
   }
 }
 
-// Import is-admin package (only used on Windows platform)
-let isAdmin: () => boolean = () => false;
-if (process.platform === 'win32') {
-  try {
-    isAdmin = require('is-admin');
-  } catch (error) {
-    console.warn('Missing is-admin dependency, may not be able to correctly detect administrator permissions on Windows');
-    console.warn(error);
-  }
-}
-
 /**
  * Register system-level manifest with elevated permissions
  * Without arguments this keeps the historical Chrome-only behavior;
@@ -345,41 +317,40 @@ export async function registerWithElevatedPermissions(
 ): Promise<void> {
   const requestedBrowsers =
     targetBrowsers && targetBrowsers.length > 0 ? targetBrowsers : [BrowserType.CHROME];
-  const includeChromeFamily = requestedBrowsers.some((b) => b !== BrowserType.FIREFOX);
-  const includeFirefox = requestedBrowsers.includes(BrowserType.FIREFOX);
-
-  if (includeChromeFamily) {
-    await registerChromeSystemLevelHost();
-  }
-  if (includeFirefox) {
-    await registerFirefoxSystemLevelHost();
+  for (const browserType of requestedBrowsers) {
+    await registerSystemLevelHost(browserType);
   }
 }
 
 /**
- * Register system-level manifest for Chrome (original flow, unchanged)
+ * Register system-level manifest for one browser
+ * Chromium-family browsers use allowed_origins; Firefox uses allowed_extensions
+ * and the Mozilla registry hive on Windows
  */
-async function registerChromeSystemLevelHost(): Promise<void> {
+async function registerSystemLevelHost(browserType: BrowserType): Promise<void> {
+  const config = getBrowserConfig(browserType);
+  const browserArg = browserType === BrowserType.CHROME ? '' : ` --browser ${browserType}`;
+
   try {
-    console.log(colorText('Attempting to register system-level manifest...', 'blue'));
+    console.log(
+      colorText(`Attempting to register ${config.displayName} system-level manifest...`, 'blue'),
+    );
 
     // 1. Ensure execution permissions
     await ensureExecutionPermissions();
 
-    // 2. Prepare manifest content
-    const manifest = await createManifestContent();
+    // 2. Prepare browser-flavored manifest content
+    const manifest = await createManifestContent(browserType);
 
     // 3. Get system-level manifest path
-    const manifestPath = getSystemManifestPath();
+    const manifestPath = config.systemManifestPath;
 
     // 4. Create temporary manifest file
-    const tempManifestPath = path.join(os.tmpdir(), `${HOST_NAME}.json`);
+    const tempManifestPath = path.join(os.tmpdir(), `${HOST_NAME}.${browserType}.json`);
     await writeFile(tempManifestPath, JSON.stringify(manifest, null, 2));
 
     // 5. Detect if administrator permissions already exist
-    const isRoot = process.getuid && process.getuid() === 0; // Unix/Linux/Mac
-    const hasAdminRights = process.platform === 'win32' ? isAdmin() : false; // Windows platform administrator permission detection
-    const hasElevatedPermissions = isRoot || hasAdminRights;
+    const isElevated = hasElevatedPermissions();
 
     // Prepare command
     const command =
@@ -387,7 +358,7 @@ async function registerChromeSystemLevelHost(): Promise<void> {
         ? `if not exist "${path.dirname(manifestPath)}" mkdir "${path.dirname(manifestPath)}" && copy "${tempManifestPath}" "${manifestPath}"`
         : `mkdir -p "${path.dirname(manifestPath)}" && cp "${tempManifestPath}" "${manifestPath}" && chmod 644 "${manifestPath}"`;
 
-    if (hasElevatedPermissions) {
+    if (isElevated) {
       // Already have administrator permissions, execute command directly
       try {
         // Create directory
@@ -403,10 +374,15 @@ async function registerChromeSystemLevelHost(): Promise<void> {
           fs.chmodSync(manifestPath, '644');
         }
 
-        console.log(colorText('System-level manifest registration successful!', 'green'));
+        console.log(
+          colorText(`${config.displayName} system-level manifest registration successful!`, 'green'),
+        );
       } catch (error: any) {
         console.error(
-          colorText(`System-level manifest installation failed: ${error.message}`, 'red'),
+          colorText(
+            `${config.displayName} system-level manifest installation failed: ${error.message}`,
+            'red',
+          ),
         );
         throw error;
       }
@@ -433,28 +409,23 @@ async function registerChromeSystemLevelHost(): Promise<void> {
       console.log(
         colorText('  2. Or run the registration command with elevated privileges:', 'blue'),
       );
-      console.log(colorText(`     sudo ${COMMAND_NAME} register --system`, 'cyan'));
+      console.log(colorText(`     sudo ${COMMAND_NAME} register --system${browserArg}`, 'cyan'));
 
       throw new Error('Administrator privileges required for system-level installation');
     }
 
     // 6. Windows special handling - set system-level registry
-    if (os.platform() === 'win32') {
-      const registryKey = `HKLM\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
-      // Ensure path uses correct escape format
-      const escapedPath = manifestPath.replace(/\\/g, '\\\\');
-      const regCommand = `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
+    if (os.platform() === 'win32' && config.systemRegistryKey) {
+      const registryKey = config.systemRegistryKey;
+      const regCommand = createWindowsRegistryCommand(registryKey, manifestPath);
 
       console.log(colorText(`Creating system registry entry: ${registryKey}`, 'blue'));
       console.log(colorText(`Manifest path: ${manifestPath}`, 'blue'));
 
-      if (hasElevatedPermissions) {
+      if (isElevated) {
         // Already have administrator permissions, execute registry command directly
         try {
-          execSync(regCommand, { stdio: 'pipe' });
-
-          // Verify if registry entry was created successfully
-          if (verifyWindowsRegistryEntry(registryKey, manifestPath)) {
+          if (writeWindowsRegistryEntry(registryKey, manifestPath)) {
             console.log(colorText('Windows registry entry created successfully!', 'green'));
           } else {
             console.log(colorText('[WARNING] Registry entry created but verification failed', 'yellow'));
@@ -479,7 +450,7 @@ async function registerChromeSystemLevelHost(): Promise<void> {
         console.log(colorText('Or run the registration command with elevated privileges:', 'blue'));
         console.log(
           colorText(
-            `  Run Command Prompt as Administrator and execute: ${COMMAND_NAME} register --system`,
+            `  Run Command Prompt as Administrator and execute: ${COMMAND_NAME} register --system${browserArg}`,
             'cyan',
           ),
         );
@@ -488,121 +459,7 @@ async function registerChromeSystemLevelHost(): Promise<void> {
       }
     }
   } catch (error: any) {
-    console.error(colorText(`Registration failed: ${error.message}`, 'red'));
-    throw error;
-  }
-}
-
-/**
- * Register system-level manifest for Firefox
- * Mirrors the Chrome flow but uses Mozilla paths, Firefox manifest format
- * (allowed_extensions) and the Mozilla registry hive on Windows
- */
-async function registerFirefoxSystemLevelHost(): Promise<void> {
-  try {
-    console.log(colorText('Attempting to register Firefox system-level manifest...', 'blue'));
-
-    // 1. Ensure execution permissions
-    await ensureExecutionPermissions();
-
-    // 2. Prepare Firefox-flavored manifest content
-    const manifest = await createManifestContent(BrowserType.FIREFOX);
-
-    // 3. Get Firefox system-level manifest path and registry keys
-    const firefoxConfig = getBrowserConfig(BrowserType.FIREFOX);
-    const manifestPath = firefoxConfig.systemManifestPath;
-
-    // 4. Create temporary manifest file
-    const tempManifestPath = path.join(os.tmpdir(), `${HOST_NAME}.firefox.json`);
-    await writeFile(tempManifestPath, JSON.stringify(manifest, null, 2));
-
-    // 5. Detect if administrator permissions already exist
-    const isRoot = process.getuid && process.getuid() === 0; // Unix/Linux/Mac
-    const hasAdminRights = process.platform === 'win32' ? isAdmin() : false;
-    const hasElevatedPermissions = isRoot || hasAdminRights;
-
-    // Prepare command for manual instructions
-    const command =
-      os.platform() === 'win32'
-        ? `if not exist "${path.dirname(manifestPath)}" mkdir "${path.dirname(manifestPath)}" && copy "${tempManifestPath}" "${manifestPath}"`
-        : `mkdir -p "${path.dirname(manifestPath)}" && cp "${tempManifestPath}" "${manifestPath}" && chmod 644 "${manifestPath}"`;
-
-    if (hasElevatedPermissions) {
-      try {
-        // Create directory
-        if (!fs.existsSync(path.dirname(manifestPath))) {
-          fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
-        }
-
-        // Copy file
-        fs.copyFileSync(tempManifestPath, manifestPath);
-
-        // Set permissions (non-Windows platforms)
-        if (os.platform() !== 'win32') {
-          fs.chmodSync(manifestPath, '644');
-        }
-
-        console.log(colorText('Firefox system-level manifest registration successful!', 'green'));
-      } catch (error: any) {
-        console.error(
-          colorText(`Firefox system-level manifest installation failed: ${error.message}`, 'red'),
-        );
-        throw error;
-      }
-    } else {
-      // No administrator permissions, print manual operation instructions
-      console.log(
-        colorText('[WARNING] Administrator privileges required for system-level installation', 'yellow'),
-      );
-      console.log(
-        colorText(
-          'Please run one of the following commands with administrator privileges:',
-          'blue',
-        ),
-      );
-
-      if (os.platform() === 'win32') {
-        console.log(colorText('  1. Open Command Prompt as Administrator and run:', 'blue'));
-        console.log(colorText(`     ${command}`, 'cyan'));
-      } else {
-        console.log(colorText('  1. Run with sudo:', 'blue'));
-        console.log(colorText(`     sudo ${command}`, 'cyan'));
-      }
-
-      console.log(
-        colorText('  2. Or run the registration command with elevated privileges:', 'blue'),
-      );
-      console.log(colorText(`     sudo ${COMMAND_NAME} register --system --browser firefox`, 'cyan'));
-
-      throw new Error('Administrator privileges required for system-level installation');
-    }
-
-    // 6. Windows special handling - set system-level Mozilla registry
-    if (os.platform() === 'win32' && firefoxConfig.systemRegistryKey) {
-      const registryKey = firefoxConfig.systemRegistryKey;
-      const escapedPath = manifestPath.replace(/\\/g, '\\\\');
-      const regCommand = `reg add "${registryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
-
-      console.log(colorText(`Creating system registry entry: ${registryKey}`, 'blue'));
-      console.log(colorText(`Manifest path: ${manifestPath}`, 'blue'));
-
-      try {
-        execSync(regCommand, { stdio: 'pipe' });
-
-        // Verify if registry entry was created successfully
-        if (verifyWindowsRegistryEntry(registryKey, manifestPath)) {
-          console.log(colorText('Windows registry entry created successfully!', 'green'));
-        } else {
-          console.log(colorText('[WARNING] Registry entry created but verification failed', 'yellow'));
-        }
-      } catch (error: any) {
-        console.error(colorText(`Windows registry entry creation failed: ${error.message}`, 'red'));
-        console.error(colorText(`Command: ${regCommand}`, 'red'));
-        throw error;
-      }
-    }
-  } catch (error: any) {
-    console.error(colorText(`Firefox registration failed: ${error.message}`, 'red'));
+    console.error(colorText(`${config.displayName} registration failed: ${error.message}`, 'red'));
     throw error;
   }
 }

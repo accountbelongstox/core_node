@@ -12,7 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * Gemini text-completion answer record.
@@ -41,4 +41,9 @@ class AppQyV1GeminiTextResultModel extends Model
         'answer',
         'provider',
     ];
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
 }

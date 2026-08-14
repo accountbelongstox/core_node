@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import type { WfNewBookVerse } from '../../api';
 import type { WfNewReaderDisplayMode } from '../../api/types/bookProgress';
-import type { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { langCodeToBcp47 } from '../../utils/WordNewBookReaderA11y';
-import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
 import { WordNewAudioVariantPicker } from '../WordNewAudioVariantPicker';
 import type { WordNewAudioCellState } from '../../utils/WordNewAudioCellState';
 import { cellKeyOf, ttsStatusToCellState } from '../../utils/WordNewAudioCellState';
@@ -100,7 +100,7 @@ export const WordNewBookReaderVerseRow: React.FC<WordNewBookReaderVerseRowProps>
               trans={trans}
             />
           ) : null}
-          <WordNewAudioStatusIcon
+          <WordNewResourceStatusIcon
           state={text ? state : 'none'}
           queueKey={text ? sentenceAudioQueueKey(text, lang) : undefined}
           trans={trans}

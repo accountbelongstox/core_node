@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { BookOpen, Star, Volume2, ShieldCheck, Tag } from 'lucide-react';
-import { Word, WordGroup, ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word, WordGroup } from '../api/WfNewApiTypes';
 import { isDefaultVocabularyGroup } from '../api';
 import { wfNewStudyProgress } from './study/WfNewStudyProgress';
 

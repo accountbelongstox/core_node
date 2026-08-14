@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PyHeartbeat tick service — extract and article pipeline on separate locks."""
+"""PyHeartbeat tick service for serialized extraction and single-flight articles."""
 
 from __future__ import annotations
 
@@ -38,29 +38,6 @@ class _ExtractGate:
         self._owner._run_extract(force)
 
 
-class _PipelineGate:
-    """Serialized article pipeline pass — independent of extract.
-
-    A single pass may legitimately run for minutes (cold-loading a local TTS
-    engine is budgeted at ~5 minutes in worker.py), so the serialized timeout
-    must cover that budget; heartbeat ticks that arrive mid-run are skipped by
-    AgentHistoryTickService before they ever reach this queue.
-    """
-
-    def __init__(self, owner: "AgentHistoryTickService") -> None:
-        self._owner = owner
-        init_serialized_owner(
-            self,
-            "agent_history.pipeline",
-            "AgentHistoryPipeline",
-            timeout=600.0,
-        )
-
-    @serialized_method
-    def run(self) -> None:
-        self._owner._run_pipeline()
-
-
 class AgentHistoryTickService:
     """Singleton: extract and pipeline heartbeats with a lock-free status snapshot."""
 
@@ -68,12 +45,8 @@ class AgentHistoryTickService:
         self._extract_count = 0
         self._pipeline_count = 0
         self._last_summary: Dict[str, Any] = {}
-        # Busy flags: a heartbeat tick that arrives while a pass is still running
-        # is skipped outright instead of queueing on the serialized gate (queued
-        # ticks would each wait out the gate timeout and surface as spurious
-        # "Serialized operation timed out" callback errors).
+        # Coordinates heartbeat extraction with UI-requested extraction.
         self._extract_busy = threading.Event()
-        self._pipeline_busy = threading.Event()
         # Snapshot for UI polls — plain attribute reads, never waits on extract/pipeline.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
@@ -85,7 +58,6 @@ class AgentHistoryTickService:
             "pipeline_interval": PIPELINE_INTERVAL,
         }
         self._extract_gate = _ExtractGate(self)
-        self._pipeline_gate = _PipelineGate(self)
 
     def _publish_snapshot(self) -> None:
         self._snapshot = {
@@ -138,17 +110,11 @@ class AgentHistoryTickService:
             self._extract_busy.clear()
 
     def tick_pipeline(self) -> None:
-        """Heartbeat: at most one article batch (skipped while busy)."""
-        if self._pipeline_busy.is_set():
-            return
-        self._pipeline_busy.set()
-        try:
-            self._pipeline_gate.run()
-        finally:
-            self._pipeline_busy.clear()
+        """Heartbeat: run one article stage on the callback's single-flight thread."""
+        self._run_pipeline()
 
     def tick(self) -> None:
-        """Compatibility: run extract then pipeline (each on its own lock)."""
+        """Compatibility: run serialized extraction then the article pipeline."""
         self.tick_extract()
         self.tick_pipeline()
 

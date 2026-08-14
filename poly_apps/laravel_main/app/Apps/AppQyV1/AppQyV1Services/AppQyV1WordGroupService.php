@@ -7,9 +7,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 
 class AppQyV1WordGroupService
@@ -19,22 +16,16 @@ class AppQyV1WordGroupService
         int $libraryId,
         int $userId
     ): array {
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $libraryId, $userId) {
-            $library = AppQyV1VocabularyLibraryModel::findOrFail($libraryId);
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $libraryId, $userId) {
+            $library = AppQyV1VocabularyLibraryModel::requireById($libraryId);
 
             // Serialize concurrent adds for the same group: the row lock makes
             // the text-identity dedupe below race-safe (in-transaction state).
             // The progress row is keyed by the same group, so the group lock
             // plus the single-row JSON update keeps the merge atomic.
-            $lockedGroup = AppQyV1WordGroupModel::where('id', $group->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            $lockedGroup = AppQyV1WordGroupModel::lockById((int) $group->id);
 
-            $groupLibrary = AppQyV1GroupLibraryModel::create([
-                'group_id' => $lockedGroup->id,
-                'library_id' => $libraryId,
-                'added_at' => now(),
-            ]);
+            $groupLibrary = AppQyV1GroupLibraryModel::attachLibrary((int) $lockedGroup->id, $libraryId);
 
             $result = $this->addWordsFromLibrary($lockedGroup, $library, $userId);
 
@@ -53,7 +44,7 @@ class AppQyV1WordGroupService
         array $wordIds,
         int $userId
     ): array {
-        return DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($group, $wordIds, $userId) {
+        return AppQyV1WordGroupModel::runInTransaction(function () use ($group, $wordIds, $userId) {
             $languageCode = $this->resolveGroupLanguageCode($group);
             $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $languageCode);
             $lockedRow = AppQyV1GroupWordProgressModel::lockForGroup($group->id);
@@ -86,9 +77,11 @@ class AppQyV1WordGroupService
             // language (single language per group) selects the table.
             $validIds = [];
             $weights = [];
-            $rows = AppQyV1LangDictionaryModel::forLanguage($languageCode)
-                ->whereIn('id', $wordsToAdd)
-                ->get(['id', 'content']);
+            $rows = AppQyV1LangDictionaryModel::rowsByIds(
+                $languageCode,
+                $wordsToAdd,
+                ['id', 'content']
+            );
             foreach ($rows as $row) {
                 $validIds[] = (int) $row->id;
                 $weights[(int) $row->id] = strlen((string) $row->content);
@@ -106,7 +99,7 @@ class AppQyV1WordGroupService
                 $assignRandomPosition
             );
             if ($addedCount > 0) {
-                $progressRow->save();
+                $progressRow->saveRecord();
             }
 
             $this->clearGroupCache($group->gid, $userId);
@@ -205,7 +198,7 @@ class AppQyV1WordGroupService
         $addedCount = 0;
         if (!empty($newWordIds)) {
             $addedCount = $progressRow->putWords($newWordIds, (string) now(), $weights);
-            $progressRow->save();
+            $progressRow->saveRecord();
         }
 
         return [
@@ -235,9 +228,7 @@ class AppQyV1WordGroupService
         $cacheKey = "word_group:{$userId}:{$gid}";
 
         return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($gid, $userId) {
-            return AppQyV1WordGroupModel::forUser($userId)
-                ->byGid($gid)
-                ->first();
+            return AppQyV1WordGroupModel::findOwnedByGid($userId, $gid);
         });
     }
 
@@ -252,13 +243,7 @@ class AppQyV1WordGroupService
         $cacheKey = "user_groups:{$userId}:{$start}:{$limit}";
 
         return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($userId, $start, $limit) {
-            return AppQyV1WordGroupModel::forUser($userId)
-                ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid'])
-                ->with('wordProgress:id,group_id,total_words')
-                ->orderBy('created_at', 'desc')
-                ->skip($start)
-                ->take($limit)
-                ->get();
+            return AppQyV1WordGroupModel::userPageWithProgress($userId, $start, $limit);
         });
     }
 }

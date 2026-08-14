@@ -27,10 +27,10 @@ import {
   BookOpen, ChevronLeft, ChevronRight, Image as ImageIcon, LibraryBig,
   Loader2, RotateCw, Search, Star, Trash2,
 } from 'lucide-react';
-import { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import type { WfNewAdminLibrariesPage, WfNewAdminLibraryRow } from '../../api';
 import { wfNewAdminApi } from '../../api';
-import { laravelApi } from '@/core/api-libs/laravel';
+import { laravelApi } from '@/core/integrations/laravel';
 import { StorageManager } from '../../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../../persistence/WordNewStorageKeys';
 

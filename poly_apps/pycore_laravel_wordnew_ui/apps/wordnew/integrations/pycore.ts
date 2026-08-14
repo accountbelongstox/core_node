@@ -6,4 +6,4 @@ export {
   subscribe,
   ttsEngineBadgeLabel,
   ttsEngineUiState,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';

@@ -14,7 +14,7 @@ import {
 import { useShell } from '../../../shell/ShellContext';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from '../api';
+import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT } from '../api';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from '../api';
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
@@ -31,7 +31,8 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './WfNewHomeContent';
 
 // Modular Imports
-import { UserStats, ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
+import type { UserStats } from '../api/WfNewApiTypes';
 import { translate, getSupportedLanguages } from '../WfNewLocales';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewSearchOverlay } from './WfNewSearchOverlay';

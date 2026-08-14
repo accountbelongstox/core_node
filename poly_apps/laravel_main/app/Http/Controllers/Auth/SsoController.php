@@ -217,7 +217,7 @@ class SsoController extends Controller
             } else {
                 $userId = $sessionUser['id'] ?? null;
                 if ($userId && is_numeric($userId)) {
-                    $user = User::find($userId);
+                    $user = User::findById((int) $userId);
                     if ($user) {
                         $user = AvatarPublic::createAvatar($user, true);
                         $userArray = $user->toArray();
@@ -341,11 +341,7 @@ class SsoController extends Controller
      */
     private function authenticateWithLaravel(Request $request, string $identifier, string $password)
     {
-        $user = User::where(function($query) use ($identifier) {
-            $query->where('username', $identifier)
-                ->orWhere('email', $identifier)
-                ->orWhere('phone', $identifier);
-        })->first();
+        $user = User::findByUsernameEmailOrPhone($identifier);
 
         if (!$user) {
             return $this->error('The provided credentials do not match our records.', 401);
@@ -405,7 +401,7 @@ class SsoController extends Controller
     private function findOrCreateUserFromWorkOS($workosUser)
     {
         $email = $workosUser->email;
-        $user = User::where('email', $email)->first();
+        $user = User::findByEmail($email);
 
         if (!$user) {
             $firstName = $workosUser->firstName ?? '';
@@ -413,7 +409,7 @@ class SsoController extends Controller
             $fullName = trim($firstName . ' ' . $lastName);
             $username = $this->generateUsernameFromEmail($email);
 
-            $user = User::create([
+            $user = User::createRecord([
                 'email' => $email,
                 'username' => $username,
                 'nickname' => $fullName ?: $email,
@@ -436,7 +432,7 @@ class SsoController extends Controller
         $baseUsername = $username;
         $counter = 1;
 
-        while (User::where('username', $username)->exists()) {
+        while (User::usernameExists($username)) {
             $username = $baseUsername . $counter;
             $counter++;
         }
@@ -449,9 +445,7 @@ class SsoController extends Controller
      */
     public function logout(Request $request)
     {
-        if ($request->user() && $request->user()->currentAccessToken()) {
-            $request->user()->currentAccessToken()->delete();
-        }
+        $request->user()?->revokeCurrentAccessToken();
         
         Auth::logout();
         $request->session()->invalidate();
@@ -462,4 +456,3 @@ class SsoController extends Controller
         return $this->success([], 'Logged out successfully');
     }
 }
-

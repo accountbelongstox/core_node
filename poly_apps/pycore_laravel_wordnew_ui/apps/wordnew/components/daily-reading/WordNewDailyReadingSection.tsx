@@ -8,16 +8,13 @@ import {
   BookOpen,
   ChevronDown,
   Headphones,
-  History,
   Home,
   ListMusic,
   Loader2,
   Newspaper,
   RefreshCw,
-  Shuffle,
-  Sparkles,
 } from 'lucide-react';
-import type { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { fetchDailyReadings, requestDailyReadingAudio, type DailyReadingRow } from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
 import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOverlay';
@@ -34,32 +31,25 @@ interface Props {
   onGoHome?: () => void;
   /** Open the dedicated player page when this section is used as a home preview. */
   onOpenPage?: (articleId: string) => void;
+  onPlaybackStateChange?: (state: { open: boolean; playing: boolean }) => void;
 }
 
 const POLL_MS = 12_000;
 const SELECTION_MODE_OPTIONS: Array<{
   value: WfNewDailyReadingSelectionMode;
   labelKey: string;
-  hintKey: string;
-  icon: typeof Sparkles;
 }> = [
   {
     value: 'latest',
     labelKey: 'home.dailyReading.startLatest',
-    hintKey: 'home.dailyReading.startLatestHint',
-    icon: Sparkles,
   },
   {
     value: 'resume',
     labelKey: 'home.dailyReading.startResume',
-    hintKey: 'home.dailyReading.startResumeHint',
-    icon: History,
   },
   {
     value: 'random',
     labelKey: 'home.dailyReading.startRandom',
-    hintKey: 'home.dailyReading.startRandomHint',
-    icon: Shuffle,
   },
 ];
 
@@ -70,7 +60,15 @@ function readDailyHashId(): string | null {
   return match?.[1] ? decodeURIComponent(match[1]) : null;
 }
 
-export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOpenBook, routeMode = false, onGoHome, onOpenPage }) => {
+export const WordNewDailyReadingSection: React.FC<Props> = ({
+  theme,
+  trans,
+  onOpenBook,
+  routeMode = false,
+  onGoHome,
+  onOpenPage,
+  onPlaybackStateChange,
+}) => {
   const [rows, setRows] = useState<DailyReadingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +79,14 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
   const mounted = useRef(true);
   const deepLinkHandled = useRef(false);
   const player = useDailyReadingPlayer();
+
+  useEffect(() => {
+    onPlaybackStateChange?.({ open: player.open, playing: player.playing });
+  }, [onPlaybackStateChange, player.open, player.playing]);
+
+  useEffect(() => () => {
+    onPlaybackStateChange?.({ open: false, playing: false });
+  }, [onPlaybackStateChange]);
 
   /** Start the player and reflect the playing article in the URL hash. */
   const startPlayer = useCallback((startId?: string) => {
@@ -94,6 +100,7 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
     }
     articleId ??= playableRows[0]?.id;
     if (!articleId) return;
+    setSavedArticleId(articleId);
     if (wfNewApi.isAuthenticated()) {
       void wfNewApi.saveDailyReadingProgress(articleId, selectionMode).then((progress) => {
         if (progress && mounted.current) setSavedArticleId(progress.articleId);
@@ -257,36 +264,20 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({ theme, trans, onOp
         </div>
 
         {routeMode && (
-          <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label={trans('home.dailyReading.startMode')}>
-            {SELECTION_MODE_OPTIONS.map((option) => {
-              const ModeIcon = option.icon;
-              const selected = selectionMode === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => changeSelectionMode(option.value)}
-                  className={`group flex items-start gap-3 rounded-2xl border p-4 text-left transition-all ${selected
-                    ? 'border-indigo-400/50 bg-indigo-500/15 shadow-lg shadow-indigo-950/20'
-                    : 'border-white/5 bg-slate-950/35 hover:border-indigo-500/25 hover:bg-slate-900/60'}`}
-                >
-                  <span className={`rounded-xl p-2 ${selected ? 'bg-indigo-500 text-white' : 'bg-white/5 text-zinc-500 group-hover:text-indigo-300'}`}>
-                    <ModeIcon className="w-4 h-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className={`block text-sm font-bold ${selected ? 'text-indigo-200' : 'text-zinc-200'}`}>
-                      {trans(option.labelKey)}
-                    </span>
-                    <span className="block mt-1 text-[11px] leading-relaxed text-zinc-500">
-                      {trans(option.hintKey)}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <label className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
+            <span>{trans('home.dailyReading.startMode')}</span>
+            <select
+              value={selectionMode}
+              onChange={(event) => changeSelectionMode(event.target.value as WfNewDailyReadingSelectionMode)}
+              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
+            >
+              {SELECTION_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {trans(option.labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
 
         {routeMode && (

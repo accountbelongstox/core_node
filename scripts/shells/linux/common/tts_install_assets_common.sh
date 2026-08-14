@@ -410,12 +410,12 @@ _hf_download_file() {
 install_hf_repo_flat() {
     local repo="$1" dest="$2" sentinel="$3" prefix="$4"
     shift 4 || true
-    local allow_raw="${1:-*}" mirror="${2:-$(_hf_mirror_base)}" sentinel_value="${3:-$repo}" py="${4:-python3}"
+    local allow_raw="${1:-*}" mirror="${2:-$(_hf_mirror_base)}" sentinel_value="${3:-$repo}" py="${4:-python3}" reconcile="${5:-0}"
     local -a allow=()
     local name all_ok=1 count=0 total=0 catalog_bytes=0 local_bytes=0
     IFS=',' read -r -a allow <<< "$allow_raw"
     mkdir -p "$dest"
-    if neural_tts_local_weights_ready "$dest" "$repo" "$py"; then
+    if [[ "$reconcile" -ne 1 && -f "$sentinel" ]] && neural_tts_local_weights_ready "$dest" "$repo" "$py"; then
         local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
         printf '%s\n' "$sentinel_value" > "$sentinel"
         echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
@@ -451,12 +451,19 @@ install_hf_repo_flat() {
 }
 
 neural_tts_local_weights_ready() {
-    local dir="$1" repo="${2:-}" py="${3:-python3}"
+    local dir="$1" repo="${2:-}" py="${3:-python3}" required_manifest="${4:-}"
     local catalog="" expected=0 f="" file_size=0 rel="" total_bytes=0 weight_count=0
+    local required_path=""
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
     if [[ -n "$repo" ]]; then
         catalog="$(_hf_repo_catalog "$repo" || true)"
+    fi
+    if [[ -n "$required_manifest" ]]; then
+        while IFS= read -r required_path; do
+            [[ -n "$required_path" && "$required_path" != \#* ]] || continue
+            [[ -s "${dir%/}/$required_path" ]] || return 1
+        done < "$required_manifest"
     fi
     while IFS= read -r -d '' f; do
         weight_count=$((weight_count + 1))

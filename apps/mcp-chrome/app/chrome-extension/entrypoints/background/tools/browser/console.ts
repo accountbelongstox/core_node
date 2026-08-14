@@ -1,7 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { captureConsoleMessagesFirefox } from './console-firefox';
+import { delay as waitForDelay } from '@/utils/async';
 
 const DEBUGGER_PROTOCOL_VERSION = '1.3';
 const DEFAULT_MAX_MESSAGES = 100;
@@ -91,15 +92,7 @@ class ConsoleTool extends BaseBrowserToolExecutor {
         types,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result);
     } catch (error: any) {
       console.error('ConsoleTool: Critical error during execute:', error);
       return createErrorResponse(`Error in ConsoleTool: ${error.message || String(error)}`);
@@ -256,7 +249,7 @@ class ConsoleTool extends BaseBrowserToolExecutor {
         await chrome.debugger.sendCommand({ tabId }, 'Log.enable');
 
         // Wait for all messages to be flushed
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await waitForDelay(2000);
 
         // Process collected messages
         for (const entry of collectedMessages) {

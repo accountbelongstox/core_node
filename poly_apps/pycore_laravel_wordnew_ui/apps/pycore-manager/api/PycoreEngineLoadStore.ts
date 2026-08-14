@@ -14,11 +14,11 @@
  * (per-tile loading/error badges). One store, single-flight polling.
  */
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import { pycoreApi } from '../../../core/api-libs/pycore/PycoreApi';
-import { subscribe } from '../../../core/api-libs/pycore/PycoreHttp';
-import { PYCORE_EVENT_TOPICS } from '../../../core/api-libs/pycore/PycoreEventTopics';
-import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/api-libs/pycore/PycoreNetwork';
-import type { EngineLoadStatusEntry, EngineLoadState } from '../../../core/api-libs/pycore/pycoreTypes';
+import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
+import { subscribe } from '../../../core/integrations/pycore/PycoreHttp';
+import { PYCORE_EVENT_TOPICS } from '../../../core/integrations/pycore/PycoreEventTopics';
+import { PYCORE_BROWSER_EVENTS, PYCORE_HTTP_DEFAULTS } from '../../../core/integrations/pycore/PycoreNetwork';
+import type { EngineLoadStatusEntry, EngineLoadState } from '../../../core/integrations/pycore/pycoreTypes';
 
 export const PYCORE_ENGINE_LOAD_EVENT = PYCORE_BROWSER_EVENTS.engineLoadChanged;
 

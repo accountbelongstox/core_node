@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
-import { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewAdminApi } from '../../api';
 import type { WfNewAdminLangRow, WfNewAdminStatistics } from '../../api';
 

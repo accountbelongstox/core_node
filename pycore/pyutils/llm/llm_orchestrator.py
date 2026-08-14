@@ -6,9 +6,8 @@ LLM server and runs an OpenAI-compatible chat completion against it.
 Priority (highest first): ollama -> lmstudio -> llamacpp
 (override with env ``LLM_ENGINE_PRIORITY``, e.g. ``lmstudio->ollama``).
 
-Lifecycle: this module owns priority only. For every candidate it calls
-``prepare_server_for_use(name)`` and wraps the HTTP call in
-``managed_services.using(name)`` so the shared lifecycle contract
+Lifecycle: this module owns priority only. Every HTTP call holds a
+``managed_services.lease(name)`` so the shared lifecycle contract
 (single-active, busy protection, idle unload) applies — the same pattern the
 TTS orchestrator uses for class-C servers. Only ollama is auto-started;
 lmstudio/llamacpp are external servers used only while already running.
@@ -23,24 +22,19 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.llm.llm_engines import (
     chat_completion_raw,
-    base_url,
-    default_model,
-    engine_healthy,
-    engine_installed,
-    engine_note,
     engine_priority,
+    llm_engine_registry,
 )
 from pycore.pyutils.llm.llm_service_manager import (
     get_server_settings,
     is_llm_engine,
-    prepare_server_for_use,
-    record_server_use,
     server_runtime_status,
 )
 
 
 def engine_available(name: str) -> bool:
-    return engine_healthy(name)
+    adapter = llm_engine_registry.get(name)
+    return bool(adapter and adapter.healthy())
 
 
 def best_engine() -> Optional[str]:
@@ -50,11 +44,16 @@ def best_engine() -> Optional[str]:
     return None
 
 
-def _engine_disabled_reason(name: str) -> Optional[str]:
+def _engine_disabled_reason(
+    name: str,
+    available: Optional[bool] = None,
+) -> Optional[str]:
     """UI hint when an engine is off (not installed, or server down)."""
-    if engine_available(name):
+    is_available = engine_available(name) if available is None else available
+    if is_available:
         return None
-    if is_llm_engine(name) and engine_installed(name):
+    adapter = llm_engine_registry.get(name)
+    if is_llm_engine(name) and adapter and adapter.installed():
         return "server not running (auto-start on use when enabled)"
     if name == "ollama":
         return "ollama binary not found — install Ollama"
@@ -66,18 +65,21 @@ def llm_status() -> Dict[str, Any]:
     tts_status(): success/best/active/available_count/engines[]."""
     engines: List[Dict[str, Any]] = []
     for i, name in enumerate(engine_priority()):
-        avail = engine_available(name)
+        adapter = llm_engine_registry.get(name)
+        if adapter is None:
+            continue
+        avail = adapter.healthy()
         entry: Dict[str, Any] = {
             "name": name,
             "priority": i + 1,
             "available": avail,
-            "installed": engine_installed(name),
-            "note": engine_note(name),
-            "base_url": base_url(name),
-            "default_model": default_model(name),
+            "installed": adapter.installed(),
+            "note": adapter.note,
+            "base_url": adapter.base_url,
+            "default_model": adapter.default_model,
         }
         entry.update(server_runtime_status(name))
-        reason = _engine_disabled_reason(name)
+        reason = _engine_disabled_reason(name, avail)
         if reason:
             entry["disabled_reason"] = reason
         engines.append(entry)
@@ -104,10 +106,8 @@ def chat(
 ) -> Dict[str, Any]:
     """Run one chat completion on the best available local engine.
 
-    Walks the priority chain (or the single requested ``engine``): for each
-    candidate the server is prepared (auto-start when the llm category allows)
-    and the HTTP call runs inside ``managed_services.using(name)``; on failure
-    the next engine is tried. Returns
+    Walks the priority chain (or the single requested ``engine``). Each call
+    acquires one managed-service lease; on failure the next engine is tried. Returns
     ``{success, provider: "local", engine, model, text, error}`` — success=False
     with a clear error when no local engine works (caller falls back to
     OpenRouter)."""
@@ -115,27 +115,25 @@ def chat(
     tried: List[str] = []
     last_error: Optional[str] = None
     for name in candidates:
-        if not is_llm_engine(name):
+        adapter = llm_engine_registry.get(name)
+        if adapter is None or not is_llm_engine(name):
             last_error = f"unknown llm engine: {name}"
             continue
-        try:
-            prepare_server_for_use(name)
-        except Exception as e:  # noqa: BLE001 — proceed; the call decides
-            ColorPrint.yellow(f"[llm] prepare {name} failed: {e}")
-        if not engine_available(name):
-            last_error = f"{name}: server not reachable"
-            continue
-        use_model = (model or "").strip() or default_model(name)
+        use_model = (model or "").strip() or adapter.default_model
         tried.append(name)
-        with managed_services.using(name):
-            res = chat_completion_raw(
-                messages,
-                base=base_url(name),
-                model=use_model,
-                temperature=temperature,
-            )
+        try:
+            with managed_services.lease(name):
+                res = chat_completion_raw(
+                    messages,
+                    base=adapter.base_url,
+                    model=use_model,
+                    temperature=temperature,
+                )
+        except Exception as exc:  # noqa: BLE001
+            last_error = f"{name}: {exc}"
+            ColorPrint.yellow(f"[llm] {name} unavailable ({exc}); trying next engine")
+            continue
         if res.get("success"):
-            record_server_use(name)
             return {
                 "success": True,
                 "provider": "local",

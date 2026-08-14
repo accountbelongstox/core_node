@@ -61,7 +61,7 @@ class AppQyV1DailyReadingLibraryDefaults
      */
     public static function ensureLibrary(): AppQyV1VocabularyLibraryModel
     {
-        $library = AppQyV1VocabularyLibraryModel::where('source', self::LIBRARY_SOURCE)->first();
+        $library = AppQyV1VocabularyLibraryModel::findBySource(self::LIBRARY_SOURCE);
         if ($library) {
             return $library;
         }
@@ -77,7 +77,7 @@ class AppQyV1DailyReadingLibraryDefaults
             'category' => self::LIBRARY_CATEGORY,
             'word_ids' => [],
         ]);
-        $library->save();
+        $library->saveRecord();
 
         return $library;
     }
@@ -85,6 +85,6 @@ class AppQyV1DailyReadingLibraryDefaults
     /** True when the code-owned daily-reading library already exists. */
     public static function isSeeded(): bool
     {
-        return AppQyV1VocabularyLibraryModel::where('source', self::LIBRARY_SOURCE)->exists();
+        return AppQyV1VocabularyLibraryModel::sourceExists(self::LIBRARY_SOURCE);
     }
 }

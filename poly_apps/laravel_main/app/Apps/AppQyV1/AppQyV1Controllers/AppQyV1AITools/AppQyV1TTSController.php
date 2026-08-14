@@ -273,7 +273,6 @@ class AppQyV1TTSController extends Controller
             'words.*.text' => 'nullable|string|max:255',
             'words.*.language' => 'nullable|string|max:10',
             'words.*.languageCode' => 'nullable|string|max:10',
-            'words.*.priority' => 'nullable|integer|min:0|max:100',
         ]);
 
         $queued = [];
@@ -291,12 +290,7 @@ class AppQyV1TTSController extends Controller
             if (!$language) {
                 $language = 'en'; // Default to English if not provided
             }
-            $priority = 0;
-            if (isset($item['priority'])) {
-                $priority = $item['priority'];
-            }
-
-            $result = $this->queueService->requestAudio($word, $language, $priority);
+            $result = $this->queueService->requestAudio($word, $language);
 
             if ($result === null) {
                 $queued[] = [
@@ -425,7 +419,6 @@ class AppQyV1TTSController extends Controller
                     'status' => $status,
                     'audio_path' => $audioPath,
                     'audio_url' => $audioUrl,
-                    'priority' => (int) $dictEntry->tts_priority,
                 ];
 
                 if ($retryCount > 0) {

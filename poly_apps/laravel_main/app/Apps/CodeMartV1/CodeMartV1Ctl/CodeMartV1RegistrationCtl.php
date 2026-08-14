@@ -50,7 +50,7 @@ class CodeMartV1RegistrationCtl extends Controller
 
         CodeMartV1UserModel::beginModelTransaction();
 
-        $user = CodeMartV1UserModel::create([
+        $user = CodeMartV1UserModel::createRecord([
             'username' => $request->username,
             'email' => $request->email,
             'password' => Hash::make($request->password),
@@ -59,7 +59,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'rolelevel' => 0,
         ]);
 
-        CodeMartV1UserRoleModel::create([
+        CodeMartV1UserRoleModel::createRecord([
             'user_id' => $user->id,
             'role_type' => $request->role_type,
             'role_status' => 'pending',
@@ -94,13 +94,13 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error('Invalid or expired verification token', 422);
         }
 
-        $user = CodeMartV1UserModel::where('email', $request->email)->first();
+        $user = CodeMartV1UserModel::findByEmail((string) $request->email);
 
         if (!$user) {
             return $this->notFound('User not found');
         }
 
-        $user->update(['email_verified_at' => now()]);
+        $user->updateRecord(['email_verified_at' => now()]);
 
         return $this->success([
             'user_id' => $user->id,
@@ -193,7 +193,7 @@ class CodeMartV1RegistrationCtl extends Controller
             return $this->error('File upload failed', 500);
         }
 
-        $kycVerification = CodeMartV1KycVerificationModel::create([
+        $kycVerification = CodeMartV1KycVerificationModel::createRecord([
             'user_id' => $user->id,
             'identity_type' => $request->identity_type,
             'identity_number' => $request->identity_number,
@@ -219,25 +219,17 @@ class CodeMartV1RegistrationCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userModel = CodeMartV1UserModel::with([
-            'userRoles',
-            'phoneVerifications',
-            'kycVerification',
-        ])->find($user->id);
+        $userModel = CodeMartV1UserModel::findRegistration((int) $user->id);
 
         if (!$userModel) {
             return $this->notFound('User not found');
         }
 
         $emailVerified = $userModel->email_verified_at !== null;
-        $phoneVerified = $userModel->phoneVerifications()
-            ->where('verified_at', '!=', null)
-            ->exists();
+        $phoneVerified = $userModel->hasVerifiedPhone();
 
         $kycStatus = $userModel->kycVerification?->verification_status ?? 'not_started';
-        $userRoles = $userModel->userRoles()
-            ->pluck('role_status', 'role_type')
-            ->toArray();
+        $userRoles = $userModel->roleStatusMap();
 
         return $this->success([
             'user_id' => $userModel->id,
@@ -247,18 +239,7 @@ class CodeMartV1RegistrationCtl extends Controller
             'phone_verified' => $phoneVerified,
             'kyc_status' => $kycStatus,
             'roles' => $userRoles,
-            'registration_complete' => $this->isRegistrationComplete($userModel),
+            'registration_complete' => $userModel->isRegistrationComplete(),
         ]);
-    }
-
-    private function isRegistrationComplete(CodeMartV1UserModel $user): bool
-    {
-        $emailVerified = $user->email_verified_at !== null;
-        $phoneVerified = $user->phoneVerifications()
-            ->where('verified_at', '!=', null)
-            ->exists();
-        $kycApproved = $user->kycVerification?->isApproved() ?? false;
-
-        return $emailVerified && $phoneVerified && $kycApproved;
     }
 }

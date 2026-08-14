@@ -37,6 +37,7 @@ $FILES = @(
     'scripts/shells/win/win_common/SecretDecryptionCheck.ps1',
     'scripts/shells/win/win_common/SecretEncryptionCheck.ps1',
     'scripts/shells/win/win_common/InstallerScriptsList.ps1',
+    'scripts/shells/common/pi_harness_settings.js',
     'scripts/shells/win/install_powershells/Step1_InitializeBaseDirectories.ps1',
     'scripts/shells/win/install_powershells/Step2_SetBaseSettings.ps1',
     'scripts/shells/win/install_powershells/Step3_InitWinget.ps1',
@@ -76,6 +77,7 @@ $FILES = @(
     'scripts/shells/win/install_powershells/Step38_InstallQwen25.ps1',
     'scripts/shells/win/install_powershells/Step39_InstallNLLB200.ps1',
     'scripts/shells/win/install_powershells/Step40_InstallNSSM.ps1',
+    'scripts/shells/win/install_powershells/Step41_InstallPiHarness.ps1',
     'scripts/shells/win/install_powershells/Step51_InstallChatTts.ps1',
     'scripts/shells/win/install_powershells/Step52_InstallCosyVoice.ps1',
     'scripts/shells/win/install_powershells/Step53_InstallF5Tts.ps1',
@@ -200,5 +202,3 @@ if ($failed.Count -gt 0) {
 } else {
     Write-Host 'All files downloaded successfully.' -ForegroundColor Green
 }
-
-

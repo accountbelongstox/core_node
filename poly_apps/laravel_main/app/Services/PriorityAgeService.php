@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\GlobalTask;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Priority aging — anti-starvation for the queue.
@@ -32,21 +31,15 @@ class PriorityAgeService
         $increment = max(1, $incrementValue);
         $cutoff = now()->subMinutes(max(1, $ageThresholdMinutes));
 
-        $ids = GlobalTask::pending()
-            ->where('priority', '<=', $cap - $increment)
-            ->where('created_at', '<', $cutoff)
-            ->orderBy('created_at', 'asc')
-            ->limit(max(1, $maxCount))
-            ->pluck('id');
+        $ids = GlobalTask::ageablePriorityIds($cutoff, $cap - $increment, max(1, $maxCount));
 
-        if ($ids->isEmpty()) {
+        if ($ids === []) {
             return 0;
         }
 
         // priority <= cap - increment guarantees priority + increment <= cap for
         // ANY increment, so the raw arithmetic bump can never reach PRIORITY_FAST
         // and stays cross-DB safe (no LEAST/MIN needed).
-        return (int) GlobalTask::whereIn('id', $ids)
-            ->update(['priority' => DB::raw('priority + ' . $increment)]);
+        return GlobalTask::incrementPriorityForIds($ids, $increment);
     }
 }

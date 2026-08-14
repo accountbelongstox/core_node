@@ -83,12 +83,7 @@ class AppQyV1StudyGenWriteback
             }
 
             // The language-independent slot row carries lang_content_ids + corr_id.
-            $link = SourceSentence::query()
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->where('grain', $grain)
-                ->where('seq', $seq)
-                ->first();
+            $link = SourceSentence::findSlot($sourceType, $sourceKey, $grain, $seq);
 
             $linkMap = ($link && is_array($link->lang_content_ids)) ? $link->lang_content_ids : [];
             $linkChanged = false;
@@ -132,7 +127,7 @@ class AppQyV1StudyGenWriteback
 
             if ($link && $linkChanged) {
                 $link->lang_content_ids = $linkMap;
-                $link->save();
+                $link->saveRecord();
             }
         }
 
@@ -146,7 +141,7 @@ class AppQyV1StudyGenWriteback
             if ($code === '' || !AppQyV1TableMaps::isLanguageSupported($code) || $text === '') {
                 continue;
             }
-            StudyPhrase::create([
+            StudyPhrase::createRecord([
                 'segment_id' => (int) $segment->id,
                 'source_type' => $sourceType,
                 'source_key' => $sourceKey,
@@ -168,7 +163,7 @@ class AppQyV1StudyGenWriteback
             if ($code === '' || !AppQyV1TableMaps::isLanguageSupported($code) || $label === '') {
                 continue;
             }
-            StudyGrammarPoint::create([
+            StudyGrammarPoint::createRecord([
                 'segment_id' => (int) $segment->id,
                 'source_type' => $sourceType,
                 'source_key' => $sourceKey,
@@ -195,7 +190,7 @@ class AppQyV1StudyGenWriteback
      */
     private function upsertSentence(string $code, string $contentId, string $text, string $corrId, ?string $explanation, array &$counters): void
     {
-        $row = LangSentence::onLang($code)->where('content_id', $contentId)->first();
+        $row = LangSentence::findByContentId($code, $contentId);
 
         if (!$row) {
             $model = LangSentence::for($code);
@@ -211,7 +206,7 @@ class AppQyV1StudyGenWriteback
                 $model->explanation = $explanation;
                 $counters['explanations_filled']++;
             }
-            $model->save();
+            $model->saveRecord();
             $counters['sentences_inserted']++;
             return;
         }
@@ -230,7 +225,7 @@ class AppQyV1StudyGenWriteback
             $counters['explanations_filled']++;
         }
         $row->occurrence_count = (int) $row->occurrence_count + 1;
-        $row->save();
+        $row->saveRecord();
     }
 
     /** Empty test for the fill-missing rule (null / whitespace-only string). */

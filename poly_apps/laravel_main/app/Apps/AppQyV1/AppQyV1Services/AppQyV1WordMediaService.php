@@ -12,7 +12,6 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Models\GlobalTask;
 use App\Providers\PathMapper;
 use App\Services\TaskManagerService;
@@ -31,13 +30,13 @@ use Illuminate\Support\Facades\Log;
  * When media is missing the word becomes a 'word_media' global task (pulled via
  * the existing worker channel GET /api/worker/tasks/pull -> POST
  * /api/worker/tasks/result -> AppQyV1WordTranslationWriteback::apply) AND is
- * enqueued onto the per-language image and canonical TTS queues. A query bumps
- * every layer to the front.
+ * enqueued onto the per-language image queue and canonical audio gateway. A
+ * query moves missing word audio to the global queue head.
  *
  * PRIORITY model:
  *   - global_tasks.priority (higher = sooner): PRIORITY_FRONT on bump.
- *   - dictionary image_priority: PRIORITY_FRONT on bump; dictionary
- *     tts_priority: move-to-front ticket (MAX+1) via the boost-priority endpoint.
+ *   - dictionary image_priority: PRIORITY_FRONT on bump.
+ *   - word_audio: global_tasks.queue_position head ticket.
  */
 class AppQyV1WordMediaService
 {
@@ -47,7 +46,7 @@ class AppQyV1WordMediaService
     /** Default word_media global_tasks.priority for a backfill enqueue. */
     const TASK_PRIORITY_DEFAULT = 30;
 
-    /** Per-repeat escalation step for a word_media/word_audio task that is
+    /** Per-repeat escalation step for a word_media task that is
      *  already at the front and gets requested again (visible-page re-request).
      *  Lets repeated/visible requests outrank one-shot page bumps (target #2)
      *  without unbounded growth. */
@@ -60,9 +59,6 @@ class AppQyV1WordMediaService
 
     /** Max words bundled into one word_media global task. */
     const MAX_WORDS_PER_TASK = 40;
-
-    /** Max audio variants emitted per word in the API payload. */
-    const MAX_AUDIO_VARIANTS = 20;
 
     /**
      * Legacy metadata keys inside the translations json that are NOT target
@@ -85,15 +81,91 @@ class AppQyV1WordMediaService
 
     protected TaskManagerService $taskManager;
     protected AppQyV1WordImageQueueService $imageQueue;
+    protected AppQyV1AudioGateway $audioGateway;
 
     public function __construct()
     {
         $this->taskManager = app(TaskManagerService::class);
         $this->imageQueue = new AppQyV1WordImageQueueService();
+        $this->audioGateway = new AppQyV1AudioGateway();
+    }
+
+    public function fixWordText(string $md5, string $language, string $cleanedWord): array
+    {
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+
+        try {
+            $updated = AppQyV1LangDictionaryModel::updateValidWordText($langCode, $md5, $cleanedWord);
+            Log::info('[WordMedia] fixWordText applied', [
+                'language' => $langCode,
+                'md5' => $md5,
+                'cleaned_word' => $cleanedWord,
+                'updated' => $updated,
+            ]);
+
+            return ['success' => true, 'updated' => $updated];
+        } catch (\Throwable $exception) {
+            Log::warning('[WordMedia] fixWordText failed: ' . $exception->getMessage());
+
+            return [
+                'success' => false,
+                'message' => 'DB error: ' . $exception->getMessage(),
+            ];
+        }
+    }
+
+    public function missingAudioBatch(string $language, int $limit): array
+    {
+        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+        $words = [];
+
+        try {
+            $columns = AppQyV1LangDictionaryModel::languageColumnAvailability($langCode, [
+                'has_audio',
+                'is_valid',
+                'tts_status',
+                'content',
+                'audio_files',
+                'tts_files',
+            ]);
+            $hasHasAudio = $columns['has_audio'];
+            $hasIsValid = $columns['is_valid'];
+            $hasTtsStatus = $columns['tts_status'];
+            $hasContent = $columns['content'];
+            $rows = AppQyV1LangDictionaryModel::missingAudioBatchRows($langCode, $limit, $columns);
+            if ($hasContent) {
+                $rows = (new AppQyV1DictionaryTTSCoordinator())
+                    ->filterTrulyMissingWords($langCode, $rows);
+            }
+
+            foreach ($rows as $row) {
+                $words[] = [
+                    'word' => $hasContent ? (string) $row->content : '',
+                    'md5' => (string) $row->md5,
+                    'language' => $langCode,
+                ];
+            }
+        } catch (\Throwable $exception) {
+            Log::warning('[WordMedia] missingAudioBatch failed: ' . $exception->getMessage());
+
+            return [
+                'success' => false,
+                'error' => 'Internal error: ' . $exception->getMessage(),
+                'language' => $langCode,
+                'words' => [],
+            ];
+        }
+
+        return [
+            'success' => true,
+            'language' => $langCode,
+            'count' => count($words),
+            'words' => $words,
+        ];
     }
 
     /**
-     * Resolve a word's media file-first; enqueue + prioritize on any miss.
+     * Resolve a word's media file-first and queue missing resources.
      *
      * @param string $word           The word text.
      * @param string $language       Source/library language (name or code).
@@ -123,7 +195,19 @@ class AppQyV1WordMediaService
         $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
 
         $imageUrl = $row ? $this->resolveImageUrl($row) : null;
-        $audioPick = $row ? $this->resolveAudioPick($row, $accent) : ['url' => null, 'accent' => null, 'fallback' => false];
+        $audioState = $this->audioGateway->requestWord(
+            $word,
+            $langCode,
+            $accent,
+            $enqueueMissing,
+            $bumpFront
+        );
+        $audioPick = [
+            'url' => $audioState['audio_url'],
+            'accent' => $audioState['audio_accent'],
+            'fallback' => $audioState['accent_fallback'],
+        ];
+        $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
         $audioUrl = $audioPick['url'];
         $audioAccent = $audioPick['accent'];
         $accentFallback = $audioPick['fallback'];
@@ -151,13 +235,6 @@ class AppQyV1WordMediaService
                 $this->imageQueue->add($word, $langCode, $position);
             }
 
-            if (!$hasAudio) {
-                // Notify Laravel's canonical queue immediately. The persistent
-                // Pycore worker owns the real-pronunciation lookup and TTS
-                // fallback, so this request never waits on an external source.
-                $this->enqueueTts($word, $langCode, $position);
-            }
-
             // Independent lanes: mcp-chrome owns images, pycore owns Google
             // translation, and the word-audio worker owns pronunciation.
             $this->ensureWordMediaTask(
@@ -181,7 +258,7 @@ class AppQyV1WordMediaService
             // here keeps a hot word cheap.
         }
 
-        $audioFilesPayload = $row ? $this->audioVariantsForApi($row, $langCode) : [];
+        $audioFilesPayload = $audioState['audio_files'];
         return [
             'word' => $word,
             'md5' => $md5,
@@ -196,6 +273,11 @@ class AppQyV1WordMediaService
             // alias (same payload) for backward compatibility with older FEs.
             'audio_files' => $audioFilesPayload,
             'audio_variants' => $audioFilesPayload,
+            'audio_queue' => [
+                'task_id' => $audioState['queue_task_id'],
+                'position' => $audioState['queue_position'],
+                'status' => $audioState['queue_status'],
+            ],
             'translations' => $translations,
             'explanation' => $this->extractExplanation($row),
             'phonetic' => $row ? ($row->phonetic ?? null) : null,
@@ -240,7 +322,7 @@ class AppQyV1WordMediaService
                 $this->imageQueue->add($word, $langCode, 'beginning');
             }
             if (!$hasAudio) {
-                $this->enqueueTts($word, $langCode, 'beginning');
+                $this->audioGateway->request($word, $langCode, null, true, true);
             }
 
             $this->ensureWordMediaTask(
@@ -272,12 +354,50 @@ class AppQyV1WordMediaService
      * capability=image, so there is no separate routing here and exactly ONE
      * word_media task per word (ensureWordTask's existing-owner branch). Audio is
      * untouched (needsAudio=false); the audio fast path stays the assist
-     * tts_priority bump.
+     * queue-head gateway.
      *
      * Non-blocking: a bump must never break the caller, so the body is wrapped in
      * try/catch that swallows + logs (mirroring bumpQueriedWord).
      */
-    public function ensureImageFastTask(string $word, string $language): void
+    public function ensureImageFastTasks(array $words): void
+    {
+        $prepared = [];
+        $hashesByLanguage = [];
+        $rowsByLanguage = [];
+
+        foreach ($words as $item) {
+            $word = is_array($item) ? trim((string) ($item['word'] ?? '')) : '';
+            $language = is_array($item) ? (string) ($item['language'] ?? '') : '';
+            if ($word === '' || $language === '') {
+                continue;
+            }
+
+            $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+            $hash = md5($word);
+            $prepared[] = [
+                'word' => $word,
+                'language' => $langCode,
+                'hash' => $hash,
+            ];
+            $hashesByLanguage[$langCode][] = $hash;
+        }
+
+        foreach ($hashesByLanguage as $langCode => $hashes) {
+            $rowsByLanguage[$langCode] = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $hashes)
+                ->keyBy('md5');
+        }
+
+        foreach ($prepared as $item) {
+            $row = $rowsByLanguage[$item['language']]->get($item['hash']);
+            $this->ensureImageFastTask($item['word'], $item['language'], $row);
+        }
+    }
+
+    public function ensureImageFastTask(
+        string $word,
+        string $language,
+        ?AppQyV1LangDictionaryModel $row = null
+    ): void
     {
         $word = trim($word);
         if ($word === '') {
@@ -288,7 +408,9 @@ class AppQyV1WordMediaService
             $langCode = AppQyV1DictionaryService::getLanguageCode($language);
             $md5 = md5($word);
 
-            $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
+            if ($row === null) {
+                $row = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
+            }
             $hasImage = $row && $this->resolveImageUrl($row) !== null;
             $mcpImageSubmitted = $row
                 && $row->getAttribute('image_mcp_submitted_at') !== null;
@@ -325,7 +447,7 @@ class AppQyV1WordMediaService
      *     target translations and processed by the Google-first worker chain.
      * Word audio is NOT created here: it is owned by the queue center
      * (App\Services\QueueCenter\QueueCenterService) and enqueued/bumped through
-     * AppQyV1UnifiedTTSQueueService::addTask (the enqueueTts path), which keeps
+     * AppQyV1AudioGateway, which keeps
      * the canonical dict row pending AND the deduped word_audio global task.
      *
      * A word missing multiple resources gets independent tasks whose write-back
@@ -392,12 +514,7 @@ class AppQyV1WordMediaService
             $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
         }
         // Find an existing pending task of THIS type that already owns this word.
-        $existing = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', $taskType)
-            ->where('status', GlobalTask::status('pending'))
-            ->where('payload->language', $langCode)
-            ->get(['task_id', 'payload', 'priority']);
+        $existing = GlobalTask::pendingPayloadTasks('AppQyV1', $taskType, $langCode);
 
         $ownerTaskId = null;
         foreach ($existing as $task) {
@@ -424,19 +541,12 @@ class AppQyV1WordMediaService
                 // escalates +STEP up to REPEAT_CAP so visible/re-requested words
                 // outrank one-shot page bumps. The CASE handles both in one
                 // update; pending_urgent (priority >= 100) is unaffected.
-                GlobalTask::query()
-                    ->where('task_id', $ownerTaskId)
-                    ->where('status', GlobalTask::status('pending'))
-                    ->update([
-                        'priority' => \DB::raw(
-                            'CASE '
-                            . 'WHEN priority < ' . (int) self::TASK_PRIORITY_FRONT . ' '
-                            . 'THEN ' . (int) self::TASK_PRIORITY_FRONT . ' '
-                            . 'ELSE LEAST(priority + ' . (int) self::TASK_PRIORITY_REPEAT_STEP . ', '
-                            . (int) self::TASK_PRIORITY_REPEAT_CAP . ') '
-                            . 'END'
-                        ),
-                    ]);
+                GlobalTask::escalatePendingPriority(
+                    $ownerTaskId,
+                    self::TASK_PRIORITY_FRONT,
+                    self::TASK_PRIORITY_REPEAT_STEP,
+                    self::TASK_PRIORITY_REPEAT_CAP
+                );
             }
             return;
         }
@@ -494,22 +604,6 @@ class AppQyV1WordMediaService
     }
 
     /**
-     * Enqueue a word onto the TTS queue (tts_* columns) at the given position.
-     * Best-effort; failures are swallowed by callers.
-     */
-    private function enqueueTts(string $word, string $langCode, string $position): void
-    {
-        try {
-            (new AppQyV1UnifiedTTSQueueService())->addTask($word, $langCode, 'word', $position);
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1WordMedia] tts enqueue failed', [
-                'word' => $word,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
      * File-first image URL for a row, or null when no image_files entry is on
      * disk. Local relative paths get the word-image serve prefix; absolute URLs
      * pass through (AppQyV1ImageUrl).
@@ -545,7 +639,7 @@ class AppQyV1WordMediaService
      */
     public function resolveAudioUrl(AppQyV1LangDictionaryModel $row): ?string
     {
-        return $this->resolveAudioPick($row, null)['url'];
+        return $this->audioGateway->resolveWordAudioUrl($row);
     }
 
     /**
@@ -555,58 +649,7 @@ class AppQyV1WordMediaService
      */
     public function resolveAudioPick(AppQyV1LangDictionaryModel $row, ?string $accent = null): array
     {
-        $preferred = null;
-        if (is_string($accent)) {
-            $a = strtolower(trim($accent));
-            if (in_array($a, ['us', 'uk'], true)) {
-                $preferred = $a;
-            }
-        }
-
-        $variants = AppQyV1WordAudioFiles::list($row);
-        if ($preferred !== null) {
-            foreach ($variants as $variant) {
-                if (($variant['accent'] ?? null) === $preferred && !empty($variant['has_file']) && !empty($variant['path'])) {
-                    return [
-                        'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
-                        'accent' => $preferred,
-                        'fallback' => false,
-                    ];
-                }
-            }
-        }
-
-        foreach ($variants as $variant) {
-            if (!empty($variant['has_file']) && !empty($variant['path'])) {
-                $accentTag = $variant['accent'] ?? null;
-                return [
-                    'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
-                    'accent' => is_string($accentTag) ? $accentTag : 'unknown',
-                    'fallback' => $preferred !== null && $accentTag !== $preferred,
-                ];
-            }
-        }
-
-        $ttsFiles = $row->tts_files;
-        if (!is_array($ttsFiles) || empty($ttsFiles)) {
-            return ['url' => null, 'accent' => null, 'fallback' => false];
-        }
-
-        $base = rtrim(PathMapper::getAppQyV1AudioBaseDir(), '/\\') . '/';
-        foreach ($ttsFiles as $ttsFile) {
-            if (!isset($ttsFile['path']) || !is_string($ttsFile['path'])) {
-                continue;
-            }
-            if (is_file($base . $ttsFile['path'])) {
-                return [
-                    'url' => AppQyV1TtsUrl::forPath($ttsFile['path']),
-                    'accent' => 'unknown',
-                    'fallback' => $preferred !== null,
-                ];
-            }
-        }
-
-        return ['url' => null, 'accent' => null, 'fallback' => false];
+        return $this->audioGateway->resolveWordAudioPick($row, $accent);
     }
 
     /**
@@ -615,70 +658,13 @@ class AppQyV1WordMediaService
      * /word/{lang}/{word}/media) and the group get_words payload, so the two never
      * diverge. Each entry carries the playable {url}, a display {voice} label and
      * the {lang} code, plus the richer per-variant fields. Capped at
-     * MAX_AUDIO_VARIANTS.
+     * the gateway's bounded variant limit.
      *
      * @return array<int,array<string,mixed>>
      */
     public function audioVariantsForApi(AppQyV1LangDictionaryModel $row, string $langCode): array
     {
-        $out = [];
-        foreach (AppQyV1WordAudioFiles::list($row) as $variant) {
-            if (empty($variant['has_file']) || empty($variant['path'])) {
-                continue;
-            }
-            $accent = $variant['accent'] ?? null;
-            $out[] = [
-                'url' => AppQyV1TtsUrl::forPath((string) $variant['path']),
-                'voice' => self::voiceLabel($variant),
-                'lang' => $langCode,
-                'variant_key' => $variant['variant_key'] ?? '',
-                'accent' => in_array($accent, ['us', 'uk'], true) ? $accent : 'unknown',
-                'gender' => $variant['gender'] ?? null,
-                'source' => $variant['source'] ?? null,
-                'voice_type' => $variant['voice_type'] ?? null,
-                'provider' => $variant['provider'] ?? null,
-                'status' => 'ready',
-            ];
-            if (count($out) >= self::MAX_AUDIO_VARIANTS) {
-                break;
-            }
-        }
-        return $out;
-    }
-
-    /**
-     * Human-friendly voice label for one audio variant, derived from its
-     * accent/gender, else the variant key, else the provider, else 'default'.
-     *
-     * @param array<string,mixed> $variant
-     */
-    private static function voiceLabel(array $variant): string
-    {
-        $parts = [];
-        $accent = $variant['accent'] ?? null;
-        if ($accent === 'us') {
-            $parts[] = 'US';
-        } elseif ($accent === 'uk') {
-            $parts[] = 'UK';
-        }
-        $gender = $variant['gender'] ?? null;
-        if ($gender === 'f' || $gender === 'female') {
-            $parts[] = 'Female';
-        } elseif ($gender === 'm' || $gender === 'male') {
-            $parts[] = 'Male';
-        }
-        if (!empty($parts)) {
-            return implode(' ', $parts);
-        }
-        $variantKey = (string) ($variant['variant_key'] ?? '');
-        if ($variantKey !== '') {
-            return $variantKey;
-        }
-        $provider = (string) ($variant['provider'] ?? '');
-        if ($provider !== '') {
-            return $provider;
-        }
-        return 'default';
+        return $this->audioGateway->wordAudioVariantsForApi($row, $langCode);
     }
 
     /**

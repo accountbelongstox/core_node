@@ -1,8 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Cpu, Library, GraduationCap, Users, Settings } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-
+import type { ElementTheme } from '../WfNewThemes';
 interface WfNewBottomDockProps {
   activeTab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin';
   setActiveTab: (tab: 'home' | 'shelf' | 'practice' | 'labs' | 'settings' | 'walkman' | 'subtitles' | 'stats' | 'bilingual' | 'social' | 'profile' | 'auth' | 'admin') => void;

@@ -16,8 +16,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Study-content generation SEGMENTER (Book Study-Content Generation pipeline §4 —
@@ -53,10 +51,7 @@ class AppQyV1StudyGenSegmenter
     {
         $targetChars = $targetChars > 0 ? $targetChars : self::DEFAULT_TARGET_CHARS;
 
-        $existingCount = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->count();
+        $existingCount = StudySegment::countForSource($sourceType, $sourceKey);
 
         if ($existingCount > 0) {
             if (!$force) {
@@ -64,18 +59,11 @@ class AppQyV1StudyGenSegmenter
             }
             // force: re-planning after any content was generated would orphan the
             // phrase/grammar batches linked by segment_index — block it.
-            $locked = StudySegment::query()
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->whereIn('status', ['done', 'generating'])
-                ->exists();
+            $locked = StudySegment::hasGeneratedSourceRows($sourceType, $sourceKey);
             if ($locked) {
                 return ['segments_total' => $existingCount, 'planned' => 0, 'already_planned' => true, 'error' => 'plan_locked'];
             }
-            StudySegment::query()
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->delete();
+            StudySegment::deleteForSource($sourceType, $sourceKey);
         }
 
         [$slots, $grain] = $this->loadOrderedSlots($sourceType, $sourceKey);
@@ -91,18 +79,10 @@ class AppQyV1StudyGenSegmenter
         // Insert atomically. A concurrent claim that also planned would collide on
         // the (source_type,source_key,segment_index) unique key — treat that as
         // "already planned" and return the now-existing totals.
-        $connection = StudySegment::query()->getModel()->getConnectionName();
         try {
-            DB::connection($connection)->transaction(function () use ($rows) {
-                foreach ($rows as $row) {
-                    StudySegment::create($row);
-                }
-            });
+            StudySegment::createPlanRows($rows);
         } catch (\Throwable $e) {
-            $total = StudySegment::query()
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->count();
+            $total = StudySegment::countForSource($sourceType, $sourceKey);
             return ['segments_total' => $total, 'planned' => 0, 'already_planned' => true];
         }
 
@@ -212,13 +192,13 @@ class AppQyV1StudyGenSegmenter
     {
         $primaryLanguage = (string) ($segment->primary_language ?? '');
 
-        $slots = SourceSentence::query()
-            ->where('source_type', $segment->source_type)
-            ->where('source_key', $segment->source_key)
-            ->where('grain', $segment->grain)
-            ->whereBetween('seq', [(int) $segment->seq_start, (int) $segment->seq_end])
-            ->orderBy('seq')
-            ->get();
+        $slots = SourceSentence::studySlotsBetween(
+            (string) $segment->source_type,
+            (string) $segment->source_key,
+            (string) $segment->grain,
+            (int) $segment->seq_start,
+            (int) $segment->seq_end
+        );
 
         $textById = $this->primaryTextMap($slots, $primaryLanguage);
 
@@ -246,18 +226,9 @@ class AppQyV1StudyGenSegmenter
      */
     private function loadOrderedSlots(string $sourceType, string $sourceKey): array
     {
-        $base = SourceSentence::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey);
+        $result = SourceSentence::orderedStudySlots($sourceType, $sourceKey);
 
-        $grain = 'sentence';
-        $hasSentence = (clone $base)->where('grain', 'sentence')->exists();
-        if (!$hasSentence) {
-            $grain = 'cue';
-        }
-
-        $slots = (clone $base)->where('grain', $grain)->orderBy('seq')->get();
-        return [$slots, $grain];
+        return [$result['rows'], $result['grain']];
     }
 
     /**
@@ -270,9 +241,9 @@ class AppQyV1StudyGenSegmenter
     {
         $raw = '';
         if ($sourceType === 'book') {
-            $raw = (string) (Book::query()->where('source_key', $sourceKey)->value('language') ?? '');
+            $raw = Book::sourceLanguage($sourceKey);
         } elseif ($sourceType === 'article') {
-            $raw = (string) (AppQyV1Article::query()->where('article_id', $sourceKey)->value('language') ?? '');
+            $raw = AppQyV1Article::sourceLanguage($sourceKey);
         }
 
         if ($raw === '') {
@@ -326,21 +297,6 @@ class AppQyV1StudyGenSegmenter
             return [];
         }
 
-        $model = LangSentence::for($primaryLanguage);
-        if (!Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
-            return [];
-        }
-
-        $map = [];
-        LangSentence::onLang($primaryLanguage)
-            ->whereIn('content_id', array_keys($ids))
-            ->select(['content_id', 'text'])
-            ->chunk(1000, function ($rows) use (&$map) {
-                foreach ($rows as $row) {
-                    $map[(string) $row->content_id] = (string) $row->text;
-                }
-            });
-
-        return $map;
+        return LangSentence::textMapByContentIds($primaryLanguage, array_keys($ids));
     }
 }

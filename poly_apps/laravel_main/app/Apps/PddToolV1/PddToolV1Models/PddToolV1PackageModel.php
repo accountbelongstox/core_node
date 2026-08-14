@@ -10,7 +10,8 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Support\Collection;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -49,4 +50,34 @@ class PddToolV1PackageModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function ordered(): Collection
+    {
+        return static::query()->orderBy('id')->get();
+    }
+
+    public static function findByCodeOrNew(string $code): self
+    {
+        return static::query()->where('code', $code)->first() ?? new static();
+    }
+
+    public static function findByCode(string $code): ?self
+    {
+        return static::query()->where('code', $code)->first();
+    }
+
+    public static function enabledPackages(): Collection
+    {
+        return static::query()->where('enabled', true)->orderBy('id')->get();
+    }
+
+    public static function anyExists(): bool
+    {
+        return static::query()->exists();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
 }

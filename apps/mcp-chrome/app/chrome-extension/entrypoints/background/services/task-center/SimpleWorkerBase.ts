@@ -3,8 +3,8 @@
  *
  * Shared base for the lightweight unified-task workers that run inside the
  * extension (e.g. the web-AI translate worker). It owns the boring parts of
- * being a laravel_main worker — registration, heartbeat, long-poll pull,
- * fast-lane re-poll, priority dispatch and result submission — and leaves each
+ * being a laravel_main worker — registration, heartbeat, immediate pull,
+ * fast-lane re-poll, queue-ordered dispatch and result submission — and leaves each
  * subclass to declare only:
  *   - which capabilities it advertises (`capabilities`)
  *   - which task_type(s) it handles (`handlesTaskType`)
@@ -14,30 +14,38 @@
  * subscribes to `remote_fast` (see withFastLane). The dispatcher then
  * hands it any fast-tier task whose `capability` matches one this worker
  * advertised. When a pull/heartbeat reports pending_fast>0 the worker fires an
- * immediate wait=0 re-poll (jittered + coalesced) instead of waiting for the
- * next long-poll tick.
+ * immediate re-poll (jittered + coalesced) instead of waiting for the fallback
+ * reconciliation interval.
  */
 
 import {
-  WorkerApiClient,
   Task,
   ProcessorType,
   WorkerCapability,
   WORKER_CAPABILITIES,
   TaskResult,
 } from '../../api/WorkerApiClient';
+import { LaravelWorkerLifecycleBase } from './LaravelWorkerLifecycleBase';
 import { ApiError } from '../../api/BaseApiClient';
 import { logger } from '@/utils/logger';
 import { tabController } from '../tab-controller';
 import { LANES } from '@/utils/task-center-lanes';
 import {
   FAST_LANE_CAPABILITIES,
+  DIFF_DELIVERY,
+  QUEUE_CENTER_REALTIME_EVENTS,
   TASK_LIMITS,
+  TASK_TYPE_KEYS,
   TASK_STATUS_BY_ROLE,
+  compareTasksByContract,
   workerResultStatus,
 } from '@/utils/queue-center-contract';
 import type { ProcessorStats } from '@/utils/task-center-types';
 import { submitOutbox, isTerminalWorkerResultError } from '../outbox/submit-outbox';
+import { queueCenterWakeService } from './QueueCenterWakeService';
+import type { QueueCenterWakeSignal } from './QueueCenterWakeService';
+import { diffTaskSegmentStore } from '@/utils/diff-task-segments';
+import { IntervalController, TimeoutController, delay as wait } from '@/utils/async';
 
 /**
  * Fast-lane eligibility comes from config/queue_center_contract.json. Worker
@@ -54,7 +62,7 @@ const ALLOWED_CAPABILITIES = new Set<WorkerCapability>(WORKER_CAPABILITIES);
 export interface SimpleWorkerConfig {
   apiUrl: string;
   workerName?: string;
-  /** Long-poll seconds for the steady-state pull. */
+  /** Fallback reconciliation interval in seconds. */
   pollWait?: number;
   /** Heartbeat cadence (seconds) — keeps the lease/registration fresh. */
   heartbeatInterval?: number;
@@ -76,6 +84,8 @@ export interface SimpleWorkerStats extends ProcessorStats {
   lastError: string | null;
   lastErrorAt: number | null;
   lastRequestAt: number | null;
+  progressCompleted: number;
+  progressTotal: number;
 }
 
 // Once this many worker HTTP calls fail in a row the poll loop backs off to a
@@ -89,26 +99,31 @@ const POLL_BACKOFF_SLOW_MS = 8000;
 const FAST_REPOLL_BASE_MS = 400;
 const FAST_REPOLL_JITTER_MS = 300;
 const REGISTRATION_RETRY_MS = 3000;
+const QUEUE_DIFF_POLL_MS = Math.max(250, Number(DIFF_DELIVERY.poll_interval_ms || 1000));
+const QUEUE_HEAD_RESERVE = Math.max(1, Math.floor(Number(DIFF_DELIVERY.head_reserve || 1)));
 
-export abstract class SimpleWorkerBase {
-  protected workerClient: WorkerApiClient | null = null;
+export abstract class SimpleWorkerBase extends LaravelWorkerLifecycleBase {
   protected config: Required<SimpleWorkerConfig> | null = null;
   protected isRunning = false;
 
   private pollLoopActive = false;
-  private heartbeatId: ReturnType<typeof setInterval> | null = null;
+  private readonly heartbeatPolling = new IntervalController();
+  private readonly diffPolling = new IntervalController();
+  private diffPollInFlight = false;
   // Coalesce fast re-polls: at most one scheduled burst in flight.
-  private fastRepollTimer: ReturnType<typeof setTimeout> | null = null;
-  private registrationRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly fastRepollTimeout = new TimeoutController();
+  private readonly registrationRetryTimeout = new TimeoutController();
   private registrationPending = false;
-  // Re-entrancy guard: only one cycle() may run at a time. A fast re-poll that
-  // fires while a long-poll cycle is in flight would clobber shared dispatch
+  private wakeUnsubscribe: (() => void) | null = null;
+  // Re-entrancy guard: only one cycle() may run at a time. A realtime wake that
+  // fires while a pull cycle is in flight would clobber shared dispatch
   // state (terminalPosted/currentTaskId) and drive the single chat tab with two
   // tasks at once, so scheduleFastRepoll defers via needsFastRepoll instead.
   private cycleInFlight = false;
   // Set when a fast re-poll is requested while a cycle is in flight; the next
-  // runPollLoop iteration then drains the fast tier with wait=0.
+  // runPollLoop iteration then drains the fast tier immediately.
   private needsFastRepoll = false;
+  private queueSliceLimits = new Map<string, number>();
   // Set true once a terminal (completed/failed) result is posted for the task
   // currently being dispatched; lets dispatchOne fail-safe a silent handler.
   private terminalPosted = false;
@@ -116,6 +131,13 @@ export abstract class SimpleWorkerBase {
   // (/api/worker/tasks/{taskType}/result) needs it at submit time.
   private currentTaskType: string | null = null;
   private currentTaskAttempt: number | null = null;
+  private readonly headPositions = new Map<string, number>();
+  private readonly queueDiffCursors = new Map<string, number>();
+  private readonly queueProgressByTaskType = new Map<string, { completed: number; total: number }>();
+  private readonly prefetchedHeadTasks: Task[] = [];
+  private headPrefetchInFlight = false;
+  private bufferedTaskCount = 0;
+  private pullTaskTypeCursor = 0;
 
   protected stats: SimpleWorkerStats = {
     pending: 0,
@@ -139,6 +161,8 @@ export abstract class SimpleWorkerBase {
     lastError: null,
     lastErrorAt: null,
     lastRequestAt: null,
+    progressCompleted: 0,
+    progressTotal: 0,
   };
 
   // ------------------------------------------------------------------
@@ -158,8 +182,7 @@ export abstract class SimpleWorkerBase {
   protected abstract handlesTaskType(taskType: string): boolean;
 
   /** Task types pulled via the typed pull route (/api/worker/tasks/{type}/pull).
-   * PRIMARY LAST: it holds the long-poll budget; earlier types are quick-polled
-   * wait=0 so their waits never stack. */
+   * Every type uses the same immediate-return transport. */
   protected abstract get pullTaskTypes(): string[];
 
   /** Shared processor adapters delegate here instead of duplicating task rules. */
@@ -252,7 +275,7 @@ export abstract class SimpleWorkerBase {
     };
 
     this.isRunning = true;
-    this.workerClient = new WorkerApiClient(this.config.apiUrl);
+    this.connectWorkerApi(this.config.apiUrl);
     try {
       await this.register();
       this.activateRegisteredWorker();
@@ -267,19 +290,18 @@ export abstract class SimpleWorkerBase {
   }
 
   stop(): void {
+    const workerId = this.stats.workerId;
+    const prefetchedTasks = this.prefetchedHeadTasks.splice(0);
+
     if (!this.isRunning) return;
     this.isRunning = false;
-    if (this.heartbeatId) {
-      clearInterval(this.heartbeatId);
-      this.heartbeatId = null;
-    }
-    if (this.fastRepollTimer) {
-      clearTimeout(this.fastRepollTimer);
-      this.fastRepollTimer = null;
-    }
-    if (this.registrationRetryTimer) {
-      clearTimeout(this.registrationRetryTimer);
-      this.registrationRetryTimer = null;
+    this.heartbeatPolling.stop();
+    this.diffPolling.stop();
+    this.fastRepollTimeout.cancel();
+    this.registrationRetryTimeout.cancel();
+    if (this.wakeUnsubscribe) {
+      this.wakeUnsubscribe();
+      this.wakeUnsubscribe = null;
     }
     // Do not clear pollLoopActive/cycleInFlight here. A browser task may still
     // be unwinding after Stop; clearing its mutex would let a rapid off/on
@@ -289,12 +311,31 @@ export abstract class SimpleWorkerBase {
     // a fresh loop.
     this.needsFastRepoll = false;
     this.stats.isOnline = false;
+    if (this.workerClient && prefetchedTasks.length > 0) {
+      void this.workerClient.releaseTasks(prefetchedTasks).catch((error) => {
+        logger.warn(this.workerLabel, 'Failed to release prefetched tasks during stop', error);
+      });
+    }
+    this.unregisterWorkerPresence(workerId, (error) => {
+      logger.warn(this.workerLabel, 'Worker unregister failed; heartbeat expiry remains active', error);
+    });
     logger.info(this.workerLabel, 'Worker stopped');
   }
 
   private activateRegisteredWorker(): void {
     if (!this.isRunning) return;
+    if (!this.wakeUnsubscribe && this.config) {
+      this.wakeUnsubscribe = queueCenterWakeService.subscribe(
+        this.config.apiUrl,
+        (signal) => {
+          this.applyHeadSignal(signal);
+          this.needsFastRepoll = true;
+          void this.prefetchChangedHead().finally(() => this.scheduleFastRepoll());
+        },
+      );
+    }
     this.startHeartbeat();
+    this.startQueueDiffPoll();
     this.startPollLoop();
     logger.info(this.workerLabel, 'Worker started', {
       capabilities: this.normalizeCapabilities(this.capabilities),
@@ -309,9 +350,12 @@ export abstract class SimpleWorkerBase {
   }
 
   private scheduleRegistrationRetry(): void {
-    if (!this.isRunning || this.registrationRetryTimer || this.registrationPending) return;
-    this.registrationRetryTimer = setTimeout(async () => {
-      this.registrationRetryTimer = null;
+    if (
+      !this.isRunning
+      || this.registrationRetryTimeout.isScheduled
+      || this.registrationPending
+    ) return;
+    this.registrationRetryTimeout.schedule(async () => {
       if (!this.isRunning) return;
       this.registrationPending = true;
       try {
@@ -374,20 +418,6 @@ export abstract class SimpleWorkerBase {
     this.stats.lastErrorAt = Date.now();
   }
 
-  /**
-   * True for an EXPECTED long-poll timeout — the server accepted the poll but did
-   * not return within our client budget (ApiError 408 / 'Request timeout' /
-   * AbortError). These are normal for a wait>0 pull and must NOT be logged at
-   * error or counted as a backend failure.
-   */
-  protected isExpectedTimeout(error: unknown): boolean {
-    const e = error as any;
-    if (e instanceof ApiError && e.statusCode === 408) return true;
-    const name = typeof e?.name === 'string' ? e.name : '';
-    const msg = typeof e?.message === 'string' ? e.message : '';
-    return name === 'AbortError' || name === 'Request timeout' || msg === 'Request timeout';
-  }
-
   private describeError(error: unknown): string {
     const e = error as any;
     if (e?.message) return String(e.message);
@@ -428,7 +458,7 @@ export abstract class SimpleWorkerBase {
 
     let response;
     try {
-      response = await this.workerClient.register({
+      response = await this.registerWorkerPresence({
         worker_id: workerId,
         worker_name: this.config.workerName,
         processor_types: processorTypes,
@@ -463,12 +493,11 @@ export abstract class SimpleWorkerBase {
 
   private startHeartbeat(): void {
     if (!this.workerClient || !this.config) return;
-    if (this.heartbeatId) return;
+    if (this.heartbeatPolling.isRunning) return;
     const beat = async () => {
       if (!this.isRunning || !this.workerClient) return;
       try {
-        const resp = await this.workerClient.heartbeat(
-          undefined,
+        const resp = await this.heartbeatWorkerPresence(
           this.normalizeCapabilities(this.capabilities),
         );
         this.stats.isOnline = true;
@@ -484,12 +513,45 @@ export abstract class SimpleWorkerBase {
       }
     };
     beat();
-    this.heartbeatId = setInterval(beat, this.config.heartbeatInterval * 1000);
+    this.heartbeatPolling.start(() => void beat(), this.config.heartbeatInterval * 1000);
   }
 
   // ------------------------------------------------------------------
   // Poll loop + fast lane
   // ------------------------------------------------------------------
+
+  private startQueueDiffPoll(): void {
+    if (this.diffPolling.isRunning) return;
+    const poll = async () => {
+      if (!this.isRunning || !this.workerClient || this.diffPollInFlight) return;
+      this.diffPollInFlight = true;
+      try {
+        const changedTaskTypes: string[] = [];
+        for (const taskType of this.pullTaskTypes) {
+          const cursor = this.queueDiffCursors.get(taskType) ?? 0;
+          const response = await this.workerClient.queueDiff(taskType, cursor);
+          if (!response.success || !response.data) continue;
+          this.updateQueueProgress(taskType, response.data.progress);
+          const sliceLimit = Number(response.data.slice_limit || 0);
+          if (sliceLimit > 0) this.queueSliceLimits.set(taskType, sliceLimit);
+          if (!response.data.changed) continue;
+          changedTaskTypes.push(taskType);
+        }
+        this.noteBackendSuccess();
+        if (changedTaskTypes.length > 0) {
+          this.needsFastRepoll = true;
+          await this.prefetchChangedHead(changedTaskTypes);
+          this.scheduleFastRepoll();
+        }
+      } catch (error) {
+        this.noteBackendFailure(error);
+      } finally {
+        this.diffPollInFlight = false;
+      }
+    };
+    void poll();
+    this.diffPolling.start(() => void poll(), QUEUE_DIFF_POLL_MS);
+  }
 
   private startPollLoop(): void {
     if (this.pollLoopActive) return;
@@ -498,32 +560,18 @@ export abstract class SimpleWorkerBase {
   }
 
   /**
-   * Steady-state long-poll loop. Each iteration runs one cycle() with the
-   * configured wait; cycle() reacts to pending_fast by scheduling an immediate
-   * wait=0 burst. The ~heartbeatInterval keeps the lease fresh independently.
+   * Fallback reconciliation loop. Realtime wakes schedule immediate pulls;
+   * this bounded interval recovers work if a socket signal is missed.
    */
   private async runPollLoop(): Promise<void> {
     while (this.isRunning) {
       try {
-        // If a fast re-poll was deferred while a cycle was in flight, drain the
-        // fast tier now with wait=0 instead of a long poll.
-        const wait = this.needsFastRepoll
-          ? 0
-          : (this.config?.pollWait ?? TASK_LIMITS.long_poll_seconds);
         this.needsFastRepoll = false;
-        await this.cycle(wait);
-        if (wait === 0 && this.config?.pollWait === 0) {
-          await this.delay(POLL_BACKOFF_FAST_MS);
-        }
+        await this.cycle();
+        await this.delay(Math.max(1, this.config?.pollWait ?? 5) * 1000);
       } catch (error) {
-        if (this.isExpectedTimeout(error)) {
-          // Expected long-poll timeout: the server just didn't hand us work in
-          // time. Quiet (debug) and NOT a backend failure — don't flip online.
-          logger.debug(this.workerLabel, 'Long-poll pull timed out (expected)', error);
-        } else {
-          this.noteBackendFailure(error);
-          logger.error(this.workerLabel, 'Poll cycle error', error);
-        }
+        this.noteBackendFailure(error);
+        logger.error(this.workerLabel, 'Poll cycle error', error);
         // Back off longer once the backend looks down so a dead Laravel is not
         // hammered every second; otherwise a brief pause avoids a hot-loop.
         const backoff =
@@ -539,20 +587,31 @@ export abstract class SimpleWorkerBase {
   /**
    * One pull+dispatch cycle.
    *
-   * 1. Pull a batch (long-poll `wait` seconds, or 0 for a fast burst).
+   * 1. Pull an immediate bounded batch.
    * 2. Record pending_fast/pending_urgent; if pending_fast>0 schedule an
-   *    immediate jittered+coalesced wait=0 re-poll.
-   * 3. Sort the claimed tasks by priority desc and dispatch each.
+   *    immediate jittered and coalesced re-poll.
+   * 3. Dispatch every task by its contract-owned ordering field.
    */
   /**
    * Pull across this worker's declared task types via the typed pull route.
-   * The primary type (LAST in pullTaskTypes) holds the long-poll budget;
-   * earlier types are quick-polled wait=0 so their waits never stack. The
-   * merged response mirrors one Laravel pull body; pending_fast/pending_urgent
-   * come from the last type pulled (it owns the wait budget).
+   * The merged response mirrors one Laravel pull body.
    */
-  private async pullTasksAcrossTypes(options: { limit: number; wait: number }) {
-    const types = this.pullTaskTypes.filter((t) => typeof t === 'string' && t.length > 0);
+  private async pullTasksAcrossTypes(options: {
+    limit: number;
+    preferRemote?: boolean;
+    taskTypes?: string[];
+  }) {
+    const configuredTypes = this.pullTaskTypes;
+    const declaredTypes = new Set(configuredTypes);
+    const sourceTypes = options.taskTypes?.length ? options.taskTypes : configuredTypes;
+    const types = sourceTypes.filter(
+      (taskType) => declaredTypes.has(taskType) && typeof taskType === 'string' && taskType.length > 0,
+    );
+    if (types.length > 1) {
+      const offset = this.pullTaskTypeCursor % types.length;
+      this.pullTaskTypeCursor = (offset + 1) % types.length;
+      types.push(...types.splice(0, offset));
+    }
     if (!this.workerClient || types.length === 0) {
       return {
         success: true,
@@ -560,30 +619,95 @@ export abstract class SimpleWorkerBase {
       };
     }
     const merged: Task[] = [];
-    let lastData = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
+    let lastData: any = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
+    let pendingUrgent = 0;
+    let pendingFast = 0;
     for (let i = 0; i < types.length; i++) {
-      const typeWait = i === types.length - 1 ? options.wait : 0;
+      const remaining = Math.max(0, options.limit - merged.length);
+      if (remaining <= 0) break;
+      const contractLimit = Number(DIFF_DELIVERY.consumer_batch_limits?.[types[i]] || remaining);
+      const sliceLimit = this.queueSliceLimits.get(types[i]) ?? contractLimit;
       const resp = await this.workerClient.pullTasks(types[i], undefined, {
-        limit: options.limit,
-        wait: typeWait,
+        limit: Math.min(remaining, Math.max(1, sliceLimit)),
+        preferRemote: options.preferRemote,
       });
-      if (!resp.success || !resp.data) return resp;
+      if (!resp.success || !resp.data) {
+        if (merged.length === 0) return resp;
+        break;
+      }
       lastData = resp.data;
+      pendingUrgent += Number(resp.data.pending_urgent || 0);
+      pendingFast += Number(resp.data.pending_fast || 0);
       if (Array.isArray(resp.data.tasks)) merged.push(...resp.data.tasks);
+      if (resp.data.queue_cursor != null) {
+        this.queueDiffCursors.set(types[i], Number(resp.data.queue_cursor));
+      }
+      if (resp.data.progress) {
+        this.updateQueueProgress(types[i], resp.data.progress);
+      }
       if (merged.length >= options.limit) break;
     }
-    lastData = { ...lastData, tasks: merged, count: merged.length };
+    lastData = {
+      ...lastData,
+      pending_urgent: pendingUrgent,
+      pending_fast: pendingFast,
+      tasks: merged,
+      count: merged.length,
+    };
     return { success: true, data: lastData };
   }
 
-  protected async cycle(wait: number): Promise<void> {
+  private async prefetchChangedHead(taskTypes?: string[]): Promise<void> {
+    if (!this.isRunning || !this.workerClient || !this.config || this.headPrefetchInFlight) return;
+    if (tabController.isPaused()) return;
+    const batchSize = Math.max(1, Math.floor(this.config.batchSize));
+    const activeCount = this.bufferedTaskCount
+      + this.prefetchedHeadTasks.length
+      + (this.stats.currentTaskId ? 1 : 0);
+    const limit = Math.min(QUEUE_HEAD_RESERVE, Math.max(0, batchSize - activeCount));
+    if (limit <= 0) return;
+
+    this.headPrefetchInFlight = true;
+    try {
+      const response = await this.pullTasksAcrossTypes({
+        limit,
+        preferRemote: true,
+        taskTypes,
+      });
+      if (!response.success || !response.data || !Array.isArray(response.data.tasks)) return;
+      this.noteBackendSuccess();
+      this.noteFastSignals(response.data.pending_urgent, response.data.pending_fast);
+      if (!this.isRunning) {
+        await this.workerClient.releaseTasks(response.data.tasks);
+        return;
+      }
+      const knownTaskIds = new Set(this.prefetchedHeadTasks.map((task) => task.task_id));
+      if (this.stats.currentTaskId) knownTaskIds.add(this.stats.currentTaskId);
+      for (const task of response.data.tasks) {
+        if (knownTaskIds.has(task.task_id)) continue;
+        this.prefetchedHeadTasks.push(task);
+        knownTaskIds.add(task.task_id);
+      }
+    } catch (error) {
+      this.noteBackendFailure(error);
+    } finally {
+      this.headPrefetchInFlight = false;
+    }
+  }
+
+  private takePrefetchedHeadTasks(): Task[] {
+    return this.prefetchedHeadTasks.splice(0);
+  }
+
+  protected async cycle(): Promise<void> {
     // Serialize: never run two cycles concurrently. A fast re-poll firing while
-    // a long-poll cycle is in flight would interleave two dispatchOne calls on
+    // a pull cycle is in flight would interleave two dispatchOne calls on
     // shared terminalPosted/currentTaskId and drive the single chat tab with two
     // tasks at once. Concurrent callers no-op; scheduleFastRepoll defers via
     // needsFastRepoll so the fast tier is still drained promptly.
     if (this.cycleInFlight) return;
     this.cycleInFlight = true;
+    const pendingTasks: Task[] = [];
     try {
       if (!this.workerClient || !this.config) return;
 
@@ -594,37 +718,136 @@ export abstract class SimpleWorkerBase {
       if (tabController.isPaused()) return;
 
       this.stats.lastRun = Date.now();
-
-      const resp = await this.pullTasksAcrossTypes({
-        limit: this.config.batchSize,
-        wait,
-      });
-
-      // A returned response (even an empty batch) proves the backend is up.
-      this.noteBackendSuccess();
-
-      if (!resp.success || !resp.data) {
-        return;
+      const batchSize = Math.max(1, Math.floor(this.config.batchSize));
+      const reserve = Math.min(Math.max(0, batchSize - 1), QUEUE_HEAD_RESERVE);
+      const normalWindowLimit = Math.max(1, batchSize - reserve);
+      pendingTasks.push(...this.takePrefetchedHeadTasks());
+      const initialLimit = Math.max(0, normalWindowLimit - pendingTasks.length);
+      if (initialLimit > 0) {
+        const preferRemote = this.needsFastRepoll;
+        if (preferRemote) this.needsFastRepoll = false;
+        const response = await this.pullTasksAcrossTypes({ limit: initialLimit, preferRemote });
+        this.noteBackendSuccess();
+        if (!response.success || !response.data) return;
+        this.noteFastSignals(response.data.pending_urgent, response.data.pending_fast);
+        if (Array.isArray(response.data.tasks)) pendingTasks.push(...response.data.tasks);
       }
 
-      this.noteFastSignals(resp.data.pending_urgent, resp.data.pending_fast);
-
-      const tasks = Array.isArray(resp.data.tasks) ? resp.data.tasks : [];
-      this.stats.pending = tasks.length;
-      if (tasks.length === 0) return;
-
-      // Highest priority first.
-      tasks.sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0));
-
-      for (const task of tasks) {
+      this.bufferedTaskCount = pendingTasks.length;
+      this.stats.pending = pendingTasks.length;
+      while (this.isRunning) {
+        pendingTasks.push(...this.takePrefetchedHeadTasks());
+        if (pendingTasks.length === 0) {
+          if (!this.needsFastRepoll) break;
+          this.needsFastRepoll = false;
+          const response = await this.pullTasksAcrossTypes({
+            limit: batchSize,
+            preferRemote: true,
+          });
+          if (!response.success || !response.data) break;
+          this.noteFastSignals(response.data.pending_urgent, response.data.pending_fast);
+          if (Array.isArray(response.data.tasks)) pendingTasks.push(...response.data.tasks);
+          if (pendingTasks.length === 0) break;
+        }
+        pendingTasks.sort((left, right) => this.compareTasks(left, right));
+        const task = pendingTasks.shift();
+        this.bufferedTaskCount = pendingTasks.length;
+        if (!task) break;
         // Honor stop() between batch items so a Stop halts further dispatch
         // promptly instead of draining the whole claimed batch.
         if (!this.isRunning) break;
         await this.dispatchOne(task);
+        this.headPositions.delete(task.task_id);
+        pendingTasks.push(...this.takePrefetchedHeadTasks());
+        const preferRemote = this.needsFastRepoll;
+        const targetWindow = preferRemote ? batchSize : normalWindowLimit;
+        const refillLimit = Math.max(0, targetWindow - pendingTasks.length);
+        if (refillLimit > 0) {
+          if (preferRemote) this.needsFastRepoll = false;
+          const refill = await this.pullTasksAcrossTypes({
+            limit: refillLimit,
+            preferRemote,
+          });
+          if (!refill.success || !refill.data) break;
+          if (Array.isArray(refill.data.tasks)) pendingTasks.push(...refill.data.tasks);
+          this.noteFastSignals(refill.data.pending_urgent, refill.data.pending_fast);
+        } else if (preferRemote) {
+          // Keep the diff wake pending until a bounded window slot becomes free.
+          this.needsFastRepoll = true;
+        }
+        this.bufferedTaskCount = pendingTasks.length;
+        this.stats.pending = pendingTasks.length;
+        if (this.needsFastRepoll && pendingTasks.length < batchSize) {
+          this.needsFastRepoll = false;
+          const refill = await this.pullTasksAcrossTypes({
+            limit: batchSize - pendingTasks.length,
+            preferRemote: true,
+          });
+          if (refill.success && refill.data && Array.isArray(refill.data.tasks)) {
+            pendingTasks.push(...refill.data.tasks);
+            this.noteFastSignals(refill.data.pending_urgent, refill.data.pending_fast);
+          }
+        }
       }
     } finally {
+      this.bufferedTaskCount = 0;
+      if (this.workerClient && pendingTasks.length > 0) {
+        try {
+          await this.workerClient.releaseTasks(pendingTasks);
+        } catch (error) {
+          logger.warn(this.workerLabel, 'Failed to release undispatched task segment', error);
+        }
+      }
       this.cycleInFlight = false;
+      if (this.isRunning && this.prefetchedHeadTasks.length > 0) this.scheduleFastRepoll();
     }
+  }
+
+  private applyHeadSignal(signal?: QueueCenterWakeSignal): void {
+    if (signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.word_audio_head
+      && signal?.event !== QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head) return;
+    const rawItems = signal.payload?.items;
+    const items = Array.isArray(rawItems) ? rawItems : [];
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      const taskId = String((item as any).task_id || '').trim();
+      const queuePosition = Number((item as any).queue_position || 0);
+      if (!taskId) continue;
+      this.headPositions.set(taskId, queuePosition);
+      void diffTaskSegmentStore.moveToHead(taskId, queuePosition);
+    }
+  }
+
+  private compareTasks(left: Task, right: Task): number {
+    return compareTasksByContract(
+      {
+        ...left,
+        queue_position: this.headPositions.get(left.task_id) ?? left.queue_position ?? 0,
+      },
+      {
+        ...right,
+        queue_position: this.headPositions.get(right.task_id) ?? right.queue_position ?? 0,
+      },
+    );
+  }
+
+  private updateQueueProgress(
+    taskType: string,
+    progress?: { completed?: number; total?: number } | null,
+  ): void {
+    if (!progress) return;
+    this.queueProgressByTaskType.set(taskType, {
+      completed: Number(progress.completed || 0),
+      total: Number(progress.total || 0),
+    });
+    let completed = 0;
+    let total = 0;
+    for (const item of this.queueProgressByTaskType.values()) {
+      completed += item.completed;
+      total += item.total;
+    }
+    this.stats.progressCompleted = completed;
+    this.stats.progressTotal = total;
   }
 
   /**
@@ -643,19 +866,18 @@ export abstract class SimpleWorkerBase {
 
   private scheduleFastRepoll(): void {
     if (!this.isRunning) return;
-    // Ensure the next poll-loop iteration drains the fast tier with wait=0,
-    // even if the immediate cycle(0) below no-ops because a cycle is in flight.
+    // Ensure the next poll-loop iteration drains the fast tier immediately,
+    // even if the immediate cycle below no-ops because a cycle is in flight.
     this.needsFastRepoll = true;
-    if (this.fastRepollTimer) return; // coalesce - one burst in flight
+    if (this.fastRepollTimeout.isScheduled) return; // coalesce - one burst in flight
     const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
-    this.fastRepollTimer = setTimeout(() => {
-      this.fastRepollTimer = null;
+    this.fastRepollTimeout.schedule(() => {
       if (!this.isRunning) return;
-      // wait=0: drain whatever fast-tier work matched our capabilities now.
+      // Drain whatever fast-tier work matched our capabilities now.
       // cycle()'s cycleInFlight guard prevents overlap with an in-flight cycle;
       // needsFastRepoll (set above) guarantees the poll loop re-drains if this
       // no-opped because a cycle was in flight.
-      this.cycle(0).catch((error) =>
+      this.cycle().catch((error) =>
         logger.warn(this.workerLabel, 'Fast re-poll failed', error),
       );
     }, FAST_REPOLL_BASE_MS + jitter);
@@ -778,6 +1000,6 @@ export abstract class SimpleWorkerBase {
   }
 
   protected delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return wait(ms);
   }
 }

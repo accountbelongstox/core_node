@@ -14,7 +14,6 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Auth\Middleware\Authenticate as Middleware;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use App\Models\User;
 use App\Http\Middleware\MidPublic\ApiDebugTokenAuth;
 use App\Http\Common\CommonUserGen;
@@ -56,7 +55,7 @@ class CustomAuthenticate extends Middleware
         $user = null;
         $userToken = $request->header(CommonGvar::AuthUserToken);
         if ($userToken) {
-            $user = User::where('user_token', $userToken)->first();
+            $user = User::findByUserToken($userToken);
             if ($user) {
                 Auth::login($user);
                 return $next($request);
@@ -98,4 +97,3 @@ class CustomAuthenticate extends Middleware
         ], 401);
     }
 }
-

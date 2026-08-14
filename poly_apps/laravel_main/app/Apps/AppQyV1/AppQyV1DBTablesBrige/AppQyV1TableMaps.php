@@ -654,7 +654,7 @@ class AppQyV1TableMaps
     }
 
     /**
-     * Serialize concurrent move-to-front ticket (MAX(tts_priority)+1) writes on
+     * Serialize concurrent image move-to-front ticket writes on
      * the same table so two transactions bumping DIFFERENT rows cannot read the
      * same MAX snapshot and share a ticket. Uses a transaction-scoped PostgreSQL
      * advisory lock keyed by the table name (auto-released at commit/rollback);

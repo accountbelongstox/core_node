@@ -54,7 +54,7 @@ class AppQyV1PersonalDictionaryCreationController
         $entry->definition = $request->input('definition');
         $entry->example = $request->input('example');
         $entry->notes = $request->input('notes');
-        $entry->save();
+        $entry->saveRecord();
 
         return $this->success([
             'id' => (string) $entry->id,

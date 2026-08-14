@@ -1,7 +1,7 @@
 /** types/api.ts - the WfNewApi interface (method contract shared by WfNewApiHttp + WfNewApiMock). (extracted from WfNewApiTypes to keep each
  * source file under the 800-line modular limit; re-exported by the barrel). */
 import type { Word, WordGroup, BentoGroup, UserStats, WfNewStatistics, UserProfile, WfNewContentKind, WfNewContentGroup, WfNewHomeContent, WfNewLanguage, WfNewLanguageSelection } from './core';
-import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAudioVariant, WfNewWordMedia, WfNewWordMediaOptions, WordNewAudioFileVariant, WfNewQueuePriorityResult, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
+import type { WfNewBookChapter, WfNewBookChapters, WfNewAgentArticle, WfNewBookVerseLang, WfNewBookVerse, WfNewBookVersesPage, WfNewSubtitleSegment, WfNewSubtitleSentence, WfNewSubtitleDetail, WfNewDictWord, WfNewWordPage, WfNewLibraryWord, WfNewLibraryWordsPage, WfNewWordAudioVariant, WfNewWordMedia, WfNewWordMediaOptions, WordNewAudioFileVariant, WfNewQueueCommandResult, SubtitleWord, SubtitleLine, SubtitleCourse, BilingualWord, BilingualSentence } from './media';
 import type { WfNewAuthUser, WfNewAuthResult, WfNewPreferences, WfNewRegisterPayload, WfNewSocialCredential, WfNewProfileUpdate, WfNewAvatarResult, WfNewSocialStats } from './user';
 import type { WfNewFriend, WfNewUserSearchResult, WfNewLeaderboardEntry, WfNewActivity, WfNewPresenceStatus, WfNewDiscoverUser, WfNewNearbyUser, WfNewFriendRequest, WfNewConversation, WfNewMessage, WfNewMessagePage, WfNewNotification, WfNewNotificationPage, WfNewPresenceInfo, WfNewPublicUserProfile, WfNewSocialActor, WfNewPostImage, WfNewPostType, WfNewPostVisibility, WfNewPostFilter, WfNewPost, WfNewPostPage, WfNewPostComment, WfNewPostCommentPage, WfNewPostLikeResult, WfNewCreatePostPayload, WfNewLiveStatus, WfNewLive, WfNewCreateLivePayload, WfNewLiveMsg, WfNewLiveMsgPage } from './social';
 import type { WeeklyActivity, CategoryScore, StudiedTimelineItem, AnalyticsStats } from './analytics';
@@ -254,8 +254,14 @@ export interface WfNewApi {
     word: string,
     opts?: WfNewWordMediaOptions,
   ): Promise<WfNewWordMedia>;
+  /** Resolve word audio through Laravel's file-first queue gateway. */
+  getWordAudio(
+    language: string,
+    word: string,
+    opts?: WfNewWordMediaOptions,
+  ): Promise<WfNewWordMedia>;
 
-  /** Resolve sentence-library audio (file-first). On miss, backend bumps priority.
+  /** Resolve sentence-library audio (file-first). On miss, backend moves it to the queue head.
    *  `variantKey` requests a specific accent/voice variant; the response carries
    *  `tts_status` (pending|processing|completed|failed) + `audio_files` variants. */
   resolveSentenceAudio(
@@ -263,29 +269,18 @@ export interface WfNewApi {
     language: string,
     variantKey?: string,
     passive?: boolean,
-  ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WordNewAudioFileVariant[] }>;
+  ): Promise<{ exists: boolean; url?: string | null; queued?: boolean; content_id?: string; hash?: string; tts_status?: string | null; audio_files?: WordNewAudioFileVariant[]; queue_task_id?: string; queue_position?: number; queue_status?: string }>;
 
-  // ---- Audio prioritization (Laravel owns the queue + worker notification) ----
-  /** Raise TTS priority for ONE sentence by content id (POST /ai_tools/tts/sentence/bump). */
-  bumpSentenceAudio(
-    contentId: string,
-    language: string,
-  ): Promise<{ success: boolean; priority?: number; error?: string }>;
-  /** Raise TTS priority for a batch of visible sentences (POST /ai_tools/tts/sentence/bump-batch). */
-  bumpSentenceAudioBatch(
+  // ---- Audio ordering (Laravel owns the queue + worker notification) ----
+  /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */
+  moveSentenceAudioToHead(
     items: Array<{ text: string; language: string }>,
-  ): Promise<WfNewQueuePriorityResult>;
-  /** Enqueue + prioritize word-audio generation by word text
-   *  (POST /ai_tools/tts/queue/batch/add, interactive → front of the audio queue). */
-  prioritizeWordAudio(
+  ): Promise<WfNewQueueCommandResult>;
+  /** Insert missing word-audio tasks or move existing tasks to the queue head. */
+  moveWordAudioToHead(
     words: string[],
     language: string,
-  ): Promise<WfNewQueuePriorityResult>;
-  /** Raise one existing word-audio task by dictionary hash. */
-  boostWordAudioPriority(
-    md5: string,
-    language: string,
-  ): Promise<{ success: boolean; priority?: number; error?: string }>;
+  ): Promise<WfNewQueueCommandResult>;
 
   // ---- Book reading progress (server-side, auth:sanctum) ----
   getBookReadingProgress(sourceKey: string): Promise<WfNewBookReadingProgress | null>;

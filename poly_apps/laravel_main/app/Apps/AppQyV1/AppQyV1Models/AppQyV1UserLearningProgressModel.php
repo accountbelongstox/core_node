@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -171,6 +171,95 @@ class AppQyV1UserLearningProgressModel extends Model
         );
     }
 
+    public static function recordPlaybackRead(
+        int $userId,
+        string $languageCode,
+        string $wordHash,
+        string $wordContent,
+        int $readCount,
+        $reviewedAt
+    ): void {
+        $row = self::query()->firstOrNew([
+            'user_id' => $userId,
+            'lang_code' => $languageCode,
+            'word_md5' => $wordHash,
+        ]);
+
+        if (!$row->exists) {
+            $row->word_content = $wordContent;
+            $row->learning_status = 'learning';
+            $row->review_count = 0;
+            $row->correct_count = 0;
+            $row->wrong_count = 0;
+            $row->familiarity_level = 0;
+        } elseif ($row->learning_status === 'new') {
+            $row->learning_status = 'learning';
+        }
+
+        $row->review_count = (int) $row->review_count + $readCount;
+        $row->last_reviewed_at = $reviewedAt;
+        $row->save();
+    }
+
+    public static function recordPlaybackReads(
+        int $userId,
+        string $languageCode,
+        array $reads,
+        $reviewedAt
+    ): int {
+        $model = new self();
+        $connection = $model->getConnection();
+        $table = $connection->getQueryGrammar()->wrapTable($model->getTable());
+        $recordsByHash = [];
+        $valueClauses = [];
+        $bindings = [];
+        $timestamp = now();
+
+        foreach ($reads as $read) {
+            $hash = (string) ($read['word_hash'] ?? '');
+            $content = (string) ($read['word_content'] ?? '');
+            $count = max(1, (int) ($read['read_count'] ?? 1));
+            if ($hash === '' || $content === '') {
+                continue;
+            }
+
+            if (!isset($recordsByHash[$hash])) {
+                $recordsByHash[$hash] = ['content' => $content, 'count' => 0];
+            }
+            $recordsByHash[$hash]['count'] += $count;
+        }
+
+        foreach ($recordsByHash as $hash => $record) {
+            $valueClauses[] = '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            array_push(
+                $bindings,
+                $userId,
+                $languageCode,
+                $hash,
+                $record['content'],
+                'learning',
+                $record['count'],
+                0,
+                0,
+                0,
+                $reviewedAt,
+                $timestamp,
+                $timestamp
+            );
+        }
+
+        if ($valueClauses === []) {
+            return 0;
+        }
+
+        $values = implode(', ', $valueClauses);
+        $sql = "INSERT INTO {$table} (user_id, lang_code, word_md5, word_content, learning_status, review_count, correct_count, wrong_count, familiarity_level, last_reviewed_at, created_at, updated_at) VALUES {$values} ON CONFLICT (user_id, lang_code, word_md5) DO UPDATE SET learning_status = CASE WHEN {$table}.learning_status = 'new' THEN 'learning' ELSE {$table}.learning_status END, review_count = {$table}.review_count + EXCLUDED.review_count, last_reviewed_at = EXCLUDED.last_reviewed_at, updated_at = EXCLUDED.updated_at";
+
+        $connection->statement($sql, $bindings);
+
+        return count($recordsByHash);
+    }
+
     public function recordReview(bool $correct)
     {
         $this->review_count++;
@@ -276,5 +365,97 @@ class AppQyV1UserLearningProgressModel extends Model
         }
 
         return self::insertOrIgnore($items);
+    }
+
+    public static function findById(int $progressId): ?self
+    {
+        return static::query()->find($progressId);
+    }
+
+    public static function dailyQueue(int $userId, string $language): array
+    {
+        return [
+            'review' => static::query()
+                ->where('user_id', $userId)
+                ->where('lang_code', $language)
+                ->whereIn('learning_status', ['learning', 'reviewing'])
+                ->where('next_review_at', '<=', now())
+                ->orderBy('next_review_at')
+                ->limit(100)
+                ->get(),
+            'new' => static::query()
+                ->where('user_id', $userId)
+                ->where('lang_code', $language)
+                ->where('learning_status', 'new')
+                ->orderBy('created_at')
+                ->limit(20)
+                ->get(),
+        ];
+    }
+
+    public static function quizCandidates(int $userId, string $language, int $requiredCount)
+    {
+        $candidates = static::query()
+            ->where('user_id', $userId)
+            ->where('lang_code', $language)
+            ->whereIn('learning_status', ['learning', 'reviewing', 'mastered'])
+            ->dueFirst()
+            ->limit(200)
+            ->get();
+
+        if ($candidates->count() < $requiredCount) {
+            $candidates = $candidates->concat(
+                static::query()
+                    ->where('user_id', $userId)
+                    ->where('lang_code', $language)
+                    ->where('learning_status', 'new')
+                    ->orderBy('created_at')
+                    ->limit(200)
+                    ->get()
+            );
+        }
+
+        return $candidates->unique('word_md5')->values();
+    }
+
+    public static function retentionCounts(int $userId, ?string $language): array
+    {
+        $base = static function () use ($userId, $language) {
+            $query = static::query()->where('user_id', $userId);
+            if ($language !== null && $language !== '') {
+                $query->where('lang_code', $language);
+            }
+            return $query;
+        };
+
+        return [
+            'total' => $base()->count(),
+            'mastered' => $base()->where('learning_status', 'mastered')->count(),
+            'critical' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
+                ->where('next_review_at', '<=', now())->count(),
+            'review' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
+                ->where(function ($query): void {
+                    $query->where('next_review_at', '>', now())->orWhereNull('next_review_at');
+                })->count(),
+            'learning' => $base()->where('learning_status', 'new')->count(),
+        ];
+    }
+
+    public static function profileMetrics(int $userId): array
+    {
+        $base = static fn () => static::query()->where('user_id', $userId);
+
+        return [
+            'total' => $base()->count(),
+            'new' => $base()->where('learning_status', 'new')->count(),
+            'learning' => $base()->where('learning_status', 'learning')->count(),
+            'mastered' => $base()->where('learning_status', 'mastered')->count(),
+            'needs_review' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
+                ->where('next_review_at', '<=', now())->count(),
+            'weak' => $base()->whereColumn('wrong_count', '>', 'correct_count')->count(),
+            'correct_sum' => (int) $base()->sum('correct_count'),
+            'wrong_sum' => (int) $base()->sum('wrong_count'),
+            'timestamps' => $base()->get(['last_reviewed_at', 'updated_at', 'created_at']),
+        ];
     }
 }

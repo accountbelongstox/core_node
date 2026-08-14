@@ -1,5 +1,12 @@
-import { pycoreApi } from '../../../core/api-libs/pycore';
-import { buildDefaultQueueCenterSections } from '../../../core/contracts/QueueCenterContract';
+import { laravelApi } from '../../../core/integrations/laravel';
+import { pycoreApi } from '../../../core/integrations/pycore';
+import {
+  QUEUE_CENTER_QUEUE_POSITION_CONTROLS,
+  buildDefaultQueueCenterSections,
+} from '../../../core/contracts/QueueCenterContract';
+import type {
+  AssistOverviewResponse,
+} from '../../../core/integrations/laravel';
 import type {
   AssistStatus,
   PcQueueOverview,
@@ -11,7 +18,7 @@ import type {
   TranslationQueueResponse,
   TtsStatus,
   WordTtsAutoStatus,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 
 export interface QueueCenterCacheMeta {
   warm?: boolean;
@@ -65,40 +72,143 @@ export interface QueueCenterExchangeResult {
 
 export class QueueCenterExchangeAPI {
   async read(refresh = false): Promise<QueueCenterExchangeResult> {
-    const response = await pycoreApi.getQueueCenterSnapshot(refresh);
-    if (!response?.success || !response.data) {
-      throw new Error(response?.error || 'PYCORE_QUEUE_CENTER_SNAPSHOT_UNAVAILABLE');
+    // Architecture v3: browser reads Laravel-owned queue data directly;
+    // pycore only supplies its own worker/control state. This removes the
+    // pycore-side Laravel mirror that competed for HTTP workers and caused
+    // the "pycore connected -> wordnew times out" mutual blocking.
+    const [
+      localResult,
+      overviewResult,
+      translationResult,
+      sentenceResult,
+      queueCenterResult,
+    ] = await Promise.allSettled([
+      pycoreApi.getQueueCenterSnapshot(refresh),
+      laravelApi.getAssistOverview(),
+      laravelApi.getTranslationQueue(),
+      laravelApi.getSentenceAudioQueue(),
+      laravelApi.getQueueCenterOverview(),
+    ]);
+
+    const errors: Record<string, string> = {};
+
+    const localSnapshot = this._unwrapLocal(localResult, errors);
+    const overview = this._unwrapOverview(overviewResult, errors);
+    const translation = this._unwrapTranslation(translationResult, errors);
+    const sentenceQueue = this._unwrapSentenceQueue(sentenceResult, errors);
+    const queueCenterOverview = queueCenterResult.status === 'fulfilled'
+      ? queueCenterResult.value
+      : null;
+    if (queueCenterResult.status === 'rejected') {
+      errors.queue_metrics = String(queueCenterResult.reason || 'queue_metrics_unavailable');
     }
-    const snapshot = response.data as QueueCenterSnapshotPayload;
-    const generatedAt = String(snapshot.generatedAt || new Date().toISOString());
+
+    const generatedAt = String(localSnapshot?.generatedAt || new Date().toISOString());
     const sectionContracts = {
       ...buildDefaultQueueCenterSections(generatedAt),
-      ...(snapshot.sectionContracts || {}),
+      ...(localSnapshot?.sectionContracts || {}),
     } as Record<QueueCenterScope, QueueCenterSectionContract>;
+
+    // pycore no longer mirrors Laravel queue rows, so its sectionContracts
+    // carry no queue metrics. Patch them from the queue-center overview the
+    // browser fetched directly.
+    if (queueCenterOverview !== null) {
+      const queues = queueCenterOverview.queues || {};
+      for (const scope of QUEUE_CENTER_QUEUE_POSITION_CONTROLS) {
+        const stats = queues[scope];
+        if (!stats || !sectionContracts[scope]) {
+          continue;
+        }
+        const pending = Number(stats.pending || 0);
+        const leased = Number(stats.assigned || 0);
+        const processing = Number(stats.processing || 0);
+        sectionContracts[scope] = {
+          ...sectionContracts[scope],
+          queue: { pending, leased, processing, total: pending + leased + processing },
+        };
+      }
+    }
+
+    const laravelReachable = overview !== null
+      || translation !== null
+      || sentenceQueue !== null
+      || queueCenterOverview !== null;
 
     return {
       generatedAt,
-      pycoreReachable: snapshot.pycoreReachable !== false,
-      laravelReachable: snapshot.laravelReachable === true,
-      overview: snapshot.overview ?? null,
-      translation: snapshot.translation ?? null,
-      sentenceQueue: snapshot.sentenceQueue ?? null,
-      wordAudio: snapshot.wordAudio ?? null,
-      sentenceAudio: snapshot.sentenceAudio ?? null,
-      assist: snapshot.assist ?? null,
-      tts: snapshot.tts ?? null,
-      recent: snapshot.recent ?? null,
-      workerApiUrl: typeof snapshot.workerApiUrl === 'string' ? snapshot.workerApiUrl : null,
-      laravelActiveEndpoint: typeof snapshot.laravelActiveEndpoint === 'string'
-        ? snapshot.laravelActiveEndpoint
+      pycoreReachable: localSnapshot?.pycoreReachable !== false,
+      laravelReachable,
+      overview,
+      translation,
+      sentenceQueue,
+      wordAudio: localSnapshot?.wordAudio ?? null,
+      sentenceAudio: localSnapshot?.sentenceAudio ?? null,
+      assist: localSnapshot?.assist ?? null,
+      tts: localSnapshot?.tts ?? null,
+      recent: localSnapshot?.recent ?? null,
+      workerApiUrl: typeof localSnapshot?.workerApiUrl === 'string'
+        ? localSnapshot.workerApiUrl
         : null,
-      laravelSnapshotAgeS: typeof snapshot.laravelSnapshotAgeS === 'number'
-        ? snapshot.laravelSnapshotAgeS
+      laravelActiveEndpoint: typeof localSnapshot?.laravelActiveEndpoint === 'string'
+        ? localSnapshot.laravelActiveEndpoint
+        : null,
+      laravelSnapshotAgeS: typeof localSnapshot?.laravelSnapshotAgeS === 'number'
+        ? localSnapshot.laravelSnapshotAgeS
         : null,
       sectionContracts,
-      errors: snapshot.errors && typeof snapshot.errors === 'object' ? snapshot.errors : {},
-      cache: snapshot.cache && typeof snapshot.cache === 'object' ? snapshot.cache : {},
+      errors,
+      cache: localSnapshot?.cache && typeof localSnapshot.cache === 'object'
+        ? localSnapshot.cache
+        : {},
     };
+  }
+
+  private _unwrapLocal(
+    result: PromiseSettledResult<{ success?: boolean; data?: Record<string, unknown>; error?: string }>,
+    errors: Record<string, string>,
+  ): QueueCenterSnapshotPayload | null {
+    if (result.status === 'rejected' || !result.value?.success || !result.value.data) {
+      errors.pycore = result.status === 'rejected'
+        ? String(result.reason || 'pycore snapshot rejected')
+        : result.value?.error || 'pycore snapshot unavailable';
+      return null;
+    }
+    return result.value.data as QueueCenterSnapshotPayload;
+  }
+
+  private _unwrapOverview(
+    result: PromiseSettledResult<AssistOverviewResponse>,
+    errors: Record<string, string>,
+  ): PcQueueOverview | null {
+    if (result.status === 'rejected' || !result.value?.success) {
+      errors.overview = result.status === 'rejected'
+        ? String(result.reason || 'overview rejected')
+        : result.value?.error || 'overview unavailable';
+      return null;
+    }
+    return (result.value as unknown) as PcQueueOverview;
+  }
+
+  private _unwrapTranslation(
+    result: PromiseSettledResult<TranslationQueueResponse>,
+    errors: Record<string, string>,
+  ): TranslationQueueResponse | null {
+    if (result.status === 'rejected') {
+      errors.translation = String(result.reason || 'translation queue rejected');
+      return null;
+    }
+    return result.value;
+  }
+
+  private _unwrapSentenceQueue(
+    result: PromiseSettledResult<SentenceAudioQueueSnapshot>,
+    errors: Record<string, string>,
+  ): SentenceAudioQueueSnapshot | null {
+    if (result.status === 'rejected') {
+      errors.sentence_queue = String(result.reason || 'sentence queue rejected');
+      return null;
+    }
+    return result.value;
   }
 }
 

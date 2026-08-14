@@ -4,8 +4,8 @@ namespace App\Services\Dashboard;
 
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
 
@@ -63,6 +63,37 @@ class DatabaseManagerService
         }
 
         return $out;
+    }
+
+    public static function physicalConnections(): array
+    {
+        $connections = [];
+        $seen = [];
+
+        foreach (self::connections() as $descriptor) {
+            $identity = self::connectionIdentity((string) $descriptor['connection']);
+            if (isset($seen[$identity])) {
+                continue;
+            }
+            $seen[$identity] = true;
+            $connections[] = $descriptor;
+        }
+
+        return $connections;
+    }
+
+    private static function connectionIdentity(string $connection): string
+    {
+        $config = (array) config("database.connections.{$connection}", []);
+        $identity = [
+            'driver' => $config['driver'] ?? null,
+            'host' => $config['host'] ?? null,
+            'port' => $config['port'] ?? null,
+            'database' => $config['database'] ?? null,
+            'schema' => $config['search_path'] ?? ($config['schema'] ?? null),
+        ];
+
+        return hash('sha256', (string) json_encode($identity, JSON_UNESCAPED_SLASHES));
     }
 
     private static function descriptor(string $key, string $name, string $conn, string $prefix, bool $isMain): array
@@ -405,11 +436,11 @@ class DatabaseManagerService
             }
         } elseif ($driver === 'sqlite') {
             $src = (string) config("database.connections.{$connection}.database");
-            if (!is_file($src)) {
+            if (!FileSystemManager::isFile($src)) {
                 throw new \RuntimeException("SQLite database file not found: {$src}");
             }
             $file = "{$dir}/{$id}.sqlite";
-            if (!@copy($src, $file)) {
+            if (!FileSystemManager::copy($src, $file)) {
                 throw new \RuntimeException('Failed to copy SQLite database file.');
             }
         } else {
@@ -422,10 +453,11 @@ class DatabaseManagerService
             'connection' => $connection,
             'driver' => $driver,
             'database' => $desc['database'],
-            'size_bytes' => is_file($file) ? (int) filesize($file) : 0,
+            'size_bytes' => FileSystemManager::isFile($file) ? (int) FileSystemManager::filesize($file) : 0,
             'created_at' => self::nowIso(),
+            'directory' => $dir,
         ];
-        File::put("{$dir}/{$id}.meta.json", json_encode($meta, JSON_PRETTY_PRINT));
+        FileSystemManager::writeFile("{$dir}/{$id}.meta.json", (string) json_encode($meta, JSON_PRETTY_PRINT));
 
         $meta['size_human'] = self::humanSize($meta['size_bytes']);
         return $meta;
@@ -436,8 +468,12 @@ class DatabaseManagerService
     {
         $dir = self::backupDir();
         $out = [];
-        foreach (glob("{$dir}/*.meta.json") ?: [] as $metaFile) {
-            $meta = json_decode((string) @file_get_contents($metaFile), true);
+        foreach (FileSystemManager::scandir($dir) ?: [] as $entry) {
+            if (!str_ends_with($entry, '.meta.json')) {
+                continue;
+            }
+            $metaFile = $dir . DIRECTORY_SEPARATOR . $entry;
+            $meta = json_decode((string) FileSystemManager::readFile($metaFile), true);
             if (!is_array($meta)) {
                 continue;
             }
@@ -445,6 +481,7 @@ class DatabaseManagerService
                 continue;
             }
             $meta['size_human'] = self::humanSize((int) ($meta['size_bytes'] ?? 0));
+            $meta['directory'] = $dir;
             $out[] = $meta;
         }
         usort($out, static fn ($a, $b) => strcmp($b['created_at'] ?? '', $a['created_at'] ?? ''));
@@ -462,7 +499,7 @@ class DatabaseManagerService
         $driver = $meta['driver'];
         $dir = self::backupDir();
         $file = "{$dir}/" . $meta['file'];
-        if (!is_file($file)) {
+        if (!FileSystemManager::isFile($file)) {
             throw new \RuntimeException('Backup artifact missing on disk.');
         }
 
@@ -479,7 +516,7 @@ class DatabaseManagerService
             }
         } elseif ($driver === 'mysql' || $driver === 'mariadb') {
             $cfg = self::pgParams($connection);
-            $sql = (string) file_get_contents($file);
+            $sql = (string) FileSystemManager::readFile($file);
             $res = Process::timeout(3600)->env(['MYSQL_PWD' => $cfg['password']])->input($sql)->run([
                 'mysql', '-h', $cfg['host'], '-P', (string) $cfg['port'], '-u', $cfg['user'], $cfg['database'],
             ]);
@@ -489,7 +526,7 @@ class DatabaseManagerService
         } elseif ($driver === 'sqlite') {
             $dest = (string) config("database.connections.{$connection}.database");
             DB::connection($connection)->disconnect();
-            if (!@copy($file, $dest)) {
+            if (!FileSystemManager::copy($file, $dest)) {
                 throw new \RuntimeException('Failed to restore SQLite database file.');
             }
         } else {
@@ -503,8 +540,8 @@ class DatabaseManagerService
     {
         $meta = self::requireBackup($id);
         $dir = self::backupDir();
-        @unlink("{$dir}/" . $meta['file']);
-        @unlink("{$dir}/{$id}.meta.json");
+        FileSystemManager::delete("{$dir}/" . $meta['file']);
+        FileSystemManager::delete("{$dir}/{$id}.meta.json");
     }
 
     /** Absolute path of a backup artifact for download; validates the id. */
@@ -512,7 +549,7 @@ class DatabaseManagerService
     {
         $meta = self::requireBackup($id);
         $path = self::backupDir() . '/' . $meta['file'];
-        if (!is_file($path)) {
+        if (!FileSystemManager::isFile($path)) {
             throw new \RuntimeException('Backup artifact missing on disk.');
         }
         return $path;
@@ -524,10 +561,10 @@ class DatabaseManagerService
     {
         $id = self::sanitizeId($id);
         $metaPath = self::backupDir() . "/{$id}.meta.json";
-        if (!is_file($metaPath)) {
+        if (!FileSystemManager::isFile($metaPath)) {
             throw new \InvalidArgumentException("Unknown backup id: {$id}");
         }
-        $meta = json_decode((string) file_get_contents($metaPath), true);
+        $meta = json_decode((string) FileSystemManager::readFile($metaPath), true);
         if (!is_array($meta) || empty($meta['file']) || empty($meta['connection']) || empty($meta['driver'])) {
             throw new \RuntimeException('Corrupt backup manifest.');
         }
@@ -539,9 +576,7 @@ class DatabaseManagerService
     private static function backupDir(): string
     {
         $dir = PathMapper::getBackupDir(self::BACKUP_SUBDIR);
-        if (!is_dir($dir)) {
-            File::makeDirectory($dir, 0775, true, true);
-        }
+        FileSystemManager::ensureDirectoryExists($dir, 0775);
         return rtrim($dir, '/\\');
     }
 
@@ -612,7 +647,7 @@ class DatabaseManagerService
 
     private static function parseJsonFile(string $path): array
     {
-        $data = json_decode((string) file_get_contents($path), true);
+        $data = json_decode((string) FileSystemManager::readFile($path), true);
         return is_array($data) ? $data : [];
     }
 

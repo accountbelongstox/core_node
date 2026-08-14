@@ -20,17 +20,13 @@ import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import { normalizeWords } from '@/utils/task-words';
 import {
   runWordValidityClassification,
   type WordValidityRuntimeResult,
 } from './word-validity/word-validity-web-runtime';
 
 const LOG = 'Web-AI Translate';
-
-interface NormalizedWord {
-  word: string;
-  md5?: string;
-}
 
 class WebAiTranslateWorkerService extends SimpleWorkerBase {
   protected get processorKey(): string {
@@ -76,7 +72,7 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
       return;
     }
 
-    const words = this.normalizeWords((task.payload as any)?.words);
+    const words = normalizeWords((task.payload as any)?.words);
     if (words.length === 0) {
       await this.submitResult(task.task_id, 'failed', undefined, {
         error: 'no words in payload',
@@ -124,21 +120,6 @@ class WebAiTranslateWorkerService extends SimpleWorkerBase {
     );
   }
 
-  /** Payload words may be plain strings or {word, md5, ...} objects. */
-  private normalizeWords(raw: unknown): NormalizedWord[] {
-    if (!Array.isArray(raw)) return [];
-    const out: NormalizedWord[] = [];
-    for (const item of raw as any[]) {
-      if (typeof item === 'string') {
-        const word = item.trim();
-        if (word) out.push({ word });
-      } else if (item && typeof item.word === 'string') {
-        const word = item.word.trim();
-        if (word) out.push({ word, md5: item.md5 });
-      }
-    }
-    return out;
-  }
 }
 
 // Singleton instance.

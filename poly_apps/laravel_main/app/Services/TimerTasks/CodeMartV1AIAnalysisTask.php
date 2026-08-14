@@ -3,7 +3,6 @@
 namespace App\Services\TimerTasks;
 
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
-use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1ProjectModel;
 
 /**
  * CodeMartV1 AI Analysis Timer Task
@@ -40,11 +39,10 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
-            $pending = CodeMartV1AIAnalysisModel::query()
-                ->whereIn('status', ['processing', 'revising'])
-                ->orderBy('id')
-                ->limit(self::BATCH_SIZE)
-                ->get();
+            $pending = CodeMartV1AIAnalysisModel::pendingBatch(
+                ['processing', 'revising'],
+                self::BATCH_SIZE
+            );
 
             if ($pending->isEmpty()) {
                 return;
@@ -89,14 +87,11 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
     private function processAnalysis(CodeMartV1AIAnalysisModel $analysis): array
     {
         try {
-            $model = new CodeMartV1AIAnalysisModel();
-
-            return $model->getConnection()->transaction(function () use ($analysis) {
-                $locked = CodeMartV1AIAnalysisModel::query()
-                    ->where('id', $analysis->id)
-                    ->whereIn('status', ['processing', 'revising'])
-                    ->lockForUpdate()
-                    ->first();
+            return CodeMartV1AIAnalysisModel::runInTransaction(function () use ($analysis) {
+                $locked = CodeMartV1AIAnalysisModel::lockPendingById(
+                    (int) $analysis->id,
+                    ['processing', 'revising']
+                );
 
                 if (!$locked) {
                     return [
@@ -105,11 +100,11 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                     ];
                 }
 
-                $project = CodeMartV1ProjectModel::find($locked->project_id);
+                $project = $analysis->project;
 
                 if (!$project) {
                     $locked->status = 'failed';
-                    $locked->save();
+                    $locked->saveRecord();
 
                     $this->logError("Project not found for analysis", [
                         'analysis_id' => $locked->id,
@@ -132,10 +127,10 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
                 $locked->complexity_score = $recommendations['complexity'];
                 $locked->proposal = $recommendations['proposal'];
                 $locked->completed_at = now();
-                $locked->save();
+                $locked->saveRecord();
 
                 $project->analysis_status = 'completed';
-                $project->save();
+                $project->saveRecord();
 
                 $this->logInfo("Analysis completed", [
                     'analysis_id' => $locked->id,
@@ -156,9 +151,10 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
             // row cannot loop indefinitely. 'failed' is a valid enum value and
             // is excluded by the exec() poll filter.
             try {
-                CodeMartV1AIAnalysisModel::where('id', $analysis->id)
-                    ->whereIn('status', ['processing', 'revising'])
-                    ->update(['status' => 'failed']);
+                CodeMartV1AIAnalysisModel::markPendingFailed(
+                    (int) $analysis->id,
+                    ['processing', 'revising']
+                );
             } catch (\Throwable $inner) {
                 $this->logError("Failed to mark analysis as failed", [
                     'analysis_id' => $analysis->id,

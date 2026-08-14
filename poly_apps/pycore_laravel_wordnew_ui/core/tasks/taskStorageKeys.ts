@@ -11,7 +11,7 @@
  * currently-registered hook keys, so the provider can enumerate sessions to
  * re-attach on a fresh page load without scanning all of localStorage.
  */
-import type { StorageKey } from '../persistence/StorageKeys';
+import type { StorageKey } from '../persistence/StorageKey';
 
 const PREFIX = 'nexus_' as const;
 const TASK_NS = `${PREFIX}task_` as const;

@@ -14,11 +14,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Events\WordTranslatedEvent;
-use App\Events\TranslationTaskCompletedEvent;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -133,20 +130,17 @@ class AppQyV1WordTranslationWriteback
         // ordering deadlock. Run on the model's own connection (the processor's
         // outer transaction is on the default/global_tasks connection; the
         // self-filler path calls apply() with no surrounding transaction at all).
-        $connName = AppQyV1LangDictionaryModel::forLanguage($langCode)->getConnectionName();
-
         // Probe the optional image_status column ONCE (not per row) so the
         // "checked, none available" marker degrades to a no-op on hosts whose
         // image_status migration has not run yet.
-        $dictTable = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel()->getTable();
-        $hasImageStatusColumn = \Illuminate\Support\Facades\Schema::connection($connName)
-            ->hasColumn($dictTable, 'image_status');
-        // Probe the optional bing_resource_urls column ONCE so persisting the full
-        // Bing URLs degrades to a no-op on hosts whose migration has not run yet.
-        $hasBingUrlsColumn = \Illuminate\Support\Facades\Schema::connection($connName)
-            ->hasColumn($dictTable, 'bing_resource_urls');
+        $availableColumns = AppQyV1LangDictionaryModel::languageColumns(
+            $langCode,
+            ['image_status', 'bing_resource_urls']
+        );
+        $hasImageStatusColumn = $availableColumns['image_status'];
+        $hasBingUrlsColumn = $availableColumns['bing_resource_urls'];
 
-        DB::connection($connName)->transaction(function () use (
+        AppQyV1LangDictionaryModel::runLanguageTransaction($langCode, function () use (
             $translations,
             $md5ByWord,
             $langCode,
@@ -167,11 +161,7 @@ class AppQyV1WordTranslationWriteback
             // falls back to createOrFind in the loop.
             $rows = empty($md5ByWord)
                 ? collect()
-                : AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->whereIn('md5', array_values($md5ByWord))
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('md5');
+                : AppQyV1LangDictionaryModel::lockedRowsByHashes($langCode, array_values($md5ByWord));
 
             foreach ($translations as $item) {
                 $word = $item['word'] ?? null;
@@ -237,10 +227,7 @@ class AppQyV1WordTranslationWriteback
                     // also lock-protected against a concurrent target writer.
                     if (!$entry) {
                         AppQyV1LangDictionaryModel::createOrFind($langCode, $word);
-                        $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                            ->where('md5', md5($word))
-                            ->lockForUpdate()
-                            ->first();
+                        $entry = AppQyV1LangDictionaryModel::lockByHash($langCode, md5($word));
                         if ($entry) {
                             $rows->put($entry->md5, $entry);
                         }
@@ -364,7 +351,7 @@ class AppQyV1WordTranslationWriteback
                     }
 
                     if ($dirty) {
-                        $entry->save();
+                        $entry->saveRecord();
                     }
 
                     // --- Audio: decode now, persist after commit (file I/O) ---
@@ -405,15 +392,13 @@ class AppQyV1WordTranslationWriteback
         foreach ($broadcastQueue as $signal) {
             $word = $signal['word'];
             $translationText = $signal['translation'];
-            self::broadcastSafely(static function () use ($word, $langCode, $targetCode, $translationText, $provider) {
-                event(new WordTranslatedEvent(
-                    $word,
-                    $langCode,
-                    $targetCode,
-                    $translationText,
-                    $provider
-                ));
-            }, 'word.translated', $taskId, $word);
+            app(AppQyV1TranslationRealtimeService::class)->wordTranslated(
+                $word,
+                $langCode,
+                $targetCode,
+                $translationText,
+                $provider
+            );
         }
 
         // Persist Bing pronunciation audio after the lock is released — file I/O
@@ -551,15 +536,6 @@ class AppQyV1WordTranslationWriteback
             'images_saved' => $imagesSaved,
         ]);
 
-        // Signal that this task's batch is fully written back (Phase-C
-        // `task.completed`). Authoritative completion is still the global task
-        // status set by the HTTP result endpoint; this is the real-time hint.
-        if ($processed > 0) {
-            self::broadcastSafely(static function () use ($taskId, $targetCode, $processed) {
-                event(new TranslationTaskCompletedEvent($taskId, $targetCode, $processed));
-            }, 'task.completed', $taskId, null);
-        }
-
         return [
             'processed' => $processed,
             'failed' => $failed,
@@ -679,14 +655,11 @@ class AppQyV1WordTranslationWriteback
             return 0;
         }
 
-        $entry = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->where('md5', $md5)
-            ->first();
+        $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
         if (!$entry) {
             return 0;
         }
-        $schema = \Illuminate\Support\Facades\Schema::connection($entry->getConnectionName());
-        $hasMcpMarker = $schema->hasColumn($entry->getTable(), 'image_mcp_submitted_at');
+        $hasMcpMarker = $entry->hasTableColumn('image_mcp_submitted_at');
         $mcpSubmission = str_starts_with($provider, 'mcp-chrome');
         $replaceExisting = $mcpSubmission && (
             $hasMcpMarker
@@ -745,7 +718,7 @@ class AppQyV1WordTranslationWriteback
 
         // Re-check fill-missing right before the write (a concurrent path may have
         // filled images between the read above and now).
-        $entry->refresh();
+        $entry->refreshRecord();
         if (!empty($entry->image_files) && !$replaceExisting) {
             return 0;
         }
@@ -756,8 +729,7 @@ class AppQyV1WordTranslationWriteback
         // the tts_* completion transition) so the image queue/coordinator sees
         // the row as done. Guarded with hasAttribute-style isset so a host whose
         // image_* migration has not run yet still stores images without error.
-        if (\Illuminate\Support\Facades\Schema::connection($entry->getConnectionName())
-            ->hasColumn($entry->getTable(), 'image_status')) {
+        if ($entry->hasTableColumn('image_status')) {
             $entry->image_status = 'completed';
             $entry->image_completed_at = now();
             $entry->image_locked_at = null;
@@ -767,7 +739,7 @@ class AppQyV1WordTranslationWriteback
             $entry->image_mcp_submitted_at = now();
         }
 
-        $entry->save();
+        $entry->saveRecord();
 
         Log::info('[AppQyV1WordTranslationWriteback] Word images stored', [
             'language' => $langCode,
@@ -807,47 +779,4 @@ class AppQyV1WordTranslationWriteback
         return null;
     }
 
-    /**
-     * Run a broadcast closure best-effort. Reverb is a signaling layer on top of
-     * the reliable HTTP work transport, so any broadcast failure (Reverb down,
-     * etc.) is logged and swallowed rather than allowed to fail the write-back.
-     */
-    private static function broadcastSafely(
-        callable $broadcast,
-        string $eventName,
-        string $taskId,
-        ?string $word
-    ): void {
-        $fire = static function () use ($broadcast, $eventName, $taskId, $word): void {
-            try {
-                $broadcast();
-            } catch (\Throwable $e) {
-                Log::warning('[AppQyV1WordTranslationWriteback] broadcast failed', [
-                    'event' => $eventName,
-                    'task_id' => $taskId,
-                    'word' => $word,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        };
-
-        // The write-back runs inside the worker-result DB transaction (which holds
-        // a row lock on the global task). A ShouldBroadcastNow event is a
-        // SYNCHRONOUS HTTP round-trip to Reverb, so firing it inline would hold
-        // that lock for the whole round-trip (x40 words/task) and pin an Octane
-        // worker. Defer to after-commit when inside a transaction (it also avoids
-        // announcing a word that a later rollback would undo); fire immediately
-        // otherwise. Guarded so it degrades to immediate on any older runtime.
-        try {
-            $connection = \Illuminate\Support\Facades\DB::connection();
-            if (method_exists($connection, 'afterCommit') && $connection->transactionLevel() > 0) {
-                $connection->afterCommit($fire);
-                return;
-            }
-        } catch (\Throwable $e) {
-            // Fall through to an immediate best-effort broadcast.
-        }
-
-        $fire();
-    }
 }

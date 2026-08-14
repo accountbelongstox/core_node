@@ -28,6 +28,7 @@ const RecentStatusIcon: React.FC<{ rec: PcTaskRecord }> = ({ rec }) => {
 const COMPLETED_TASK_TYPE_LABEL_KEY: Record<CanonicalCompletedTaskType, string> = {
   word_audio: 'wordAudio',
   sentence_audio: 'sentenceAudio',
+  article_audio: 'articleAudio',
   translation: 'translation',
   assist: 'assist',
   media_image: 'mediaImage',

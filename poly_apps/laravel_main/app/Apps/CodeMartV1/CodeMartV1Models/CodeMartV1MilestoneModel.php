@@ -1,12 +1,22 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CodeMartV1MilestoneModel extends Model
 {
+    public static function findById(int $milestoneId): ?self
+    {
+        return static::query()->find($milestoneId);
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
     protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_milestones';
 

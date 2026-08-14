@@ -11,7 +11,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\DB;
@@ -113,5 +113,10 @@ class AppQyV1ArticleWordModel extends Model
     {
         $code = AppQyV1TableMaps::normalizeLangCode($language);
         return $code !== '' ? $code : 'en';
+    }
+
+    public static function deleteForArticle(string $articleId): int
+    {
+        return self::query()->where('article_id', $articleId)->delete();
     }
 }

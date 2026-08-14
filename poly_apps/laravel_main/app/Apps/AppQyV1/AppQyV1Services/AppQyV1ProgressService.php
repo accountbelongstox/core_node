@@ -34,7 +34,10 @@ class AppQyV1ProgressService
         $progressRow = AppQyV1GroupWordProgressModel::forUserGroup($userId, $group->id, $this->resolveGroupLanguageCode($group));
 
         if (!$progressRow->hasWord($wordId)) {
-            $word = AppQyV1LangDictionaryModel::forLanguage($progressRow->languageCodeValue())->find($wordId);
+            $word = AppQyV1LangDictionaryModel::findForLanguage(
+                $progressRow->languageCodeValue(),
+                (int) $wordId
+            );
             if (!$word) {
                 Log::error('[AppQyV1ProgressService] Word not found', [
                     'word_id' => $wordId,
@@ -74,7 +77,7 @@ class AppQyV1ProgressService
         }
 
         $entry = $progressRow->updateWordProgress($wordId, $patch);
-        $progressRow->save();
+        $progressRow->saveRecord();
 
         return AppQyV1GroupWordProgressModel::expandEntry($entry);
     }
@@ -114,7 +117,7 @@ class AppQyV1ProgressService
             $updated++;
         }
 
-        $progressRow->save();
+        $progressRow->saveRecord();
 
         return [
             'updated' => $updated,
@@ -127,9 +130,7 @@ class AppQyV1ProgressService
      */
     public function getProgressStats(int $userId, int $groupId): array
     {
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $groupId)
-            ->where('user_id', $userId)
-            ->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findForUserGroup($userId, $groupId);
 
         $totalWords = 0;
         $proficiencySum = 0.0;
@@ -188,9 +189,7 @@ class AppQyV1ProgressService
         int $limit = 20,
         ?float $proficiencyMax = null
     ): Collection {
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $groupId)
-            ->where('user_id', $userId)
-            ->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findForUserGroup($userId, $groupId);
 
         if (!$progressRow) {
             return collect();

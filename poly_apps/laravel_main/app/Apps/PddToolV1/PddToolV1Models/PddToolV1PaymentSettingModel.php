@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -45,4 +45,14 @@ class PddToolV1PaymentSettingModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function current(): ?self
+    {
+        return static::query()->first();
+    }
+
+    public static function currentOrNew(): self
+    {
+        return static::current() ?? new static();
+    }
 }

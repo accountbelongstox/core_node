@@ -4,9 +4,19 @@
 # Handles reading and writing file variables
 
 # Get variable storage directory
+# Mirrors pycore system_paths.get_system_cache_dir (single source of truth):
+# shared /var/_core_node when creatable and writable, else per-user ~/.core_node.
 mcp_get_vars_dir() {
-    # Always use the same directory for consistency
-    echo "/var/_core_node/_build_global_vars"
+    local mcp_shared_dir="/var/_core_node"
+
+    if [[ -d "$mcp_shared_dir" ]] || mkdir -p "$mcp_shared_dir" 2>/dev/null; then
+        if [[ -w "$mcp_shared_dir" ]]; then
+            echo "$mcp_shared_dir/.build_global_vars"
+            return 0
+        fi
+    fi
+
+    echo "$HOME/.core_node/.build_global_vars"
 }
 
 # Ensure variable directory exists
@@ -51,7 +61,7 @@ mcp_set_var() {
 # Get variable (read from file)
 mcp_get_var() {
     # Extremely simple - just use head -c to read all bytes
-    local _mcp_file="/var/_core_node/_build_global_vars/$1"
+    local _mcp_file="$(mcp_get_vars_dir)/$1"
     if [ -f "$_mcp_file" ]; then
         head -c 99999 "$_mcp_file" 2>/dev/null
     else

@@ -10,7 +10,7 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
@@ -60,4 +60,27 @@ class DingDuoDuoV1SuperCodeModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function findActiveCode(string $code): ?self
+    {
+        return static::query()
+            ->whereRaw('UPPER(code) = ?', [strtoupper($code)])
+            ->where('status', self::STATUS_ACTIVE)
+            ->first();
+    }
+
+    public static function countMatchingCodes(array $codes): int
+    {
+        return static::query()->whereIn('code', $codes)->count();
+    }
+
+    public static function findByCode(string $code): ?self
+    {
+        return static::query()->where('code', $code)->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
 }

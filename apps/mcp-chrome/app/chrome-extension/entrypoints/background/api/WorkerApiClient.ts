@@ -14,9 +14,11 @@ import {
   TRANSLATION_QUEUE_PATHS,
   taskPath,
   workerTaskPath,
+  queueCenterDiffPath,
 } from '@/utils/api-paths';
 import {
   PRIORITY_FAST,
+  isQueuePositionOrderedTask,
   TASK_STATUS_BY_ROLE,
   TASK_LIMITS,
   type ProcessorType,
@@ -26,6 +28,8 @@ import {
   type WorkerInfo,
   type WorkerRegistration,
   type WorkerSubmitOutcome,
+  type QueueProgress,
+  type QueueSliceDiff,
 } from '@/utils/queue-center-contract';
 
 export { PRIORITY_FAST, WORKER_CAPABILITIES } from '@/utils/queue-center-contract';
@@ -40,19 +44,34 @@ export type {
   WorkerSubmitOutcome,
 } from '@/utils/queue-center-contract';
 
+type WorkerPullData = {
+  count: number;
+  pending_urgent: number;
+  pending_fast: number;
+  queue_cursor?: number;
+  progress?: QueueProgress;
+  tasks: Task[];
+};
+
+type WorkerPullOptions = {
+  limit?: number;
+  preferRemote?: boolean;
+};
+
 // ========== Worker API Client ==========
 
 // Fail-fast control-plane budget for the SHORT worker RPCs (register / heartbeat
 // / accept). A dead or slow Laravel must fail ONCE, fast — never retry 3x against
 // a long timeout, which floods the console with `Request timeout` and hammers an
-// unreachable backend. Long-poll pulls keep their own budget (see pullTasks) and
-// submitResult uses the CONFIGURABLE backend timeout (a result may be large).
+// unreachable backend. Pulls use the same bounded control budget and
+// submitResult uses the configurable backend timeout (a result may be large).
 const CONTROL_RPC_FAILFAST_TIMEOUT_MS = 10000;
 const CONTROL_RPC_OPTS = { retries: 0, timeout: CONTROL_RPC_FAILFAST_TIMEOUT_MS } as const;
 
 export class WorkerApiClient extends BaseApiClient {
   private workerId: string | null = null;
   private readonly taskSegmentScopes = new Map<string, string>();
+  private pullOperation: Promise<void> = Promise.resolve();
 
   /**
    * Register worker
@@ -92,74 +111,128 @@ export class WorkerApiClient extends BaseApiClient {
   }
 
   /**
-   * Pull tasks with long polling.
-   *
-   * `wait` (seconds) MUST be sent: 0 = return immediately (used for fast
-   * re-polls reacting to pending_fast), a positive value asks Laravel to
-   * long-poll up to that many seconds. The response carries the unified-task
-   * backlog signals `pending_urgent` / `pending_fast` so the worker can decide
-   * whether to fire an immediate fast re-poll.
+   * Mark this worker offline immediately instead of waiting for heartbeat expiry.
    */
-  async pullTasks(
-    taskType: string,
-    workerId?: string,
-    options: {
-      limit?: number;
-      wait?: number;
-    } = {},
-  ): Promise<
-    ApiResponse<{
-      count: number;
-      pending_urgent: number;
-      pending_fast: number;
-      tasks: Task[];
-    }>
-  > {
+  async unregister(workerId?: string): Promise<ApiResponse<{ worker_id: string; status: string }>> {
     const id = workerId || this.workerId;
 
     if (!id) {
       throw new Error('Worker ID not set. Call register() first or provide workerId');
     }
 
-    const { limit = TASK_LIMITS.worker_pull_default, wait = 0 } = options;
-    // Clamp with the same limits Laravel validates from the central contract.
-    const safeWait = Math.max(0, Math.min(TASK_LIMITS.long_poll_seconds, Math.floor(wait)));
-    const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
+    const response = await this.post<{ worker_id: string; status: string }>(
+      WORKER_PATHS.UNREGISTER,
+      { worker_id: id },
+      CONTROL_RPC_OPTS,
+    );
+    if (response.success && this.workerId === id) {
+      this.workerId = null;
+    }
+    return response;
+  }
 
+  /** Pull one bounded typed task segment without retaining an HTTP worker. */
+  async pullTasks(
+    taskType: string,
+    workerId?: string,
+    options: WorkerPullOptions = {},
+  ): Promise<ApiResponse<WorkerPullData>> {
+    const operation = this.pullOperation.then(
+      () => this.pullTasksUnlocked(taskType, workerId, options),
+      () => this.pullTasksUnlocked(taskType, workerId, options),
+    );
+    this.pullOperation = operation.then(() => undefined, () => undefined);
+    return operation;
+  }
+
+  private async pullTasksUnlocked(
+    taskType: string,
+    workerId?: string,
+    options: WorkerPullOptions = {},
+  ): Promise<ApiResponse<WorkerPullData>> {
+    const id = workerId || this.workerId;
+
+    if (!id) {
+      throw new Error('Worker ID not set. Call register() first or provide workerId');
+    }
+
+    const { limit = TASK_LIMITS.worker_pull_default, preferRemote = false } = options;
+    const safeLimit = Math.max(1, Math.min(TASK_LIMITS.worker_pull, Math.floor(limit)));
     const scope = `${this.getBaseUrl()}:${id}:${taskType}`;
-    const recovered = await diffTaskSegmentStore.pending(scope);
-    if (recovered.length > 0) {
-      for (const task of recovered) this.taskSegmentScopes.set(task.task_id, scope);
+    let recovered: Task[] = [];
+    let staged: Task[] = [];
+    let response: ApiResponse<WorkerPullData> | null = null;
+
+    if (!preferRemote) {
+      recovered = await diffTaskSegmentStore.pending(scope, safeLimit);
+    }
+
+    let remaining = Math.max(0, safeLimit - recovered.length);
+    if (remaining > 0) {
+      const segmentCapacity = await diffTaskSegmentStore.availableCapacity(scope);
+      const remoteLimit = Math.min(remaining, segmentCapacity);
+      if (remoteLimit > 0) {
+        response = await this.get<WorkerPullData>(
+          workerTaskPath(taskType, 'pull'),
+          {
+            worker_id: id,
+            limit: remoteLimit,
+          },
+          {
+            timeout: CONTROL_RPC_FAILFAST_TIMEOUT_MS,
+            retries: 0,
+          },
+        );
+        if (!response.success || !response.data || !Array.isArray(response.data.tasks)) {
+          if (recovered.length > 0) {
+            await diffTaskSegmentStore.release(scope, recovered.map((task) => task.task_id));
+          }
+          return response;
+        }
+        staged = await diffTaskSegmentStore.stage(scope, response.data.tasks);
+        if (response.data.queue_cursor != null) {
+          await diffTaskSegmentStore.setRemoteRevision(
+            scope,
+            Number(response.data.queue_cursor),
+          );
+        }
+        remaining = Math.max(0, remaining - staged.length);
+      }
+    }
+
+    if (preferRemote && remaining > 0) {
+      recovered = await diffTaskSegmentStore.pending(scope, remaining);
+    }
+
+    const tasks = preferRemote ? [...staged, ...recovered] : [...recovered, ...staged];
+    for (const task of tasks) this.taskSegmentScopes.set(task.task_id, scope);
+    if (!response?.data) {
       return {
         success: true,
-        message: 'Recovered locally owned task segment',
-        data: { count: recovered.length, pending_urgent: 0, pending_fast: 0, tasks: recovered },
+        message: tasks.length > 0
+          ? 'Recovered locally owned task segment'
+          : 'No bounded task segment capacity available',
+        data: { count: tasks.length, pending_urgent: 0, pending_fast: 0, tasks },
       };
     }
-
-    const response = await this.get<{ count: number; pending_urgent: number; pending_fast: number; tasks: Task[] }>(
-      workerTaskPath(taskType, 'pull'),
-      {
-        worker_id: id,
-        // Always send wait; a missing wait uses Laravel's central long-poll limit.
-        wait: safeWait,
-        limit: safeLimit,
-      },
-      {
-        // Give the request enough headroom over the server-side wait.
-        timeout: (safeWait + 8) * 1000,
-        retries: 0, // Don't retry long polling requests
-      },
-    );
-    if (!response.success || !response.data || !Array.isArray(response.data.tasks)) {
-      return response;
-    }
-    const tasks = await diffTaskSegmentStore.stage(scope, response.data.tasks);
-    for (const task of tasks) this.taskSegmentScopes.set(task.task_id, scope);
     return {
       ...response,
       data: { ...response.data, count: tasks.length, tasks },
     };
+  }
+
+  async queueDiff(taskType: string, cursor: number): Promise<ApiResponse<QueueSliceDiff>> {
+    const id = this.workerId;
+    if (!id) {
+      throw new Error('Worker ID not set. Call register() first');
+    }
+    const scope = `${this.getBaseUrl()}:${id}:${taskType}`;
+    const storedCursor = await diffTaskSegmentStore.remoteRevision(scope);
+    return this.get<QueueSliceDiff>(
+      queueCenterDiffPath(taskType),
+      { cursor: Math.max(0, Math.floor(cursor), storedCursor) },
+      CONTROL_RPC_OPTS,
+    );
   }
 
   /**
@@ -225,19 +298,30 @@ export class WorkerApiClient extends BaseApiClient {
   }
 
   /**
-   * Bump a task onto the fast tier (or to an explicit priority). Mirrors Laravel
-   * `POST /api/task/{id}/bump` body {priority}. Defaults to PRIORITY_FAST so a
-   * single click promotes a queued task to the front of the fast lane.
+   * Move a task to the front using its contract-owned ordering authority.
+   * Queue-position tasks send no numeric priority; priority lanes keep the
+   * explicit fast-tier value.
    */
   async bumpTask(
     taskId: string,
+    taskType: string,
     priority: number = PRIORITY_FAST,
-  ): Promise<ApiResponse<{ task_id: string; priority: number }>> {
-    const response = await this.post<{ task_id: string; priority: number }>(
+  ): Promise<ApiResponse<{ task_id: string; priority?: number; queue_position?: number; status?: string }>> {
+    const usesQueuePosition = isQueuePositionOrderedTask(taskType);
+    const response = await this.post<{
+      task_id: string;
+      priority?: number;
+      queue_position?: number;
+      status?: string;
+    }>(
       taskPath(taskId, 'bump'),
-      { priority },
+      usesQueuePosition ? {} : { priority },
     );
-    if (response.success) await diffTaskSegmentStore.promote(taskId, priority);
+    if (response.success && usesQueuePosition) {
+      await diffTaskSegmentStore.moveToHead(taskId, Number(response.data?.queue_position ?? 0));
+    } else if (response.success) {
+      await diffTaskSegmentStore.promote(taskId, priority);
+    }
     return response;
   }
 
@@ -246,6 +330,20 @@ export class WorkerApiClient extends BaseApiClient {
     if (!scope) return;
     await diffTaskSegmentStore.consume(scope, taskId);
     this.taskSegmentScopes.delete(taskId);
+  }
+
+  async releaseTasks(tasks: Task[]): Promise<void> {
+    const taskIdsByScope = new Map<string, string[]>();
+    for (const task of tasks) {
+      const scope = this.taskSegmentScopes.get(task.task_id);
+      if (!scope) continue;
+      const taskIds = taskIdsByScope.get(scope) || [];
+      taskIds.push(task.task_id);
+      taskIdsByScope.set(scope, taskIds);
+    }
+    for (const [scope, taskIds] of taskIdsByScope) {
+      await diffTaskSegmentStore.release(scope, taskIds);
+    }
   }
 
   /**

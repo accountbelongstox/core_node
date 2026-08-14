@@ -10,7 +10,8 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Support\Collection;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -60,4 +61,47 @@ class PddToolV1RechargeModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function paidRevenue($now): array
+    {
+        return [
+            'total' => (float) static::query()->where('status', self::STATUS_PAID)->sum('amount'),
+            'last_30_days' => (float) static::query()
+                ->where('status', self::STATUS_PAID)
+                ->where('paid_at', '>=', $now->copy()->subDays(30))
+                ->sum('amount'),
+        ];
+    }
+
+    public static function recentForUser(int $userId, int $limit = 50): Collection
+    {
+        return static::query()->where('user_id', $userId)->orderByDesc('id')->limit($limit)->get();
+    }
+
+    public static function adminPage(string $status, int $page, int $perPage): array
+    {
+        $query = static::query();
+
+        if ($status !== '') {
+            $query->where('status', $status);
+        }
+
+        return [
+            'total' => (clone $query)->count(),
+            'rows' => $query->orderByDesc('id')->forPage($page, $perPage)->get(),
+        ];
+    }
+
+    public static function findForUserTrade(int $userId, string $outTradeNo): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('out_trade_no', $outTradeNo)
+            ->first();
+    }
+
+    public static function findByTradeNo(string $outTradeNo): ?self
+    {
+        return static::query()->where('out_trade_no', $outTradeNo)->first();
+    }
 }

@@ -1,7 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ExecutionWorld } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
 
 interface InjectScriptParam {
   url?: string;
@@ -55,7 +56,7 @@ class InjectScriptTool extends BaseBrowserToolExecutor {
 
           // Wait for page to load
           console.log('Waiting for page to load...');
-          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await waitForDelay(3000);
         }
       } else {
         // Use active tab in the current window
@@ -75,19 +76,11 @@ class InjectScriptTool extends BaseBrowserToolExecutor {
 
       const res = await handleInject(tab.id!, { ...args });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(res),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(res);
     } catch (error) {
       console.error('Error in InjectScriptTool.execute:', error);
       return createErrorResponse(
-        `Inject script error: ${error instanceof Error ? error.message : String(error)}`,
+        `Inject script error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -134,19 +127,11 @@ class SendCommandToInjectScriptTool extends BaseBrowserToolExecutor {
         targetWorld: injectedTabs.get(finalTabId), // The bridge uses this to decide whether to forward to MAIN world.
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result);
     } catch (error) {
       console.error('Error in InjectScriptTool.execute:', error);
       return createErrorResponse(
-        `Inject script error: ${error instanceof Error ? error.message : String(error)}`,
+        `Inject script error: ${toErrorMessage(error)}`,
       );
     }
   }

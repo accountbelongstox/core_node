@@ -5,7 +5,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Server, Cpu, GraduationCap, ArrowRight, Coins } from 'lucide-react';
-import { checkPycoreNow } from '../core/api-libs/pycore/PycoreHealth';
+import { checkPycoreNow } from '../core/integrations/pycore/PycoreHealth';
 import { END_META } from './shellTypes';
 
 type Health = 'checking' | 'up' | 'down' | 'unknown';

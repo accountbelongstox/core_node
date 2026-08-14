@@ -10,8 +10,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, Volume2 } from 'lucide-react';
-import { ElementTheme, Word } from '../WfNewTypes';
-
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word } from '../api/WfNewApiTypes';
 interface WfNewWordDetailModalProps {
   word: Word | null;
   activeTheme: ElementTheme;

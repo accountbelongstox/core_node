@@ -36,7 +36,7 @@
  * WfNewCacheRegistry) can wipe it. NEVER throws out of a public method — a cache
  * miss/failure simply returns empty/null so the caller falls back to the network.
  */
-import { capDb } from '@/shared/capabilities/CapDatabase';
+import { capDb } from '@/apps/wordnew/platform/capabilities/CapDatabase';
 import type { WfNewContentGroup, WfNewContentKind, Word } from '../api/WfNewApiTypes';
 
 // CapDatabase doc shape (its CapDoc = Record<string, unknown>); we store typed

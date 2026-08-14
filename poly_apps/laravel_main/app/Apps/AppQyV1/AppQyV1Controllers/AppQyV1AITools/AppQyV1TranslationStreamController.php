@@ -19,6 +19,8 @@ use App\Support\ServerRuntime;
 use App\Utils\SseStreamResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\StreamedEvent;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Session;
 
 /**
  * Translation real-time SSE stream (replaces Reverb).
@@ -28,7 +30,7 @@ use Illuminate\Http\StreamedEvent;
  * Streams translation-queue events over the SAME Octane :9000 HTTP port using
  * Laravel 12's response()->eventStream + StreamedEvent — no separate Reverb /
  * WebSocket process. Events mirror the original broadcast contract exactly:
- *   task.*, word.translated, sentence.priority, word_audio.priority,
+ *   task.*, word.translated, word_audio.head, sentence_audio.head,
  *   word_image.priority, cover.priority
  * plus stream.open / ping / stream.close envelope events. Every payload carries
  * `_id` (the outbox row id) so the consumer (pycore) advances its cursor and
@@ -93,6 +95,12 @@ class AppQyV1TranslationStreamController extends Controller
         }
 
         return SseStreamResponse::make(function () use ($cursor, $maxLifetime) {
+            // Release the session lock immediately: the stream is anonymous and
+            // long-lived, so holding the session file lock would block all other
+            // concurrent requests from the same session (Laravel 12 docs).
+            Session::save();
+            session_write_close();
+
             $current = $cursor;
             $start = microtime(true);
             $lastBeat = $start;
@@ -130,6 +138,11 @@ class AppQyV1TranslationStreamController extends Controller
                     AppQyV1TranslationEventModel::pruneOlderThan(self::PRUNE_AGE_SECONDS);
                     $lastPrune = microtime(true);
                 }
+
+                // Long-lived SSE connections must not keep a PostgreSQL worker
+                // connection idle for their entire lifetime. Disconnect after
+                // each batch; the next loop iteration reconnects on demand.
+                DB::disconnect();
 
                 usleep(self::POLL_INTERVAL_MS * 1000);
             }

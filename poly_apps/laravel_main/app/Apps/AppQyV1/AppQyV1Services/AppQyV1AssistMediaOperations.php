@@ -15,7 +15,7 @@ use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -37,35 +37,16 @@ trait AppQyV1AssistMediaOperations
         $limit = max(1, min(10, $limit));
 
         $model = new AppQyV1VocabularyLibraryModel();
+        $rows = AppQyV1VocabularyLibraryModel::claimCoverRows(
+            $claimer,
+            $limit,
+            AppQyV1CoverGenerationTask::RETRY_DELAY_MINUTES,
+            self::LEASE_MINUTES,
+            self::coverMcpMarkerSupported($model)
+        );
+        $items = [];
 
-        return $model->getConnection()->transaction(function () use ($claimer, $limit, $model) {
-            $rows = AppQyV1VocabularyLibraryModel::query()
-                ->whereNotNull('cover_filename')
-                ->where(function ($query) use ($model) {
-                    $query->where('cover_status', 'pending')
-                        ->orWhere(function ($retryQuery) {
-                            $retryQuery->where('cover_status', 'retry')
-                                ->where('cover_finished_at', '<=', now()->subMinutes(AppQyV1CoverGenerationTask::RETRY_DELAY_MINUTES));
-                        });
-                    if (self::coverMcpMarkerSupported($model)) {
-                        $query->orWhereNull('cover_mcp_submitted_at');
-                    }
-                })
-                ->where(function ($query) {
-                    $query->whereNull('assist_claimed_at')
-                        ->orWhere('assist_claimed_at', '<', now()->subMinutes(self::LEASE_MINUTES));
-                })
-                ->orderByDesc('cover_priority')
-                ->orderBy('cover_last_requested_at')
-                ->limit($limit)
-                ->lockForUpdate()
-                ->get();
-
-            $items = [];
-            foreach ($rows as $library) {
-                $library->assist_claimed_at = now();
-                $library->assist_claimed_by = mb_substr($claimer, 0, 64);
-                $library->save();
+        foreach ($rows as $library) {
 
                 // The assist client owns prompt composition and visual creativity;
                 // Laravel returns semantic metadata only.
@@ -80,10 +61,9 @@ trait AppQyV1AssistMediaOperations
                         'filename' => $library->cover_filename,
                     ],
                 ];
-            }
+        }
 
-            return $items;
-        }, 1);
+        return $items;
     }
 
     /**
@@ -102,9 +82,7 @@ trait AppQyV1AssistMediaOperations
     {
         if (self::$coverProvenanceColumns === null) {
             try {
-                self::$coverProvenanceColumns = $library->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasColumn($library->getTable(), 'cover_provider');
+                self::$coverProvenanceColumns = AppQyV1VocabularyLibraryModel::coverColumnAvailable('cover_provider');
             } catch (\Throwable $e) {
                 self::$coverProvenanceColumns = false;
             }
@@ -116,9 +94,7 @@ trait AppQyV1AssistMediaOperations
     {
         if (self::$coverMcpMarkerColumn === null) {
             try {
-                self::$coverMcpMarkerColumn = $library->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasColumn($library->getTable(), 'cover_mcp_submitted_at');
+                self::$coverMcpMarkerColumn = AppQyV1VocabularyLibraryModel::coverColumnAvailable('cover_mcp_submitted_at');
             } catch (\Throwable $e) {
                 self::$coverMcpMarkerColumn = false;
             }
@@ -138,11 +114,7 @@ trait AppQyV1AssistMediaOperations
     {
         if (self::$posterColumns === null) {
             try {
-                $book = new Book();
-                $schema = $book->getConnection()->getSchemaBuilder();
-                $table = $book->getTable();
-                self::$posterColumns = $schema->hasColumn($table, 'poster_status')
-                    && $schema->hasColumn($table, 'assist_claimed_at');
+                self::$posterColumns = Book::posterColumnsReady();
             } catch (\Throwable $e) {
                 self::$posterColumns = false;
             }
@@ -155,10 +127,7 @@ trait AppQyV1AssistMediaOperations
     {
         if (!array_key_exists($modelClass, self::$posterMcpMarkerColumns)) {
             try {
-                $model = new $modelClass();
-                self::$posterMcpMarkerColumns[$modelClass] = $model->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasColumn($model->getTable(), 'poster_mcp_submitted_at');
+                self::$posterMcpMarkerColumns[$modelClass] = $modelClass::posterColumnAvailable('poster_mcp_submitted_at');
             } catch (\Throwable $e) {
                 self::$posterMcpMarkerColumns[$modelClass] = false;
             }
@@ -175,7 +144,7 @@ trait AppQyV1AssistMediaOperations
         ?string $model = null,
         ?int $latencyMs = null
     ): array {
-        $library = AppQyV1VocabularyLibraryModel::query()->find($libraryId);
+        $library = AppQyV1VocabularyLibraryModel::findById($libraryId);
         if (!$library) {
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Library not found', 'http_status' => 404];
         }
@@ -241,7 +210,7 @@ trait AppQyV1AssistMediaOperations
         }
         $library->assist_claimed_at = null;
         $library->assist_claimed_by = null;
-        $library->save();
+        $library->saveRecord();
 
         Log::info('[Assist] Cover submitted by assist worker', [
             'library_id' => $libraryId,
@@ -268,34 +237,10 @@ trait AppQyV1AssistMediaOperations
             return 0;
         }
 
-        $released = AppQyV1VocabularyLibraryModel::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->count();
-
-        // Only rows actually holding a lease are touched: a stray release for
-        // an id the local timer owns must not disturb its processing state.
-        AppQyV1VocabularyLibraryModel::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->where('cover_status', '!=', 'ready')
-            ->update([
-                'cover_status' => 'retry',
-                'cover_error_message' => mb_substr($error ?: 'Released by assist worker', 0, 2000),
-                'cover_finished_at' => now(),
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
-
-        AppQyV1VocabularyLibraryModel::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->update([
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
-
-        return $released;
+        return AppQyV1VocabularyLibraryModel::releaseCoverClaims(
+            $ids,
+            $error ?: 'Released by assist worker'
+        );
     }
 
     /**
@@ -311,25 +256,14 @@ trait AppQyV1AssistMediaOperations
      */
     public function retryFailedCovers(array $ids = [], bool $all = false): int
     {
-        $query = AppQyV1VocabularyLibraryModel::query()
-            ->whereNotNull('cover_filename')
-            ->whereIn('cover_status', ['failed', 'retry']);
-
         if (!$all) {
             $ids = array_values(array_filter(array_map('intval', $ids), static fn ($id) => $id > 0));
             if (empty($ids)) {
                 return 0;
             }
-            $query->whereIn('id', $ids);
         }
 
-        return (int) $query->update([
-            'cover_status' => 'pending',
-            'cover_attempts' => 0,
-            'cover_error_message' => null,
-            'assist_claimed_at' => null,
-            'assist_claimed_by' => null,
-        ]);
+        return AppQyV1VocabularyLibraryModel::retryCoverRows($ids, $all);
     }
 
     /**
@@ -347,37 +281,25 @@ trait AppQyV1AssistMediaOperations
      */
     public function clearCovers(array $ids = [], bool $all = false, bool $failedOnly = false): array
     {
-        $query = AppQyV1VocabularyLibraryModel::query()->whereNotNull('cover_filename');
-        if ($failedOnly) {
-            $query->whereIn('cover_status', ['failed', 'retry']);
-        }
         if (!$all) {
             $ids = array_values(array_filter(array_map('intval', $ids), static fn ($id) => $id > 0));
             if (empty($ids)) {
                 return ['cleared' => 0, 'files_deleted' => 0];
             }
-            $query->whereIn('id', $ids);
         }
 
         $cleared = 0;
         $filesDeleted = 0;
+        $coverIds = [];
         // Plain get()+loop (not chunk): the requested-cover set is one row per
         // library, and we mutate cover_status which a chunked filter would skip.
-        foreach ($query->get() as $library) {
+        foreach (AppQyV1VocabularyLibraryModel::coverRows($ids, $all, $failedOnly) as $library) {
             if ($this->coverService->deleteCoverFile($library->cover_filename)) {
                 $filesDeleted++;
             }
-            $library->cover_status = 'pending';
-            $library->cover_attempts = 0;
-            $library->cover_error_message = null;
-            $library->cover_started_at = null;
-            $library->cover_finished_at = null;
-            $library->cover_last_generated_at = null;
-            $library->assist_claimed_at = null;
-            $library->assist_claimed_by = null;
-            $library->save();
-            $cleared++;
+            $coverIds[] = (int) $library->id;
         }
+        $cleared = AppQyV1VocabularyLibraryModel::resetCoverRowsByIds($coverIds, true);
 
         return ['cleared' => $cleared, 'files_deleted' => $filesDeleted];
     }
@@ -394,27 +316,17 @@ trait AppQyV1AssistMediaOperations
     {
         $checked = 0;
         $reset = 0;
-        AppQyV1VocabularyLibraryModel::query()
-            ->whereNotNull('cover_filename')
-            ->where('cover_status', 'ready')
-            ->select(['id', 'cover_filename', 'cover_status', 'cover_attempts',
-                      'cover_error_message', 'cover_last_generated_at',
-                      'assist_claimed_at', 'assist_claimed_by'])
-            ->chunkById(200, function ($rows) use (&$checked, &$reset) {
+        AppQyV1VocabularyLibraryModel::eachReadyCover(function ($rows) use (&$checked, &$reset) {
+                $missingIds = [];
+
                 foreach ($rows as $library) {
                     $checked++;
                     if ($this->coverService->hasCoverFile($library->cover_filename)) {
                         continue;
                     }
-                    $library->cover_status = 'pending';
-                    $library->cover_attempts = 0;
-                    $library->cover_error_message = null;
-                    $library->cover_last_generated_at = null;
-                    $library->assist_claimed_at = null;
-                    $library->assist_claimed_by = null;
-                    $library->save();
-                    $reset++;
+                    $missingIds[] = (int) $library->id;
                 }
+                $reset += AppQyV1VocabularyLibraryModel::resetCoverRowsByIds($missingIds);
             });
 
         return ['reset' => $reset, 'checked' => $checked];
@@ -423,15 +335,7 @@ trait AppQyV1AssistMediaOperations
     /** Cover queue counters (requested covers only: cover_filename set). */
     public function coverCounts(): array
     {
-        $base = fn () => AppQyV1VocabularyLibraryModel::query()->whereNotNull('cover_filename');
-
-        // One grouped query for the per-status counts (same pattern as
-        // translationCounts) instead of 5 separate COUNT(*) round-trips on every
-        // assist-status poll.
-        $grouped = $base()
-            ->groupBy('cover_status')
-            ->select('cover_status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-            ->pluck('total', 'cover_status');
+        $grouped = AppQyV1VocabularyLibraryModel::coverStatusTotals();
 
         $counts = [
             'pending' => (int) ($grouped->get('pending') ?? 0),
@@ -441,10 +345,9 @@ trait AppQyV1AssistMediaOperations
             'failed' => (int) ($grouped->get('failed') ?? 0),
         ];
         $counts['total'] = array_sum($counts);
-        $counts['leased'] = (int) $base()
-            ->whereIn('cover_status', ['pending', 'retry'])
-            ->where('assist_claimed_at', '>=', now()->subMinutes(self::LEASE_MINUTES))
-            ->count();
+        $counts['leased'] = AppQyV1VocabularyLibraryModel::leasedCoverCount(
+            now()->subMinutes(self::LEASE_MINUTES)
+        );
 
         return $counts;
     }
@@ -510,53 +413,18 @@ trait AppQyV1AssistMediaOperations
      */
     private function claimPostersFor(string $mediaType, string $modelClass, string $claimerId, int $limit): array
     {
-        /** @var Model $probe */
-        $probe = new $modelClass();
         $provenanceSupported = self::posterMcpMarkerSupported($modelClass);
+        $rows = $modelClass::claimPosterRows(
+            $claimerId,
+            $limit,
+            now()->subMinutes(self::LEASE_MINUTES),
+            now()->subMinutes(self::POSTER_FAILED_BACKOFF_MINUTES),
+            $provenanceSupported,
+            self::POSTER_COMPLIANT_PROVIDERS
+        );
+        $items = [];
 
-        return $probe->getConnection()->transaction(function () use ($mediaType, $modelClass, $claimerId, $limit, $provenanceSupported) {
-            $leaseFloor = now()->subMinutes(self::LEASE_MINUTES);
-            $failedFloor = now()->subMinutes(self::POSTER_FAILED_BACKOFF_MINUTES);
-
-            $rows = $modelClass::query()
-                ->where(function ($query) use ($failedFloor, $provenanceSupported) {
-                    $query->where('poster_status', 'pending')
-                        ->orWhere(function ($retryQuery) use ($failedFloor) {
-                            $retryQuery->where('poster_status', 'failed')
-                                ->where(function ($q) use ($failedFloor) {
-                                    $q->whereNull('poster_fetched_at')
-                                        ->orWhere('poster_fetched_at', '<=', $failedFloor);
-                                });
-                        });
-                    // Provenance rule (7.2): a READY cover is re-claimed for
-                    // mcp-chrome re-upload only when it was never mcp-submitted
-                    // AND its provider is outside the search-engine allowlist.
-                    if ($provenanceSupported) {
-                        $query->orWhere(function ($provenance) {
-                            $provenance->where('poster_status', 'ready')
-                                ->whereNull('poster_mcp_submitted_at')
-                                ->where(function ($provider) {
-                                    $provider->whereNull('poster_provider')
-                                        ->orWhereNotIn('poster_provider', self::POSTER_COMPLIANT_PROVIDERS);
-                                });
-                            });
-                    }
-                })
-                ->where(function ($query) use ($leaseFloor) {
-                    $query->whereNull('assist_claimed_at')
-                        ->orWhere('assist_claimed_at', '<', $leaseFloor);
-                })
-                ->orderByRaw('poster_fetched_at IS NULL DESC')
-                ->orderBy('poster_fetched_at')
-                ->limit($limit)
-                ->lockForUpdate()
-                ->get();
-
-            $items = [];
-            foreach ($rows as $row) {
-                $row->assist_claimed_at = now();
-                $row->assist_claimed_by = $claimerId;
-                $row->save();
+        foreach ($rows as $row) {
 
                 $items[] = [
                     'type' => 'poster',
@@ -568,10 +436,9 @@ trait AppQyV1AssistMediaOperations
                         'filename' => (string) $row->source_key,
                     ],
                 ];
-            }
+        }
 
-            return $items;
-        }, 1);
+        return $items;
     }
 
     /**
@@ -597,7 +464,7 @@ trait AppQyV1AssistMediaOperations
         }
 
         /** @var Model|null $model */
-        $model = $modelClass::query()->find($id);
+        $model = $modelClass::findSource($id);
         if (!$model) {
             return ['ok' => false, 'status' => 'not_found', 'error' => ucfirst($mediaType) . ' not found', 'http_status' => 404];
         }
@@ -621,7 +488,7 @@ trait AppQyV1AssistMediaOperations
                 return $this->submitAdditionalPosterCover($model, $binary, $mime, $provider, $sourceId);
             }
             $model->setAttribute('poster_status', 'pending');
-            $model->save();
+            $model->saveRecord();
         }
 
         // MoviePosterStore handles file write + the poster_* columns (status,
@@ -651,10 +518,10 @@ trait AppQyV1AssistMediaOperations
         }
 
         // applyToModel saved the poster_* columns; mark the mcp submission and clear the lease.
-        $model = $model->refresh();
+        $model = $model->refreshRecord();
         if (self::posterMcpMarkerSupported($modelClass)) {
             $model->setAttribute('poster_mcp_submitted_at', now());
-            $model->save();
+            $model->saveRecord();
         }
         $this->clearPosterLease($model);
 
@@ -716,10 +583,10 @@ trait AppQyV1AssistMediaOperations
                 'http_status' => 500,
             ];
         }
-        $model = $model->refresh();
+        $model = $model->refreshRecord();
         if (self::posterMcpMarkerSupported(get_class($model))) {
             $model->setAttribute('poster_mcp_submitted_at', now());
-            $model->save();
+            $model->saveRecord();
         }
         $this->clearPosterLease($model);
 
@@ -753,31 +620,7 @@ trait AppQyV1AssistMediaOperations
             return 0;
         }
 
-        $released = $modelClass::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->count();
-
-        // Non-ready leased rows -> failed + backoff timestamp, clear lease.
-        $modelClass::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->where('poster_status', '!=', 'ready')
-            ->update([
-                'poster_status' => 'failed',
-                'poster_fetched_at' => now(),
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
-
-        // Ready leased rows -> just drop the lease.
-        $modelClass::query()
-            ->whereIn('id', $ids)
-            ->whereNotNull('assist_claimed_at')
-            ->update([
-                'assist_claimed_at' => null,
-                'assist_claimed_by' => null,
-            ]);
+        $released = $modelClass::releasePosterClaims($ids, now());
 
         if ($error !== null && $error !== '') {
             Log::info('[Assist] Posters released by assist worker', [
@@ -814,20 +657,15 @@ trait AppQyV1AssistMediaOperations
         $leaseFloor = now()->subMinutes(self::LEASE_MINUTES);
 
         foreach ([Book::class, Subtitle::class] as $modelClass) {
-            $grouped = $modelClass::query()
-                ->groupBy('poster_status')
-                ->select('poster_status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-                ->pluck('total', 'poster_status');
+            $sourceCounts = $modelClass::assistPosterCounts($leaseFloor);
+            $grouped = $sourceCounts['statuses'];
 
             $counts['pending'] += (int) ($grouped->get('pending') ?? 0);
             $counts['ready'] += (int) ($grouped->get('ready') ?? 0);
             $counts['failed'] += (int) ($grouped->get('failed') ?? 0);
             $counts['none'] += (int) ($grouped->get('none') ?? 0);
 
-            $counts['leased'] += (int) $modelClass::query()
-                ->where('poster_status', 'pending')
-                ->where('assist_claimed_at', '>=', $leaseFloor)
-                ->count();
+            $counts['leased'] += (int) $sourceCounts['leased'];
         }
 
         $counts['total'] = $counts['pending'] + $counts['ready'] + $counts['failed'] + $counts['none'];
@@ -862,7 +700,7 @@ trait AppQyV1AssistMediaOperations
         if ($model->getAttribute('assist_claimed_at') !== null || $model->getAttribute('assist_claimed_by') !== null) {
             $model->setAttribute('assist_claimed_at', null);
             $model->setAttribute('assist_claimed_by', null);
-            $model->save();
+            $model->saveRecord();
         }
     }
 }

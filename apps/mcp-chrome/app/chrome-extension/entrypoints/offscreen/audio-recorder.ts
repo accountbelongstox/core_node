@@ -4,6 +4,8 @@
 // MUST stay the first import: aliases chrome -> browser on Firefox before any
 // other module top-level code touches chrome.* (no-op, tree-shaken on Chrome).
 import '@/utils/browser-shim';
+import { respondAsync, toErrorMessage } from '@/utils/runtime-message';
+import { IntervalController, TimeoutController } from '@/utils/async';
 
 let recorder: MediaRecorder | null = null;
 let audioData: Blob[] = [];
@@ -11,8 +13,9 @@ let activeStreams: MediaStream[] = [];
 let websockets: Map<string, WebSocket> = new Map();
 let audioContext: AudioContext | null = null;
 let analyserNode: AnalyserNode | null = null;
-let silenceDetectionInterval: ReturnType<typeof setInterval> | null = null;
-let maxDurationTimer: ReturnType<typeof setTimeout> | null = null;
+const maxDurationTimeout = new TimeoutController();
+const silenceDetection = new IntervalController();
+const durationUpdates = new IntervalController();
 
 // Recording configuration
 let recordingConfig: {
@@ -45,26 +48,6 @@ let recordingState = {
   isSilent: false,
 };
 
-// Normalize any caught value into an error message string.
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-// Drive an async onMessage handler to completion under the sync-listener
-// contract: resolves with {success:true} and rejects with {success:false,error}.
-// Centralizing this pattern prevents the async-listener bug (an `async` listener
-// returns a Promise, not the boolean Chrome needs to keep the channel open, so
-// sendResponse always hits a closed port) from recurring. Mirrors the sibling
-// pattern in main.ts / storage-manager.ts / api-health-listener.ts.
-function respondAsync(
-  work: Promise<unknown>,
-  sendResponse: (response: any) => void,
-): void {
-  work
-    .then(() => sendResponse({ success: true }))
-    .catch((error) => sendResponse({ success: false, error: toErrorMessage(error) }));
-}
-
 // Message listener
 // Synchronous listener returning true and driving async work via .then/.catch,
 // matching the sibling offscreen/background listeners (main.ts, storage-manager.ts).
@@ -76,11 +59,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   try {
     switch (message.type) {
       case 'audio_start_recording':
-        respondAsync(startRecording(message.streamId, message.config), sendResponse);
+        respondAsync(
+          sendResponse,
+          startRecording(message.streamId, message.config),
+          () => ({ success: true }),
+        );
         break;
 
       case 'audio_stop_recording':
-        respondAsync(stopRecording(), sendResponse);
+        respondAsync(sendResponse, stopRecording(), () => ({ success: true }));
         break;
 
       case 'audio_update_config':
@@ -240,8 +227,7 @@ async function startRecording(streamId: string, config: typeof recordingConfig) 
       // Clear any orphaned timer from a prior recording so it can never fire
       // during this one and stop it prematurely.
       stopMaxDurationTimer();
-      maxDurationTimer = setTimeout(() => {
-        maxDurationTimer = null;
+      maxDurationTimeout.schedule(() => {
         if (recordingState.isRecording) {
           console.log('[Audio Offscreen] Max duration reached, stopping recording');
           stopRecording();
@@ -423,7 +409,7 @@ function startSilenceDetection() {
   const silenceThreshold = 10; // Adjust as needed
   const silenceDuration = (recordingConfig?.recordingSettings.silenceDuration || 30) * 1000;
 
-  silenceDetectionInterval = setInterval(() => {
+  silenceDetection.start(() => {
     if (!analyserNode) return;
 
     analyserNode.getByteFrequencyData(dataArray);
@@ -455,33 +441,22 @@ function startSilenceDetection() {
 }
 
 function stopSilenceDetection() {
-  if (silenceDetectionInterval) {
-    clearInterval(silenceDetectionInterval);
-    silenceDetectionInterval = null;
-  }
+  silenceDetection.stop();
 }
 
-let durationTimer: ReturnType<typeof setInterval> | null = null;
-
 function startDurationTimer() {
-  durationTimer = setInterval(() => {
+  durationUpdates.start(() => {
     recordingState.duration = Math.floor((Date.now() - recordingState.startTime) / 1000);
     notifyRecordingStatus();
   }, 1000);
 }
 
 function stopDurationTimer() {
-  if (durationTimer) {
-    clearInterval(durationTimer);
-    durationTimer = null;
-  }
+  durationUpdates.stop();
 }
 
 function stopMaxDurationTimer() {
-  if (maxDurationTimer) {
-    clearTimeout(maxDurationTimer);
-    maxDurationTimer = null;
-  }
+  maxDurationTimeout.cancel();
 }
 
 function notifyRecordingStatus() {

@@ -20,6 +20,7 @@ import { usePersistedRef } from '@/composables/usePersistedRef';
 import { logger } from '@/utils/logger';
 import { getMessage } from '@/utils/i18n';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { delay as waitForDelay } from '@/utils/async';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import {
   DEFAULT_GEMINI_TRANSLATE_LANGUAGES,
@@ -92,7 +93,7 @@ export function useArticleStudyGuide() {
     try {
       let polls = 0;
       while (polls < MAX_POLLS) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        await waitForDelay(POLL_INTERVAL_MS);
         polls++;
         if (activeJob.value?.jobId !== jobId) return; // superseded by a newer run
         const s = await sendTo(jobProvider, { action: 'status', jobId });

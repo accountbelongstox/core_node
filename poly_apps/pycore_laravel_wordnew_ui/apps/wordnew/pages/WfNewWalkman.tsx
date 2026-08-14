@@ -4,7 +4,8 @@ import {
   Play, Pause, SkipForward, SkipBack, Volume2, Settings2, 
   RotateCcw, Sparkles, HelpCircle, VolumeX, ListMusic, Layers, RefreshCw
 } from 'lucide-react';
-import { ElementTheme, Word } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word } from '../api/WfNewApiTypes';
 import { wfNewApi } from '../api';
 
 interface WfNewWalkmanProps {

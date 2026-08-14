@@ -153,7 +153,7 @@ class AppQyV1BackfillGlobalTasks extends Command
 
         $status = $this->mapStatus($dictStatus, $hasMedia);
         $priority = $kind === 'audio'
-            ? (int) ($row->tts_priority ?? 0)
+            ? 0
             : (int) ($row->image_priority ?? 0);
 
         if ($dryRun) {

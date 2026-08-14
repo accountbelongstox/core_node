@@ -5,11 +5,12 @@
  * users to manually select elements on the page when AI cannot reliably locate them.
  */
 
-import { createErrorResponse, type ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, type ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { BACKGROUND_MESSAGE_TYPES, TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { ERROR_MESSAGES } from '@/common/constants';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { delay as waitForDelay, withTimeout } from '@/utils/async';
 
 // ============================================================
 // Types
@@ -228,7 +229,7 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
       tab = explicit || (await this.getActiveTabOrThrowInWindow(args?.windowId));
     } catch (error) {
       return createErrorResponse(
-        `${ERROR_MESSAGES.TAB_NOT_FOUND}: ${error instanceof Error ? error.message : String(error)}`,
+        `${ERROR_MESSAGES.TAB_NOT_FOUND}: ${toErrorMessage(error)}`,
       );
     }
     if (!tab.id) {
@@ -477,16 +478,15 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
         // Try to ping UI content script with retries
         const pingWithTimeout = async (timeoutMs = 500): Promise<boolean> => {
           try {
-            const resp = await Promise.race([
+            const resp = await withTimeout(
               this.sendMessageToTab(
                 tabId,
                 { action: TOOL_MESSAGE_TYPES.ELEMENT_PICKER_UI_PING },
                 0,
               ),
-              new Promise<null>((_, reject) =>
-                setTimeout(() => reject(new Error('Ping timeout')), timeoutMs),
-              ),
-            ]);
+              timeoutMs,
+              'Ping timeout',
+            );
             return resp?.success === true;
           } catch {
             return false;
@@ -508,7 +508,7 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
               injectImmediately: true,
             } as any);
             // Wait a bit for script to initialize
-            await new Promise((r) => setTimeout(r, 150));
+            await waitForDelay(150);
             // Check if injection worked
             if (await pingWithTimeout(300)) return true;
           } catch (e) {
@@ -577,7 +577,7 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
 
       // Wait for result
       const result = await resultPromise;
-      return { content: [{ type: 'text', text: JSON.stringify(result) }], isError: false };
+      return createJsonResponse(result);
     } catch (error) {
       console.error('Error in element picker tool:', error);
       // Cleanup on error
@@ -594,7 +594,7 @@ class ElementPickerTool extends BaseBrowserToolExecutor {
         // Best-effort cleanup
       }
       return createErrorResponse(
-        `${ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${error instanceof Error ? error.message : String(error)}`,
+        `${ERROR_MESSAGES.TOOL_EXECUTION_FAILED}: ${toErrorMessage(error)}`,
       );
     }
   }

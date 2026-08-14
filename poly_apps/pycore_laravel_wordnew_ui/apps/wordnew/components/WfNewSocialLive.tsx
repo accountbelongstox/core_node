@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import {
   Radio, Users, Send, Loader2, ExternalLink, Plus, X,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-import { mediaUrl } from '../../../config/constants';
+import type { ElementTheme } from '../WfNewThemes';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import {
   wfNewApi,
   subscribeSocial,

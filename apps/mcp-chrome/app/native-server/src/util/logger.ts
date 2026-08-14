@@ -1,45 +1,19 @@
-// import { stderr } from 'process';
-// import * as fs from 'fs';
-// import * as path from 'path';
+import { stderr } from 'process';
 
-// // Set log file path
-// const LOG_DIR = path.join(
-//   '/Users/hang/code/ai/chrome-mcp-server/app/native-server/dist/',
-//   '.debug-log',
-// ); // Use different directory for separation
-// const LOG_FILE = path.join(
-//   LOG_DIR,
-//   `native-host-${new Date().toISOString().replace(/:/g, '-')}.log`,
-// );
-// // Ensure log directory exists
-// if (!fs.existsSync(LOG_DIR)) {
-//   try {
-//     fs.mkdirSync(LOG_DIR, { recursive: true });
-//   } catch (err) {
-//     stderr.write(`[ERROR] Failed to create log directory: ${err}\n`);
-//   }
-// }
+export type LogData = unknown;
 
-// // Log function
-// function writeLog(level: string, message: string): void {
-//   const timestamp = new Date().toISOString();
-//   const logMessage = `[${timestamp}] [${level}] ${message}\n`;
+export type Logger = (level: string, message: string, data?: LogData) => void;
 
-//   // Write to file
-//   try {
-//     fs.appendFileSync(LOG_FILE, logMessage);
-//   } catch (err) {
-//     stderr.write(`[ERROR] Failed to write log: ${err}\n`);
-//   }
+export function createLogger(scope: string): Logger {
+  return (level: string, message: string, data?: LogData): void => {
+    const timestamp = new Date().toISOString();
+    const logMessage = `[${timestamp}] [${scope}] [${level}] ${message}`;
 
-//   // Also output to stderr (does not affect native messaging protocol)
-//   stderr.write(logMessage);
-// }
+    if (data) {
+      stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
+      return;
+    }
 
-// // Log level functions
-// export const logger = {
-//   debug: (message: string) => writeLog('DEBUG', message),
-//   info: (message: string) => writeLog('INFO', message),
-//   warn: (message: string) => writeLog('WARN', message),
-//   error: (message: string) => writeLog('ERROR', message),
-// };
+    stderr.write(`${logMessage}\n`);
+  };
+}

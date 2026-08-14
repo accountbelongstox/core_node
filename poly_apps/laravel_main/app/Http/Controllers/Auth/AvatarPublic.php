@@ -35,7 +35,7 @@ class AvatarPublic
             $user->avatar = '/avatars/' . $avatarFileName;
         }
         if ($save) {
-            $user->save();
+            $user->saveRecord();
         }
         return $user;
     }
@@ -115,7 +115,7 @@ class AvatarPublic
         $avatarCreator->save($avatarFullPath, 80);
 
         $user->avatar = '/avatars/' . $avatarFileName;
-        $user->save();
+        $user->saveRecord();
 
         return $user;
     }

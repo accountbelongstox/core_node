@@ -3,7 +3,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 class CodeMartV1ReviewerApplicationModel extends Model
 {
@@ -25,4 +25,26 @@ class CodeMartV1ReviewerApplicationModel extends Model
         'similarity_score' => 'decimal:2',
         'completed_at' => 'datetime',
     ];
+
+    public static function recentForUser(int $userId, int $days): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('created_at', '>', now()->subDays($days))
+            ->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findOwnedInProgress(int $applicationId, int $userId): ?self
+    {
+        return static::query()
+            ->whereKey($applicationId)
+            ->where('user_id', $userId)
+            ->where('status', 'in_progress')
+            ->first();
+    }
 }

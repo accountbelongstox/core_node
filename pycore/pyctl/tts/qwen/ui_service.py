@@ -5,33 +5,16 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
+from pycore.pyutils.common.managed_service import managed_services
 import pycore.pyctl.tts.qwen.operation_service as qwen_operations
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.rpc_v2.delivery import http_event_delivery_service
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, QUEUE_EVENT_NAME
 from pycore.pyutils.tts.tts_service_manager import (
-    prepare_server_for_use,
     server_runtime_status,
-    start_server,
     stop_server,
 )
-
-
-def _prepare(
-    force_start: bool = False,
-    force_restart: bool = False,
-) -> Optional[str]:
-    if force_restart:
-        stop_server(ENGINE_NAME)
-    if force_start or force_restart:
-        result = start_server(ENGINE_NAME)
-        if not result.get("success"):
-            return str(result.get("error") or "qwen3tts start failed")
-        return None
-    if not prepare_server_for_use(ENGINE_NAME):
-        return "qwen3tts service failed to start"
-    return None
 
 def _publish_queue_event(event: Dict[str, Any]) -> None:
     payload = dict(event or {})
@@ -96,19 +79,27 @@ def capabilities(_params: Dict[str, Any]) -> Dict[str, Any]:
     return {"success": True, "data": capabilities}
 
 def model_load(params: Dict[str, Any]) -> Dict[str, Any]:
-    prepare_error = _prepare(
-        force_start=True,
-        force_restart=bool(params.get("force_reload", False)),
-    )
-    if prepare_error:
+    if bool(params.get("force_reload", False)):
+        stop_result = stop_server(ENGINE_NAME)
+        if not stop_result.get("success"):
+            return {
+                "success": False,
+                "error": {
+                    "code": "qwen_busy",
+                    "message": str(stop_result.get("error") or "qwen3tts is busy"),
+                },
+            }
+    try:
+        with managed_services.lease(ENGINE_NAME, force=True):
+            result = qwen_engine.load_model()
+    except Exception as exc:  # noqa: BLE001
         return {
             "success": False,
             "error": {
                 "code": "qwen_start_error",
-                "message": prepare_error,
+                "message": str(exc) or "qwen3tts start failed",
             },
         }
-    result = qwen_engine.load_model()
     if result is None or not result.get("ok"):
         return {
             "success": False,
@@ -141,15 +132,6 @@ def synthesis_submit(params: Dict[str, Any]) -> Dict[str, Any]:
             "error": {
                 "code": "missing_params",
                 "message": "scope and text are required",
-            },
-        }
-    prepare_error = _prepare()
-    if prepare_error:
-        return {
-            "success": False,
-            "error": {
-                "code": "qwen_start_error",
-                "message": prepare_error,
             },
         }
     return {

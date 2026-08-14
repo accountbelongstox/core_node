@@ -10,7 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1ImageUrl;
 use App\Providers\PathMapper;
@@ -60,6 +59,9 @@ class AppQyV1WordImageQueueService
     {
         $results = [];
         $entries = $position === 'beginning' ? array_reverse($words, true) : $words;
+        $prepared = [];
+        $hashesByLanguage = [];
+        $rowsByLanguage = [];
 
         foreach ($entries as $index => $entry) {
             $word = is_array($entry) ? ($entry['word'] ?? null) : null;
@@ -74,9 +76,42 @@ class AppQyV1WordImageQueueService
                 continue;
             }
 
-            $result = $this->add($word, $language, $position);
-            $result['index'] = $index;
-            $result['word'] = $word;
+            $trimmedWord = trim($word);
+            if ($trimmedWord === '') {
+                $results[] = [
+                    'success' => false,
+                    'error' => 'Empty word',
+                    'index' => $index,
+                    'word' => $word,
+                ];
+                continue;
+            }
+
+            $langCode = AppQyV1DictionaryService::getLanguageCode($language);
+            $hash = md5($trimmedWord);
+            $prepared[] = [
+                'index' => $index,
+                'word' => $trimmedWord,
+                'language' => $langCode,
+                'hash' => $hash,
+            ];
+            $hashesByLanguage[$langCode][] = $hash;
+        }
+
+        foreach ($hashesByLanguage as $langCode => $hashes) {
+            $rowsByLanguage[$langCode] = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $hashes)
+                ->keyBy('md5');
+        }
+
+        foreach ($prepared as $item) {
+            $entry = $rowsByLanguage[$item['language']]->get($item['hash']);
+            if (!$entry) {
+                $entry = AppQyV1LangDictionaryModel::newImageQueueEntry($item['language'], $item['word']);
+                $rowsByLanguage[$item['language']]->put($item['hash'], $entry);
+            }
+            $result = $this->addResolved($item['word'], $item['language'], $entry, $position);
+            $result['index'] = $item['index'];
+            $result['word'] = $item['word'];
             $results[] = $result;
         }
         usort($results, static fn (array $left, array $right): int =>
@@ -111,6 +146,16 @@ class AppQyV1WordImageQueueService
         $md5 = md5($word);
         $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
 
+        return $this->addResolved($word, $langCode, $entry, $position);
+    }
+
+    private function addResolved(
+        string $word,
+        string $langCode,
+        ?AppQyV1LangDictionaryModel $entry,
+        string $position
+    ): array {
+
         // A local image is final only after mcp-chrome has submitted it. Legacy
         // files remain visible while a Chrome replacement is queued.
         if ($entry && $this->imageOnDisk($entry) && $this->submittedByMcp($entry)) {
@@ -126,14 +171,7 @@ class AppQyV1WordImageQueueService
         // Auto-create a minimal dictionary row when absent so a freshly enqueued
         // word still receives its image (mirrors the TTS queue's auto-create).
         if (!$entry) {
-            $entry = AppQyV1LangDictionaryModel::forLanguage($langCode);
-            $entry->content = $word;
-            $entry->md5 = $md5;
-            $entry->has_translation = false;
-            $entry->has_audio = false;
-            $entry->is_valid = true;
-            $entry->query_count = 0;
-            AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
+            $entry = AppQyV1LangDictionaryModel::newImageQueueEntry($langCode, $word);
         }
 
         $status = $this->markRowPending($entry, $position);
@@ -182,36 +220,10 @@ class AppQyV1WordImageQueueService
      */
     private function markRowPending(AppQyV1LangDictionaryModel $row, string $position): string
     {
-        $row->image_status = self::STATUS_PENDING;
-        if ($this->hasMcpSubmissionColumn($row)) {
-            $row->image_mcp_submitted_at = null;
-        }
-        if (!$row->image_requested_at) {
-            $row->image_requested_at = now();
-        }
+        $moveToFront = $position === 'beginning';
+        $status = $moveToFront ? 'moved_to_front' : 'queued';
 
-        // Re-adding a failed row re-queues it with a fresh retry budget.
-        $row->image_attempts = 0;
-        $row->image_locked_at = null;
-        $row->image_locked_by = null;
-
-        if ($position === 'beginning') {
-            $connection = $row->getConnection();
-            $table = $row->getTable();
-            $connection->transaction(function () use ($connection, $table, $row): void {
-                AppQyV1TableMaps::lockTableForFrontTicket($connection, $table);
-                $head = $connection->selectOne(
-                    "SELECT COALESCE(MAX(image_priority), 0) + 1 AS priority FROM {$table}"
-                );
-                $row->image_priority = (int) ($head->priority ?? 1);
-                $row->save();
-            });
-            $status = 'moved_to_front';
-        } else {
-            $row->image_priority = max((int) ($row->image_priority ?? 0), self::PRIORITY_DEFAULT);
-            $row->save();
-            $status = 'queued';
-        }
+        $row->markImagePending($moveToFront, self::PRIORITY_DEFAULT);
 
         return $status;
     }
@@ -243,14 +255,8 @@ class AppQyV1WordImageQueueService
 
     private function submittedByMcp(AppQyV1LangDictionaryModel $row): bool
     {
-        return $this->hasMcpSubmissionColumn($row)
+        return $row->hasImageMcpSubmissionColumn()
             && $row->getAttribute('image_mcp_submitted_at') !== null;
-    }
-
-    private function hasMcpSubmissionColumn(AppQyV1LangDictionaryModel $row): bool
-    {
-        return $row->getConnection()->getSchemaBuilder()
-            ->hasColumn($row->getTable(), 'image_mcp_submitted_at');
     }
 
     /**

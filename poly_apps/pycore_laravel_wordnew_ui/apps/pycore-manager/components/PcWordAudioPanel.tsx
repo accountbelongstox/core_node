@@ -4,6 +4,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { laravelApi, pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } from '@/apps/pycore-manager/api';
 import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
@@ -13,6 +14,7 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreMa
 const LOG_LIMIT = 1000;
 
 export function PcWordAudioPanel(): ReactElement {
+  const { t } = useTranslation('pc');
   const hub = useQueueCenterHub();
   const [expanded, setExpanded] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_EXPANDED) === '1');
   const [engine, setEngine] = useState(() => StorageManager.getRaw(StorageKeys.PYCORE_WORD_AUDIO_ENGINE) || 'edge');
@@ -54,6 +56,7 @@ export function PcWordAudioPanel(): ReactElement {
   const leased = hub.voiceWord?.laravel?.leased;
   const effectiveConcurrency = hub.voiceWord?.concurrency;
   const recommendedConcurrency = hub.voiceWord?.concurrency_recommended;
+  const queueProgress = worker?.queue_progress;
 
   const sectionWorkerLabel = workerOn
     ? (wordSection.lifecycle === 'starting' ? 'starting' : workerRunning ? 'running' : workerConfigured ? 'configured' : 'off')
@@ -105,6 +108,10 @@ export function PcWordAudioPanel(): ReactElement {
       text: event.text_preview || '',
       detail: event.detail,
       lang: event.language,
+      taskDisplayId: event.task_display_id,
+      stage: event.stage,
+      progress: event.progress,
+      progressTotal: event.progress_total,
       playable: Boolean(event.text_preview && event.language && event.kind === 'ok'),
     }))
     .filter((row) => row.at > logClearedAt)
@@ -134,6 +141,9 @@ export function PcWordAudioPanel(): ReactElement {
         </span>
         <span className="text-[10px] text-slate-500 truncate flex-1 min-w-0">
           Laravel pending {pending ?? '—'} · leased {leased ?? '—'}
+          {queueProgress?.total != null
+            ? ` · ${queueProgress.completed ?? 0}/${queueProgress.total}`
+            : ''}
         </span>
         <button type="button" onClick={toggleExpanded}
           className="shrink-0 rounded bg-slate-700 px-2 py-1 text-[10px] text-slate-300 hover:bg-slate-600">
@@ -194,7 +204,13 @@ export function PcWordAudioPanel(): ReactElement {
             that worker; the section ON/OFF switch is its only lifecycle control.
           </p>
           {actionError && <p className="text-[10px] text-rose-400">{actionError}</p>}
-          <PcWordAudioLog rows={rows} onClear={() => setLogClearedAt(Date.now())} onPlay={playRow} />
+          <PcWordAudioLog
+            rows={rows}
+            progressLabel={t('queueCenter.wordAudioQueue.progress')}
+            stageLabel={(stage) => t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}
+            onClear={() => setLogClearedAt(Date.now())}
+            onPlay={playRow}
+          />
         </div>
       )}
     </div>

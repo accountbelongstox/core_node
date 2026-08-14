@@ -10,8 +10,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import { usePycoreBlobUrl } from './PcBlobMedia';
 
 export { SUBTAB_MOTION } from '../../../core/ui/motion';

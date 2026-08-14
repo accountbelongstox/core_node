@@ -3,7 +3,7 @@
  *
  * Source: config/queue_center_contract.json
  * Aligned adapters:
- * - pycore/callmodule/services/queue_center_contract.py
+ * - pycore/pyutils/common/queue_center_contract.py
  * - poly_apps/laravel_main/app/Support/QueueCenterContract.php
  * - apps/mcp-chrome/app/chrome-extension/utils/queue-center-contract.ts
  *
@@ -13,13 +13,22 @@
  */
 import contractDocument from '../../../../config/queue_center_contract.json';
 
-export type QueueCenterControlName = 'assist_translation' | 'word_audio' | 'sentence_audio';
-export type QueueCenterScope = 'assist_translation' | 'word_audio' | 'sentence_audio' | 'media_image';
+export type QueueCenterControlName = (typeof contractDocument.control_names)[number];
+export type QueueCenterScope = keyof typeof contractDocument.section_scopes;
 export type QueueCenterSectionLifecycle = 'off' | 'starting' | 'on' | 'error';
 export type PcQueueHandler = 'chrome' | 'pycore';
 export type QueueDeliveryStage = 'waiting' | 'laravel_received' | 'worker_received' | 'completed' | 'failed';
+export type QueueDeliveryVisualStage = QueueDeliveryStage
+  | 'none'
+  | 'missing'
+  | 'queued'
+  | 'processing'
+  | 'ready'
+  | 'playing';
+export type QueueDeliveryResourceKind = 'audio' | 'translation';
 
 export type GlobalTaskStatus = string;
+export type GlobalTaskOrdering = 'queue_position' | 'priority';
 export type GlobalTaskExecutionType = string;
 export type GlobalTaskCapability = string;
 export type GlobalTaskPayload = Record<string, unknown>;
@@ -28,7 +37,8 @@ export type GlobalTaskResult = Record<string, unknown>;
 export interface GlobalTaskCreateResult {
   task_id: string;
   execution_type: GlobalTaskExecutionType;
-  priority: number;
+  queue_position: number;
+  priority?: number;
   is_fast_tier: boolean;
 }
 
@@ -54,7 +64,8 @@ export interface GlobalTaskSummary {
   created_at: string | null;
   capability: GlobalTaskCapability | null;
   claimants?: Array<'pycore' | 'chrome' | 'laravel'>;
-  priority: number;
+  queue_position: number;
+  priority?: number;
   is_fast_tier: boolean;
 }
 
@@ -67,7 +78,8 @@ export interface GlobalTaskWorkerRecord {
   payload: GlobalTaskPayload;
   timeout_seconds: number;
   retry_count: number;
-  priority: number;
+  queue_position: number;
+  priority?: number;
   capability: GlobalTaskCapability | null;
   is_fast_tier: boolean;
   created_at: string | null;
@@ -76,7 +88,8 @@ export interface GlobalTaskWorkerRecord {
 export interface QueueCenterIdPageEntry {
   task_id: string;
   status: GlobalTaskStatus;
-  priority: number;
+  queue_position: number;
+  priority?: number;
 }
 
 export interface QueueCenterIdPage {
@@ -109,8 +122,61 @@ export interface QueueCenterQueueStats {
   total: number;
 }
 
+export interface QueueCenterWorkerPresence {
+  id: string;
+  kind: 'pycore' | 'chrome' | 'laravel' | 'worker' | string;
+  name: string;
+  processor_types: string[];
+  capabilities: string[];
+  online: boolean;
+  last_seen: string | null;
+  claimed: number;
+  hostname: string | null;
+}
+
+export interface QueueTaskDeliveryReceipt {
+  task_id: string;
+  task_type: string | null;
+  stage: QueueDeliveryStage;
+  task_status: GlobalTaskStatus | null;
+  queue_position: number | null;
+  priority?: number | null;
+  worker: QueueCenterWorkerPresence | null;
+  updated_at: string | null;
+}
+
+export interface QueueCenterReceiptsResponse {
+  receipts: QueueTaskDeliveryReceipt[];
+  workers: QueueCenterWorkerPresence[];
+}
+
 export interface QueueCenterOverviewResponse {
-  queues: Partial<Record<'word_audio' | 'sentence_audio', QueueCenterQueueStats>>;
+  queues: Partial<Record<QueueCenterControlName, QueueCenterQueueStats>>;
+  workers?: QueueCenterWorkerPresence[];
+  realtime: QueueCenterRealtimeConnection;
+}
+
+export interface QueueCenterRealtimeConnection {
+  transport: string;
+  app_key: string;
+  host: string;
+  port: number;
+  scheme: string;
+  channel: string;
+  event: string;
+  revision: number;
+}
+
+export interface QueueCenterRealtimeEvent {
+  id: number;
+  event: string;
+  data: Record<string, unknown>;
+}
+
+export interface QueueCenterRealtimeReplay {
+  cursor: number;
+  events: QueueCenterRealtimeEvent[];
+  has_more: boolean;
 }
 
 export interface GlobalTaskDetailRecord extends GlobalTaskSummary {
@@ -183,6 +249,7 @@ export interface GlobalTaskWorkerResult {
 
 export interface GlobalTaskTypeDefinition {
   key: string;
+  aliases?: string[];
   label: string;
   execution_type: GlobalTaskExecutionType;
   capability: GlobalTaskCapability | null;
@@ -191,6 +258,7 @@ export interface GlobalTaskTypeDefinition {
   claimants?: Array<'pycore' | 'chrome' | 'laravel'>;
   interactive: boolean;
   fast_promotable?: boolean;
+  ordering: GlobalTaskOrdering;
   /** Payload key consumed by prompt-driven workers; defaults to `question`. */
   prompt_payload_field?: string;
   pycore_local_label: string;
@@ -200,6 +268,12 @@ export interface GlobalTaskTypeDefinition {
     summary_label: string;
     color: string;
   };
+}
+
+export interface GlobalTaskOrderingRecord {
+  task_type?: unknown;
+  queue_position?: number | null;
+  priority?: number | null;
 }
 
 export interface PcQueueSample {
@@ -257,6 +331,7 @@ export interface QueueCenterControlMetrics {
   pending: number;
   processing: number;
   leased: number;
+  completed?: number;
   total: number;
 }
 
@@ -331,6 +406,12 @@ export interface PcQueueOverview {
 
 interface ContractDocument {
   schema_version: number;
+  realtime: {
+    transport: string;
+    channel: string;
+    event: string;
+    events: Record<string, string>;
+  };
   diff_delivery: {
     version: number;
     cursor_store: string;
@@ -339,6 +420,8 @@ interface ContractDocument {
     id_page_limit: number;
     id_limit: number;
     data_segment_limit: number;
+    head_reserve: number;
+    producer_batch_limits: Record<string, number>;
     consumer_batch_limits: Record<string, number>;
     consumer_task_timeout_seconds: Record<string, number>;
     consumer_upload_retry: { initial_seconds: number; maximum_seconds: number };
@@ -346,6 +429,7 @@ interface ContractDocument {
     ready_ttl_seconds: number;
     consumed_ttl_seconds: number;
   };
+  endpoints: Record<string, string>;
   delivery_receipt: {
     stages: Record<string, QueueDeliveryStage>;
     worker_kinds: string[];
@@ -403,25 +487,25 @@ interface ContractDocument {
 
 const GLOBAL_TASK_WIRE_DTO_FIELDS = {
   create_result: [
-    'task_id', 'execution_type', 'priority', 'is_fast_tier',
+    'task_id', 'execution_type', 'queue_position', 'priority', 'is_fast_tier',
   ] as const satisfies readonly (keyof GlobalTaskCreateResult)[],
   summary: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'status', 'progress',
-    'assigned_to', 'created_at', 'capability', 'priority', 'is_fast_tier',
+    'assigned_to', 'created_at', 'capability', 'queue_position', 'priority', 'is_fast_tier',
   ] as const satisfies readonly (keyof GlobalTaskSummary)[],
   worker_pull: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'status', 'payload',
-    'timeout_seconds', 'retry_count', 'priority', 'capability', 'is_fast_tier', 'created_at',
+    'timeout_seconds', 'retry_count', 'queue_position', 'priority', 'capability', 'is_fast_tier', 'created_at',
   ] as const satisfies readonly (keyof GlobalTaskWorkerRecord)[],
   status: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'capability', 'is_fast_tier',
-    'status', 'priority', 'progress', 'retry_count', 'max_retries', 'timeout_seconds',
+    'status', 'queue_position', 'priority', 'progress', 'retry_count', 'max_retries', 'timeout_seconds',
     'payload', 'result', 'error', 'assigned_to', 'assigned_at', 'timeout_at',
     'completed_at', 'created_at', 'updated_at',
   ] as const satisfies readonly (keyof GlobalTaskStatusRecord)[],
   detail: [
     'task_id', 'app_name', 'task_type', 'execution_type', 'capability', 'is_fast_tier',
-    'status', 'priority', 'progress', 'payload', 'result', 'error', 'assigned_to',
+    'status', 'queue_position', 'priority', 'progress', 'payload', 'result', 'error', 'assigned_to',
     'assigned_at', 'timeout_at', 'completed_at', 'created_at', 'updated_at',
   ] as const satisfies readonly (keyof GlobalTaskDetailRecord)[],
   event: [
@@ -451,19 +535,44 @@ const GLOBAL_TASK_WIRE_DTO_FIELDS = {
 
 export const QUEUE_CENTER_CONTRACT = contractDocument as unknown as ContractDocument;
 export const QUEUE_CENTER_SCHEMA_VERSION = QUEUE_CENTER_CONTRACT.schema_version;
+export const QUEUE_CENTER_ENDPOINTS = QUEUE_CENTER_CONTRACT.endpoints;
+export type QueueCenterEndpointRole = keyof typeof contractDocument.endpoints;
+
+/**
+ * Render one contract-owned Laravel endpoint path. Templates live in
+ * config/queue_center_contract.json `endpoints`; token values are URL path
+ * segments and are percent-encoded here.
+ */
+export function queueCenterEndpoint(
+  role: QueueCenterEndpointRole,
+  tokens: Record<string, string | number> = {},
+): string {
+  let path = QUEUE_CENTER_ENDPOINTS[role];
+  for (const [key, value] of Object.entries(tokens)) {
+    path = path.replace(`{${key}}`, encodeURIComponent(String(value)));
+  }
+  return path;
+}
+export const QUEUE_CENTER_REALTIME_EVENTS = QUEUE_CENTER_CONTRACT.realtime.events;
 export const QUEUE_CENTER_DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
 export const QUEUE_CENTER_DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const QUEUE_CENTER_TASK_PROGRESS = QUEUE_CENTER_CONTRACT.task_contract.progress_stages;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const QUEUE_CENTER_CALLBACK_ROLES = QUEUE_CENTER_CONTRACT.callback_queue_roles;
 export const QUEUE_CENTER_SCOPES = Object.keys(QUEUE_CENTER_CONTRACT.section_scopes) as QueueCenterScope[];
+const GLOBAL_TASK_TYPE_DEFINITIONS = QUEUE_CENTER_CONTRACT.task_contract.task_types as GlobalTaskTypeDefinition[];
 export const QUEUE_CENTER_CATEGORY_KEYS = QUEUE_CENTER_CONTRACT.categories.map((category) => category.key);
-export const QUEUE_CENTER_CATEGORY_CATALOG = QUEUE_CENTER_CONTRACT.categories.map((category) => ({
-  ...category,
-  claimants: category.capability
-    ? QUEUE_CENTER_CONTRACT.capability_claimants[category.capability] ?? []
-    : [category.primary_handler],
-}));
+export const QUEUE_CENTER_CATEGORY_CATALOG = QUEUE_CENTER_CONTRACT.categories.map((category) => {
+  const taskType = GLOBAL_TASK_TYPE_DEFINITIONS.find(
+    (definition) => definition.key === category.laravel_task_type,
+  );
+  return {
+    ...category,
+    claimants: taskType?.claimants ?? (category.capability
+      ? QUEUE_CENTER_CONTRACT.capability_claimants[category.capability] ?? []
+      : [category.primary_handler]),
+  };
+});
 export const GLOBAL_TASK_STATUSES_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;
 const taskStatusesForRoles = (roles: string[]): GlobalTaskStatus[] => (
   roles.map((role) => GLOBAL_TASK_STATUSES_BY_ROLE[role] ?? role)
@@ -493,13 +602,58 @@ export const GLOBAL_TASK_LIMITS = QUEUE_CENTER_CONTRACT.task_contract.limits;
 export const GLOBAL_TASK_CAPABILITY_SINGLE_LANES = QUEUE_CENTER_CONTRACT.task_contract.capability_single_lanes;
 export const GLOBAL_TASK_FAST_LANE_CAPABILITIES = QUEUE_CENTER_CONTRACT.task_contract.fast_lane_capabilities;
 export const GLOBAL_TASK_WIRE_SHAPES = QUEUE_CENTER_CONTRACT.task_contract.wire_shapes;
-export const GLOBAL_TASK_TYPE_CATALOG = QUEUE_CENTER_CONTRACT.task_contract.task_types;
-export const GLOBAL_TASK_TYPE_BY_KEY = Object.fromEntries(
-  GLOBAL_TASK_TYPE_CATALOG.map((definition) => [definition.key, definition]),
-) as Record<string, GlobalTaskTypeDefinition>;
+export const GLOBAL_TASK_TYPE_CATALOG = GLOBAL_TASK_TYPE_DEFINITIONS;
+function buildGlobalTaskTypeIndex(
+  definitions: GlobalTaskTypeDefinition[],
+): Record<string, GlobalTaskTypeDefinition> {
+  const index: Record<string, GlobalTaskTypeDefinition> = {};
+  for (const definition of definitions) {
+    if (definition.ordering !== 'queue_position' && definition.ordering !== 'priority') {
+      throw new Error(`Queue Center task type has invalid ordering: ${definition.key}`);
+    }
+    for (const name of [definition.key, ...(definition.aliases ?? [])]) {
+      const normalized = name.trim().toLowerCase();
+      if (!normalized || index[normalized]) {
+        throw new Error(`Queue Center task type name is duplicated: ${normalized}`);
+      }
+      index[normalized] = definition;
+    }
+  }
+  return index;
+}
+
+export const GLOBAL_TASK_TYPE_BY_KEY = buildGlobalTaskTypeIndex(GLOBAL_TASK_TYPE_CATALOG);
+export const QUEUE_CENTER_QUEUE_POSITION_CONTROLS = QUEUE_CENTER_CONTROL_NAMES.filter(
+  (taskType) => GLOBAL_TASK_TYPE_BY_KEY[taskType]?.ordering === 'queue_position',
+);
+export const GLOBAL_QUEUE_POSITION_TASK_ALIASES = GLOBAL_TASK_TYPE_CATALOG
+  .filter((definition) => definition.ordering === 'queue_position')
+  .flatMap((definition) => definition.aliases ?? []);
+export type GlobalQueuePositionTaskAlias = (typeof GLOBAL_QUEUE_POSITION_TASK_ALIASES)[number];
 export const GLOBAL_TASK_FAST_PROMOTABLE_TYPES = GLOBAL_TASK_TYPE_CATALOG
   .filter((definition) => definition.fast_promotable === true)
   .map((definition) => definition.key);
+export function getGlobalTaskTypeClaimants(
+  taskType: string,
+): Array<'pycore' | 'chrome' | 'laravel'> {
+  const definition = getGlobalTaskTypeDefinition(taskType);
+  if (!definition) return [];
+  if (definition.claimants) return [...definition.claimants];
+  return definition.capability
+    ? [...(QUEUE_CENTER_CONTRACT.capability_claimants[definition.capability] ?? [])]
+    : [];
+}
+
+export function getGlobalTaskTypesForClaimant(
+  claimant: 'pycore' | 'chrome' | 'laravel',
+  capability?: GlobalTaskCapability,
+): string[] {
+  return GLOBAL_TASK_TYPE_CATALOG
+    .filter((definition) => !capability || definition.capability === capability)
+    .filter((definition) => getGlobalTaskTypeClaimants(definition.key).includes(claimant))
+    .map((definition) => definition.key);
+}
+
 export const GLOBAL_TASK_HISTORY_BUCKETS = QUEUE_CENTER_CONTRACT.task_contract.history_buckets.all;
 
 function assertGlobalTaskWireDtoCoverage(): void {
@@ -518,6 +672,38 @@ assertGlobalTaskWireDtoCoverage();
 export function getGlobalTaskTypeDefinition(taskType: unknown): GlobalTaskTypeDefinition | null {
   const key = typeof taskType === 'string' ? taskType.trim().toLowerCase() : '';
   return GLOBAL_TASK_TYPE_BY_KEY[key] ?? null;
+}
+
+/**
+ * Single ordering authority for every end: queue_position-ordered (Queue
+ * Center audio) tasks sort and bump by Laravel head tickets only; all other
+ * tasks keep the contract-defined numeric priority.
+ */
+export function getGlobalTaskOrdering(taskType: unknown): GlobalTaskOrdering {
+  const definition = getGlobalTaskTypeDefinition(taskType);
+  if (!definition) return 'priority';
+  if (definition.ordering !== 'queue_position' && definition.ordering !== 'priority') {
+    throw new Error(`Queue Center task type has invalid ordering: ${String(taskType ?? '')}`);
+  }
+  return definition.ordering;
+}
+
+export function isGlobalTaskQueuePositionOrdered(taskType: unknown): boolean {
+  return getGlobalTaskOrdering(taskType) === 'queue_position';
+}
+
+export function getGlobalTaskOrderValue(
+  task: GlobalTaskOrderingRecord,
+): number {
+  const field = getGlobalTaskOrdering(task.task_type);
+  return Number(task[field] ?? 0);
+}
+
+export function compareGlobalTasksByContract(
+  left: GlobalTaskOrderingRecord,
+  right: GlobalTaskOrderingRecord,
+): number {
+  return getGlobalTaskOrderValue(right) - getGlobalTaskOrderValue(left);
 }
 
 export function getGlobalTaskPromptPayloadField(taskType: unknown): string {

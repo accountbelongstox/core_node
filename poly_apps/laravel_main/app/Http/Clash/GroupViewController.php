@@ -59,7 +59,7 @@ class GroupViewController
             'description' => 'nullable|string'
         ]);
 
-        $group->update($validated);
+        $group->updateRecord($validated);
 
         return response()->json([
             'success' => true,
@@ -78,7 +78,7 @@ class GroupViewController
             ], 422);
         }
 
-        $group->delete();
+        $group->deleteRecord();
 
         return response()->json([
             'success' => true,

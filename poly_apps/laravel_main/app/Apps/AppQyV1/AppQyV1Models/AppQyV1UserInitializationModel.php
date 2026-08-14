@@ -3,7 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -42,4 +42,14 @@ class AppQyV1UserInitializationModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function forUser(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function saveForUser(int $userId, array $attributes): self
+    {
+        return static::query()->updateOrCreate(['user_id' => $userId], $attributes);
+    }
 }

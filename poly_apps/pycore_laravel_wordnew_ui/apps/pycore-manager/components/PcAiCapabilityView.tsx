@@ -24,7 +24,7 @@ import {
 import { pycoreApi, PYCORE_HTTP_DEFAULTS } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
 import { appendChatMessages } from '../../../shared/AiChatKit/aiChatHistory';
-import type { AiChatMessage } from '../../../shell/shellTypes';
+import type { AiChatUiMessage } from '../../../core/contracts/ai';
 import type {
   AiGatewayStatus, AiProvider, AiProviderRate, AiKeySlot,
   SystemResourcesResponse, SystemInfo,
@@ -80,7 +80,7 @@ function availabilityRank(p: AiProvider): number {
   return p.available ? 0 : 2;
 }
 
-function formatProviderTestLog(p: AiProvider): AiChatMessage {
+function formatProviderTestLog(p: AiProvider): AiChatUiMessage {
   const status = !p.configured
     ? 'Not configured'
     : p.rate_limited

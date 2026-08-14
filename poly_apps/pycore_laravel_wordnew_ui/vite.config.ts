@@ -6,13 +6,13 @@ import {
   DEFAULT_FRONTEND_PORT,
   FRONTEND_APP_FLAVOR,
   FRONTEND_BUILD_TARGET,
-} from './config/constants';
+} from './core/config/FrontendConfig';
 
 // Unified shell: laravel-manager, pycore-manager, wordnew. Pycore-manager uses
 // the direct pycore HTTP transport (no Vite reverse proxy).
 export default defineConfig(() => {
     const capacitorShim = (name: string) =>
-      path.resolve(__dirname, 'shared/capacitor-web-shims', name + '.ts');
+      path.resolve(__dirname, 'apps/wordnew/platform/capacitor-web-shims', name + '.ts');
 
     const useNativeCapacitor = FRONTEND_BUILD_TARGET === 'native';
     const capacitorAliases = useNativeCapacitor ? {} : {

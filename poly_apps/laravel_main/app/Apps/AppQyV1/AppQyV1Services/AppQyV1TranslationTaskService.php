@@ -142,65 +142,20 @@ class AppQyV1TranslationTaskService
         $processed = 0;
         $failed = 0;
 
-        foreach ($explanations as $explanation) {
-            $word = $explanation['word'] ?? null;
-            $explanationText = $explanation['explanation'] ?? $explanation['translation'] ?? null;
-
-            if (!$word || !$explanationText) {
-                $failed++;
-                continue;
-            }
-
-            try {
-                $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, md5($word));
-
-                if (!$entry) {
-                    $failed++;
-                    continue;
-                }
-
-                // Unified schema: translations is a JSON map (json-cast on the
-                // model). Enrich it instead of writing legacy flat columns.
-                $translations = $entry->translations;
-                if (!is_array($translations)) {
-                    $translations = [];
-                }
-
-                if ($isEnglish) {
-                    $translations['en'] = $explanationText;
-                    if (isset($explanation['us_phonetic'])) {
-                        $entry->us_phonetic = $explanation['us_phonetic'];
-                    }
-                    if (isset($explanation['uk_phonetic'])) {
-                        $entry->uk_phonetic = $explanation['uk_phonetic'];
-                    }
-                } else {
-                    $translations['en'] = $explanationText;
-                    if (isset($explanation['meaning_zh'])) {
-                        $translations['zh'] = $explanation['meaning_zh'];
-                    }
-                    if (isset($explanation['pronunciation'])) {
-                        $entry->phonetic = $explanation['pronunciation'];
-                    }
-                }
-
-                $entry->translations = $translations;
-                $entry->has_translation = true;
-                $entry->save();
-                $processed++;
-            } catch (\Exception $e) {
-                Log::error('[AppQyV1TranslationTaskService] Failed to update word', [
-                    'word' => $word,
-                    'error' => $e->getMessage(),
-                ]);
-                $failed++;
-            }
-        }
-
-        // Translation writes change has_translation coverage -> invalidate the
-        // cached dashboard dictionary metrics for this language.
-        if ($processed > 0) {
-            AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
+        try {
+            $outcome = AppQyV1LangDictionaryModel::applyExplanationResults(
+                $langCode,
+                $explanations,
+                $isEnglish
+            );
+            $processed = $outcome['processed'];
+            $failed = $outcome['failed'];
+        } catch (\Exception $e) {
+            Log::error('[AppQyV1TranslationTaskService] Failed to update explanations', [
+                'task_id' => $taskId,
+                'error' => $e->getMessage(),
+            ]);
+            $failed = count($explanations);
         }
 
         Log::info('[AppQyV1TranslationTaskService] Explanation result processed', [

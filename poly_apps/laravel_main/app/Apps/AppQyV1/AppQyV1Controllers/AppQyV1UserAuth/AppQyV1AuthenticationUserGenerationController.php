@@ -38,7 +38,7 @@ class AppQyV1AuthenticationUserGenerationController
         if (self::checkUsernameIsExist($username)) {
             return null;
         }
-        $user = User::create([
+        $user = User::createRecord([
             'username' => $username,
             'nickname' => $nickname,
             'name' => $name,
@@ -60,7 +60,7 @@ class AppQyV1AuthenticationUserGenerationController
 
     public static function checkUsernameIsExist($username)
     {
-        $user = User::where('username', $username)->first();
+        $user = User::findByUsername($username);
         if ($user) {
             return true;
         }
@@ -80,4 +80,3 @@ class AppQyV1AuthenticationUserGenerationController
     }
 
 }
-

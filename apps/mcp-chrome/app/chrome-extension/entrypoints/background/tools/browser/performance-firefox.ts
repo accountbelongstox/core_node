@@ -13,7 +13,7 @@
  * Chrome builds those branches are compile-time dead code and are tree-shaken,
  * so Chrome behavior is unchanged.
  */
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, ToolResult } from '@/common/tool-handler';
 
 const SLOWEST_RESOURCE_LIMIT = 10;
 const RESOURCE_NAME_MAX_LENGTH = 300;
@@ -244,30 +244,22 @@ export async function collectReducedPerformanceSummary(
       );
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            info: 'Reduced-fidelity performance summary (Firefox)',
-            reducedFidelity: true,
-            note: REDUCED_MODE_NOTE,
-            requestedInsight: requestedInsight || null,
-            url: snapshot.url,
-            collectedAt: snapshot.collectedAt,
-            timeOrigin: snapshot.timeOrigin,
-            metrics: buildMetricsMap(snapshot),
-            navigation: snapshot.navigation || null,
-            paint: snapshot.paint,
-            resources: snapshot.resources,
-            longTasks: snapshot.longTasks,
-            ...(snapshot.jsHeap ? { jsHeap: snapshot.jsHeap } : {}),
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      info: 'Reduced-fidelity performance summary (Firefox)',
+      reducedFidelity: true,
+      note: REDUCED_MODE_NOTE,
+      requestedInsight: requestedInsight || null,
+      url: snapshot.url,
+      collectedAt: snapshot.collectedAt,
+      timeOrigin: snapshot.timeOrigin,
+      metrics: buildMetricsMap(snapshot),
+      navigation: snapshot.navigation || null,
+      paint: snapshot.paint,
+      resources: snapshot.resources,
+      longTasks: snapshot.longTasks,
+      ...(snapshot.jsHeap ? { jsHeap: snapshot.jsHeap } : {}),
+    });
   } catch (e: any) {
     return createErrorResponse(
       `Failed to collect performance summary: ${e?.message || e}. The page may not allow script injection (e.g. about: or addons pages).`,

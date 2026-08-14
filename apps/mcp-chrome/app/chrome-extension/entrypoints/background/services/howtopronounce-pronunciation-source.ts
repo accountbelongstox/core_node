@@ -26,6 +26,7 @@
 import { howToPronounceTool, HowToPronounceResult } from '../tools/browser/howtopronounce';
 import type { ResultEntry } from './bing-result';
 import { logger } from '@/utils/logger';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'HowToPronounce Src';
 const HOWTO_HOME = 'https://zh.howtopronounce.com/';
@@ -100,7 +101,7 @@ class HowToPronouncePronunciationSource {
     } catch (error) {
       if (tabId !== null) this.evict(tabId); // likely dead - don't reuse
       logger.warn(LOG, `lookup failed for "${w}":`, error);
-      return this.empty(error instanceof Error ? error.message : String(error));
+      return this.empty(toErrorMessage(error));
     } finally {
       if (tabId !== null) this.release(tabId);
     }

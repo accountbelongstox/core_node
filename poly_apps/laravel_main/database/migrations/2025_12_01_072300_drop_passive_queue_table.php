@@ -10,10 +10,10 @@ return new class extends Migration
 
     public function up(): void
     {
-        // Drop the app_passive_queue_jobs table as we've migrated to Octane Timer tasks.
-        // PassiveQueue has been replaced by AppQyV1CoverGenerationTask which runs every 5 seconds.
-        $connection = $this->connection ?? config('database.default');
-        Schema::connection($connection)->dropIfExists('app_passive_queue_jobs');
+        // Neutralized: PassiveQueue was replaced by AppQyV1CoverGenerationTask,
+        // but initialization never drops a table (empty or not). The legacy
+        // table is left in place — dead, unread, harmless.
+        return;
     }
 
     public function down(): void

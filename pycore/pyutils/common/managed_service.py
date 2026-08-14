@@ -18,7 +18,7 @@ Contract enforced here:
     while being called, and is auto-stopped after `idle_shutdown_s` (default
     180s = 3 minutes; 0 disables) with no calls. Keys: TTS `server_idle_shutdown_s`,
     STT `model_idle_shutdown_s`.
-  - idempotent start on call: `ensure_running(name)` / `using(name)` reuse a
+  - idempotent start on call: `ensure_running(name)` / `lease(name)` reuse a
     running service instead of re-starting.
   - single-active applies to kind=="server" ONLY: starting one server stops the
     OTHER servers in the SAME category ("tts"/"stt") - EXCEPT any peer with an
@@ -26,7 +26,8 @@ Contract enforced here:
     never evicts anything (models run in parallel).
   - busy protection is ABSOLUTE: a service with `_in_flight > 0` is never
     stopped/unloaded - not by single-active, not by the idle watchdog. Callers
-    MUST wrap synthesis/transcription in `using(name)` so in-flight is tracked.
+    MUST wrap synthesis/transcription in `lease(name)` so startup and in-flight
+    ownership are one atomic state transition.
 
 start_command() may return (cwd, argv) OR (cwd, argv, env). When an `env` dict is
 returned the subprocess launches with it; for a service run under an ISOLATED
@@ -55,6 +56,7 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_logs_dir
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
+    register_serialized_error_type,
     serialized_method,
     start_bus_task,
 )
@@ -72,6 +74,16 @@ _HEALTH_POLL_S = 1.5
 _READY_MARKER = "QWEN3TTS_READY "
 _READY_SIGNAL_PREFIX = "managed.service.ready_url."
 _SETTINGS_SIGNAL_PREFIX = "managed.service.settings."
+
+
+class ManagedServiceUnavailable(RuntimeError):
+    pass
+
+
+# Lease acquisition runs on the serialized state-owner thread; registering the
+# type keeps `except ManagedServiceUnavailable` working for callers across the
+# THREAD_BUS boundary instead of surfacing a flattened RuntimeError.
+register_serialized_error_type(ManagedServiceUnavailable)
 
 
 @dataclass
@@ -99,6 +111,7 @@ class ServiceSpec:
     # called after a successful start / after a stop, to invalidate caches.
     on_started: Optional[Callable[[], None]] = None
     on_stopped: Optional[Callable[[], None]] = None
+    on_acquired: Optional[Callable[[], None]] = None
     # kind="model":
     unload: Optional[Callable[[], None]] = None
     is_loaded: Optional[Callable[[], bool]] = None
@@ -111,6 +124,8 @@ class ServiceSpec:
     # free, False when a listener could not be stopped, and None when no foreign
     # listener was found. False aborts startup rather than attaching to old code.
     stop_foreign: Optional[Callable[[], Optional[bool]]] = None
+    external: bool = False
+    ready_without_process: Optional[Callable[[], bool]] = None
 
 
 def _gpu_release() -> None:
@@ -164,6 +179,7 @@ class ManagedServiceManager:
         self._in_flight: Dict[str, set] = {}
         # server health cache (short TTL - status polls hit many at once)
         self._run_cache: Dict[str, Tuple[float, bool]] = {}
+        self._active_server_by_category: Dict[str, str] = {}
         self._watchdog_started = False
         init_serialized_owner(
             self,
@@ -294,6 +310,8 @@ class ManagedServiceManager:
             merged[f"{p}auto_manage"] = bool(patch[f"{p}auto_manage"])
         if patch.get(f"{p}single_active") is not None:
             merged[f"{p}single_active"] = bool(patch[f"{p}single_active"])
+            if not merged[f"{p}single_active"]:
+                self._active_server_by_category.pop(category, None)
         if patch.get(f"{p}idle_shutdown_s") is not None:
             try:
                 merged[f"{p}idle_shutdown_s"] = max(0, int(patch[f"{p}idle_shutdown_s"]))
@@ -311,7 +329,9 @@ class ManagedServiceManager:
         layout = self._layout(category)
         if layout is None:
             return {}
-        s = self.get_settings(category)
+        s = self.peek_settings(category)
+        if not s.get("success"):
+            s = self._publish_settings(category)
         p = layout.prefix
         return {
             "auto_manage": s[f"{p}auto_manage"],
@@ -333,6 +353,10 @@ class ManagedServiceManager:
     def _invalidate_run_cache(self, name: str) -> None:
         self._run_cache.pop(name, None)
 
+    def _clear_active_server(self, name: str, category: str) -> None:
+        if self._active_server_by_category.get(category) == name:
+            self._active_server_by_category.pop(category, None)
+
     @serialized_method
     def is_running(self, name: str) -> bool:
         """Reachability: server HTTP health (cached) or model loaded."""
@@ -341,10 +365,13 @@ class ManagedServiceManager:
             return False
         if spec.kind == "model":
             return bool(spec.is_loaded and spec.is_loaded())
+        if spec.ready_without_process is not None and spec.ready_without_process():
+            return True
         # server
         proc = self._processes.get(name)
         if proc is not None and proc.poll() is not None:
             self._processes.pop(name, None)
+            self._clear_active_server(name, spec.category)
             logf = self._logfiles.pop(name, None)
             if logf is not None:
                 try:
@@ -371,6 +398,10 @@ class ManagedServiceManager:
             return False
         if spec.kind == "model":
             return bool(spec.is_loaded and spec.is_loaded())
+        if spec.ready_without_process is not None:
+            cached = self._run_cache.get(name)
+            if cached is not None and cached[1]:
+                return True
         if self._is_managed_server(name):
             return True
         cached = self._run_cache.get(name)
@@ -581,6 +612,7 @@ class ManagedServiceManager:
             ColorPrint.yellow(f"[managed] {spec.name} failed to become healthy")
             self._report_load_error(spec.name, "server failed to become healthy")
             return False
+        self._run_cache[spec.name] = (time.monotonic(), True)
         if spec.on_started:
             try:
                 spec.on_started()
@@ -609,6 +641,7 @@ class ManagedServiceManager:
         except_spec = self._specs.get(except_name)
         if except_spec is None or except_spec.kind != "server":
             return
+        self._active_server_by_category[category] = except_name
         for s in self.services_in(category):
             if s.name == except_name or s.kind != "server":
                 continue
@@ -628,20 +661,25 @@ class ManagedServiceManager:
         spec = self._specs.get(name)
         if spec is None:
             return True  # unmanaged (API/CLI) - nothing to do
+        st = self._settings(spec.category)
+        if not force:
+            if not st.get("enabled", {}).get(name, True):
+                return False
+            if not st.get("auto_manage", True):
+                # Even when auto-manage is off, still track activity so an already-
+                # running service gets idle-unloaded; just don't start one.
+                running = self.is_running(name)
+                if running:
+                    self._touch(name)
+                return running
         if not spec.installed():
             return False
         if not spec.config_ready():
             return False
-        st = self._settings(spec.category)
-        if not force:
-            if not st.get("auto_manage", True):
-                # Even when auto-manage is off, still track activity so an already-
-                # running service gets idle-unloaded; just don't start one.
-                if self.is_running(name):
-                    self._touch(name)
-                return self.is_running(name)
-            if not st.get("enabled", {}).get(name, True):
-                return self.is_running(name)
+        if spec.ready_without_process is not None and spec.ready_without_process():
+            self._run_cache[name] = (time.monotonic(), True)
+            self._touch(name)
+            return True
         foreign_checked = False
         running = self.is_running(name)
         if running:
@@ -701,6 +739,14 @@ class ManagedServiceManager:
                     self._stop_others(spec.category, name)
                 self._touch(name)
                 return True
+        if spec.kind == "server" and self._is_managed_process(name):
+            if self.in_flight(name) > 0:
+                return False
+            stopped = self.stop(name)
+            if not stopped.get("success"):
+                return False
+        if spec.kind == "server" and spec.external:
+            return False
         if spec.kind == "server":
             if spec.stop_foreign is not None and not foreign_checked:
                 try:
@@ -717,7 +763,10 @@ class ManagedServiceManager:
                     self._invalidate_run_cache(name)
             if st.get("single_active", True):
                 self._stop_others(spec.category, name)
-            return self._start_server(spec)
+            started = self._start_server(spec)
+            if not started:
+                self._clear_active_server(name, spec.category)
+            return started
         # model: the engine loads on use; just record activity so the watchdog
         # owns the subsequent idle-unload.
         self._touch(name)
@@ -731,6 +780,7 @@ class ManagedServiceManager:
         # Don't kill a busy service (caller should release first).
         if self.in_flight(name) > 0:
             return {"success": False, "error": f"{name} busy (in-flight)"}
+        self._clear_active_server(name, spec.category)
         if spec.kind == "server":
             proc = self._processes.pop(name, None)
             adopted = name in self._adopted_servers
@@ -787,39 +837,55 @@ class ManagedServiceManager:
     # --- busy-protected call wrapper ------------------------------------ #
 
     @serialized_method
-    def _begin_use(self, name: str) -> Optional[object]:
+    def _acquire_lease(self, name: str, force: bool = False) -> Optional[object]:
         spec = self._specs.get(name)
         if spec is None:
             return None
         try:
-            ready = self.ensure_running(name)
+            ready = self.ensure_running(name, force=force)
         except Exception as e:  # noqa: BLE001
             ColorPrint.yellow(f"[managed] ensure_running {name} failed: {e}")
-            raise RuntimeError(f"managed service {name} failed to start") from e
+            raise ManagedServiceUnavailable(
+                f"managed service {name} failed to start"
+            ) from e
         if not ready:
-            raise RuntimeError(f"managed service {name} is unavailable")
+            raise ManagedServiceUnavailable(f"managed service {name} is unavailable")
+        if spec.on_acquired is not None:
+            spec.on_acquired()
         token = object()
         self._in_flight.setdefault(name, set()).add(token)
         self._touch(name)
         return token
 
     @serialized_method
-    def _end_use(self, name: str, token: object) -> None:
+    def _release_lease(self, name: str, token: object) -> None:
         tokens = self._in_flight.get(name)
         if tokens is not None:
             tokens.discard(token)
         self._touch(name)
+        spec = self._specs.get(name)
+        if spec is None or self.in_flight(name) > 0:
+            return
+        settings = self._settings(spec.category)
+        if not settings.get("enabled", {}).get(name, True):
+            self.stop(name)
+            return
+        if spec.kind != "server" or not self._is_managed_server(name):
+            return
+        active_name = self._active_server_by_category.get(spec.category)
+        if settings.get("single_active", True) and active_name and active_name != name:
+            self.stop(name)
 
     @contextmanager
-    def using(self, name: str):
+    def lease(self, name: str, *, force: bool = False):
         """Wrap a synth/transcribe call: ensure running, mark in-flight (busy
         protection), touch activity on exit. No-op for unregistered services."""
-        token = self._begin_use(name)
+        token = self._acquire_lease(name, force)
         try:
             yield
         finally:
             if token is not None:
-                self._end_use(name, token)
+                self._release_lease(name, token)
 
     # --- status --------------------------------------------------------- #
 
@@ -838,6 +904,9 @@ class ManagedServiceManager:
         for name, proc in list(self._processes.items()):
             if proc.poll() is not None:
                 self._processes.pop(name, None)
+                spec = self._specs.get(name)
+                if spec is not None:
+                    self._clear_active_server(name, spec.category)
                 logf = self._logfiles.pop(name, None)
                 if logf is not None:
                     try:
@@ -910,6 +979,7 @@ atexit.register(managed_services.shutdown_all)
 __all__ = [
     "CategorySettings",
     "ServiceSpec",
+    "ManagedServiceUnavailable",
     "ManagedServiceManager",
     "managed_services",
 ]

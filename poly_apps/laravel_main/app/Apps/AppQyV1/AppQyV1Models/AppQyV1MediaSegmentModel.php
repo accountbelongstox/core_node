@@ -13,7 +13,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -65,5 +65,28 @@ class AppQyV1MediaSegmentModel extends Model
     public static function orderedForSource(string $sourceKey): Collection
     {
         return self::query()->where('source_key', $sourceKey)->orderBy('seg_index')->get();
+    }
+
+    public static function findForSourceIndex(string $sourceKey, int $segmentIndex): ?self
+    {
+        return self::query()
+            ->where('source_key', $sourceKey)
+            ->where('seg_index', $segmentIndex)
+            ->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
+
+    public static function tableRowCount(): int
+    {
+        $model = new self();
+        if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
+            return 0;
+        }
+
+        return self::query()->count();
     }
 }

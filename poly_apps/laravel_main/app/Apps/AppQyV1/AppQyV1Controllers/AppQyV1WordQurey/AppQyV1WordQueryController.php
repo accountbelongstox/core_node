@@ -394,14 +394,12 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $results = [];
+        $dictionaries = AppQyV1LangDictionaryModel::queriedRowsByContents($langCode, $words);
 
         foreach ($words as $word) {
-            $dictionary = AppQyV1LangDictionaryModel::findByContent($langCode, $word);
+            $dictionary = is_string($word) ? ($dictionaries[md5($word)] ?? null) : null;
 
             if ($dictionary) {
-                // Update query count
-                $dictionary->incrementQueryCount();
-
                 // Get dictionary data (JSON fields are cast already)
                 $dictionaryData = $dictionary->toArray();
 
@@ -463,8 +461,9 @@ class AppQyV1WordQueryController extends BaseController
         // response mapping below are unchanged.
         $selectColumns = ['id', 'content', 'translations', 'us_phonetic', 'uk_phonetic'];
 
-        $maxId = (int) AppQyV1LangDictionaryModel::forLanguage($langCode)->max('id');
-        $minId = (int) AppQyV1LangDictionaryModel::forLanguage($langCode)->min('id');
+        $idBounds = AppQyV1LangDictionaryModel::idBounds($langCode);
+        $maxId = $idBounds['max'];
+        $minId = $idBounds['min'];
 
         $rows = collect();
         if ($maxId > 0) {
@@ -478,23 +477,12 @@ class AppQyV1WordQueryController extends BaseController
 
             $start = random_int($minId, $startUpperBound);
 
-            $rows = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                ->where('id', '>=', $start)
-                ->orderBy('id')
-                ->limit($limit)
-                ->get($selectColumns);
-
-            // Sparse ids / gaps can yield fewer than $limit rows; wrap around and
-            // top up from the start so we always return up to $limit rows.
-            $deficit = $limit - $rows->count();
-            if ($deficit > 0) {
-                $topUp = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                    ->where('id', '<', $start)
-                    ->orderBy('id')
-                    ->limit($deficit)
-                    ->get($selectColumns);
-                $rows = $rows->concat($topUp);
-            }
+            $rows = AppQyV1LangDictionaryModel::wrappedRowsFromId(
+                $langCode,
+                $start,
+                $limit,
+                $selectColumns
+            );
         }
 
         $words = [];
@@ -533,7 +521,7 @@ class AppQyV1WordQueryController extends BaseController
     {
         $language = $request->input('language', 'en');
 
-        $row = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+        $row = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
 
         if ($row === null) {
             return $this->notFound('Word not found');
@@ -605,10 +593,7 @@ class AppQyV1WordQueryController extends BaseController
 
         // Case-insensitive prefix match on BOTH drivers: plain LIKE is
         // case-insensitive on sqlite but case-SENSITIVE on pgsql.
-        $rows = AppQyV1LangDictionaryModel::forLanguage($language)
-            ->contentStartsWithInsensitive($query)
-            ->limit(20)
-            ->get();
+        $rows = AppQyV1LangDictionaryModel::prefixRows($language, $query, 20);
 
         $words = [];
         foreach ($rows as $row) {
@@ -668,7 +653,7 @@ class AppQyV1WordQueryController extends BaseController
     {
         $language = $request->input('language', 'en');
 
-        $row = AppQyV1LangDictionaryModel::forLanguage($language)->find($id);
+        $row = AppQyV1LangDictionaryModel::findForLanguage($language, (int) $id);
         if ($row === null) {
             return $this->notFound('Word not found');
         }
@@ -697,7 +682,7 @@ class AppQyV1WordQueryController extends BaseController
         }
 
         $personDictModel->personal_dicts = json_encode($personDict);
-        $personDictModel->save();
+        $personDictModel->saveRecord();
 
         return $this->success(
             [

@@ -32,11 +32,10 @@ class AppQyV1PersonalDictionaryPublicController
         if($sort_frequency == null)$sort_frequency = true;
         if($query_soft_delete == null)$query_soft_delete = false;
         $uid = Auth::id();
-        if ($query_soft_delete == true) {
-            $personDictModel = AppQyV1PersonalDictionariesModel::where('uid', $uid)->whereNull('deleted_at')->first();
-        } else {
-            $personDictModel = AppQyV1PersonalDictionariesModel::where('uid', $uid)->first();
-        }
+        $personDictModel = AppQyV1PersonalDictionariesModel::findForUser(
+            (int) $uid,
+            $query_soft_delete == true
+        );
         if (!$personDictModel) {
             $personDictModel = new AppQyV1PersonalDictionariesModel(
                 [
@@ -49,7 +48,7 @@ class AppQyV1PersonalDictionaryPublicController
         $newDictionary = DictWrap::mergeAlreadyWrapDict($personal_words, $dictionaries);
         $personDictModel->personal_dicts = json_encode($newDictionary);
         $personDictModel->uid = $uid;
-        $personDictModel->save();
+        $personDictModel->saveRecord();
         return [
             "sort_frequency" => $sort_frequency,
             "query_soft_delete" => $query_soft_delete,
@@ -60,4 +59,3 @@ class AppQyV1PersonalDictionaryPublicController
 
 
 }
-

@@ -9,6 +9,8 @@ import {
   SUCCESS_MESSAGES,
 } from '@/common/constants';
 import { handleCallTool } from './tools';
+import { TimeoutController } from '@/utils/async';
+import { toErrorMessage } from '@/utils/errors';
 
 let nativePort: chrome.runtime.Port | null = null;
 export const HOST_NAME = NATIVE_HOST.NAME;
@@ -24,7 +26,7 @@ export const HOST_NAME = NATIVE_HOST.NAME;
 // A user-initiated DISCONNECT suppresses both so we never fight the user.
 // ---------------------------------------------------------------------------
 let reconnectAttempts = 0;
-let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const reconnectTimeout = new TimeoutController();
 let userDisconnected = false;
 let lastKnownPort: number = NATIVE_HOST.DEFAULT_PORT;
 const BASE_RECONNECT_DELAY_MS = 1000;
@@ -33,10 +35,7 @@ const MAX_RECONNECT_ATTEMPTS = 8;
 const RECONNECT_ALARM = 'native-host-reconnect-watchdog';
 
 function clearReconnectTimer(): void {
-  if (reconnectTimer) {
-    clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
+  reconnectTimeout.cancel();
 }
 
 /**
@@ -70,8 +69,7 @@ function scheduleReconnect(port: number): void {
   const delay = Math.min(MAX_RECONNECT_DELAY_MS, backoff) + Math.floor(Math.random() * 500);
   reconnectAttempts++;
   console.log(`[NativeHost] Reconnect attempt ${reconnectAttempts} in ${delay}ms`);
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null;
+  reconnectTimeout.schedule(() => {
     connectNativeHost(port);
   }, delay);
 }
@@ -198,7 +196,7 @@ export function connectNativeHost(port: number = NATIVE_HOST.DEFAULT_PORT, force
             payload: {
               status: 'error',
               message: ERROR_MESSAGES.TOOL_EXECUTION_FAILED,
-              error: error instanceof Error ? error.message : String(error),
+              error: toErrorMessage(error),
             },
           });
         }

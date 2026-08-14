@@ -3,17 +3,12 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsCacheModel;
 use App\Providers\PathMapper;
 
 class TTSCacheManager
 {
     private $cacheDir;
-    private $connection;
-    private $appKey;
 
     public function __construct()
     {
@@ -21,20 +16,9 @@ class TTSCacheManager
         PathMapper::ensureDirectory($this->cacheDir);
 
         // Table should be created by sys:init command via UserSyncService::ensureTTSCacheTablesExist()
-        $this->appKey = AppKeys::APPQYV1;
-        $connectionName = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->connection = DB::connection($connectionName);
-        
-        // Verify table exists (should be created by sys:init)
-        $tableName = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
-        if (!Schema::connection($connectionName)->hasTable($tableName)) {
+        if (!AppQyV1TtsCacheModel::tableExists()) {
             Log::warning('[TTSCacheManager] TTS cache table does not exist. Run php artisan sys:init to create it.');
         }
-    }
-
-    private function getTableName(): string
-    {
-        return AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
     }
 
     private function generateAudioUrl(string $filePath): string
@@ -46,15 +30,8 @@ class TTSCacheManager
     public function getCached(string $text, string $language, string $voice): ?array
     {
         $textHash = md5($text);
-        $tableName = $this->getTableName();
-
         try {
-            $result = $this->connection
-                ->table($tableName)
-                ->where('text_hash', $textHash)
-                ->where('language', $language)
-                ->where('voice', $voice)
-                ->first();
+            $result = AppQyV1TtsCacheModel::findCached($textHash, $language, $voice);
 
             if ($result && file_exists($result->audio_path)) {
                 $this->updateAccessStats($result->id);
@@ -94,50 +71,16 @@ class TTSCacheManager
         $textHash = md5($text);
         $fileName = $textHash . '_' . $language . '_' . str_replace(['/', ' '], '_', $voice) . '.mp3';
         $filePath = $this->cacheDir . '/' . $fileName;
-        $tableName = $this->getTableName();
-
         try {
             file_put_contents($filePath, $audioData);
             $fileSize = filesize($filePath);
 
-            // Check if record exists by text_hash (which is unique)
-            $existing = $this->connection
-                ->table($tableName)
-                ->where('text_hash', $textHash)
-                ->where('language', $language)
-                ->first();
-
-            if ($existing) {
-                $this->connection
-                    ->table($tableName)
-                    ->where('id', $existing->id)
-                    ->update([
-                        'text' => $text,
-                        'voice' => $voice,
-                        'audio_path' => $filePath,
-                        'audio_size' => $fileSize,
-                        'last_accessed' => now(),
-                        // Mixed with several other column updates, so keep the raw
-                        // expression (no native form for increment-within-update).
-                        // "access_count + 1" is plain SQL, cross-DB safe (sqlite/pgsql).
-                        'access_count' => DB::raw('access_count + 1'),
-                    ]);
-            } else {
-                $this->connection
-                    ->table($tableName)
-                    ->insert([
-                        'text_hash' => $textHash,
-                        'text' => $text,
-                        'language' => $language,
-                        'type' => 'word',
-                        'voice' => $voice,
-                        'audio_path' => $filePath,
-                        'audio_size' => $fileSize,
-                        'created_at' => now(),
-                        'last_accessed' => now(),
-                        'access_count' => 1,
-                    ]);
-            }
+            AppQyV1TtsCacheModel::storeAudio($textHash, $language, [
+                'text' => $text,
+                'voice' => $voice,
+                'audio_path' => $filePath,
+                'audio_size' => $fileSize,
+            ]);
 
             return [
                 'file_path' => $filePath,
@@ -157,16 +100,7 @@ class TTSCacheManager
     private function updateAccessStats(int $cacheId): void
     {
         try {
-            $tableName = $this->getTableName();
-            
-            // Native increment: bumps access_count by 1 and sets last_accessed in one
-            // UPDATE. Cross-DB safe (Laravel emits "access_count" + 1 for sqlite/pgsql).
-            $this->connection
-                ->table($tableName)
-                ->where('id', $cacheId)
-                ->increment('access_count', 1, [
-                    'last_accessed' => now(),
-                ]);
+            AppQyV1TtsCacheModel::recordAccess($cacheId);
 
         } catch (\Exception $e) {
             Log::warning('[TTSCacheManager] Failed to update access stats', [
@@ -178,21 +112,13 @@ class TTSCacheManager
     private function deleteCache(int $cacheId): void
     {
         try {
-            $tableName = $this->getTableName();
-            
-            $result = $this->connection
-                ->table($tableName)
-                ->where('id', $cacheId)
-                ->first();
+            $result = AppQyV1TtsCacheModel::findById($cacheId);
 
             if ($result && isset($result->audio_path) && file_exists($result->audio_path)) {
                 @unlink($result->audio_path);
             }
 
-            $this->connection
-                ->table($tableName)
-                ->where('id', $cacheId)
-                ->delete();
+            AppQyV1TtsCacheModel::deleteById($cacheId);
 
         } catch (\Exception $e) {
             Log::error('[TTSCacheManager] Error deleting cache', [
@@ -204,13 +130,8 @@ class TTSCacheManager
     public function cleanupOldCache(int $daysOld = 30): int
     {
         try {
-            $tableName = $this->getTableName();
             $cutoffDate = now()->subDays($daysOld);
-            
-            $results = $this->connection
-                ->table($tableName)
-                ->where('last_accessed', '<', $cutoffDate)
-                ->get(['id', 'audio_path']);
+            $results = AppQyV1TtsCacheModel::olderThan($cutoffDate);
 
             $deletedCount = 0;
             foreach ($results as $row) {
@@ -220,10 +141,7 @@ class TTSCacheManager
                 $deletedCount++;
             }
 
-            $this->connection
-                ->table($tableName)
-                ->where('last_accessed', '<', $cutoffDate)
-                ->delete();
+            AppQyV1TtsCacheModel::deleteOlderThan($cutoffDate);
 
             Log::info('[TTSCacheManager] Cleaned up old cache', [
                 'deleted_count' => $deletedCount,
@@ -243,15 +161,7 @@ class TTSCacheManager
     public function getCacheStats(): array
     {
         try {
-            $tableName = $this->getTableName();
-            
-            $stats = $this->connection
-                ->table($tableName)
-                ->selectRaw('COUNT(*) as total_count')
-                ->selectRaw('SUM(audio_size) as total_size')
-                ->selectRaw('SUM(access_count) as total_accesses')
-                ->selectRaw('COUNT(DISTINCT language) as language_count')
-                ->first();
+            $stats = AppQyV1TtsCacheModel::cacheStats();
 
             return [
                 'total_cached_items' => (int)($stats->total_count ?? 0),

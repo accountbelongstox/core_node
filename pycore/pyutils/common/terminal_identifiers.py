@@ -1,0 +1,93 @@
+# -*- coding: utf-8 -*-
+WINDOWS_TERMINAL_HOST_CLASS = "CASCADIA_HOSTING_WINDOW_CLASS"
+WINDOWS_TERMINAL_WINDOW_CLASSES = frozenset({
+    WINDOWS_TERMINAL_HOST_CLASS.lower(),
+    "consolewindowclass",
+    "mintty",
+    "putty",
+    "virtualconsoleclass",
+})
+WINDOWS_TERMINAL_PROCESS_NAMES = frozenset({
+    "alacritty.exe",
+    "blackbox.exe",
+    "cmder.exe",
+    "cmd.exe",
+    "contour.exe",
+    "conemu.exe",
+    "conemu64.exe",
+    "conhost.exe",
+    "debian.exe",
+    "fluent-terminal.exe",
+    "hyper.exe",
+    "kitty.exe",
+    "kali.exe",
+    "mintty.exe",
+    "openconsole.exe",
+    "putty.exe",
+    "pwsh.exe",
+    "powershell.exe",
+    "rio.exe",
+    "tabby.exe",
+    "terminus.exe",
+    "ubuntu.exe",
+    "wezterm-gui.exe",
+    "wave.exe",
+    "windowsterminal.exe",
+    "wsl.exe",
+    "wt.exe",
+})
+LINUX_TERMINAL_CLASS_TOKENS = frozenset({
+    "alacritty",
+    "blackbox",
+    "cool-retro-term",
+    "contour",
+    "cosmic-term",
+    "deepin-terminal",
+    "foot",
+    "ghostty",
+    "gnome-console",
+    "gnome-terminal",
+    "gnome-terminal-server",
+    "guake",
+    "hyper",
+    "kitty",
+    "kgx",
+    "konsole",
+    "lxterminal",
+    "mate-terminal",
+    "mlterm",
+    "org.gnome.console",
+    "org.gnome.terminal",
+    "ptyxis",
+    "qterminal",
+    "rio",
+    "roxterm",
+    "rxvt",
+    "sakura",
+    "st",
+    "st-256color",
+    "tabby",
+    "terminator",
+    "termite",
+    "terminology",
+    "tilda",
+    "tilix",
+    "urxvt",
+    "uxterm",
+    "wezterm",
+    "wave-terminal",
+    "xfce4-terminal",
+    "xterm",
+    "yakuake",
+})
+
+
+def is_linux_terminal_class(class_name: str) -> bool:
+    normalized = class_name.strip().lower()
+    candidates = {
+        normalized,
+        *(part for part in normalized.split(".") if part),
+    }
+    if any(candidate in LINUX_TERMINAL_CLASS_TOKENS for candidate in candidates):
+        return True
+    return "terminal" in normalized

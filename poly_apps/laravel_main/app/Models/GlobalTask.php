@@ -4,14 +4,17 @@ namespace App\Models;
 
 use App\Support\QueueCenterContract;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
+use App\Models\Concerns\GlobalTaskQueueQueries;
+use App\Models\Concerns\UsesMainConnection;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class GlobalTask extends Model
 {
-    use HasFactory;
+    use GlobalTaskQueueQueries, HasFactory, RunsModelTransactions, UsesMainConnection;
 
     protected $table = 'global_tasks';
 
@@ -25,6 +28,7 @@ class GlobalTask extends Model
         'assigned_at',
         'timeout_at',
         'timeout_seconds',
+        'queue_position',
         'priority',
         'retry_count',
         'max_retries',
@@ -54,6 +58,7 @@ class GlobalTask extends Model
         'assigned_at' => 'datetime',
         'timeout_at' => 'datetime',
         'completed_at' => 'datetime',
+        'queue_position' => 'integer',
         'priority' => 'integer',
         'retry_count' => 'integer',
         'max_retries' => 'integer',
@@ -157,6 +162,89 @@ class GlobalTask extends Model
         });
     }
 
+    /**
+     * task_id keys of REDUNDANT live rows per (task_type, group_key): for
+     * every group holding more than one live row, every live task except the
+     * newest (max id — the same winner QueueCenterService::findLiveByDedupKey
+     * returns). sys:init cancels these before creating the live-dedup partial
+     * unique index. Bounded on both dimensions so repair stays incremental.
+     *
+     * @return array<int,string>
+     */
+    public static function redundantLiveGroupKeyTaskKeys(int $groups = 100, int $maxKeys = 500): array
+    {
+        $duplicates = self::query()
+            ->select('task_type', 'group_key')
+            ->whereNotNull('group_key')
+            ->whereIn('status', self::statuses('live'))
+            ->groupBy('task_type', 'group_key')
+            ->havingRaw('count(*) > 1')
+            ->limit(max(1, $groups))
+            ->get();
+
+        $keys = [];
+        foreach ($duplicates as $row) {
+            $groupKeys = self::query()
+                ->where('task_type', (string) $row->task_type)
+                ->where('group_key', (string) $row->group_key)
+                ->whereIn('status', self::statuses('live'))
+                ->orderByDesc('id')
+                ->pluck('task_id');
+            foreach ($groupKeys->slice(1) as $taskId) {
+                $keys[] = (string) $taskId;
+                if (count($keys) >= $maxKeys) {
+                    return $keys;
+                }
+            }
+        }
+        return $keys;
+    }
+
+    /**
+     * The stored task_type of one task (null when the task does not exist).
+     * Centralized here so controllers never query global_tasks directly.
+     */
+    public static function taskTypeOf(string $taskId): ?string
+    {
+        $taskType = self::query()->where('task_id', $taskId)->value('task_type');
+        return is_string($taskType) ? $taskType : null;
+    }
+
+    public static function findByTaskId(string $taskId): ?self
+    {
+        return self::query()->where('task_id', $taskId)->first();
+    }
+
+    public static function deleteInvalidPayloadTasks(): int
+    {
+        return self::query()->whereNull('payload')->delete();
+    }
+
+    public static function resetStatusesToPending(array $statuses): int
+    {
+        return self::query()
+            ->whereIn('status', $statuses)
+            ->update([
+                'status' => self::status('pending'),
+                'assigned_to' => null,
+                'assigned_at' => null,
+                'timeout_at' => null,
+            ]);
+    }
+
+    public static function initializationStats(): array
+    {
+        $grouped = self::query()->groupBy('status')->selectRaw('status, count(*) as aggregate')->pluck('aggregate', 'status');
+
+        return [
+            'total' => (int) $grouped->sum(),
+            'pending' => (int) ($grouped[self::status('pending')] ?? 0),
+            'processing' => (int) ($grouped[self::status('processing')] ?? 0),
+            'completed' => (int) ($grouped[self::status('completed')] ?? 0),
+            'failed' => (int) ($grouped[self::status('failed')] ?? 0),
+        ];
+    }
+
     public static function countsByTaskType(array $statuses): Collection
     {
         return self::query()
@@ -178,6 +266,15 @@ class GlobalTask extends Model
                 ->pluck('total', 'task_type')
                 ->map(static fn ($total): int => (int) $total);
         });
+    }
+
+    public static function statusCountsForTaskType(string $taskType): Collection
+    {
+        return self::query()
+            ->where('task_type', $taskType)
+            ->groupBy('status')
+            ->selectRaw('status, count(*) as aggregate')
+            ->pluck('aggregate', 'status');
     }
 
     /**
@@ -247,8 +344,7 @@ class GlobalTask extends Model
             }
 
             $update = [];
-            $isAudio = $this->capability === self::capability('audio')
-                || in_array($this->task_type, ['word_audio', 'article_audio'], true);
+            $isAudio = QueueCenterContract::isQueuePositionOrdered((string) $this->task_type);
             $isImage = $this->capability === self::capability('image')
                 || in_array($this->task_type, ['word_media', 'gemini_image'], true);
 

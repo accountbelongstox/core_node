@@ -16,13 +16,13 @@
  */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, Clapperboard, Library, ArrowRight, ChevronDown } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewContentGroup, WfNewContentKind, WfNewHomeContent as WfNewHomeContentData } from '../api';
 import { WfNewContentGroupCard, WFNEW_KIND_STYLES } from './WfNewContentGroupCard';
 import { WfNewContentGrid, WFNEW_GRID_COLS_CLASS } from './WfNewContentGrid';
 import { WfNewLoadingDots } from './WfNewLoadingDots';
 import { useWfNewGridCols, WFNEW_HOME_ROWS } from '../api';
-import { laravelApi } from '@/core/api-libs/laravel';
+import { laravelApi } from '@/core/integrations/laravel';
 
 interface WfNewHomeContentProps {
   content: WfNewHomeContentData;

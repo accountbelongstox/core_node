@@ -1,6 +1,12 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import {
+  createErrorResponse,
+  createJsonResponse,
+  createTextResponse,
+  ToolResult,
+} from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { delay as waitForDelay, withTimeoutFallback } from '@/utils/async';
 import {
   collectReducedPerformanceSummary,
   traceSubcommandUnsupportedOnFirefox,
@@ -99,7 +105,7 @@ async function saveTraceToDownloads(
     const dataUrl = `data:application/json;base64,${btoa(unescape(encodeURIComponent(json)))}`;
     const downloadId = await chrome.downloads.download({ url: dataUrl, filename, saveAs: false });
     try {
-      await new Promise((r) => setTimeout(r, 120));
+      await waitForDelay(120);
       const [item] = await chrome.downloads.search({ id: downloadId });
       return { downloadId, filename, fullPath: item?.filename };
     } catch {
@@ -128,16 +134,11 @@ const STOP_TRACE_TIMEOUT_MS = 15000;
 function raceStopPromiseWithTimeout(
   session: TraceSessionState,
 ): Promise<{ completed: boolean; timedOut?: boolean }> {
-  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-  const timeoutPromise = new Promise<{ completed: boolean; timedOut?: boolean }>((resolve) => {
-    timeoutHandle = setTimeout(
-      () => resolve({ completed: false, timedOut: true }),
-      STOP_TRACE_TIMEOUT_MS,
-    );
-  });
-  return Promise.race([session.stopPromise!, timeoutPromise]).finally(() => {
-    if (timeoutHandle) clearTimeout(timeoutHandle);
-  });
+  return withTimeoutFallback(
+    session.stopPromise!,
+    STOP_TRACE_TIMEOUT_MS,
+    () => ({ completed: false, timedOut: true }),
+  );
 }
 
 /**
@@ -279,20 +280,12 @@ class PerformanceStartTraceTool extends BaseBrowserToolExecutor {
         throw startError;
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'Performance trace is recording. Use performance_stop_trace to stop it.',
-              reload,
-              autoStop,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: 'Performance trace is recording. Use performance_stop_trace to stop it.',
+        reload,
+        autoStop,
+      });
     } catch (e: any) {
       return createErrorResponse(`Failed to start performance trace: ${e?.message || e}`);
     }
@@ -325,12 +318,7 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
       const session = sessions.get(finalTabId);
       if (!session) {
-        return {
-          content: [
-            { type: 'text', text: 'No performance trace session found for the current tab.' },
-          ],
-          isError: false,
-        };
+        return createTextResponse('No performance trace session found for the current tab.');
       }
 
       let stopResult: { completed: boolean; timedOut?: boolean } = { completed: false };
@@ -374,29 +362,21 @@ class PerformanceStopTraceTool extends BaseBrowserToolExecutor {
         metrics,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: stopResult?.timedOut
-                ? 'The performance trace was stopped after the tracingComplete event timed out; the trace may be incomplete.'
-                : 'The performance trace has been stopped.',
-              eventCount: session.events.length,
-              saved,
-              metrics,
-              startedAt: session.startedAt,
-              endedAt,
-              durationMs: endedAt - session.startedAt,
-              url: session.pageUrl || '',
-              tracingCompleted: stopResult?.completed === true,
-              timedOut: stopResult?.timedOut === true,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: stopResult?.timedOut
+          ? 'The performance trace was stopped after the tracingComplete event timed out; the trace may be incomplete.'
+          : 'The performance trace has been stopped.',
+        eventCount: session.events.length,
+        saved,
+        metrics,
+        startedAt: session.startedAt,
+        endedAt,
+        durationMs: endedAt - session.startedAt,
+        url: session.pageUrl || '',
+        tracingCompleted: stopResult?.completed === true,
+        timedOut: stopResult?.timedOut === true,
+      });
     } catch (e: any) {
       return createErrorResponse(`Failed to stop performance trace: ${e?.message || e}`);
     }
@@ -430,15 +410,9 @@ class PerformanceAnalyzeInsightTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
       const result = LAST_RESULTS.get(finalTabId);
       if (!result) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: 'No recorded traces found. Start and stop a performance trace first.',
-            },
-          ],
-          isError: false,
-        };
+        return createTextResponse(
+          'No recorded traces found. Start and stop a performance trace first.',
+        );
       }
 
       // Lightweight analysis
@@ -452,26 +426,18 @@ class PerformanceAnalyzeInsightTool extends BaseBrowserToolExecutor {
         .slice(0, 20)
         .map(([name, count]) => ({ name, count }));
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              info: 'Lightweight analysis',
-              requestedInsight: insightName || null,
-              url: result.tabUrl,
-              startedAt: result.startedAt,
-              endedAt: result.endedAt,
-              durationMs: result.endedAt - result.startedAt,
-              metrics: result.metrics || {},
-              topEventNames: top,
-              saved: result.saved,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        info: 'Lightweight analysis',
+        requestedInsight: insightName || null,
+        url: result.tabUrl,
+        startedAt: result.startedAt,
+        endedAt: result.endedAt,
+        durationMs: result.endedAt - result.startedAt,
+        metrics: result.metrics || {},
+        topEventNames: top,
+        saved: result.saved,
+      });
     } catch (e: any) {
       return createErrorResponse(`Failed to analyze trace: ${e?.message || e}`);
     }

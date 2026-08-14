@@ -152,14 +152,14 @@ class PddToolV1Initializer implements AppInitializerInterface
                 return PddToolV1TablesInitializer::allTablesExist();
             }
             if ($step === 'seed_packages') {
-                return PddToolV1PackageModel::query()->count() > 0;
+                return PddToolV1PackageModel::anyExists();
             }
             if ($step === 'seed_admin') {
-                $admin = User::query()->where('username', PddToolV1Defaults::DEFAULT_ADMIN_USERNAME)->first();
+                $admin = User::findByUsername(PddToolV1Defaults::DEFAULT_ADMIN_USERNAME);
                 if (!$admin) {
                     return false;
                 }
-                return PddToolV1ProfileModel::query()->where('user_id', $admin->id)->exists();
+                return PddToolV1ProfileModel::existsForUser($admin->id);
             }
         } catch (\Throwable $e) {
             return true;
@@ -212,12 +212,12 @@ class PddToolV1Initializer implements AppInitializerInterface
             $existing = 0;
 
             foreach (PddToolV1Defaults::PACKAGES as $code => $def) {
-                $row = PddToolV1PackageModel::query()->where('code', $code)->first();
+                $row = PddToolV1PackageModel::findByCode($code);
                 if ($row) {
                     $existing++;
                     continue;
                 }
-                PddToolV1PackageModel::query()->create($def);
+                PddToolV1PackageModel::createRecord($def);
                 $created++;
             }
 
@@ -238,7 +238,7 @@ class PddToolV1Initializer implements AppInitializerInterface
     private function seedAdmin(): array
     {
         try {
-            $admin = User::query()->where('username', PddToolV1Defaults::DEFAULT_ADMIN_USERNAME)->first();
+            $admin = User::findByUsername(PddToolV1Defaults::DEFAULT_ADMIN_USERNAME);
 
             if (!$admin) {
                 // Create the canonical global user via the unified path (hashed
@@ -251,7 +251,7 @@ class PddToolV1Initializer implements AppInitializerInterface
                 if ($created && !empty($created['user'])) {
                     $admin = $created['user'];
                 } else {
-                    $admin = User::create([
+                    $admin = User::createRecord([
                         'username' => PddToolV1Defaults::DEFAULT_ADMIN_USERNAME,
                         'password' => Hash::make(PddToolV1Defaults::DEFAULT_ADMIN_PASSWORD),
                     ]);

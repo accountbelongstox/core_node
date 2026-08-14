@@ -8,8 +8,8 @@ import {
   ChevronDown, ChevronUp, Image as ImageIcon, BookOpen, Volume2, Languages,
 } from 'lucide-react';
 import type { WfNewLibraryWord, WfNewWordMedia, WordNewAudioFileVariant } from '../../api';
-import type { ElementTheme } from '../../WfNewTypes';
-import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import type { ElementTheme } from '../../WfNewThemes';
+import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
 import { WordNewAudioVariantPicker } from '../WordNewAudioVariantPicker';
 import { WfNewLoadingDots } from '../WfNewLoadingDots';
 import { ttsStatusToCellState, type WordNewAudioCellState } from '../../utils/WordNewAudioCellState';
@@ -34,7 +34,7 @@ export interface WordNewLibraryWordRowProps {
   onVariantSelect: (wordKey: string, variantKey: string) => void;
   /** Click row / ready icon -> route through playback (playFrom). */
   onPlay: (word: WfNewLibraryWord) => void;
-  /** Missing/queued icon click -> urgent re-bump. */
+  /** Missing/queued icon click -> move to queue head. */
   onRetry: (word: WfNewLibraryWord) => void;
   onToggleExpand: (word: WfNewLibraryWord) => void;
   trans: (key: string, replacements?: Record<string, string | number>) => string;
@@ -119,7 +119,7 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
             />
           ) : null}
           {(effAudioUrl || state !== 'none' || w.ttsStatus || requested) ? (
-            <WordNewAudioStatusIcon
+            <WordNewResourceStatusIcon
               state={state}
               queueKey={wordAudioQueueKey(w.word, lang)}
               trans={trans}
@@ -131,7 +131,7 @@ export const WordNewLibraryWordRow: React.FC<WordNewLibraryWordRowProps> = ({
             />
           ) : null}
           {w.translations.length === 0 ? (
-            <WordNewAudioStatusIcon
+            <WordNewResourceStatusIcon
               state="waiting"
               resource="translation"
               queueKey={wordTranslationQueueKey(w.word, lang, targetLanguage)}

@@ -43,8 +43,10 @@ from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.api_secrets import streamelements_key_present
 from pycore.pyutils.external_apis.word_audio_client import find_pronunciation
+from pycore.pyutils.tts.engine_policy import tts_locale
 from pycore.pyutils.tts.tts_orchestrator import TTS_ENGINE_PRIORITY, _priority
 from pycore.pyutils.tts.edge.client import edge_tts_client
+from pycore.pyutils.tts.edge.config import TTSConfig
 # Stored-first Laravel endpoint resolution for worker-side task integration.
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
@@ -348,29 +350,6 @@ def fetch_youdao(word: str, type: int = 2):
         return {"success": False, "error": str(exc)}
 
 
-# Default edge-tts voice per lang+accent combo.
-_EDGE_VOICE_MAP: Dict[str, str] = {
-    "en:us": "en-US-JennyNeural",
-    "en:uk": "en-GB-SoniaNeural",
-    "zh": "zh-CN-XiaoxiaoNeural",
-    "ja": "ja-JP-NanamiNeural",
-    "ko": "ko-KR-SunHiNeural",
-    "fr": "fr-FR-DeniseNeural",
-    "de": "de-DE-KatjaNeural",
-    "es": "es-ES-ElviraNeural",
-}
-
-
-def _pick_edge_voice(lang: str, accent: str) -> str:
-    key = f"{lang}:{accent}" if lang == "en" else lang
-    return _EDGE_VOICE_MAP.get(key, _EDGE_VOICE_MAP.get(lang, "en-US-JennyNeural"))
-
-
-
-
-
-
-
 def edge_synth(word: str, lang: str = "en", accent=None):
     """POST /edge-synth {word, lang, accent?}
     Synthesize word audio via edge-tts and return base64 audio.
@@ -382,17 +361,18 @@ def edge_synth(word: str, lang: str = "en", accent=None):
     lang = (lang or "en").strip() or "en"
     accent = (accent or "").strip().lower()
     accent = accent if accent in ("us", "uk") else "us"
-    voice = _pick_edge_voice(lang, accent)
+    voice = TTSConfig.resolve_voice(tts_locale(lang), accent, "female")
+    if not voice:
+        return {"success": False, "error": f"edge-tts does not support language: {lang}"}
     tmp_path: Optional[Path] = None
     try:
-        client = edge_tts_client
         with tempfile.NamedTemporaryFile(
             suffix=".mp3",
             delete=False,
             dir=str(TMP_DIR),
         ) as tmp:
             tmp_path = Path(tmp.name)
-        ok = client.synthesize(word, voice, tmp_path)
+        ok = edge_tts_client.synthesize(word, voice, tmp_path)
         if not ok or not tmp_path.exists() or tmp_path.stat().st_size == 0:
             return {"success": False, "error": "edge-tts synthesis failed"}
         raw = tmp_path.read_bytes()

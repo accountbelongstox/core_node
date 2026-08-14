@@ -31,7 +31,7 @@ export { invalidateGroupProgressCache } from './methods/learning';
 // app calls (verified against laravel_main routes/AppQyV1Router/*). The http
 // impl routes through it; import it anywhere a raw path would otherwise be typed.
 export {
-  WfNewApiPaths, WfNewAdminPaths, WFNEW_API_BASE, WFNEW_ROOT_API_BASE, WFNEW_HEALTH_PATH,
+  WfNewApiPaths, WfNewAdminPaths, WFNEW_API_BASE, WFNEW_HEALTH_PATH,
   WFNEW_ADMIN_DEBUG_STATUS_PATH,
 } from './WfNewApiPaths';
 
@@ -57,16 +57,15 @@ export {
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
 
-// Social realtime — the SSE push client (separate from the request/response impl).
+// Social realtime — private Reverb push plus bounded cursor recovery.
 // Start/stop app-level on login/logout; pages subscribe to events via subscribeSocial.
 export {
-  startSocialSse, stopSocialSse, subscribeSocial, isSocialSseConnected,
-} from './WfNewSocialSse';
-export type { WfNewSocialEvent } from './WfNewSocialSse';
+  startSocialRealtime, stopSocialRealtime, subscribeSocial, isSocialRealtimeConnected,
+} from './WfNewSocialRealtime';
+export type { WfNewSocialEvent } from './WfNewSocialRealtime';
 
 // Persisted endpoint settings store (subclass of the shared PersistedStore).
 export { wfNewEndpointStore } from './WfNewEndpointStore';
-export type { WfNewEndpointPrefs } from './WfNewEndpointStore';
 
 // ONE responsive grid constant for the whole app (columns-per-width), shared by
 // every page AND used here for ROW-based pagination (page size = columns × rows).

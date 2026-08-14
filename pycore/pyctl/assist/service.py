@@ -142,9 +142,9 @@ def assist_cycle(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         return {"success": False, "error": "queue processing is disabled — enable it first"}
 
     results = [
-        translation_worker_service.pull_once(0),
-        laravel_word_audio_worker.pull_once(0),
-        laravel_sentence_audio_worker.pull_once(0),
+        translation_worker_service.pull_once(),
+        laravel_word_audio_worker.pull_once(),
+        laravel_sentence_audio_worker.pull_once(),
     ]
     return {
         "ok": True,

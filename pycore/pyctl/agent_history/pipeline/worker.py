@@ -15,9 +15,14 @@ from pycore.pyctl.agent_history.pipeline.config import (
     save_config,
 )
 from pycore.pyctl.agent_history.pipeline.planner import plan_batches
-from pycore.pyctl.agent_history.pipeline.article_stages import generate_chinese_article, translate_to_english
+from pycore.pyctl.agent_history.pipeline.article_stages import (
+    ensure_openrouter_available,
+    generate_chinese_article,
+    translate_to_english,
+)
 from pycore.pyctl.agent_history.pipeline.audio_stage import synthesize_audio
 from pycore.pyctl.agent_history.pipeline.laravel_stage import upload_to_laravel
+from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 import pycore.pyutils.agent_history.article_records as records
 
 class _RunGate:
@@ -40,8 +45,9 @@ class _RunGate:
 
 _run_gate = _RunGate()
 
-# A failed pipeline item is retried until this many attempts, then stays failed
-# (transient model / network errors must not silently drop the whole article).
+# A non-retriable pipeline item is retried until this many attempts, then stays
+# failed. Classified transient provider/network errors remain queued behind the
+# provider cooldown and keep their checkpoint until the dependency recovers.
 # One attempt per 10s tick, so 30 attempts ≈ 5 minutes of retry — long enough
 # for a cold-loading local TTS engine, bounded enough to drop a poison batch.
 MAX_ITEM_ATTEMPTS = 30
@@ -121,6 +127,8 @@ def tick_pipeline() -> None:
             # UNIQUE constraint failures on (operation_id, item_key)).
             any_failed = any(item.status == "failed" for item in items)
             if any_failed:
+                failed_item = next(item for item in items if item.status == "failed")
+                _advance_cursor_for_input(failed_item.input_json or {})
                 op_service.fail(op.id, {"message": "one or more items failed"}, "Operation failed")
             else:
                 op_service.complete(op.id, "All items finished")
@@ -185,13 +193,28 @@ def _advance_cursor_for_input(input_data: Dict[str, Any]) -> None:
 def _fail_item(item, error: Exception, op_service: Any) -> None:
     """Mark an item failed, KEEPING its checkpoint so a retry resumes the stage."""
     err = str(error)
+    failure = classify_ai_failure(err)
+    retriable = error.retriable if isinstance(error, AiRequestError) else bool(failure["retriable"])
+    error_code = error.code if isinstance(error, AiRequestError) else str(failure["code"] or "pipeline_error")
+    if error_code in ("none", "unknown"):
+        error_code = "pipeline_error"
+    retry_after_s = error.retry_after_s if isinstance(error, AiRequestError) else None
+    checkpoint = dict(item.checkpoint_json or {})
+    if retriable and retry_after_s:
+        checkpoint["retry_not_before"] = time.time() + float(retry_after_s)
+        checkpoint["retry_reason_code"] = error_code
     op_service.transition_item(
         item.id,
         status="failed",
         stage=item.stage,
-        checkpoint_json=item.checkpoint_json,
-        error_json={"message": err},
-        message=f"Item failed: {err}",
+        checkpoint_json=checkpoint,
+        error_json={
+            "message": err,
+            "code": error_code,
+            "retriable": retriable,
+            "retry_after_s": retry_after_s,
+        },
+        message=f"Item failed [{error_code}]: {err}",
     )
 
 def _retry_pending_upload() -> None:
@@ -241,6 +264,10 @@ def _is_item_terminal(item) -> bool:
     if item.status in ("succeeded", "skipped", "cancelled"):
         return True
     if item.status == "failed":
+        error_data = item.error_json or {}
+        failure = classify_ai_failure(error_data.get("message"))
+        if bool(error_data.get("retriable")) or bool(failure["retriable"]):
+            return False
         return int(item.attempts or 0) >= MAX_ITEM_ATTEMPTS
     return False
 
@@ -250,18 +277,33 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
     checkpoint = item.checkpoint_json or {}
     input_data = item.input_json or {}
     raw_text = input_data.get("raw_text", "")
+    retry_not_before = float(checkpoint.get("retry_not_before") or 0.0)
+    if retry_not_before > time.time():
+        return False
+    checkpoint.pop("retry_not_before", None)
+    checkpoint.pop("retry_reason_code", None)
+    request_context = {
+        "operation_id": item.operation_id,
+        "item_id": item.id,
+        "attempt": int(item.attempts or 0) + 1,
+        "stage": item.stage,
+        "tool": str(input_data.get("tool") or ""),
+        "lane": str(input_data.get("lane") or ""),
+    }
     
     # Stage 1: generating_reference_cn
     if item.stage in ("queued", "generating_reference_cn"):
+        ensure_openrouter_available()
         op_service.transition_item(item.id, "running", "generating_reference_cn", 0.1, message="Generating Chinese article")
-        article_cn = generate_chinese_article(raw_text)
+        article_cn = generate_chinese_article(raw_text, request_context)
         checkpoint["article_cn"] = article_cn
         op_service.transition_item(item.id, "running", "translating_target_en", 0.3, checkpoint_json=checkpoint)
         
     # Stage 2: translating_target_en
     if item.stage == "translating_target_en":
+        ensure_openrouter_available()
         op_service.transition_item(item.id, "running", "translating_target_en", 0.3, message="Translating to English")
-        article_en, engine = translate_to_english(checkpoint["article_cn"])
+        article_en, engine = translate_to_english(checkpoint["article_cn"], request_context)
         checkpoint["article_en"] = article_en
         checkpoint["translation_engine"] = engine
         op_service.transition_item(item.id, "running", "synthesizing_audio", 0.5, checkpoint_json=checkpoint)

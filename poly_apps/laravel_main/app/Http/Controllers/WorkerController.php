@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
+use App\Services\QueueCenter\QueueSliceDiffService;
 use App\Support\QueueCenterContract;
-use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
@@ -118,9 +118,31 @@ class WorkerController extends Controller
         return $this->success([
             'pending_urgent' => $pendingUrgent,
             // Shared fast lane backlog this worker can claim — a non-zero value
-            // tells the client to re-poll immediately (wait=0) and process now.
+            // tells the client to re-poll immediately and process now.
             'pending_fast' => $pendingFast,
         ], 'Heartbeat received');
+    }
+
+    /**
+     * Mark a worker offline immediately.
+     *
+     * POST /api/worker/unregister
+     */
+    public function unregister(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'worker_id' => 'required|string',
+        ]);
+        $workerId = $validated['worker_id'];
+
+        if (!$this->workerManager->unregister($workerId)) {
+            return $this->notFound('Worker not found');
+        }
+
+        return $this->success([
+            'worker_id' => $workerId,
+            'status' => 'offline',
+        ], 'Worker unregistered successfully');
     }
 
     /**
@@ -130,10 +152,7 @@ class WorkerController extends Controller
      */
     private function taskTypeKeys(): array
     {
-        return array_values(array_filter(array_map(
-            static fn ($definition) => is_array($definition) ? ($definition['key'] ?? null) : null,
-            QueueCenterContract::taskTypes()
-        ), 'is_string'));
+        return QueueCenterContract::taskTypeKeys();
     }
 
     /**
@@ -153,12 +172,11 @@ class WorkerController extends Controller
      */
     private function storedTaskType(string $taskId): ?string
     {
-        $taskType = GlobalTask::where('task_id', $taskId)->value('task_type');
-        return is_string($taskType) ? $taskType : null;
+        return GlobalTask::taskTypeOf($taskId);
     }
 
     /**
-     * Pull tasks of one task type for worker (long polling)
+     * Pull tasks of one task type for worker.
      * Tasks are automatically assigned to worker atomically
      *
      * GET /api/worker/tasks/{taskType}/pull
@@ -169,7 +187,6 @@ class WorkerController extends Controller
             return $invalid;
         }
         $pullLimit = QueueCenterContract::taskLimit('worker_pull');
-        $longPollLimit = QueueCenterContract::taskLimit('long_poll_seconds');
         $validated = $request->validate([
             'worker_id' => 'required|string',
             'worker_name' => 'nullable|string',
@@ -182,17 +199,14 @@ class WorkerController extends Controller
             'platform' => 'nullable|string',
             'metadata' => 'nullable|array',
             'limit' => "nullable|integer|min:1|max:{$pullLimit}",
-            // Long-poll wait budget (seconds). 0 = legacy immediate return.
-            // Clamped to the central long_poll_seconds contract value.
-            'wait' => "nullable|integer|min:0|max:{$longPollLimit}",
         ]);
 
         $workerId = $validated['worker_id'];
-        $limit = $validated['limit'] ?? QueueCenterContract::taskLimit('worker_pull_default');
-        // validate()'s `integer` rule checks but does NOT cast query-string params,
-        // so $validated['wait'] arrives as the string "0"; cast before the strict
-        // `=== 0` comparison below or the immediate-return fast path is never taken.
-        $wait = isset($validated['wait']) ? (int) $validated['wait'] : null;
+        $sliceLimit = QueueCenterContract::consumerSliceLimit($taskType);
+        $limit = min(
+            (int) ($validated['limit'] ?? QueueCenterContract::taskLimit('worker_pull_default')),
+            $sliceLimit
+        );
 
         // Queue consumers advertise their identity on the pull itself. This keeps
         // worker discovery, capability refresh, and queue claiming in one request
@@ -219,22 +233,7 @@ class WorkerController extends Controller
             );
         }
 
-        // Long-poll by default: hold the request (cheap COUNT polling, no held DB
-        // lock) until a task appears or the wait budget elapses, so a worker idling
-        // on an empty queue is woken promptly the instant a high-priority task is
-        // created. wait=0 restores the legacy immediate-return behavior.
-        //
-        // EXCEPTION: on the single-worker php -S runtime there is no request
-        // concurrency, so a parked long-poll would occupy the ONE worker for its
-        // whole wait budget and starve every other request (overview poll, list
-        // fan-out, even /api/health). Force the immediate-return path there; idle
-        // workers instead pace themselves off the pending_urgent/pending_fast
-        // hints returned below. Long-poll stays enabled on Octane/fpm.
-        if ($wait === 0 || ServerRuntime::isSingleWorker()) {
-            $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
-        } else {
-            $tasks = $this->taskManager->pullAndAssignTasksLongPoll($workerId, $limit, $wait, $taskType);
-        }
+        $tasks = $this->taskManager->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
 
         // Notify signal in the pull response too: the urgent backlog STILL waiting
         // after this pull (other high-priority tasks of this type beyond the
@@ -243,11 +242,14 @@ class WorkerController extends Controller
             ? ($validated['capabilities'] ?? [])
             : $this->taskManager->workerCapabilities($workerId);
         $pendingSignals = $this->taskManager->pendingSignalsForType($taskType, $capabilities);
+        $queueDiff = app(QueueSliceDiffService::class)->snapshot($taskType, 0, false);
 
         return $this->success([
             'count' => count($tasks),
             'pending_urgent' => $pendingSignals['pending_urgent'],
             'pending_fast' => $pendingSignals['pending_fast'],
+            'queue_cursor' => $queueDiff['cursor'],
+            'progress' => $queueDiff['progress'],
             // The worker_pull field list is shared with the Pycore and
             // mcp-chrome worker models through the central JSON contract.
             'tasks' => array_map(
@@ -379,35 +381,11 @@ class WorkerController extends Controller
      */
     public function list(): JsonResponse
     {
-        $workers = $this->workerManager->getAllWorkers();
+        $workers = $this->workerManager->getWorkerSummaries();
 
         return $this->success([
             'count' => $workers->count(),
-            'workers' => $workers->map(function ($worker) {
-                $lastHeartbeatAt = null;
-                if ($worker->last_heartbeat_at) {
-                    $lastHeartbeatAt = $worker->last_heartbeat_at->toISOString();
-                }
-
-                $createdAt = null;
-                if ($worker->created_at) {
-                    $createdAt = $worker->created_at->toISOString();
-                }
-
-                return [
-                    'worker_id' => $worker->worker_id,
-                    'worker_name' => $worker->worker_name,
-                    'processor_types' => $worker->processor_types,
-                    'status' => $worker->isAlive() ? $worker->status : \App\Models\Worker::STATUS_OFFLINE,
-                    'hostname' => $worker->hostname,
-                    'platform' => $worker->platform,
-                    'completed_tasks' => $worker->completed_tasks,
-                    'failed_tasks' => $worker->failed_tasks,
-                    'current_task_id' => $worker->current_task_id,
-                    'last_heartbeat_at' => $lastHeartbeatAt,
-                    'created_at' => $createdAt,
-                ];
-            }),
+            'workers' => $workers,
         ], 'Workers list retrieved successfully');
     }
 

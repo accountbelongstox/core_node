@@ -2,7 +2,7 @@
 """Agent History workflows exposed to the Pycore UI."""
 
 from datetime import datetime, timezone
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pycore.pyutils.agent_history.article_records as article_record_store
 import pycore.pyctl.agent_history.agent_history_txt as agent_history_txt
@@ -24,15 +24,67 @@ from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 from pycore.pyutils.common.usage_rollup import usage_rollup
+from pycore.pyutils.common.ai_request_failures import classify_ai_failure
 
 
 _AI_USAGE_SOURCES = {"agent_history_article", "agent_history_translate"}
 _AI_USAGE_CACHE_KEY = "agent_history.ai_usage_dashboard"
+_AI_USAGE_RETAINED_LIMIT = 5000
+_AI_USAGE_VISIBLE_LIMIT = 400
+
+
+def _decorate_ai_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    row = dict(entry)
+    failure = classify_ai_failure(row.get("error"))
+    provider_reached = row.get("provider_reached")
+    if provider_reached is None:
+        provider_reached = bool(row.get("success")) or bool(failure["provider_reached"])
+    quota_counted = row.get("quota_counted")
+    if quota_counted is None:
+        quota_counted = provider_reached
+    row["error_code"] = row.get("error_code") or (None if row.get("success") else failure["code"])
+    row["retriable"] = False if row.get("success") else bool(failure["retriable"])
+    row["provider_reached"] = bool(provider_reached)
+    row["quota_counted"] = bool(quota_counted)
+    return row
+
+
+def _ai_entry_summary(entries: List[Dict[str, Any]]) -> Dict[str, Any]:
+    failures: Dict[str, Dict[str, Any]] = {}
+    provider_reached = 0
+    quota_counted = 0
+    for entry in entries:
+        provider_reached += int(bool(entry.get("provider_reached")))
+        quota_counted += int(bool(entry.get("quota_counted")))
+        if entry.get("success"):
+            continue
+        code = str(entry.get("error_code") or "unknown")
+        group = failures.setdefault(
+            code,
+            {
+                "code": code,
+                "count": 0,
+                "provider_reached": 0,
+                "quota_counted": 0,
+                "last_at": entry.get("iso"),
+                "last_error": entry.get("error"),
+            },
+        )
+        group["count"] += 1
+        group["provider_reached"] += int(bool(entry.get("provider_reached")))
+        group["quota_counted"] += int(bool(entry.get("quota_counted")))
+    return {
+        "attempts": len(entries),
+        "provider_reached": provider_reached,
+        "quota_counted": quota_counted,
+        "pre_dispatch_failures": len(entries) - provider_reached,
+        "failure_breakdown": sorted(failures.values(), key=lambda item: int(item["count"]), reverse=True),
+    }
 
 
 def _agent_history_ai_usage_snapshot(day: str) -> Dict[str, Any]:
-    usage_data = usage_log(400, "text", "openrouter", list(_AI_USAGE_SOURCES))
-    entries = usage_data.get("entries", [])
+    usage_data = usage_log(_AI_USAGE_RETAINED_LIMIT, "text", "openrouter", list(_AI_USAGE_SOURCES))
+    entries = [_decorate_ai_entry(entry) for entry in usage_data.get("entries", [])]
     today_entries = [
         entry for entry in entries if str(entry.get("iso") or "").startswith(day)
     ]
@@ -41,15 +93,16 @@ def _agent_history_ai_usage_snapshot(day: str) -> Dict[str, Any]:
     history_summary = usage_rollup.summarize(source_stats, _AI_USAGE_SOURCES)
     return {
         "usage": {
-            "today": today_summary,
-            "history": history_summary,
-            "retained_limit": 5000,
+            "today": {**today_summary, **_ai_entry_summary(today_entries)},
+            "history": {**history_summary, **_ai_entry_summary(entries)},
+            "retained_limit": _AI_USAGE_RETAINED_LIMIT,
         },
-        "tasks": entries,
+        "tasks": entries[:_AI_USAGE_VISIBLE_LIMIT],
         "task_total": int(history_summary["requests"]),
         "today_task_total": int(today_summary["requests"]),
         "retained_task_total": len(entries),
         "retained_today_task_total": len(today_entries),
+        "visible_task_limit": _AI_USAGE_VISIBLE_LIMIT,
     }
 
 
@@ -223,6 +276,7 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
         "success": True,
         "data": {
             "article_config": config,
+            "article_summary": article_record_store.summarize_records(),
             "operation_snapshot": operation,
             "ai_dashboard": _agent_history_ai_dashboard(config),
         },

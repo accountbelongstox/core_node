@@ -106,7 +106,7 @@ def set_synth_timeout(seconds: Any) -> float:
     return current
 
 
-class EdgeTTSClient:
+class _EdgeTTSClient:
     """
     Edge TTS client for text-to-speech conversion
     
@@ -521,5 +521,5 @@ class EdgeTTSClient:
         self._active_tasks = max(0, self._active_tasks - 1)
 
 
-edge_tts_client = EdgeTTSClient()
+edge_tts_client = _EdgeTTSClient()
 

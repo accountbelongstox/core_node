@@ -36,7 +36,7 @@ class McpV1PlaceholderCtl
                 ], 500);
             }
 
-            $placeholder = McpV1PlaceholderImageModel::create([
+            $placeholder = McpV1PlaceholderImageModel::createRecord([
                 'uuid' => $result['uuid'],
                 'filename' => $result['filename'],
                 'width' => $width,
@@ -84,7 +84,7 @@ class McpV1PlaceholderCtl
     public function download(string $uuid): BinaryFileResponse|JsonResponse
     {
         try {
-            $placeholder = McpV1PlaceholderImageModel::where('uuid', $uuid)->first();
+            $placeholder = McpV1PlaceholderImageModel::findByUuid($uuid);
 
             if (!$placeholder) {
                 return response()->json([
@@ -106,7 +106,7 @@ class McpV1PlaceholderCtl
                 try {
                     if (connection_aborted() === 0) {
                         FileSystemManager::deleteFile($placeholder->file_path);
-                        $placeholder->delete();
+                        $placeholder->deleteRecord();
                         Log::info('Placeholder deleted after download', ['uuid' => $placeholder->uuid]);
                     }
                 } catch (\Exception $e) {
@@ -144,15 +144,14 @@ class McpV1PlaceholderCtl
             $perPage = $request->input('per_page', 20);
             $page = $request->input('page', 1);
 
-            $query = McpV1PlaceholderImageModel::query()
-                ->orderBy('created_at', 'desc');
-
-            if ($request->has('downloaded')) {
-                $downloaded = filter_var($request->input('downloaded'), FILTER_VALIDATE_BOOLEAN);
-                $query->where('downloaded', $downloaded);
-            }
-
-            $placeholders = $query->paginate($perPage, ['*'], 'page', $page);
+            $downloaded = $request->has('downloaded')
+                ? filter_var($request->input('downloaded'), FILTER_VALIDATE_BOOLEAN)
+                : null;
+            $placeholders = McpV1PlaceholderImageModel::filteredPage(
+                $downloaded,
+                (int) $perPage,
+                (int) $page
+            );
 
             $items = $placeholders->items();
             $data = array_map(function ($item) {
@@ -245,7 +244,7 @@ class McpV1PlaceholderCtl
     public function delete(string $uuid): JsonResponse
     {
         try {
-            $placeholder = McpV1PlaceholderImageModel::where('uuid', $uuid)->first();
+            $placeholder = McpV1PlaceholderImageModel::findByUuid($uuid);
 
             if (!$placeholder) {
                 return response()->json([
@@ -258,7 +257,7 @@ class McpV1PlaceholderCtl
                 FileSystemManager::deleteFile($placeholder->file_path);
             }
 
-            $placeholder->delete();
+            $placeholder->deleteRecord();
 
             return response()->json([
                 'success' => true,

@@ -15,7 +15,7 @@
  * Only reached behind import.meta.env.FIREFOX guards; compile-time dead code
  * on Chrome builds, so Chrome behavior is unchanged.
  */
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import {
   FIREFOX_RELAY_ACTION,
   FIREFOX_RELAY_MARKER,
@@ -142,25 +142,17 @@ export async function handleDialogFirefox(
     const intercepted = interceptedDialogsByTab.get(tabId) || [];
     interceptedDialogsByTab.set(tabId, []);
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            action,
-            promptText: promptText || null,
-            armed: true,
-            note: FIREFOX_DIALOG_NOTE,
-            interceptedDialogs: intercepted,
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      action,
+      promptText: promptText || null,
+      armed: true,
+      note: FIREFOX_DIALOG_NOTE,
+      interceptedDialogs: intercepted,
+    });
   } catch (error) {
     return createErrorResponse(
-      `Failed to handle dialog: ${error instanceof Error ? error.message : String(error)}. The page may not allow script injection (e.g. about: pages).`,
+      `Failed to handle dialog: ${toErrorMessage(error)}. The page may not allow script injection (e.g. about: pages).`,
     );
   }
 }

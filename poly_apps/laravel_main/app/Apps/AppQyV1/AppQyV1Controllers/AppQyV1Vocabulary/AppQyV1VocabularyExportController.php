@@ -60,9 +60,7 @@ class AppQyV1VocabularyExportController extends Controller
         $library = null;
         $libraryIdParam = $request->input('library_id');
         if ($libraryIdParam !== null && $libraryIdParam !== '') {
-            $library = AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->find((int) $libraryIdParam);
+            $library = AppQyV1VocabularyLibraryModel::findPublicById((int) $libraryIdParam);
 
             if (!$library) {
                 return $this->notFound('Library not found');
@@ -126,11 +124,10 @@ class AppQyV1VocabularyExportController extends Controller
         if ($library !== null) {
             $orderedIds = array_slice($library->getWordIdsArray(), 0, $limit);
         } else {
-            $libraries = AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->forLanguage($languageName)
-                ->orderBy('id')
-                ->get(['id', 'word_ids']);
+            $libraries = AppQyV1VocabularyLibraryModel::publicForLanguage(
+                $languageName,
+                ['id', 'word_ids']
+            );
 
             $idSet = [];
             foreach ($libraries as $publicLibrary) {

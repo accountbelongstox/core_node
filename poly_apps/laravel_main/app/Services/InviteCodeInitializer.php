@@ -73,31 +73,19 @@ class InviteCodeInitializer
             $s = $usage['status'] ?? 'error';
             $results['invite_code_usage'] = $s === 'aligned' ? 'exists' : $s;
 
-            // Use model connection for query builder (Laravel best practice)
-            $inviteCodeModel = new InviteCode();
-            $inviteCodeModel->setConnection($connection);
-            $dbConnection = $inviteCodeModel->getConnection();
-
-            $existingCodes = $dbConnection->table('invite_codes')->count();
-            if ($existingCodes === 0) {
+            $adminCode = 'ADMIN_' . strtoupper(Str::random(20));
+            $created = InviteCode::seedWhenEmpty([
+                'code' => $adminCode,
+                'type' => 'admin',
+                'max_uses' => 10,
+                'used_count' => 0,
+                'expires_at' => now()->addYears(10),
+                'is_active' => true,
+                'description' => 'Default admin invite code (generated at installation)',
+            ]);
+            if ($created) {
                 // Super-admin elevation uses InstallationAccessCode (rewritten by
                 // start.sh/ps1) — never seed a super_admin row into invite_codes.
-                $adminCode = 'ADMIN_' . strtoupper(Str::random(20));
-
-                $dbConnection->table('invite_codes')->insert([
-                    [
-                        'code' => $adminCode,
-                        'type' => 'admin',
-                        'max_uses' => 10,
-                        'used_count' => 0,
-                        'expires_at' => now()->addYears(10),
-                        'is_active' => true,
-                        'description' => 'Default admin invite code (generated at installation)',
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ],
-                ]);
-
                 $results['default_codes'] = 'created';
                 $results['codes'] = [
                     'admin' => $adminCode,
@@ -108,15 +96,7 @@ class InviteCodeInitializer
                 ]);
             } else {
                 $results['default_codes'] = 'exists';
-                $codes = $dbConnection->table('invite_codes')
-                    ->select('code', 'type')
-                    ->where('type', 'admin')
-                    ->get();
-
-                $results['codes'] = [];
-                foreach ($codes as $code) {
-                    $results['codes'][$code->type] = $code->code;
-                }
+                $results['codes'] = InviteCode::codesByType('admin');
             }
 
         } catch (\Exception $e) {
@@ -135,27 +115,10 @@ class InviteCodeInitializer
         $connection = config('database.default');
 
         try {
-            // Use model connection for query builder (Laravel best practice)
-            $inviteCodeModel = new InviteCode();
-            $inviteCodeModel->setConnection($connection);
-            $dbConnection = $inviteCodeModel->getConnection();
-
             $stats = [
-                'invite_codes' => [
-                    'total' => $dbConnection->table('invite_codes')->count(),
-                    'active' => $dbConnection->table('invite_codes')->where('is_active', true)->count(),
-                    'inactive' => $dbConnection->table('invite_codes')->where('is_active', false)->count(),
-                    // Grouped aggregate has no native form; COUNT(*) is cross-DB safe
-                    // (identical on sqlite and pgsql).
-                    'by_type' => $dbConnection->table('invite_codes')
-                        ->groupBy('type')
-                        ->selectRaw('type, COUNT(*) as count')
-                        ->get()
-                        ->pluck('count', 'type')
-                        ->toArray()
-                ],
+                'invite_codes' => InviteCode::initializationStats(),
                 'invite_code_usage' => [
-                    'total' => $dbConnection->table('invite_code_usage')->count(),
+                    'total' => \App\Models\InviteCodeUsage::rowCount(),
                 ]
             ];
 

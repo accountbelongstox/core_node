@@ -2,7 +2,6 @@
 
 namespace App\Apps\AppQyV1\Services;
 
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
@@ -27,22 +26,13 @@ class AppQyV1VocabularyService
      */
     public static function ensureVocabularyTablesExist(): array
     {
-        $results = [];
-        $connectionName = (new AppQyV1VocabularyLibraryModel)->getConnectionName();
-        $schema = Schema::connection($connectionName);
-
         $appKey = AppKeys::APPQYV1;
         $tables = [
             AppTablePrefixServiceProvider::buildTableName($appKey, 'vocabulary_libraries'),
             AppTablePrefixServiceProvider::buildTableName($appKey, 'group_word_progress'),
         ];
 
-        foreach ($tables as $tableName) {
-            $exists = $schema->hasTable($tableName);
-            $results[$tableName] = $exists ? 'exists' : 'missing';
-        }
-
-        return $results;
+        return AppQyV1VocabularyLibraryModel::tableExistence($tables);
     }
 
     /**
@@ -85,7 +75,7 @@ class AppQyV1VocabularyService
                 // Normalize the lookup key to match the importer's canonical
                 // source so this skip-check and the upsert agree on identity.
                 $canonicalSource = AppQyV1VocabularyImporter::normalizeSource($meta['source']);
-                $existing = AppQyV1VocabularyLibraryModel::where('source', $canonicalSource)->first();
+                $existing = AppQyV1VocabularyLibraryModel::findBySource($canonicalSource);
 
                 // Only skip when the row is ALREADY fully populated. A
                 // partially-created (empty word_ids) row falls through to
@@ -132,7 +122,7 @@ class AppQyV1VocabularyService
 
                 // Refresh the filename-derived metadata (the importer only
                 // manages name/description/word_ids).
-                AppQyV1VocabularyLibraryModel::where('id', $importResult['collection_id'])->update([
+                AppQyV1VocabularyLibraryModel::updateById((int) $importResult['collection_id'], [
                     'name' => $meta['name'],
                     'description' => $meta['description'],
                     'category' => $meta['category'],

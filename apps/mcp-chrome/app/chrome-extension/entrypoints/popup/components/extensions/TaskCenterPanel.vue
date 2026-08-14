@@ -117,7 +117,7 @@
             <!-- Traditional Stats -->
             <div class="flex flex-wrap gap-3 text-xs" style="color: var(--text-muted)">
               <span class="font-medium">{{ getMessage('taskCenterPendingLabel') }}: <span style="color: var(--text)">{{ processor.stats.pending }}</span></span>
-              <span class="font-medium">{{ getMessage('taskCenterDoneLabel') }}: <span style="color: var(--text)">{{ processor.stats.translated }}</span></span>
+              <span class="font-medium">{{ getMessage('taskCenterDoneLabel') }}: <span style="color: var(--text)">{{ processor.stats.progressTotal ? `${processor.stats.progressCompleted || 0}/${processor.stats.progressTotal}` : processor.stats.translated }}</span></span>
               <span class="font-medium">{{ getMessage('taskCenterFailedLabel') }}: <span style="color: var(--text)">{{ processor.stats.failed }}</span></span>
               <span v-if="processor.stats.lastRun" class="font-medium">
                 {{ getMessage('taskCenterLastLabel') }}: <span style="color: var(--text)">{{ formatTimestamp(processor.stats.lastRun) }}</span>

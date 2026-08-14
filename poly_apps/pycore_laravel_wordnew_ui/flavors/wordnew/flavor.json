@@ -8,7 +8,6 @@
   "entry": "apps/wordnew/WfNewApp.tsx",
   "platforms": ["web", "android"],
   "standalone": {
-    "homeAtRoot": true,
     "switcher": {
       "enabled": true,
       "visible": false

@@ -3,10 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Atrox\Haikunator;
 
 /**
@@ -28,18 +26,16 @@ class UnifiedAuthService
 {
     public static function register(array $credentials, ?string $subAppConnection = null): array
     {
-        DB::beginTransaction();
+        User::beginModelTransaction();
 
         try {
-            $existingUser = User::where(function ($query) use ($credentials) {
-                $query->where('username', $credentials['username']);
-                if (!empty($credentials['email'])) {
-                    $query->orWhere('email', $credentials['email']);
-                }
-            })->first();
+            $existingUser = User::findExistingIdentity(
+                $credentials['username'],
+                $credentials['email'] ?? null
+            );
 
             if ($existingUser) {
-                DB::rollBack();
+                User::rollBackModelTransaction();
                 return [
                     'success' => false,
                     'error' => 'User already exists',
@@ -66,7 +62,7 @@ class UnifiedAuthService
                 'updated_at' => now(),
             ];
 
-            $mainUser = User::create($mainUserData);
+            $mainUser = User::createRecord($mainUserData);
 
             // Write app-specific user DEFAULTS from sub_app_data onto the canonical
             // user row -- but ONLY keys that are real columns on the users table
@@ -77,7 +73,7 @@ class UnifiedAuthService
             // fresh row just created, so it is inherently idempotent.
             self::applySubAppUserDefaults($mainUser, $subAppData);
 
-            DB::commit();
+            User::commitModelTransaction();
 
             // sub_app_user == the canonical user (single identity, no duplicate).
             return [
@@ -86,7 +82,7 @@ class UnifiedAuthService
                 'sub_app_user' => $mainUser,
             ];
         } catch (\Exception $e) {
-            DB::rollBack();
+            User::rollBackModelTransaction();
             Log::error('[UnifiedAuth] Registration exception: ' . $e->getMessage(), [
                 'exception' => get_class($e),
                 'file' => $e->getFile(),
@@ -121,19 +117,9 @@ class UnifiedAuthService
         ];
 
         try {
-            $connection = $user->getConnectionName();
-            $table = $user->getTable();
-            $extra = [];
-            foreach ($subAppData as $key => $value) {
-                if (!is_string($key) || in_array($key, $reserved, true)) {
-                    continue;
-                }
-                if (Schema::connection($connection)->hasColumn($table, $key)) {
-                    $extra[$key] = $value;
-                }
-            }
+            $extra = $user->existingColumnAttributes($subAppData, $reserved);
             if (!empty($extra)) {
-                $user->forceFill($extra)->save();
+                $user->forceFill($extra)->saveRecord();
             }
         } catch (\Throwable $e) {
             // Defaults are best-effort; never fail registration over them.
@@ -144,9 +130,7 @@ class UnifiedAuthService
     public static function login(string $username, string $password, ?string $subAppConnection = null): array
     {
         try {
-            $mainUser = User::where('username', $username)
-                ->orWhere('email', $username)
-                ->first();
+            $mainUser = User::findByUsernameOrEmail($username);
 
             if (!$mainUser) {
                 return [
@@ -182,15 +166,13 @@ class UnifiedAuthService
 
     public static function resetPassword(string $username, string $newPassword, ?string $subAppConnection = null): array
     {
-        DB::beginTransaction();
+        User::beginModelTransaction();
 
         try {
-            $mainUser = User::where('username', $username)
-                ->orWhere('email', $username)
-                ->first();
+            $mainUser = User::findByUsernameOrEmail($username);
 
             if (!$mainUser) {
-                DB::rollBack();
+                User::rollBackModelTransaction();
                 return [
                     'success' => false,
                     'error' => 'User not found',
@@ -199,16 +181,16 @@ class UnifiedAuthService
 
             $mainUser->password = Hash::make($newPassword);
             $mainUser->updated_at = now();
-            $mainUser->save();
+            $mainUser->saveRecord();
 
-            DB::commit();
+            User::commitModelTransaction();
 
             return [
                 'success' => true,
                 'message' => 'Password reset successfully',
             ];
         } catch (\Exception $e) {
-            DB::rollBack();
+            User::rollBackModelTransaction();
             Log::error('[UnifiedAuth] Password reset failed: ' . $e->getMessage());
 
             return [
@@ -225,7 +207,7 @@ class UnifiedAuthService
     public static function updateSubAppUserData(int $mainUserId, string $subAppConnection, array $data): array
     {
         try {
-            $user = User::find($mainUserId);
+            $user = User::findById($mainUserId);
             if (!$user) {
                 return [
                     'success' => false,
@@ -240,7 +222,7 @@ class UnifiedAuthService
 
             if (!empty($update)) {
                 $update['updated_at'] = now();
-                User::where('id', $mainUserId)->update($update);
+                User::updateById($mainUserId, $update);
             }
 
             return [
@@ -263,7 +245,7 @@ class UnifiedAuthService
      */
     public static function updateUserProfile(int $userId, ?string $subAppConnection, array $data): array
     {
-        DB::beginTransaction();
+        User::beginModelTransaction();
 
         try {
             $mainUpdateData = [];
@@ -277,17 +259,17 @@ class UnifiedAuthService
 
             if (!empty($mainUpdateData)) {
                 $mainUpdateData['updated_at'] = now();
-                User::where('id', $userId)->update($mainUpdateData);
+                User::updateById($userId, $mainUpdateData);
             }
 
-            DB::commit();
+            User::commitModelTransaction();
 
             return [
                 'success' => true,
                 'message' => 'User profile updated successfully',
             ];
         } catch (\Exception $e) {
-            DB::rollBack();
+            User::rollBackModelTransaction();
             Log::error('[UnifiedAuth] Update user profile failed: ' . $e->getMessage());
 
             return [

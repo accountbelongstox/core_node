@@ -8,10 +8,10 @@
  */
 import React, { useCallback, useEffect, useState } from 'react';
 import { Server, RefreshCw, Check, Plus, Trash2, Wifi, WifiOff, X, Activity } from 'lucide-react';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
-import { notify } from '../../../core/notify/notify';
-import { ElementTheme } from '../WfNewTypes';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import { notify } from '@/shared/notify/notify';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, wfNewEndpoints, useWfNewEndpoints, WFNEW_API_PORT, isCurrentUrlId } from '../api';
 
 interface WfNewApiServerDialogProps {

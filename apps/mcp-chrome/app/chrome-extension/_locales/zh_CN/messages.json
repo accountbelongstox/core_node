@@ -1072,6 +1072,12 @@
   "taskCenterSortPriority": {
     "message": "优先级"
   },
+  "taskCenterSortOrder": {
+    "message": "队列顺序"
+  },
+  "taskCenterQueuePosition": {
+    "message": "队列位置"
+  },
   "taskCenterStatusLabel": {
     "message": "状态"
   },

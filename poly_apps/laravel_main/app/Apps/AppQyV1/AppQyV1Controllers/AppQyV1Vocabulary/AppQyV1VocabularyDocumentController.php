@@ -51,7 +51,7 @@ class AppQyV1VocabularyDocumentController extends Controller
     {
         $user = Auth::user();
 
-        $document = AppQyV1UploadedDocumentModel::find($id);
+        $document = AppQyV1UploadedDocumentModel::findById($id);
         if (!$document) {
             return $this->notFound('Document not found');
         }
@@ -75,7 +75,7 @@ class AppQyV1VocabularyDocumentController extends Controller
         // vocabulary_libraries id (legacy column name kept for compatibility).
         $collection = null;
         if ($document->collection_id !== null) {
-            $collection = AppQyV1VocabularyLibraryModel::find($document->collection_id);
+            $collection = AppQyV1VocabularyLibraryModel::findById((int) $document->collection_id);
         }
 
         if (!$collection) {
@@ -97,7 +97,7 @@ class AppQyV1VocabularyDocumentController extends Controller
             }
 
             $document->collection_id = $result['collection_id'];
-            $document->save();
+            $document->saveRecord();
 
             return $this->success([
                 'document_id' => (int) $document->id,
@@ -124,7 +124,7 @@ class AppQyV1VocabularyDocumentController extends Controller
     {
         $user = Auth::user();
 
-        $document = AppQyV1UploadedDocumentModel::find($id);
+        $document = AppQyV1UploadedDocumentModel::findById($id);
         if (!$document) {
             return $this->notFound('Document not found');
         }

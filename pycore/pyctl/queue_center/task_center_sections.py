@@ -12,6 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CATEGORY_CATALOG,
+    QUEUE_CENTER_SCOPES,
     QueueCenterScope,
     QueueCenterSectionContract,
     QueueCenterToggleEnvelope,
@@ -168,39 +169,12 @@ def build_section_contracts(
     errors: Dict[str, str],
     generated_at: str,
     overview: Optional[Dict[str, Any]],
-    task_center_snapshot: Dict[str, Any],
 ) -> Dict[str, QueueCenterSectionContract]:
     overview = overview if isinstance(overview, dict) else {}
     categories = overview.get("categories") if isinstance(overview.get("categories"), list) else []
     workers = overview.get("workers") if isinstance(overview.get("workers"), list) else []
-    callbacks = task_center_snapshot.get("scheduler", {}).get("callbacks", [])
-    callbacks = callbacks if isinstance(callbacks, list) else []
-    heartbeat_error = errors.get("heartbeat") or errors.get("workers")
-    heartbeat = build_empty_queue_contract("heartbeat", generated_at)
-    heartbeat_online = any(to_bool(row.get("enabled")) for row in callbacks if isinstance(row, dict))
-    heartbeat.update({
-        # Heartbeat is runtime health, not a queue. Queue metrics stay zero.
-        "worker": {
-            "online": heartbeat_online,
-            "claimed": 0,
-            "ok": None,
-            "fail": None,
-            "last_heartbeat": None,
-        },
-        "toggle": {
-            "requested_by": "system",
-            "enabled": heartbeat_online,
-            "reason": None,
-            "graceful_stop": False,
-            "paused_by_user": None,
-        },
-        "lifecycle": "error" if heartbeat_error else ("on" if heartbeat_online else "off"),
-        "error_code": _error_code(heartbeat_error),
-        "last_error": heartbeat_error,
-    })
-
-    result: Dict[str, QueueCenterSectionContract] = {"heartbeat": heartbeat}
-    for scope in ("assist_translation", "word_audio", "sentence_audio", "media_image"):
+    result: Dict[str, QueueCenterSectionContract] = {}
+    for scope in QUEUE_CENTER_SCOPES:
         result[scope] = _build_queue_section(
             scope,
             controls,

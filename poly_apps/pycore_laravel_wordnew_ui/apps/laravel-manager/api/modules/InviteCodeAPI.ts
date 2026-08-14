@@ -1,5 +1,5 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
-import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 export interface InviteCode {
   id: number;

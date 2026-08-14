@@ -445,13 +445,18 @@ function Install-HfRepoFlat {
         [string[]]$AllowPatterns = @('*'),
         [string]$Prefix = '',
         [string]$MirrorBase = '',
-        [string]$SentinelValue = ''
+        [string]$SentinelValue = '',
+        [switch]$ReconcileCatalog
     )
     $localWeightFiles = @()
     $localWeightBytes = 0L
     New-Item -ItemType Directory -Force -Path $DestDir | Out-Null
     if (-not $SentinelValue) { $SentinelValue = $RepoId }
-    if (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId) {
+    if (
+        -not $ReconcileCatalog -and
+        (Test-Path -LiteralPath $SentinelPath) -and
+        (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId)
+    ) {
         $localWeightFiles = @(Get-ChildItem -Path $DestDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
         $localWeightBytes = [long](($localWeightFiles | Measure-Object -Property Length -Sum).Sum)
         Set-Content -Path $SentinelPath -Value $SentinelValue -Encoding utf8
@@ -502,7 +507,8 @@ function Install-HfRepoFlat {
 function Test-NeuralTtsLocalWeightsReady {
     param(
         [Parameter(Mandatory = $true)][string]$WeightsDir,
-        [string]$RepoId = ''
+        [string]$RepoId = '',
+        [string]$RequiredFileManifest = ''
     )
     $catalog = @{}
     $cfg = $null
@@ -511,6 +517,10 @@ function Test-NeuralTtsLocalWeightsReady {
     $resolvedWeightsDir = ''
     $totalBytes = 0L
     $weightFiles = @()
+    $requiredFile = $null
+    $requiredPath = ''
+    $resolvedRequiredPath = ''
+    $requiredPaths = @()
 
     if (-not (Test-Path -LiteralPath $WeightsDir)) { return $false }
     $cfg = Get-ChildItem -Path $WeightsDir -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -521,6 +531,25 @@ function Test-NeuralTtsLocalWeightsReady {
     $resolvedWeightsDir = (Resolve-Path -LiteralPath $WeightsDir).Path.TrimEnd('\')
     if ($RepoId) {
         $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
+    }
+    if ($RequiredFileManifest) {
+        $requiredPaths = @(
+            Get-Content -LiteralPath $RequiredFileManifest |
+                Where-Object { $_ -and -not $_.StartsWith('#') }
+        )
+        foreach ($requiredPath in $requiredPaths) {
+            $resolvedRequiredPath = $requiredPath.Replace(
+                '/',
+                [System.IO.Path]::DirectorySeparatorChar
+            )
+            $requiredFile = Join-Path $WeightsDir $resolvedRequiredPath
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+                return $false
+            }
+            if ((Get-Item -LiteralPath $requiredFile).Length -le 0) {
+                return $false
+            }
+        }
     }
 
     foreach ($file in $weightFiles) {

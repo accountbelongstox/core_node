@@ -1,6 +1,5 @@
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import cors from '@fastify/cors';
-import { stderr } from 'process';
 import {
   NATIVE_SERVER_PORT,
   TIMEOUTS,
@@ -15,17 +14,9 @@ import { randomUUID } from 'node:crypto';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import { createMcpServer } from '../mcp/mcp-server';
 import { SingletonHandler } from './singleton';
+import { createLogger } from '../util/logger';
 
-// Log function for debugging
-function log(level: string, message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[${timestamp}] [Server] [${level}] ${message}`;
-  if (data) {
-    stderr.write(`${logMessage} ${JSON.stringify(data)}\n`);
-  } else {
-    stderr.write(`${logMessage}\n`);
-  }
-}
+const log = createLogger('Server');
 
 // Define request body type (if data needs to be retrieved from HTTP requests)
 interface ExtensionRequestPayload {

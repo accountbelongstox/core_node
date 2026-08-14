@@ -10,7 +10,7 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
@@ -56,4 +56,24 @@ class DingDuoDuoV1RechargeConfigModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function enabled(): ?self
+    {
+        return static::query()->where('enabled', true)->first();
+    }
+
+    public static function current(): ?self
+    {
+        return static::query()->orderBy('id')->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function anyExists(): bool
+    {
+        return static::query()->exists();
+    }
 }

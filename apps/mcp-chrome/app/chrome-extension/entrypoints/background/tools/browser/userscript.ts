@@ -3,7 +3,7 @@
  * Basic implementation for userscript management
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { injectScriptTool } from './inject-script';
@@ -37,15 +37,7 @@ class UserScriptTool extends BaseBrowserToolExecutor {
             name: name || `UserScript ${id}`,
             enabled: enabled !== false,
           });
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: true, id, message: 'UserScript created' }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({ success: true, id, message: 'UserScript created' });
 
         case 'list':
           const scripts = Array.from(userScripts.entries()).map(([scriptId, script]) => ({
@@ -53,15 +45,7 @@ class UserScriptTool extends BaseBrowserToolExecutor {
             name: script.name,
             enabled: script.enabled,
           }));
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: true, scripts }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({ success: true, scripts });
 
         case 'get':
           if (!id) {
@@ -71,15 +55,7 @@ class UserScriptTool extends BaseBrowserToolExecutor {
           if (!script) {
             return createErrorResponse(`UserScript with id "${id}" not found`);
           }
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: true, id, ...script }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({ success: true, id, ...script });
 
         case 'enable':
         case 'disable':
@@ -91,38 +67,22 @@ class UserScriptTool extends BaseBrowserToolExecutor {
             return createErrorResponse(`UserScript with id "${id}" not found`);
           }
           targetScript.enabled = action === 'enable';
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  id,
-                  enabled: targetScript.enabled,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            id,
+            enabled: targetScript.enabled,
+          });
 
         case 'remove':
           if (!id) {
             return createErrorResponse('id is required for remove action');
           }
           const removed = userScripts.delete(id);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: removed,
-                  id,
-                  message: removed ? 'UserScript removed' : 'UserScript not found',
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: removed,
+            id,
+            message: removed ? 'UserScript removed' : 'UserScript not found',
+          });
 
         case 'send_command':
           if (!id || !code) {
@@ -156,7 +116,7 @@ class UserScriptTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error('Error in userscript tool:', error);
       return createErrorResponse(
-        `UserScript tool error: ${error instanceof Error ? error.message : String(error)}`,
+        `UserScript tool error: ${toErrorMessage(error)}`,
       );
     }
   }

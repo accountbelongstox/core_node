@@ -19,7 +19,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeftRight, Languages, Loader2, Volume2, Play, Pause, History, Database, ShieldAlert,
 } from 'lucide-react';
-import { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewAdminApi } from '../../api';
 import type { WfNewAdminLangOption, WfNewAdminTranslateResult } from '../../api';
 import { puterTranslate } from '../../hooks/puterTranslate';

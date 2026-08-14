@@ -3,8 +3,7 @@
  */
 
 import { QWEN_TTS_GRADIO_HOST, QWEN_TTS_SPACE_URL } from '@/utils/qwen-tts-core';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+import { delay } from '@/utils/async';
 
 export function isGradioAppUrl(url: string | undefined | null): boolean {
   return !!url && url.includes(QWEN_TTS_GRADIO_HOST);
@@ -33,7 +32,7 @@ export async function waitForGradioFrame(tabId: number, timeoutMs = 90_000): Pro
         return hit.frameId;
       }
     }
-    await sleep(1200);
+    await delay(1200);
   }
   throw new Error(
     `Gradio iframe not ready on ${QWEN_TTS_SPACE_URL} — open the Space tab and wait for the demo to load`,

@@ -10,10 +10,7 @@ class AppQyV1BookReadingProgressService
 
     public function getForBook(int $userId, string $sourceKey): ?array
     {
-        $row = AppQyV1UserBookReadingProgressModel::query()
-            ->where('user_id', $userId)
-            ->where('source_key', $sourceKey)
-            ->first();
+        $row = AppQyV1UserBookReadingProgressModel::findForSource($userId, $sourceKey);
 
         if (!$row) {
             return null;
@@ -24,11 +21,7 @@ class AppQyV1BookReadingProgressService
 
     public function listForUser(int $userId, int $limit = 100): array
     {
-        return AppQyV1UserBookReadingProgressModel::query()
-            ->where('user_id', $userId)
-            ->orderByDesc('updated_at')
-            ->limit($limit)
-            ->get()
+        return AppQyV1UserBookReadingProgressModel::forUser($userId, $limit)
             ->map(fn ($row) => $this->toPayload($row))
             ->values()
             ->all();
@@ -36,10 +29,7 @@ class AppQyV1BookReadingProgressService
 
     public function saveForBook(int $userId, string $sourceKey, array $payload): array
     {
-        $row = AppQyV1UserBookReadingProgressModel::query()->firstOrNew([
-            'user_id' => $userId,
-            'source_key' => $sourceKey,
-        ]);
+        $row = AppQyV1UserBookReadingProgressModel::findOrNewForSource($userId, $sourceKey);
 
         if (array_key_exists('chapter_index', $payload)) {
             $row->chapter_index = $payload['chapter_index'];
@@ -54,27 +44,27 @@ class AppQyV1BookReadingProgressService
             $row->page = max(1, (int) $payload['page']);
         }
 
-        $row->save();
+        $row->saveRecord();
 
         return $this->toPayload($row);
     }
 
     public function getDailyReadingForUser(int $userId): ?array
     {
-        $row = AppQyV1UserBookReadingProgressModel::query()
-            ->where('user_id', $userId)
-            ->where('source_key', self::DAILY_READING_SOURCE_KEY)
-            ->first();
+        $row = AppQyV1UserBookReadingProgressModel::findForSource(
+            $userId,
+            self::DAILY_READING_SOURCE_KEY
+        );
 
         return $row ? $this->toDailyReadingPayload($row) : null;
     }
 
     public function saveDailyReadingForUser(int $userId, array $payload): array
     {
-        $row = AppQyV1UserBookReadingProgressModel::query()->firstOrNew([
-            'user_id' => $userId,
-            'source_key' => self::DAILY_READING_SOURCE_KEY,
-        ]);
+        $row = AppQyV1UserBookReadingProgressModel::findOrNewForSource(
+            $userId,
+            self::DAILY_READING_SOURCE_KEY
+        );
 
         if (array_key_exists('article_id', $payload)) {
             $row->article_id = $payload['article_id'];
@@ -83,7 +73,7 @@ class AppQyV1BookReadingProgressService
             $row->selection_mode = $payload['selection_mode'];
         }
 
-        $row->save();
+        $row->saveRecord();
 
         return $this->toDailyReadingPayload($row);
     }

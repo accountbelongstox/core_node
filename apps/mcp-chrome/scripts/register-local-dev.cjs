@@ -10,8 +10,17 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 const { getExtensionIdFromManifest } = require('./extension-id-calculator.cjs');
+const {
+  HOST_NAME,
+  SUPPORTED_BROWSERS,
+  getUserManifestPath,
+  getWindowsUserRegistryKey,
+  getRunHostPath,
+  ensureDir,
+  addWindowsRegistryKey,
+  buildAllowedOrigins,
+} = require('./native-host-common.cjs');
 
-const HOST_NAME = 'com.chromemcp.nativehost';
 const DESCRIPTION = 'Node.js Host for Browser Bridge Extension (Local Development)';
 
 // Project root directory (this script is in apps/mcp-chrome/scripts/)
@@ -19,102 +28,24 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 const NATIVE_SERVER_DIST = path.join(PROJECT_ROOT, 'app', 'native-server', 'dist');
 
 /**
- * Get user-level manifest file path (for development, allows any extension ID)
- */
-function getManifestPath() {
-  const homeDir = os.homedir();
-  if (os.platform() === 'win32') {
-    // Windows: %USERPROFILE%\AppData\Roaming\Google\Chrome\NativeMessagingHosts\
-    return path.join(
-      homeDir,
-      'AppData',
-      'Roaming',
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else if (os.platform() === 'darwin') {
-    // macOS: ~/Library/Application Support/Google/Chrome/NativeMessagingHosts/
-    return path.join(
-      homeDir,
-      'Library',
-      'Application Support',
-      'Google',
-      'Chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else {
-    // Linux: ~/.config/google-chrome/NativeMessagingHosts/
-    return path.join(
-      homeDir,
-      '.config',
-      'google-chrome',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  }
-}
-
-/**
- * Get Chromium user-level manifest path
- */
-function getChromiumManifestPath() {
-  const homeDir = os.homedir();
-  if (os.platform() === 'win32') {
-    return path.join(
-      homeDir,
-      'AppData',
-      'Roaming',
-      'Chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else if (os.platform() === 'darwin') {
-    return path.join(
-      homeDir,
-      'Library',
-      'Application Support',
-      'Chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  } else {
-    // Linux: ~/.config/chromium/NativeMessagingHosts/
-    return path.join(
-      homeDir,
-      '.config',
-      'chromium',
-      'NativeMessagingHosts',
-      `${HOST_NAME}.json`
-    );
-  }
-}
-
-/**
  * Get native host startup script path
  */
 function getMainPath() {
-  const wrapperScriptName = process.platform === 'win32' ? 'run_host.bat' : 'run_host.sh';
-  return path.resolve(NATIVE_SERVER_DIST, wrapperScriptName);
+  return getRunHostPath(NATIVE_SERVER_DIST);
 }
 
 /**
  * Create manifest content with extension ID from built manifest.json
+ * Preserves non-extension origins already present in the target manifest
+ * @param {string} manifestPath - Target manifest file being written
  * @param {string} extensionId - Required extension ID (must be provided)
  */
-function createManifestContent(extensionId) {
-  if (!extensionId || typeof extensionId !== 'string' || extensionId.length !== 32) {
-    throw new Error(`Invalid extension ID: ${extensionId}. Extension ID must be 32 characters.`);
-  }
-
+function createManifestContent(manifestPath, extensionId) {
   const mainPath = getMainPath();
-  const manifestPath = getManifestPath();
-  
+
   // Read existing manifest to preserve other extension IDs if any
   let existingOrigins = [];
-  
+
   if (fs.existsSync(manifestPath)) {
     try {
       const existing = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
@@ -130,29 +61,13 @@ function createManifestContent(extensionId) {
     }
   }
 
-  // Add the calculated extension ID
-  const newOrigin = `chrome-extension://${extensionId}/`;
-  if (!existingOrigins.includes(newOrigin)) {
-    existingOrigins.push(newOrigin);
-  }
-
   return {
     name: HOST_NAME,
     description: DESCRIPTION,
     path: mainPath,
     type: 'stdio',
-    allowed_origins: existingOrigins
+    allowed_origins: buildAllowedOrigins(existingOrigins, extensionId)
   };
-}
-
-/**
- * Ensure directory exists
- */
-function ensureDir(dirPath) {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-    console.log(`[OK] Created directory: ${dirPath}`);
-  }
 }
 
 /**
@@ -200,17 +115,6 @@ function fixSystemPermissions(dirPath) {
 }
 
 /**
- * Get Windows registry key for a browser (user-level HKCU)
- */
-function getWindowsRegistryKey(browserName) {
-  if (os.platform() !== 'win32') return null;
-  if (browserName.toLowerCase() === 'chromium') {
-    return `HKCU\\Software\\Chromium\\NativeMessagingHosts\\${HOST_NAME}`;
-  }
-  return `HKCU\\Software\\Google\\Chrome\\NativeMessagingHosts\\${HOST_NAME}`;
-}
-
-/**
  * Register for a browser
  */
 function registerForBrowser(manifestPath, browserName, registryKey = null, extensionId = null) {
@@ -223,7 +127,7 @@ function registerForBrowser(manifestPath, browserName, registryKey = null, exten
       throw new Error(`Extension ID is required for ${browserName} registration`);
     }
 
-    const manifest = createManifestContent(extensionId);
+    const manifest = createManifestContent(manifestPath, extensionId);
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
     console.log(`[OK] Manifest written: ${manifestPath}`);
     console.log(`[OK] Configured extension ID: ${extensionId}`);
@@ -232,12 +136,10 @@ function registerForBrowser(manifestPath, browserName, registryKey = null, exten
     fixSystemPermissions(path.dirname(manifestPath));
 
     // Windows requires HKCU registry entry for user-level native messaging host discovery
-    const effectiveRegistryKey = registryKey || getWindowsRegistryKey(browserName);
-    if (os.platform() === 'win32' && effectiveRegistryKey) {
+    const effectiveRegistryKey = registryKey || getWindowsUserRegistryKey(browserName.toLowerCase());
+    if (effectiveRegistryKey) {
       try {
-        const escapedPath = manifestPath.replace(/\\/g, '\\\\');
-        const regCommand = `reg add "${effectiveRegistryKey}" /ve /t REG_SZ /d "${escapedPath}" /f`;
-        execSync(regCommand, { stdio: 'pipe' });
+        addWindowsRegistryKey(effectiveRegistryKey, manifestPath);
         console.log(`[OK] Registry entry created: ${effectiveRegistryKey}`);
       } catch (err) {
         console.warn(`[WARN] Registry entry failed for ${browserName}: ${err.message}`);
@@ -339,30 +241,23 @@ function main() {
     process.exit(1);
   }
 
-  // Register for Chrome (user-level for development)
-  const chromeManifestPath = getManifestPath();
-  // User-level registration doesn't need registry key on Windows
-  const chromeSuccess = registerForBrowser(chromeManifestPath, 'Chrome', null, extensionId);
-
-  // Register for Chromium (user-level for development)
-  const chromiumManifestPath = getChromiumManifestPath();
-  const chromiumSuccess = registerForBrowser(chromiumManifestPath, 'Chromium', null, extensionId);
+  const registrationResults = SUPPORTED_BROWSERS.map(browser => {
+    const manifestPath = getUserManifestPath(browser.type);
+    const success = registerForBrowser(manifestPath, browser.displayName, null, extensionId);
+    return { ...browser, manifestPath, success };
+  });
 
   // Summary
   console.log('=================================================');
   console.log('  Registration Summary');
   console.log('=================================================\n');
 
-  if (chromeSuccess) {
-    console.log(`[SUCCESS] Chrome: ${chromeManifestPath}`);
-  } else {
-    console.log(`[FAILED] Chrome: Failed`);
-  }
-
-  if (chromiumSuccess) {
-    console.log(`[SUCCESS] Chromium: ${chromiumManifestPath}`);
-  } else {
-    console.log(`[FAILED] Chromium: Failed`);
+  for (const result of registrationResults) {
+    console.log(
+      result.success
+        ? `[SUCCESS] ${result.displayName}: ${result.manifestPath}`
+        : `[FAILED] ${result.displayName}: Failed`,
+    );
   }
 
   console.log('\n=================================================');
@@ -376,7 +271,7 @@ function main() {
   console.log('3. Click "Connect" in the extension popup');
   console.log('4. The local development version should now be running\n');
 
-  if (chromeSuccess || chromiumSuccess) {
+  if (registrationResults.some(result => result.success)) {
     process.exit(0);
   } else {
     process.exit(1);

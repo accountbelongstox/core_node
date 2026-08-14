@@ -53,7 +53,7 @@ class AppQyV1AuthenticationPasswordResetController extends BaseController
                 $user->forceFill([
                     'password' => Hash::make($request->string('password')),
                     'remember_token' => Str::random(60),
-                ])->save();
+                ])->saveRecord();
 
                 event(new PasswordReset($user));
             }
@@ -68,4 +68,3 @@ class AppQyV1AuthenticationPasswordResetController extends BaseController
         return response()->json(['status' => __($status)]);
     }
 }
-

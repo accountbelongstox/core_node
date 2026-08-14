@@ -153,10 +153,10 @@ class AppQyV1AuthenticationLoginController extends BaseController
         }
 
             // Find or create user
-            $user = User::where('phone', $phoneNumber)->first();
+            $user = User::findByPhone($phoneNumber);
 
             if (!$user) {
-                $user = User::create([
+                $user = User::createRecord([
                     'phone' => $phoneNumber,
                     'display_name' => 'User_' . substr($phoneNumber, -4),
                     'provider' => 'phone',
@@ -165,7 +165,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
                     'last_login_at' => now()
                 ]);
             } else {
-                $user->update(['last_login_at' => now()]);
+                $user->updateRecord(['last_login_at' => now()]);
             }
 
             // Create authentication tokens
@@ -344,11 +344,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
                 // username/password attempt, distinguish a missing account from a
                 // wrong password; a failed user-token stays generic.
                 if ($username && $password) {
-                    $existingUser = User::where(function ($query) use ($username) {
-                        $query->where('username', $username)
-                            ->orWhere('email', $username)
-                            ->orWhere('phone', $username);
-                    })->first();
+                    $existingUser = User::findByUsernameEmailOrPhone($username);
                     if (!$existingUser) {
                         return $this->error('Account does not exist', 422);
                     }
@@ -411,7 +407,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
 
     public function loginByUserToken($userAuthToken)
     {
-        $user = User::where('user_token', $userAuthToken)->first();
+        $user = User::findByUserToken($userAuthToken);
 
         AppQyV1WordGroupPublicController::ensureDefaultGroupIfNotExist($user->id, $user->username);
         if ($user) {
@@ -431,10 +427,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
         if ($request->user()) {
             if ($request->wantsJson()) {
                 // Only attempt to delete the token if it's not a transient token
-                $currentToken = $request->user()->currentAccessToken();
-                if ($currentToken && !($currentToken instanceof \Laravel\Sanctum\TransientToken)) {
-                    $currentToken->delete();
-                }
+                $request->user()->revokeCurrentAccessToken();
                 return response()->json([
                     'message' => 'Successfully logged out'
                 ],200);
@@ -514,4 +507,3 @@ class AppQyV1AuthenticationLoginController extends BaseController
         ]);
     }
 }
-

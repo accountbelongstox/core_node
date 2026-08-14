@@ -19,8 +19,8 @@ import {
   X, Play, Loader2, Check, Copy, Upload, RefreshCw, Mic, AudioLines,
   ScanText, Cpu, Clock, Image as ImageIcon, AlertTriangle, ArrowRight,
 } from 'lucide-react';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import {
   PYCORE_HTTP_ROUTES,
   pycoreApi,

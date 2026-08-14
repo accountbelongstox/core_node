@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
@@ -115,10 +115,7 @@ class ReadPageTool extends BaseBrowserToolExecutor {
 
       // Normal path: return tree
       if (treeOk && !isSparse) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify(basePayload) }],
-          isError: false,
-        };
+        return createJsonResponse(basePayload);
       }
 
       // When refId is explicitly provided, do not fallback (refs are frame-local and may expire)
@@ -171,10 +168,7 @@ class ReadPageTool extends BaseBrowserToolExecutor {
             basePayload.pageContent = formatElementsAsPageContent(limited);
           }
 
-          return {
-            content: [{ type: 'text', text: JSON.stringify(basePayload) }],
-            isError: false,
-          };
+          return createJsonResponse(basePayload);
         }
       } catch (fallbackErr) {
         console.warn('read_page fallback failed:', fallbackErr);
@@ -189,7 +183,7 @@ class ReadPageTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error('Error in read page tool:', error);
       return createErrorResponse(
-        `Error generating accessibility tree: ${error instanceof Error ? error.message : String(error)}`,
+        `Error generating accessibility tree: ${toErrorMessage(error)}`,
       );
     }
   }

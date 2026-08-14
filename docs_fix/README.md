@@ -5,8 +5,22 @@ If you are an AI reading this document, your assigned task is to **analyze the p
 Please strictly adhere to the following guidelines when operating within the `docs_fix` directory:
 
 ## 1. Naming Convention for New Fix Documents
-When creating a new fix document, you MUST use the following naming convention:
-`FIX_{time}.md` (e.g., `FIX_20260727_1543.md`).
+When creating a new fix document, use one of these naming conventions:
+
+- `FIX_{YYYYMMDD_HHMM}.md`
+- `FIX_{YYYYMMDD_HHMM}_{SHORT_DESCRIPTION}.md`
+
+The timestamp is mandatory and must include the four-digit year, two-digit month,
+two-digit day, two-digit hour (24-hour clock), and two-digit minute.
+
+Examples:
+
+- `FIX_20260727_1543.md`
+- `FIX_20260814_2155_PYCORE_TERMINAL_CONTROL.md`
+
+The optional description must be a concise English `UPPER_SNAKE_CASE` summary.
+Keep it short, specific, and suitable for filename search. Existing documents
+do not need to be renamed.
 
 ## 2. Creating New Documents Only
 - You are **NOT ALLOWED** to append new analysis reports to existing fix documents.
@@ -21,7 +35,11 @@ When creating a new fix document, you MUST use the following naming convention:
 - Combine the insights from previously fixed issues with your current problem analysis to ensure a comprehensive understanding.
 
 ## 5. Context Reduction and Deletion Rules
-To reduce context window usage, old fix documents where the code has been successfully repaired and verified should be simplified or deleted.
+When adding a fix document, review only directly related older documents.
+Remove or condense completed and verified sections to reduce total document volume.
+Ignore unrelated documents and the new document currently being written.
+Preserve unresolved findings, active constraints, and required evidence or links.
+All deletion or removal remains subject to the authorization restriction below.
 
 **CRITICAL DELETION RESTRICTION:**
 - **ONLY** the following models are authorized to delete documents or remove analysis sections from old documents:

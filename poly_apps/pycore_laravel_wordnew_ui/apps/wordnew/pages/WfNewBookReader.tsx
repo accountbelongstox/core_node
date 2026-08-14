@@ -1,6 +1,6 @@
 /**
  * WfNewBookReader — immersive bilingual book reader (Books v3.1).
- * Resume from server progress, configurable play sequence, missing-audio bump.
+ * Resume from server progress, configurable play sequence, missing-audio queue-head move.
  */
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
@@ -19,7 +19,7 @@ import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewReadingProgressCenter } from '../services/WordNewReadingProgressCenter';
 import { wordNewReaderSettingsRoamer } from '../services/WordNewReaderSettingsRoamer';
 import { WordNewBookReaderPlayback } from '../services/WordNewBookReaderPlayback';
-import { useReaderPriorityBoost } from '../hooks/usePriorityBoost';
+import { useReaderQueueHead } from '../hooks/usePriorityBoost';
 import { WordNewBookReaderProgressSaver } from '../services/WordNewBookReaderProgressSaver';
 import {
   formatBookLangLabel,
@@ -31,9 +31,9 @@ import { langCodeToBcp47, orderLangsForReadAloud } from '../utils/WordNewBookRea
 import { WordNewBookReaderSettingsPanel } from '../components/reader/WordNewBookReaderSettingsPanel';
 import { WordNewBookReaderPlayBar } from '../components/reader/WordNewBookReaderPlayBar';
 import { WordNewBookReaderVerseRow } from '../components/reader/WordNewBookReaderVerseRow';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import {
-  bumpSentenceAudioImmediate,
+  moveSentenceAudioToHeadImmediate,
   requestSentenceAudio,
   resetSentenceAudioScheduler,
   waitForSentenceAudioUrl,
@@ -385,7 +385,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
       getLastPage: () => lastPageRef.current,
       goNextChapter: () => goNextChapterRef.current(),
       resolveAudioUrl: (verse, lang, shouldContinue) => resolveAudioUrlRef.current(verse, lang, shouldContinue),
-      bumpMissingAudio: (v, lang, text) => { void bumpSentenceAudioImmediate(text, lang); },
+      moveMissingAudioToHead: (v, lang, text) => { void moveSentenceAudioToHeadImmediate(text, lang); },
       wordCards: {
         isEnabled: () => wordCardsRef.current,
         getPosition: () => wordCardPositionRef.current,
@@ -492,8 +492,8 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     resetSentenceAudioScheduler();
   }, [sourceKey, activeChapter, flat, page]);
 
-  // Visible verse texts lacking audio → debounced Laravel sentence bump-batch.
-  const priorityBoostSentences = useMemo(() => {
+  // Visible verse texts lacking audio are moved to Laravel's sentence queue head.
+  const queueHeadSentences = useMemo(() => {
     const seen = new Set<string>();
     const items: { text: string; language: string }[] = [];
     for (const v of verses) {
@@ -510,7 +510,7 @@ export const WfNewBookReader: React.FC<WfNewBookReaderProps> = ({
     }
     return items.length ? items : null;
   }, [verses, orderedDisplayLangs]);
-  useReaderPriorityBoost(priorityBoostSentences);
+  useReaderQueueHead(queueHeadSentences);
 
   useEffect(() => {
     if (!resumeTarget || resumeApplied || loadingVerses || !verses.length) return;

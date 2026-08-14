@@ -1,7 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1KycVerificationModel extends Model
@@ -47,5 +48,10 @@ class CodeMartV1KycVerificationModel extends Model
     public function isRejected(): bool
     {
         return $this->verification_status === 'rejected';
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
     }
 }

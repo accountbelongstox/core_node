@@ -11,11 +11,17 @@
 
 namespace App\Models;
 
+use Closure;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\UsesMainConnection;
+use App\Models\Concerns\HasModelOperations;
+use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
+use Laravel\Sanctum\TransientToken;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -23,7 +29,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasModelOperations, Notifiable, RunsModelTransactions, UsesMainConnection;
 
     use HasApiTokens;
 
@@ -123,6 +129,141 @@ class User extends Authenticatable
         return static::query()->find($userId);
     }
 
+    public static function usernamesByIds(array $userIds): array
+    {
+        return static::indexedByIds($userIds, ['id', 'username'])
+            ->map(fn (self $user): string => (string) $user->username)
+            ->all();
+    }
+
+    public static function usernameById(int $userId): string
+    {
+        return (string) (static::query()->whereKey($userId)->value('username') ?? '');
+    }
+
+    public static function idsMatchingUsername(string $search): array
+    {
+        return static::query()
+            ->where('username', 'like', '%' . $search . '%')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    public static function existsById(int $userId): bool
+    {
+        return static::query()->whereKey($userId)->exists();
+    }
+
+    public static function findByUsernameOrEmail(string $identity): ?self
+    {
+        return static::query()
+            ->where('username', $identity)
+            ->orWhere('email', $identity)
+            ->first();
+    }
+
+    public static function findByUsernameEmailOrPhone(string $identity): ?self
+    {
+        return static::query()
+            ->where('username', $identity)
+            ->orWhere('email', $identity)
+            ->orWhere('phone', $identity)
+            ->first();
+    }
+
+    public static function findByUserToken(string $token): ?self
+    {
+        return static::query()->where('user_token', $token)->first();
+    }
+
+    public static function findByEmail(string $email): ?self
+    {
+        return static::query()->where('email', $email)->first();
+    }
+
+    public static function findByPhone(string $phone): ?self
+    {
+        return static::query()->where('phone', $phone)->first();
+    }
+
+    public static function usernameExists(string $username): bool
+    {
+        return static::query()->where('username', $username)->exists();
+    }
+
+    public static function emailExists(string $email): bool
+    {
+        return static::query()->where('email', $email)->exists();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function highestRoleUser(): ?self
+    {
+        return static::query()->orderByDesc('rolelevel')->orderBy('id')->first();
+    }
+
+    public function existingColumnAttributes(array $attributes, array $excludedColumns = []): array
+    {
+        $schema = Schema::connection($this->getConnectionName());
+        $filtered = [];
+
+        foreach ($attributes as $key => $value) {
+            if (!is_string($key) || in_array($key, $excludedColumns, true)) {
+                continue;
+            }
+            if ($schema->hasColumn($this->getTable(), $key)) {
+                $filtered[$key] = $value;
+            }
+        }
+
+        return $filtered;
+    }
+
+    public static function chunkLearningLanguages(Closure $callback): void
+    {
+        self::query()
+            ->select(['id', 'learning_languages'])
+            ->orderBy('id')
+            ->chunkById(200, $callback);
+    }
+
+    public static function findByUsername(string $username): ?self
+    {
+        return static::query()->where('username', $username)->first();
+    }
+
+    public static function findExistingIdentity(string $username, ?string $email): ?self
+    {
+        return static::query()
+            ->where(function ($query) use ($username, $email): void {
+                $query->where('username', $username);
+                if ($email !== null && $email !== '') {
+                    $query->orWhere('email', $email);
+                }
+            })
+            ->first();
+    }
+
+    public static function updateById(int $userId, array $attributes): int
+    {
+        return static::query()->whereKey($userId)->update($attributes);
+    }
+
+    public static function grantSuperAdmin(int $userId): ?self
+    {
+        self::query()->whereKey($userId)->update([
+            'rolelevel' => 100,
+            'rolename' => 'Super Administrator',
+        ]);
+
+        return self::query()->find($userId);
+    }
+
     public static function searchSocialProfiles(
         int $excludedUserId,
         string $search,
@@ -176,6 +317,22 @@ class User extends Authenticatable
             ->orderByDesc('id')
             ->limit(max(1, min(100, $limit)) * 3)
             ->get(['id', 'username', 'nickname', 'name', 'avatar', 'native_language', 'learning_languages']);
+    }
+
+    public function revokeAllAccessTokens(): int
+    {
+        return $this->tokens()->delete();
+    }
+
+    public function revokeCurrentAccessToken(): bool
+    {
+        $token = $this->currentAccessToken();
+
+        if ($token === null || $token instanceof TransientToken) {
+            return false;
+        }
+
+        return (bool) $token->delete();
     }
 
     public function scopeProfileSearchInsensitive($query, string $value)

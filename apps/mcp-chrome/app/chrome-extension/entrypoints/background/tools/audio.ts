@@ -5,6 +5,8 @@
 // whole audio capture feature is unavailable there
 import { localStorage } from '@/services/ExtensionStorage';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { respondAsync } from '@/utils/runtime-message';
+import { delay as waitForDelay } from '@/utils/async';
 
 export const FIREFOX_AUDIO_UNSUPPORTED_ERROR =
   'Audio recording is not supported on Firefox: chrome.tabCapture and offscreen documents are unavailable.';
@@ -145,7 +147,7 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
       });
 
       // Wait a bit for offscreen to initialize
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await waitForDelay(500);
     }
 
     // Get stream ID for tab capture
@@ -443,21 +445,6 @@ export function updateRecordingStatus(status: AudioStatus) {
   }).catch(() => {
     // Popup might be closed, ignore error
   });
-}
-
-/**
- * Run an async handler and forward the resolved value (or error) to
- * sendResponse, keeping the Chrome message channel open via the `true`
- * return value the caller must propagate.
- */
-function respondAsync(
-  sendResponse: (response?: any) => void,
-  promise: Promise<any>,
-): true {
-  promise
-    .then((result) => sendResponse(result))
-    .catch((error) => sendResponse({ success: false, error: error.message }));
-  return true;
 }
 
 /**

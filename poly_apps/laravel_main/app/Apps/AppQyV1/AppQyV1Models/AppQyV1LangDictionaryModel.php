@@ -2,13 +2,17 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\QueriesDiffIdPages;
+use App\Utils\RunsModelTransactions;
+use Illuminate\Database\Eloquent\Builder;
+use App\Models\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
 
 /**
  * Multi-Language Dictionary Model
@@ -19,6 +23,10 @@ use App\Services\QueueCenter\QueueCenterRealtimeService;
  */
 class AppQyV1LangDictionaryModel extends Model
 {
+    use AppQyV1TtsQueueQueries, QueriesDiffIdPages, RunsModelTransactions;
+
+    private const QUERY_CHUNK_SIZE = 1000;
+
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
     protected $langCode;
@@ -55,7 +63,6 @@ class AppQyV1LangDictionaryModel extends Model
         'tts_error',
         'tts_locked_at',
         'tts_locked_by',
-        'tts_priority',
         'tts_requested_at',
         'tts_completed_at',
         // Word-image generation process state (queue-less coordination — the
@@ -92,7 +99,6 @@ class AppQyV1LangDictionaryModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'tts_attempts' => 'integer',
-        'tts_priority' => 'integer',
         'tts_locked_at' => 'datetime',
         'tts_requested_at' => 'datetime',
         'tts_completed_at' => 'datetime',
@@ -140,11 +146,38 @@ class AppQyV1LangDictionaryModel extends Model
         return $instance;
     }
 
+    public static function findForLanguage(string $langCode, int $wordId): ?self
+    {
+        return self::forLanguage($langCode)->newQuery()->find($wordId);
+    }
+
     /**
      * Cache TTL (seconds) for the per-language dashboard dictionary metrics.
      * Short window so even paths that bypass explicit invalidation self-heal.
      */
     public const METRICS_CACHE_TTL = 300;
+
+    public const MANAGEMENT_FILTER_KEYS = [
+        'all',
+        'with_translation',
+        'without_translation',
+        'with_audio',
+        'without_audio',
+        'valid',
+        'invalid',
+    ];
+
+    public const MANAGEMENT_SORT_KEYS = [
+        'id',
+        'word',
+        'translation',
+        'phonetic',
+        'us_phonetic',
+        'uk_phonetic',
+        'audio',
+        'queries',
+        'is_valid',
+    ];
 
     /**
      * Canonical cache key for the per-language dictionary metrics aggregate
@@ -153,12 +186,12 @@ class AppQyV1LangDictionaryModel extends Model
      */
     public static function metricsCacheKey(string $langCode): string
     {
-        return 'appqyv1:dict_metrics:' . strtolower($langCode);
+        return 'appqyv1:dict_metrics:' . AppQyV1TableMaps::normalizeLangCode($langCode);
     }
 
     public static function coverageCacheKey(string $langCode): string
     {
-        return 'appqyv1:dict_coverage:' . strtolower($langCode);
+        return 'appqyv1:dict_coverage:' . AppQyV1TableMaps::normalizeLangCode($langCode);
     }
 
     /**
@@ -168,7 +201,7 @@ class AppQyV1LangDictionaryModel extends Model
      */
     public static function sysInitStatsCacheKey(string $langCode): string
     {
-        return 'appqyv1:sysinit_stats:dict:' . strtolower($langCode);
+        return 'appqyv1:sysinit_stats:dict:' . AppQyV1TableMaps::normalizeLangCode($langCode);
     }
 
     /**
@@ -189,7 +222,10 @@ class AppQyV1LangDictionaryModel extends Model
         // write isn't masked by a stale summary for up to their TTL.
         Cache::forget('appqyv1_system_statistics_summary');
         Cache::forget('appqyv1_audio_file_size_stats');
-        app(QueueCenterRealtimeService::class)->publish('dictionary', strtolower($langCode));
+        app(QueueCenterRealtimeService::class)->publish(
+            'dictionary',
+            AppQyV1TableMaps::normalizeLangCode($langCode)
+        );
     }
 
     /**
@@ -216,11 +252,8 @@ class AppQyV1LangDictionaryModel extends Model
         $resolved = [];
         foreach ($idsByLang as $lang => $idSet) {
             $ids = array_keys($idSet);
-            foreach (array_chunk($ids, 1000) as $chunk) {
-                $rows = self::forLanguage($lang)->whereIn('id', $chunk)->get();
-                foreach ($rows as $row) {
-                    $resolved[$lang . ':' . $row->id] = $row;
-                }
+            foreach (self::rowsByIds($lang, $ids) as $row) {
+                $resolved[$lang . ':' . $row->id] = $row;
             }
         }
 
@@ -234,10 +267,537 @@ class AppQyV1LangDictionaryModel extends Model
             ->first();
     }
 
+    public static function deleteByMd5(string $langCode, string $md5): int
+    {
+        return self::forLanguage($langCode)->newQuery()->where('md5', $md5)->delete();
+    }
+
+    public static function applyBatchAction(string $langCode, array $md5s, string $action): int
+    {
+        $query = self::forLanguage($langCode)->newQuery()->whereIn('md5', $md5s);
+
+        if ($action === 'delete') {
+            return $query->delete();
+        }
+        if ($action === 'mark_valid' || $action === 'mark_invalid') {
+            return $query->update([
+                'is_valid' => $action === 'mark_valid',
+                'validity_checked_at' => now(),
+                'validity_source' => 'dashboard',
+                'updated_at' => now(),
+            ]);
+        }
+        if ($action === 'requeue_tts') {
+            return $query->update([
+                'has_audio' => false,
+                'tts_status' => 'pending',
+                'tts_attempts' => 0,
+                'tts_error' => null,
+                'updated_at' => now(),
+            ]);
+        }
+
+        return 0;
+    }
+
+    public static function managementPage(
+        string $langCode,
+        string $filter,
+        string $validitySource,
+        string $search,
+        string $sortKey,
+        string $order,
+        int $start,
+        int $limit
+    ): array {
+        $query = self::forLanguage($langCode)->newQuery()->managementFilter($filter);
+
+        if ($validitySource !== '') {
+            $query->where('validity_source', $validitySource);
+        }
+        if ($search !== '') {
+            $query->contentContainsInsensitive($search);
+        }
+
+        $total = $search === '' && $validitySource === ''
+            ? self::cachedManagementFilterTotal($langCode, $filter)
+            : null;
+        if ($total === null) {
+            $total = (clone $query)->count();
+        }
+
+        $query->managementOrder($sortKey, $order);
+
+        return [
+            'total' => $total,
+            'rows' => $query->skip($start)->take($limit)->get(),
+        ];
+    }
+
+    public static function validitySummary(string $langCode): array
+    {
+        $query = self::forLanguage($langCode)->newQuery();
+        $total = (clone $query)->count();
+        $invalid = (clone $query)->where('is_valid', false)->count();
+        $unchecked = (clone $query)->whereNull('validity_checked_at')->count();
+
+        return [
+            'total' => $total,
+            'valid' => $total - $invalid,
+            'invalid' => $invalid,
+            'unchecked' => $unchecked,
+        ];
+    }
+
+    public static function pendingTtsClaimRows(
+        string $language,
+        int $limit,
+        string $pendingStatus,
+        int $maximumAttempts,
+        $staleBefore,
+        $assistStaleBefore,
+        string $assistWorkerPrefix
+    ) {
+        $query = self::forLanguage($language)
+            ->newQuery()
+            ->where('has_audio', false)
+            ->where('is_valid', true)
+            ->where(function ($status) use ($pendingStatus): void {
+                $status->whereNull('tts_status')->orWhere('tts_status', $pendingStatus);
+            })
+            ->where('tts_attempts', '<', $maximumAttempts)
+            ->orderByDesc('query_count');
+        self::applyClaimableTtsLock($query, $staleBefore, $assistStaleBefore, $assistWorkerPrefix);
+
+        return $query->limit($limit)->get(['id', 'content', 'md5']);
+    }
+
+    public static function claimTtsRow(
+        string $language,
+        int $rowId,
+        string $workerId,
+        string $pendingStatus,
+        string $processingStatus,
+        $staleBefore,
+        $assistStaleBefore,
+        string $assistWorkerPrefix
+    ): bool {
+        $model = self::forLanguage($language);
+        $query = $model->newQuery()
+            ->where('id', $rowId)
+            ->where('has_audio', false)
+            ->where(function ($status) use (
+                $pendingStatus,
+                $processingStatus,
+                $staleBefore,
+                $assistStaleBefore,
+                $assistWorkerPrefix
+            ): void {
+                $status->whereNull('tts_status')
+                    ->orWhere('tts_status', $pendingStatus)
+                    ->orWhere(function ($processing) use (
+                        $processingStatus,
+                        $staleBefore,
+                        $assistStaleBefore,
+                        $assistWorkerPrefix
+                    ): void {
+                        $processing->where('tts_status', $processingStatus);
+                        self::applyClaimableTtsLock(
+                            $processing,
+                            $staleBefore,
+                            $assistStaleBefore,
+                            $assistWorkerPrefix
+                        );
+                    });
+            });
+
+        return $query->update([
+            'tts_status' => $processingStatus,
+            'tts_locked_at' => now(),
+            'tts_locked_by' => $workerId,
+            'tts_requested_at' => $model->getConnection()->raw('COALESCE(tts_requested_at, CURRENT_TIMESTAMP)'),
+        ]) === 1;
+    }
+
     public static function findByContent(string $langCode, string $content)
     {
         $md5 = md5($content);
         return self::findByMd5($langCode, $md5);
+    }
+
+    public static function rowsByHashes(string $language, array $hashes, array $columns = ['*'])
+    {
+        return self::rowsByColumnValues($language, 'md5', $hashes, $columns);
+    }
+
+    public static function queriedRowsByContents(string $language, array $contents): array
+    {
+        $hashes = [];
+        $rows = null;
+        $rowsByHash = [];
+
+        foreach ($contents as $content) {
+            if (is_string($content)) {
+                $hashes[] = md5($content);
+            }
+        }
+
+        $hashes = array_values(array_unique($hashes));
+        if ($hashes === []) {
+            return [];
+        }
+
+        $rows = self::rowsByHashes($language, $hashes);
+        foreach ($rows as $row) {
+            $rowsByHash[(string) $row->md5] = $row;
+        }
+
+        if ($rowsByHash !== []) {
+            self::forLanguage($language)
+                ->newQuery()
+                ->whereIn('md5', array_keys($rowsByHash))
+                ->increment('query_count', 1, ['last_query_time' => now()]);
+        }
+
+        return $rowsByHash;
+    }
+
+    public static function idMapByHashes(string $language, array $hashes): array
+    {
+        $map = [];
+        foreach (self::rowsByHashes($language, $hashes, ['id', 'md5']) as $row) {
+            $map[(string) $row->md5] = (int) $row->id;
+        }
+
+        return $map;
+    }
+
+    public static function existingHashes(string $language, array $hashes): array
+    {
+        $existing = [];
+        foreach (array_chunk(array_values(array_unique($hashes)), self::QUERY_CHUNK_SIZE) as $chunk) {
+            foreach (self::forLanguage($language)->whereIn('md5', $chunk)->pluck('md5') as $md5) {
+                $existing[] = (string) $md5;
+            }
+        }
+
+        return $existing;
+    }
+
+    public static function insertRows(string $language, array $rows): int
+    {
+        $inserted = 0;
+        foreach (array_chunk($rows, 500) as $chunk) {
+            $inserted += self::forLanguage($language)->newQuery()->insertOrIgnore($chunk);
+        }
+
+        return $inserted;
+    }
+
+    public static function ensureContents(string $language, array $contents): array
+    {
+        $contentByHash = [];
+        $existingHashes = [];
+        $existingLookup = [];
+        $rows = [];
+        $timestamp = now();
+        $total = 0;
+        $inserted = 0;
+
+        foreach ($contents as $content) {
+            if (!is_string($content) || $content === '') {
+                continue;
+            }
+
+            $total++;
+            $contentByHash[md5($content)] = $content;
+        }
+
+        if ($contentByHash === []) {
+            return ['created' => 0, 'existing' => 0];
+        }
+
+        $existingHashes = self::existingHashes($language, array_keys($contentByHash));
+        $existingLookup = array_fill_keys($existingHashes, true);
+
+        foreach ($contentByHash as $hash => $content) {
+            if (isset($existingLookup[$hash])) {
+                continue;
+            }
+
+            $rows[] = [
+                'content' => $content,
+                'md5' => $hash,
+                'has_translation' => false,
+                'query_count' => 0,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ];
+        }
+
+        if ($rows !== []) {
+            $inserted = self::insertRows($language, $rows);
+        }
+        if ($inserted > 0) {
+            self::forgetMetricsCache($language);
+        }
+
+        return [
+            'created' => $inserted,
+            'existing' => max(0, $total - $inserted),
+        ];
+    }
+
+    public static function applyExplanationResults(string $language, array $explanations, bool $isEnglish): array
+    {
+        $hashes = [];
+        $rowsByHash = [];
+        $updatesByHash = [];
+        $timestamp = now();
+        $processed = 0;
+        $failed = 0;
+
+        foreach ($explanations as $explanation) {
+            $word = $explanation['word'] ?? null;
+            $explanationText = $explanation['explanation'] ?? $explanation['translation'] ?? null;
+            if (!$word || !$explanationText) {
+                $failed++;
+                continue;
+            }
+
+            $hashes[] = md5((string) $word);
+        }
+
+        foreach (self::rowsByHashes($language, $hashes) as $row) {
+            $rowsByHash[(string) $row->md5] = $row;
+        }
+
+        foreach ($explanations as $explanation) {
+            $word = $explanation['word'] ?? null;
+            $explanationText = $explanation['explanation'] ?? $explanation['translation'] ?? null;
+            if (!$word || !$explanationText) {
+                continue;
+            }
+
+            $hash = md5((string) $word);
+            $entry = $rowsByHash[$hash] ?? null;
+            if (!$entry) {
+                $failed++;
+                continue;
+            }
+
+            $translations = $entry->translations;
+            if (!is_array($translations)) {
+                $translations = [];
+            }
+
+            $translations['en'] = $explanationText;
+            if (!$isEnglish && isset($explanation['meaning_zh'])) {
+                $translations['zh'] = $explanation['meaning_zh'];
+            }
+
+            $entry->translations = $translations;
+            if ($isEnglish) {
+                if (isset($explanation['us_phonetic'])) {
+                    $entry->us_phonetic = $explanation['us_phonetic'];
+                }
+                if (isset($explanation['uk_phonetic'])) {
+                    $entry->uk_phonetic = $explanation['uk_phonetic'];
+                }
+            } elseif (isset($explanation['pronunciation'])) {
+                $entry->phonetic = $explanation['pronunciation'];
+            }
+
+            $updatesByHash[$hash] = [
+                'content' => (string) $entry->content,
+                'md5' => $hash,
+                'translations' => json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                'has_translation' => true,
+                'phonetic' => $entry->phonetic,
+                'us_phonetic' => $entry->us_phonetic,
+                'uk_phonetic' => $entry->uk_phonetic,
+                'created_at' => $entry->created_at ?? $timestamp,
+                'updated_at' => $timestamp,
+            ];
+            $processed++;
+        }
+
+        if ($updatesByHash !== []) {
+            self::forLanguage($language)->newQuery()->upsert(
+                array_values($updatesByHash),
+                ['md5'],
+                [
+                    'translations', 'has_translation', 'phonetic',
+                    'us_phonetic', 'uk_phonetic', 'updated_at',
+                ]
+            );
+            self::forgetMetricsCache($language);
+        }
+
+        return ['processed' => $processed, 'failed' => $failed];
+    }
+
+    public static function rowsByIds(string $language, array $ids, array $columns = ['*'])
+    {
+        return self::rowsByColumnValues($language, 'id', $ids, $columns);
+    }
+
+    private static function rowsByColumnValues(
+        string $language,
+        string $column,
+        array $values,
+        array $columns
+    ) {
+        $model = self::forLanguage($language);
+        $rows = $model->newCollection();
+        $uniqueValues = array_values(array_unique($values));
+
+        foreach (array_chunk($uniqueValues, self::QUERY_CHUNK_SIZE) as $chunk) {
+            $rows = $rows->concat(
+                $model->newQuery()->whereIn($column, $chunk)->get($columns)
+            );
+        }
+
+        return $rows;
+    }
+
+    public static function wrappedRowsFromId(
+        string $language,
+        int $startId,
+        int $limit,
+        array $columns = ['*']
+    ) {
+        $rows = self::forLanguage($language)
+            ->where('id', '>=', $startId)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get($columns);
+        $deficit = $limit - $rows->count();
+
+        if ($deficit > 0) {
+            $rows = $rows->concat(
+                self::forLanguage($language)
+                    ->where('id', '<', $startId)
+                    ->orderBy('id')
+                    ->limit($deficit)
+                    ->get($columns)
+            );
+        }
+
+        return $rows;
+    }
+
+    public static function prefixRows(string $language, string $prefix, int $limit)
+    {
+        return self::forLanguage($language)
+            ->contentStartsWithInsensitive($prefix)
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function untranslatedContents(string $language, int $offset, int $limit): array
+    {
+        return self::forLanguage($language)
+            ->where('has_translation', false)
+            ->where('is_valid', true)
+            ->orderByDesc('query_count')
+            ->offset($offset)
+            ->limit($limit)
+            ->pluck('content')
+            ->all();
+    }
+
+    public static function missingAudioCount(string $language): int
+    {
+        return self::forLanguage($language)->where('has_audio', false)->count();
+    }
+
+    public static function rowCount(string $language): int
+    {
+        return self::forLanguage($language)->count();
+    }
+
+    public static function idBounds(string $language): array
+    {
+        $row = self::forLanguage($language)
+            ->newQuery()
+            ->selectRaw('MIN(id) as min_id, MAX(id) as max_id')
+            ->first();
+
+        return [
+            'min' => (int) ($row->min_id ?? 0),
+            'max' => (int) ($row->max_id ?? 0),
+        ];
+    }
+
+    public static function languageColumns(string $language, array $columns): array
+    {
+        return self::languageColumnAvailability($language, $columns);
+    }
+
+    public static function lockedRowsByHashes(string $language, array $hashes)
+    {
+        return self::forLanguage($language)
+            ->newQuery()
+            ->whereIn('md5', array_values(array_unique($hashes)))
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('md5');
+    }
+
+    public static function lockByHash(string $language, string $hash): ?self
+    {
+        return self::forLanguage($language)
+            ->newQuery()
+            ->where('md5', $hash)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    public function hasTableColumn(string $column): bool
+    {
+        return Schema::connection($this->getConnectionName())->hasColumn($this->getTable(), $column);
+    }
+
+    public static function updateValidWordText(string $language, string $hash, string $content): int
+    {
+        return self::forLanguage($language)
+            ->newQuery()
+            ->where('md5', $hash)
+            ->where(function ($valid): void {
+                $valid->whereNull('is_valid')->orWhere('is_valid', true);
+            })
+            ->update(['content' => $content]);
+    }
+
+    public static function missingAudioBatchRows(string $language, int $limit, array $columns)
+    {
+        $query = self::forLanguage($language)->newQuery();
+
+        if ($columns['has_audio']) {
+            $query->where('has_audio', false);
+        }
+        if ($columns['is_valid']) {
+            $query->where(function ($valid): void {
+                $valid->where('is_valid', true)->orWhereNull('is_valid');
+            });
+        }
+        if ($columns['tts_status']) {
+            $query->where(function ($status): void {
+                $status->whereNull('tts_status')->orWhere('tts_status', '!=', 'failed');
+            });
+        }
+        if ($columns['audio_files']) {
+            $query->missingAudioFiles();
+        }
+        if ($columns['tts_files']) {
+            $query->missingTtsFiles();
+        }
+        if ($columns['content']) {
+            $query->wordLength();
+        }
+
+        return $query->orderBy('id')->limit($limit)->get();
     }
 
     public static function createOrFind(string $langCode, string $content): self
@@ -260,6 +820,60 @@ class AppQyV1LangDictionaryModel extends Model
         self::forgetMetricsCache($langCode);
 
         return $instance;
+    }
+
+    public static function newImageQueueEntry(string $langCode, string $content): self
+    {
+        $entry = self::forLanguage($langCode);
+
+        $entry->content = $content;
+        $entry->md5 = md5($content);
+        $entry->has_translation = false;
+        $entry->has_audio = false;
+        $entry->is_valid = true;
+        $entry->query_count = 0;
+
+        return $entry;
+    }
+
+    public function hasImageMcpSubmissionColumn(): bool
+    {
+        return $this->hasTableColumn('image_mcp_submitted_at');
+    }
+
+    public function markImagePending(bool $moveToFront, int $defaultPriority): void
+    {
+        $isNew = !$this->exists;
+
+        $this->image_status = 'pending';
+        if ($this->hasImageMcpSubmissionColumn()) {
+            $this->image_mcp_submitted_at = null;
+        }
+        if (!$this->image_requested_at) {
+            $this->image_requested_at = now();
+        }
+
+        $this->image_attempts = 0;
+        $this->image_locked_at = null;
+        $this->image_locked_by = null;
+
+        if ($moveToFront) {
+            $connection = $this->getConnection();
+            $table = $this->getTable();
+
+            $connection->transaction(function () use ($connection, $table): void {
+                AppQyV1TableMaps::lockTableForFrontTicket($connection, $table);
+                $this->image_priority = (int) $this->newQuery()->max('image_priority') + 1;
+                $this->saveRecord();
+            });
+        } else {
+            $this->image_priority = max((int) ($this->image_priority ?? 0), $defaultPriority);
+            $this->saveRecord();
+        }
+
+        if ($isNew) {
+            self::forgetMetricsCache((string) $this->langCode);
+        }
     }
 
     public static function updateWord(string $langCode, string $md5, array $data): void
@@ -297,6 +911,77 @@ class AppQyV1LangDictionaryModel extends Model
         return $affected > 0;
     }
 
+    public static function markValidities(string $langCode, array $results): array
+    {
+        $model = self::forLanguage($langCode);
+        $connection = $model->getConnection();
+        $table = $connection->getQueryGrammar()->wrapTable($model->getTable());
+        $recordsByHash = [];
+        $valueClauses = [];
+        $bindings = [];
+        $existingHashes = [];
+        $existingLookup = [];
+        $updated = 0;
+        $valid = 0;
+        $invalid = 0;
+
+        foreach ($results as $result) {
+            $hash = isset($result['md5']) ? strtolower((string) $result['md5']) : '';
+            if ($hash === '') {
+                continue;
+            }
+
+            $recordsByHash[$hash] = [
+                'is_valid' => (bool) $result['is_valid'],
+                'source' => $result['source'] ?? null,
+                'note' => $result['note'] ?? null,
+            ];
+        }
+
+        if ($recordsByHash === []) {
+            return ['updated' => 0, 'valid' => 0, 'invalid' => 0];
+        }
+
+        $existingHashes = self::existingHashes($langCode, array_keys($recordsByHash));
+        $existingLookup = array_fill_keys($existingHashes, true);
+
+        foreach ($recordsByHash as $hash => $record) {
+            if (!isset($existingLookup[$hash])) {
+                continue;
+            }
+
+            $valueClauses[] = '(?::text, ?::boolean, ?::text, ?::text)';
+            $bindings[] = $hash;
+            $bindings[] = $record['is_valid'];
+            $bindings[] = $record['source'];
+            $bindings[] = $record['note'];
+
+            if ($record['is_valid']) {
+                $valid++;
+            } else {
+                $invalid++;
+            }
+        }
+
+        if ($valueClauses !== []) {
+            $values = implode(', ', $valueClauses);
+            $updated = $connection->update(
+                "UPDATE {$table} AS dictionary SET is_valid = validity.is_valid, validity_checked_at = CURRENT_TIMESTAMP, validity_source = validity.source, validity_note = validity.note, updated_at = CURRENT_TIMESTAMP FROM (VALUES {$values}) AS validity(md5, is_valid, source, note) WHERE dictionary.md5 = validity.md5",
+                $bindings
+            );
+        }
+
+        if ($updated > 0) {
+            self::forgetMetricsCache($langCode);
+        }
+
+        return [
+            'updated' => $updated,
+            'valid' => $valid,
+            'invalid' => $invalid,
+        ];
+    }
+
     /**
      * Restrict to "sentence" rows: dictionary entries whose content length
      * falls in the sentence range (50 < LENGTH(content) < 500).
@@ -319,6 +1004,61 @@ class AppQyV1LangDictionaryModel extends Model
     public function scopeContentStartsWithInsensitive($query, string $value)
     {
         return $query->whereRaw('LOWER(content) LIKE ?', [strtolower($value) . '%']);
+    }
+
+    public function scopeManagementFilter($query, string $filter)
+    {
+        if ($filter === 'with_translation') {
+            return $query->withTranslationCoverage();
+        }
+        if ($filter === 'without_translation') {
+            return $query->withoutTranslationCoverage();
+        }
+        if ($filter === 'with_audio') {
+            return $query->where('has_audio', true);
+        }
+        if ($filter === 'without_audio') {
+            return $query->where(function ($builder) {
+                $builder->where('has_audio', false)->orWhereNull('has_audio');
+            });
+        }
+        if ($filter === 'valid') {
+            return $query->valid();
+        }
+        if ($filter === 'invalid') {
+            return $query->invalid();
+        }
+
+        return $query;
+    }
+
+    public function scopeManagementOrder($query, string $sortKey, string $direction)
+    {
+        $order = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        if ($sortKey === 'id') {
+            $query->orderBy('id', $order);
+        } elseif ($sortKey === 'word') {
+            $query->orderBy('content', $order);
+        } elseif ($sortKey === 'translation') {
+            $query->orderByRaw("LOWER(COALESCE(translations::text, '')) {$order}");
+        } elseif ($sortKey === 'phonetic') {
+            $query->orderByRaw("LOWER(COALESCE(NULLIF(us_phonetic, ''), NULLIF(uk_phonetic, ''), NULLIF(phonetic, ''), '')) {$order}");
+        } elseif ($sortKey === 'us_phonetic') {
+            $query->orderBy('us_phonetic', $order);
+        } elseif ($sortKey === 'uk_phonetic') {
+            $query->orderBy('uk_phonetic', $order);
+        } elseif ($sortKey === 'audio') {
+            $query->orderBy('has_audio', $order);
+        } elseif ($sortKey === 'queries') {
+            $query->orderBy('query_count', $order);
+        } elseif ($sortKey === 'is_valid') {
+            $query->orderBy('is_valid', $order);
+        } else {
+            return $query->orderByDesc('query_count')->orderBy('id');
+        }
+
+        return $sortKey === 'id' ? $query : $query->orderBy('id', $order);
     }
 
     public function scopeWordLength($query)
@@ -416,12 +1156,50 @@ class AppQyV1LangDictionaryModel extends Model
         ];
         $row = $model->newQuery()->selectRaw(implode(', ', $selects))->first();
 
+        $words = (int) ($row->words ?? 0);
+        $withTranslation = (int) ($row->with_translation ?? 0);
+        $withAudio = (int) ($row->with_audio ?? 0);
+        $invalid = (int) ($row->invalid ?? 0);
+
         return [
-            'words' => (int) ($row->words ?? 0),
-            'with_translation' => (int) ($row->with_translation ?? 0),
-            'with_audio' => (int) ($row->with_audio ?? 0),
-            'invalid' => (int) ($row->invalid ?? 0),
+            'words' => $words,
+            'with_translation' => $withTranslation,
+            'without_translation' => max(0, $words - $withTranslation),
+            'with_audio' => $withAudio,
+            'without_audio' => max(0, $words - $withAudio),
+            'valid' => max(0, $words - $invalid),
+            'invalid' => $invalid,
         ];
+    }
+
+    public static function cachedLanguageBreakdownMetrics(string $langCode): ?array
+    {
+        $languageCode = AppQyV1TableMaps::normalizeLangCode($langCode);
+
+        return Cache::remember(
+            self::metricsCacheKey($languageCode),
+            self::METRICS_CACHE_TTL,
+            fn () => self::languageBreakdownMetrics($languageCode)
+        );
+    }
+
+    public static function cachedManagementFilterTotal(string $langCode, string $filter): ?int
+    {
+        $metrics = self::cachedLanguageBreakdownMetrics($langCode);
+        $metricByFilter = [
+            'all' => 'words',
+            'with_translation' => 'with_translation',
+            'without_translation' => 'without_translation',
+            'with_audio' => 'with_audio',
+            'without_audio' => 'without_audio',
+            'valid' => 'valid',
+            'invalid' => 'invalid',
+        ];
+        if ($metrics === null || !isset($metricByFilter[$filter])) {
+            return null;
+        }
+
+        return (int) $metrics[$metricByFilter[$filter]];
     }
 
     public static function coverageMetrics(string $langCode): ?array
@@ -575,13 +1353,209 @@ class AppQyV1LangDictionaryModel extends Model
     /** Words that are valid (default state, i.e. not explicitly invalid). */
     public function scopeValid($query)
     {
-        return $query->where('is_valid', true);
+        return $query->where(function ($builder) {
+            $builder->where('is_valid', true)->orWhereNull('is_valid');
+        });
     }
 
     /** Words a third-party client has not yet checked. */
     public function scopeValidityUnchecked($query)
     {
         return $query->whereNull('validity_checked_at');
+    }
+
+    public static function pendingValidityCount(string $langCode, string $search = ''): int
+    {
+        return (int) self::pendingValidityQuery($langCode, $search)->count();
+    }
+
+    public static function pendingValidityPageIds(
+        string $langCode,
+        string $search,
+        int $start,
+        int $limit
+    ): array {
+        return self::pendingValidityQuery($langCode, $search)
+            ->orderByDesc('query_count')
+            ->orderBy('id')
+            ->offset($start)
+            ->limit($limit)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    public static function pendingValidityRows(string $langCode, array $ids): array
+    {
+        $positions = array_flip(array_map('intval', $ids));
+
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->get(['id', 'content', 'md5', 'query_count', 'has_translation', 'validity_checked_at'])
+            ->sortBy(static fn ($row): int => $positions[(int) $row->id] ?? PHP_INT_MAX)
+            ->map(static fn ($row): array => [
+                'id' => (int) $row->id,
+                'word' => (string) $row->content,
+                'md5' => (string) $row->md5,
+                'language' => strtolower($langCode),
+                'query_count' => (int) ($row->query_count ?? 0),
+                'needs_validity' => $row->validity_checked_at === null,
+                'needs_translation' => !(bool) $row->has_translation,
+            ])
+            ->values()
+            ->all();
+    }
+
+    public static function pendingTranslationRows(
+        string $langCode,
+        array $ids,
+        bool $includeQueryCount = false
+    ): array {
+        $columns = ['id', 'content', 'md5'];
+        if ($includeQueryCount) {
+            $columns[] = 'query_count';
+        }
+
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_translation', false)
+            ->where('is_valid', true)
+            ->orderByDesc('query_count')
+            ->get($columns)
+            ->map(static function ($row) use ($includeQueryCount): array {
+                $result = [
+                    'word' => (string) ($row->content ?? ''),
+                    'md5' => (string) ($row->md5 ?? ''),
+                ];
+                if ($includeQueryCount) {
+                    $result['query_count'] = (int) ($row->query_count ?? 0);
+                }
+
+                return $result;
+            })
+            ->filter(static fn (array $row): bool => $row['word'] !== '')
+            ->values()
+            ->all();
+    }
+
+    public static function pendingValidityScanRows(string $langCode, array $ids): array
+    {
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_translation', false)
+            ->whereNull('validity_checked_at')
+            ->orderByDesc('query_count')
+            ->get(['id', 'content', 'md5'])
+            ->map(static fn ($row): array => [
+                'word' => (string) ($row->content ?? ''),
+                'md5' => (string) ($row->md5 ?? ''),
+            ])
+            ->filter(static fn (array $row): bool => $row['word'] !== '')
+            ->values()
+            ->all();
+    }
+
+    public static function pendingTtsRowsByIds(
+        string $langCode,
+        array $ids,
+        string $pendingStatus,
+        int $maxAttempts,
+        int $lockStaleMinutes,
+        int $assistLeaseMinutes,
+        string $assistWorkerPrefix
+    ): array {
+        $staleBefore = now()->subMinutes($lockStaleMinutes);
+        $assistStaleBefore = now()->subMinutes($assistLeaseMinutes);
+
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_audio', false)
+            ->where('is_valid', true)
+            ->where(function (Builder $query) use ($pendingStatus): void {
+                $query->whereNull('tts_status')->orWhere('tts_status', $pendingStatus);
+            })
+            ->where('tts_attempts', '<', $maxAttempts)
+            ->where(function (Builder $query) use ($staleBefore, $assistStaleBefore, $assistWorkerPrefix): void {
+                $query->whereNull('tts_locked_at')
+                    ->orWhere('tts_locked_at', '<', $assistStaleBefore)
+                    ->orWhere(function (Builder $staleQuery) use ($staleBefore, $assistWorkerPrefix): void {
+                        $staleQuery->where('tts_locked_at', '<', $staleBefore)
+                            ->where(function (Builder $workerQuery) use ($assistWorkerPrefix): void {
+                                $workerQuery->whereNull('tts_locked_by')
+                                    ->orWhere('tts_locked_by', 'not like', $assistWorkerPrefix . '%');
+                            });
+                    });
+            })
+            ->orderByDesc('query_count')
+            ->get(['id', 'content', 'md5'])
+            ->all();
+    }
+
+    public static function translatedWordsMissingImages(string $langCode, array $ids): array
+    {
+        $availability = self::languageColumnAvailability(
+            $langCode,
+            ['image_status', 'image_mcp_submitted_at']
+        );
+        $query = self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_translation', true)
+            ->where('is_valid', true);
+
+        if ($availability['image_mcp_submitted_at'] ?? false) {
+            $query->whereNull('image_mcp_submitted_at');
+        } else {
+            $query->where(function (Builder $imageQuery): void {
+                $imageQuery->whereNull('image_files')
+                    ->orWhere('image_files', '')
+                    ->orWhere('image_files', '[]')
+                    ->orWhere('image_files', '{}');
+            });
+            if ($availability['image_status'] ?? false) {
+                $query->where(function (Builder $statusQuery): void {
+                    $statusQuery->whereNull('image_status')
+                        ->orWhereNotIn('image_status', ['completed', 'none']);
+                });
+            }
+        }
+
+        return $query
+            ->orderByDesc('query_count')
+            ->get(['content', 'md5'])
+            ->map(static function ($row): ?array {
+                $word = $row->content ?? null;
+
+                return is_string($word) && $word !== ''
+                    ? ['word' => $word, 'md5' => $row->md5 ?? md5($word)]
+                    : null;
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    private static function pendingValidityQuery(string $langCode, string $search): Builder
+    {
+        $query = self::forLanguage($langCode)
+            ->newQuery()
+            ->where(function (Builder $builder): void {
+                $builder->whereNull('validity_checked_at')
+                    ->orWhere(function (Builder $untranslated): void {
+                        $untranslated->where('has_translation', false)
+                            ->where('is_valid', true);
+                    });
+            });
+
+        if ($search !== '') {
+            $query->where('content', 'like', '%' . $search . '%');
+        }
+
+        return $query;
     }
 
     public function incrementQueryCount(): void
@@ -646,75 +1620,6 @@ class AppQyV1LangDictionaryModel extends Model
         }
 
         return $rowsById;
-    }
-
-    public static function boostTtsPriority(string $langCode, string $md5): array
-    {
-        $model = self::forLanguage($langCode);
-        $table = $model->getTable();
-
-        return $model->getConnection()->transaction(function () use ($langCode, $md5, $model, $table) {
-            AppQyV1TableMaps::lockTableForFrontTicket($model->getConnection(), $table);
-            $priority = (int) self::forLanguage($langCode)->max('tts_priority') + 1;
-            $updated = self::forLanguage($langCode)
-                ->where('md5', $md5)
-                ->where(function ($query) {
-                    $query->whereNull('is_valid')->orWhere('is_valid', true);
-                })
-                ->update(['tts_priority' => $priority]);
-            $row = $updated > 0
-                ? self::forLanguage($langCode)->select(['id', 'content'])->where('md5', $md5)->first()
-                : null;
-
-            return [
-                'updated' => $updated,
-                'priority' => $updated > 0 ? $priority : 0,
-                'row_id' => (int) ($row?->id ?? 0),
-                'content' => (string) ($row?->content ?? ''),
-                'row_table' => $table,
-            ];
-        });
-    }
-
-    public static function boostTtsPriorities(string $langCode, array $md5s): array
-    {
-        $model = self::forLanguage($langCode);
-        $table = $model->getTable();
-        $rowMap = self::forLanguage($langCode)
-            ->select(['id', 'md5', 'content'])
-            ->whereIn('md5', $md5s)
-            ->get()
-            ->keyBy('md5');
-
-        return $model->getConnection()->transaction(function () use ($langCode, $md5s, $model, $rowMap, $table) {
-            AppQyV1TableMaps::lockTableForFrontTicket($model->getConnection(), $table);
-            $ticket = (int) self::forLanguage($langCode)->max('tts_priority') + count($md5s);
-            $result = [];
-
-            foreach ($md5s as $index => $md5) {
-                $priority = $ticket - $index;
-                $updated = self::forLanguage($langCode)
-                    ->where('md5', $md5)
-                    ->where(function ($query) {
-                        $query->whereNull('is_valid')->orWhere('is_valid', true);
-                    })
-                    ->update(['tts_priority' => $priority]);
-
-                if ($updated > 0) {
-                    $row = $rowMap->get($md5);
-                    $result[] = [
-                        'md5' => $md5,
-                        'language' => $langCode,
-                        'priority' => $priority,
-                        'row_id' => (int) ($row?->id ?? 0),
-                        'content' => (string) ($row?->content ?? ''),
-                        'row_table' => $table,
-                    ];
-                }
-            }
-
-            return $result;
-        });
     }
 
     public function addTTSFile(string $path, string $speedKey = 'p0pct', string $type = 'word'): void

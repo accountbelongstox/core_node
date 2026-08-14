@@ -1,6 +1,15 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import {
+  createErrorResponse,
+  createJsonContent,
+  createJsonResponse,
+  toErrorMessage,
+  ToolResult,
+} from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { delay } from '@/utils/async';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { SessionJobStore } from '@/utils/session-job-store';
 
 // MCP tool name. Kept as a literal (mirrored in chrome-mcp-shared TOOL_NAMES as
 // BROWSER.GEMINI_IMAGE = 'chrome_gemini_image') so the extension build does not
@@ -12,8 +21,6 @@ const LOG = 'Gemini Image';
 // Session storage key for the lightweight job index (no dataUrl) so a status
 // poll can recover after the MV3 service worker restarts.
 const JOBS_KEY = 'gemini_image_jobs';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type GeminiJobStatus = 'generating' | 'done' | 'failed';
 
@@ -57,7 +64,10 @@ interface GeminiImageParams {
 class GeminiImageTool extends BaseBrowserToolExecutor {
   name = GEMINI_IMAGE_TOOL_NAME;
 
-  private jobs = new Map<string, GeminiJob>();
+  private readonly jobStore = new SessionJobStore<GeminiJob>(JOBS_KEY, {
+    serialize: ({ dataUrl: _dataUrl, ...job }) => job,
+    deserialize: (stored) => ({ ...stored, dataUrl: null }) as unknown as GeminiJob,
+  });
 
   /** MCP entrypoint — routes to start/status by `action` (or presence of jobId). */
   async execute(args: GeminiImageParams): Promise<ToolResult> {
@@ -73,35 +83,28 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
           return {
             content: [
               { type: 'image', data: base64, mimeType: r.mime || 'image/png' },
-              {
-                type: 'text',
-                text: JSON.stringify(
-                  { jobId, status: 'done', mime: r.mime, width: r.width, height: r.height, src: r.src },
-                  null,
-                  2,
-                ),
-              },
+              createJsonContent(
+                { jobId, status: 'done', mime: r.mime, width: r.width, height: r.height, src: r.src },
+                2,
+              ),
             ],
             isError: false,
           };
         }
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ jobId, ...r }, null, 2) }],
+        return createJsonResponse({ jobId, ...r }, {
           isError: r.status === 'failed' || r.status === 'unknown',
-        };
+          space: 2,
+        });
       }
 
       // start
       const prompt = (args?.prompt || '').trim();
       if (!prompt) return createErrorResponse('prompt is required to start image generation');
       const r = await this.start(prompt, !!args?.openInNewTab, args?.timeoutMs ?? 120000);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(r, null, 2) }],
-        isError: !r.ok,
-      };
+      return createJsonResponse(r, { isError: !r.ok, space: 2 });
     } catch (error) {
       return createErrorResponse(
-        `Gemini image error: ${error instanceof Error ? error.message : String(error)}`,
+        `Gemini image error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -116,7 +119,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     if (!tab?.id) return { ok: false, error: 'Failed to open or find a Gemini tab' };
     await this.ensureOnGeminiPage(tab.id);
     await this.injectContentScript(tab.id, [HELPER]);
-    await sleep(350);
+    await delay(350);
 
     const submit = await this.sendMessageToTab(tab.id, { action: 'geminiSubmitPrompt', prompt }).catch(
       (e: any) => ({ found: false, error: String(e?.message || e) }),
@@ -126,7 +129,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     }
 
     const jobId = this.genId();
-    this.jobs.set(jobId, {
+    this.jobStore.set({
       jobId,
       tabId: tab.id,
       prompt,
@@ -134,7 +137,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
       deadline: Date.now() + Math.max(15000, timeoutMs),
       dataUrl: null,
     });
-    await this.persist();
+    await this.jobStore.persist();
     logger.info(LOG, `Started job ${jobId} on tab ${tab.id}: "${prompt.slice(0, 60)}"`);
     return {
       ok: true,
@@ -159,8 +162,8 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     src?: string | null;
     error?: string;
   }> {
-    let job = this.jobs.get(jobId);
-    if (!job) job = await this.hydrate(jobId);
+    let job = this.jobStore.get(jobId);
+    if (!job) job = await this.jobStore.hydrate(jobId);
     if (!job) return { ok: false, status: 'unknown', error: 'Unknown jobId (expired or never started)' };
 
     if (job.status === 'done' && job.dataUrl) {
@@ -186,7 +189,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
         job.width = r.width;
         job.height = r.height;
         job.src = r.src || null;
-        await this.persist();
+        await this.jobStore.persist();
         logger.info(LOG, `Job ${jobId} done (${job.width}x${job.height}, ${job.mime})`);
         return {
           ok: true,
@@ -201,7 +204,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
       if (Date.now() > job.deadline) {
         job.status = 'failed';
         job.error = 'Timed out waiting for the generated image';
-        await this.persist();
+        await this.jobStore.persist();
         return { ok: false, status: 'failed', error: job.error };
       }
       return { ok: true, status: 'generating', generating: !!(r && r.generating) };
@@ -211,7 +214,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
         const msg = error?.message || 'Gemini tab unreachable';
         job.status = 'failed';
         job.error = msg;
-        await this.persist();
+        await this.jobStore.persist();
         return { ok: false, status: 'failed', error: msg };
       }
       return { ok: true, status: 'generating', generating: true };
@@ -224,42 +227,17 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     return `gi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  /** Persist a lightweight job index (NO dataUrl — too big) for SW-restart recovery. */
-  private async persist(): Promise<void> {
-    try {
-      const lite = Array.from(this.jobs.values())
-        .slice(-20)
-        .map(({ dataUrl: _omit, ...rest }) => rest);
-      await chrome.storage.session.set({ [JOBS_KEY]: lite });
-    } catch {
-      // session storage unavailable — in-memory only.
-    }
-  }
-
-  private async hydrate(jobId: string): Promise<GeminiJob | undefined> {
-    try {
-      const arr = (await chrome.storage.session.get(JOBS_KEY))[JOBS_KEY];
-      if (Array.isArray(arr)) {
-        const found = arr.find((j: any) => j && j.jobId === jobId);
-        if (found) {
-          const job: GeminiJob = { ...found, dataUrl: null };
-          this.jobs.set(jobId, job);
-          return job;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return undefined;
-  }
-
   /** Ensure the tab is on the Gemini app; navigate there if not. */
   private async ensureOnGeminiPage(tabId: number): Promise<void> {
     const tab = await this.tryGetTab(tabId);
     if (!tab || !tab.url || !tab.url.includes('gemini.google.com')) {
       await chrome.tabs.update(tabId, { url: GEMINI_URL });
     }
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, {
+      timeoutMs: 20000,
+      settleDelayMs: 600,
+      statusProbeDelayMs: 700,
+    });
   }
 
   /** Reuse an open Gemini tab, or create one. */
@@ -275,35 +253,6 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     return chrome.tabs.create({ url: GEMINI_URL, active: true });
   }
 
-  private waitForTabComplete(tabId: number, timeoutMs = 20000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // listener already gone
-        }
-        clearTimeout(timer);
-        setTimeout(resolve, 600);
-      };
-      const onUpdated = (id: number, info: chrome.tabs.TabChangeInfo) => {
-        if (id === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then(
-          (t) => {
-            if (t.status === 'complete') finish();
-          },
-          () => finish(),
-        );
-      }, 700);
-    });
-  }
 }
 
 export const geminiImageTool = new GeminiImageTool();

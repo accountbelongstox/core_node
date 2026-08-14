@@ -2,11 +2,16 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Schema;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel as LangChapter;
 
 /**
  * Media Ingest Tables Initializer (Books v3.1 unified per-language model).
@@ -79,37 +84,19 @@ class MediaIngestTablesInitializer
     public static function getTableStats(): array
     {
         try {
-            $appKey = AppKeys::APPQYV1;
-            $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-            $db = \Illuminate\Support\Facades\DB::connection($connection);
-
-            $suffixes = [
-                'subtitles' => 'subtitles',
-                'books' => 'books',
-                'source_sentences' => 'source_sentences',
-                'segments' => 'media_segments',
+            $stats = [
+                'subtitles' => Subtitle::tableRowCount(),
+                'books' => Book::tableRowCount(),
+                'source_sentences' => SourceSentence::tableRowCount(),
+                'segments' => MediaSegment::tableRowCount(),
             ];
-
-            $stats = [];
-            foreach ($suffixes as $label => $suffix) {
-                $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, $suffix);
-                $stats[$label] = Schema::connection($connection)->hasTable($tableName)
-                    ? $db->table($tableName)->count()
-                    : 0;
-            }
 
             // Per-language sentence + chapter totals (Books v3.1).
             $sentenceTotal = 0;
             $chapterTotal = 0;
             foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
-                $sTable = AppQyV1TableMaps::getSentenceTableName($lang);
-                if (Schema::connection($connection)->hasTable($sTable)) {
-                    $sentenceTotal += $db->table($sTable)->count();
-                }
-                $cTable = AppQyV1TableMaps::getChapterTableName($lang);
-                if (Schema::connection($connection)->hasTable($cTable)) {
-                    $chapterTotal += $db->table($cTable)->count();
-                }
+                $sentenceTotal += LangSentence::tableRowCount($lang);
+                $chapterTotal += LangChapter::tableRowCount($lang);
             }
             $stats['sentences'] = $sentenceTotal;
             $stats['chapters'] = $chapterTotal;
@@ -150,7 +137,6 @@ class MediaIngestTablesInitializer
                 'tts_error' => ['type' => 'text', 'nullable' => true],
                 'tts_locked_at' => ['type' => 'dateTime', 'nullable' => true, 'index' => true],
                 'tts_locked_by' => ['type' => 'string', 'length' => 100, 'nullable' => true],
-                'tts_priority' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'index' => true],
                 'tts_requested_at' => ['type' => 'dateTime', 'nullable' => true],
                 'tts_completed_at' => ['type' => 'dateTime', 'nullable' => true],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true],

@@ -10,7 +10,8 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Support\Collection;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -47,4 +48,25 @@ class PddToolV1WarehouseModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function forUser(int $userId): Collection
+    {
+        return static::query()->where('user_id', $userId)->orderBy('id')->get();
+    }
+
+    public static function findForUser(int $userId, string $warehouseCode): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('warehouse_code', $warehouseCode)
+            ->first();
+    }
+
+    public static function deleteForUser(int $userId, string $warehouseCode): int
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('warehouse_code', $warehouseCode)
+            ->delete();
+    }
 }

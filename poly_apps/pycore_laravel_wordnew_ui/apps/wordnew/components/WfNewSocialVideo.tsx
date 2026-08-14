@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Film, Upload, Link2, Send, Loader2, ExternalLink, Maximize2 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-import { mediaUrl } from '../../../config/constants';
+import type { ElementTheme } from '../WfNewThemes';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewPost } from '../api';
 import { WfNewActorAvatar, wfNewRelativeTime, wfNewEmbedUrl } from './WfNewSocialPlaza';
 

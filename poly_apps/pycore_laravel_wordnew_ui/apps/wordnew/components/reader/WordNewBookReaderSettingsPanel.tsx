@@ -3,8 +3,7 @@ import { Plus, Trash2, GripVertical, Monitor, Volume2 } from 'lucide-react';
 import type { WfNewReaderPlayStep, WfNewReaderDisplayMode } from '../../api/types/bookProgress';
 import { READER_SPEED_OPTIONS } from '../../constants/WordNewBookReaderConstants';
 import { formatBookLangLabel } from '../../utils/WordNewBookReaderLangUtils';
-import type { ElementTheme } from '../../WfNewTypes';
-
+import type { ElementTheme } from '../../WfNewThemes';
 interface WordNewBookReaderSettingsPanelProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;

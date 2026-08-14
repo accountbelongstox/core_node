@@ -169,15 +169,13 @@ class AppQyV1WordGroupLibraryController
         $gid = $request->input('gid');
         $libraryId = $request->input('library_id');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->groupNotFound();
         }
 
-        $library = AppQyV1VocabularyLibraryModel::find($libraryId);
+        $library = AppQyV1VocabularyLibraryModel::findById((int) $libraryId);
         if (!$library) {
             return $this->libraryNotFound();
         }
@@ -195,9 +193,7 @@ class AppQyV1WordGroupLibraryController
 
         // Fast path: already linked - skip the expensive precompute entirely.
         // Race-safe authority is the locked re-check inside the transaction below.
-        $existingLink = AppQyV1GroupLibraryModel::where('group_id', $group->id)
-            ->where('library_id', $libraryId)
-            ->first();
+        $existingLink = AppQyV1GroupLibraryModel::findLink((int) $group->id, (int) $libraryId);
 
         if ($existingLink) {
             // Distinguishable already-linked state: keep error_code
@@ -234,16 +230,12 @@ class AppQyV1WordGroupLibraryController
             // below race-safe (dedupe decisions use in-transaction state).
             // The progress row is keyed by the same group, so the group lock
             // plus the single-row JSON update keeps the merge atomic.
-            $lockedGroup = AppQyV1WordGroupModel::where('id', $group->id)
-                ->lockForUpdate()
-                ->first();
+            $lockedGroup = AppQyV1WordGroupModel::lockById((int) $group->id);
             if (!$lockedGroup) {
                 return $this->groupNotFound();
             }
 
-            $existingLink = AppQyV1GroupLibraryModel::where('group_id', $lockedGroup->id)
-                ->where('library_id', $libraryId)
-                ->first();
+            $existingLink = AppQyV1GroupLibraryModel::findLink((int) $lockedGroup->id, (int) $libraryId);
             if ($existingLink) {
                 return $this->libraryAlreadyAdded([
                     'already_linked' => true,
@@ -254,11 +246,10 @@ class AppQyV1WordGroupLibraryController
                 ]);
             }
 
-            $groupLibrary = AppQyV1GroupLibraryModel::create([
-                'group_id' => $lockedGroup->id,
-                'library_id' => $libraryId,
-                'added_at' => now(),
-            ]);
+            $groupLibrary = AppQyV1GroupLibraryModel::attachLibrary(
+                (int) $lockedGroup->id,
+                (int) $libraryId
+            );
 
             $rowLanguage = $languageCode;
             if ($rowLanguage === '') {
@@ -286,7 +277,7 @@ class AppQyV1WordGroupLibraryController
             if (!empty($newWordIds)) {
                 $assignRandomPosition = ($lockedGroup->gname === DGroupAPublic::$default_group_name);
                 $addedCount = $progressRow->putWords($newWordIds, (string) now(), $weights, $assignRandomPosition);
-                $progressRow->save();
+                $progressRow->saveRecord();
             }
 
             return $this->success([
@@ -320,14 +311,12 @@ class AppQyV1WordGroupLibraryController
         $gid = $request->input('gid');
         $libraryId = $request->input('library_id');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
         if (!$group) {
             return $this->groupNotFound();
         }
 
-        $library = AppQyV1VocabularyLibraryModel::find($libraryId);
+        $library = AppQyV1VocabularyLibraryModel::findById((int) $libraryId);
         if (!$library) {
             return $this->libraryNotFound();
         }
@@ -342,9 +331,7 @@ class AppQyV1WordGroupLibraryController
         }
 
         // Same already-linked source add_library re-checks under lock.
-        $alreadyLinked = AppQyV1GroupLibraryModel::where('group_id', $group->id)
-            ->where('library_id', $libraryId)
-            ->exists();
+        $alreadyLinked = AppQyV1GroupLibraryModel::findLink((int) $group->id, (int) $libraryId) !== null;
 
         // Library stores a full name ('english'); identity keys and the
         // progress row use the normalized 2-letter code.
@@ -360,7 +347,7 @@ class AppQyV1WordGroupLibraryController
         // would persist an empty row, so query directly and fall back to an
         // unsaved in-memory model when the group has no progress yet - that
         // gives the shared classifier an empty membership without a write.
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
         if (!$progressRow) {
             $rowLanguage = $languageCode;
             if ($rowLanguage === '') {
@@ -452,23 +439,19 @@ class AppQyV1WordGroupLibraryController
         $gid = $request->input('gid');
         $libraryId = $request->input('library_id');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->groupNotFound();
         }
 
-        $groupLibrary = AppQyV1GroupLibraryModel::where('group_id', $group->id)
-            ->where('library_id', $libraryId)
-            ->first();
+        $groupLibrary = AppQyV1GroupLibraryModel::findLink((int) $group->id, (int) $libraryId);
 
         if (!$groupLibrary) {
             return $this->libraryNotLinked();
         }
 
-        $groupLibrary->delete();
+        $groupLibrary->deleteRecord();
 
         return $this->success([
             'gid' => $group->gid,
@@ -485,17 +468,13 @@ class AppQyV1WordGroupLibraryController
 
         $gid = $request->input('gid');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->groupNotFound();
         }
 
-        $libraries = AppQyV1GroupLibraryModel::where('group_id', $group->id)
-            ->with('library:id,name,language,total_words')
-            ->get()
+        $libraries = AppQyV1GroupLibraryModel::forGroupWithLibrary((int) $group->id)
             ->map(function ($gl) {
                 return [
                     'id' => $gl->library->id,

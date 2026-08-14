@@ -4,15 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\GlobalTask;
 use App\Models\GlobalTaskEvent;
+use App\Services\QueueCenter\QueueCenterService;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
-use App\Support\ServerRuntime;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\StreamedEvent;
 use Illuminate\Validation\Rule;
 use App\Traits\ApiResponse;
-use App\Utils\SseStreamResponse;
 
 /**
  * Task Controller
@@ -24,10 +22,12 @@ class TaskController extends Controller
     use ApiResponse;
 
     protected $taskManager;
+    protected QueueCenterService $queueCenter;
 
-    public function __construct(TaskManagerService $taskManager)
+    public function __construct(TaskManagerService $taskManager, QueueCenterService $queueCenter)
     {
         $this->taskManager = $taskManager;
+        $this->queueCenter = $queueCenter;
     }
 
     /**
@@ -39,9 +39,9 @@ class TaskController extends Controller
     {
         $validated = $request->validate([
             'app_name' => 'required|string',
-            // Task type, lane, capability, and priority are all read from the
-            // shared JSON task model used by Pycore, both UIs, and mcp-chrome.
-            'task_type' => ['required', 'string', Rule::in(array_column(QueueCenterContract::taskTypes(), 'key'))],
+            // Task type, lane, capability, and ordering rules come from the
+            // shared JSON model. Audio queues use queue_position, not priority.
+            'task_type' => ['required', 'string', Rule::in(QueueCenterContract::taskTypeKeys())],
             // Accepted only for old callers; TaskManagerService persists the
             // lane from task_type's central definition and ignores this hint.
             'execution_type' => ['nullable', 'string', Rule::in(GlobalTask::executionTypes())],
@@ -105,7 +105,7 @@ class TaskController extends Controller
      */
     public function status(string $taskId): JsonResponse
     {
-        $task = GlobalTask::where('task_id', $taskId)->first();
+        $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -117,22 +117,43 @@ class TaskController extends Controller
     }
 
     /**
-     * Bump a task to the front of the queue ("jump to task-top").
+     * Move a task to the front of its queue ("jump to task-top").
      *
      * POST /api/task/{taskId}/bump   body: { priority?: int (default PRIORITY_FAST) }
      *
-     * 200 + new priority on success; 404 unknown task; 409 if the task is no
-     * longer pending (assigned/processing/terminal cannot be reordered).
+     * Ordering is resolved from the task type's central contract: queue-
+     * position-ordered (audio) tasks ignore any numeric priority and move by
+     * head ticket only; priority-ordered tasks keep the numeric bump.
+     *
+     * 200 + new ordering state on success; 404 unknown task; 409 if the task
+     * is no longer pending (assigned/processing/terminal cannot be reordered).
      * Control-plane endpoint (no auth, same as the rest of this group).
      */
     public function bump(string $taskId, Request $request): JsonResponse
     {
+        $task = GlobalTask::findByTaskId($taskId);
+        if (!$task) {
+            return $this->notFound('Task not found');
+        }
+
+        if (QueueCenterContract::isQueuePositionOrdered((string) $task->task_type)) {
+            $head = $this->queueCenter->moveExistingTaskToHead($taskId);
+            if (($head['status'] ?? null) !== 'moved_to_head') {
+                return $this->error('Task is not pending and cannot be moved to the queue head', 409);
+            }
+            $task = $head['task'] instanceof GlobalTask ? $head['task'] : $task;
+
+            return $this->success([
+                'task_id' => $taskId,
+                'queue_position' => (int) $task->queue_position,
+                'status' => $task->status,
+            ], 'Task moved to queue head');
+        }
+
         $validated = $request->validate([
             'priority' => 'nullable|integer|min:0|max:' . GlobalTask::priority('maximum'),
         ]);
-
         $priority = (int) ($validated['priority'] ?? GlobalTask::priority('fast'));
-
         $outcome = $this->taskManager->bumpTaskPriority($taskId, $priority);
 
         if ($outcome === 'not_found') {
@@ -142,7 +163,7 @@ class TaskController extends Controller
             return $this->error('Task is not pending and cannot be bumped', 409);
         }
 
-        $task = GlobalTask::where('task_id', $taskId)->first();
+        $task = GlobalTask::findByTaskId($taskId);
 
         return $this->success([
             'task_id' => $taskId,
@@ -161,7 +182,7 @@ class TaskController extends Controller
      */
     public function detail(string $taskId): JsonResponse
     {
-        $task = GlobalTask::where('task_id', $taskId)->first();
+        $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -174,8 +195,8 @@ class TaskController extends Controller
     }
 
     /**
-     * Build the canonical detail payload consumed by BOTH the /detail endpoint
-     * and the /stream `task.detail-initial` SSE event, so the UI sees one shape.
+     * Build the canonical detail payload consumed by the detail endpoint and
+     * realtime-triggered refreshes, so the UI sees one shape.
      *
      * @return array<string,mixed>
      */
@@ -184,12 +205,10 @@ class TaskController extends Controller
         // Bound the snapshot to the central event_batch limit (the stream tail
         // uses the same value) so a long-lived task cannot load an unbounded
         // timeline. Fetch newest-first, then reverse for chronological UI order.
-        $events = GlobalTaskEvent::forTask($task->task_id)
-            ->reorder('id', 'desc')
-            ->limit(QueueCenterContract::taskLimit('event_batch'))
-            ->get()
-            ->reverse()
-            ->values()
+        $events = GlobalTaskEvent::recentForTask(
+            $task->task_id,
+            QueueCenterContract::taskLimit('event_batch')
+        )
             ->map(static fn ($event): array => QueueCenterContract::projectTask($event, 'event'))
             ->all();
 
@@ -227,135 +246,6 @@ class TaskController extends Controller
         ], 'detail_bundle');
     }
 
-    // Bounded SSE connection lifetime — see stream(). Kept under Octane's
-    // per-request watchdog so the worker isn't killed mid-stream; the client
-    // reconnects by cursor and resumes with zero gap.
-    private const STREAM_MAX_LIFETIME_SECONDS = 50;
-    private const STREAM_POLL_INTERVAL_MS = 800;
-    private const STREAM_HEARTBEAT_SECONDS = 15;
-    // On the single-worker php -S runtime the SSE generator occupies the ONE
-    // worker for its whole lifetime, starving all other requests. Cap the
-    // lifetime hard there so the worker is released every few seconds; the
-    // client reconnects by cursor (done=false), turning the stream into a
-    // near-short-poll that lets other requests interleave. No effect on Octane.
-    private const STREAM_SINGLE_WORKER_LIFETIME_SECONDS = 3;
-
-    /**
-     * Live per-task detail stream (SSE) for the drilldown modal.
-     *
-     * GET /api/task/{taskId}/stream?cursor=<lastEventId>
-     *
-     * Clones the proven AppQyV1TranslationStreamController eventStream pattern:
-     * tails the EXISTING global_task_events rows (written on every transition) —
-     * no Reverb, no new broadcast layer (BROADCAST_CONNECTION=log here). Emits
-     * `task.detail-initial` (the full /detail payload) on open, then `task.event`
-     * per new transition, `ping` keep-alives, and `stream.close` with the final
-     * cursor. The stream ends when the task reaches a terminal status or the
-     * lifetime cap is hit; the client reconnects by cursor.
-     */
-    public function stream(string $taskId, Request $request)
-    {
-        $validated = $request->validate([
-            'cursor' => 'nullable|integer|min:0',
-        ]);
-
-        $task = GlobalTask::where('task_id', $taskId)->first();
-        if (!$task) {
-            return $this->notFound('Task not found');
-        }
-
-        // cursor absent / 0 -> resume after this task's latest existing event so
-        // a fresh subscriber gets the snapshot + only NEW transitions.
-        $cursor = (int) ($validated['cursor'] ?? 0);
-        if ($cursor <= 0) {
-            $cursor = (int) (GlobalTaskEvent::forTask($taskId)->max('id') ?? 0);
-        }
-
-        // Effective lifetime MUST stay under Octane's per-request watchdog.
-        $maxExec = (int) config('octane.max_execution_time', 30);
-        $maxLifetime = $maxExec > 0
-            ? max(5, min(self::STREAM_MAX_LIFETIME_SECONDS, $maxExec - 5))
-            : self::STREAM_MAX_LIFETIME_SECONDS;
-
-        // Single-worker php -S: hard-cap the hold so the sole worker is freed
-        // frequently and other requests are not starved (client reconnects by
-        // cursor). Overrides the Octane-oriented budget above on this runtime.
-        if (ServerRuntime::isSingleWorker()) {
-            $maxLifetime = self::STREAM_SINGLE_WORKER_LIFETIME_SECONDS;
-        }
-
-        $initial = $this->taskDetailData($task);
-        $terminal = GlobalTask::statuses('terminal');
-
-        // Status captured from the initial snapshot so the generator can
-        // short-circuit when the stream OPENS on an already-terminal task.
-        $initialStatus = $task->status;
-
-        return SseStreamResponse::make(function () use ($taskId, $cursor, $maxLifetime, $initial, $terminal, $initialStatus) {
-            $current = $cursor;
-            $start = microtime(true);
-            $lastBeat = $start;
-
-            // Full snapshot on open so the modal renders instantly without a
-            // separate /detail round-trip.
-            yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('initial'), data: json_encode($initial, JSON_UNESCAPED_UNICODE));
-
-            // Already terminal at open: there will never be more transitions, so
-            // do not idle the full lifetime — emit a terminal close immediately.
-            // done=true tells the consumer NOT to reconnect (SSE close contract).
-            if (in_array($initialStatus, $terminal, true)) {
-                yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('close'), data: json_encode(['cursor' => $current, 'done' => true]));
-                return;
-            }
-
-            while ((microtime(true) - $start) < $maxLifetime) {
-                $events = GlobalTaskEvent::forTask($taskId)
-                    ->where('id', '>', $current)
-                    ->limit(QueueCenterContract::taskLimit('event_batch'))
-                    ->get();
-
-                if ($events->isNotEmpty()) {
-                    foreach ($events as $evt) {
-                        $eventPayload = QueueCenterContract::projectTask($evt, 'event');
-                        // SSE adds only the transport resume cursor; the event
-                        // record itself is the central event wire shape.
-                        $eventPayload['_id'] = $evt->id;
-                        yield new StreamedEvent(
-                            event: QueueCenterContract::taskStreamEvent('transition'),
-                            data: json_encode($eventPayload, JSON_UNESCAPED_UNICODE)
-                        );
-                        $current = $evt->id;
-                    }
-                    $lastBeat = microtime(true);
-
-                    // Close on a real terminal STATUS (not merely a 'failed' event,
-                    // which may be a retry that re-queues the task to pending).
-                    $status = GlobalTask::where('task_id', $taskId)->value('status');
-                    if (in_array($status, $terminal, true)) {
-                        break;
-                    }
-
-                    if ($events->count() >= QueueCenterContract::taskLimit('event_batch')) {
-                        continue;
-                    }
-                } elseif ((microtime(true) - $lastBeat) >= self::STREAM_HEARTBEAT_SECONDS) {
-                    yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('ping'), data: json_encode(['cursor' => $current]));
-                    $lastBeat = microtime(true);
-                }
-
-                usleep(self::STREAM_POLL_INTERVAL_MS * 1000);
-            }
-
-            // SSE close contract: 'done' distinguishes a TERMINAL close (consumer
-            // must NOT reconnect) from a lifetime-cap close on a still-live task
-            // (consumer MUST reconnect from cursor to keep tailing). Read the
-            // task's current status and test it against the terminal set.
-            $closingStatus = GlobalTask::where('task_id', $taskId)->value('status');
-            $done = in_array($closingStatus, $terminal, true);
-            yield new StreamedEvent(event: QueueCenterContract::taskStreamEvent('close'), data: json_encode(['cursor' => $current, 'done' => $done]));
-        });
-    }
-
     /**
      * List tasks with filters
      *
@@ -363,20 +253,6 @@ class TaskController extends Controller
      */
     public function list(Request $request): JsonResponse
     {
-        $query = GlobalTask::query();
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('app_name')) {
-            $query->where('app_name', $request->app_name);
-        }
-
-        if ($request->has('execution_type')) {
-            $query->where('execution_type', $request->execution_type);
-        }
-
         $listLimit = QueueCenterContract::taskLimit('list');
         $limit = QueueCenterContract::taskLimit('list_default');
         if ($request->has('limit')) {
@@ -398,42 +274,15 @@ class TaskController extends Controller
             }
         }
 
-        // Total: on the hot 5s poll, avoid a second full-table count(*) by reading
-        // it from the short-TTL cached status tally for the common filters (none,
-        // or status-only — the only filters the Task Center FE sends). Fall back
-        // to an exact count only for the rarer app_name/execution_type filters.
-        if ($request->has('app_name') || $request->has('execution_type')) {
-            $total = $query->count();
-        } else {
-            $stats = $this->taskManager->getTaskStats();
-            $total = $request->has('status')
-                ? (int) ($stats[$request->status] ?? 0)
-                : (int) ($stats['total'] ?? 0);
-        }
+        $filters = array_filter(
+            $request->only(['status', 'app_name', 'execution_type']),
+            static fn ($value): bool => $value !== null && $value !== ''
+        );
 
-        // Explicit projection: the response below uses only these scalar columns,
-        // so never SELECT * — which would de-TOAST the heavy payload/steps/result
-        // JSON columns for up to `limit` rows on every poll. ORDER BY created_at
-        // DESC is backed by the (status, created_at) / (created_at) indexes.
-        $tasks = $query->select([
-                'task_id', 'app_name', 'task_type', 'execution_type', 'status',
-                'progress', 'assigned_to', 'created_at', 'capability', 'priority',
-                'is_fast_tier',
-            ])
-            ->orderBy('created_at', 'desc')
-            ->skip($offset)
-            ->take($limit)
-            ->get();
-
-        return $this->success([
-            'total' => $total,
-            'count' => $tasks->count(),
-            // The summary projection is also the TaskRow/GlobalTaskItem model in
-            // mcp-chrome and both manager UIs.
-            'tasks' => $tasks->map(
-                static fn ($task): array => QueueCenterContract::projectTask($task, 'summary')
-            ),
-        ], 'Tasks list retrieved successfully');
+        return $this->success(
+            $this->taskManager->getTaskListSnapshot($filters, $limit, $offset),
+            'Tasks list retrieved successfully'
+        );
     }
 
     /**
@@ -482,7 +331,7 @@ class TaskController extends Controller
      */
     public function cleanInvalid(): JsonResponse
     {
-        $deletedCount = GlobalTask::whereNull('payload')->delete();
+        $deletedCount = GlobalTask::deleteInvalidPayloadTasks();
 
         return $this->success([
             'deleted_count' => $deletedCount
@@ -508,13 +357,7 @@ class TaskController extends Controller
             $statuses[] = GlobalTask::status('processing');
         }
 
-        $updatedCount = GlobalTask::whereIn('status', $statuses)
-            ->update([
-                'status' => GlobalTask::status('pending'),
-                'assigned_to' => null,
-                'assigned_at' => null,
-                'timeout_at' => null,
-            ]);
+        $updatedCount = GlobalTask::resetStatusesToPending($statuses);
 
         return $this->success([
             'reset_count' => $updatedCount,

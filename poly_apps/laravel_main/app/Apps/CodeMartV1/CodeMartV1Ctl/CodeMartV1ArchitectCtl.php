@@ -20,9 +20,7 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'developer')
-            ->first();
+        $userRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'developer');
 
         if (!$userRole) {
             return $this->error('Only developers can apply for architect role');
@@ -32,7 +30,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('You are already an architect');
         }
 
-        $stats = CodeMartV1DeveloperStatsModel::where('user_id', $user->id)->first();
+        $stats = CodeMartV1DeveloperStatsModel::forUser((int) $user->id);
 
         if (!$stats) {
             return $this->error('No developer statistics found');
@@ -70,9 +68,7 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_type', 'developer')
-            ->first();
+        $userRole = CodeMartV1UserRoleModel::forUserAndType((int) $user->id, 'developer');
 
         if (!$userRole) {
             return $this->error('Only developers can apply for architect role');
@@ -82,7 +78,7 @@ class CodeMartV1ArchitectCtl extends Controller
             return $this->error('You are already an architect');
         }
 
-        $stats = CodeMartV1DeveloperStatsModel::where('user_id', $user->id)->first();
+        $stats = CodeMartV1DeveloperStatsModel::forUser((int) $user->id);
 
         if (!$stats ||
             $stats->completed_projects < 10 ||
@@ -93,7 +89,7 @@ class CodeMartV1ArchitectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $userRole->update(['role_status' => 'architect_pending']);
+        $userRole->updateRecord(['role_status' => 'architect_pending']);
 
         CodeMartV1ProjectModel::commitModelTransaction();
 
@@ -108,9 +104,7 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_status', 'architect')
-            ->first();
+        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect');
 
         if (!$userRole) {
             return $this->forbidden('Only architects can access this endpoint');
@@ -129,9 +123,7 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_status', 'architect')
-            ->first();
+        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect');
 
         if (!$userRole) {
             return $this->forbidden('Only architects can accept projects');
@@ -149,18 +141,13 @@ class CodeMartV1ArchitectCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)
-            ->where('role_status', 'architect_pending')
-            ->first();
+        $userRole = CodeMartV1UserRoleModel::forUserAndStatus((int) $user->id, 'architect_pending');
 
         if (!$userRole) {
             return $this->error('No pending architect application found');
         }
 
-        $architectDeposit = CodeMartV1DepositModel::where('user_id', $user->id)
-            ->where('role_type', 'architect')
-            ->where('status', 'paid')
-            ->sum('amount');
+        $architectDeposit = CodeMartV1DepositModel::paidAmountForUser((int) $user->id, 'architect');
 
         if ($architectDeposit < 10000) {
             return $this->error('Insufficient architect deposit. Required: 10000, Current: ' . $architectDeposit);
@@ -168,7 +155,7 @@ class CodeMartV1ArchitectCtl extends Controller
 
         CodeMartV1ProjectModel::beginModelTransaction();
 
-        $userRole->update(['role_status' => 'architect']);
+        $userRole->updateRecord(['role_status' => 'architect']);
 
         CodeMartV1ProjectModel::commitModelTransaction();
 

@@ -5,10 +5,7 @@ namespace App\Apps\AppQyV1\Utils;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Vocabulary importer - Wave A consolidated shape.
@@ -215,23 +212,19 @@ class AppQyV1VocabularyImporter
             $ensuredCount = 0;
             $appended = 0;
 
-            DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($collectionName, $langCode, $langName, $sourceType, $ownerId, $isPublic, $description, $source, $words, &$library, &$ensuredCount, &$appended) {
+            AppQyV1VocabularyLibraryModel::runInTransaction(function () use ($collectionName, $langCode, $langName, $sourceType, $ownerId, $isPublic, $description, $source, $words, &$library, &$ensuredCount, &$appended) {
                 // Upsert by canonical source first. As a safety net for legacy
                 // rows created before the NOT-NULL backfill (source NULL/blank),
                 // also adopt a same name+language row so the importer REUSES and
                 // populates it instead of inserting a second one. Whichever row is
                 // adopted gets its source normalized to the canonical key.
-                $library = AppQyV1VocabularyLibraryModel::where('source', $source)->first();
+                $library = AppQyV1VocabularyLibraryModel::findBySource($source);
 
                 if (!$library) {
-                    $library = AppQyV1VocabularyLibraryModel::query()
-                        ->where('language', $langName)
-                        ->where('name', $collectionName)
-                        ->where(function ($q) {
-                            $q->whereNull('source')->orWhere('source', '');
-                        })
-                        ->orderBy('id')
-                        ->first();
+                    $library = AppQyV1VocabularyLibraryModel::findLegacyWithoutSource(
+                        $langName,
+                        $collectionName
+                    );
                     if ($library) {
                         $library->source = $source;
                     }
@@ -249,7 +242,7 @@ class AppQyV1VocabularyImporter
                         'category' => 'general',
                         'word_ids' => [],
                     ]);
-                    $library->save();
+                    $library->saveRecord();
                 } elseif ($description !== null && $library->description === null) {
                     $library->description = $description;
                 }
@@ -273,7 +266,7 @@ class AppQyV1VocabularyImporter
 
                 $library->word_ids = $wordIds;
                 $library->total_words = count($wordIds);
-                $library->save();
+                $library->saveRecord();
             });
 
             return [
@@ -316,8 +309,8 @@ class AppQyV1VocabularyImporter
 
             $langCode = strtolower($langCode);
 
-            DB::connection(AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1))->transaction(function () use ($collectionId, $langCode, $words, &$added, &$skipped, &$ensuredCount) {
-                $library = AppQyV1VocabularyLibraryModel::find($collectionId);
+            AppQyV1VocabularyLibraryModel::runInTransaction(function () use ($collectionId, $langCode, $words, &$added, &$skipped, &$ensuredCount) {
+                $library = AppQyV1VocabularyLibraryModel::findById($collectionId);
                 if (!$library) {
                     throw new \RuntimeException('Library not found: ' . $collectionId);
                 }
@@ -345,7 +338,7 @@ class AppQyV1VocabularyImporter
                 if ($added > 0) {
                     $library->word_ids = $wordIds;
                     $library->total_words = count($wordIds);
-                    $library->save();
+                    $library->saveRecord();
                 }
             });
 
@@ -404,21 +397,14 @@ class AppQyV1VocabularyImporter
             return [];
         }
 
-        $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
         $table = AppQyV1TableMaps::getDictionaryTableName($langCode);
-        $conn = $model->getConnection();
 
         $md5List = [];
         foreach ($words as $word) {
             $md5List[] = md5($word);
         }
 
-        $md5ToId = [];
-        foreach (array_chunk($md5List, 1000) as $chunk) {
-            foreach ($conn->table($table)->whereIn('md5', $chunk)->get(['id', 'md5']) as $row) {
-                $md5ToId[$row->md5] = (int) $row->id;
-            }
-        }
+        $md5ToId = AppQyV1LangDictionaryModel::idMapByHashes($langCode, $md5List);
 
         $ids = [];
         foreach ($md5List as $md5) {
@@ -437,10 +423,6 @@ class AppQyV1VocabularyImporter
     {
         // Unified: ensure missing words exist in the canonical
         // tts_cache_{lang} table (single source of truth), keyed by md5(content).
-        $model = AppQyV1LangDictionaryModel::forLanguage($langCode);
-        $table = AppQyV1TableMaps::getDictionaryTableName($langCode);
-        $conn = $model->getConnection();
-
         $byMd5 = [];
         foreach ($words as $word) {
             $byMd5[md5($word)] = $word;
@@ -450,12 +432,7 @@ class AppQyV1VocabularyImporter
             return 0;
         }
 
-        $existing = [];
-        foreach (array_chunk(array_keys($byMd5), 1000) as $chunk) {
-            foreach ($conn->table($table)->whereIn('md5', $chunk)->pluck('md5') as $md5) {
-                $existing[] = $md5;
-            }
-        }
+        $existing = AppQyV1LangDictionaryModel::existingHashes($langCode, array_keys($byMd5));
 
         $missingMd5 = array_diff(array_keys($byMd5), $existing);
         if (empty($missingMd5)) {
@@ -476,11 +453,7 @@ class AppQyV1VocabularyImporter
             ];
         }
 
-        $inserted = 0;
-        foreach (array_chunk($rows, 500) as $chunk) {
-            $conn->table($table)->insert($chunk);
-            $inserted += count($chunk);
-        }
+        $inserted = AppQyV1LangDictionaryModel::insertRows($langCode, $rows);
 
         // New rows change the dictionary count -> invalidate cached metrics.
         if ($inserted > 0) {
@@ -511,15 +484,6 @@ class AppQyV1VocabularyImporter
      */
     public function getImportedCollections(?string $langCode = null): array
     {
-        $query = AppQyV1VocabularyLibraryModel::whereNull('owner_user_id');
-
-        if ($langCode) {
-            $langName = AppQyV1VocabularyLibraryModel::languageCodeToName($langCode);
-            if ($langName !== null) {
-                $query->where('language', $langName);
-            }
-        }
-
-        return $query->orderBy('name')->get()->toArray();
+        return AppQyV1VocabularyLibraryModel::systemImportedRows($langCode);
     }
 }

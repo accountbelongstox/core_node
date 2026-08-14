@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Geolocation } from '@capacitor/geolocation';
 import { LocateFixed, Loader2, MessageSquare, UserPlus } from 'lucide-react';
-import { mediaUrl } from '../../../../config/constants';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { wfNewApi, type WfNewNearbyUser } from '../../api';
 
 interface WfNewSocialNearbyProps {

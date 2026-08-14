@@ -8,22 +8,10 @@ import {
   colorText,
   registerWithElevatedPermissions,
   ensureExecutionPermissions,
+  hasElevatedPermissions,
+  writeNodePath,
 } from './scripts/utils';
 import { BrowserType, parseBrowserType, detectInstalledBrowsers } from './scripts/browser-config';
-
-// Import writeNodePath from postinstall
-async function writeNodePath(): Promise<void> {
-  try {
-    const nodePath = process.execPath;
-    const nodePathFile = path.join(__dirname, 'node_path.txt');
-
-    console.log(colorText(`Writing Node.js path: ${nodePath}`, 'blue'));
-    fs.writeFileSync(nodePathFile, nodePath, 'utf8');
-    console.log(colorText('[OK] Node.js path written for run_host scripts', 'green'));
-  } catch (error: any) {
-    console.warn(colorText(`[WARNING] Failed to write Node.js path: ${error.message}`, 'yellow'));
-  }
-}
 
 program
   .version(require('../package.json').version)
@@ -79,25 +67,8 @@ program
       }
       // If neither option specified, tryRegisterUserLevelHost will detect browsers
 
-      // Detect if running with root/administrator privileges
-      const isRoot = process.getuid && process.getuid() === 0; // Unix/Linux/Mac
-
-      let isAdmin = false;
-      if (process.platform === 'win32') {
-        try {
-          isAdmin = require('is-admin')(); // Windows requires additional package
-        } catch (error) {
-          console.warn(
-            colorText('Warning: Unable to detect administrator privileges on Windows', 'yellow'),
-          );
-          isAdmin = false;
-        }
-      }
-
-      const hasElevatedPermissions = isRoot || isAdmin;
-
       // If --system option is specified or running with root/administrator privileges
-      if (options.system || hasElevatedPermissions) {
+      if (options.system || hasElevatedPermissions()) {
         // Chrome-family flow stays the default; Firefox is included when explicitly targeted
         await registerWithElevatedPermissions(targetBrowsers);
         console.log(

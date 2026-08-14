@@ -131,6 +131,7 @@ class AppQyV1VocabularyValidityController extends Controller
         $notFound = 0;
         $invalidMarked = 0;
         $validMarked = 0;
+        $validityResults = [];
 
         foreach ($validated['results'] as $result) {
             $md5 = null;
@@ -157,7 +158,12 @@ class AppQyV1VocabularyValidityController extends Controller
                 $note = $result['note'];
             }
 
-            $didUpdate = AppQyV1LangDictionaryModel::markValidity($languageCode, $md5, $isValid, $source, $note);
+            $validityResults[] = [
+                'md5' => $md5,
+                'is_valid' => $isValid,
+                'source' => $source,
+                'note' => $note,
+            ];
 
             // Independent of validity write above: a VALID result may also carry a
             // translation. Collect it (needs the raw word — apply keys entries by
@@ -171,17 +177,13 @@ class AppQyV1VocabularyValidityController extends Controller
                 ];
             }
 
-            if ($didUpdate) {
-                $updated++;
-                if ($isValid) {
-                    $validMarked++;
-                } else {
-                    $invalidMarked++;
-                }
-            } else {
-                $notFound++;
-            }
         }
+
+        $validityOutcome = AppQyV1LangDictionaryModel::markValidities($languageCode, $validityResults);
+        $updated = $validityOutcome['updated'];
+        $validMarked = $validityOutcome['valid'];
+        $invalidMarked = $validityOutcome['invalid'];
+        $notFound += count($validityResults) - $updated;
 
         // Batch-write the collected translations through the CANONICAL writer so the
         // exact dual-write is reused (translations[targetCode] + word_translation

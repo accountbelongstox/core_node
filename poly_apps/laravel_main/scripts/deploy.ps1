@@ -717,9 +717,11 @@ function Invoke-Up20251215InstallReverb {
             Add-Content -Path $envFile -Value "REVERB_APP_ID=task-system"
             Add-Content -Path $envFile -Value "REVERB_APP_KEY=reverb-key-$timestamp"
             Add-Content -Path $envFile -Value "REVERB_APP_SECRET=reverb-secret-$timestamp"
-            Add-Content -Path $envFile -Value "REVERB_HOST=0.0.0.0"
+            Add-Content -Path $envFile -Value "REVERB_HOST=127.0.0.1"
             Add-Content -Path $envFile -Value "REVERB_PORT=8080"
             Add-Content -Path $envFile -Value "REVERB_SCHEME=http"
+            Add-Content -Path $envFile -Value "REVERB_SERVER_HOST=0.0.0.0"
+            Add-Content -Path $envFile -Value "REVERB_SERVER_PORT=8080"
             Write-Success "[UP] OK Added Reverb configuration to .env"
         } else {
             Write-Info "[UP] Reverb env variables already configured"

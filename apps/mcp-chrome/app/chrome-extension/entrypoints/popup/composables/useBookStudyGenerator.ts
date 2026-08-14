@@ -29,6 +29,7 @@ import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { logger } from '@/utils/logger';
 import { getMessage } from '@/utils/i18n';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { delay as waitForDelay } from '@/utils/async';
 import {
   PROVIDER_MESSAGE_TYPE,
   PROVIDER_LABELS,
@@ -406,7 +407,7 @@ export function useBookStudyGenerator() {
   const pollProviderJob = async (job: ActiveJob): Promise<string> => {
     let polls = 0;
     while (polls < MAX_POLLS) {
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+      await waitForDelay(POLL_INTERVAL_MS);
       polls++;
       if (activeJob.value?.jobId !== job.jobId) throw new Error('superseded');
       const s = await sendTo(job.provider, { action: 'status', jobId: job.jobId });

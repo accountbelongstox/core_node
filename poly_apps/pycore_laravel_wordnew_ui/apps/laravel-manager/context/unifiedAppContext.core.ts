@@ -16,8 +16,6 @@ import { UnifiedUser, UserPreferences } from '../types';
 export interface UnifiedAppState {
   // App State
   activeView: ViewType;
-  lang: Language;
-  theme: Theme;
 
   // UnifiedUser State
   UnifiedUser: UnifiedUser | null;

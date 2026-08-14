@@ -24,7 +24,7 @@ class AppQyV1ArticleSentenceAudioService
 
     public function enqueueArticle(
         AppQyV1Article $article,
-        bool $interactive = false,
+        bool $moveToHead = false,
         string $scope = 'agent_history',
         bool $forceMissing = false
     ): array
@@ -78,10 +78,9 @@ class AppQyV1ArticleSentenceAudioService
             QueueCenterService::QUEUE_SENTENCE_AUDIO,
             $payload,
             $dedupKey,
-            $interactive,
+            $moveToHead,
             true,
             [],
-            null,
             300
         );
         $taskId = $result['task_id'] ?? null;
@@ -91,7 +90,7 @@ class AppQyV1ArticleSentenceAudioService
         $metadata['audio_task_id'] = $taskId;
         $article->metadata = $metadata;
         $article->tts_generated = false;
-        $article->save();
+        $article->saveRecord();
 
         return [
             'ok' => true,
@@ -105,7 +104,7 @@ class AppQyV1ArticleSentenceAudioService
     public function enqueueLibraryArticle(
         AppQyV1ArticleLibraryModel $article,
         string $language,
-        bool $interactive = false
+        bool $moveToHead = false
     ): array {
         $language = $this->normalizeLanguage($language);
         $content = trim((string) $article->content);
@@ -133,16 +132,15 @@ class AppQyV1ArticleSentenceAudioService
             QueueCenterService::QUEUE_SENTENCE_AUDIO,
             $payload,
             $dedupKey,
-            $interactive,
+            $moveToHead,
             true,
             [],
-            null,
             300
         );
         $article->tts_status = AppQyV1DictionaryTTSCoordinator::STATUS_PENDING;
         $article->tts_requested_at = $article->tts_requested_at ?: now();
         $article->tts_global_task_id = $result['task_id'] ?? null;
-        $article->save();
+        $article->saveRecord();
 
         return ['ok' => true, 'created' => (bool) ($result['created'] ?? false)];
     }
@@ -156,7 +154,7 @@ class AppQyV1ArticleSentenceAudioService
             return null;
         }
 
-        $article = AppQyV1Article::query()->where('article_id', $articleId)->first();
+        $article = AppQyV1Article::findByArticleId($articleId);
         if (!$article) {
             return null;
         }
@@ -175,7 +173,7 @@ class AppQyV1ArticleSentenceAudioService
             return false;
         }
 
-        $article = AppQyV1Article::query()->where('article_id', $articleId)->first();
+        $article = AppQyV1Article::findByArticleId($articleId);
         if (!$article) {
             return false;
         }
@@ -192,7 +190,7 @@ class AppQyV1ArticleSentenceAudioService
         $metadata['audio_bytes'] = strlen($bytes);
         $article->metadata = $metadata;
         $article->tts_generated = true;
-        $article->save();
+        $article->saveRecord();
 
         AppQyV1TranslationEventModel::emit('article.audio.ready', [
             'article_id' => $articleId,

@@ -31,6 +31,7 @@ from __future__ import annotations
 import json
 import os
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -147,6 +148,10 @@ def _record_usage(
     source: str = "",
     error: Optional[str] = None,
     runtime: str = RUNTIME,
+    error_code: str = "",
+    provider_reached: Optional[bool] = None,
+    quota_counted: Optional[bool] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Append one usage record (text / vision / probe) to the shared store.
 
@@ -160,6 +165,7 @@ def _record_usage(
     provider = (provider or "").strip()
     ts = time.time()
     entry = {
+        "id": uuid.uuid4().hex,
         "ts": ts,
         "iso": datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds"),
         "runtime": runtime or RUNTIME,
@@ -170,6 +176,10 @@ def _record_usage(
         "success": bool(success),
         "latency_ms": latency_ms,
         "error": error,
+        "error_code": error_code or None,
+        "provider_reached": provider_reached,
+        "quota_counted": quota_counted,
+        "context": dict(context or {}),
     }
     doc = _load()
     entries = doc.get("entries") or []
@@ -265,6 +275,10 @@ def record_usage(
     source: str = "",
     error: Optional[str] = None,
     runtime: str = RUNTIME,
+    error_code: str = "",
+    provider_reached: Optional[bool] = None,
+    quota_counted: Optional[bool] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> None:
     call_serialized(
         _WORK_QUEUE,
@@ -277,6 +291,10 @@ def record_usage(
         source,
         error,
         runtime,
+        error_code,
+        provider_reached,
+        quota_counted,
+        context,
     )
 
 

@@ -64,9 +64,9 @@ class AppQyV1WordGroupQueryPublicController
         if ($success == true) {
             $uid = Auth::id();
             if ($queryByGname) {
-                $existGroup = AppQyV1WordGroupModel::where('gname', $gcredential)->where('uid', $uid)->first();
+                $existGroup = AppQyV1WordGroupModel::findOwnedByName((int) $uid, $gcredential);
             } else {
-                $existGroup = AppQyV1WordGroupModel::where('gid', $gcredential)->where('uid', $uid)->first();
+                $existGroup = AppQyV1WordGroupModel::findOwnedByGid((int) $uid, $gcredential);
             }
             if (!$existGroup && $queryByGname == true) {
                 $newGid = Str::uuid()->toString();
@@ -248,7 +248,7 @@ class AppQyV1WordGroupQueryPublicController
             $gname = StrTool::genGnameByTimeAndUUID();
             $existGroup->gname = $gname;
         }
-        $existGroup->save();
+        $existGroup->saveRecord();
         // Merged group total: gwords JSON words + the group_word_progress
         // row's total_words cache - disjoint sources, both count.
         $groupWordsPivotCount = $existGroup->pivotWordsCount();
@@ -302,4 +302,3 @@ class AppQyV1WordGroupQueryPublicController
     }
 
 }
-

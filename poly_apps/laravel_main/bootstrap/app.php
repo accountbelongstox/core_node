@@ -33,7 +33,6 @@ return Application::configure(basePath: dirname(__DIR__))
         api: __DIR__.'/../routes/api.php',
         apiPrefix: 'api',
         commands: __DIR__.'/../routes/console.php',
-        channels: __DIR__.'/../routes/channels.php',
         health: '/up',
         // Middleware-free extra routes: the /static/* bare-Octane fallback
         // (production nginx intercepts /static before Laravel sees it).
@@ -46,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
             // bearer token) guards the protected ones.
             require __DIR__.'/../routes/PddToolV1Router/PddToolV1Root.php';
         },
+    )
+    ->withBroadcasting(
+        __DIR__.'/../routes/channels.php',
+        ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
     )
     ->withProviders([
         \App\Providers\AppServiceProvider::class,

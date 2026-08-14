@@ -3,7 +3,7 @@
  *
  * A small, framework-agnostic, bounded store that tracks the lifecycle of
  * unified tasks the popup has observed — keyed by task_id, carrying the
- * task_type / capability / priority and an append-only `timeline` of status
+ * task type, capability, contract ordering value, and an append-only `timeline` of status
  * transitions. It is fed by the per-task SSE stream
  * (GET /api/task/{id}/stream) via `updateFromSSE(frame)` and read by
  * UnifiedTaskCenter.vue + TaskDetailModal.vue.
@@ -20,6 +20,7 @@ import {
   TASK_LIMITS,
   TASK_STATUS_BY_ROLE,
   TASK_STREAM_EVENT_BY_ROLE,
+  isQueuePositionOrderedTask,
   type TaskStatus,
   type WorkerCapability,
 } from '@/utils/queue-center-contract';
@@ -40,6 +41,7 @@ export interface TaskHistoryRecord {
   task_id: string;
   task_type: string | null;
   capability: WorkerCapability | string | null;
+  queue_position: number | null;
   priority: number | null;
   status: TaskTimelineEvent | string;
   is_fast_tier: boolean;
@@ -62,6 +64,7 @@ export interface TaskSSEFrame {
     task_id?: string;
     task_type?: string | null;
     capability?: WorkerCapability | string | null;
+    queue_position?: number | null;
     priority?: number | null;
     is_fast_tier?: boolean;
     status?: string;
@@ -114,7 +117,7 @@ class TaskHistoryStore {
 
   /**
    * Fold an SSE frame into the store. Handles both the initial detail bundle
-   * (which establishes task_type/capability/priority) and incremental
+   * (which establishes task type, capability, and ordering value) and incremental
    * task.event transitions (which advance status + append to the timeline).
    * `ping` / `stream.close` frames carry no task data and are ignored.
    */
@@ -143,6 +146,7 @@ class TaskHistoryStore {
       task_id: taskId,
       task_type: null,
       capability: null,
+      queue_position: null,
       priority: null,
       status: TASK_STATUS_BY_ROLE.pending,
       is_fast_tier: false,
@@ -153,8 +157,15 @@ class TaskHistoryStore {
     // Establish/refresh descriptive fields when the frame supplies them.
     if (data.task_type !== undefined && data.task_type !== null) record.task_type = data.task_type;
     if (data.capability !== undefined) record.capability = data.capability;
+    if (data.queue_position !== undefined && data.queue_position !== null) {
+      record.queue_position = data.queue_position;
+    }
     if (data.priority !== undefined && data.priority !== null) record.priority = data.priority;
     if (data.is_fast_tier !== undefined) record.is_fast_tier = !!data.is_fast_tier;
+    if (isQueuePositionOrderedTask(record.task_type)) {
+      record.priority = null;
+      record.is_fast_tier = false;
+    }
 
     if (transition) {
       record.status = transition;

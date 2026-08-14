@@ -2,7 +2,7 @@
 """
 Shared TTS worker concurrency recommendation and clamping.
 
-Maps an engine's concurrency CLASS (tts_orchestrator._ENGINE_CONCURRENCY) to a
+Maps an engine's concurrency class from the canonical TTS adapter registry to a
 hardware-derived recommended worker fan-out, and resolves the EFFECTIVE
 concurrency from an optional user override:
 

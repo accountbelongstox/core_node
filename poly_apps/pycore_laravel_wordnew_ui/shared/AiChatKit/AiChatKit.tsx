@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Send, Loader2, Trash2, Bot, User } from 'lucide-react';
-import { AiChatAdapter, AiChatMessage, AiChatProvider } from '../../shell/shellTypes';
+import type { AiChatAdapter, AiChatProvider, AiChatUiMessage } from '../../core/contracts/ai';
 import { AICHAT_HISTORY_EVENT, loadHistory, saveHistory } from './aiChatHistory';
 
 interface AiChatKitProps {
@@ -20,7 +20,7 @@ interface AiChatKitProps {
 }
 
 export const AiChatKit: React.FC<AiChatKitProps> = ({ adapter, className }) => {
-  const [messages, setMessages] = useState<AiChatMessage[]>(() => loadHistory(adapter.id));
+  const [messages, setMessages] = useState<AiChatUiMessage[]>(() => loadHistory(adapter.id));
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export const AiChatKit: React.FC<AiChatKitProps> = ({ adapter, className }) => {
   // Pick up probe/log lines appended from other pages while chat is open.
   useEffect(() => {
     const onHistoryUpdate = (e: Event) => {
-      const detail = (e as CustomEvent<{ adapterId?: string; messages?: AiChatMessage[] }>).detail;
+      const detail = (e as CustomEvent<{ adapterId?: string; messages?: AiChatUiMessage[] }>).detail;
       if (detail?.adapterId === adapter.id && Array.isArray(detail.messages)) {
         setMessages(detail.messages);
       }
@@ -70,7 +70,7 @@ export const AiChatKit: React.FC<AiChatKitProps> = ({ adapter, className }) => {
     const text = input.trim();
     if (!text || sending) return;
     setError(null);
-    const next: AiChatMessage[] = [...messages, { role: 'user', content: text }];
+    const next: AiChatUiMessage[] = [...messages, { role: 'user', content: text }];
     setMessages(next);
     setInput('');
     setSending(true);

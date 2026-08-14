@@ -7,6 +7,8 @@
 - Each script self-locates its own dir, then walks up to `$RootDir`.
 - Step scripts (`index_name.sh` / `Step{Index}_*.ps1`) are dependency-ordered and idempotent (restore/repair/install in one run); detect installs by binary existence (not command/winget output); PATH/env repair runs in its own branch.
 - Add an env/app by registering it by type in the globals (bash `LGar.sh`; PowerShell `GlobalVars.ps1` `BasePackages`/`APPLICATIONS_PACKAGES`/`DEV_SOFTWARE_PACKAGES`) plus a new step.
+- Pi/OMP installers independently detect and repair each missing prerequisite or binary; they install Bun before OMP's JavaScript worker and Pi through absolute-path pnpm. Provider profiles are launcher-owned, not installer-created.
+- Pi launchers mirror `codexyolo` style without changing it: common `piyolo` owns configuration and launch logic; `pikimiyolo`, `piclaodecode`, and `picodex` only select a provider. Each launcher uses shared `programing/Users` constants, sets `PI_CODING_AGENT_DIR`, and idempotently merges its isolated settings through the shared absolute-path Node helper. Kimi profiles reuse a local Kimi `config.toml` key without exposing it and never replace an existing Pi OAuth credential.
 
 ## Debian (`dd.sh`)
 - `LGar.sh` holds top-level constants, sourced first by every sub-script; `dd.sh` and `gvar_common.sh` source no third-party file (only invoke them) — prefer `LGar.sh` constants.

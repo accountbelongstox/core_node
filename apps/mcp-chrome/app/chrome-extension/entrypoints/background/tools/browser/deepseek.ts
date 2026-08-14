@@ -3,10 +3,11 @@
  * Tools for automated interaction with DeepSeek Chat
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ERROR_MESSAGES } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
 import {
   getTaskQueueManager,
   TaskStatus,
@@ -49,7 +50,7 @@ async function waitForTaskCompletion(
     }
 
     // Wait 1 second before checking again
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await waitForDelay(1000);
   }
 
   throw new Error('Task completion timeout');
@@ -125,7 +126,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       await taskManager.updateTask(task.id, { tabId: tab.id });
 
       // Wait for page to load
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await waitForDelay(3000);
 
       // Update status to sending
       await taskManager.updateTask(task.id, { status: TaskStatus.SENDING });
@@ -184,7 +185,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
             input.dispatchEvent(new Event('change', { bubbles: true }));
 
             // Let the framework react (enable the send button) before sending.
-            await new Promise((r) => setTimeout(r, 200));
+            await waitForDelay(200);
 
             const sendBtn: any = pick(
               [
@@ -248,47 +249,31 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         if (waitForCompletion) {
           const completedTask = await waitForTaskCompletion(task.id, timeout);
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  taskId: completedTask.id,
-                  status: completedTask.status,
-                  conversationUrl: completedTask.conversationId,
-                  result: completedTask.result,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            taskId: completedTask.id,
+            status: completedTask.status,
+            conversationUrl: completedTask.conversationId,
+            result: completedTask.result,
+          });
         }
 
         // Return task ID immediately
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                taskId: task.id,
-                status: task.status,
-                conversationUrl,
-              }),
-            },
-          ],
-          isError: false,
-        };
+        return createJsonResponse({
+          taskId: task.id,
+          status: task.status,
+          conversationUrl,
+        });
       } catch (error) {
         await taskManager.updateTask(task.id, {
           status: TaskStatus.FAILED,
-          error: error instanceof Error ? error.message : String(error),
+          error: toErrorMessage(error),
         });
         throw error;
       }
     } catch (error) {
       console.error('Error in deepseek_send_prompt:', error);
       return createErrorResponse(
-        `Failed to send prompt: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to send prompt: ${toErrorMessage(error)}`
       );
     }
   }
@@ -318,19 +303,11 @@ class DeepSeekGetTaskStatusTool extends BaseBrowserToolExecutor {
         return createErrorResponse(`Task ${taskId} not found`);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ task }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({ task });
     } catch (error) {
       console.error('Error in deepseek_get_task_status:', error);
       return createErrorResponse(
-        `Failed to get task status: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to get task status: ${toErrorMessage(error)}`
       );
     }
   }
@@ -369,24 +346,16 @@ class DeepSeekGetResultTool extends BaseBrowserToolExecutor {
         task = await waitForTaskCompletion(taskId, timeout);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              taskId: task.id,
-              status: task.status,
-              result: task.result,
-              error: task.error,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        taskId: task.id,
+        status: task.status,
+        result: task.result,
+        error: task.error,
+      });
     } catch (error) {
       console.error('Error in deepseek_get_result:', error);
       return createErrorResponse(
-        `Failed to get result: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to get result: ${toErrorMessage(error)}`
       );
     }
   }
@@ -416,19 +385,11 @@ class DeepSeekListTasksTool extends BaseBrowserToolExecutor {
 
       const result = await taskManager.listTasks(filter);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result);
     } catch (error) {
       console.error('Error in deepseek_list_tasks:', error);
       return createErrorResponse(
-        `Failed to list tasks: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to list tasks: ${toErrorMessage(error)}`
       );
     }
   }
@@ -468,23 +429,15 @@ class DeepSeekCancelTaskTool extends BaseBrowserToolExecutor {
 
       const updatedTask = await taskManager.getTask(taskId);
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              taskId,
-              status: updatedTask?.status,
-              cancelled: updatedTask?.status === TaskStatus.CANCELLED,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        taskId,
+        status: updatedTask?.status,
+        cancelled: updatedTask?.status === TaskStatus.CANCELLED,
+      });
     } catch (error) {
       console.error('Error in deepseek_cancel_task:', error);
       return createErrorResponse(
-        `Failed to cancel task: ${error instanceof Error ? error.message : String(error)}`
+        `Failed to cancel task: ${toErrorMessage(error)}`
       );
     }
   }

@@ -6,6 +6,7 @@
 
 import { loadHnswlib } from 'hnswlib-wasm-static';
 import type { TextChunk } from './text-chunker';
+import { AsyncOperationController, InitializationController } from './async';
 
 export interface VectorDocument {
   id: string;
@@ -35,8 +36,7 @@ export interface VectorDatabaseConfig {
 }
 
 let globalHnswlib: any = null;
-let globalHnswlibInitPromise: Promise<any> | null = null;
-let globalHnswlibInitialized = false;
+const globalHnswlibInitialization = new InitializationController<any>();
 
 // Serializes concurrent syncFileSystem calls into a chain so that no sync
 // (especially a 'write') is silently dropped when another is in flight.
@@ -82,27 +82,24 @@ async function syncFileSystemWithTimeout(
  * IndexedDB helper functions
  */
 class IndexedDBHelper {
-  private static dbPromise: Promise<IDBDatabase> | null = null;
+  private static readonly initialization = new InitializationController<IDBDatabase>();
 
   static async getDB(): Promise<IDBDatabase> {
-    if (!this.dbPromise) {
-      this.dbPromise = new Promise((resolve, reject) => {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
+    return this.initialization.run(() => new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
 
-        request.onupgradeneeded = (event) => {
-          const db = (event.target as IDBOpenDBRequest).result;
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
 
-          if (!db.objectStoreNames.contains(STORE_NAME)) {
-            const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-            store.createIndex('indexFileName', 'indexFileName', { unique: false });
-          }
-        };
-      });
-    }
-    return this.dbPromise;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          store.createIndex('indexFileName', 'indexFileName', { unique: false });
+        }
+      };
+    }));
   }
 
   static async saveData(indexFileName: string, data: any): Promise<void> {
@@ -200,36 +197,23 @@ class IndexedDBHelper {
  * Ensures initialization only once across the entire application
  */
 async function initializeGlobalHnswlib(): Promise<any> {
-  if (globalHnswlibInitialized && globalHnswlib) {
-    return globalHnswlib;
-  }
-
-  if (globalHnswlibInitPromise) {
-    return globalHnswlibInitPromise;
-  }
-
-  globalHnswlibInitPromise = (async () => {
+  return globalHnswlibInitialization.run(async () => {
     try {
       console.log('VectorDatabase: Initializing global hnswlib-wasm instance...');
       globalHnswlib = await loadHnswlib();
-      globalHnswlibInitialized = true;
       console.log('VectorDatabase: Global hnswlib-wasm instance initialized successfully');
       return globalHnswlib;
     } catch (error) {
       console.error('VectorDatabase: Failed to initialize global hnswlib-wasm:', error);
-      globalHnswlibInitPromise = null;
       throw error;
     }
-  })();
-
-  return globalHnswlibInitPromise;
+  });
 }
 
 export class VectorDatabase {
   private index: any = null;
   private isInitialized = false;
-  private isInitializing = false;
-  private initPromise: Promise<void> | null = null;
+  private readonly initialization = new AsyncOperationController<void>();
 
   private documents = new Map<number, VectorDocument>();
   private tabDocuments = new Map<number, Set<number>>();
@@ -265,14 +249,7 @@ export class VectorDatabase {
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitialize().finally(() => {
-      this.isInitializing = false;
-    });
-
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitialize());
   }
 
   private async _doInitialize(): Promise<void> {

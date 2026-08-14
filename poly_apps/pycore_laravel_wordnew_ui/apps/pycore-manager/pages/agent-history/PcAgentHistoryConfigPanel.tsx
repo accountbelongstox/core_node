@@ -7,7 +7,7 @@ import {
 import PcAgentHistoryLogPanel from './PcAgentHistoryLogPanel';
 import PcAgentHistoryAiPanel from './PcAgentHistoryAiPanel';
 import PcAgentHistoryToolCheckboxes from './PcAgentHistoryToolCheckboxes';
-import { AGENT_HISTORY_TOOLS } from '../../../../components/views/dev-history/shared';
+import { AGENT_HISTORY_TOOLS } from './presentation';
 import type { AgentHistoryTaskPeriod } from '../../persistence/AgentHistoryUiStateStore';
 
 const REFERENCE_LANGUAGE = 'CN';
@@ -40,6 +40,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
 }) => {
   const {
     articleConfig: articleCfg,
+    articleSummary,
     operationSnapshot,
     configError,
     authoritative,
@@ -237,7 +238,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
         />
         {articleCfg && (
           <div className="text-[11px] font-mono text-slate-500">
-            {tk('publishedArticles')}: {Array.isArray((articleCfg as any).published) ? (articleCfg as any).published.length : 0}
+            {tk('publishedArticles')}: {Number(articleSummary?.uploaded || 0)} · {tk('recordsTitle')}: {Number(articleSummary?.total || 0)} · {tk('pendingUpload')}: {Number(articleSummary?.pending_upload || 0)}
           </div>
         )}
         {msg && <p className="text-xs text-indigo-600 dark:text-indigo-300">{msg}</p>}

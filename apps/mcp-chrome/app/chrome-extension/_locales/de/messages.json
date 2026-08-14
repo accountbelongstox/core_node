@@ -2161,6 +2161,12 @@
   "taskCenterSortPriority": {
     "message": "Priorität"
   },
+  "taskCenterSortOrder": {
+    "message": "Warteschlangenreihenfolge"
+  },
+  "taskCenterQueuePosition": {
+    "message": "Warteschlangenposition"
+  },
   "taskCenterStartFailed": {
     "message": "Failed to start Task Center"
   },

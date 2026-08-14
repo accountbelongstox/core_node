@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import type { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewSettings, type WfNewSettings } from '../../WfNewSettingsStore';
 import { studyT } from './WfNewStudyLocales';
 // Shared daily-goal editor (◀ input ▶) — the goal is edited identically here

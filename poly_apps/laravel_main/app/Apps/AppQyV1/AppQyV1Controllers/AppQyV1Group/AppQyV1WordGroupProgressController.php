@@ -98,9 +98,7 @@ class AppQyV1WordGroupProgressController
 
         $gid = $request->input('gid');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -138,7 +136,10 @@ class AppQyV1WordGroupProgressController
             // group's dictionary (legacy created the progress row the same
             // way, weight = word length).
             if (!$progressRow->hasWord($wordId)) {
-                $word = AppQyV1LangDictionaryModel::forLanguage($progressRow->languageCodeValue())->find($wordId);
+                $word = AppQyV1LangDictionaryModel::findForLanguage(
+                    $progressRow->languageCodeValue(),
+                    (int) $wordId
+                );
                 if (!$word) {
                     return $this->error('Word not found', 404, [
                         'supported_params' => $supported_params,
@@ -186,7 +187,7 @@ class AppQyV1WordGroupProgressController
                 $entry = $progressRow->updateWordProgress($wordId, $patch);
             }
 
-            $progressRow->save();
+            $progressRow->saveRecord();
 
             return $this->success([
                 'gid' => $group->gid,
@@ -220,9 +221,11 @@ class AppQyV1WordGroupProgressController
             if (!empty($unknownIds)) {
                 $weights = [];
                 $foundIds = [];
-                $rows = AppQyV1LangDictionaryModel::forLanguage($progressRow->languageCodeValue())
-                    ->whereIn('id', array_keys($unknownIds))
-                    ->get(['id', 'content']);
+                $rows = AppQyV1LangDictionaryModel::rowsByIds(
+                    $progressRow->languageCodeValue(),
+                    array_keys($unknownIds),
+                    ['id', 'content']
+                );
                 foreach ($rows as $row) {
                     $foundIds[] = (int) $row->id;
                     $weights[(int) $row->id] = strlen((string) $row->content);
@@ -257,7 +260,7 @@ class AppQyV1WordGroupProgressController
             }
 
             // ONE JSON write for the whole batch.
-            $progressRow->save();
+            $progressRow->saveRecord();
 
             return $this->success([
                 'gid' => $group->gid,
@@ -296,9 +299,7 @@ class AppQyV1WordGroupProgressController
         $limit = $request->input('limit', 20);
         $proficiencyMax = $request->input('proficiency_max');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -306,7 +307,7 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
 
         $candidates = [];
         if ($progressRow) {
@@ -406,9 +407,7 @@ class AppQyV1WordGroupProgressController
 
         $gid = $request->input('gid');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -416,7 +415,7 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
 
         // Aggregate the JSON map in PHP (one row read; shape unchanged).
         $entryCount = 0;
@@ -512,9 +511,7 @@ class AppQyV1WordGroupProgressController
 
         $gid = $request->input('gid');
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $user->id)
-            ->first();
+        $group = AppQyV1WordGroupModel::findOwnedByGid((int) $user->id, $gid);
 
         if (!$group) {
             return $this->error('Group not found', 404, [
@@ -522,7 +519,7 @@ class AppQyV1WordGroupProgressController
             ]);
         }
 
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
 
         $wordsMap = [];
         $totalWords = 0;
@@ -552,7 +549,7 @@ class AppQyV1WordGroupProgressController
             return $this->unauthorized('Authentication required');
         }
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)->first();
+        $group = AppQyV1WordGroupModel::findByGid($gid);
         if (!$group) {
             return $this->error('Group not found', 404);
         }
@@ -574,7 +571,7 @@ class AppQyV1WordGroupProgressController
 
         // Map word ids resolve from the dictionary (word_id is a dictionary
         // id): one whereIn batch via resolveDictionaryRows.
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $group->id)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId((int) $group->id);
         if ($progressRow) {
             foreach ($progressRow->resolveDictionaryRows() as $dictWord) {
                 $content = $dictWord->content;
@@ -593,7 +590,7 @@ class AppQyV1WordGroupProgressController
         // Known words across ALL the user's groups: every progress row of
         // the user, entries with proficiency >= threshold, batch-resolved.
         $knownWordSet = [];
-        $userRows = AppQyV1GroupWordProgressModel::where('user_id', $user->id)->get();
+        $userRows = AppQyV1GroupWordProgressModel::forUser((int) $user->id);
         foreach ($userRows as $userRow) {
             $knownIds = [];
             foreach ($userRow->getWordsMap() as $key => $stored) {

@@ -68,7 +68,7 @@ class AppQyV1LearningController extends Controller
             $user->native_language = $request->input('native_language');
         }
 
-        $user->save();
+        $user->saveRecord();
         AppQyV1LanguageStudyGroupService::ensureLanguageGroupsExist(
             (int) $user->id,
             $request->input('learning_languages')
@@ -109,17 +109,12 @@ class AppQyV1LearningController extends Controller
         $publicLibraries = collect();
         $userLibraries = collect();
         if ($languageName !== null) {
-            $publicLibraries = AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->forLanguage($languageName)
-                ->orderBy('name')
-                ->get();
-
-            $userLibraries = AppQyV1VocabularyLibraryModel::query()
-                ->where('owner_user_id', $user->id)
-                ->forLanguage($languageName)
-                ->orderByDesc('created_at')
-                ->get();
+            $libraryRows = AppQyV1VocabularyLibraryModel::learningLibraries(
+                (int) $user->id,
+                $languageName
+            );
+            $publicLibraries = $libraryRows['public'];
+            $userLibraries = $libraryRows['user'];
         }
 
         $selectedLibraries = AppQyV1UserSelectedLibraryModel::getUserSelectedLibraries(
@@ -167,7 +162,7 @@ class AppQyV1LearningController extends Controller
 
         // collection_id is a vocabulary_libraries id (collections were merged
         // into libraries by the Wave A/B consolidation).
-        $collection = AppQyV1VocabularyLibraryModel::find($collectionId);
+        $collection = AppQyV1VocabularyLibraryModel::findById((int) $collectionId);
 
         if (!$collection) {
             return response()->json([
@@ -288,7 +283,7 @@ class AppQyV1LearningController extends Controller
 
                         $dictEntry->tts_files = $ttsFiles;
                         $dictEntry->tts_provider = 'edge-tts';
-                        $dictEntry->save();
+                        $dictEntry->saveRecord();
                     }
             }
 
@@ -334,7 +329,7 @@ class AppQyV1LearningController extends Controller
         $progressId = $request->input('progress_id');
         $correct = $request->input('correct');
 
-        $progress = AppQyV1UserLearningProgressModel::find($progressId);
+        $progress = AppQyV1UserLearningProgressModel::findById((int) $progressId);
 
         if (!$progress) {
             return response()->json([
@@ -406,20 +401,9 @@ class AppQyV1LearningController extends Controller
             }
         }
 
-        $reviewWords = AppQyV1UserLearningProgressModel::where('user_id', $user->id)
-            ->where('lang_code', $langCode)
-            ->whereIn('learning_status', ['learning', 'reviewing'])
-            ->where('next_review_at', '<=', now())
-            ->orderBy('next_review_at')
-            ->limit(100)
-            ->get();
-
-        $newWords = AppQyV1UserLearningProgressModel::where('user_id', $user->id)
-            ->where('lang_code', $langCode)
-            ->where('learning_status', 'new')
-            ->orderBy('created_at')
-            ->limit(20)
-            ->get();
+        $queue = AppQyV1UserLearningProgressModel::dailyQueue((int) $user->id, $langCode);
+        $reviewWords = $queue['review'];
+        $newWords = $queue['new'];
 
         return response()->json([
             'success' => true,

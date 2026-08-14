@@ -150,8 +150,8 @@ PROMPT,
         $keys = [];
 
         foreach (self::CODE_PROMPTS as $prompt) {
-            AppQyV1AiPrompt::updateOrCreate(
-                ['prompt_key' => $prompt['prompt_key']],
+            AppQyV1AiPrompt::storeDefault(
+                $prompt['prompt_key'],
                 [
                     'task_type' => $prompt['task_type'],
                     'source' => AppQyV1AiPrompt::SOURCE_CODE,
@@ -171,8 +171,7 @@ PROMPT,
     public static function isSeeded(): bool
     {
         $expected = array_map(fn ($p) => $p['prompt_key'], self::CODE_PROMPTS);
-        $rows = AppQyV1AiPrompt::whereIn('prompt_key', $expected)
-            ->get()
+        $rows = AppQyV1AiPrompt::rowsByKeys($expected)
             ->keyBy('prompt_key');
 
         foreach (self::CODE_PROMPTS as $prompt) {

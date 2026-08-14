@@ -33,7 +33,7 @@ This feature uses the shared `core/` libraries rather than ad-hoc state:
   `core/notify`): `wfNewEndpoints.subscribe`/`getSnapshot` + the
   `useWfNewEndpoints()` hook — UIs react without manual event wiring.
 - **notify** (`core/notify`): probe/selection results as global toasts.
-- **overlay** (`components/shared/Portal` + `styles/overlay` `OVERLAY_Z`): the
+- **overlay** (`shared/ui/Portal` + `styles/overlay` `OVERLAY_Z`): the
   manager dialog (never a raw `fixed inset-0 z-50`).
 
 ## Backend endpoint management (`WfNewEndpoints`)

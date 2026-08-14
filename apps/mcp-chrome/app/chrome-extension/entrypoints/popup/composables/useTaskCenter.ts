@@ -19,7 +19,9 @@ import type {
   TaskDetailBundle,
   TaskEvent,
 } from '@/utils/queue-center-contract';
-import { TASK_EVENT_BY_ROLE, TASK_STREAM_EVENT_BY_ROLE } from '@/utils/queue-center-contract';
+import { TERMINAL_TASK_STATUSES } from '@/utils/queue-center-contract';
+import { queueCenterWakeService } from '@/entrypoints/background/services/task-center/QueueCenterWakeService';
+import { AsyncOperationController, fetchWithTimeout, IntervalController } from '@/utils/async';
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
@@ -33,16 +35,10 @@ import {
   type FullTaskCenterStatus,
 } from '@/utils/task-center-types';
 
-// ==================== Live task drilldown (detail / events / SSE stream) ====================
-// laravel_main control-plane SSE route (no-auth), tailed straight from the popup
-// over the browser-native EventSource (background WorkerApiClient is for the
-// worker-pull contract, not this drilldown). Field names + event names mirror
-// TaskController::stream() and ServerManagerAPI.subscribeTaskDetail() EXACTLY:
-//   GET  {base}/api/task/{id}/stream?cursor=<lastEventId>
-//   task.detail-initial → full detail bundle (task + events + current_phase + metadata)
-//   task.event          → one transition (carries `_id` = resume cursor)
-//   ping                → keep-alive ({cursor})
-//   stream.close        → server close ({cursor, done}); done!==true => reconnect from cursor
+// ==================== Live task drilldown ====================
+// Queue Center Reverb is a wake-up signal. The durable task/detail endpoint is
+// fetched once on open and again after a coalesced queue change; no popup-owned
+// EventSource or Laravel request worker is retained.
 
 // Compatibility names retained for existing modal imports. Their definitions
 // now come from the shared Laravel/Pycore/mcp-chrome task contract.
@@ -50,12 +46,11 @@ export type TaskStreamEvent = TaskEvent;
 export type TaskStreamTask = TaskDetail;
 export type TaskStreamBundle = TaskDetailBundle;
 
-/** Callbacks for subscribeToTaskStream()'s EventSource lifecycle. */
+/** Compatibility callbacks retained for existing task-detail modal imports. */
 export interface TaskStreamHandlers {
   onInitial?: (bundle: TaskStreamBundle) => void;
   onEvent?: (event: TaskStreamEvent) => void;
   onPing?: (cursor: string | null) => void;
-  /** stream.close — done===true is terminal (no reconnect); done!==true reconnects from cursor. */
   onClose?: (cursor: string | null, done: boolean) => void;
   onError?: (err: Event) => void;
 }
@@ -66,104 +61,49 @@ export interface TaskStreamHandle {
 }
 
 /**
- * Subscribe to a task's live SSE stream and fold frames into `handlers`.
- *
- * Reconnect contract (mirrors ServerManagerAPI.subscribeTaskDetail): on a
- * server `stream.close`, reopen from the last cursor ONLY when `data.done !==
- * true` and the task has not reached a locally-observed terminal event — a
- * `done:true` close means a terminal status (no reconnect). Transport errors
- * are handled by the native EventSource auto-reconnect. close() is idempotent.
+ * Subscribe to shared Queue Center wakes and reconcile one bounded detail row.
  */
 export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandlers): TaskStreamHandle {
-  let source: EventSource | null = null;
-  let cursor: string | null = null;
+  const refreshOperation = new AsyncOperationController<void>();
+  const apiBase = getApiBase().replace(/\/+$/, '');
   let closed = false;
-  let terminal = false;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let unsubscribe: (() => void) | null = null;
 
-  // getApiBase() returns `protocol://host[:port]` (trailing slash stripped) so we
-  // land on exactly `{base}/api/task/{id}/stream`.
-  const apiBase = getApiBase;
-
-  const buildUrl = (): string => {
-    const url = `${apiBase()}${taskPath(taskId, 'stream')}`;
-    return cursor !== null ? `${url}?cursor=${encodeURIComponent(cursor)}` : url;
-  };
-
-  const parse = (raw: string): any => {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  };
-
-  const teardownStream = (): void => {
-    if (source) {
-      try { source.close(); } catch { /* ignore */ }
-      source = null;
-    }
-  };
-
-  const open = (): void => {
-    if (closed || typeof EventSource === 'undefined') return;
-
-    const es = new EventSource(buildUrl());
-    source = es;
-
-    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.initial, (ev) => {
-      const data = parse((ev as MessageEvent).data) as TaskStreamBundle | null;
-      if (data) handlers.onInitial?.(data);
-    });
-
-    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.transition, (ev) => {
-      const data = parse((ev as MessageEvent).data) as TaskStreamEvent | null;
-      if (!data) return;
-      const id = data._id ?? data.id;
-      if (id !== undefined && id !== null) cursor = String(id);
-      // Belt-and-suspenders for the close contract: completed/cancelled are
-      // unambiguously terminal. failed/timeout may be retried (re-pended).
-      if (data.event === TASK_EVENT_BY_ROLE.completed || data.event === TASK_EVENT_BY_ROLE.cancelled) {
-        terminal = true;
-      }
-      handlers.onEvent?.(data);
-    });
-
-    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.ping, (ev) => {
-      const data = parse((ev as MessageEvent).data);
-      if (data && data.cursor != null) cursor = String(data.cursor);
-      handlers.onPing?.(cursor);
-    });
-
-    es.addEventListener(TASK_STREAM_EVENT_BY_ROLE.close, (ev) => {
-      const data = parse((ev as MessageEvent).data);
-      if (data && data.cursor != null) cursor = String(data.cursor);
-      const done = data?.done === true;
-      handlers.onClose?.(cursor, done);
-      teardownStream();
-      // Reconnect-from-cursor only when the server says the task is still live.
-      if (!closed && !done && !terminal) {
-        reconnectTimer = setTimeout(open, 1500);
+  const refresh = (): Promise<void> => {
+    if (closed) return Promise.resolve();
+    return refreshOperation.run(async () => {
+      try {
+        const response = await fetchWithTimeout(
+          `${apiBase}${taskPath(taskId, 'detail')}`,
+          10000,
+          { headers: { 'Cache-Control': 'no-cache' } },
+        );
+        if (!response.ok) throw new Error(`Task detail HTTP ${response.status}`);
+        const json = await response.json();
+        const data = (json?.data ?? json) as TaskStreamBundle;
+        if (closed || !data?.task) return;
+        handlers.onInitial?.(data);
+        if (TERMINAL_TASK_STATUSES.includes(data.task.status)) {
+          closed = true;
+          unsubscribe?.();
+          unsubscribe = null;
+          handlers.onClose?.(null, true);
+        }
+      } catch (error) {
+        logger.warn('Task Center', 'Task detail reconciliation failed', error);
+        handlers.onError?.(new Event('error'));
       }
     });
-
-    es.onerror = (err) => {
-      handlers.onError?.(err);
-      // Let the native EventSource reconnect from buildUrl() (server de-dupes by
-      // cursor); tearing down here would race the browser's own retry.
-    };
   };
 
-  open();
+  unsubscribe = queueCenterWakeService.subscribe(apiBase, () => { void refresh(); });
+  void refresh();
 
   return {
     close: () => {
       closed = true;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
-      teardownStream();
+      unsubscribe?.();
+      unsubscribe = null;
     },
   };
 }
@@ -233,7 +173,7 @@ export function useTaskCenter() {
     }
   }, { immediate: true });
 
-  let statsPollingInterval: ReturnType<typeof setInterval> | null = null;
+  const statsPolling = new IntervalController();
 
   const toggleTaskCenter = async () => {
     isActive.value = !isActive.value;
@@ -494,18 +434,11 @@ export function useTaskCenter() {
   };
 
   const startStatsPolling = () => {
-    if (statsPollingInterval) return;
-
-    statsPollingInterval = setInterval(async () => {
-      await loadState();
-    }, 3000);
+    statsPolling.start(() => void loadState(), 3000);
   };
 
   const stopStatsPolling = () => {
-    if (statsPollingInterval) {
-      clearInterval(statsPollingInterval);
-      statsPollingInterval = null;
-    }
+    statsPolling.stop();
   };
 
   const initialize = async () => {

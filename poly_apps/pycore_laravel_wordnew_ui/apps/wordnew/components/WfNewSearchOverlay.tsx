@@ -1,8 +1,8 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Volume2, Star, X, Layers, RefreshCw, Cpu } from 'lucide-react';
-import { Word, ElementTheme } from '../WfNewTypes';
-
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word } from '../api/WfNewApiTypes';
 interface WfNewSearchOverlayProps {
   isOpen: boolean;
   onClose: () => void;

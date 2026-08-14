@@ -1,25 +1,24 @@
 /**
- * Priority-boost hooks for wordnew reader / shelf / library surfaces.
- * Audio priority goes through the shared queue center straight to Laravel,
+ * Queue-focus hooks for wordnew reader / shelf / library surfaces.
+ * Audio head moves go through the shared queue center straight to Laravel,
  * which owns the queue and notifies the pycore worker itself. Translation
  * stacking remains a direct Laravel command. Failures never block the UI.
  */
 import { useEffect, useRef } from 'react';
 import { wfNewSettings } from '../WfNewSettingsStore';
-import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
-import { wordNewQueueRuntime } from '../services/WordNewQueueRuntime';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 const READER_DEBOUNCE_MS = 150;
 
-export type PriorityBoostSentence = { text: string; language: string };
+export type QueueHeadSentence = { text: string; language: string };
 
 function normalizeSentences(
-  sentences: PriorityBoostSentence[] | null | undefined,
-): PriorityBoostSentence[] {
+  sentences: QueueHeadSentence[] | null | undefined,
+): QueueHeadSentence[] {
   if (!sentences?.length) return [];
   const seen = new Set<string>();
-  const out: PriorityBoostSentence[] = [];
+  const out: QueueHeadSentence[] = [];
   for (const row of sentences) {
     const text = row?.text?.trim();
     const language = row?.language?.trim();
@@ -32,9 +31,9 @@ function normalizeSentences(
   return out.slice(0, QUEUE_CENTER_DIFF_DELIVERY.data_segment_limit);
 }
 
-/** Debounced (~150ms) POST of visible sentence texts to sentence bump-batch. */
-export function useReaderPriorityBoost(
-  sentences: PriorityBoostSentence[] | null,
+/** Debounced POST of visible sentence texts to the sentence-audio queue head. */
+export function useReaderQueueHead(
+  sentences: QueueHeadSentence[] | null,
 ): void {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSigRef = useRef('');
@@ -49,8 +48,8 @@ export function useReaderPriorityBoost(
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       lastSigRef.current = sig;
-      void wordNewAudioQueueCenter.prioritizeSentences(items).catch((e) => {
-        console.warn('[wordnew] sentence bump-batch failed', e);
+      void wordNewQueueCenter.moveSentencesToHead(items).catch((e) => {
+        console.warn('[wordnew] sentence queue-head update failed', e);
       });
     }, READER_DEBOUNCE_MS);
 
@@ -65,18 +64,18 @@ export function useReaderPriorityBoost(
 
 /**
  * When a shelf course opens, boost its untranslated words (translation stack)
- * and optionally bump sentence texts when provided (book-style shelf entries).
+ * and optionally move sentence texts to the audio queue head.
  */
 export function useShelfPriorityBoost(
   courseId: string | null,
   opts?: {
-    sentences?: PriorityBoostSentence[] | null;
+    sentences?: QueueHeadSentence[] | null;
     words?: string[] | null;
     language?: string | null;
     targetLanguage?: string | null;
   } | null,
 ): void {
-  const bumpedKeyRef = useRef<string | null>(null);
+  const focusedKeyRef = useRef<string | null>(null);
   const sentences = opts?.sentences;
   const words = opts?.words;
   const language = opts?.language;
@@ -84,7 +83,7 @@ export function useShelfPriorityBoost(
 
   useEffect(() => {
     if (!courseId) {
-      bumpedKeyRef.current = null;
+      focusedKeyRef.current = null;
       return;
     }
     const items = normalizeSentences(sentences);
@@ -97,17 +96,17 @@ export function useShelfPriorityBoost(
       || 'zh'
     ).trim();
     const sig = `${courseId}:${lang}:${target}:${list.join('|')}:${items.map((it) => it.text).join('|')}`;
-    if (bumpedKeyRef.current === sig) return;
+    if (focusedKeyRef.current === sig) return;
     if (!items.length && !(lang && list.length && target)) return;
-    bumpedKeyRef.current = sig;
+    focusedKeyRef.current = sig;
 
     if (items.length) {
-      void wordNewAudioQueueCenter.prioritizeSentences(items).catch((e) => {
-        console.warn('[wordnew] shelf sentence bump-batch failed', e);
+      void wordNewQueueCenter.moveSentencesToHead(items).catch((e) => {
+        console.warn('[wordnew] shelf sentence queue-head update failed', e);
       });
     }
     if (lang && list.length && target) {
-      void wordNewQueueRuntime.prioritizeTranslations(list, lang, target).catch((e) => {
+      void wordNewQueueCenter.prioritizeTranslations(list, lang, target).catch((e) => {
         console.warn('[wordnew] shelf translation stack failed', e);
       });
     }
@@ -147,7 +146,7 @@ export function useLibraryPriorityBoost(
     if (stackedKeyRef.current === sig) return;
     stackedKeyRef.current = sig;
 
-    void wordNewQueueRuntime.prioritizeTranslations(list, lang, target).catch((e) => {
+    void wordNewQueueCenter.prioritizeTranslations(list, lang, target).catch((e) => {
       console.warn('[wordnew] translation queue stack failed', e);
     });
   }, [libraryId, words, language, targetLanguage]);

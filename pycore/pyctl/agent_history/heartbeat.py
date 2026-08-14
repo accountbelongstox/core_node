@@ -2,8 +2,8 @@
 """
 PyHeartbeat registration for agent-history extract + article pipeline.
 
-Two callbacks on separate serialized locks so a long extract never blocks
-article_logs / pipeline / UI polls.
+Extraction uses its state owner; the article callback uses heartbeat single-flight
+so long local synthesis never queues duplicate runs or blocks UI status reads.
 """
 
 import os

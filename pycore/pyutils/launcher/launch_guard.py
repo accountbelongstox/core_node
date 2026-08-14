@@ -8,7 +8,6 @@ target is already running and skip when it is. Terminal counting mirrors
 """
 
 import platform
-import re
 import socket
 import sys
 from pathlib import Path
@@ -20,6 +19,7 @@ from pycore.pyfoundations.third_party.api import get_third_package_psutil
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui
 from pycore.pyfoundations.third_party.api import get_third_package_win32process
 from pycore.pyfoundations.process_manager import ProcessManager
+from pycore.pyutils.common.terminal_identifiers import is_linux_terminal_class
 from pycore.pyutils.launcher.app_finder import AppFinder
 from pycore.pyutils.launcher.char_size_measurer import count_wt_windows
 
@@ -29,15 +29,6 @@ _SOCKET_TIMEOUT_SEC = 0.05
 _PYTHON_PROC_NAMES = frozenset({
     'python.exe', 'pythonw.exe', 'python3', 'python',
 })
-
-# Linux terminal emulators counted by 152_install_terminal_grid_shortcut.sh.
-_LINUX_TERM_CLASS_PATTERN = re.compile(
-    r'^(qterminal|gnome-terminal|xfce4-terminal|konsole|xterm|kitty|'
-    r'terminator|tilix|alacritty|lxterminal|mate-terminal|'
-    r'deepin-terminal|st-256color)$',
-    re.IGNORECASE,
-)
-
 
 def resolve_process_names(app_name: str, app_finder: 'AppFinder') -> List[str]:
     """Return executable / comm names used to detect whether *app_name* is running."""
@@ -261,7 +252,7 @@ def _count_linux_terminals() -> int:
             window_class = parts[2].lower()
             if '.' in window_class:
                 window_class = window_class.split('.', 1)[1]
-            if _LINUX_TERM_CLASS_PATTERN.match(window_class):
+            if is_linux_terminal_class(window_class):
                 count += 1
         return count
 
@@ -272,6 +263,6 @@ def _count_linux_terminals() -> int:
     count = 0
     for line in ps.stdout.splitlines():
         comm = line.strip()
-        if _LINUX_TERM_CLASS_PATTERN.match(comm):
+        if is_linux_terminal_class(comm):
             count += 1
     return count

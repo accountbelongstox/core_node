@@ -4,12 +4,11 @@
 Priority persistence and runtime cooldown state live in pyutils.tts.engine_policy.
 """
 
-import contextlib
 import importlib.metadata
 import shutil
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -22,11 +21,7 @@ from pycore.pyutils.tts.engine_policy import (
     TTS_ENGINE_PRIORITY,
     TTS_SENTENCE_PRIORITY,
     TTS_WORD_PRIORITY,
-    _ENGINE_CONCURRENCY,
-    _ENGINE_NOTES,
-    _LOCALE_BY_LANG,
     _ORCHESTRATOR_STATE_QUEUE,
-    _TIER_ENGINES,
     _get_orchestrator_state,
     _set_orchestrator_state,
     apply_tts_engine_extra_params as _apply_engine_extra_params,
@@ -46,13 +41,18 @@ from pycore.pyutils.tts.engine_policy import (
     restore_tts_engine_extra_params as _restore_engine_extra_params,
     sentence_tts_cache_identity as _sentence_cache_identity,
     set_edge_cooldown_seconds,
+    tts_engine_supports_language,
     tts_engine_actual_accent as _engine_actual_accent,
+    tts_locale,
     tts_rate_to_speed as _rate_to_speed,
     tts_variant_result as _variant_result,
 )
 import pycore.pyutils.tts.sentence_audio_cache as sentence_audio_cache
 from pycore.pyutils.tts.edge.config import TTSConfig
-from pycore.pyutils.tts.edge.client import edge_tts_client
+from pycore.pyutils.tts.engine_registry import (
+    TTSSynthesisRequest,
+    tts_engine_registry,
+)
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_CAPABILITIES_KEY,
@@ -62,40 +62,19 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyutils.tts.tts_engine_probe import engine_installed, engine_unavailable_reason
 from pycore.pyutils.tts.tts_service_manager import (
-    invalidate_server_engine_cache,
     is_server_engine,
-    prepare_server_for_use,
     server_runtime_status,
-    record_server_use,
 )
-from pycore.pyutils.common.managed_service import managed_services
-import pycore.pyutils.common.model_load_status as model_load_status
-import pycore.pyutils.tts.azure_engine as azure_engine
-import pycore.pyutils.tts.bark_engine as bark_engine
-import pycore.pyutils.tts.chattts_engine as chattts_engine
-import pycore.pyutils.tts.cosyvoice_engine as cosyvoice_engine
-import pycore.pyutils.tts.f5tts_engine as f5tts_engine
-import pycore.pyutils.tts.fishspeech_engine as fishspeech_engine
-import pycore.pyutils.tts.gptsovits_engine as gptsovits_engine
+from pycore.pyutils.common.managed_service import (
+    ManagedServiceUnavailable,
+    managed_services,
+)
+from pycore.pyutils.common.managed_service_facade import managed_model_load_context
 import pycore.pyutils.tts.gtts_web_engine as gtts_web_engine
-import pycore.pyutils.tts.kokoro_engine as kokoro_engine
-import pycore.pyutils.tts.melotts_engine as melotts_engine
-import pycore.pyutils.tts.parler_engine as parler_engine
 import pycore.pyutils.tts.qwen.engine as qwen_engine
-import pycore.pyutils.tts.sherpa_engine as sherpa_engine
 import pycore.pyutils.tts.streamelements_engine as streamelements_engine
-import pycore.pyutils.tts.voxcpm2_engine as voxcpm2_engine
 
-# Version shown in tts_status(). qwen3tts + melotts are intentionally ABSENT: their
-# packages (qwen-tts / melo) live in their isolated venvs, not the main interpreter,
-# so probing importlib.metadata here would report nothing (or a stray/wrong copy).
-# See spec §5-§6.
 _TTS_ENGINE_STATUS_TTL_SECONDS = 300.0
-_ENGINE_VERSIONS = {
-    "sherpa": "sherpa-onnx",
-    "kokoro": "sherpa-onnx",
-    "voxcpm2": "voxcpm",
-}
 
 
 def _dist_version(dist: str) -> Optional[str]:
@@ -106,24 +85,8 @@ def _dist_version(dist: str) -> Optional[str]:
 
 
 
-# qwen3tts runs in an isolated server, so availability—not this process's CUDA
-# state—gates its sentence-chain position.
-_GPU_SENTENCE_ENGINE = "qwen3tts"
-
-
-def _apply_sentence_gpu_gate(order: tuple[str, ...]) -> tuple[str, ...]:
-    """Demote unavailable qwen3tts without changing the user's remaining order."""
-    if _GPU_SENTENCE_ENGINE not in order:
-        return order
-    if engine_available(_GPU_SENTENCE_ENGINE):
-        return order
-    rest = tuple(e for e in order if e != _GPU_SENTENCE_ENGINE)
-    return rest + (_GPU_SENTENCE_ENGINE,)
-
-
 def _priority(profile: str = "default") -> tuple[str, ...]:
-    order = configured_tts_priority(profile)
-    return _apply_sentence_gpu_gate(order) if profile in ("sentence", "agent_history") else order
+    return configured_tts_priority(profile)
 
 def _edge_in_cooldown() -> bool:
     return edge_in_cooldown()
@@ -138,75 +101,22 @@ def _set_edge_cooldown() -> None:
 
 def _edge_voice(lang: Optional[str], accent: Optional[str] = None,
                 gender: Optional[str] = None) -> str:
-    locale = _LOCALE_BY_LANG.get((lang or "en").lower(), "en-US")
-    # Accent "uk" on an English locale -> British voice (en-GB-SoniaNeural).
-    if accent == "uk" and locale.startswith("en-"):
-        locale = "en-GB"
-    g = (gender or "female").strip().lower()
-    if g not in ("female", "male"):
-        g = "female"
-    voice = TTSConfig.get_voice(locale, g)
+    voice = TTSConfig.resolve_voice(tts_locale(lang), accent, gender)
     if not voice:
-        # Unmapped locale -> get_voice returns "" and edge-tts would fail with no
-        # audio. Fall back to a known-good English voice (offline engines still take
-        # over later if edge is unavailable / cooling down).
-        ColorPrint.yellow(f"[tts] no edge voice for locale '{locale}'; falling back to en-US")
-        voice = TTSConfig.get_voice("en-US", "female") or "en-US-JennyNeural"
+        ColorPrint.yellow(f"[tts] no edge voice for language '{lang or 'unknown'}'")
     return voice
 
 
 
 
 def engine_available(name: str) -> bool:
-    if name == "chattts":
-        return chattts_engine.available()
-    if name == "cosyvoice":
-        return cosyvoice_engine.available()
-    if name == "fishspeech":
-        return fishspeech_engine.available()
-    if name == "qwen3tts":
-        return qwen_engine.available()
-    if name == "bark":
-        return bark_engine.available()
-    if name == "parler":
-        return parler_engine.available()
-    if name == "voxcpm2":
-        return voxcpm2_engine.available()
-    if name == "kokoro":
-        return kokoro_engine.available()
-    if name == "f5tts":
-        return f5tts_engine.available()
-    if name == "edge":
-        return edge_tts_client.initialize()
-    if name == "streamelements":
-        return streamelements_engine.available()
-    if name == "sherpa":
-        return sherpa_engine.available()
-    if name == "melotts":
-        return melotts_engine.available()
-    if name == "gptsovits":
-        return gptsovits_engine.available()
-    if name == "gtts_web":
-        return gtts_web_engine.available()
-    if name == "azure":
-        return azure_engine.available()
-    return False
+    adapter = tts_engine_registry.get(name)
+    return bool(adapter and adapter.available())
 
 
-def _model_load_ctx(name: str):
-    """Report FIRST-load progress for a class-B in-process TTS model to the shared
-    model-load registry (surfaced at /api/local/engines/load-status). Class-C
-    servers report from managed_service (their status comes from the subprocess
-    start), and class-A engines (edge/streamelements/gtts/azure) load no model, so
-    both are a no-op here — the registry is written from ONE place per engine class.
-    ``managed_services.is_running`` on a model spec reflects the engine's own
-    ``is_model_loaded`` (resident weights)."""
-    spec = managed_services.spec(name)
-    if spec is None or spec.kind != "model":
-        return contextlib.nullcontext()
-    return model_load_status.report_model_load(
-        name, is_loaded=lambda: managed_services.is_running(name)
-    )
+def engine_concurrency(name: str) -> str:
+    adapter = tts_engine_registry.get(name)
+    return adapter.concurrency if adapter else "serial"
 
 
 def _engine_disabled_reason(name: str, available: Optional[bool] = None) -> Optional[str]:
@@ -226,6 +136,15 @@ def best_engine() -> Optional[str]:
 
 def _build_tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
     """Build one engine row; normal UI reads never run server health commands."""
+    adapter = tts_engine_registry.get(name)
+    if adapter is None:
+        return {
+            "name": name,
+            "available": False,
+            "installed": False,
+            "note": "",
+            "concurrency": "serial",
+        }
     installed = engine_installed(name)
     managed = is_server_engine(name)
     runtime = server_runtime_status(name, refresh=refresh) if managed else {}
@@ -233,7 +152,7 @@ def _build_tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
         available = engine_available(name)
     elif managed:
         available = bool(
-            installed
+            (installed and adapter.config_ready())
             or runtime.get("server_running")
             or runtime.get("model_loaded")
         )
@@ -245,14 +164,13 @@ def _build_tts_engine_status(name: str, refresh: bool) -> Dict[str, Any]:
         "name": name,
         "available": available,
         "installed": installed,
-        "note": _ENGINE_NOTES.get(name, ""),
-        "concurrency": _ENGINE_CONCURRENCY.get(name, "unknown"),
+        "note": adapter.note,
+        "concurrency": adapter.concurrency,
         **runtime,
     }
-    dist = _ENGINE_VERSIONS.get(name)
-    if dist and available:
-        entry["version"] = _dist_version(dist)
-    if name in _TIER_ENGINES:
+    if adapter.distribution and available:
+        entry["version"] = _dist_version(adapter.distribution)
+    if adapter.tiered:
         tier_model = runtime_engine_model(name)
         if tier_model:
             entry["model"] = tier_model
@@ -345,53 +263,30 @@ def report_tts_engine_startup() -> None:
     )
 
 
-def _synth_edge(text: str, lang: Optional[str], output_path: Path,
-                accent: Optional[str] = None, gender: Optional[str] = None) -> bool:
-    client = edge_tts_client
-    if not client.initialize():
-        return False
-    voice = _edge_voice(lang, accent, gender)
-    return client.synthesize(text, voice, output_path)
-
-
-def _synth_offline(
-    engine: str,
+def _synthesis_request(
     text: str,
     lang: Optional[str],
     output_path: Path,
     rate: Optional[str],
-) -> bool:
-    speed = _rate_to_speed(rate)
-    if engine == "sherpa":
-        return sherpa_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "melotts":
-        return melotts_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "gptsovits":
-        return gptsovits_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "chattts":
-        return chattts_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "cosyvoice":
-        return cosyvoice_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "f5tts":
-        return f5tts_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "fishspeech":
-        return fishspeech_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "qwen3tts":
-        return qwen_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "bark":
-        return bark_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "parler":
-        return parler_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "voxcpm2":
-        return voxcpm2_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    if engine == "kokoro":
-        return kokoro_engine.synthesize(text, lang or "en", output_path, speed=speed)
-    return False
-
-
-def _synth_azure(text: str, lang: Optional[str], output_path: Path, rate: Optional[str]) -> bool:
-    # Cloud engine takes the percent rate string directly (mapped to SSML prosody).
-    return azure_engine.synthesize(text, lang or "en", output_path, rate=rate)
+    accent: Optional[str] = None,
+    gender: Optional[str] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
+    client_job_id: Optional[str] = None,
+) -> TTSSynthesisRequest:
+    return TTSSynthesisRequest(
+        text=text,
+        language=lang or "en",
+        output_path=output_path,
+        speed=_rate_to_speed(rate),
+        locale=tts_locale(lang),
+        rate=rate,
+        accent=accent,
+        gender=gender,
+        speaker=speaker,
+        instruct=instruct,
+        client_job_id=client_job_id,
+    )
 
 
 def describe_synth_command(
@@ -421,30 +316,6 @@ def describe_synth_command(
     )
 
 
-# Uniform arity (text, lang, path, rate, accent); accent-blind engines ignore it.
-_SYNTHESIZERS: Dict[str, Callable[..., bool]] = {
-    "chattts": lambda t, l, p, r, a=None: _synth_offline("chattts", t, l, p, r),
-    "cosyvoice": lambda t, l, p, r, a=None: _synth_offline("cosyvoice", t, l, p, r),
-    "fishspeech": lambda t, l, p, r, a=None: _synth_offline("fishspeech", t, l, p, r),
-    "qwen3tts": lambda t, l, p, r, a=None: _synth_offline("qwen3tts", t, l, p, r),
-    "bark": lambda t, l, p, r, a=None: _synth_offline("bark", t, l, p, r),
-    "parler": lambda t, l, p, r, a=None: _synth_offline("parler", t, l, p, r),
-    "voxcpm2": lambda t, l, p, r, a=None: _synth_offline("voxcpm2", t, l, p, r),
-    "kokoro": lambda t, l, p, r, a=None: _synth_offline("kokoro", t, l, p, r),
-    "f5tts": lambda t, l, p, r, a=None: _synth_offline("f5tts", t, l, p, r),
-    "edge": _synth_edge,
-    "streamelements": lambda t, l, p, r, a=None: streamelements_engine.synthesize(
-        t, l or "en", p, accent=a),
-    "sherpa": lambda t, l, p, r, a=None: _synth_offline("sherpa", t, l, p, r),
-    "melotts": lambda t, l, p, r, a=None: _synth_offline("melotts", t, l, p, r),
-    "gptsovits": lambda t, l, p, r, a=None: _synth_offline("gptsovits", t, l, p, r),
-    "gtts_web": lambda t, l, p, r, a=None: gtts_web_engine.synthesize(t, l or "en", p),
-    "azure": lambda t, l, p, r, a=None: _synth_azure(t, l, p, r),
-}
-
-
-
-
 def synthesize(
     text: str,
     language: Optional[str],
@@ -457,6 +328,7 @@ def synthesize(
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
+    excluded_engines: Optional[Tuple[str, ...]] = None,
 ) -> Dict[str, Any]:
     """Synthesize text with one required engine or the selected fallback profile."""
     cleaned = (text or "").strip()
@@ -473,7 +345,21 @@ def synthesize(
 
     # Resolve the engine order once (the sentence profile applies the GPU gate).
     engine_name = (required_engine or "").strip().lower()
-    engine_order = (engine_name,) if engine_name else _priority(profile)
+    configured_order = (engine_name,) if engine_name else _priority(profile)
+    excluded = frozenset(excluded_engines or ())
+    engine_order = tuple(
+        name for name in configured_order
+        if name not in excluded and tts_engine_supports_language(name, language)
+    )
+    unsupported_engines = tuple(
+        name for name in configured_order
+        if not tts_engine_supports_language(name, language)
+    )
+    if unsupported_engines:
+        ColorPrint.gray(
+            f"[tts] language '{language or 'en'}' skips unsupported engines: "
+            f"{', '.join(unsupported_engines)}"
+        )
     # Sentence-audio cache: an identical sentence request (same text/lang/voice/
     # engine/format) returns the previously-synthesized file WITHOUT re-synth.
     # Word audio is intentionally not cached here (short, edge-first, cheap).
@@ -529,35 +415,35 @@ def synthesize(
                 "[tts] streamelements in cooldown (recent auth failure); skipping"
             )
             continue
-        if is_server_engine(name) and prepare_server_for_use(name):
-            # Server is (now) reachable — drop the engine's stale 30s "down" cache.
-            invalidate_server_engine_cache(name)
-        if not engine_available(name):
+        managed_engine = is_server_engine(name)
+        if not managed_engine and not engine_available(name):
             continue
-        synth = _SYNTHESIZERS.get(name)
-        if synth is None:
+        adapter = tts_engine_registry.get(name)
+        if adapter is None:
             continue
-        tried.append(name)
+        request = _synthesis_request(
+            cleaned,
+            language,
+            output_path,
+            rate,
+            want_accent,
+            gender,
+            speaker,
+            instruct,
+            client_job_id,
+        )
         synth_command = describe_synth_command(
             name, cleaned, language, output_path, want_accent, rate, gender
         )
-        last_synth_command = synth_command
         try:
-            with managed_services.using(name), _model_load_ctx(name):
-                if name == "qwen3tts":
-                    ok = qwen_engine.synthesize(
-                        cleaned,
-                        language or "en",
-                        output_path,
-                        speed=_rate_to_speed(rate),
-                        speaker=speaker,
-                        instruct=instruct,
-                        client_job_id=client_job_id,
-                    )
-                elif name == "edge":
-                    ok = _synth_edge(cleaned, language, output_path, want_accent, gender)
-                else:
-                    ok = synth(cleaned, language, output_path, rate, want_accent)
+            with managed_services.lease(name), managed_model_load_context(name):
+                tried.append(name)
+                last_synth_command = synth_command
+                ok = adapter.synthesize(request)
+        except ManagedServiceUnavailable as exc:
+            last_error = f"{name}: {exc}"
+            ColorPrint.gray(f"[tts] {name} unavailable; trying next engine")
+            continue
         except Exception as e:  # noqa: BLE001— fall through to next engine
             last_error = f"{name}: {e}"
             ColorPrint.yellow(f"[tts] {name} failed ({e}); trying next engine")
@@ -566,8 +452,6 @@ def synthesize(
                 _set_edge_cooldown()
             continue
         if ok and output_path.exists() and output_path.stat().st_size > 0:
-            if is_server_engine(name):
-                record_server_use(name)
             # Populate the sentence cache under the engine that ACTUALLY
             # produced the audio so the next identical request is a hit.
             if profile == "sentence":
@@ -625,14 +509,23 @@ def synthesize_variants(
 
     sentence_order = _priority("sentence" if priority_profile != "default" else "default")
     qwen_first = bool(sentence_order) and sentence_order[0] == "qwen3tts"
-    can_batch = qwen_first and engine_available("qwen3tts") and n >= 2
+    can_batch = (
+        qwen_first
+        and tts_engine_supports_language("qwen3tts", language)
+        and n >= 2
+    )
 
     if can_batch:
+        retry_qwen = True
         try:
-            with managed_services.using("qwen3tts"):
+            with managed_services.lease("qwen3tts"):
                 ok_flags = qwen_engine.synthesize_variants(
                     cleaned, language or "en", variants[:n], [Path(out_paths[i]) for i in range(n)]
                 )
+        except ManagedServiceUnavailable as exc:
+            ColorPrint.gray(f"[tts] qwen3tts batch unavailable ({exc}); using fallback engines")
+            ok_flags = [False] * n
+            retry_qwen = False
         except Exception as exc:  # noqa: BLE001 - batch failure -> per-variant fallback
             ColorPrint.yellow(f"[tts] qwen3tts batch failed ({exc}); per-variant fallback")
             ok_flags = [False] * n
@@ -652,7 +545,8 @@ def synthesize_variants(
                 res = synthesize(cleaned, language, path,
                                  accent=variants[i].get("accent"),
                                  gender=variants[i].get("gender"),
-                                 priority_profile="sentence")
+                                 priority_profile="sentence",
+                                 excluded_engines=() if retry_qwen else ("qwen3tts",))
                 results.append(_variant_result(
                     variants[i], path, bool(res.get("success")),
                     res.get("engine") or "none",
@@ -677,31 +571,16 @@ def synthesize_variants(
     return results
 
 
-_DETAIL_ENGINES = {
-    "fishspeech": fishspeech_engine,
-    "qwen3tts": qwen_engine,
-    "melotts": melotts_engine,
-    "chattts": chattts_engine,
-    "f5tts": f5tts_engine,
-    "cosyvoice": cosyvoice_engine,
-    "gptsovits": gptsovits_engine,
-}
-
-
 def _engine_synth_error(engine: str) -> Optional[str]:
     """Best-effort detail from the last single-engine synth attempt."""
-    mod = _DETAIL_ENGINES.get(engine)
-    if mod is not None:
-        getter = getattr(mod, "last_synth_error", None)
-        if callable(getter):
-            detail = getter()
-            if detail:
-                return detail
-        reason_fn = getattr(mod, "disabled_reason", None)
-        if callable(reason_fn):
-            reason = reason_fn()
-            if reason:
-                return reason
+    adapter = tts_engine_registry.get(engine)
+    if adapter is not None:
+        detail = adapter.last_synth_error()
+        if detail:
+            return detail
+        reason = adapter.disabled_reason()
+        if reason:
+            return reason
     return call_serialized(
         _ORCHESTRATOR_STATE_QUEUE,
         _get_orchestrator_state,
@@ -730,15 +609,21 @@ def synthesize_engine(
         None,
     )
     engine = (engine or "").strip().lower()
-    if is_server_engine(engine) and prepare_server_for_use(engine):
-        invalidate_server_engine_cache(engine)
-    synth = _SYNTHESIZERS.get(engine)
-    if synth is None:
+    adapter = tts_engine_registry.get(engine)
+    if adapter is None:
         call_serialized(
             _ORCHESTRATOR_STATE_QUEUE,
             _set_orchestrator_state,
             "last_engine_synth_error",
             f"unknown TTS engine: {engine}",
+        )
+        return False
+    if not tts_engine_supports_language(engine, language):
+        call_serialized(
+            _ORCHESTRATOR_STATE_QUEUE,
+            _set_orchestrator_state,
+            "last_engine_synth_error",
+            f"{engine} does not support language: {language or 'en'}",
         )
         return False
     output_path = Path(output_path)
@@ -750,20 +635,20 @@ def synthesize_engine(
     )
     # Apply per-engine extra params before the synth call, restore afterwards.
     applied_env = _apply_engine_extra_params(engine, extra_params)
+    request = _synthesis_request(
+        cleaned,
+        language,
+        output_path,
+        rate,
+        _normalize_accent(accent),
+        extra_params.get("gender"),
+        extra_params.get("speaker"),
+        extra_params.get("instruct"),
+    )
     ok = False
     try:
-        with managed_services.using(engine), _model_load_ctx(engine):
-            if engine == "qwen3tts":
-                ok = qwen_engine.synthesize(
-                    cleaned, language or "en", output_path,
-                    speed=_rate_to_speed(rate),
-                    speaker=extra_params.get("speaker"),
-                    instruct=extra_params.get("instruct"),
-                )
-            else:
-                ok = synth(cleaned, language, output_path, rate, _normalize_accent(accent))
-            if ok and is_server_engine(engine):
-                record_server_use(engine)
+        with managed_services.lease(engine), managed_model_load_context(engine):
+            ok = adapter.synthesize(request)
     except Exception as e:  # noqa: BLE001
         call_serialized(
             _ORCHESTRATOR_STATE_QUEUE,
@@ -821,9 +706,15 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
     if not name:
         return {"success": False, "engine": None, "latency_ms": 0, "bytes": 0,
                 "error": "no TTS engine available"}
-    if is_server_engine(name) and prepare_server_for_use(name):
-        invalidate_server_engine_cache(name)
-    if not engine_available(name):
+    if not tts_engine_supports_language(name, language):
+        return {
+            "success": False,
+            "engine": name,
+            "latency_ms": 0,
+            "bytes": 0,
+            "error": f"{name} does not support language: {language}",
+        }
+    if not is_server_engine(name) and not engine_available(name):
         reason = _engine_disabled_reason(name)
         err = reason or f"{name} unavailable"
         return {"success": False, "engine": name, "latency_ms": 0, "bytes": 0,
@@ -874,6 +765,7 @@ __all__ = [
     "reload_tts_priority",
     "report_tts_engine_startup",
     "engine_available",
+    "engine_concurrency",
     "best_engine",
     "tts_status",
     "describe_synth_command",

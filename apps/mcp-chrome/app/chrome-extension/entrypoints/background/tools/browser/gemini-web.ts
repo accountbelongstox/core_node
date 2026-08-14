@@ -10,7 +10,7 @@
  * test) is inherited from WebChatJobToolBase — identical across every web-chat
  * provider, only `jobConfig` + the content-script helper differ.
  */
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { logger } from '@/utils/logger';
 import { WebChatJobToolBase, type WebChatJobConfig } from './web-chat-job-base';
 import {
@@ -97,25 +97,17 @@ class GeminiWebTool extends WebChatJobToolBase {
         );
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              provider: 'gemini-web',
-              success: true,
-              answer: reply.answer,
-              tabId: resolvedTabId,
-              audio: audioResult,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        provider: 'gemini-web',
+        success: true,
+        answer: reply.answer,
+        tabId: resolvedTabId,
+        audio: audioResult,
+      });
     } catch (error) {
       console.error('Error in chrome_gemini:', error);
       return createErrorResponse(
-        `Gemini automation failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Gemini automation failed: ${toErrorMessage(error)}`,
       );
     }
   }

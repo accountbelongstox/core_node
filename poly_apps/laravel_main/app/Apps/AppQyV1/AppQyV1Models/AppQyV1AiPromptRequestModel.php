@@ -12,7 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * AI prompt request inbox row -- the passive submission point consumed by
@@ -50,4 +50,13 @@ class AppQyV1AiPromptRequestModel extends Model
         'prompt_keys' => 'array',
         'processed_at' => 'datetime',
     ];
+
+    public static function pendingBatch(int $limit)
+    {
+        return self::query()
+            ->where('status', self::STATUS_PENDING)
+            ->oldest('created_at')
+            ->limit($limit)
+            ->get();
+    }
 }

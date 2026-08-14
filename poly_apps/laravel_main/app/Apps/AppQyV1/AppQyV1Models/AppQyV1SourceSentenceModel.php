@@ -13,11 +13,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Utils\RunsModelTransactions;
+
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 /**
  * Persistent positional + cross-language CORRESPONDENCE index for every source
@@ -40,6 +43,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
  */
 class AppQyV1SourceSentenceModel extends Model
 {
+    use RunsModelTransactions;
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
 
@@ -171,6 +175,33 @@ class AppQyV1SourceSentenceModel extends Model
         return ['grain' => $grain, 'total' => $total, 'rows' => $rows];
     }
 
+    public static function orderedStudySlots(string $sourceType, string $sourceKey): array
+    {
+        $query = self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey);
+        $grain = (clone $query)->where('grain', 'sentence')->exists() ? 'sentence' : 'cue';
+
+        return [
+            'grain' => $grain,
+            'rows' => $query->where('grain', $grain)->orderBy('seq')->get(),
+        ];
+    }
+
+    public static function studySlotsBetween(
+        string $sourceType,
+        string $sourceKey,
+        string $grain,
+        int $start,
+        int $end
+    ): Collection {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->whereBetween('seq', [$start, $end])
+            ->orderBy('seq')
+            ->get();
+    }
+
     public static function findSlot(string $sourceType, string $sourceKey, string $grain, int $sequence): ?self
     {
         return self::query()
@@ -179,6 +210,62 @@ class AppQyV1SourceSentenceModel extends Model
             ->where('grain', $grain)
             ->where('seq', $sequence)
             ->first();
+    }
+
+    public static function slotCountsByChapter(string $sourceKey, string $grain = 'all'): array
+    {
+        $query = self::query()->where('source_key', $sourceKey);
+        if ($grain !== 'all') {
+            $query->where('grain', $grain);
+        }
+
+        return $query
+            ->selectRaw('chapter_index, COUNT(*) as slot_count')
+            ->groupBy('chapter_index')
+            ->pluck('slot_count', 'chapter_index')
+            ->mapWithKeys(static fn ($count, $chapter): array => [(int) $chapter => (int) $count])
+            ->all();
+    }
+
+    public static function rowsForSourceKeyGrain(string $sourceKey, string $grain)
+    {
+        return self::query()
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->orderBy('chapter_index')
+            ->orderBy('seq')
+            ->get();
+    }
+
+    public static function countForSourceKeyGrain(string $sourceKey, string $grain): int
+    {
+        return self::query()->where('source_key', $sourceKey)->where('grain', $grain)->count();
+    }
+
+    public static function maximumChapterIndex(string $sourceKey, string $grain): ?int
+    {
+        $value = self::query()->where('source_key', $sourceKey)->where('grain', $grain)->max('chapter_index');
+
+        return $value === null ? null : (int) $value;
+    }
+
+    public static function countForChapter(string $sourceKey, string $grain, int $chapterIndex): int
+    {
+        return self::query()
+            ->where('source_key', $sourceKey)
+            ->where('grain', $grain)
+            ->where('chapter_index', $chapterIndex)
+            ->count();
+    }
+
+    public static function tableRowCount(): int
+    {
+        $model = new self();
+        if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
+            return 0;
+        }
+
+        return self::query()->count();
     }
 
     public static function createLink(array $attributes): self

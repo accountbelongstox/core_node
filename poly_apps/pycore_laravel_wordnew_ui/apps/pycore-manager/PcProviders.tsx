@@ -4,20 +4,20 @@
  */
 import React from 'react';
 import { PcLiveProvider } from './PcLiveContext';
-import { PcCapabilityProvider } from './PcCapabilityContext';
+import { PcCapabilityPollingProvider } from './PcCapabilityPollingProvider';
 import { PcVideoExtractProvider } from './PcVideoExtractContext';
 import { PcOperationProvider } from './PcOperationContext';
 
 export function PcProviders({ children }: { children: React.ReactNode }) {
   return (
     <PcLiveProvider>
-      <PcCapabilityProvider>
+      <PcCapabilityPollingProvider>
         <PcVideoExtractProvider>
           <PcOperationProvider>
             {children}
           </PcOperationProvider>
         </PcVideoExtractProvider>
-      </PcCapabilityProvider>
+      </PcCapabilityPollingProvider>
     </PcLiveProvider>
   );
 }

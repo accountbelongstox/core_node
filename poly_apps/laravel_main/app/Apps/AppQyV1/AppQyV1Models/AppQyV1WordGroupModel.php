@@ -11,7 +11,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
@@ -90,6 +90,121 @@ class AppQyV1WordGroupModel extends Model
             now()->addMinutes(10),
             fn () => self::query()->where('gname', $name)->where('uid', $userId)->first()
         );
+    }
+
+    public static function findOwnedByReference(int $userId, string $reference): ?self
+    {
+        return self::query()
+            ->where('uid', $userId)
+            ->where(function ($query) use ($reference): void {
+                $query->where('gid', $reference);
+                if (ctype_digit($reference)) {
+                    $query->orWhere('id', (int) $reference);
+                }
+            })
+            ->first();
+    }
+
+    public static function findOwnedByGid(int $userId, string $gid): ?self
+    {
+        return static::query()->where('gid', $gid)->where('uid', $userId)->first();
+    }
+
+    public static function findOwnedByName(int $userId, string $name): ?self
+    {
+        return static::query()->where('gname', $name)->where('uid', $userId)->first();
+    }
+
+    public static function findByGid(string $gid, array $columns = ['*']): ?self
+    {
+        return static::query()->where('gid', $gid)->first($columns);
+    }
+
+    public static function findByNameOwner(string $name, ?int $userId, ?string $username): ?self
+    {
+        $query = static::query()->where('gname', $name);
+
+        if ($userId !== null) {
+            $query->where('uid', $userId);
+        } elseif ($username !== null) {
+            $query->where('username', $username);
+        } else {
+            return null;
+        }
+
+        return $query->first();
+    }
+
+    public static function pageWithProgress(?int $userId, int $start, int $limit, array $columns)
+    {
+        $query = static::query()->select($columns)->with('wordProgress:id,group_id,total_words');
+
+        if ($userId !== null) {
+            $query->where('uid', $userId);
+        }
+
+        return $query->orderByDesc('created_at')->skip($start)->take($limit)->get();
+    }
+
+    public static function userPageWithProgress(int $userId, int $start, int $limit)
+    {
+        return self::forUser($userId)
+            ->select(['id', 'gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at', 'uid'])
+            ->with('wordProgress:id,group_id,total_words')
+            ->orderByDesc('created_at')
+            ->skip($start)
+            ->take($limit)
+            ->get();
+    }
+
+    public static function languageDefault(int $userId, string $language): ?self
+    {
+        return static::query()
+            ->where('uid', $userId)
+            ->where('language', $language)
+            ->where('is_language_default', true)
+            ->first();
+    }
+
+    public static function languageDefaultsForUsers(array $userIds)
+    {
+        return static::query()
+            ->whereIn('uid', array_values(array_unique($userIds)))
+            ->where('is_language_default', true)
+            ->get();
+    }
+
+    public static function legacyDefault(int $userId, string $name): ?self
+    {
+        return static::query()->where('uid', $userId)->where('gname', $name)->first();
+    }
+
+    public static function legacyDefaultsForUsers(array $userIds, string $name)
+    {
+        return static::query()
+            ->whereIn('uid', array_values(array_unique($userIds)))
+            ->where('gname', $name)
+            ->get();
+    }
+
+    public static function forUserLanguage(int $userId, string $language)
+    {
+        return static::query()
+            ->where('uid', $userId)
+            ->where('language', $language)
+            ->orderByDesc('is_language_default')
+            ->orderBy('created_at')
+            ->get();
+    }
+
+    public static function touchById(int $groupId): int
+    {
+        return static::query()->whereKey($groupId)->update(['updated_at' => now()]);
+    }
+
+    public static function lockById(int $groupId): self
+    {
+        return self::query()->whereKey($groupId)->lockForUpdate()->firstOrFail();
     }
 
     /**

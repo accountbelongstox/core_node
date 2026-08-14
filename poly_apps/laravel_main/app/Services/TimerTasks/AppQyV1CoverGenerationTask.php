@@ -124,17 +124,10 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
             }
         }
 
-        // Keep the assist pending-work snapshot cache warm so third parties
-        // (pycore) and the dashboard poll /assist/pending cheaply. We TOUCH it
-        // with fresh=false (not true): Cache::remember recomputes only when the
-        // TTL has expired, so the expensive TTS statistics() aggregate runs at
-        // most once per TTL instead of on every 5s tick. Best-effort: a failure
-        // here must never break cover maintenance above.
-        try {
-            (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService())->pendingSnapshot(false);
-        } catch (\Throwable $e) {
-            $this->logError('Assist pending-snapshot warm failed', ['error' => $e->getMessage()]);
-        }
+        // The assist pending-work snapshot (/assist/pending, /assist/status)
+        // is published by AppQyV1OverviewWarmTask every 20s; this task must
+        // not warm it (its flexible-based warm was a silent no-op inside an
+        // Octane tick anyway).
     }
 
     /**
@@ -160,52 +153,14 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
      */
     private function runMaintenance(): array
     {
-        $model = new AppQyV1VocabularyLibraryModel();
+        $leaseBefore = now()->subMinutes(AppQyV1DictionaryTTSCoordinator::ASSIST_LEASE_MINUTES);
+        $failedBefore = now()->subMinutes(self::FAILED_COOLDOWN_MINUTES);
 
-        return $model->getConnection()->transaction(function () {
-            $leaseBefore = now()->subMinutes(AppQyV1DictionaryTTSCoordinator::ASSIST_LEASE_MINUTES);
-
-            // 1) failed rows past their retry budget AND cooldown -> requeue.
-            $failed = AppQyV1VocabularyLibraryModel::query()
-                ->whereNotNull('cover_filename')
-                ->where('cover_status', 'failed')
-                ->where('cover_attempts', '>=', self::MAX_RETRIES)
-                ->where('cover_finished_at', '<=', now()->subMinutes(self::FAILED_COOLDOWN_MINUTES))
-                ->update([
-                    'cover_status' => 'pending',
-                    'cover_attempts' => 0,
-                    'cover_error_message' => null,
-                    'assist_claimed_at' => null,
-                    'assist_claimed_by' => null,
-                ]);
-
-            // 2) processing rows stuck past the lease window -> back to pending.
-            $processing = AppQyV1VocabularyLibraryModel::query()
-                ->whereNotNull('cover_filename')
-                ->where('cover_status', 'processing')
-                ->where('cover_started_at', '<=', $leaseBefore)
-                ->update([
-                    'cover_status' => 'pending',
-                    'assist_claimed_at' => null,
-                    'assist_claimed_by' => null,
-                ]);
-
-            // 3) stale assist leases (> 60 min) -> cleared for mcp-chrome.
-            $staleLeases = AppQyV1VocabularyLibraryModel::query()
-                ->whereNotNull('assist_claimed_at')
-                ->where('assist_claimed_at', '<', $leaseBefore)
-                ->update([
-                    'assist_claimed_at' => null,
-                    'assist_claimed_by' => null,
-                ]);
-
-            return [
-                'failed' => (int) $failed,
-                'processing' => (int) $processing,
-                'stale_leases' => (int) $staleLeases,
-                'total' => (int) $failed + (int) $processing + (int) $staleLeases,
-            ];
-        }, 1);
+        return AppQyV1VocabularyLibraryModel::recoverCoverMaintenance(
+            self::MAX_RETRIES,
+            $failedBefore,
+            $leaseBefore
+        );
     }
 
     /**
@@ -229,15 +184,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
      */
     private function seedMissingCovers(): int
     {
-        $rows = AppQyV1VocabularyLibraryModel::query()
-            ->where('is_public', true)
-            ->where(function ($query) {
-                $query->whereNull('cover_filename')
-                    ->orWhere('cover_filename', '');
-            })
-            ->orderBy('id')
-            ->limit(self::SEED_BATCH)
-            ->get();
+        $rows = AppQyV1VocabularyLibraryModel::missingPublicCovers(self::SEED_BATCH);
 
         if ($rows->isEmpty()) {
             return 0;
@@ -255,7 +202,7 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
                 $library->cover_priority = 5;
             }
             $library->cover_last_requested_at = now();
-            $library->save();
+            $library->saveRecord();
             $seeded++;
         }
 

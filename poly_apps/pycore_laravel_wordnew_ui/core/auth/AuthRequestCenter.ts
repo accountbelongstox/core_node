@@ -1,6 +1,6 @@
-export const AUTH_LOGIN_REQUEST_EVENT = 'laravel-manager:login-request';
-export const AUTH_LOGIN_DISMISS_EVENT = 'laravel-manager:login-dismiss';
-export const AUTH_LOGIN_SUCCESS_EVENT = 'laravel-manager:login-success';
+export const AUTH_LOGIN_REQUEST_EVENT = 'app-auth:login-request';
+export const AUTH_LOGIN_DISMISS_EVENT = 'app-auth:login-dismiss';
+export const AUTH_LOGIN_SUCCESS_EVENT = 'app-auth:login-success';
 const AUTH_LOGIN_REQUEST_COOLDOWN_MS = 1000;
 
 let lastAuthLoginRequestAt = 0;

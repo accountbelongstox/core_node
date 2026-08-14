@@ -4,10 +4,9 @@
  * assets/generate_wordnew_brand.py) at multiple sizes. Used by the header mark
  * (sub-app top-left), the welcome/onboarding splash and the About card.
  *
- * The pixel data is embedded as base64 data-URIs (WfNewBrandData.ts) so the
- * brand is fully self-contained — no bundler asset-path / base-URL config, and
- * it works in dev, production build and the offline AI-Studio mock alike. The
- * full multi-size PNG set + .ico still live on disk under assets/. */
+ * Vite emits the PNG imports exposed by WfNewBrandData.ts, keeping the URLs
+ * valid in development, production, and native bundles without inline data
+ * URI parsing. The full multi-size PNG set and .ico live under assets/. */
 import React from 'react';
 import { WORDNEW_LOGO_64, WORDNEW_LOGO_128 } from './WfNewBrandData';
 

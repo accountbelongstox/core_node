@@ -3,8 +3,9 @@
 namespace App\Models;
 
 use App\Support\QueueCenterContract;
+use App\Models\Concerns\UsesMainConnection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * Global Task Event — append-only audit log of every task lifecycle transition.
@@ -20,7 +21,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class GlobalTaskEvent extends Model
 {
-    use HasFactory;
+    use HasFactory, UsesMainConnection;
 
     protected $table = 'global_task_events';
 
@@ -94,5 +95,16 @@ class GlobalTaskEvent extends Model
     public function scopeForTask($query, string $taskId)
     {
         return $query->where('task_id', $taskId)->orderBy('id', 'asc');
+    }
+
+    public static function recentForTask(string $taskId, int $limit)
+    {
+        return self::query()
+            ->where('task_id', $taskId)
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get()
+            ->reverse()
+            ->values();
     }
 }

@@ -28,6 +28,7 @@ import {
 } from '@/services/assist-image-api';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { TimeoutController } from '@/utils/async';
 
 const LOG = 'Submit Outbox';
 const STORAGE_KEY = STORAGE_KEYS.SUBMIT_OUTBOX;
@@ -147,7 +148,7 @@ class SubmitOutbox {
   private initialized = false;
   private started = false;
   private draining = false;
-  private loopTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly loopTimeout = new TimeoutController();
 
   private async initialize(): Promise<void> {
     if (this.initialized) return;
@@ -351,8 +352,7 @@ class SubmitOutbox {
   }
 
   private scheduleNext(): void {
-    if (this.loopTimer) clearTimeout(this.loopTimer);
-    this.loopTimer = setTimeout(() => {
+    this.loopTimeout.restart(() => {
       void this.drain().finally(() => this.scheduleNext());
     }, this.computeLoopDelay());
   }

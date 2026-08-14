@@ -19,7 +19,7 @@ class CodeMartV1DepositCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)->first();
+        $userRole = CodeMartV1UserRoleModel::forUser((int) $user->id);
         if (!$userRole) {
             return $this->error('User role not found');
         }
@@ -30,9 +30,7 @@ class CodeMartV1DepositCtl extends Controller
             default => 0,
         };
 
-        $existingDeposit = CodeMartV1DepositModel::where('user_id', $user->id)
-            ->where('status', 'paid')
-            ->sum('amount');
+        $existingDeposit = CodeMartV1DepositModel::paidAmountForUser((int) $user->id);
 
         return $this->success([
             'required_deposit' => $requiredDeposit,
@@ -56,14 +54,14 @@ class CodeMartV1DepositCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)->first();
+        $userRole = CodeMartV1UserRoleModel::forUser((int) $user->id);
         if (!$userRole) {
             return $this->error('User role not found');
         }
 
         CodeMartV1DepositModel::beginModelTransaction();
 
-        $deposit = CodeMartV1DepositModel::create([
+        $deposit = CodeMartV1DepositModel::createRecord([
             'user_id' => $user->id,
             'role_type' => $userRole->role_type,
             'amount' => $request->amount,
@@ -87,9 +85,7 @@ class CodeMartV1DepositCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $deposit = CodeMartV1DepositModel::where('id', $depositId)
-            ->where('user_id', $user->id)
-            ->first();
+        $deposit = CodeMartV1DepositModel::findOwned((int) $depositId, (int) $user->id);
 
         if (!$deposit) {
             return $this->notFound('Deposit not found');
@@ -109,10 +105,7 @@ class CodeMartV1DepositCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $deposit = CodeMartV1DepositModel::where('id', $depositId)
-            ->where('user_id', $user->id)
-            ->where('status', 'pending')
-            ->first();
+        $deposit = CodeMartV1DepositModel::findOwned((int) $depositId, (int) $user->id, 'pending');
 
         if (!$deposit) {
             return $this->notFound('Deposit not found or already processed');
@@ -120,14 +113,14 @@ class CodeMartV1DepositCtl extends Controller
 
         CodeMartV1DepositModel::beginModelTransaction();
 
-        $deposit->update([
+        $deposit->updateRecord([
             'status' => 'paid',
             'paid_at' => now(),
         ]);
 
-        $userRole = CodeMartV1UserRoleModel::where('user_id', $user->id)->first();
+        $userRole = CodeMartV1UserRoleModel::forUser((int) $user->id);
         if ($userRole && $userRole->role_status === 'pending_deposit') {
-            $userRole->update(['role_status' => 'active']);
+            $userRole->updateRecord(['role_status' => 'active']);
         }
 
         CodeMartV1DepositModel::commitModelTransaction();
@@ -144,14 +137,7 @@ class CodeMartV1DepositCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $deposits = CodeMartV1DepositModel::where('user_id', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return $this->success([
-            'deposits' => $deposits,
-            'total_deposited' => $deposits->where('status', 'paid')->sum('amount'),
-        ]);
+        return $this->success(CodeMartV1DepositModel::historyForUser((int) $user->id));
     }
 
     private function generatePaymentUrl(string $paymentMethod, float $amount): string

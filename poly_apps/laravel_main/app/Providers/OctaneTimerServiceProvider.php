@@ -221,7 +221,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
                     OctaneTimerService::start();
                 }
                 OctaneTimerService::tick();
-            })->everySecond()->name('shared-timer-tick');
+            })->everySecond()->name('shared-timer-tick')->withoutOverlapping();
 
         } catch (\Throwable $e) {
             Log::error('OctaneTimerServiceProvider: Failed to register Schedule tick', [

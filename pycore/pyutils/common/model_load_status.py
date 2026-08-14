@@ -235,7 +235,7 @@ def report_model_load(
     progress surfaces once. No-op when the model is already resident (so warm
     calls never churn the registry).
 
-    Usage (orchestrator, inside `managed_services.using(name)`):
+    Usage (orchestrator, inside `managed_services.lease(name)`):
         with report_model_load(name, is_loaded=lambda: managed_services.is_running(name)):
             ok = synth(...)
 

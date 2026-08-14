@@ -13,7 +13,6 @@ namespace App\Http\Common;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
 /**
@@ -59,11 +58,7 @@ class CommonAuthService
         }
         // Authenticate by username/password
         elseif ($username && $password) {
-            $user = User::where(function($query) use ($username) {
-                $query->where('username', $username)
-                    ->orWhere('email', $username)
-                    ->orWhere('phone', $username);
-            })->first();
+            $user = User::findByUsernameEmailOrPhone($username);
 
             if ($user && !Hash::check($password, $user->password)) {
                 $user = null;
@@ -80,7 +75,7 @@ class CommonAuthService
         // Handle existing sessions based on multi-device setting
         if (!$allowMultiDevice) {
             // Revoke all existing tokens for single-device mode
-            $user->tokens()->delete();
+            $user->revokeAllAccessTokens();
             self::revokeUserToken($user->id);
         }
 
@@ -117,7 +112,7 @@ class CommonAuthService
         $token = Str::random(self::USER_TOKEN_LENGTH);
         $expiresAt = Carbon::now()->addDays(self::USER_TOKEN_EXPIRES_DAYS);
 
-        User::where('id', $userId)->update(['user_token' => $token]);
+        User::updateById((int) $userId, ['user_token' => $token]);
 
         return [
             'token' => $token,
@@ -151,7 +146,7 @@ class CommonAuthService
      */
     public static function getUserByUserToken($userToken)
     {
-        return User::where('user_token', $userToken)->first();
+        return User::findByUserToken((string) $userToken);
     }
 
     /**
@@ -163,7 +158,7 @@ class CommonAuthService
      */
     public static function revokeUserToken($userId, $appName = null)
     {
-        User::where('id', $userId)->update(['user_token' => null]);
+        User::updateById((int) $userId, ['user_token' => null]);
         return true;
     }
 
@@ -220,9 +215,7 @@ class CommonAuthService
     public static function logoutUser($user, $appName = 'common', $revokeUserToken = false)
     {
         // Revoke current sanctum token
-        if ($user->currentAccessToken()) {
-            $user->currentAccessToken()->delete();
-        }
+        $user->revokeCurrentAccessToken();
 
         // Optionally revoke user_token
         if ($revokeUserToken) {

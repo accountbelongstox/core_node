@@ -86,12 +86,7 @@ class AppQyV1VocabularyRecommendationController extends BaseController
             $selectedIds = $this->getActiveSelectedIds($userId);
         }
 
-        $items = AppQyV1VocabularyLibraryModel::query()
-            ->public()
-            ->whereIn('language', $languages)
-            ->orderByDesc('is_recommended')
-            ->orderByDesc('total_words')
-            ->get()
+        $items = AppQyV1VocabularyLibraryModel::recommendationsForLanguages($languages)
             ->map(fn (AppQyV1VocabularyLibraryModel $library) => $this->transformLibrary($library, $selectedIds))
             ->values();
 
@@ -130,9 +125,7 @@ class AppQyV1VocabularyRecommendationController extends BaseController
         $action = $request->input('action', 'select');
 
         if ($action === 'select') {
-            $library = AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->find($collectionId);
+            $library = AppQyV1VocabularyLibraryModel::findPublicById((int) $collectionId);
 
             if (!$library) {
                 return response()->json([
@@ -178,11 +171,7 @@ class AppQyV1VocabularyRecommendationController extends BaseController
         // collection_id stores real vocabulary_libraries ids (selectCollection
         // validates against that table) — resolve them there and return the
         // same item shape as getRecommendations.
-        $libraries = AppQyV1VocabularyLibraryModel::query()
-            ->whereIn('id', $selected)
-            ->orderByDesc('is_recommended')
-            ->orderByDesc('total_words')
-            ->get()
+        $libraries = AppQyV1VocabularyLibraryModel::rowsByIds($selected)
             ->map(fn (AppQyV1VocabularyLibraryModel $library) => $this->transformLibrary($library, $selected))
             ->values()
             ->all();
@@ -199,11 +188,7 @@ class AppQyV1VocabularyRecommendationController extends BaseController
      */
     private function getActiveSelectedIds(int $userId): array
     {
-        return AppQyV1UserSelectedLibraryModel::where('user_id', $userId)
-            ->where('is_active', true)
-            ->pluck('collection_id')
-            ->map(fn ($id) => (int) $id)
-            ->toArray();
+        return AppQyV1UserSelectedLibraryModel::activeLibraryIds($userId);
     }
 
     /**

@@ -45,7 +45,7 @@ class GroupController
 
     public function show(Group $group)
     {
-        return response()->json($group->load('configs'));
+        return response()->json($group->loadRecordRelations('configs'));
     }
 
     public function update(Request $request, Group $group)
@@ -64,7 +64,7 @@ class GroupController
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $group->update([
+        $group->updateRecord([
             'name' => $request->name,
             'description' => $request->description
         ]);
@@ -81,7 +81,7 @@ class GroupController
             ], 422);
         }
 
-        $group->delete();
+        $group->deleteRecord();
         return response()->json(null, 204);
     }
 

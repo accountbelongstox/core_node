@@ -1,8 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Utils;
 
+use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EmailVerificationModel;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Config;
 
@@ -38,50 +38,20 @@ class CodeMartV1EmailService
 
     public function verifyToken(string $email, string $token): bool
     {
-        $record = DB::table('codemart_email_verifications')
-            ->where('email', $email)
-            ->where('token', $token)
-            ->first();
-
-        if (!$record) {
-            return false;
-        }
-
-        if ($record->verified_at !== null) {
-            return false;
-        }
-
-        DB::table('codemart_email_verifications')
-            ->where('id', $record->id)
-            ->update(['verified_at' => now()]);
-
-        return true;
+        return CodeMartV1EmailVerificationModel::consume($email, $token);
     }
 
     public function createEmailVerification(string $email): string
     {
         $token = $this->generateVerificationToken();
 
-        DB::table('codemart_email_verifications')->updateOrCreate(
-            ['email' => $email],
-            [
-                'token' => $token,
-                'verified_at' => null,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
+        CodeMartV1EmailVerificationModel::replaceForEmail($email, $token);
 
         return $token;
     }
 
     public function isEmailVerified(string $email): bool
     {
-        $record = DB::table('codemart_email_verifications')
-            ->where('email', $email)
-            ->where('verified_at', '!=', null)
-            ->first();
-
-        return $record !== null;
+        return CodeMartV1EmailVerificationModel::isVerifiedEmail($email);
     }
 }

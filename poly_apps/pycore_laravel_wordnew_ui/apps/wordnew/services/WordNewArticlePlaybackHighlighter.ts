@@ -21,15 +21,20 @@ class WordNewArticlePlaybackHighlighterClass {
     });
   }
 
+  indexAtRatio(segments: WordNewArticleSentenceSegment[], ratio: number): number {
+    if (segments.length === 0) return -1;
+    const clamped = Math.max(0, Math.min(1, ratio));
+    const index = segments.findIndex((segment) => clamped >= segment.startRatio && clamped < segment.endRatio);
+    return index >= 0 ? index : segments.length - 1;
+  }
+
   currentIndex(
     segments: WordNewArticleSentenceSegment[],
     currentTime: number,
     duration: number,
   ): number {
-    if (segments.length === 0 || duration <= 0) return -1;
-    const ratio = Math.max(0, Math.min(1, currentTime / duration));
-    const index = segments.findIndex((segment) => ratio >= segment.startRatio && ratio < segment.endRatio);
-    return index >= 0 ? index : segments.length - 1;
+    if (duration <= 0) return -1;
+    return this.indexAtRatio(segments, currentTime / duration);
   }
 }
 

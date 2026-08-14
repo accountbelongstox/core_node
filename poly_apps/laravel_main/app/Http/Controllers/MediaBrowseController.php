@@ -20,6 +20,7 @@ use App\Services\MediaIngestStatusService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -142,9 +143,13 @@ class MediaBrowseController extends Controller
             'per_page' => 'nullable|integer|min:1|max:100',
             'language' => 'nullable|string',
             'search' => 'nullable|string',
+            'sort' => ['nullable', 'string', Rule::in(AppQyV1UploadedDocumentModel::BROWSE_SORT_KEYS)],
+            'order' => 'nullable|string|in:asc,desc',
         ]);
 
         $perPage = isset($validated['per_page']) ? (int) $validated['per_page'] : 20;
+        $sortKey = isset($validated['sort']) ? (string) $validated['sort'] : '';
+        $order = isset($validated['order']) ? (string) $validated['order'] : 'desc';
 
         // Optional auth — documents belong to a user. No user → empty page (NOT 401),
         // matching the paginated() envelope so the FE renders an empty state cleanly.
@@ -159,19 +164,14 @@ class MediaBrowseController extends Controller
             ]);
         }
 
-        $query = AppQyV1UploadedDocumentModel::where('user_id', $user->id);
-
-        if (!empty($validated['language'])) {
-            $query->where('language', $validated['language']);
-        }
-        if (!empty($validated['search'])) {
-            $search = $validated['search'];
-            $query->where('original_name', 'like', "%{$search}%");
-        }
-
-        $query->orderByDesc('created_at');
-
-        $paginator = $query->with('library')->paginate($perPage)->through(function (AppQyV1UploadedDocumentModel $doc) {
+        $paginator = AppQyV1UploadedDocumentModel::browseForUser(
+            (int) $user->id,
+            $validated['language'] ?? null,
+            $validated['search'] ?? null,
+            $sortKey,
+            $order,
+            $perPage
+        )->through(function (AppQyV1UploadedDocumentModel $doc) {
             $library = $doc->library;
             return [
                 'id' => $doc->id,
@@ -263,7 +263,7 @@ class MediaBrowseController extends Controller
         $sourceType = 'book';
         $source = $book;
         if (!$source && str_starts_with($source_key, 'article_')) {
-            $article = AppQyV1Article::where('article_id', $source_key)->first();
+            $article = AppQyV1Article::findByArticleId($source_key);
             if ($article) {
                 $sourceType = 'article';
                 $source = $this->articleAsSource($article);
@@ -314,7 +314,7 @@ class MediaBrowseController extends Controller
         $sourceType = 'book';
         $source = $book;
         if (!$source && str_starts_with($source_key, 'article_')) {
-            $article = AppQyV1Article::where('article_id', $source_key)->first();
+            $article = AppQyV1Article::findByArticleId($source_key);
             if ($article) {
                 $sourceType = 'article';
                 $source = $this->articleAsSource($article);
@@ -414,9 +414,7 @@ class MediaBrowseController extends Controller
             return $this->error('Authentication required', 401);
         }
 
-        $document = AppQyV1UploadedDocumentModel::where('id', (int) $id)
-            ->where('user_id', $user->id)
-            ->first();
+        $document = AppQyV1UploadedDocumentModel::findOwned((int) $id, (int) $user->id);
         if (!$document) {
             return $this->error('Document not found', 404);
         }

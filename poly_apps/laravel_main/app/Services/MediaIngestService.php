@@ -10,10 +10,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SourceSentenceModel as SourceSentence;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MediaSegmentModel as MediaSegment;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Constants\AppKeys;
+use App\Models\Model;
 use App\Services\MoviePoster\MoviePosterStore;
 use Illuminate\Support\Facades\Log;
 
@@ -80,9 +77,7 @@ class MediaIngestService
             [$chapters, $slots] = $this->convertLegacyToV3($sourceType, $sourceKey, $sourceData, $sentences);
         }
 
-        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-
-        return DB::connection($connection)->transaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots, $words, $modelVersion) {
+        return SourceSentence::runInTransaction(function () use ($sourceType, $sourceKey, $sourceData, $segments, $chapters, $slots, $words, $modelVersion) {
             // Per-type source-row upsert. book/subtitle own a dedicated source
             // table; document/article keep their body in their OWN store
             // (AppQyV1UploadedDocumentModel / the articles table), so there is no
@@ -220,8 +215,8 @@ class MediaIngestService
 
         try {
             $model = $sourceType === 'subtitle'
-                ? Subtitle::where('source_key', $sourceKey)->first()
-                : Book::where('source_key', $sourceKey)->first();
+                ? Subtitle::findBySourceKey($sourceKey)
+                : Book::findBySourceKey($sourceKey);
 
             if (!$model) {
                 return ['status' => 'pending', 'applied' => false, 'error' => 'source row not found'];
@@ -274,12 +269,12 @@ class MediaIngestService
             }
         }
 
-        $source = Subtitle::where('source_key', $sourceKey)->first();
+        $source = Subtitle::findBySourceKey($sourceKey);
 
         if (!$source) {
             $incoming['source_key'] = $sourceKey;
             $incoming['synced_at'] = now();
-            Subtitle::create($incoming);
+            Subtitle::createRecord($incoming);
             return ['created' => true, 'filled' => false];
         }
 
@@ -297,7 +292,7 @@ class MediaIngestService
             $changed = true;
         }
         $source->synced_at = now();
-        $source->save();
+        $source->saveRecord();
 
         return ['created' => false, 'filled' => $changed];
     }
@@ -322,12 +317,12 @@ class MediaIngestService
             $incoming['language'] = AppQyV1TableMaps::normalizeLangCode((string) $incoming['language']);
         }
 
-        $source = Book::where('source_key', $sourceKey)->first();
+        $source = Book::findBySourceKey($sourceKey);
 
         if (!$source) {
             $incoming['source_key'] = $sourceKey;
             $incoming['synced_at'] = now();
-            Book::create($incoming);
+            Book::createRecord($incoming);
             return ['created' => true, 'filled' => false];
         }
 
@@ -344,7 +339,7 @@ class MediaIngestService
             $changed = true;
         }
         $source->synced_at = now();
-        $source->save();
+        $source->saveRecord();
 
         return ['created' => false, 'filled' => $changed];
     }
@@ -396,11 +391,12 @@ class MediaIngestService
                 $title = array_key_exists($langCode, $titles) ? $titles[$langCode] : null;
                 $titleStr = (is_string($title) && trim($title) !== '') ? $title : null;
 
-                $existing = LangChapter::onLang($langCode)
-                    ->where('source_type', $sourceType)
-                    ->where('source_key', $sourceKey)
-                    ->where('chapter_index', $chapterIndex)
-                    ->first();
+                $existing = LangChapter::findForSourceIndex(
+                    $langCode,
+                    $sourceType,
+                    $sourceKey,
+                    $chapterIndex
+                );
 
                 if (!$existing) {
                     $row = LangChapter::for($langCode);
@@ -414,7 +410,7 @@ class MediaIngestService
                         'sentence_count' => $sentenceCount,
                         'metadata' => $metadata,
                     ]);
-                    $row->save();
+                    $row->saveRecord();
                     $created++;
                     continue;
                 }
@@ -437,7 +433,7 @@ class MediaIngestService
                     $changed = true;
                 }
                 if ($changed) {
-                    $existing->save();
+                    $existing->saveRecord();
                     $filled++;
                 }
             }
@@ -579,11 +575,7 @@ class MediaIngestService
             // ---- Language-independent positional slot row ----
             $linkIncoming = $this->pick($slot, $linkAllowed);
 
-            $existingLink = SourceSentence::where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->where('grain', $grain)
-                ->where('seq', $seq)
-                ->first();
+            $existingLink = SourceSentence::findSlot($sourceType, $sourceKey, $grain, $seq);
 
             if (!$existingLink) {
                 $linkIncoming['source_type'] = $sourceType;
@@ -596,7 +588,7 @@ class MediaIngestService
                 $linkIncoming['corr_id'] = $corrId;
                 $linkIncoming['primary_language'] = $primaryLanguage !== '' ? $primaryLanguage : null;
                 $linkIncoming['lang_content_ids'] = $langContentIds;
-                SourceSentence::create($linkIncoming);
+                SourceSentence::createLink($linkIncoming);
                 $linkCreated++;
             } else {
                 // Fill-missing: never clobber existing values. Always refresh the
@@ -614,7 +606,7 @@ class MediaIngestService
                 $changed = $this->mergeFill($existingLink, $linkIncoming);
                 $changed = $this->mergeLangContentIds($existingLink, $langContentIds) || $changed;
                 if ($changed) {
-                    $existingLink->save();
+                    $existingLink->saveRecord();
                     $linkFilled++;
                 }
             }
@@ -642,7 +634,7 @@ class MediaIngestService
 
         $sentenceId = self::computeSentenceId($text, $langCode);
 
-        $row = LangSentence::onLang($langCode)->where('content_id', $contentId)->first();
+        $row = LangSentence::findByContentId($langCode, $contentId);
 
         if (!$row) {
             $model = LangSentence::for($langCode);
@@ -654,7 +646,7 @@ class MediaIngestService
                 'language' => $langCode,
                 'occurrence_count' => 1,
             ]);
-            $model->save();
+            $model->saveRecord();
             $created++;
             return ['created' => $created, 'filled' => $filled, 'deduped' => $deduped];
         }
@@ -672,7 +664,7 @@ class MediaIngestService
             $changed = true;
         }
         $row->occurrence_count = (int) $row->occurrence_count + 1;
-        $row->save();
+        $row->saveRecord();
         if ($changed) {
             $filled++;
         }
@@ -728,6 +720,8 @@ class MediaIngestService
         $existing = 0;
 
         foreach ($words as $lang => $items) {
+            $contents = [];
+
             if (!is_array($items)) {
                 continue;
             }
@@ -748,16 +742,12 @@ class MediaIngestService
                     continue;
                 }
 
-                // md5-keyed: returns the existing row when present (no clobber),
-                // else inserts a bare word row (audio filled later by TTS).
-                $before = AppQyV1LangDictionaryModel::findByContent($langCode, $content);
-                AppQyV1LangDictionaryModel::createOrFind($langCode, $content);
-                if ($before) {
-                    $existing++;
-                } else {
-                    $created++;
-                }
+                $contents[] = $content;
             }
+
+            $outcome = AppQyV1LangDictionaryModel::ensureContents($langCode, $contents);
+            $created += $outcome['created'];
+            $existing += $outcome['existing'];
         }
 
         return [
@@ -797,20 +787,18 @@ class MediaIngestService
             $segIndex = (int) $segment['seg_index'];
             $incoming = $this->pick($segment, $allowed);
 
-            $existing = MediaSegment::where('source_key', $sourceKey)
-                ->where('seg_index', $segIndex)
-                ->first();
+            $existing = MediaSegment::findForSourceIndex($sourceKey, $segIndex);
 
             if (!$existing) {
                 $incoming['source_key'] = $sourceKey;
                 $incoming['seg_index'] = $segIndex;
-                MediaSegment::create($incoming);
+                MediaSegment::createRecord($incoming);
                 $created++;
                 continue;
             }
 
             if ($this->mergeFill($existing, $incoming)) {
-                $existing->save();
+                $existing->saveRecord();
                 $filled++;
             }
         }

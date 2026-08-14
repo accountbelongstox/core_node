@@ -11,10 +11,11 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Support\Collection;
 
 class AppQyV1DailyRecitationLogModel extends Model
 {
@@ -63,9 +64,23 @@ class AppQyV1DailyRecitationLogModel extends Model
         'updated_at' => 'datetime',
     ];
 
-    public static function forUserDate(int $userId, string $date)
+    public static function recitedWordsForDate(int $userId, string $date): array
     {
-        return self::where('user_id', $userId)->where('date', $date);
+        return self::forUserDate($userId, $date)
+            ->distinct()
+            ->pluck('word')
+            ->all();
+    }
+
+    public static function actionRowsForDate(int $userId, string $date, bool $ordered = false): Collection
+    {
+        $query = self::forUserDate($userId, $date);
+
+        if ($ordered) {
+            $query->orderBy('id');
+        }
+
+        return $query->get(['word', 'action']);
     }
 
     public static function uniqueWordsByDate(int $userId, ?string $startDate = null)
@@ -80,5 +95,24 @@ class AppQyV1DailyRecitationLogModel extends Model
             ->orderBy('date')
             ->selectRaw('date, COUNT(DISTINCT word) as unique_words')
             ->get();
+    }
+
+    public static function findBatch(int $userId, string $batchId)
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('batch_id', $batchId)
+            ->orderBy('id')
+            ->get(['date']);
+    }
+
+    public static function insertRows(array $rows): bool
+    {
+        return self::query()->insert($rows);
+    }
+
+    private static function forUserDate(int $userId, string $date)
+    {
+        return self::query()->where('user_id', $userId)->where('date', $date);
     }
 }

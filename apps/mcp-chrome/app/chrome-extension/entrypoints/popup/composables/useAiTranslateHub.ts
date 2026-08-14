@@ -14,6 +14,7 @@ import { getMessage } from '@/utils/i18n';
 import { formatTimestamp } from '@/utils/time-helpers';
 import { TASK_CENTER_MSG } from '@/utils/task-center-types';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
+import { IntervalController } from '@/utils/async';
 
 const LOG = 'AI Translate Hub';
 
@@ -137,7 +138,7 @@ export function useAiTranslateHub() {
 
   // ── Stats polling ──────────────────────────────────────────────────
 
-  let statsTimer: ReturnType<typeof setInterval> | null = null;
+  const statsPolling = new IntervalController();
 
   const loadStats = async () => {
     try {
@@ -157,16 +158,12 @@ export function useAiTranslateHub() {
   };
 
   const startStatsPolling = () => {
-    stopStatsPolling();
-    loadStats();
-    statsTimer = setInterval(loadStats, 3000);
+    void loadStats();
+    statsPolling.restart(() => void loadStats(), 3000);
   };
 
   const stopStatsPolling = () => {
-    if (statsTimer) {
-      clearInterval(statsTimer);
-      statsTimer = null;
-    }
+    statsPolling.stop();
   };
 
   // ── Free Dictionary API ────────────────────────────────────────────

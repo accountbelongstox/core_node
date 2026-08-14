@@ -44,9 +44,7 @@ class AppQyV1WordGroupMediaSourceController
      */
     private function findOwnedGroup(int $userId, string $gid)
     {
-        return AppQyV1WordGroupModel::where('gid', $gid)
-            ->where('uid', $userId)
-            ->first();
+        return AppQyV1WordGroupModel::findOwnedByGid($userId, $gid);
     }
 
     /**
@@ -78,7 +76,7 @@ class AppQyV1WordGroupMediaSourceController
      */
     private function addGroupPivotWordKeys(int $groupId, array &$keySet): void
     {
-        $progressRow = AppQyV1GroupWordProgressModel::where('group_id', $groupId)->first();
+        $progressRow = AppQyV1GroupWordProgressModel::findByGroupId($groupId);
         if (!$progressRow) {
             return;
         }
@@ -131,10 +129,11 @@ class AppQyV1WordGroupMediaSourceController
 
         // Fast path: already linked - skip expensive extraction entirely.
         // Race-safe authority is the locked re-check inside the transaction below.
-        $existingLink = AppQyV1GroupMediaSourceModel::where('group_id', $group->id)
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->first();
+        $existingLink = AppQyV1GroupMediaSourceModel::findLink(
+            (int) $group->id,
+            $sourceType,
+            $sourceKey
+        );
         if ($existingLink) {
             return $this->success([
                 'gid' => $group->gid,
@@ -162,19 +161,18 @@ class AppQyV1WordGroupMediaSourceController
             // Serialize concurrent add_media_source calls for the same group:
             // the row lock makes the link re-check below race-safe without
             // try-catch around the unique (group_id, source_type, source_key) index.
-            $lockedGroup = AppQyV1WordGroupModel::where('id', $group->id)
-                ->lockForUpdate()
-                ->first();
+            $lockedGroup = AppQyV1WordGroupModel::lockById((int) $group->id);
             if (!$lockedGroup) {
                 return $this->groupNotFound();
             }
 
             $freshWords = StrTool::toWordArray($lockedGroup->gwords);
 
-            $existingLink = AppQyV1GroupMediaSourceModel::where('group_id', $lockedGroup->id)
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->first();
+            $existingLink = AppQyV1GroupMediaSourceModel::findLink(
+                (int) $lockedGroup->id,
+                $sourceType,
+                $sourceKey
+            );
             if ($existingLink) {
                 return $this->success([
                     'gid' => $lockedGroup->gid,
@@ -230,9 +228,9 @@ class AppQyV1WordGroupMediaSourceController
 
             $lockedGroup->gwords = $mergedWords;
             $lockedGroup->words_frequency = $currentFrequency;
-            $lockedGroup->save();
+            $lockedGroup->saveRecord();
 
-            AppQyV1GroupMediaSourceModel::create([
+            AppQyV1GroupMediaSourceModel::createLink([
                 'group_id' => $lockedGroup->id,
                 'source_type' => $sourceType,
                 'source_key' => $sourceKey,
@@ -281,15 +279,12 @@ class AppQyV1WordGroupMediaSourceController
             return $this->groupNotFound();
         }
 
-        $link = AppQyV1GroupMediaSourceModel::where('group_id', $group->id)
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->first();
+        $link = AppQyV1GroupMediaSourceModel::findLink((int) $group->id, $sourceType, $sourceKey);
         if (!$link) {
             return $this->notFound('Media source is not linked to this group');
         }
 
-        $link->delete();
+        $link->deleteRecord();
 
         return $this->success([
             'gid' => $group->gid,
@@ -324,9 +319,7 @@ class AppQyV1WordGroupMediaSourceController
             return $this->groupNotFound();
         }
 
-        $libraries = AppQyV1GroupLibraryModel::where('group_id', $group->id)
-            ->with('library:id,name,language,total_words')
-            ->get()
+        $libraries = AppQyV1GroupLibraryModel::forGroupWithLibrary((int) $group->id)
             ->map(function ($gl) {
                 return [
                     'id' => $gl->library->id,
@@ -338,9 +331,7 @@ class AppQyV1WordGroupMediaSourceController
             })
             ->values();
 
-        $mediaSources = AppQyV1GroupMediaSourceModel::where('group_id', $group->id)
-            ->orderBy('added_at')
-            ->get()
+        $mediaSources = AppQyV1GroupMediaSourceModel::forGroup((int) $group->id)
             ->map(function (AppQyV1GroupMediaSourceModel $link) {
                 return [
                     'source_type' => $link->source_type,

@@ -11,7 +11,8 @@
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { mediaCache } from '@/utils/media-cache';
 import { BingTabPool } from './bing-tab-pool';
-import { classify, formatExplanation, normalizeWords } from './bing-result';
+import { classify, formatExplanation } from './bing-result';
+import { normalizeWords } from '@/utils/task-words';
 
 /** One per-word row returned to the popup's scrape-test panel. */
 export interface ScrapeTestResult {

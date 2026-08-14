@@ -80,8 +80,7 @@ class DownloadController
 
     public function list()
     {
-        $tasks = \App\Models\DownloadTask::orderBy('created_at', 'desc')
-            ->get()
+        $tasks = \App\Models\DownloadTask::newestFirst()
             ->map(function($task) {
                 return [
                     'id' => $task->id,

@@ -9,7 +9,6 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Sentence Enrichment Service
@@ -90,7 +89,7 @@ class SentenceEnrichmentService
             }
 
             $remaining = $limit - $processed;
-            $rows = $this->selectRowsNeedingWork($langCode, $remaining)->get();
+            $rows = LangSentence::rowsNeedingEnrichment($langCode, self::AI_FIELDS, $remaining);
 
             foreach ($rows as $sentence) {
                 $processed++;
@@ -157,8 +156,7 @@ class SentenceEnrichmentService
     /** Whether the per-language sentence table for $lang exists. */
     private function tableExists(string $lang): bool
     {
-        $model = LangSentence::for($lang);
-        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+        return LangSentence::tableExists($lang);
     }
 
     /**
@@ -202,7 +200,7 @@ class SentenceEnrichmentService
         }
 
         if ($changed) {
-            $sentence->save();
+            $sentence->saveRecord();
         }
 
         return $changed;
@@ -454,23 +452,6 @@ PROMPT;
     }
 
     /**
-     * Base query (one per-language table) for rows still needing work: any AI
-     * field empty OR audio empty. Ordered for stable, resumable batching.
-     */
-    private function selectRowsNeedingWork(string $langCode, int $limit)
-    {
-        return LangSentence::onLang($langCode)
-            ->where(function ($q) {
-                foreach (self::AI_FIELDS as $field) {
-                    $q->orWhereNull($field)->orWhere($field, '=', '');
-                }
-                $q->orWhereNull('audio')->orWhere('audio', '=', '');
-            })
-            ->orderBy('id')
-            ->limit($limit);
-    }
-
-    /**
      * Count of rows still needing work (post-batch "remaining"), summed across
      * the requested language or every supported per-language table.
      */
@@ -481,14 +462,7 @@ PROMPT;
             if (!$this->tableExists($langCode)) {
                 continue;
             }
-            $total += (int) LangSentence::onLang($langCode)
-                ->where(function ($q) {
-                    foreach (self::AI_FIELDS as $field) {
-                        $q->orWhereNull($field)->orWhere($field, '=', '');
-                    }
-                    $q->orWhereNull('audio')->orWhere('audio', '=', '');
-                })
-                ->count();
+            $total += LangSentence::countNeedingEnrichment($langCode, self::AI_FIELDS);
         }
         return $total;
     }

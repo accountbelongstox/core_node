@@ -1,7 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1UserRoleModel extends Model
@@ -40,5 +41,31 @@ class CodeMartV1UserRoleModel extends Model
     public function isSuspended(): bool
     {
         return $this->role_status === 'suspended';
+    }
+
+    public static function forUser(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function forUserAndType(int $userId, string $roleType, ?string $status = null): ?self
+    {
+        $query = static::query()->where('user_id', $userId)->where('role_type', $roleType);
+
+        if ($status !== null) {
+            $query->where('role_status', $status);
+        }
+
+        return $query->first();
+    }
+
+    public static function forUserAndStatus(int $userId, string $status): ?self
+    {
+        return static::query()->where('user_id', $userId)->where('role_status', $status)->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
     }
 }

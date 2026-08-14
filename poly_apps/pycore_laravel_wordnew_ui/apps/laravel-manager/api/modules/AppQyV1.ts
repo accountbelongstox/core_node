@@ -1,7 +1,8 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
-import { apiCache } from '../../../../core/api-libs/laravel/transport/APICache';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { apiCache } from '../../../../core/integrations/laravel/transport/APICache';
 import { APIResponse } from '../../types';
-import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
+import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
+import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterContract';
 
 // ========== Vocabulary export (server-side file download) ==========
 
@@ -331,41 +332,20 @@ export class AppQyV1API extends BaseAPI {
   }
 
   // ========== Translation ==========
-  /**
-   * Translate text. Accepts EITHER positional args
-   * `translate(text, sourceLang, targetLang)` (AppQyV1Model / legacy callers)
-   * OR a single payload object — the universal `ToolModel.execute()` dispatch
-   * always calls `apiModule.method(input)` with one object, so the AI Tools
-   * Translation form and VocabularyLearning pass `{ text, sourceLang?,
-   * source_lang?, source_language?, targetLang?, target_lang?,
-   * target_language?, type? }`. Without this both live paths silently posted
-   * `{ text: <object>, source_lang: undefined }` and never translated.
-   */
-  async translate(
-    textOrPayload: string | Record<string, any>,
-    sourceLang?: string,
-    targetLang?: string
-  ): Promise<APIResponse> {
-    let body: Record<string, any>;
-
-    if (typeof textOrPayload === 'string') {
-      body = {
-        text: textOrPayload,
-        source_language: sourceLang,
-        target_language: targetLang
-      };
-    } else {
-      const p = textOrPayload || {};
-      body = {
-        text: p.text,
-        // The controller validates `target_language` (required) and ignores
-        // any source_* field (it auto-detects). Send both names normalized.
-        source_language: p.source_language ?? p.source_lang ?? p.sourceLang,
-        target_language: p.target_language ?? p.target_lang ?? p.targetLang
-      };
-      if (p.type !== undefined) body.type = p.type;
-      if (p.options !== undefined) body.options = p.options;
-    }
+  async translate(payload: {
+    text: string;
+    sourceLang?: string;
+    targetLang: string;
+    type?: string;
+    options?: Record<string, unknown>;
+  }): Promise<APIResponse> {
+    const body: Record<string, unknown> = {
+      text: payload.text,
+      source_language: payload.sourceLang,
+      target_language: payload.targetLang,
+    };
+    if (payload.type !== undefined) body.type = payload.type;
+    if (payload.options !== undefined) body.options = payload.options;
 
     return this.normalizeTranslateResponse(
       await this.post('/ai_tools/translation/translate', body)
@@ -448,7 +428,7 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/ai_tools/tts/queue/status', { word, language });
   }
 
-  async queueBatchTTS(words: Array<{ word: string; language: string; priority?: number }>): Promise<APIResponse> {
+  async queueBatchTTS(words: Array<{ word: string; language: string }>): Promise<APIResponse> {
     return this.post('/ai_tools/tts/queue_batch', { words });
   }
 
@@ -473,7 +453,7 @@ export class AppQyV1API extends BaseAPI {
    * word-detail "Add / refresh audio" one-click action.
    */
   async queueTTSBatchQuery(
-    items: Array<{ content: string; language: string; type?: 'word' | 'sentence' | 'article' }>
+    items: Array<{ content: string; language: string; type?: GlobalQueuePositionTaskAlias }>
   ): Promise<APIResponse> {
     return this.post('/ai_tools/tts/queue/batch/query', items);
   }
@@ -500,16 +480,6 @@ export class AppQyV1API extends BaseAPI {
     return this.post<SentenceAudioClaimSummary>('/ai_tools/tts/sentence/claim', { limit: 0, language: language ?? null });
   }
 
-  /** POST /ai_tools/tts/sentence/bump — raise tts_priority + optional fast task. */
-  async bumpSentenceAudio(contentId: string, language: string, interactive = true): Promise<APIResponse> {
-    return this.post('/ai_tools/tts/sentence/bump', {
-      content_id: contentId,
-      language,
-      interactive,
-      create_task: true,
-    });
-  }
-
   /** GET /ai_tools/tts/sentence/missing — paginated sentences awaiting audio. */
   async listMissingSentenceAudio(opts?: {
     language?: string;
@@ -519,7 +489,7 @@ export class AppQyV1API extends BaseAPI {
     content_id: string;
     text: string;
     language: string;
-    tts_priority: number;
+    queue_position: number;
     tts_status: string;
     occurrence_count: number;
   }> }>> {

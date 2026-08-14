@@ -4,14 +4,13 @@
  * authExpiredSubs are live bindings so the composer's isAuthenticated/onAuthExpired
  * reflect token changes. */
 import { wfNewEndpoints, WORDNEW_API_HEALTH_EVENT } from './WfNewEndpoints';
-import { MasterApiClient } from '../../../core/api-libs/base';
+import { MasterApiClient } from '../../../core/network/api-client';
 import {
   mirrorServerResponse,
   queryServerResource,
   requestVariant,
 } from '../runtime-store/WfNewServerMirror';
 import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
-import { StorageManager } from '../../../core/persistence';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { coordinateRequest } from '../../../core/network/RequestCoordinator';
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
@@ -19,14 +18,9 @@ import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
 // --- auth token ------------------------------------------------------------ #
 
-/** Read the canonical Sanctum token shared by every Pycore API transport. */
+/** Read the canonical Sanctum token shared by authenticated app transports. */
 export function loadToken(): string | null {
-  const sharedToken = getAuthToken();
-  if (sharedToken) return sharedToken;
-  const legacyToken = StorageManager.get<string | null>(StorageKeys.WORDNEW_AUTH_TOKEN, null);
-  if (!legacyToken) return null;
-  StorageManager.remove(StorageKeys.WORDNEW_AUTH_TOKEN);
-  return setAuthToken(legacyToken);
+  return getAuthToken();
 }
 
 export let authToken: string | null = loadToken();
@@ -150,7 +144,6 @@ class WfNewQueuedTransport extends MasterApiClient {
   }
 }
 
-StorageManager.migrateRaw(StorageKeys.WORDNEW_API_QUEUE_LEGACY, StorageKeys.WORDNEW_API_QUEUE);
 const queuedTransport = new WfNewQueuedTransport();
 
 async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> {

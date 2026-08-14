@@ -6,16 +6,11 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use Illuminate\Support\Facades\Log;
 
 /**
- * TTS Generation Task — queue-less operation.
+ * TTS Generation Task — legacy word-audio compatibility producer.
  *
- * Octane timer task that drives TTS generation directly against the
- * canonical tables (no intermediate tts_queue table anymore):
- *   - words:    pending tts_cache_{lang} rows are claimed via
- *               AppQyV1DictionaryTTSCoordinator and generated inline;
- *   - articles: pending {lang}_article_library rows are split into
- *               sentences, generated, and written back to the article row;
- *   - sentences: stateless — generated synchronously at request time by
- *               AppQyV1UnifiedTTSQueueService::addTask, never by this timer.
+ * The distributed Queue Center is the canonical audio execution plane. This
+ * disabled-by-default timer remains only for legacy desktop word-audio flows;
+ * article and sentence audio are never consumed locally here.
  *
  * Stale processing claims are reaped at the start of every run, so crashed
  * processors (this timer or external pycore workers) never strand rows.
@@ -45,7 +40,7 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
     public function exec(): void
     {
         try {
-            // Process pending word + article rows on the canonical tables.
+            // Process only the legacy pending word rows.
             $result = $this->queueService->processQueue($this->queueBatchSize);
 
             if ($result['processed'] > 0) {
@@ -75,10 +70,7 @@ class AppQyV1TTSGenerationTask extends OctaneTimerTaskAbstract
         // protocol (tts/worker/claim + tts/worker/report). Flip
         // APPQYV1_TTS_AUTO_GENERATION=true ONLY on a desktop where Laravel itself
         // should generate audio (e.g. no pycore worker available).
-        // Read from the user-data config (UserConfigService) with .env as a
-        // legacy fallback. Default OFF: Laravel drives tasks / probes the
-        // real-pronunciation API; it never runs the local edge-tts binary
-        // (gated by use_server_binary_assist). Enable in config/settings.json.
+        // Read from user-data config with the legacy .env fallback.
         return app(\App\Services\UserConfig\UserConfigService::class)->get('appqyv1_tts_auto_generation', false);
     }
 }

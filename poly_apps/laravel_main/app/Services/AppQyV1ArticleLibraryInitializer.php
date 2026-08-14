@@ -91,10 +91,9 @@ class AppQyV1ArticleLibraryInitializer
                     continue;
                 }
 
-                $articleModel = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::forLanguage($langCode);
-                $total = $articleModel->count();
-                $withAudio = $articleModel->where('has_audio', true)->count();
-
+                $stats = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::aggregateStats($langCode);
+                $total = $stats['articles'];
+                $withAudio = $stats['audio'];
                 $withoutAudio = $total - $withAudio;
 
                 $byLanguage[$langCode] = [
@@ -130,30 +129,14 @@ class AppQyV1ArticleLibraryInitializer
                 return ['error' => 'Table not found'];
             }
 
-            $articleModel = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::forLanguage($langCode);
-            $total = $articleModel->count();
-            $withAudio = $articleModel->where('has_audio', true)->count();
-
-            $byOwner = $articleModel->select('owner')
-                ->selectRaw('COUNT(*) as count')
-                ->groupBy('owner')
-                ->pluck('count', 'owner')
-                ->toArray();
-
-            $bySource = $articleModel->select('source')
-                ->selectRaw('COUNT(*) as count')
-                ->groupBy('source')
-                ->limit(10)
-                ->pluck('count', 'source')
-                ->toArray();
+            $summary = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel::languageSummary($langCode);
+            if ($summary === null) {
+                return ['error' => 'Table not found'];
+            }
 
             return [
                 'language' => $langCode,
-                'total' => $total,
-                'with_audio' => $withAudio,
-                'without_audio' => $total - $withAudio,
-                'by_owner' => $byOwner,
-                'by_source' => $bySource,
+                ...$summary,
             ];
         } catch (\Exception $e) {
             return ['error' => $e->getMessage()];

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { BACKGROUND_MESSAGE_TYPES } from '@/common/message-types';
 import { clearModelCache, cleanupModelCache, getCacheStats } from '@/utils/semantic-similarity-engine';
 import { getMessage } from '@/utils/i18n';
+import { toErrorMessage } from '@/utils/errors';
 
 interface StorageStats {
   indexedPages: number;
@@ -93,7 +94,7 @@ export function useDataManagement() {
         hideClearDataConfirmation();
       }, 2000);
     } catch (error) {
-      clearDataProgress.value = error instanceof Error ? error.message : String(error);
+      clearDataProgress.value = toErrorMessage(error);
     } finally {
       isClearingData.value = false;
     }

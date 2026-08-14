@@ -7,7 +7,6 @@ use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1PaymentModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1WalletModel;
-use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1EscrowModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1InvoiceModel;
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1RefundModel;
 use Illuminate\Http\JsonResponse;
@@ -23,10 +22,7 @@ class CodeMartV1PaymentCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $wallet = CodeMartV1WalletModel::firstOrCreate(
-            ['user_id' => $user->id],
-            ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
-        );
+        $wallet = CodeMartV1WalletModel::forUser((int) $user->id, true);
 
         return $this->success($wallet);
     }
@@ -36,7 +32,7 @@ class CodeMartV1PaymentCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
+        $wallet = CodeMartV1WalletModel::forUser((int) $user->id);
 
         if (!$wallet) {
             return $this->notFound('Wallet not found');
@@ -45,10 +41,9 @@ class CodeMartV1PaymentCtl extends Controller
         $page = $request->get('page', 1);
         $pageSize = $request->get('pageSize', 20);
 
-        $total = $wallet->transactions()->count();
-        $transactions = $wallet->transactions()
-            ->orderBy('created_at', 'desc')
-            ->paginate($pageSize, ['*'], 'page', $page);
+        $result = $wallet->transactionPage((int) $page, (int) $pageSize);
+        $transactions = $result['transactions'];
+        $total = $result['total'];
 
         return $this->success([
             'items' => $transactions->items(),
@@ -80,7 +75,7 @@ class CodeMartV1PaymentCtl extends Controller
 
         CodeMartV1PaymentModel::beginModelTransaction();
 
-        $payer_wallet = CodeMartV1WalletModel::where('user_id', $user->id)->first();
+        $payer_wallet = CodeMartV1WalletModel::forUser((int) $user->id);
 
         if ($request->payment_method === 'wallet') {
             if (!$payer_wallet || $payer_wallet->available_balance < $request->amount) {
@@ -91,7 +86,7 @@ class CodeMartV1PaymentCtl extends Controller
             $payer_wallet->holdFunds($request->amount, "Payment hold for " . ($request->description ?? "project payment"));
         }
 
-        $payment = CodeMartV1PaymentModel::create([
+        $payment = CodeMartV1PaymentModel::createRecord([
             'payer_id' => $user->id,
             'payee_id' => $request->payee_id,
             'project_id' => $request->project_id,
@@ -106,16 +101,13 @@ class CodeMartV1PaymentCtl extends Controller
 
         if ($request->payment_method === 'wallet' && $payment->status === 'completed') {
             $payer_wallet->withdrawal($request->amount, "Payment to user {$request->payee_id}");
-            $payee_wallet = CodeMartV1WalletModel::firstOrCreate(
-                ['user_id' => $request->payee_id],
-                ['balance' => 0, 'available_balance' => 0, 'frozen_balance' => 0]
-            );
+            $payee_wallet = CodeMartV1WalletModel::forUser((int) $request->payee_id, true);
             $payee_wallet->deposit($request->amount, "Payment from user {$user->id}");
         }
 
         CodeMartV1PaymentModel::commitModelTransaction();
 
-        return $this->success($payment->load(['payer', 'payee']), 'Payment created successfully', 201);
+        return $this->success($payment->loadRecordRelations(['payer', 'payee']), 'Payment created successfully', 201);
     }
 
     public function getPayment(Request $request, int $paymentId): JsonResponse
@@ -123,12 +115,7 @@ class CodeMartV1PaymentCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $payment = CodeMartV1PaymentModel::with([
-            'payer',
-            'payee',
-            'invoice',
-            'refund',
-        ])->find($paymentId);
+        $payment = CodeMartV1PaymentModel::findDetailed($paymentId);
 
         if (!$payment) {
             return $this->notFound('Payment not found');
@@ -142,25 +129,17 @@ class CodeMartV1PaymentCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $query = CodeMartV1PaymentModel::query()
-            ->where(function ($q) use ($user) {
-                $q->where('payer_id', $user->id)->orWhere('payee_id', $user->id);
-            });
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('type')) {
-            $query->where('type', $request->type);
-        }
-
         $page = $request->get('page', 1);
         $pageSize = $request->get('pageSize', 20);
-
-        $total = $query->count();
-        $payments = $query->orderBy('created_at', 'desc')
-            ->paginate($pageSize, ['*'], 'page', $page);
+        $result = CodeMartV1PaymentModel::userPage(
+            (int) $user->id,
+            $request->has('status') ? (string) $request->status : null,
+            $request->has('type') ? (string) $request->type : null,
+            (int) $page,
+            (int) $pageSize
+        );
+        $payments = $result['payments'];
+        $total = $result['total'];
 
         return $this->success([
             'items' => $payments->items(),
@@ -187,7 +166,7 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $payment = CodeMartV1PaymentModel::find($request->payment_id);
+        $payment = CodeMartV1PaymentModel::findById((int) $request->payment_id);
 
         if (!$payment || $payment->payee_id !== $user->id) {
             return $this->forbidden('You do not have permission to create invoice for this payment');
@@ -197,7 +176,7 @@ class CodeMartV1PaymentCtl extends Controller
         $subtotal = $payment->amount;
         $total = $subtotal + $tax;
 
-        $invoice = CodeMartV1InvoiceModel::create([
+        $invoice = CodeMartV1InvoiceModel::createRecord([
             'payment_id' => $request->payment_id,
             'invoice_number' => 'INV-' . now()->format('YmdHis') . '-' . $user->id,
             'issued_by' => $user->id,
@@ -210,7 +189,7 @@ class CodeMartV1PaymentCtl extends Controller
             'status' => 'sent',
         ]);
 
-        return $this->success($invoice->load('payment'), 'Invoice created successfully', 201);
+        return $this->success($invoice->loadRecordRelations('payment'), 'Invoice created successfully', 201);
     }
 
     public function requestRefund(Request $request): JsonResponse
@@ -228,13 +207,13 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $payment = CodeMartV1PaymentModel::find($request->payment_id);
+        $payment = CodeMartV1PaymentModel::findById((int) $request->payment_id);
 
         if (!$payment || $payment->payer_id !== $user->id) {
             return $this->forbidden('You do not have permission to request refund for this payment');
         }
 
-        $refund = CodeMartV1RefundModel::create([
+        $refund = CodeMartV1RefundModel::createRecord([
             'payment_id' => $request->payment_id,
             'amount' => $payment->amount,
             'reason' => $request->reason,
@@ -255,7 +234,7 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->forbidden('Insufficient permissions to approve refund');
         }
 
-        $refund = CodeMartV1RefundModel::find($refundId);
+        $refund = CodeMartV1RefundModel::findById($refundId);
 
         if (!$refund) {
             return $this->notFound('Refund not found');
@@ -277,7 +256,7 @@ class CodeMartV1PaymentCtl extends Controller
             return $this->forbidden('Insufficient permissions to process refund');
         }
 
-        $refund = CodeMartV1RefundModel::find($refundId);
+        $refund = CodeMartV1RefundModel::findById($refundId);
 
         if (!$refund) {
             return $this->notFound('Refund not found');
@@ -291,7 +270,7 @@ class CodeMartV1PaymentCtl extends Controller
         }
 
         $payment = $refund->payment;
-        $payment->update(['status' => 'cancelled']);
+        $payment->updateRecord(['status' => 'cancelled']);
 
         CodeMartV1PaymentModel::commitModelTransaction();
 

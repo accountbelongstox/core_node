@@ -8,6 +8,6 @@ export {
   pycoreApi,
   requestPycoreHttp,
   subscribe,
-} from '../../../core/api-libs/pycore';
-export type { SentenceAudioAutoStatus } from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
+export type { SentenceAudioAutoStatus } from '../../../core/integrations/pycore';
 export * from '../../../core/contracts/QueueCenterContract';

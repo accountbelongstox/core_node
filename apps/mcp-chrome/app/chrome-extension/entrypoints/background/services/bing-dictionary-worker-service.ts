@@ -2,7 +2,7 @@
  * Bing Dictionary Worker Service
  *
  * Acts as a laravel_main translation worker: registers under processor type
- * `remote_translation`, long-polls the word_translation queue
+ * `remote_translation`, consumes the word_translation queue
  * (/api/worker/tasks/*), and for every word scrapes Bing dictionary for the
  * translation, phonetics, sample images and pronunciation audio. Words are
  * processed in parallel across a configurable pool of Bing tabs; the audio mp3
@@ -25,10 +25,9 @@ import { tabController } from './tab-controller';
 import {
   classify,
   buildEntry,
-  normalizeWords,
-  type NormalizedWord,
   type ResultEntry,
 } from './bing-result';
+import { normalizeWords, type NormalizedWord } from '@/utils/task-words';
 import { howtopronouncePronunciationSource } from './howtopronounce-pronunciation-source';
 import { runScrapeTest, type ScrapeTestResult } from './bing-worker-ops';
 import {
@@ -41,6 +40,9 @@ import { isProcessorActive } from './task-center/run-intent';
 import { LANES } from '@/utils/task-center-lanes';
 import { DEFAULT_SOURCE_LANG, DEFAULT_TARGET_LANG } from '@/utils/task-center-types';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { LaravelWorkerLifecycleBase } from './task-center/LaravelWorkerLifecycleBase';
+import { queueCenterWakeService } from './task-center/QueueCenterWakeService';
+import { IntervalController, TimeoutController, delay as waitForDelay } from '@/utils/async';
 
 // Re-export so existing importers (background/index.ts) keep working.
 export const initBingWorkerLifecycle = () =>
@@ -140,7 +142,7 @@ const LOOKUP_DELAY_JITTER_MS = 2500;
 // bing-worker-lifecycle.ts)
 
 // Fast re-poll cadence (B3): when a pull reports pending_fast>0 we fire an
-// immediate jittered+coalesced wait=0 re-poll instead of waiting for the next
+// immediate jittered and coalesced re-poll instead of waiting for the next
 // poll-interval tick, so fast-tier translate work is drained promptly. Mirrors
 // SimpleWorkerBase's FAST_REPOLL_* constants.
 const FAST_REPOLL_BASE_MS = 400;
@@ -170,7 +172,7 @@ interface PersistedRuntime {
   config: WorkerConfig | null;
 }
 
-class BingDictionaryWorkerService {
+class BingDictionaryWorkerService extends LaravelWorkerLifecycleBase {
   private isRunning = false;
   private config: Required<WorkerConfig> | null = null;
 
@@ -178,11 +180,11 @@ class BingDictionaryWorkerService {
     return HANDLED_TASK_TYPES.has(taskType);
   }
 
-  private workerClient: WorkerApiClient | null = null;
-  private pollIntervalId: ReturnType<typeof setInterval> | null = null;
-  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
+  private readonly taskPolling = new IntervalController();
+  private readonly heartbeatPolling = new IntervalController();
   // Coalesce fast re-polls (B3): at most one scheduled burst in flight.
-  private fastRepollTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly fastRepollTimeout = new TimeoutController();
+  private wakeUnsubscribe: (() => void) | null = null;
 
   // Pool of background Bing dictionary tabs driven in parallel (self-healing).
   private pool = new BingTabPool();
@@ -262,7 +264,7 @@ class BingDictionaryWorkerService {
     // Start must wait until its terminal result has been posted before replacing
     // workerClient/config or touching the shared tab pool.
     while (this.polling || this.processing) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await waitForDelay(50);
     }
 
     this.config = this.normalizeConfig(config);
@@ -273,7 +275,7 @@ class BingDictionaryWorkerService {
     // parallelism so the second mode keeps up with the per-word Bing lookups.
     howtopronouncePronunciationSource.setMaxTabs(this.config.tabCount);
 
-    this.workerClient = new WorkerApiClient(this.config.apiUrl);
+    this.connectWorkerApi(this.config.apiUrl);
 
     await this.registerWorker();
 
@@ -302,6 +304,7 @@ class BingDictionaryWorkerService {
     this.startPolling();
 
     this.isRunning = true;
+    this.subscribeRealtimeWake();
     // Begin the idle-discard countdown from Start so unused pool tabs are freed.
     this.lastActivityAt = Date.now();
     this.poolDiscarded = false;
@@ -319,23 +322,16 @@ class BingDictionaryWorkerService {
   }
 
   stop(): void {
+    const workerId = this.stats.workerId;
+
     if (!this.isRunning) {
       logger.warn(LOG, 'Service not running');
       return;
     }
 
-    if (this.pollIntervalId) {
-      clearInterval(this.pollIntervalId);
-      this.pollIntervalId = null;
-    }
-    if (this.heartbeatIntervalId) {
-      clearInterval(this.heartbeatIntervalId);
-      this.heartbeatIntervalId = null;
-    }
-    if (this.fastRepollTimer) {
-      clearTimeout(this.fastRepollTimer);
-      this.fastRepollTimer = null;
-    }
+    this.taskPolling.stop();
+    this.heartbeatPolling.stop();
+    this.fastRepollTimeout.cancel();
 
     this.taskCache.clear();
     this.taskQueue = [];
@@ -347,6 +343,9 @@ class BingDictionaryWorkerService {
     // Tabs are intentionally left open so the user keeps their Bing context.
     this.isRunning = false;
     this.stats.isOnline = false;
+    this.unregisterWorkerPresence(workerId, (error) => {
+      logger.warn(LOG, 'Worker unregister failed; heartbeat expiry remains active', error);
+    });
     this.stats.queueTotal = 0;
     this.stats.newTasks = 0;
     this.stats.duplicateTasks = 0;
@@ -383,6 +382,10 @@ class BingDictionaryWorkerService {
     } else {
       await this.persistRuntime(false);
       await this.clearWatchdog();
+    }
+    if (this.wakeUnsubscribe) {
+      this.wakeUnsubscribe();
+      this.wakeUnsubscribe = null;
     }
     if (closeTabs) {
       await this.pool.closeAll();
@@ -552,7 +555,7 @@ class BingDictionaryWorkerService {
       this.reconfiguring = true;
       try {
         while (this.polling || this.processing) {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          await waitForDelay(50);
         }
         if (!this.isRunning) {
           this.config = next;
@@ -560,11 +563,12 @@ class BingDictionaryWorkerService {
         }
         logger.info(LOG, `Endpoint changed live -> ${next.apiUrl}, re-registering`);
         this.config = next;
-        this.workerClient = new WorkerApiClient(next.apiUrl);
+        this.connectWorkerApi(next.apiUrl);
         await this.registerWorker();
+        this.subscribeRealtimeWake();
       } catch (error) {
         this.config = prev;
-        this.workerClient = previousClient;
+        this.replaceWorkerApi(previousClient);
         logger.error(LOG, 'Re-register after endpoint change failed', error);
         throw error;
       } finally {
@@ -576,8 +580,7 @@ class BingDictionaryWorkerService {
 
     // Re-arm the poll loop on a new interval (no immediate extra poll).
     if (!prev || prev.pollInterval !== next.pollInterval) {
-      if (this.pollIntervalId) clearInterval(this.pollIntervalId);
-      this.pollIntervalId = setInterval(() => {
+      this.taskPolling.restart(() => {
         this.pollAndProcessTasks().catch((e) => logger.warn(LOG, 'Poll error', e));
       }, next.pollInterval * 1000);
       logger.info(LOG, `Poll interval -> ${next.pollInterval}s (live)`);
@@ -585,8 +588,7 @@ class BingDictionaryWorkerService {
 
     // Re-arm the heartbeat on a new interval.
     if (!prev || prev.heartbeatInterval !== next.heartbeatInterval) {
-      if (this.heartbeatIntervalId) clearInterval(this.heartbeatIntervalId);
-      this.heartbeatIntervalId = setInterval(
+      this.heartbeatPolling.restart(
         () => this.heartbeatOnce(),
         next.heartbeatInterval * 1000,
       );
@@ -719,7 +721,7 @@ class BingDictionaryWorkerService {
 
     const workerId = `mcp-chrome-bing-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    const response = await this.workerClient.register({
+    const response = await this.registerWorkerPresence({
       worker_id: workerId,
       worker_name: this.config.workerName,
       // This Chrome service owns Bing translation work. Pycore independently
@@ -762,7 +764,7 @@ class BingDictionaryWorkerService {
   private async heartbeatOnce(): Promise<void> {
     if (!this.workerClient) return;
     try {
-      await this.workerClient.heartbeat();
+      await this.heartbeatWorkerPresence();
       this.stats.isOnline = true;
     } catch (error) {
       logger.error(LOG, 'Heartbeat failed', error);
@@ -773,7 +775,7 @@ class BingDictionaryWorkerService {
   private startHeartbeat(): void {
     if (!this.workerClient || !this.config) return;
     this.heartbeatOnce();
-    this.heartbeatIntervalId = setInterval(
+    this.heartbeatPolling.start(
       () => this.heartbeatOnce(),
       this.config.heartbeatInterval * 1000,
     );
@@ -787,7 +789,7 @@ class BingDictionaryWorkerService {
     };
 
     poll();
-    this.pollIntervalId = setInterval(poll, this.config.pollInterval * 1000);
+    this.taskPolling.start(() => void poll(), this.config.pollInterval * 1000);
   }
 
   private async pollAndProcessTasks(): Promise<void> {
@@ -875,9 +877,6 @@ class BingDictionaryWorkerService {
 
       const response = await this.pullTasksAcrossTypes({
         limit: this.config.batchSize,
-        // `wait` (server-side long-poll seconds) replaces the old `timeout`
-        // param; cap to the poll interval so this loop stays responsive.
-        wait: Math.min(this.config.pollInterval, 30),
       });
 
       if (!response.success || !response.data || response.data.count === 0) {
@@ -893,7 +892,7 @@ class BingDictionaryWorkerService {
         return;
       }
 
-      // B3: react to the fast-tier backlog signal — schedule a jittered wait=0
+      // B3: react to the fast-tier backlog signal — schedule a jittered
       // re-poll burst so newly-bumped fast translate tasks are drained promptly.
       this.noteFastSignals(response.data.pending_fast);
 
@@ -968,10 +967,9 @@ class BingDictionaryWorkerService {
 
   private scheduleFastRepoll(): void {
     if (!this.isRunning) return;
-    if (this.fastRepollTimer) return; // coalesce — one burst in flight
+    if (this.fastRepollTimeout.isScheduled) return; // coalesce — one burst in flight
     const jitter = Math.floor(Math.random() * FAST_REPOLL_JITTER_MS);
-    this.fastRepollTimer = setTimeout(() => {
-      this.fastRepollTimer = null;
+    this.fastRepollTimeout.schedule(() => {
       if (!this.isRunning) return;
       // Drain whatever fast-tier work matched our capabilities now.
       this.pollAndProcessTasks().catch((error) =>
@@ -987,10 +985,10 @@ class BingDictionaryWorkerService {
   /**
    * Pull across the dictionary/translate task types via the typed pull route
    * (/api/worker/tasks/{taskType}/pull). word_translation LAST: the
-   * highest-volume primary holds the long-poll budget; the dictionary types
-   * are quick-polled wait=0 first so their waits never stack.
+   * routes. Each type is queried immediately so no Laravel request worker is
+   * retained while the browser waits for work.
    */
-  private async pullTasksAcrossTypes(options: { limit: number; wait: number }) {
+  private async pullTasksAcrossTypes(options: { limit: number }) {
     const types = [
       TASK_TYPE_KEYS.dictionary_explanation,
       TASK_TYPE_KEYS.dictionary_explanation_demo,
@@ -999,10 +997,8 @@ class BingDictionaryWorkerService {
     const merged: Task[] = [];
     let lastData: any = { count: 0, pending_urgent: 0, pending_fast: 0, tasks: [] as Task[] };
     for (let i = 0; i < types.length; i++) {
-      const typeWait = i === types.length - 1 ? options.wait : 0;
       const resp = await this.workerClient!.pullTasks(types[i], undefined, {
         limit: options.limit,
-        wait: typeWait,
       });
       if (!resp.success || !resp.data) return resp;
       lastData = resp.data;
@@ -1010,6 +1006,15 @@ class BingDictionaryWorkerService {
       if (merged.length >= options.limit) break;
     }
     return { success: true, data: { ...lastData, tasks: merged, count: merged.length } };
+  }
+
+  private subscribeRealtimeWake(): void {
+    if (!this.config) return;
+    if (this.wakeUnsubscribe) this.wakeUnsubscribe();
+    this.wakeUnsubscribe = queueCenterWakeService.subscribe(
+      this.config.apiUrl,
+      () => this.scheduleFastRepoll(),
+    );
   }
 
   private async processTask(task: Task): Promise<void> {
@@ -1259,7 +1264,7 @@ class BingDictionaryWorkerService {
           // (anti-scrape / outage) or when no words remain for this slot.
           if (!aborted && !outageDetected && nextIndex < total) {
             const gap = LOOKUP_DELAY_BASE_MS + Math.floor(Math.random() * LOOKUP_DELAY_JITTER_MS);
-            await new Promise((resolve) => setTimeout(resolve, gap));
+            await waitForDelay(gap);
           }
         }
         // Slot drained — mark it idle.

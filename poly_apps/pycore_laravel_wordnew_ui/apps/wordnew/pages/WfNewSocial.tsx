@@ -3,7 +3,7 @@ import {
   Users, MessageSquare, Send, UserPlus, UserCheck, Search,
   Activity, Trophy, Check, X, Clock, ChevronRight,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import {
   wfNewApi,
   subscribeSocial,

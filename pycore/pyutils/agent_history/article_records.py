@@ -129,6 +129,17 @@ def list_records(limit: int = 100) -> List[Dict[str, Any]]:
     return out
 
 
+def summarize_records() -> Dict[str, int]:
+    rows = load_index()["records"]
+    return {
+        "total": len(rows),
+        "uploaded": sum(1 for row in rows if bool(row.get("uploaded"))),
+        "pending_upload": sum(1 for row in rows if not bool(row.get("uploaded"))),
+        "audio_ready": sum(1 for row in rows if str(row.get("audio_status") or "") == "ready"),
+        "audio_queued": sum(1 for row in rows if str(row.get("audio_status") or "") == "queued"),
+    }
+
+
 def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     """Write <id>.json, optional audio, and prepend the record to the index."""
     # Rule §4: no lock — writes land via atomic os.replace; the index is

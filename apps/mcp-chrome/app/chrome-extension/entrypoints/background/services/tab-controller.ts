@@ -29,6 +29,7 @@
  */
 
 import { logger } from '@/utils/logger';
+import { delay as waitForDelay } from '@/utils/async';
 
 const LOG = 'TabController';
 
@@ -129,7 +130,7 @@ class TabController {
       } catch {
         return;
       }
-      await new Promise((r) => setTimeout(r, 80));
+      await waitForDelay(80);
     }
   }
 

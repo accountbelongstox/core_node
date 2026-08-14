@@ -106,7 +106,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
         $roleName = 'user';
 
         if ($inviteCode) {
-            $invite = InviteCode::where('code', $inviteCode)->first();
+            $invite = InviteCode::findByCode($inviteCode);
 
             if (!$invite) {
                 Log::warning('[AppQyV1Registration] Invalid invite code', [
@@ -170,7 +170,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             ]);
 
             if (strpos(strtolower($errorMessage), 'already exists') !== false) {
-                if (!empty($email) && User::where('email', $email)->exists()) {
+                if (!empty($email) && User::emailExists($email)) {
                     $errorMessage = 'Email already exists';
                 } else {
                     $errorMessage = 'Username already exists';
@@ -226,7 +226,7 @@ class AppQyV1AuthenticationRegistrationController extends BaseController
             }
         }
         if ($needsSave) {
-            $user->save();
+            $user->saveRecord();
         }
 
         $defaultGroupLanguages = !empty($selectedLearningLanguages)

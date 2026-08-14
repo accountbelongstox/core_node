@@ -10,3 +10,21 @@ WordNew queue delivery receipt progress
 - Added reusable audio and translation receipt icons to Daily Reading, Library, Shelf, and Book Reader surfaces.
 - Added a global WordNew status bar for Laravel, multiple Pycore workers, and multiple mcp-chrome workers.
 - Kept Agent History full Daily article audio outside duplicate distribution while preserving sentence-level generation.
+- Kept the receipt API read-only and rotated GET batches in 32-ID segments to prevent oversized URLs.
+- Extended sentence priority events with bounded task metadata so Pycore promotes already-cached local tasks immediately.
+- Verified the TypeScript project with no emitted output, linted changed PHP files, parsed changed Python, and checked the canonical JSON contract.
+- Extracted the bounded receipt store, rotating GET segments, worker snapshots, subscriptions, and lifecycle transitions into the shared QueueDeliveryRuntimeBase.
+- Reduced WordNewQueueRuntime to resource-key construction and WordNew-specific enqueue response mapping.
+- Removed duplicate WordNew delivery-stage, receipt, and worker wire models in favor of the canonical Queue Center contract.
+- Reused Pycore's shared set_cached_task_priority path for both direct and bounded batch priority events.
+- Moved Queue Center overview and receipt transport into the shared Laravel API library.
+- Moved translation queue stack transport and response types into the shared Laravel API library.
+- Removed WordNew-owned Queue Center and translation-stack routes so all consumers use one transport contract.
+- Added one shared delivery icon group for resource stage, Laravel acknowledgement, and aggregated Worker-kind state.
+- Replaced textual WordNew Pycore and mcp-chrome presence chips with icon-only presence indicators.
+- Reused the icon group at the existing audio and translation positions across Daily Reading, Library, Shelf/Study, and Book Reader.
+- Added the bounded Queue Center worker-presence realtime signal and immediate WordNew snapshot refresh.
+- Aggregated all Pycore clients into one status icon and all mcp-chrome clients into one status icon; any online client makes its kind online.
+- Aligned mcp-chrome with schema 12 and the shared register, heartbeat, and immediate unregister Worker lifecycle.
+- Moved realtime subscription, receipt refresh, presence fallback, and shared Worker-kind selectors into QueueDeliveryRuntimeBase.
+- Added LaravelWorkerLifecycleBase so SimpleWorkerBase and the Bing worker share one MCP Chrome presence client and lifecycle implementation.

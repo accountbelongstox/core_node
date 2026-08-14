@@ -4,6 +4,8 @@ export {
   onHttpStatus,
   requestPycoreHttp,
   subscribe,
+} from '../../../core/integrations/pycore';
+export {
   VORTEX_PYCORE_EVENT_TOPICS,
   VORTEX_PYCORE_HTTP_ROUTES,
-} from '../../../core/api-libs/pycore';
+} from './VortexPycoreContract';

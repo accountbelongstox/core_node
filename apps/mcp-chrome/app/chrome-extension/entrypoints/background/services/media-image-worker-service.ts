@@ -10,7 +10,8 @@
  */
 
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
-import { SimpleWorkerBase, SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { AssistPollingWorkerBase } from './task-center/AssistPollingWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
 import { logger } from '@/utils/logger';
 import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
@@ -35,12 +36,9 @@ import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-li
 
 const LOG = 'Media Image';
 const ASSIST_CLAIMER = 'mcp-chrome-media-image';
-const ASSIST_POLL_MS = 30_000;
 
-class MediaImageWorkerService extends SimpleWorkerBase {
-  private assistTimer: ReturnType<typeof setInterval> | null = null;
-  private assistBusy = false;
-  private assistStats = {
+class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unknown>> {
+  protected readonly assistStats = {
     coversSubmitted: 0,
     postersSubmitted: 0,
     assistFailed: 0,
@@ -71,7 +69,7 @@ class MediaImageWorkerService extends SimpleWorkerBase {
   }
 
   protected get pullTaskTypes(): string[] {
-    // word_media LAST: the high-volume primary, holds the long-poll budget.
+    // word_media LAST: the high-volume primary lane.
     return [TASK_TYPE_KEYS.poster, TASK_TYPE_KEYS.word_media];
   }
 
@@ -81,49 +79,16 @@ class MediaImageWorkerService extends SimpleWorkerBase {
 
   async start(config: SimpleWorkerConfig): Promise<void> {
     await super.start({ ...config, pollWait: 0 });
-    this.startAssistLoop();
+    this.startAssistPolling();
     logger.info(LOG, 'Assist polling activated', {
       apiUrl: config.apiUrl,
       types: ['poster'],
-      intervalMs: ASSIST_POLL_MS,
+      intervalMs: this.assistPollIntervalMs,
     });
   }
 
-  stop(): void {
-    this.stopAssistLoop();
-    super.stop();
-  }
-
-  getStatus() {
-    const base = super.getStatus();
-    return {
-      ...base,
-      stats: {
-        ...base.stats,
-        ...this.assistStats,
-      },
-    };
-  }
-
-  private startAssistLoop(): void {
-    if (this.assistTimer) return;
-    const tick = () => {
-      if (!this.getStatus().isRunning || this.assistBusy) return;
-      void this.runAssistCycle();
-    };
-    tick();
-    this.assistTimer = setInterval(tick, ASSIST_POLL_MS);
-  }
-
-  private stopAssistLoop(): void {
-    if (!this.assistTimer) return;
-    clearInterval(this.assistTimer);
-    this.assistTimer = null;
-  }
-
-  private async runAssistCycle(): Promise<void> {
-    if (!this.config?.apiUrl || this.assistBusy) return;
-    this.assistBusy = true;
+  protected async executeAssistCycle(): Promise<void> {
+    if (!this.config?.apiUrl) return;
     this.assistStats.lastAssistRun = Date.now();
     this.assistStats.lastAssistError = null;
     this.assistStats.currentAssistStage = 'claiming';
@@ -177,7 +142,6 @@ class MediaImageWorkerService extends SimpleWorkerBase {
         apiUrl: this.config.apiUrl,
       });
     } finally {
-      this.assistBusy = false;
       if (!this.assistStats.currentAssistItem && this.assistStats.currentAssistStage !== 'failed') {
         this.assistStats.currentAssistStage = 'idle';
       }

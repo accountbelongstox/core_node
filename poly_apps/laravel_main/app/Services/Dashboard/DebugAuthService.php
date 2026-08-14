@@ -67,7 +67,7 @@ class DebugAuthService
     public static function resolveDebugUser(): ?User
     {
         try {
-            return User::query()->orderByDesc('rolelevel')->orderBy('id')->first();
+            return User::highestRoleUser();
         } catch (\Throwable $e) {
             return null;
         }

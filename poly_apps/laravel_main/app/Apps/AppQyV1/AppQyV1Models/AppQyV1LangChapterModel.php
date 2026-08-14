@@ -13,11 +13,12 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Per-language chapter store (Books v3.1 unified model — see
@@ -88,5 +89,51 @@ class AppQyV1LangChapterModel extends Model
             ->where('source_key', $sourceKey)
             ->orderBy('chapter_index')
             ->get();
+    }
+
+    public static function tableExists(string $lang): bool
+    {
+        $model = self::for($lang);
+
+        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
+    }
+
+    public static function tableRowCount(string $lang): int
+    {
+        return self::tableExists($lang) ? self::onLang($lang)->count() : 0;
+    }
+
+    public static function deleteForSource(string $lang, string $sourceType, string $sourceKey): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->delete();
+    }
+
+    public static function chapterIndicesForSource(string $lang, string $sourceType, string $sourceKey): Collection
+    {
+        return self::onLang($lang)
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->orderBy('chapter_index')
+            ->pluck('chapter_index');
+    }
+
+    public static function findForSourceIndex(
+        string $lang,
+        string $sourceType,
+        string $sourceKey,
+        int $chapterIndex
+    ): ?self {
+        return self::onLang($lang)
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->where('chapter_index', $chapterIndex)
+            ->first();
     }
 }

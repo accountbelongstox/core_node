@@ -2,7 +2,7 @@ import React from 'react';
 import { User as UserIcon, Copy, Check, Pencil, Save, X } from 'lucide-react';
 import { pycoreApi } from '@/apps/pycore-manager/api';
 import type { AgentHistoryPrompt } from '@/apps/pycore-manager/api';
-import { toolLabel, toolPill } from '../../../../components/views/dev-history/shared';
+import { toolLabel, toolPill } from './presentation';
 
 /** Prompt row wired to pycore agent-history API (not Laravel dev-history). */
 const PcAgentHistoryPromptItem: React.FC<{

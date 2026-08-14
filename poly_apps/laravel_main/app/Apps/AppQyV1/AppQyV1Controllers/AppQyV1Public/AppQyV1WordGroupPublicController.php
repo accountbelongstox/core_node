@@ -39,15 +39,11 @@ class AppQyV1WordGroupPublicController
             }
         }
         $isNewGroup = false;
-        $existGroupQuery = AppQyV1WordGroupModel::where('gname', $gname);
-        if ($uid !== null) {
-            $existGroupQuery->where('uid', $uid);
-        } elseif ($username !== null) {
-            $existGroupQuery->where('username', $username);
-        } else {
-            $existGroupQuery->whereIn('id', []);
-        }
-        $existGroup = $existGroupQuery->first();
+        $existGroup = AppQyV1WordGroupModel::findByNameOwner(
+            $gname,
+            $uid === null ? null : (int) $uid,
+            $username
+        );
         if (!$existGroup) {
             $isNewGroup = true;
             $existGroup = new AppQyV1WordGroupModel([

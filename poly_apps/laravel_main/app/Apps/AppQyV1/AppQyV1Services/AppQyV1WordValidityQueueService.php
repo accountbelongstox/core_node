@@ -6,7 +6,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Services\QueueCenter\DiffIdPageCatalog;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Schema;
 
 class AppQyV1WordValidityQueueService
 {
@@ -45,14 +44,13 @@ class AppQyV1WordValidityQueueService
 
         foreach ($languages as $language) {
             $model = AppQyV1LangDictionaryModel::forLanguage($language);
-            if (!Schema::connection($model->getConnectionName())->hasTable($model->getTable())) {
+            if (!$model->diffIdTableExists()) {
                 $counts[$language] = 0;
                 continue;
             }
 
-            $query = $this->pendingQuery($model, $search);
             $languageTotal = $includeTotal || count($languages) > 1
-                ? (int) (clone $query)->count()
+                ? AppQyV1LangDictionaryModel::pendingValidityCount($language, $search)
                 : null;
             if ($languageTotal !== null) {
                 $counts[$language] = $languageTotal;
@@ -69,8 +67,6 @@ class AppQyV1WordValidityQueueService
 
             $languageRows = $this->materializeLanguagePage(
                 $language,
-                $model,
-                $query,
                 $remainingStart,
                 $remainingLimit,
                 $search,
@@ -105,8 +101,6 @@ class AppQyV1WordValidityQueueService
 
     private function materializeLanguagePage(
         string $language,
-        AppQyV1LangDictionaryModel $model,
-        object $query,
         int $start,
         int $limit,
         string $search,
@@ -115,59 +109,26 @@ class AppQyV1WordValidityQueueService
         $page = intdiv($start, $limit) + 1;
         $scope = 'word_validity:view:' . $language . ':' . sha1($search)
             . ':s' . $start . ':l' . $limit . ':r' . $revision;
-        $idQuery = (clone $query)
-            ->select('id')
-            ->orderByDesc('query_count')
-            ->orderBy('id')
-            ->offset($start)
-            ->limit($limit);
-        $snapshot = $this->catalog->snapshotPage($scope, $page, $idQuery);
+        $ids = AppQyV1LangDictionaryModel::pendingValidityPageIds(
+            $language,
+            $search,
+            $start,
+            $limit
+        );
+        $snapshot = $this->catalog->snapshotIds($scope, $page, $ids);
         $ids = $snapshot['ids'];
         $rows = $this->catalog->materialize(
             $scope,
             $snapshot['segment'],
             $ids,
-            static function (array $pageIds) use ($model, $language): array {
-                $positions = array_flip(array_map('intval', $pageIds));
-
-                return $model->newQuery()
-                    ->whereIn('id', $pageIds)
-                    ->get(['id', 'content', 'md5', 'query_count', 'has_translation', 'validity_checked_at'])
-                    ->sortBy(static fn ($row): int => $positions[(int) $row->id] ?? PHP_INT_MAX)
-                    ->map(static fn ($row): array => [
-                        'id' => (int) $row->id,
-                        'word' => (string) $row->content,
-                        'md5' => (string) $row->md5,
-                        'language' => $language,
-                        'query_count' => (int) ($row->query_count ?? 0),
-                        'needs_validity' => $row->validity_checked_at === null,
-                        'needs_translation' => !(bool) $row->has_translation,
-                    ])
-                    ->values()
-                    ->all();
-            }
+            static fn (array $pageIds): array => AppQyV1LangDictionaryModel::pendingValidityRows(
+                $language,
+                $pageIds
+            )
         );
         $this->catalog->compactSegment($scope, $snapshot['segment'], $ids);
 
         return $rows;
-    }
-
-    private function pendingQuery(AppQyV1LangDictionaryModel $model, string $search): object
-    {
-        $query = $model->newQuery()
-            ->where(function ($builder) {
-                $builder->whereNull('validity_checked_at')
-                    ->orWhere(function ($untranslated) {
-                        $untranslated->where('has_translation', false)
-                            ->where('is_valid', true);
-                    });
-            });
-
-        if ($search !== '') {
-            $query->where('content', 'like', '%' . $search . '%');
-        }
-
-        return $query;
     }
 
     private function normalizeLanguages(array $languages): array

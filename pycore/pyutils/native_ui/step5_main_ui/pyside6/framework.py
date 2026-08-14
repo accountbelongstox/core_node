@@ -155,6 +155,7 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
         # State
         self._started = False
         self._qt_app_created_internally = False
+        self._quit_started = False
 
         # Register event handler for auto-closing startup window (StartupControllerMixin)
         self._register_startup_autoclose_handler()
@@ -303,13 +304,13 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
             # signal.signal() raises ValueError if called from a non-main thread (e.g. PySide6UIThread)
             if threading.current_thread() is threading.main_thread():
                 def signal_handler(signum, frame):
-                    """Handle Ctrl+C - trigger app.close event and quit Qt"""
+                    """Handle Ctrl+C through the shared application close path."""
                     ColorPrint.yellow("\n[PySide6Framework] Ctrl+C received, closing application...")
                     THREAD_BUS.trigger_event('app.close', {
                         'source': 'signal_interrupt',
                         'signal': signum
                     }, async_mode=False)
-                    self.qt_app.quit()
+                    self.quit()
                 signal.signal(signal.SIGINT, signal_handler)
                 ColorPrint.blue("[PySide6Framework] Signal handlers installed (Ctrl+C support enabled)")
             else:
@@ -567,12 +568,10 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
 
         This method can be called in two scenarios:
         1. Programmatically (e.g., tray menu exit) - triggers shutdown first
-        2. After THREAD_BUS shutdown complete (cleanup and close window)
+        2. From the THREAD_BUS shutdown handler (cleanup and close window)
 
-        TODO: consider delegating the shutdown orchestration to
-        step7_managers.shutdown_manager.ShutdownManager (register this quit() as
-        the UI quit callback + add window/tick/tray cleanup as shutdown hooks).
-        Deferred for now to keep this split behaviour-preserving.
+        The method is idempotent because programmatic close can synchronously
+        re-enter through the registered THREAD_BUS shutdown handler.
         """
         # Trigger global shutdown if configured and not already requested
         if self.config.trigger_shutdown_on_close and not THREAD_BUS.is_shutdown_requested():
@@ -581,11 +580,14 @@ class PySide6Framework(ThreadBusBridgeMixin, StartupControllerMixin):
                 reason="UI window closed",
                 execute_handlers=True
             )
-            # Return early - shutdown handlers will call quit() again after shutdown complete
-            return
 
-        # Shutdown already complete or not needed - proceed with cleanup
-        ColorPrint.blue("[PySide6Framework] Shutdown complete, cleaning up UI...")
+        # A synchronous shutdown handler may already have completed UI cleanup.
+        if self._quit_started:
+            return
+        self._quit_started = True
+
+        # Shutdown already requested or not needed - proceed with cleanup
+        ColorPrint.blue("[PySide6Framework] Shutdown requested, cleaning up UI...")
 
         # Stop tick timer
         if self.tick_timer:

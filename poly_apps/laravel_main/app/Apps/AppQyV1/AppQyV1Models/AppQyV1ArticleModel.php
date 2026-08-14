@@ -11,15 +11,19 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use Closure;
+use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Facades\Schema;
 
 class AppQyV1ArticleModel extends Model
 {
-    use RunsModelTransactions;
+    use QueriesDiffIdPages, RunsModelTransactions;
 
     public const TYPE_DAILY = 'daily';
     public const SOURCE_AGENT_HISTORY = 'agent_history';
@@ -66,6 +70,112 @@ class AppQyV1ArticleModel extends Model
             && $this->article_type === self::TYPE_DAILY;
     }
 
+    public static function studyMarkerColumnsReady(): bool
+    {
+        $model = new static();
+
+        return Schema::connection($model->getConnectionName())
+            ->hasColumn($model->getTable(), 'study_gen_status');
+    }
+
+    public static function studySourceCount(?string $search): int
+    {
+        $query = self::query();
+        if ($search !== null && $search !== '') {
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        return $query->count();
+    }
+
+    public static function studySourceRows(?string $search, int $offset, int $limit): EloquentCollection
+    {
+        $columns = ['id', 'article_id', 'title', 'language', 'sentence_count'];
+        if (self::studyMarkerColumnsReady()) {
+            $columns[] = 'study_gen_status';
+            $columns[] = 'study_gen_progress';
+        }
+
+        $query = self::query();
+        if ($search !== null && $search !== '') {
+            $query->where('title', 'like', '%' . $search . '%');
+        }
+
+        return $query->select($columns)->orderBy('id')->skip($offset)->take($limit)->get();
+    }
+
+    public static function sourceMetadata(string $articleId): mixed
+    {
+        return self::query()->where('article_id', $articleId)->value('metadata');
+    }
+
+    public static function sourceLanguage(string $articleId): string
+    {
+        return (string) (self::query()->where('article_id', $articleId)->value('language') ?? '');
+    }
+
+    public static function updateStudyMarker(string $articleId, array $attributes): int
+    {
+        return self::query()->where('article_id', $articleId)->update($attributes);
+    }
+
+    public static function managementPage(?string $category, int $offset, int $limit): array
+    {
+        $query = self::query();
+
+        if ($category !== null && $category !== '') {
+            if ($category === 'daily') {
+                $query->where(function ($daily): void {
+                    $daily->where('source', 'daily')
+                        ->orWhere('article_type', 'daily')
+                        ->orWhere('is_daily_reading', true);
+                });
+            } else {
+                $query->where('article_type', $category);
+            }
+        }
+
+        return [
+            'total' => (clone $query)->count(),
+            'rows' => $query->latest('id')->offset($offset)->limit($limit)->get(),
+        ];
+    }
+
+    public static function managementCategoryRows()
+    {
+        return self::query()
+            ->select(['article_type', 'source', 'is_daily_reading'])
+            ->selectRaw('COUNT(*) as aggregate')
+            ->groupBy(['article_type', 'source', 'is_daily_reading'])
+            ->get();
+    }
+
+    public static function findByArticleId(string $articleId): ?self
+    {
+        return self::query()->where('article_id', $articleId)->first();
+    }
+
+    public static function findByTaskId(string $taskId): ?self
+    {
+        return self::query()->where('task_id', $taskId)->first();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
+
+    public static function chunkForLibraryBackfill(?string $articleId, Closure $callback): void
+    {
+        $query = self::query();
+
+        if ($articleId !== null && $articleId !== '') {
+            $query->where('article_id', $articleId);
+        }
+
+        $query->orderBy('id')->chunkById(200, $callback);
+    }
+
     public function scopeSentenceAudioQueueEligible($query)
     {
         return $query->where(function ($eligibleQuery): void {
@@ -77,11 +187,46 @@ class AppQyV1ArticleModel extends Model
         });
     }
 
+    public function diffIdUpperBound(): int
+    {
+        return (int) ($this->newQuery()->sentenceAudioQueueEligible()->max('id') ?? 0);
+    }
+
+    public function diffIdsBetween(int $cursor, int $upperBound, int $limit): array
+    {
+        return $this->newQuery()
+            ->sentenceAudioQueueEligible()
+            ->where('id', '>', $cursor)
+            ->where('id', '<=', $upperBound)
+            ->orderBy('id')
+            ->limit($limit)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
+
     public function sentenceAudioScope(): string
     {
         return $this->article_type === self::TYPE_DAILY || (bool) $this->is_daily_reading
             ? self::TYPE_DAILY
             : self::SOURCE_AGENT_HISTORY;
+    }
+
+    public static function sentenceAudioQueueRowsByIds(array $ids): array
+    {
+        return self::query()
+            ->whereIn('id', $ids)
+            ->sentenceAudioQueueEligible()
+            ->where('tts_generated', false)
+            ->whereNotNull('content')
+            ->where('content', '<>', '')
+            ->where(function ($query): void {
+                $query->whereNull('metadata->audio_status')
+                    ->orWhere('metadata->audio_status', 'failed');
+            })
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     /**
@@ -92,31 +237,4 @@ class AppQyV1ArticleModel extends Model
         return $this->hasMany(AppQyV1ArticleWordModel::class, 'article_id', 'article_id');
     }
 
-    /**
-     * Create article from task data
-     */
-    public static function createFromTaskData(string $articleId, string $taskId, array $articleData): self
-    {
-        return self::create([
-            'article_id' => $articleId,
-            'user_id' => $articleData['user_id'],
-            'task_id' => $taskId,
-            'title' => $articleData['title'] ?? null,
-            'content' => $articleData['article_text'],
-            'language' => $articleData['language'],
-            'article_type' => $articleData['article_type'] ?? 'general',
-            'source' => $articleData['source'] ?? null,
-            'difficulty_level' => $articleData['difficulty_level'] ?? null,
-            'word_count' => $articleData['total_words'],
-            'unique_word_count' => $articleData['unique_words'],
-            'sentence_count' => $articleData['total_sentences'],
-            'is_daily_reading' => $articleData['is_daily_reading'] ?? false,
-            'reading_date' => $articleData['reading_date'] ?? null,
-            'tts_generated' => true,
-            'metadata' => [
-                'sentence_audio_count' => count($articleData['sentence_audio_urls'] ?? []),
-                'word_audio_count' => count($articleData['word_audio_urls'] ?? []),
-            ],
-        ]);
-    }
 }

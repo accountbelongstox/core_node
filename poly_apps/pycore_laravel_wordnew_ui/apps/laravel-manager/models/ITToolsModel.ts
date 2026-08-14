@@ -146,39 +146,6 @@ export class ITToolsModel extends BaseModel {
       this.execute(api.itToolsV1.generateMacAddress())
   };
 
-  // Legacy aliases for backward compatibility (deprecated)
-  hashText = this.crypto.hash;
-  bcryptHash = this.crypto.bcrypt.hash;
-  bcryptVerify = this.crypto.bcrypt.verify;
-  generateUuid = this.crypto.uuid;
-  generateUlid = this.crypto.ulid;
-  generateToken = this.crypto.token;
-  generateRsaKeyPair = this.crypto.rsa;
-  generateBip39 = this.crypto.bip39;
-  generateOtp = this.crypto.otp.generate;
-  verifyOtp = this.crypto.otp.verify;
-  generateHmac = this.crypto.hmac;
-  encrypt = this.crypto.encrypt;
-  decrypt = this.crypto.decrypt;
-  base64Encode = this.converter.base64.encode;
-  base64Decode = this.converter.base64.decode;
-  urlEncode = this.converter.url.encode;
-  urlDecode = this.converter.url.decode;
-  jsonPrettify = this.converter.json.prettify;
-  jsonMinify = this.converter.json.minify;
-  jsonToYaml = this.converter.json.toYaml;
-  yamlToJson = this.converter.yaml.toJson;
-  convertColor = this.converter.color;
-  convertBase = this.converter.base;
-  convertTemperature = this.converter.temperature;
-  textStatistics = this.text.statistics;
-  regexTest = this.text.regex;
-  loremIpsum = this.text.loremIpsum;
-  mathEvaluate = this.math.evaluate;
-  calculatePercentage = this.math.percentage;
-  generateQrCode = this.web.qrCode;
-  ipv4Subnet = this.network.ipv4Subnet;
-  generateMacAddress = this.network.macGenerate;
 }
 
 export const itToolsModel = ITToolsModel.getInstance();

@@ -46,12 +46,12 @@ class AppQyV1DailyReadingDocumentService
                 'language' => $language,
                 'content' => $content,
             ]);
-            $document->save();
+            $document->saveRecord();
 
             $meta = is_array($article->metadata) ? $article->metadata : [];
             $meta['document_id'] = (int) $document->id;
             $article->metadata = $meta;
-            $article->save();
+            $article->saveRecord();
 
             return (int) $document->id;
         } catch (\Throwable $e) {

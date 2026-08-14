@@ -5,6 +5,7 @@
  */
 
 import type { ITaskProcessor, ProcessorConfig, ProcessorStatus, ProcessorStats } from '../ITaskProcessor';
+import { IntervalController } from '@/utils/async';
 
 /**
  * Google News Task Processor
@@ -16,7 +17,7 @@ class GoogleNewsProcessor implements ITaskProcessor {
 
   private isRunning = false;
   private config: ProcessorConfig | null = null;
-  private intervalId: NodeJS.Timeout | null = null;
+  private readonly searchPolling = new IntervalController();
   private currentWordIndex = 0;
   private searchResults: any[] = [];
 
@@ -81,7 +82,7 @@ class GoogleNewsProcessor implements ITaskProcessor {
     await this.processNextWord();
 
     // Then continue with interval
-    this.intervalId = setInterval(async () => {
+    this.searchPolling.start(async () => {
       if (this.isRunning && this.currentWordIndex < this.wordList.length) {
         await this.processNextWord();
       } else if (this.currentWordIndex >= this.wordList.length) {
@@ -283,10 +284,7 @@ class GoogleNewsProcessor implements ITaskProcessor {
   stop(): void {
     console.log('[GoogleNewsProcessor] 🛑 Stopping Google News Search Processor');
 
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.searchPolling.stop();
 
     this.isRunning = false;
     this.stats.isOnline = false;

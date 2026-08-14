@@ -5,6 +5,7 @@
  */
 
 import { getCachedBackendTimeoutMs } from '@/utils/backend-timeout';
+import { delay as wait, fetchWithTimeout } from '@/utils/async';
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -63,7 +64,7 @@ export abstract class BaseApiClient {
       retries = 3,
       retryDelay = 1000,
     } = config;
-    // An explicit per-call timeout (e.g. pullTasks long-poll) wins; otherwise
+    // An explicit per-call timeout wins; otherwise
     // resolve the configurable backend timeout live from the cache.
     const timeout = config.timeout ?? getCachedBackendTimeoutMs();
 
@@ -74,24 +75,11 @@ export abstract class BaseApiClient {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        let response: Response;
-        try {
-          response = await fetch(url, {
-            method,
-            headers: requestHeaders,
-            body: body ? JSON.stringify(body) : undefined,
-            signal: controller.signal,
-          });
-        } finally {
-          // Clear the abort timer on every path - a fetch rejection (network
-          // error / AbortError) skips the success-path clearTimeout and would
-          // otherwise leave a dangling timer per failed attempt. Mirrors the
-          // finally block in api-health-listener.ts.
-          clearTimeout(timeoutId);
-        }
+        const response = await fetchWithTimeout(url, timeout, {
+          method,
+          headers: requestHeaders,
+          body: body ? JSON.stringify(body) : undefined,
+        });
 
         const data = await response.json().catch(() => null);
 
@@ -190,7 +178,7 @@ export abstract class BaseApiClient {
    * Delay utility
    */
   protected delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return wait(ms);
   }
 
   /**

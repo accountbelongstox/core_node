@@ -7,9 +7,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import { Plus, Pencil, X, Loader2 } from 'lucide-react';
-import Portal from '../../../../components/shared/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../../styles/overlay';
-import { ElementTheme } from '../../WfNewTypes';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
+import type { ElementTheme } from '../../WfNewThemes';
 import type { WfNewAdminWordRow, WfNewAdminWordEditable } from '../../api';
 
 type Trans = (key: string, replacements?: Record<string, string | number>) => string;

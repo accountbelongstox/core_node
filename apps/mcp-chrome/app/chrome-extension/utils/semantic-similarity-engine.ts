@@ -5,6 +5,8 @@ import { SIMDMathEngine } from './simd-math-engine';
 import { OffscreenManager } from './offscreen-manager';
 import { STORAGE_KEYS } from '@/common/constants';
 import { OFFSCREEN_MESSAGE_TYPES } from '@/common/message-types';
+import { AsyncOperationController, delay as waitForDelay } from './async';
+import { toErrorMessage } from './errors';
 
 import { ModelCacheManager } from './model-cache-manager';
 
@@ -461,10 +463,7 @@ export class SemanticSimilarityEngineProxy {
   private _isInitialized = false;
   private config: Partial<ModelConfig>;
   private offscreenManager: OffscreenManager;
-  // Shared in-flight initialization promise. Concurrent callers await the
-  // same promise so they observe the real success/failure result instead of
-  // sleeping 100ms and racing ahead against an unready engine.
-  private _ensurePromise: Promise<void> | null = null;
+  private readonly offscreenInitialization = new AsyncOperationController<void>();
 
   constructor(config: Partial<ModelConfig> = {}) {
     this.config = config;
@@ -496,7 +495,7 @@ export class SemanticSimilarityEngineProxy {
     } catch (error) {
       console.error('SemanticSimilarityEngineProxy: Initialization failed:', error);
       throw new Error(
-        `Failed to initialize proxy: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        `Failed to initialize proxy: ${toErrorMessage(error) || 'Unknown error'}`,
       );
     }
   }
@@ -544,14 +543,7 @@ export class SemanticSimilarityEngineProxy {
    * Ensure engine in offscreen is initialized (serialized across concurrent callers)
    */
   private async ensureOffscreenEngineInitialized(): Promise<void> {
-    // If an initialization is already in flight, await the same promise so
-    // concurrent callers observe the real success/failure result instead of
-    // racing ahead and sending compute messages to an unready engine.
-    if (this._ensurePromise) {
-      return this._ensurePromise;
-    }
-
-    const run = async () => {
+    return this.offscreenInitialization.run(async () => {
       const status = await this.checkOffscreenEngineStatus();
 
       if (!status.isInitialized) {
@@ -572,14 +564,7 @@ export class SemanticSimilarityEngineProxy {
 
         console.log('SemanticSimilarityEngineProxy: Engine reinitialized successfully');
       }
-    };
-
-    this._ensurePromise = run();
-    try {
-      await this._ensurePromise;
-    } finally {
-      this._ensurePromise = null;
-    }
+    });
   }
 
   /**
@@ -649,7 +634,7 @@ export class SemanticSimilarityEngineProxy {
 
         if (attempt < maxRetries) {
           // Wait before retry
-          await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+          await waitForDelay(100 * attempt);
 
           // Re-ensure offscreen document exists
           try {
@@ -792,8 +777,7 @@ export class SemanticSimilarityEngine {
   private worker: Worker | null = null;
   private tokenizer: PreTrainedTokenizer | null = null;
   public isInitialized = false;
-  private isInitializing = false;
-  private initPromise: Promise<void> | null = null;
+  private readonly initialization = new AsyncOperationController<void>();
   private nextTokenId = 0;
   private pendingMessages = new Map<number, PendingMessage>();
   private useOffscreen = false; // Whether to use offscreen mode
@@ -1083,20 +1067,65 @@ export class SemanticSimilarityEngine {
       });
       this.pendingMessages.clear();
       this.isInitialized = false;
-      this.isInitializing = false;
+      this.initialization.reset();
     };
+  }
+
+  public get isInitializing(): boolean {
+    return this.initialization.isRunning;
+  }
+
+  private configureExecutionMode(): void {
+    const workerSupported = this.isWorkerSupported();
+    const inOffscreenDocument = this.isInOffscreenDocument();
+
+    if (inOffscreenDocument || import.meta.env.FIREFOX) {
+      this.useOffscreen = false;
+    } else {
+      this.useOffscreen = this.config.forceOffscreen || !workerSupported;
+    }
+
+    console.log(
+      `SemanticSimilarityEngine: Worker supported: ${workerSupported}, In offscreen: ${inOffscreenDocument}, Using offscreen: ${this.useOffscreen}`,
+    );
+  }
+
+  private createOffscreenConfig(): Record<string, unknown> {
+    const config = {
+      modelIdentifier: this.config.modelIdentifier,
+      localModelPathPrefix: this.config.localModelPathPrefix,
+      onnxModelFile: this.config.onnxModelFile,
+      maxLength: this.config.maxLength,
+      cacheSize: this.config.cacheSize,
+      numThreads: this.config.numThreads,
+      executionProviders: this.config.executionProviders,
+      useLocalFiles: Boolean(this.config.useLocalFiles),
+      workerPath: this.config.workerPath,
+      concurrentLimit: this.config.concurrentLimit,
+      forceOffscreen: this.config.forceOffscreen,
+      modelPreset: this.config.modelPreset,
+      modelVersion: this.config.modelVersion,
+      dimension: this.config.dimension,
+    };
+    return JSON.parse(JSON.stringify(config));
+  }
+
+  private async initializeOffscreen(): Promise<void> {
+    await this.ensureOffscreenDocument();
+    const response = await chrome.runtime.sendMessage({
+      target: 'offscreen',
+      type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
+      config: this.createOffscreenConfig(),
+    });
+    if (!response?.success) {
+      throw new Error(response?.error || 'Failed to initialize engine in offscreen document');
+    }
+    console.log('SemanticSimilarityEngine: Initialized via offscreen document');
   }
 
   public async initialize(): Promise<void> {
     if (this.isInitialized) return Promise.resolve();
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitialize().finally(() => {
-      this.isInitializing = false;
-      // this.warmupModel();
-    });
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitialize());
   }
 
   /**
@@ -1106,14 +1135,7 @@ export class SemanticSimilarityEngine {
     onProgress?: (progress: { status: string; progress: number; message?: string }) => void,
   ): Promise<void> {
     if (this.isInitialized) return Promise.resolve();
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitializeWithProgress(onProgress).finally(() => {
-      this.isInitializing = false;
-      // this.warmupModel();
-    });
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitializeWithProgress(onProgress));
   }
 
   /**
@@ -1135,77 +1157,15 @@ export class SemanticSimilarityEngine {
     try {
       reportProgress('initializing', 5, 'Starting initialization...');
 
-      // 检测环境并决定使用哪种模式
-      const workerSupported = this.isWorkerSupported();
-      const inOffscreenDocument = this.isInOffscreenDocument();
-
-      // 🛠️ 防止死循环：如果已经在 offscreen document 中，强制使用直接 Worker 模式
-      if (inOffscreenDocument) {
-        this.useOffscreen = false;
-        console.log(
-          'SemanticSimilarityEngine: Running in offscreen document, using direct Worker mode to prevent recursion',
-        );
-      } else if (import.meta.env.FIREFOX) {
-        // Firefox has no offscreen API; the background event page has DOM and
-        // Worker support, so always run in direct Worker mode there.
-        this.useOffscreen = false;
-      } else {
-        this.useOffscreen = this.config.forceOffscreen || !workerSupported;
-      }
-
-      console.log(
-        `SemanticSimilarityEngine: Worker supported: ${workerSupported}, In offscreen: ${inOffscreenDocument}, Using offscreen: ${this.useOffscreen}`,
-      );
+      this.configureExecutionMode();
 
       reportProgress('initializing', 10, 'Environment detection complete');
 
       if (this.useOffscreen) {
-        // 使用offscreen模式 - 委托给offscreen document，它会处理自己的进度
         reportProgress('initializing', 15, 'Setting up offscreen document...');
-        await this.ensureOffscreenDocument();
-
-        // 发送初始化消息到offscreen document
-        console.log('SemanticSimilarityEngine: Sending config to offscreen:', {
-          useLocalFiles: this.config.useLocalFiles,
-          modelIdentifier: this.config.modelIdentifier,
-          localModelPathPrefix: this.config.localModelPathPrefix,
-        });
-
-        // 确保配置对象被正确序列化，显式设置所有属性
-        const configToSend = {
-          modelIdentifier: this.config.modelIdentifier,
-          localModelPathPrefix: this.config.localModelPathPrefix,
-          onnxModelFile: this.config.onnxModelFile,
-          maxLength: this.config.maxLength,
-          cacheSize: this.config.cacheSize,
-          numThreads: this.config.numThreads,
-          executionProviders: this.config.executionProviders,
-          useLocalFiles: Boolean(this.config.useLocalFiles), // 强制转换为布尔值
-          workerPath: this.config.workerPath,
-          concurrentLimit: this.config.concurrentLimit,
-          forceOffscreen: this.config.forceOffscreen,
-          modelPreset: this.config.modelPreset,
-          modelVersion: this.config.modelVersion,
-          dimension: this.config.dimension,
-        };
-
-        // 使用 JSON 序列化确保数据完整性
-        const serializedConfig = JSON.parse(JSON.stringify(configToSend));
-
         reportProgress('initializing', 20, 'Delegating to offscreen document...');
-
-        const response = await chrome.runtime.sendMessage({
-          target: 'offscreen',
-          type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
-          config: serializedConfig,
-        });
-
-        if (!response || !response.success) {
-          throw new Error(response?.error || 'Failed to initialize engine in offscreen document');
-        }
-
+        await this.initializeOffscreen();
         reportProgress('ready', 100, 'Initialized via offscreen document');
-        console.log('SemanticSimilarityEngine: Initialized via offscreen document');
       } else {
         // 使用直接Worker模式 - 这里我们可以提供真实的进度跟踪
         await this._initializeDirectWorkerWithProgress(reportProgress);
@@ -1217,13 +1177,12 @@ export class SemanticSimilarityEngine {
       );
     } catch (error) {
       console.error('SemanticSimilarityEngine: Initialization failed.', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = toErrorMessage(error) || 'Unknown error';
       reportProgress('error', 0, `Initialization failed: ${errorMessage}`);
       if (this.worker) this.worker.terminate();
       this.worker = null;
       this.isInitialized = false;
-      this.isInitializing = false;
-      this.initPromise = null;
+      this.initialization.reset();
 
       // 创建一个更详细的错误对象
       const enhancedError = new Error(errorMessage);
@@ -1236,94 +1195,10 @@ export class SemanticSimilarityEngine {
     console.log('SemanticSimilarityEngine: Initializing...');
     const startTime = performance.now();
     try {
-      // 检测环境并决定使用哪种模式
-      const workerSupported = this.isWorkerSupported();
-      const inOffscreenDocument = this.isInOffscreenDocument();
-
-      // 🛠️ 防止死循环：如果已经在 offscreen document 中，强制使用直接 Worker 模式
-      if (inOffscreenDocument) {
-        this.useOffscreen = false;
-        console.log(
-          'SemanticSimilarityEngine: Running in offscreen document, using direct Worker mode to prevent recursion',
-        );
-      } else if (import.meta.env.FIREFOX) {
-        // Firefox has no offscreen API; the background event page has DOM and
-        // Worker support, so always run in direct Worker mode there.
-        this.useOffscreen = false;
-      } else {
-        this.useOffscreen = this.config.forceOffscreen || !workerSupported;
-      }
-
-      console.log(
-        `SemanticSimilarityEngine: Worker supported: ${workerSupported}, In offscreen: ${inOffscreenDocument}, Using offscreen: ${this.useOffscreen}`,
-      );
+      this.configureExecutionMode();
 
       if (this.useOffscreen) {
-        // 使用offscreen模式
-        await this.ensureOffscreenDocument();
-
-        // 发送初始化消息到offscreen document
-        console.log('SemanticSimilarityEngine: Sending config to offscreen:', {
-          useLocalFiles: this.config.useLocalFiles,
-          modelIdentifier: this.config.modelIdentifier,
-          localModelPathPrefix: this.config.localModelPathPrefix,
-        });
-
-        // 确保配置对象被正确序列化，显式设置所有属性
-        const configToSend = {
-          modelIdentifier: this.config.modelIdentifier,
-          localModelPathPrefix: this.config.localModelPathPrefix,
-          onnxModelFile: this.config.onnxModelFile,
-          maxLength: this.config.maxLength,
-          cacheSize: this.config.cacheSize,
-          numThreads: this.config.numThreads,
-          executionProviders: this.config.executionProviders,
-          useLocalFiles: Boolean(this.config.useLocalFiles), // 强制转换为布尔值
-          workerPath: this.config.workerPath,
-          concurrentLimit: this.config.concurrentLimit,
-          forceOffscreen: this.config.forceOffscreen,
-          modelPreset: this.config.modelPreset,
-          modelVersion: this.config.modelVersion,
-          dimension: this.config.dimension,
-        };
-
-        console.log(
-          'SemanticSimilarityEngine: DEBUG - configToSend.useLocalFiles:',
-          configToSend.useLocalFiles,
-        );
-        console.log(
-          'SemanticSimilarityEngine: DEBUG - typeof configToSend.useLocalFiles:',
-          typeof configToSend.useLocalFiles,
-        );
-
-        console.log('SemanticSimilarityEngine: Explicit config to send:', configToSend);
-        console.log(
-          'SemanticSimilarityEngine: DEBUG - this.config.useLocalFiles value:',
-          this.config.useLocalFiles,
-        );
-        console.log(
-          'SemanticSimilarityEngine: DEBUG - typeof this.config.useLocalFiles:',
-          typeof this.config.useLocalFiles,
-        );
-
-        // 使用 JSON 序列化确保数据完整性
-        const serializedConfig = JSON.parse(JSON.stringify(configToSend));
-        console.log(
-          'SemanticSimilarityEngine: DEBUG - serializedConfig.useLocalFiles:',
-          serializedConfig.useLocalFiles,
-        );
-
-        const response = await chrome.runtime.sendMessage({
-          target: 'offscreen',
-          type: OFFSCREEN_MESSAGE_TYPES.SIMILARITY_ENGINE_INIT,
-          config: serializedConfig, // 使用原始配置，不强制修改 useLocalFiles
-        });
-
-        if (!response || !response.success) {
-          throw new Error(response?.error || 'Failed to initialize engine in offscreen document');
-        }
-
-        console.log('SemanticSimilarityEngine: Initialized via offscreen document');
+        await this.initializeOffscreen();
       } else {
         // 使用直接Worker模式
         this._setupWorker();
@@ -1461,11 +1336,10 @@ export class SemanticSimilarityEngine {
       if (this.worker) this.worker.terminate();
       this.worker = null;
       this.isInitialized = false;
-      this.isInitializing = false;
-      this.initPromise = null;
+      this.initialization.reset();
 
       // 创建一个更详细的错误对象
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorMessage = toErrorMessage(error) || 'Unknown error';
       const enhancedError = new Error(errorMessage);
       enhancedError.name = 'ModelInitializationError';
       throw enhancedError;
@@ -1622,10 +1496,10 @@ export class SemanticSimilarityEngine {
   }
 
   public async warmupModel(): Promise<void> {
-    if (!this.isInitialized && !this.isInitializing) {
+    if (!this.isInitialized && !this.initialization.isRunning) {
       await this.initialize();
-    } else if (this.isInitializing && this.initPromise) {
-      await this.initPromise;
+    } else if (this.initialization.current) {
+      await this.initialization.current;
     }
     if (!this.isInitialized) throw new Error('Engine not initialized after warmup attempt.');
     console.log('SemanticSimilarityEngine: Warming up model...');
@@ -2329,7 +2203,7 @@ export class SemanticSimilarityEngine {
       memoryPool: this.memoryPool.getStats(),
       memoryUsage: this.getMemoryUsage(),
       isInitialized: this.isInitialized,
-      isInitializing: this.isInitializing,
+      isInitializing: this.initialization.isRunning,
       config: this.config,
       pendingWorkerTasks: this.workerTaskQueue.length,
       runningWorkerTasks: this.runningWorkerTasks,
@@ -2425,8 +2299,7 @@ export class SemanticSimilarityEngine {
     this.pendingMessages.clear();
     this.workerTaskQueue = [];
     this.isInitialized = false;
-    this.isInitializing = false;
-    this.initPromise = null;
+    this.initialization.reset();
     this.useSIMD = false;
     console.log('SemanticSimilarityEngine: Disposed.');
   }

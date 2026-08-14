@@ -54,16 +54,6 @@ class AiChat
 
         $useModel = $requestedModel ?: AiProviderRegistry::defaultModel($provider);
 
-        $rate = AiRateLimiter::checkRateLimit($provider, $useModel);
-        if (!$rate['allowed']) {
-            $out['error'] = $rate['message'];
-            $out['retry_after_s'] = $rate['retry_after_s'];
-            $out['model'] = $useModel;
-            $out['nickname'] = self::nickname($provider, $useModel);
-            AiUsageLog::record('text', $provider, $useModel, false, null, $source, $rate['message']);
-            return $out;
-        }
-
         // Multi-key rotation with PER-KEY cooldown + counters (AiKeyRotation, the
         // twin of pycore ai_key_rotation): pick the active (non-cooled) key; on an
         // AUTH/QUOTA error cool THAT key so it's SKIPPED next time, then rotate to
@@ -77,6 +67,16 @@ class AiChat
         $n = count($keys);
         $start = microtime(true);
         for ($attempt = 0; $attempt < $n; $attempt++) {
+            $rate = AiRateLimiter::checkRateLimit($provider, $useModel);
+            if (!$rate['allowed']) {
+                $failure = AiRequestFailure::classify($rate['message']);
+                $out['error'] = $rate['message'];
+                $out['error_code'] = $failure['code'];
+                $out['retriable'] = $failure['retriable'];
+                $out['retry_after_s'] = $rate['retry_after_s'];
+                $out['model'] = $useModel;
+                break;
+            }
             [$idx, $key] = AiKeyRotation::selectActive($provider, $keys);
             if (!AiKeyRotation::rateOk($provider, $idx, $rpm, $rpd)) {
                 if ($attempt + 1 < $n) {
@@ -88,10 +88,23 @@ class AiChat
             }
             $out['success'] = false;
             $out['error'] = null;
+            $out['error_code'] = null;
+            $out['attempted'] = true;
+            $out['provider_reached'] = false;
             try {
                 self::dispatch($provider, $msgs, $requestedModel, $key, $out);
             } catch (\Throwable $e) {
                 $out['error'] = $e->getMessage();
+            }
+            $failure = AiRequestFailure::classify($out['error'] ?? null);
+            $out['error_code'] = !empty($out['success']) ? null : ($out['error_code'] ?? $failure['code']);
+            $out['retriable'] = empty($out['success']) && $failure['retriable'];
+            $out['provider_reached'] = !empty($out['success'])
+                || !empty($out['provider_reached'])
+                || $failure['provider_reached'];
+            $out['quota_counted'] = $out['provider_reached'];
+            if ($out['provider_reached']) {
+                AiRateLimiter::recordRequest($provider);
             }
             AiKeyRotation::record($provider, $idx, !empty($out['success']), $out['error'] ?? null);
             if (!empty($out['success'])) {
@@ -112,11 +125,10 @@ class AiChat
         $out['nickname'] = self::nickname($provider, (string) $out['model']);
         $out['latency_ms'] = round((microtime(true) - $start) * 1000, 1);
 
-        if (!empty($out['success'])) {
-            AiRateLimiter::recordRequest($provider);
+        if (!empty($out['attempted'])) {
+            AiUsageLog::record('text', $provider, (string) $out['model'], (bool) $out['success'],
+                $out['latency_ms'], $source, $out['error'] ?? null);
         }
-        AiUsageLog::record('text', $provider, (string) $out['model'], (bool) $out['success'],
-            $out['latency_ms'], $source, $out['error'] ?? null);
         return $out;
     }
 
@@ -158,6 +170,8 @@ class AiChat
         if (!$res['success']) {
             $out['error'] = $res['error'] ?: 'Empty response from provider';
         }
+        $out['error_code'] = $res['error_code'] ?? null;
+        $out['provider_reached'] = !empty($res['provider_reached']);
     }
 
     private static function chatGemini(string $provider, array $messages, ?string $model, string $key, array &$out): void
@@ -173,6 +187,7 @@ class AiChat
                     'parts' => [['text' => self::messagesToPrompt($messages)]],
                 ]],
             ]);
+        $out['provider_reached'] = true;
 
         if ($response->status() !== 200) {
             $out['error'] = 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300);
@@ -217,6 +232,7 @@ class AiChat
             'anthropic-version' => '2023-06-01',
             'Content-Type' => 'application/json',
         ])->timeout(90)->post(AiProviderRegistry::baseUrl($provider) . '/messages', $body);
+        $out['provider_reached'] = true;
 
         if ($response->status() !== 200) {
             $out['error'] = 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300);
@@ -250,6 +266,7 @@ class AiChat
             'Authorization' => 'Bearer ' . $key,
             'Content-Type' => 'application/json',
         ])->timeout(90)->post($url, ['messages' => $messages]);
+        $out['provider_reached'] = true;
 
         if ($response->status() !== 200) {
             $out['error'] = 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300);
@@ -345,6 +362,11 @@ class AiChat
             'latency_ms' => null,
             'error' => null,
             'retry_after_s' => null,
+            'attempted' => false,
+            'error_code' => null,
+            'retriable' => false,
+            'provider_reached' => false,
+            'quota_counted' => false,
         ];
     }
 }

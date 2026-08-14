@@ -3,8 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Heart, MessageCircle, Send, Play, ExternalLink, Globe, Plus,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-import { mediaUrl } from '../../../config/constants';
+import type { ElementTheme } from '../WfNewThemes';
+import { laravelMediaUrl as mediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import { WfNewAvatarView } from './WfNewAvatarView';
 import {
   wfNewApi,

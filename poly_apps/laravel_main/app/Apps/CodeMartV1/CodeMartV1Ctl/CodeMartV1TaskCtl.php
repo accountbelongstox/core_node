@@ -23,39 +23,12 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $query = CodeMartV1TaskModel::query()->with(['milestone', 'assignee']);
-
-        if ($request->has('milestone_id')) {
-            $query->where('milestone_id', $request->milestone_id);
-        }
-
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->has('priority')) {
-            $query->where('priority', $request->priority);
-        }
-
-        if ($request->has('assigned_to')) {
-            $query->where('assigned_to', $request->assigned_to);
-        }
-
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%");
-            });
-        }
-
         $page = $request->get('page', 1);
         $pageSize = $request->get('pageSize', 20);
-
-        $total = $query->count();
-        $tasks = $query->orderBy('order', 'asc')
-                       ->orderBy('created_at', 'desc')
-                       ->paginate($pageSize, ['*'], 'page', $page);
+        $filters = $request->only(['milestone_id', 'status', 'priority', 'assigned_to', 'search']);
+        $result = CodeMartV1TaskModel::filteredPage($filters, (int) $page, (int) $pageSize);
+        $tasks = $result['tasks'];
+        $total = $result['total'];
 
         return $this->success([
             'items' => $tasks->items(),
@@ -71,7 +44,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $milestone = CodeMartV1MilestoneModel::find($request->milestone_id);
+        $milestone = CodeMartV1MilestoneModel::findById((int) $request->milestone_id);
 
         if (!$milestone) {
             return $this->notFound('Milestone not found');
@@ -94,10 +67,7 @@ class CodeMartV1TaskCtl extends Controller
 
         CodeMartV1TaskModel::beginModelTransaction();
 
-        $order = CodeMartV1TaskModel::where('milestone_id', $request->milestone_id)->max('order') ?? 0;
-
-        $task = CodeMartV1TaskModel::create([
-            'milestone_id' => $request->milestone_id,
+        $task = CodeMartV1TaskModel::createForMilestone((int) $request->milestone_id, [
             'title' => $request->title,
             'description' => $request->description,
             'priority' => $request->priority,
@@ -105,13 +75,11 @@ class CodeMartV1TaskCtl extends Controller
             'due_date' => $request->due_date,
             'deliverables' => $request->deliverables,
             'budget_allocation' => $request->budget_allocation,
-            'order' => $order + 1,
-            'status' => 'pending',
         ]);
 
         CodeMartV1TaskModel::commitModelTransaction();
 
-        return $this->success($task->load(['milestone', 'assignee']), 'Task created successfully', 201);
+        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), 'Task created successfully', 201);
     }
 
     public function getTask(Request $request, int $taskId): JsonResponse
@@ -119,16 +87,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = CodeMartV1TaskModel::with([
-            'milestone',
-            'assignee',
-            'submissions' => function ($query) {
-                $query->latest();
-            },
-            'comments' => function ($query) {
-                $query->latest();
-            },
-        ])->find($taskId);
+        $task = CodeMartV1TaskModel::findDetailed($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -142,7 +101,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = CodeMartV1TaskModel::find($taskId);
+        $task = CodeMartV1TaskModel::findById($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -163,9 +122,9 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $task->update($validator->validated());
+        $task->updateRecord($validator->validated());
 
-        return $this->success($task->load(['milestone', 'assignee']), 'Task updated successfully');
+        return $this->success($task->loadRecordRelations(['milestone', 'assignee']), 'Task updated successfully');
     }
 
     public function submitTask(Request $request, int $taskId): JsonResponse
@@ -173,7 +132,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = CodeMartV1TaskModel::find($taskId);
+        $task = CodeMartV1TaskModel::findById($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -190,7 +149,7 @@ class CodeMartV1TaskCtl extends Controller
 
         CodeMartV1TaskModel::beginModelTransaction();
 
-        $submission = CodeMartV1TaskSubmissionModel::create([
+        $submission = CodeMartV1TaskSubmissionModel::createRecord([
             'task_id' => $taskId,
             'submitted_by' => $user->id,
             'submission_note' => $request->submission_note,
@@ -198,11 +157,11 @@ class CodeMartV1TaskCtl extends Controller
             'status' => 'pending',
         ]);
 
-        $task->update(['status' => 'review']);
+        $task->updateRecord(['status' => 'review']);
 
         CodeMartV1TaskModel::commitModelTransaction();
 
-        return $this->success($submission->load(['task', 'submitter']), 'Task submitted successfully', 201);
+        return $this->success($submission->loadRecordRelations(['task', 'submitter']), 'Task submitted successfully', 201);
     }
 
     public function addComment(Request $request, int $taskId): JsonResponse
@@ -210,7 +169,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $task = CodeMartV1TaskModel::find($taskId);
+        $task = CodeMartV1TaskModel::findById($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
@@ -225,14 +184,14 @@ class CodeMartV1TaskCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $comment = CodeMartV1TaskCommentModel::create([
+        $comment = CodeMartV1TaskCommentModel::createRecord([
             'task_id' => $taskId,
             'user_id' => $user->id,
             'comment' => $request->comment,
             'mentions' => $request->mentions,
         ]);
 
-        return $this->success($comment->load(['user']), 'Comment added successfully', 201);
+        return $this->success($comment->loadRecordRelations(['user']), 'Comment added successfully', 201);
     }
 
     public function reviewSubmission(Request $request, int $submissionId): JsonResponse
@@ -240,7 +199,7 @@ class CodeMartV1TaskCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $submission = CodeMartV1TaskSubmissionModel::find($submissionId);
+        $submission = CodeMartV1TaskSubmissionModel::findById($submissionId);
 
         if (!$submission) {
             return $this->notFound('Submission not found');
@@ -259,7 +218,7 @@ class CodeMartV1TaskCtl extends Controller
 
         CodeMartV1TaskModel::beginModelTransaction();
 
-        $review = CodeMartV1CodeReviewModel::create([
+        $review = CodeMartV1CodeReviewModel::createRecord([
             'task_submission_id' => $submissionId,
             'reviewer_id' => $user->id,
             'status' => $request->status,
@@ -268,17 +227,17 @@ class CodeMartV1TaskCtl extends Controller
             'line_comments' => $request->line_comments,
         ]);
 
-        $submission->update(['status' => $request->status]);
+        $submission->updateRecord(['status' => $request->status]);
 
         $task = $submission->task;
         if ($request->status === 'approved') {
-            $task->update(['status' => 'completed']);
+            $task->updateRecord(['status' => 'completed']);
         } elseif ($request->status === 'needs_revision') {
-            $task->update(['status' => 'in_progress']);
+            $task->updateRecord(['status' => 'in_progress']);
         }
 
         CodeMartV1TaskModel::commitModelTransaction();
 
-        return $this->success($review->load(['submission', 'reviewer']), 'Review submitted successfully', 201);
+        return $this->success($review->loadRecordRelations(['submission', 'reviewer']), 'Review submitted successfully', 201);
     }
 }

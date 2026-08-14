@@ -3,6 +3,8 @@
  * Uses WebAssembly + SIMD instructions to accelerate vector calculations
  */
 
+import { AsyncOperationController } from './async';
+
 interface SIMDMathWasm {
   free(): void;
   cosine_similarity(vec_a: Float32Array, vec_b: Float32Array): number;
@@ -24,22 +26,14 @@ export class SIMDMathEngine {
   private wasmModule: WasmModule | null = null;
   private simdMath: SIMDMathWasm | null = null;
   private isInitialized = false;
-  private isInitializing = false;
-  private initPromise: Promise<void> | null = null;
+  private readonly initialization = new AsyncOperationController<void>();
 
   private alignedBufferPool: Map<number, Float32Array[]> = new Map();
   private maxPoolSize = 5;
 
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-    if (this.isInitializing && this.initPromise) return this.initPromise;
-
-    this.isInitializing = true;
-    this.initPromise = this._doInitialize().finally(() => {
-      this.isInitializing = false;
-    });
-
-    return this.initPromise;
+    return this.initialization.run(() => this._doInitialize());
   }
 
   private async _doInitialize(): Promise<void> {
@@ -468,7 +462,7 @@ export class SIMDMathEngine {
   getStats() {
     return {
       isInitialized: this.isInitialized,
-      isInitializing: this.isInitializing,
+      isInitializing: this.initialization.isRunning,
       bufferPoolStats: Array.from(this.alignedBufferPool.entries()).map(([size, buffers]) => ({
         size,
         pooled: buffers.length,
@@ -490,7 +484,6 @@ export class SIMDMathEngine {
     this.alignedBufferPool.clear();
     this.wasmModule = null;
     this.isInitialized = false;
-    this.isInitializing = false;
-    this.initPromise = null;
+    this.initialization.reset();
   }
 }

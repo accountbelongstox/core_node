@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
@@ -61,25 +61,17 @@ class ClickTool extends BaseBrowserToolExecutor {
         timeout,
       });
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: result.message || 'Click operation successful',
-              elementInfo: result.elementInfo,
-              navigationOccurred: result.navigationOccurred,
-              clickMethod: coordinates ? 'coordinates' : 'selector',
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: result.message || 'Click operation successful',
+        elementInfo: result.elementInfo,
+        navigationOccurred: result.navigationOccurred,
+        clickMethod: coordinates ? 'coordinates' : 'selector',
+      });
     } catch (error) {
       console.error('Error in click operation:', error);
       return createErrorResponse(
-        `Error performing click: ${error instanceof Error ? error.message : String(error)}`,
+        `Error performing click: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -135,23 +127,15 @@ class FillTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: result.message || 'Fill operation successful',
-              elementInfo: result.elementInfo,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: result.message || 'Fill operation successful',
+        elementInfo: result.elementInfo,
+      });
     } catch (error) {
       console.error('Error in fill operation:', error);
       return createErrorResponse(
-        `Error filling element: ${error instanceof Error ? error.message : String(error)}`,
+        `Error filling element: ${toErrorMessage(error)}`,
       );
     }
   }

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Layers, X, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import type { PreviewAddLibraryResult } from '../api/types/api';
 
 /**

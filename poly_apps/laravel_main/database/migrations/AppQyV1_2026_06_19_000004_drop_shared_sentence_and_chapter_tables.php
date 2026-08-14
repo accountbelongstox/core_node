@@ -54,14 +54,15 @@ return new class extends Migration
                 );
                 return;
             }
-            $schema->dropIfExists($sentences);
+            // Neutralized: tables are never dropped — the shared table stays
+            // (rows were already copied above); a dead table costs nothing.
         }
 
         // 2) Preserve shared chapters -> per-language chapter tables (best-effort).
         if ($schema->hasTable($chapters)) {
             try {
                 $this->migrateSharedChapters($chapters);
-                $schema->dropIfExists($chapters);
+                // Neutralized: tables are never dropped — the shared table stays.
             } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::error(
                     '[AppQyV1 v3.1] shared chapter migration failed, leaving table in place: ' . $e->getMessage()

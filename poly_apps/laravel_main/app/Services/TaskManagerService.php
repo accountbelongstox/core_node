@@ -9,7 +9,6 @@ use App\Support\QueueCenterContract;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Database\ConnectionInterface;
 use App\Services\TaskProcessors\TaskProcessorRegistry;
 use App\Services\TaskProcessors\DictionaryTaskProcessor;
 use App\Services\TaskProcessors\WordTranslationTaskProcessor;
@@ -23,6 +22,8 @@ use App\Services\TaskProcessors\PromptTranslationTaskProcessor;
 use App\Services\TaskProcessors\WordValidityTaskProcessor;
 use App\Services\TaskProcessors\ArticleAudioTaskProcessor;
 use App\Services\QueueCenter\DiffIdPageCatalog;
+use App\Services\QueueCenter\QueueSliceDiffService;
+use App\Services\QueueCenter\QueueWorkerPresenceService;
 
 class TaskManagerService
 {
@@ -51,6 +52,8 @@ class TaskManagerService
     // not exist. The file store is always available and persists across the
     // sequential php -S requests (unlike the per-bootstrap `array` store).
     private const STATS_CACHE_STORE = 'file';
+    private const RESULT_SUBMISSION_LOCK_SECONDS = 900;
+    private const RESULT_PROCESSING_LEASE_SECONDS = 900;
 
     /**
      * Shared audio in-flight lock (contract item 5). A word+language pair is
@@ -101,11 +104,6 @@ class TaskManagerService
     }
 
     protected ?TaskProcessorRegistry $processorRegistry = null;
-
-    protected function db(): ConnectionInterface
-    {
-        return app('db.connection');
-    }
 
     /**
      * Get or create task processor registry
@@ -197,7 +195,12 @@ class TaskManagerService
 
         // Eligible interactive requests jump onto the shared fast lane at the
         // FAST priority tier. Dedicated-lane tasks retain their execution type;
-        // otherwise no matching worker could claim them.
+        // otherwise no matching worker could claim them. Queue-position-ordered
+        // (Queue Center audio) types never carry priority or fast-tier state.
+        if (QueueCenterContract::isQueuePositionOrdered($taskType)) {
+            $interactive = false;
+            $priority = 0;
+        }
         $interactive = $interactive
             && in_array($taskType, QueueCenterContract::fastPromotableTaskTypes(), true);
         if ($interactive) {
@@ -216,7 +219,7 @@ class TaskManagerService
             array_flip(['dict_row_id', 'dict_language', 'dict_row_table', 'group_key'])
         );
 
-        $task = GlobalTask::create(array_merge([
+        $task = GlobalTask::createTaskRecord(array_merge([
             'task_id' => 'task_' . Str::uuid(),
             'app_name' => $appName,
             'task_type' => $taskType,
@@ -232,15 +235,19 @@ class TaskManagerService
             'is_fast_tier' => $interactive,
         ], $allowedLink));
 
-        Log::info('Task created', [
+        $logContext = [
             'task_id' => $task->task_id,
             'app_name' => $appName,
             'task_type' => $taskType,
             'execution_type' => $executionType,
             'capability' => $capability,
             'is_fast_tier' => $interactive,
-            'priority' => $task->priority,
-        ]);
+        ];
+        if (!QueueCenterContract::isQueuePositionOrdered($taskType)) {
+            $logContext['priority'] = $task->priority;
+        }
+        Log::info('Task created', $logContext);
+        app(QueueSliceDiffService::class)->markChanged($taskType);
 
         return $task;
     }
@@ -268,11 +275,9 @@ class TaskManagerService
         // first, then task rows — submitResult() acquires its locks in the SAME
         // order, so a concurrent pull and result-submit for one worker serialize
         // instead of deadlocking (opposite orders deadlock on Postgres).
-        $assignedTasks = $this->db()->transaction(function () use ($workerId, $limit, $taskType) {
+        $assignedTasks = GlobalTask::runInTransaction(function () use ($workerId, $limit, $taskType) {
             // Lock worker for update
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
+            $worker = Worker::lockByWorkerId($workerId);
 
             if (!$worker) {
                 throw new \Exception("Worker not found: $workerId");
@@ -285,13 +290,10 @@ class TaskManagerService
             // the fast-lane block below, cross-DB safe).
             if ($taskType !== null) {
                 $workerCaps = $worker->capabilityList();
-                $candidates = GlobalTask::pending()
-                    ->where('task_type', $taskType)
-                    ->orderBy('priority', 'desc')
-                    ->orderBy('created_at', 'asc')
-                    ->limit(min(32, $limit + 8))
-                    ->lockForUpdate()
-                    ->get();
+                $candidates = GlobalTask::pendingClaimCandidatesForTaskType(
+                    $taskType,
+                    $limit
+                );
 
                 foreach ($candidates as $task) {
                     if (count($assignedTasks) >= $limit) {
@@ -332,8 +334,8 @@ class TaskManagerService
                 // The shared fast lane (remote_fast) is claimed ONLY through the
                 // capability-matched block below. Claiming it here would bypass
                 // the capability filter and let e.g. a chrome worker grab a
-                // bumped word_audio/audio task, adding fail-repend latency to
-                // exactly the hottest tasks.
+                // capability-specific task, adding fail-repend latency to the
+                // shared remote-fast lane.
                 if ($processorType === GlobalTask::executionType('remote_fast')) {
                     continue;
                 }
@@ -342,13 +344,10 @@ class TaskManagerService
                     'processor_type' => $processorType,
                 ]);
 
-                $availableTasks = GlobalTask::pending()
-                    ->where('execution_type', $processorType)
-                    ->orderBy('priority', 'desc')
-                    ->orderBy('created_at', 'asc')
-                    ->limit($limit - count($assignedTasks))
-                    ->lockForUpdate()
-                    ->get();
+                $availableTasks = GlobalTask::pendingClaimCandidatesForExecutionType(
+                    $processorType,
+                    $limit - count($assignedTasks)
+                );
 
                 Log::info('[pullAndAssignTasksForWorker] Found tasks for processor type', [
                     'processor_type' => $processorType,
@@ -393,13 +392,10 @@ class TaskManagerService
                 $need = $limit - count($assignedTasks);
                 $fetch = min(32, $need + 8);
 
-                $fastCandidates = GlobalTask::pending()
-                    ->where('execution_type', GlobalTask::executionType('remote_fast'))
-                    ->orderBy('priority', 'desc')
-                    ->orderBy('created_at', 'asc')
-                    ->limit($fetch)
-                    ->lockForUpdate()
-                    ->get();
+                $fastCandidates = GlobalTask::pendingClaimCandidatesForExecutionType(
+                    GlobalTask::executionType('remote_fast'),
+                    $fetch
+                );
 
                 // Observability: the over-fetch is capped at 32, so when the
                 // candidate set hits that cap there may be more claimable fast
@@ -424,7 +420,7 @@ class TaskManagerService
                     && $topFast->capability !== null
                     && $topFast->capability !== '') {
                     $onlineCaps = [];
-                    foreach (Worker::online()->get() as $onlineWorker) {
+                    foreach (Worker::onlineWorkers() as $onlineWorker) {
                         if (!$onlineWorker->canProcess(GlobalTask::executionType('remote_fast'))) {
                             continue;
                         }
@@ -477,64 +473,14 @@ class TaskManagerService
             'assigned_count' => count($assignedTasks),
         ]);
 
+        foreach (array_unique(array_map(
+            static fn (GlobalTask $task): string => (string) $task->task_type,
+            $assignedTasks
+        )) as $assignedTaskType) {
+            app(QueueSliceDiffService::class)->markChanged($assignedTaskType);
+        }
+
         return $assignedTasks;
-    }
-
-    /**
-     * Long-poll wait threshold (seconds) and granularity (microseconds) used by
-     * the pull endpoint when the queue is momentarily empty. The worker channel
-     * is documented as long-poll; rather than return an empty 200 immediately
-     * (forcing a tight reconnect loop), pull waits up to the central
-     * `long_poll_seconds` limit
-     * for a task to appear, re-checking every POLL_INTERVAL_US. The first
-     * iteration always runs, so a non-empty queue returns instantly.
-     */
-    private const POLL_INTERVAL_US = 500000; // 0.5s
-
-    /**
-     * Long-poll variant of the pull: assign tasks immediately if any exist,
-     * otherwise wait (cheap COUNT polling, not a held DB lock) up to
-     * the central long-poll limit for work to arrive, then assign and return. Returns
-     * promptly the instant a (high-priority) task is created.
-     *
-     * @return array Array of assigned tasks (possibly empty after the wait).
-     */
-    public function pullAndAssignTasksLongPoll(string $workerId, int $limit, ?int $maxWaitSeconds = null, ?string $taskType = null): array
-    {
-        $deadline = microtime(true) + ($maxWaitSeconds ?? QueueCenterContract::taskLimit('long_poll_seconds'));
-
-        // Resolve the worker's processor types once for the cheap availability
-        // probe between assignment attempts.
-        $worker = Worker::where('worker_id', $workerId)->first(['processor_types']);
-        $processorTypes = ($worker && is_array($worker->processor_types)) ? $worker->processor_types : [];
-
-        do {
-            $tasks = $this->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
-            if (!empty($tasks)) {
-                return $tasks;
-            }
-
-            // No work: stop waiting once the deadline passes or (untyped pull
-            // only) the worker has no processor types (nothing could ever match).
-            if (($taskType === null && empty($processorTypes)) || microtime(true) >= $deadline) {
-                return [];
-            }
-
-            // Cheap unlocked existence probe; sleep before the next assign attempt.
-            usleep(self::POLL_INTERVAL_US);
-
-            $hasPending = $taskType !== null
-                ? GlobalTask::pending()->where('task_type', $taskType)->exists()
-                : GlobalTask::pending()->whereIn('execution_type', $processorTypes)->exists();
-            if (!$hasPending) {
-                continue;
-            }
-            // A task appeared — loop straight back to the atomic assign.
-        } while (microtime(true) < $deadline);
-
-        // Final assign attempt right at the deadline (a task may have appeared in
-        // the last interval).
-        return $this->pullAndAssignTasksForWorker($workerId, $limit, $taskType);
     }
 
     /**
@@ -550,28 +496,19 @@ class TaskManagerService
     ): array {
         $minPriority = $minPriority ?? QueueCenterContract::taskPriority('fast');
         $capabilities = array_values(array_filter($capabilities, 'is_string'));
-        $capabilityClause = 'capability IS NULL';
-        $bindings = [$minPriority, GlobalTask::executionType('remote_fast')];
-
-        if ($capabilities !== []) {
-            $placeholders = implode(',', array_fill(0, count($capabilities), '?'));
-            $capabilityClause .= " OR capability IN ({$placeholders})";
-            $bindings = array_merge($bindings, $capabilities);
+        if (QueueCenterContract::isQueuePositionOrdered($taskType)) {
+            return [
+                'pending_urgent' => 0,
+                'pending_fast' => 0,
+            ];
         }
 
-        $row = GlobalTask::pending()
-            ->where('task_type', $taskType)
-            ->selectRaw(
-                'SUM(CASE WHEN priority >= ? THEN 1 ELSE 0 END) AS pending_urgent, '
-                    . 'SUM(CASE WHEN execution_type = ? AND (' . $capabilityClause . ') THEN 1 ELSE 0 END) AS pending_fast',
-                $bindings
-            )
-            ->first();
-
-        return [
-            'pending_urgent' => (int) ($row->pending_urgent ?? 0),
-            'pending_fast' => (int) ($row->pending_fast ?? 0),
-        ];
+        return GlobalTask::pendingSignals(
+            $taskType,
+            $minPriority,
+            GlobalTask::executionType('remote_fast'),
+            $capabilities
+        );
     }
 
     /**
@@ -591,10 +528,7 @@ class TaskManagerService
             return 0;
         }
 
-        return (int) GlobalTask::pending()
-            ->whereIn('execution_type', $processorTypes)
-            ->where('priority', '>=', $minPriority)
-            ->count();
+        return GlobalTask::countUrgentPendingForExecutionTypes($processorTypes, $minPriority);
     }
 
     /**
@@ -605,11 +539,7 @@ class TaskManagerService
      */
     public function workerProcessorTypes(string $workerId): array
     {
-        $worker = Worker::where('worker_id', $workerId)->first(['processor_types']);
-        if (!$worker || !is_array($worker->processor_types)) {
-            return [];
-        }
-        return array_values(array_filter($worker->processor_types, 'is_string'));
+        return Worker::processorTypesFor($workerId);
     }
 
     /**
@@ -620,14 +550,13 @@ class TaskManagerService
      */
     public function workerCapabilities(string $workerId): array
     {
-        $worker = Worker::where('worker_id', $workerId)->first(['capabilities']);
-        return $worker ? $worker->capabilityList() : [];
+        return Worker::capabilitiesFor($workerId);
     }
 
     /**
      * Count PENDING fast-lane tasks (remote_fast) a worker advertising
      * $capabilities is eligible to claim — surfaced as `pending_fast` in
-     * pull/heartbeat so a worker reacts immediately (re-poll with wait=0)
+     * pull/heartbeat so a worker reacts immediately
      * instead of waiting out its normal interval. Returns 0 unless the worker
      * actually subscribes to the shared fast lane. No priority floor is applied:
      * the pull fast-claim block has none either, so any remote_fast task the
@@ -644,17 +573,10 @@ class TaskManagerService
 
         $capabilities = array_values(array_filter($capabilities, 'is_string'));
 
-        return (int) GlobalTask::pending()
-            ->where('execution_type', GlobalTask::executionType('remote_fast'))
-            ->where(function ($q) use ($capabilities) {
-                // NULL capability = any worker eligible; otherwise the worker must
-                // advertise the tag. whereIn on a string column is cross-DB safe.
-                $q->whereNull('capability');
-                if (!empty($capabilities)) {
-                    $q->orWhereIn('capability', $capabilities);
-                }
-            })
-            ->count();
+        return GlobalTask::countFastPendingForCapabilities(
+            GlobalTask::executionType('remote_fast'),
+            $capabilities
+        );
     }
 
     /**
@@ -672,10 +594,8 @@ class TaskManagerService
     {
         $newPriority = $newPriority ?? GlobalTask::priority('fast');
         $taskType = null;
-        $result = $this->db()->transaction(function () use ($taskId, $newPriority, &$taskType) {
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+        $result = GlobalTask::runInTransaction(function () use ($taskId, $newPriority, &$taskType) {
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 return 'not_found';
@@ -702,7 +622,7 @@ class TaskManagerService
                     $task->execution_type = GlobalTask::executionType('remote_fast');
                     $task->is_fast_tier = true;
                 }
-                $task->save();
+                $task->saveRecord();
 
                 Log::info('Task priority bumped', [
                     'task_id' => $taskId,
@@ -717,6 +637,7 @@ class TaskManagerService
 
         if ($result === 'bumped' && $taskType !== null) {
             (new DiffIdPageCatalog())->promote('global_tasks:queue:' . $taskType, $taskId);
+            app(QueueSliceDiffService::class)->markChanged($taskType);
         }
 
         return $result;
@@ -731,23 +652,19 @@ class TaskManagerService
      */
     public function assignTask(string $taskId, string $workerId): bool
     {
-        $taskData = null;
+        $taskType = null;
 
-        $success = $this->db()->transaction(function () use ($taskId, $workerId, &$taskData) {
+        $success = GlobalTask::runInTransaction(function () use ($taskId, $workerId, &$taskType) {
             // LOCK ORDER: worker first, then task (same as pull/submit) so
             // concurrent assign/pull/submit cannot deadlock on opposite orders.
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
+            $worker = Worker::lockByWorkerId($workerId);
 
             if (!$worker) {
                 throw new \Exception("Worker not found: $workerId");
             }
 
             // Lock and reload task
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 throw new \Exception("Task not found: $taskId");
@@ -766,6 +683,7 @@ class TaskManagerService
             // Assign task
             $task->assignTo($workerId, $task->timeout_seconds);
             $worker->assignTask($taskId);
+            $taskType = (string) $task->task_type;
 
             GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                 'worker_id' => $workerId,
@@ -779,17 +697,12 @@ class TaskManagerService
                 'timeout_at' => $task->timeout_at,
             ]);
 
-            $taskData = [
-                'worker_id' => $workerId,
-                'task_id' => $task->task_id,
-                'task_type' => $task->task_type,
-                'payload' => $task->payload,
-                'timeout_seconds' => $task->timeout_seconds,
-                'priority' => $task->priority,
-            ];
-
             return true;
         }, self::TRANSACTION_ATTEMPTS);
+
+        if ($success && $taskType !== null && $taskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
 
         return $success;
     }
@@ -808,19 +721,16 @@ class TaskManagerService
      */
     public function acceptTask(string $taskId, string $workerId): string
     {
-        return $this->db()->transaction(function () use ($taskId, $workerId) {
+        $changedTaskType = null;
+        $outcome = GlobalTask::runInTransaction(function () use ($taskId, $workerId, &$changedTaskType) {
             // Same lock order as pull/assign/submit: worker first, then task.
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
+            $worker = Worker::lockByWorkerId($workerId);
 
             if (!$worker) {
                 return 'not_found';
             }
 
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 return 'not_found';
@@ -832,7 +742,7 @@ class TaskManagerService
             );
             if ($configuredTimeout > (int) $task->timeout_seconds) {
                 $task->timeout_seconds = $configuredTimeout;
-                $task->save();
+                $task->saveRecord();
             }
 
             // Already ours (the normal case after an atomic pull) — idempotent.
@@ -841,7 +751,7 @@ class TaskManagerService
                 $worker->heartbeat();
                 if ($task->timeout_seconds) {
                     $task->timeout_at = now()->addSeconds($task->timeout_seconds);
-                    $task->save();
+                    $task->saveRecord();
                 }
                 return 'accepted';
             }
@@ -850,6 +760,7 @@ class TaskManagerService
             if ($task->status === GlobalTask::status('pending')) {
                 $task->assignTo($workerId, $task->timeout_seconds);
                 $worker->assignTask($taskId);
+                $changedTaskType = (string) $task->task_type;
                 GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('assigned'), $workerId, (int) $task->retry_count, [
                     'worker_id' => $workerId,
                     'execution_type' => $task->execution_type,
@@ -861,6 +772,12 @@ class TaskManagerService
             // Owned by another worker / already terminal.
             return 'conflict';
         }, self::TRANSACTION_ATTEMPTS);
+
+        if ($outcome === 'accepted' && $changedTaskType !== null && $changedTaskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+        }
+
+        return $outcome;
     }
 
     /**
@@ -875,14 +792,13 @@ class TaskManagerService
      */
     public function cancelTask(string $taskId): string
     {
-        return $this->db()->transaction(function () use ($taskId) {
+        $taskType = null;
+        $outcome = GlobalTask::runInTransaction(function () use ($taskId, &$taskType) {
             // Lock-order exception: cancel must read the task to learn its
             // worker, so it locks task -> worker (opposite of pull/submit).
             // It is a rare admin action; a deadlock with a concurrent pull is
             // detected by the DB and absorbed by the attempts=3 retry.
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 return 'not_found';
@@ -898,17 +814,16 @@ class TaskManagerService
             }
 
             $workerId = $task->assigned_to;
+            $taskType = (string) $task->task_type;
             $task->status = GlobalTask::status('cancelled');
             $task->assigned_to = null;
             $task->assigned_at = null;
             $task->timeout_at = null;
             $task->completed_at = now();
-            $task->save();
+            $task->saveRecord();
 
             if ($workerId) {
-                $worker = Worker::where('worker_id', $workerId)
-                    ->lockForUpdate()
-                    ->first();
+                $worker = Worker::lockByWorkerId($workerId);
                 if ($worker && $worker->current_task_id === $taskId) {
                     $worker->releaseTask();
                 }
@@ -927,6 +842,12 @@ class TaskManagerService
 
             return 'cancelled';
         }, self::TRANSACTION_ATTEMPTS);
+
+        if ($outcome === 'cancelled' && $taskType !== null && $taskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
+
+        return $outcome;
     }
 
     /**
@@ -941,10 +862,9 @@ class TaskManagerService
      */
     public function retryTask(string $taskId): string
     {
-        return $this->db()->transaction(function () use ($taskId) {
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+        $taskType = null;
+        $outcome = GlobalTask::runInTransaction(function () use ($taskId, &$taskType) {
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 return 'not_found';
@@ -959,6 +879,7 @@ class TaskManagerService
             }
 
             $task->status = GlobalTask::status('pending');
+            $taskType = (string) $task->task_type;
             $task->assigned_to = null;
             $task->assigned_at = null;
             $task->timeout_at = null;
@@ -966,7 +887,7 @@ class TaskManagerService
             $task->error = null;
             $task->retry_count = 0;
             $task->progress = 0;
-            $task->save();
+            $task->saveRecord();
 
             GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('reclaimed'), null, 0, [
                 'execution_type' => $task->execution_type,
@@ -980,6 +901,12 @@ class TaskManagerService
 
             return 'retried';
         }, self::TRANSACTION_ATTEMPTS);
+
+        if ($outcome === 'retried' && $taskType !== null && $taskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
+
+        return $outcome;
     }
 
     /**
@@ -1014,14 +941,23 @@ class TaskManagerService
         // maps to 409, so the response shape is always consistent.
         $outcome = ['status' => $status, 'stored_count' => 0, 'failed_count' => 0];
 
-        $success = $this->db()->transaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, $attempt, &$outcome) {
+        if ($status === GlobalTask::status('completed')) {
+            return $this->submitCompletedResult(
+                $taskId,
+                $workerId,
+                $result ?? [],
+                $attempt,
+                $outcome
+            );
+        }
+
+        $changedTaskType = null;
+        $success = GlobalTask::runInTransaction(function () use ($taskId, $workerId, $status, $progress, $result, $error, $attempt, &$outcome, &$changedTaskType) {
             // LOCK ORDER: worker first, then task — the same order
             // pullAndAssignTasksForWorker uses. Locking task->worker here while a
             // concurrent pull locked worker->tasks was a classic lock-ordering
             // deadlock under multiple racing workers.
-            $worker = Worker::where('worker_id', $workerId)
-                ->lockForUpdate()
-                ->first();
+            $worker = Worker::lockByWorkerId($workerId);
 
             // Unknown worker/task is a caller error, not a server fault: return
             // false (HTTP 409 at the controller) instead of throwing a 500 the
@@ -1035,9 +971,7 @@ class TaskManagerService
             }
 
             // Lock and reload task
-            $task = GlobalTask::where('task_id', $taskId)
-                ->lockForUpdate()
-                ->first();
+            $task = GlobalTask::lockByTaskId($taskId);
 
             if (!$task) {
                 Log::warning('Result submitted for unknown task', [
@@ -1096,103 +1030,9 @@ class TaskManagerService
                 return true;
             }
 
-            // Update task based on status
-            if ($status === GlobalTask::status('completed')) {
-                // Check demo mode: priority to frontend-submitted flag
-                $isDemoMode = $result['is_demo_mode'] ?? $task->payload['is_demo_mode'] ?? false;
-
-                // --- RESULT TRUST (contract item 3) ---
-                // Validate the result SHAPE for this execution_type BEFORE marking
-                // the task completed. A "completed" status the worker SHAPE cannot
-                // back (empty translations[], missing audio/image bytes) is not a
-                // real success — it is downgraded to a failure so it is not
-                // silently lost. Demo tasks skip the trust gate (they never write).
-                $shapeError = $isDemoMode ? null : $this->validateResultShape($task, $result ?? []);
-
-                if ($shapeError !== null) {
-                    // Treat a shape-invalid "completed" exactly like a reported
-                    // failure: consume a retry, surface the error, emit a 'failed'
-                    // event. stored_count stays 0.
-                    $this->failTaskInTransaction($task, $worker, $shapeError, $workerId, $outcome, 'invalid_shape');
-                    return true;
-                }
-
-                // Use consistent completion method for both modes
-                if ($isDemoMode) {
-                    $task->status = GlobalTask::status('completed_demo');
-                } else {
-                    $task->status = GlobalTask::status('completed');
-                }
-                $task->progress = 100.0;
-                $task->result = $result ?? [];
-                $task->completed_at = now();
-                $task->save();
-
-                // Process task result within transaction and learn how many
-                // canonical items it actually stored. null => no processor owns
-                // this task type (control-plane / text-only task): trust the
-                // worker's completed status as-is. int => a processor ran; 0
-                // stored items on a non-demo task is an EMPTY success and is
-                // downgraded to failed below.
-                $writebackBreakdown = null;
-                $storedCount = $this->processTaskResultInTransaction($task, $result ?? [], $isDemoMode, $writebackBreakdown);
-
-                if (!$isDemoMode && $storedCount !== null && $storedCount <= 0) {
-                    // The write-back persisted nothing (e.g. all entries rejected,
-                    // already-present fill-missing no-ops, or empty payload that
-                    // slipped the shape check). Roll the completion back to a
-                    // failure so the task does not masquerade as done.
-                    $emptyError = 'Worker reported completed but writeback stored 0 items'
-                        . ' (execution_type=' . $task->execution_type . ')';
-                    // Re-fetch a clean failure transition: reset the completion
-                    // fields the success branch set, then fail.
-                    $task->status = GlobalTask::status('processing'); // transient — fail() overwrites
-                    $task->completed_at = null;
-                    $this->failTaskInTransaction($task, $worker, $emptyError, $workerId, $outcome, 'empty_store');
-                    return true;
-                }
-
-                $outcome['status'] = $task->status;
-                $outcome['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
-                $outcome['failed_count'] = 0;
-
-                // Granular write-back reception summary (when the processor reports
-                // one) so the worker can log exactly what landed: translations
-                // saved, words invalidated, and audio/image binaries persisted.
-                if (is_array($writebackBreakdown)) {
-                    $outcome['saved'] = (int) ($writebackBreakdown['saved'] ?? 0);
-                    $outcome['invalid'] = (int) ($writebackBreakdown['invalid'] ?? 0);
-                    $outcome['audio_saved'] = (int) ($writebackBreakdown['audio_saved'] ?? 0);
-                    $outcome['images_saved'] = (int) ($writebackBreakdown['images_saved'] ?? 0);
-                }
-
-                $worker->incrementCompleted();
-                $worker->releaseTask();
-
-                GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('completed'), $workerId, (int) $task->retry_count, [
-                    'worker_id' => $workerId,
-                    'execution_type' => $task->execution_type,
-                    'stored_count' => $outcome['stored_count'],
-                    'demo_mode' => (bool) $isDemoMode,
-                ]);
-
-                Log::info('Task completed', [
-                    'task_id' => $taskId,
-                    'worker_id' => $workerId,
-                    'demo_mode' => $isDemoMode,
-                    'stored_count' => $outcome['stored_count'],
-                ]);
-
-                // Phase 5 substrate unification: project the completion onto the
-                // linked canonical dictionary row (fill-missing; no-op when the
-                // task is not dict-linked). Best-effort — syncToDictRow swallows
-                // its own errors so it can never fail this result transaction.
-                if (!$isDemoMode && $task->dict_row_id) {
-                    $synced = $task->syncToDictRow();
-                    $outcome['synced_to_dict'] = $synced;
-                }
-            } elseif ($status === GlobalTask::status('failed')) {
+            if ($status === GlobalTask::status('failed')) {
                 $failError = $error ?? 'Unknown error';
+                $changedTaskType = (string) $task->task_type;
 
                 // Check if will retry BEFORE incrementing failed count
                 $willRetry = $task->canRetry();
@@ -1236,7 +1076,7 @@ class TaskManagerService
                 if ($task->timeout_seconds) {
                     $task->timeout_at = now()->addSeconds($task->timeout_seconds);
                 }
-                $task->save();
+                $task->saveRecord();
 
                 Log::debug('Task progress updated', [
                     'task_id' => $taskId,
@@ -1247,7 +1087,208 @@ class TaskManagerService
             return true;
         }, self::TRANSACTION_ATTEMPTS);
 
+        if ($success && $changedTaskType !== null && $changedTaskType !== '') {
+            app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+        }
+
         return $success;
+    }
+
+    /**
+     * Process a completed result without retaining task ownership row locks
+     * across processor database work, decoding, or file output.
+     */
+    private function submitCompletedResult(
+        string $taskId,
+        string $workerId,
+        array $result,
+        ?int $attempt,
+        array &$outcome
+    ): bool {
+        $lock = Cache::store(self::STATS_CACHE_STORE)->lock(
+            'globaltasks:result:' . sha1($taskId),
+            self::RESULT_SUBMISSION_LOCK_SECONDS
+        );
+
+        if (!$lock->get()) {
+            return false;
+        }
+
+        $changedTaskType = null;
+        try {
+            $staged = GlobalTask::runInTransaction(function () use (
+                $taskId,
+                $workerId,
+                $result,
+                $attempt,
+                &$outcome,
+                &$changedTaskType
+            ): array {
+                $worker = Worker::lockByWorkerId($workerId);
+                $task = GlobalTask::lockByTaskId($taskId);
+
+                if (!$worker || !$task) {
+                    return ['accepted' => false];
+                }
+                if ($attempt !== null && (int) $task->retry_count !== $attempt) {
+                    $outcome = [
+                        'status' => $task->status,
+                        'stored_count' => 0,
+                        'failed_count' => 0,
+                        'stale_attempt' => true,
+                        'attempt' => (int) $task->retry_count,
+                    ];
+                    return ['accepted' => true, 'finished' => true];
+                }
+                if ($task->assigned_to !== $workerId) {
+                    return ['accepted' => false];
+                }
+                if (in_array($task->status, QueueCenterContract::taskStatuses('terminal'), true)) {
+                    $outcome['status'] = $task->status;
+                    return ['accepted' => true, 'finished' => true];
+                }
+
+                $isDemoMode = (bool) ($result['is_demo_mode']
+                    ?? ($task->payload['is_demo_mode'] ?? false));
+                $shapeError = $isDemoMode ? null : $this->validateResultShape($task, $result);
+                if ($shapeError !== null) {
+                    $this->failTaskInTransaction(
+                        $task,
+                        $worker,
+                        $shapeError,
+                        $workerId,
+                        $outcome,
+                        'invalid_shape'
+                    );
+                    $changedTaskType = (string) $task->task_type;
+                    return ['accepted' => true, 'finished' => true];
+                }
+
+                $task->status = GlobalTask::status('processing');
+                $task->timeout_at = now()->addSeconds(max(
+                    self::RESULT_PROCESSING_LEASE_SECONDS,
+                    (int) $task->timeout_seconds
+                ));
+                $task->saveRecord();
+
+                return [
+                    'accepted' => true,
+                    'finished' => false,
+                    'task' => $task,
+                    'demo' => $isDemoMode,
+                ];
+            }, self::TRANSACTION_ATTEMPTS);
+
+            if (!($staged['accepted'] ?? false)) {
+                return false;
+            }
+            if ($staged['finished'] ?? false) {
+                if ($changedTaskType !== null && $changedTaskType !== '') {
+                    app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+                }
+                return true;
+            }
+
+            $task = $staged['task'];
+            $isDemoMode = (bool) $staged['demo'];
+            $writebackBreakdown = null;
+            $storedCount = $this->processTaskResult(
+                $task,
+                $result,
+                $isDemoMode,
+                $writebackBreakdown
+            );
+
+            $completed = GlobalTask::runInTransaction(function () use (
+                $taskId,
+                $workerId,
+                $result,
+                $attempt,
+                $isDemoMode,
+                $storedCount,
+                $writebackBreakdown,
+                &$outcome,
+                &$changedTaskType
+            ): array {
+                $worker = Worker::lockByWorkerId($workerId);
+                $task = GlobalTask::lockByTaskId($taskId);
+
+                if (!$worker || !$task || $task->assigned_to !== $workerId) {
+                    return ['accepted' => false, 'task' => null];
+                }
+                if ($attempt !== null && (int) $task->retry_count !== $attempt) {
+                    return ['accepted' => false, 'task' => null];
+                }
+                if (!$isDemoMode && $storedCount !== null && $storedCount <= 0) {
+                    $emptyError = 'Worker reported completed but writeback stored 0 items'
+                        . ' (execution_type=' . $task->execution_type . ')';
+                    $this->failTaskInTransaction(
+                        $task,
+                        $worker,
+                        $emptyError,
+                        $workerId,
+                        $outcome,
+                        'empty_store'
+                    );
+                    $changedTaskType = (string) $task->task_type;
+                    return ['accepted' => true, 'task' => null];
+                }
+
+                $task->status = $isDemoMode
+                    ? GlobalTask::status('completed_demo')
+                    : GlobalTask::status('completed');
+                $task->progress = 100.0;
+                $task->result = $result;
+                $task->completed_at = now();
+                $task->timeout_at = null;
+                $task->saveRecord();
+                $changedTaskType = (string) $task->task_type;
+
+                $outcome['status'] = $task->status;
+                $outcome['stored_count'] = $storedCount === null ? 0 : (int) $storedCount;
+                $outcome['failed_count'] = 0;
+                if (is_array($writebackBreakdown)) {
+                    $outcome['saved'] = (int) ($writebackBreakdown['saved'] ?? 0);
+                    $outcome['invalid'] = (int) ($writebackBreakdown['invalid'] ?? 0);
+                    $outcome['audio_saved'] = (int) ($writebackBreakdown['audio_saved'] ?? 0);
+                    $outcome['images_saved'] = (int) ($writebackBreakdown['images_saved'] ?? 0);
+                }
+
+                $worker->incrementCompleted();
+                $worker->releaseTask();
+                GlobalTaskEvent::record(
+                    $taskId,
+                    GlobalTaskEvent::event('completed'),
+                    $workerId,
+                    (int) $task->retry_count,
+                    [
+                        'worker_id' => $workerId,
+                        'execution_type' => $task->execution_type,
+                        'stored_count' => $outcome['stored_count'],
+                        'demo_mode' => $isDemoMode,
+                    ]
+                );
+
+                return ['accepted' => true, 'task' => $task];
+            }, self::TRANSACTION_ATTEMPTS);
+
+            if (!($completed['accepted'] ?? false)) {
+                return false;
+            }
+
+            if ($changedTaskType !== null && $changedTaskType !== '') {
+                app(QueueSliceDiffService::class)->markChanged($changedTaskType);
+            }
+
+            $completedTask = $completed['task'] ?? null;
+            if (!$isDemoMode && $completedTask instanceof GlobalTask && $completedTask->dict_row_id) {
+                $outcome['synced_to_dict'] = $completedTask->syncToDictRow();
+            }
+
+            return true;
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -1268,31 +1309,28 @@ class TaskManagerService
         // mirroring cleanOfflineWorkers(). Without the lock + post-lock recheck,
         // two concurrent timer ticks (or a tick racing a worker's result POST)
         // both read the same "timed out" row and double-process it (lost-update).
-        $taskIds = GlobalTask::timedOut()->pluck('task_id')->toArray();
+        $taskIds = GlobalTask::timedOutTaskIds();
         $count = 0;
+        $changedTypes = [];
 
         foreach ($taskIds as $taskId) {
-            $released = $this->db()->transaction(function () use ($taskId) {
+            $released = GlobalTask::runInTransaction(function () use ($taskId) {
                 // Re-fetch under lock. LOCK ORDER: when the task is still owned by
                 // a worker we must lock the WORKER first, then the task — the same
                 // order pull/submit use (see submitResult), or a concurrent pull
                 // and reclaim deadlock on opposite orders. We peek the owner with
                 // an unlocked read just to decide whether to take the worker lock.
-                $ownerId = GlobalTask::where('task_id', $taskId)->value('assigned_to');
+                $ownerId = GlobalTask::assignedWorkerId($taskId);
 
                 $worker = null;
                 if ($ownerId) {
-                    $worker = Worker::where('worker_id', $ownerId)
-                        ->lockForUpdate()
-                        ->first();
+                    $worker = Worker::lockByWorkerId($ownerId);
                 }
 
-                $task = GlobalTask::where('task_id', $taskId)
-                    ->lockForUpdate()
-                    ->first();
+                $task = GlobalTask::lockByTaskId($taskId);
 
                 if (!$task) {
-                    return false;
+                    return null;
                 }
 
                 // Re-validate the timeout precondition AFTER the lock: still a
@@ -1304,7 +1342,7 @@ class TaskManagerService
                     && $task->timeout_at !== null
                     && $task->timeout_at <= now();
                 if (!$stillLive) {
-                    return false;
+                    return null;
                 }
 
                 $workerId = $task->assigned_to;
@@ -1339,7 +1377,7 @@ class TaskManagerService
                     $task->assigned_to = null;
                     $task->assigned_at = null;
                     $task->timeout_at = null;
-                    $task->save();
+                    $task->saveRecord();
 
                     GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('failed'), $workerId, (int) $task->retry_count, [
                         'worker_id' => $workerId,
@@ -1359,12 +1397,17 @@ class TaskManagerService
                     $worker->releaseTask();
                 }
 
-                return true;
+                return (string) $task->task_type;
             }, self::TRANSACTION_ATTEMPTS);
 
             if ($released) {
                 $count++;
+                $changedTypes[$released] = true;
             }
+        }
+
+        foreach (array_keys($changedTypes) as $changedType) {
+            app(QueueSliceDiffService::class)->markChanged($changedType);
         }
 
         return $count;
@@ -1377,20 +1420,15 @@ class TaskManagerService
      */
     public function cleanOfflineWorkers(): int
     {
-        $workerIds = Worker::where('last_heartbeat_at', '<', now()->subSeconds(Worker::HEARTBEAT_TIMEOUT))
-            ->whereNotNull('last_heartbeat_at')
-            ->where('status', '!=', Worker::STATUS_OFFLINE)
-            ->pluck('worker_id')
-            ->toArray();
+        $workerIds = Worker::offlineCandidateIds(now()->subSeconds(Worker::HEARTBEAT_TIMEOUT));
 
         $count = 0;
+        $changedTypes = [];
 
         foreach ($workerIds as $workerId) {
-            $this->db()->transaction(function () use ($workerId, &$count) {
+            GlobalTask::runInTransaction(function () use ($workerId, &$count, &$changedTypes) {
                 // Lock worker for update
-                $worker = Worker::where('worker_id', $workerId)
-                    ->lockForUpdate()
-                    ->first();
+                $worker = Worker::lockByWorkerId($workerId);
 
                 if (!$worker) {
                     return;
@@ -1409,12 +1447,10 @@ class TaskManagerService
                 // the timeout retry/permanent-fail logic) so they re-queue
                 // immediately. When the worker holds 0/1 tasks this behaves
                 // identically to the old single-task release.
-                $heldTasks = GlobalTask::where('assigned_to', $worker->worker_id)
-                    ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-                    ->lockForUpdate()
-                    ->get();
+                $heldTasks = GlobalTask::lockedTasksHeldByWorker($worker->worker_id);
 
                 foreach ($heldTasks as $task) {
+                    $changedTypes[(string) $task->task_type] = true;
                     if ($task->canRetry()) {
                         $task->retry_count++;
                         $task->releaseAssignment();
@@ -1427,7 +1463,7 @@ class TaskManagerService
                         $task->assigned_to = null;
                         $task->assigned_at = null;
                         $task->timeout_at = null;
-                        $task->save();
+                        $task->saveRecord();
                     }
 
                     GlobalTaskEvent::record($task->task_id, GlobalTaskEvent::event('reclaimed'), $worker->worker_id, (int) $task->retry_count, [
@@ -1453,7 +1489,41 @@ class TaskManagerService
             });
         }
 
+        if ($count > 0) {
+            app(QueueWorkerPresenceService::class)->publishChange(null, false);
+        }
+        foreach (array_keys($changedTypes) as $changedType) {
+            app(QueueSliceDiffService::class)->markChanged($changedType);
+        }
+
         return $count;
+    }
+
+    /**
+     * Return the bounded task list used by both the direct API and Task Center.
+     */
+    public function getTaskListSnapshot(array $filters, int $limit, int $offset = 0): array
+    {
+        $page = GlobalTask::taskListPage($filters, $limit, $offset);
+
+        if (isset($filters['app_name']) || isset($filters['execution_type'])) {
+            $total = $page['total'];
+        } else {
+            $stats = $this->getTaskStats();
+            $total = isset($filters['status'])
+                ? (int) ($stats[$filters['status']] ?? 0)
+                : (int) ($stats['total'] ?? 0);
+        }
+
+        $tasks = $page['tasks']
+            ->map(static fn ($task): array => QueueCenterContract::projectTask($task, 'summary'))
+            ->values();
+
+        return [
+            'total' => $total,
+            'count' => $tasks->count(),
+            'tasks' => $tasks,
+        ];
     }
 
     /**
@@ -1478,10 +1548,7 @@ class TaskManagerService
                 // ONE grouped query instead of seven full-table counts; the response
                 // covers the complete status vocabulary (incl. cancelled) so every
                 // consumer (dashboard, pycore monitor) sees the same set.
-                $grouped = GlobalTask::query()
-                    ->groupBy('status')
-                    ->selectRaw('status, count(*) as total')
-                    ->pluck('total', 'status');
+                $grouped = GlobalTask::statusTotals();
 
                 $count = static function (string $status) use ($grouped): int {
                     return (int) ($grouped[$status] ?? 0);
@@ -1508,7 +1575,7 @@ class TaskManagerService
     }
 
     /**
-     * Process task result within transaction (extensible processing).
+     * Process task result without holding global task ownership row locks.
      *
      * Returns how many canonical items the matching processor actually stored,
      * so submitResult() can enforce result-trust:
@@ -1517,12 +1584,12 @@ class TaskManagerService
      *   - int  => a processor ran; 0 stored items on a non-demo task is an EMPTY
      *             success and is downgraded to failed by the caller.
      *
-     * @param GlobalTask $task Task model (already locked)
+     * @param GlobalTask $task Staged task snapshot
      * @param array $result Result data
      * @param bool $isDemoMode Demo mode flag
      * @return int|null Stored item count, or null when no processor matched
      */
-    protected function processTaskResultInTransaction(GlobalTask $task, array $result, bool $isDemoMode, ?array &$breakdown = null): ?int
+    protected function processTaskResult(GlobalTask $task, array $result, bool $isDemoMode, ?array &$breakdown = null): ?int
     {
         // Delegate to the registry, which already returns ?int (the matching
         // processor's stored count, or null when none claims this task type).

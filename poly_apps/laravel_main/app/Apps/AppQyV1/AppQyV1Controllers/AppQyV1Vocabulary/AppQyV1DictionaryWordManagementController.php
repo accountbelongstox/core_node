@@ -163,7 +163,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
 
         $row = AppQyV1LangDictionaryModel::createOrFind($code, $content);
         $this->applyEditable($row, $validated);
-        $row->save();
+        $row->saveRecord();
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);
 
         return $this->success(['word' => $this->shapeRow($row)], 'Word saved');
@@ -190,7 +190,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
         }
 
         $this->applyEditable($row, $validated);
-        $row->save();
+        $row->saveRecord();
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);
 
         return $this->success(['word' => $this->shapeRow($row)], 'Word updated');
@@ -207,7 +207,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
             return response()->json(['success' => false, 'message' => 'No dictionary for this language'], 404);
         }
 
-        $deleted = AppQyV1LangDictionaryModel::forLanguage($code)->where('md5', $md5)->delete();
+        $deleted = AppQyV1LangDictionaryModel::deleteByMd5($code, $md5);
         if ($deleted > 0) {
             AppQyV1LangDictionaryModel::forgetMetricsCache($code);
         }
@@ -242,32 +242,7 @@ class AppQyV1DictionaryWordManagementController extends Controller
             return response()->json(['success' => false, 'message' => 'No valid md5s provided'], 422);
         }
 
-        $base = fn () => AppQyV1LangDictionaryModel::forLanguage($code)->newQuery()->whereIn('md5', $md5s);
-
-        $affected = 0;
-        switch ($validated['action']) {
-            case 'delete':
-                $affected = (int) $base()->delete();
-                break;
-            case 'mark_valid':
-            case 'mark_invalid':
-                $affected = (int) $base()->update([
-                    'is_valid' => $validated['action'] === 'mark_valid',
-                    'validity_checked_at' => now(),
-                    'validity_source' => 'dashboard',
-                    'updated_at' => now(),
-                ]);
-                break;
-            case 'requeue_tts':
-                $affected = (int) $base()->update([
-                    'has_audio' => false,
-                    'tts_status' => 'pending',
-                    'tts_attempts' => 0,
-                    'tts_error' => null,
-                    'updated_at' => now(),
-                ]);
-                break;
-        }
+        $affected = AppQyV1LangDictionaryModel::applyBatchAction($code, $md5s, $validated['action']);
 
         AppQyV1LangDictionaryModel::forgetMetricsCache($code);
 

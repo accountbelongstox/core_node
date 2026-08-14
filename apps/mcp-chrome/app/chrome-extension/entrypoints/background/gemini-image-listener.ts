@@ -8,36 +8,30 @@
 import { geminiImageTool } from './tools/browser/gemini-image';
 import { logger } from '@/utils/logger';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
+import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
 
 const LOG = 'Gemini Listener';
 
 export function initGeminiImageListener() {
-  chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (message?.type !== FEATURE_MESSAGE_TYPES.GEMINI_IMAGE) return;
-
-    (async () => {
-      try {
-        if (message.action === 'start') {
-          const result = await geminiImageTool.start(
-            String(message.prompt || ''),
-            !!message.openInNewTab,
-            message.timeoutMs || 120000,
-          );
-          sendResponse({ success: result.ok, result });
-        } else if (message.action === 'status') {
-          const result = await geminiImageTool.status(String(message.jobId || ''));
-          // success = "we got a usable status" (the popup reads result.status).
-          sendResponse({ success: result.status !== 'unknown', result });
-        } else {
-          sendResponse({ success: false, error: `Unknown action: ${message.action}` });
-        }
-      } catch (error: any) {
-        logger.error(LOG, 'request failed', error);
-        sendResponse({ success: false, error: error?.message || 'Gemini image error' });
-      }
-    })();
-
-    return true; // async response
+  registerRuntimeMessageHandler(FEATURE_MESSAGE_TYPES.GEMINI_IMAGE, async (message: any) => {
+    if (message.action === 'start') {
+      const result = await geminiImageTool.start(
+        String(message.prompt || ''),
+        !!message.openInNewTab,
+        message.timeoutMs || 120000,
+      );
+      return { success: result.ok, result };
+    }
+    if (message.action === 'status') {
+      const result = await geminiImageTool.status(String(message.jobId || ''));
+      return { success: result.status !== 'unknown', result };
+    }
+    return { success: false, error: `Unknown action: ${message.action}` };
+  }, {
+    createErrorResponse: (error) => {
+      logger.error(LOG, 'request failed', error);
+      return { success: false, error: toErrorMessage(error) || 'Gemini image error' };
+    },
   });
 
   logger.info(LOG, 'Initialized');

@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-import torch
-import ChatTTS
-import numpy as np
-from pydub import AudioSegment
 """
 ChatTTS HTTP API for pycore (OpenAI-compatible /v1/audio/speech).
 
@@ -15,7 +11,7 @@ Run from the staging dir after install_chattts:
 Env:
   CHATTTS_HOST / CHATTTS_PORT      - bind (default 0.0.0.0:8000)
   CHATTTS_DEVICE                   - cuda | cpu | auto (default auto)
-  CHATTTS_MODEL_SOURCE             - local | huggingface | auto (default auto)
+  CHATTTS_MODEL_DIR                - installer-managed model directory
   CHATTTS_VOICE                    - default voice label (cosmetic)
   CHATTTS_PROMPT                   - oral tags prefix (e.g. [oral_2][laugh_0][break_6])
 """
@@ -23,37 +19,46 @@ Env:
 import io
 import os
 import threading
-from typing import List, Optional
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import AsyncIterator, Optional
 
+import ChatTTS
+import numpy as np
+import torch
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse, StreamingResponse
+from pydub import AudioSegment
 from pydantic import BaseModel, Field
 
-app = FastAPI()
 _chat = None
 _chat_lock = threading.Lock()
+_inference_lock = threading.Lock()
 _device = None
 _load_error: Optional[str] = None
+_MODEL_DIR_ENV = "CHATTTS_MODEL_DIR"
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    _get_chat()
+    yield
+
+
+app = FastAPI(lifespan=_lifespan)
 
 
 def _resolve_device() -> str:
     want = (os.environ.get("CHATTTS_DEVICE") or "auto").strip().lower() or "auto"
     if want in ("cpu", "cuda"):
         return want
-    try:
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    except ImportError:
-        return "cpu"
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def _model_sources() -> List[str]:
-    want = (os.environ.get("CHATTTS_MODEL_SOURCE") or "auto").strip().lower() or "auto"
-    if want == "local":
-        return ["local"]
-    if want == "huggingface":
-        return ["huggingface"]
-    return ["local", "huggingface"]
+def _model_dir() -> Path:
+    configured = (os.environ.get(_MODEL_DIR_ENV) or "").strip()
+    return Path(configured) if configured else Path.cwd() / "weights"
 
 
 def _model_ready(chat) -> bool:
@@ -64,20 +69,22 @@ def _load_chat_model():
     global _device, _load_error
 
     _device = _resolve_device()
+    model_path = _model_dir()
+    if not model_path.is_dir():
+        _load_error = f"ChatTTS model directory is missing: {model_path}"
+        raise RuntimeError(_load_error)
     model = ChatTTS.Chat()
-    errors: List[str] = []
-    for source in _model_sources():
-        try:
-            ok = model.load(compile=False, device=_device, source=source)
-        except Exception as exc:
-            errors.append(f"{source}: {exc}")
-            continue
-        if ok and _model_ready(model):
-            _load_error = None
-            return model
-        errors.append(f"{source}: load returned False (models missing in cwd?)")
-    _load_error = "; ".join(errors) or "ChatTTS model load failed"
-    raise RuntimeError(_load_error)
+    loaded = model.load(
+        compile=False,
+        custom_path=str(model_path),
+        device=_device,
+        source="custom",
+    )
+    if not loaded or not _model_ready(model):
+        _load_error = f"ChatTTS model validation failed: {model_path}"
+        raise RuntimeError(_load_error)
+    _load_error = None
+    return model
 
 
 def _get_chat():
@@ -102,12 +109,16 @@ class SpeechRequest(BaseModel):
 @app.get("/health")
 def health():
     ready = _model_ready(_chat)
-    return {
+    payload = {
         "ok": True,
         "device": _device or _resolve_device(),
         "model_loaded": ready,
         "load_error": None if ready else _load_error,
     }
+    if not ready:
+        payload["ok"] = False
+        return JSONResponse(payload, status_code=503)
+    return payload
 
 
 @app.get("/")
@@ -145,11 +156,12 @@ def audio_speech(req: SpeechRequest):
             prompt=f"[speed_{speed_tag}]",
             spk_emb=chat.sample_random_speaker(),
         )
-        wavs = chat.infer(
-            [payload],
-            skip_refine_text=True,
-            params_infer_code=params_infer,
-        )
+        with _inference_lock:
+            wavs = chat.infer(
+                [payload],
+                skip_refine_text=True,
+                params_infer_code=params_infer,
+            )
         if not wavs:
             return JSONResponse({"error": "no audio"}, status_code=500)
         audio = _mp3_bytes(wavs[0])

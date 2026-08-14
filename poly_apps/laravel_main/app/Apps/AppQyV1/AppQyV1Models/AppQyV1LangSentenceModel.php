@@ -13,8 +13,10 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
+use Closure;
+use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -32,7 +34,7 @@ use Illuminate\Support\Collection;
  */
 class AppQyV1LangSentenceModel extends Model
 {
-    use RunsModelTransactions;
+    use QueriesDiffIdPages, RunsModelTransactions;
 
     public function scopeContainingWord($query, string $word)
     {
@@ -66,7 +68,6 @@ class AppQyV1LangSentenceModel extends Model
         'tts_error',
         'tts_locked_at',
         'tts_locked_by',
-        'tts_priority',
         'tts_requested_at',
         'tts_completed_at',
     ];
@@ -77,7 +78,6 @@ class AppQyV1LangSentenceModel extends Model
         'metadata' => 'array',
         'audio_files' => 'array',
         'tts_attempts' => 'integer',
-        'tts_priority' => 'integer',
         'tts_locked_at' => 'datetime',
         'tts_requested_at' => 'datetime',
         'tts_completed_at' => 'datetime',
@@ -124,6 +124,11 @@ class AppQyV1LangSentenceModel extends Model
         return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
     }
 
+    public static function tableRowCount(string $lang): int
+    {
+        return self::tableExists($lang) ? self::onLang($lang)->count() : 0;
+    }
+
     public static function findByContentId(string $lang, string $contentId): ?self
     {
         return self::onLang($lang)->where('content_id', $contentId)->first();
@@ -136,6 +141,36 @@ class AppQyV1LangSentenceModel extends Model
             ->get();
     }
 
+    public static function textMapByContentIds(string $lang, array $contentIds): array
+    {
+        if (!self::tableExists($lang)) {
+            return [];
+        }
+
+        $map = [];
+        self::onLang($lang)
+            ->whereIn('content_id', array_values(array_unique($contentIds)))
+            ->select(['content_id', 'text'])
+            ->chunk(1000, static function ($rows) use (&$map): void {
+                foreach ($rows as $row) {
+                    $map[(string) $row->content_id] = (string) $row->text;
+                }
+            });
+
+        return $map;
+    }
+
+    public static function countBySqlFilter(string $language, string $whereSql, array $bindings): int
+    {
+        $model = self::for($language);
+        $row = $model->getConnection()->selectOne(
+            'SELECT COUNT(*) AS aggregate_value FROM "' . $model->getTable() . '" WHERE ' . $whereSql,
+            $bindings
+        );
+
+        return (int) ($row->aggregate_value ?? 0);
+    }
+
     public static function containingWordRows(string $lang, string $word, int $limit): Collection
     {
         return self::onLang($lang)
@@ -143,6 +178,66 @@ class AppQyV1LangSentenceModel extends Model
             ->orderByDesc('occurrence_count')
             ->limit($limit)
             ->get();
+    }
+
+    public static function rowsNeedingEnrichment(string $lang, array $fields, int $limit): Collection
+    {
+        return self::enrichmentQuery($lang, $fields)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public static function countNeedingEnrichment(string $lang, array $fields): int
+    {
+        return self::enrichmentQuery($lang, $fields)->count();
+    }
+
+    public static function claimableAudioRows(string $lang, mixed $cutoff, int $limit): Collection
+    {
+        return self::onLang($lang)
+            ->where(function ($query) use ($cutoff): void {
+                $query->whereNull('tts_locked_at')
+                    ->orWhere('tts_locked_at', '<', $cutoff);
+            })
+            ->where(function ($query): void {
+                $query->where('has_audio', false)
+                    ->orWhereIn('tts_status', ['pending', 'failed'])
+                    ->orWhere(function ($completedQuery): void {
+                        $completedQuery->where('has_audio', true)
+                            ->where('tts_status', 'completed');
+                    });
+            })
+            ->orderByDesc('occurrence_count')
+            ->orderBy('id')
+            ->limit($limit)
+            ->lockForUpdate()
+            ->get();
+    }
+
+    public static function pendingAudioCount(string $lang): int
+    {
+        return self::onLang($lang)
+            ->where(function ($query): void {
+                $query->where('has_audio', false)
+                    ->orWhereIn('tts_status', ['pending', 'failed']);
+            })
+            ->count();
+    }
+
+    public static function runForLanguageTransaction(string $lang, Closure $callback, int $attempts = 1): mixed
+    {
+        return self::for($lang)->getConnection()->transaction($callback, $attempts);
+    }
+
+    public static function pendingAudioRowsByIds(string $lang, array $ids): array
+    {
+        return self::onLang($lang)
+            ->whereIn('id', $ids)
+            ->where('has_audio', false)
+            ->orderBy('id')
+            ->get(['id', 'content_id', 'text'])
+            ->all();
     }
 
     public static function storeOccurrence(string $lang, array $attributes): self
@@ -160,5 +255,16 @@ class AppQyV1LangSentenceModel extends Model
         $row->save();
 
         return $row;
+    }
+
+    private static function enrichmentQuery(string $lang, array $fields)
+    {
+        return self::onLang($lang)->where(function ($query) use ($fields): void {
+            foreach ($fields as $field) {
+                $query->orWhereNull($field)->orWhere($field, '');
+            }
+
+            $query->orWhereNull('audio')->orWhere('audio', '');
+        });
     }
 }

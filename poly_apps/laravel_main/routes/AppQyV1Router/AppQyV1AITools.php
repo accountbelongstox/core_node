@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationStreamController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
@@ -105,8 +104,7 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::post('/sentence/claim', [AppQyV1SentenceAudioController::class, 'claim']);
         Route::post('/sentence/report', [AppQyV1SentenceAudioController::class, 'report']);
         Route::get('/sentence/audio', [AppQyV1SentenceAudioController::class, 'audio']);
-        Route::post('/sentence/bump', [AppQyV1SentenceAudioController::class, 'bump']);
-        Route::post('/sentence/bump-batch', [AppQyV1SentenceAudioController::class, 'bumpBatch']);
+        Route::post('/sentence/audio/head', [AppQyV1SentenceAudioController::class, 'moveAudioToHead']);
         Route::get('/sentence/missing', [AppQyV1SentenceAudioController::class, 'missing']);
 
         // Voice-variant specs CRUD (per-lang accent/gender voices). Drives the
@@ -169,10 +167,6 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])
         // pending-words. Body: { language, target_language?, source?,
         // translations:[...], invalidWords:[...], regionRedirectWords:[...] }.
         Route::post('/submit-bing', [AppQyV1TranslationQueueController::class, 'submitBing']);
-        // Real-time SSE stream (replaces Reverb). pycore subscribes here over the
-        // same Octane :9000 HTTP port; emits task.queued/task.priority/
-        // word.translated/task.completed with a `_id` cursor.
-        Route::get('/stream', [AppQyV1TranslationStreamController::class, 'stream']);
         // Detailed processing-history view over terminal word_translation tasks
         // (completed + failed) — feeds the laravel-manager "Translation History".
         Route::get('/history', [AppQyV1TranslationQueueController::class, 'controlHistory']);

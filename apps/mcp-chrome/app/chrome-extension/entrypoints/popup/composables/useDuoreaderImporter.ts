@@ -20,6 +20,7 @@ import {
 } from '@/utils/web-search-cover-cache';
 import type { DuoreaderApiTestResult } from '@/utils/duoreader-pz-decode';
 import { sendWithWake } from '@/utils/sendWithWake';
+import { IntervalController } from '@/utils/async';
 
 const LOG = 'Duoreader Import';
 
@@ -45,7 +46,7 @@ export function useDuoreaderImporter() {
   const apiTestResult = ref<DuoreaderApiTestResult | null>(null);
   const error = ref('');
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const progressPolling = new IntervalController();
   let displayBlobUrls: string[] = [];
 
   const revokeDisplayBlobs = () => {
@@ -210,12 +211,10 @@ export function useDuoreaderImporter() {
   };
 
   const startPolling = () => {
-    if (pollTimer) return;
-    pollTimer = setInterval(async () => {
+    progressPolling.start(async () => {
       await refreshProgress();
-      if (!progress.value.running && !progress.value.paused && pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
+      if (!progress.value.running && !progress.value.paused) {
+        progressPolling.stop();
       }
     }, 1500);
   };
@@ -244,7 +243,7 @@ export function useDuoreaderImporter() {
   });
 
   onUnmounted(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    progressPolling.stop();
     revokeDisplayBlobs();
     chrome.storage.onChanged.removeListener(onStorageChanged);
   });

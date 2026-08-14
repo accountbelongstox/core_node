@@ -22,9 +22,7 @@ class AppQyV1ClientDeviceSettingsService
     {
         $this->ensureTables();
 
-        $row = AppQyV1ClientDeviceSettingsModel::query()
-            ->where('client_key', $clientKey)
-            ->first();
+        $row = AppQyV1ClientDeviceSettingsModel::findByClientKey($clientKey);
 
         if (!$row) {
             return null;
@@ -37,14 +35,12 @@ class AppQyV1ClientDeviceSettingsService
     {
         $this->ensureTables();
 
-        $row = AppQyV1ClientDeviceSettingsModel::query()->firstOrNew([
-            'client_key' => $clientKey,
-        ]);
+        $row = AppQyV1ClientDeviceSettingsModel::findOrNewByClientKey($clientKey);
 
         $current = is_array($row->settings) ? $row->settings : [];
         $merged = $this->mergeSettings($current, $payload);
         $row->settings = $merged;
-        $row->save();
+        $row->saveRecord();
 
         return $this->toPayload($row);
     }

@@ -64,7 +64,7 @@ class MediaCache {
   put(url: string, bytes: number[], mime?: string): void {
     if (!url || !Array.isArray(bytes) || bytes.length === 0) return;
     const entry: MediaEntry = {
-      b64: MediaCache.bytesToBase64(bytes),
+      b64: bytesToBase64(bytes),
       mime: mime || 'application/octet-stream',
       len: bytes.length,
       ts: Date.now(),
@@ -115,11 +115,6 @@ class MediaCache {
       this.store.delete(oldest);
       chrome.storage.local.remove(STORAGE_PREFIX + oldest).catch(() => undefined);
     }
-  }
-
-  /** number[] (0–255) -> base64 string. */
-  static bytesToBase64(bytes: number[]): string {
-    return bytesToBase64(bytes);
   }
 }
 

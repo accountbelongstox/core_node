@@ -315,7 +315,7 @@ class AppQyV1TTSService
         
         $entry->tts_files = $ttsFiles;
         $entry->tts_provider = 'edge-tts';
-        $entry->save();
+        $entry->saveRecord();
     }
     
     public function getAvailableVoices(): array

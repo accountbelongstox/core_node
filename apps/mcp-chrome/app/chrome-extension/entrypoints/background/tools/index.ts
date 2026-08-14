@@ -1,4 +1,4 @@
-import { createErrorResponse } from '@/common/tool-handler';
+import { createErrorResponse, toErrorMessage } from '@/common/tool-handler';
 import { ERROR_MESSAGES } from '@/common/constants';
 import { FIREFOX_UNSUPPORTED_TOOLS, FIREFOX_UNSUPPORTED_TOOL_REASONS } from 'chrome-mcp-shared';
 import * as browserTools from './browser';
@@ -34,7 +34,7 @@ export const handleCallTool = async (param: ToolCallParam) => {
   } catch (error) {
     console.error(`Tool execution failed for ${param.name}:`, error);
     return createErrorResponse(
-      error instanceof Error ? error.message : ERROR_MESSAGES.TOOL_EXECUTION_FAILED,
+      toErrorMessage(error) || ERROR_MESSAGES.TOOL_EXECUTION_FAILED,
     );
   }
 };

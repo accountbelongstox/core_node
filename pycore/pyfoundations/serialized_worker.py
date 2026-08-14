@@ -36,6 +36,33 @@ def _publish_response(
     THREAD_BUS.signal(response_signal, response)
 
 
+# Exception types that must survive the THREAD_BUS boundary with their class
+# intact (bus responses can only carry strings). Callers register the types
+# their API contract depends on; unregistered types still surface as RuntimeError.
+_SERIALIZED_ERROR_TYPES: dict[str, type] = {}
+
+
+def register_serialized_error_type(exc_type: type) -> None:
+    """Allow `exc_type` to be re-raised as itself by call_serialized."""
+    _SERIALIZED_ERROR_TYPES[exc_type.__name__] = exc_type
+
+
+def _error_response(exc: Exception) -> dict[str, Any]:
+    return {
+        "success": False,
+        "error": str(exc),
+        "error_type": type(exc).__name__,
+    }
+
+
+def _raise_serialized_error(response: dict[str, Any], fallback: str) -> None:
+    message = response.get("error") or fallback
+    exc_type = _SERIALIZED_ERROR_TYPES.get(str(response.get("error_type") or ""))
+    if exc_type is not None:
+        raise exc_type(message)
+    raise RuntimeError(message)
+
+
 class SerializedWorkerThread(threading.Thread):
     """Execute callbacks sequentially after receiving them from THREAD_BUS.
 
@@ -64,7 +91,7 @@ class SerializedWorkerThread(threading.Thread):
                 result = callback(*args, **kwargs)
                 response = {"success": True, "result": result}
             except Exception as exc:
-                response = {"success": False, "error": str(exc)}
+                response = _error_response(exc)
             _publish_response(response_signal, response_guard, response)
 
 
@@ -88,7 +115,7 @@ class BusTaskThread(threading.Thread):
             result = callback(*args, **kwargs)
             response = {"success": True, "result": result}
         except Exception as exc:
-            response = {"success": False, "error": str(exc)}
+            response = _error_response(exc)
         _publish_response(response_signal, response_guard, response)
         THREAD_BUS.clear_queue(self._queue_name)
 
@@ -162,7 +189,7 @@ def submit_coroutine_via_bus(
     if not isinstance(response, dict):
         raise TimeoutError(f"Asyncio bus bridge timed out: {thread_name}")
     if not response.get("success"):
-        raise RuntimeError(response.get("error", "Asyncio bus bridge failed"))
+        _raise_serialized_error(response, "Asyncio bus bridge failed")
     return response.get("result")
 
 
@@ -247,7 +274,7 @@ def map_bus_tasks(
             if not isinstance(response, dict):
                 raise TimeoutError(f"Bus map task timed out: {thread_prefix}-{index + 1}")
             if not response.get("success"):
-                raise RuntimeError(response.get("error", "Bus map task failed"))
+                _raise_serialized_error(response, "Bus map task failed")
             results[index] = response.get("result")
             try:
                 submit(*next(item_iterator))
@@ -465,7 +492,7 @@ def call_serialized(
     if not isinstance(response, dict):
         raise TimeoutError(f"Serialized operation timed out: {queue_name}")
     if not response.get("success"):
-        raise RuntimeError(response.get("error", "Serialized operation failed"))
+        _raise_serialized_error(response, "Serialized operation failed")
     return response.get("result")
 
 
@@ -481,6 +508,7 @@ __all__ = [
     "call_serialized",
     "init_serialized_owner",
     "map_bus_tasks",
+    "register_serialized_error_type",
     "serialized_method",
     "start_bus_task",
     "submit_coroutine_via_bus",

@@ -14,6 +14,10 @@ from pycore.pyfoundations.serialized_worker import (
     call_serialized,
 )
 from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.engine_registry import (
+    merge_engine_priority,
+    parse_engine_priority,
+)
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
 
 _USER_FRONT_ORDER = (
@@ -54,44 +58,54 @@ _LOCALE_BY_LANG = {
     "ko": "ko-KR",
     "es": "es-ES",
     "fr": "fr-FR",
+    "de": "de-DE",
+    "it": "it-IT",
+    "pt": "pt-PT",
+    "ru": "ru-RU",
+    "ar": "ar-SA",
+    "hi": "hi-IN",
+    "th": "th-TH",
+    "vi": "vi-VN",
+    "lo": "lo-LA",
 }
-_ENGINE_NOTES = {
-    "chattts": "ChatTTS local api (dialogue; laughs/sighs; CHATTTS_URL)",
-    "cosyvoice": "CosyVoice local api (multilingual clone; COSYVOICE_URL)",
-    "fishspeech": "Fish Speech / Fish Audio (FISHSPEECH_URL or FISH_API_KEY)",
-    "qwen3tts": "Qwen3-TTS class-C HTTP server (isolated venv; managed lifecycle)",
-    "bark": "Bark via transformers (suno/bark; expressive; Python 3.13 native)",
-    "parler": "Parler-TTS in-process (HF; voice-description steering)",
-    "voxcpm2": "VoxCPM2 in-process (OpenBMB; GPU preferred; pip voxcpm)",
-    "kokoro": "Kokoro-82M sherpa-onnx offline (zh/en; KOKORO_TTS_MODEL_DIR)",
-    "f5tts": "F5-TTS local api (fast flow-matching clone; F5TTS_URL)",
-    "edge": "Microsoft Edge TTS (online; serialized)",
-    "streamelements": "StreamElements speech (online; API key; en only)",
-    "sherpa": "Sherpa-ONNX Kokoro offline (CPU)",
-    "melotts": "MeloTTS offline (torch GPU->CPU auto)",
-    "gptsovits": "GPT-SoVITS local api server (voice clone)",
-    "gtts_web": "Google Translate web TTS (online, keyless; short text)",
-    "azure": "Azure Speech cloud (free F0; API fallback)",
+_LANGUAGE_ALIASES = {
+    "english": "en",
+    "chinese": "zh",
+    "spanish": "es",
+    "french": "fr",
+    "german": "de",
+    "italian": "it",
+    "portuguese": "pt",
+    "russian": "ru",
+    "arabic": "ar",
+    "hindi": "hi",
+    "thai": "th",
+    "vietnamese": "vi",
+    "lao": "lo",
+    "japanese": "ja",
+    "korean": "ko",
+}
+_LANGUAGES_BY_ENGINE = {
+    "edge": frozenset(_LOCALE_BY_LANG),
+    "azure": frozenset(_LOCALE_BY_LANG),
+    "gtts_web": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
+    "streamelements": frozenset({"en"}),
+    "sherpa": frozenset({"en", "zh"}),
+    "kokoro": frozenset({"en", "zh"}),
+    "melotts": frozenset({"en", "zh", "ja", "ko", "es", "fr"}),
+    "chattts": frozenset({"en", "zh"}),
+    "cosyvoice": frozenset({"en", "zh", "ja", "ko", "yue"}),
+    "fishspeech": frozenset({"en", "zh", "ja"}),
+    "qwen3tts": frozenset({"en", "zh", "ja", "ko"}),
+    "gptsovits": frozenset({"en", "zh", "ja", "ko", "yue"}),
+    "bark": frozenset({
+        "en", "de", "es", "fr", "hi", "it", "ja", "ko", "pl", "pt", "ru", "tr", "zh",
+    }),
+    "parler": frozenset({"en"}),
+    "voxcpm2": frozenset({"en", "zh"}),
+    "f5tts": frozenset({"en", "zh"}),
 }
 _ACCENT_AWARE_ENGINES = ("edge", "streamelements")
-_ENGINE_CONCURRENCY = {
-    "edge": "serial",
-    "streamelements": "cloud",
-    "gtts_web": "cloud",
-    "azure": "cloud",
-    "sherpa": "in_process",
-    "kokoro": "in_process",
-    "bark": "in_process",
-    "parler": "in_process",
-    "voxcpm2": "in_process",
-    "qwen3tts": "server",
-    "melotts": "server",
-    "gptsovits": "server",
-    "chattts": "server",
-    "cosyvoice": "server",
-    "fishspeech": "server",
-    "f5tts": "server",
-}
 _ENGINE_ENV_OVERRIDES: Dict[str, Dict[str, str]] = {
     "qwen3tts": {"QWEN3TTS_INSTRUCT": "instruct", "QWEN3TTS_SPEAKER": "speaker"},
     "parler": {"PARLER_DESCRIPTION": "description"},
@@ -100,10 +114,6 @@ _ENGINE_ENV_OVERRIDES: Dict[str, Dict[str, str]] = {
     "gptsovits": {"GPTSOVITS_PROMPT_TEXT": "prompt_text", "GPTSOVITS_PROMPT_LANG": "prompt_lang"},
     "chattts": {"CHATTTS_VOICE": "voice"},
 }
-_TIER_ENGINES = frozenset({
-    "cosyvoice", "fishspeech", "qwen3tts", "bark", "voxcpm2", "kokoro",
-    "sherpa", "gptsovits",
-})
 _CAP_SECTION = "capability_priorities"
 _CHAIN_SECTION = "task_capability_chains"
 _ORCHESTRATOR_STATE_QUEUE = "tts.orchestrator.state"
@@ -200,10 +210,7 @@ def _read_persisted_profile(capability: str) -> Optional[tuple[str, ...]]:
 
 
 def _merge_engine_order(saved: Optional[tuple[str, ...]]) -> tuple[str, ...]:
-    if not saved:
-        return _DEFAULT_PRIORITY
-    selected = [engine for engine in saved if engine in _KNOWN_ENGINES]
-    return tuple(selected + [engine for engine in _KNOWN_ENGINES if engine not in selected])
+    return merge_engine_priority(_KNOWN_ENGINES, saved)
 
 
 def _load_profile(
@@ -213,7 +220,7 @@ def _load_profile(
 ) -> tuple[str, ...]:
     raw = (os.environ.get(environment_key) or "").strip()
     if raw:
-        parts = tuple(part.strip() for part in raw.replace(",", "->").split("->") if part.strip())
+        parts = parse_engine_priority(raw)
         if parts:
             return _merge_engine_order(parts)
     return _merge_engine_order(_read_persisted_profile(capability) or default)
@@ -245,6 +252,21 @@ def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
 def is_word_text(text: str) -> bool:
     cleaned = (text or "").strip()
     return bool(cleaned) and all(char not in cleaned for char in (" ", "\t", "\n"))
+
+
+def normalize_tts_language(language: Optional[str]) -> str:
+    value = str(language or "en").strip().lower().replace("_", "-") or "en"
+    code = value.split("-", 1)[0]
+    return _LANGUAGE_ALIASES.get(code, code)
+
+
+def tts_locale(language: Optional[str]) -> str:
+    return _LOCALE_BY_LANG.get(normalize_tts_language(language), "")
+
+
+def tts_engine_supports_language(engine: str, language: Optional[str]) -> bool:
+    supported = _LANGUAGES_BY_ENGINE.get((engine or "").strip().lower())
+    return supported is not None and normalize_tts_language(language) in supported
 
 
 def edge_in_cooldown() -> bool:
@@ -384,6 +406,18 @@ def tts_variant_result(
     }
 
 
+_SYNTH_COMMAND_TEXT_LIMIT = 160
+
+
+def truncate_command_text(text: str) -> str:
+    """Synth-command lines are diagnostics; cap embedded text so an article-sized
+    payload cannot flood the log on every engine attempt."""
+    value = text or ""
+    if len(value) <= _SYNTH_COMMAND_TEXT_LIMIT:
+        return value
+    return f"{value[:_SYNTH_COMMAND_TEXT_LIMIT]}…(+{len(value) - _SYNTH_COMMAND_TEXT_LIMIT} chars)"
+
+
 def format_tts_synth_command(
     engine: str,
     text: str,
@@ -396,7 +430,7 @@ def format_tts_synth_command(
 ) -> str:
     language_value = (language or "en").strip() or "en"
     output = str(output_path) if output_path else "<output.mp3>"
-    text_value = text or ""
+    text_value = truncate_command_text(text)
     engine_value = (engine or "unknown").strip().lower()
     accent_value = normalize_tts_accent(accent)
     if engine_value == "edge" and edge_voice is not None:

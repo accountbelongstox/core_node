@@ -2,9 +2,8 @@
 """
 Shared priority-bump event hub for all queue lanes.
 
-Translation monitor, sentence-audio monitor, and future lane monitors record
-priority increases here so the Queue Center UI can show bubble toasts for ANY
-lane — not only translation tasks.
+Non-audio lane monitors record priority increases here so the Queue Center UI
+can show bubble toasts without mixing them with audio queue-head events.
 """
 
 import time

@@ -33,11 +33,9 @@ return new class extends Migration
 
     public function up(): void
     {
-        $schema = Schema::connection($this->connection);
-
-        if ($schema->hasTable($this->tableName)) {
-            $schema->dropIfExists($this->tableName);
-        }
+        // Neutralized: initialization never drops a table (empty or not).
+        // The legacy table is left in place — dead, unread, harmless.
+        return;
     }
 
     public function down(): void

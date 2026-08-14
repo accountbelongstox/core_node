@@ -5,7 +5,8 @@ import {
   ChevronDown, Sliders, ToggleLeft, VolumeX, Library, BookmarkCheck, ArrowRight, Sun, Moon, Play,
   Database, Trash2, Sparkles, ShieldCheck,
 } from 'lucide-react';
-import { ElementTheme, UserStats } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
+import type { UserStats } from '../api/WfNewApiTypes';
 import { CUSTOM_THEMES } from '../WfNewThemes';
 import { WfNewApiServerPanel } from '../components/WfNewApiServerPanel';
 import { getLanguageConfig, getSupportedLanguages } from '../WfNewLocales';

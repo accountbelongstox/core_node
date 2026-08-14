@@ -10,7 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -48,4 +48,28 @@ class AppQyV1StudyPhraseModel extends Model
         'segment_index' => 'integer',
         'metadata' => 'array',
     ];
+
+    public static function deleteForSegment(int $segmentId): int
+    {
+        return self::query()->where('segment_id', $segmentId)->delete();
+    }
+
+    public static function contentForSegment(int $segmentId): array
+    {
+        return self::query()
+            ->where('segment_id', $segmentId)
+            ->orderBy('id')
+            ->get(['language', 'phrase', 'meaning'])
+            ->map(static fn ($row): array => [
+                'language' => $row->language,
+                'phrase' => $row->phrase,
+                'meaning' => $row->meaning,
+            ])
+            ->all();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
 }

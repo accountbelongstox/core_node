@@ -4,7 +4,7 @@ import {
   Volume2, Play, Pause, ChevronDown, ChevronUp, Layers, Sparkles, 
   Settings2, Languages, HelpCircle, BookOpen, RefreshCw, AudioLines
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type BilingualSentence, type BilingualWord } from '../api';
 import { wfNewSettings } from '../WfNewSettingsStore';
 

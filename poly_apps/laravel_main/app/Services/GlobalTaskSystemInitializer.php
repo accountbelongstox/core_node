@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
+use App\Constants\DbConnections;
 use App\Models\GlobalTask;
 use App\Models\Worker;
 
@@ -27,6 +29,9 @@ class GlobalTaskSystemInitializer
         // Step 3: Check and create the append-only task event log table.
         $results['global_task_events'] = self::ensureGlobalTaskEventsTableExists();
 
+        // Step 4: Partial unique index backing Queue Center group_key dedup.
+        $results['global_tasks_group_dedup'] = self::ensureLiveGroupKeyDedupIndex();
+
         return $results;
     }
 
@@ -43,7 +48,7 @@ class GlobalTaskSystemInitializer
     private static function ensureGlobalTaskEventsTableExists(): string
     {
         try {
-            $connection = config('database.default');
+            $connection = DbConnections::MAIN;
 
             $structure = [
                 'columns' => [
@@ -75,6 +80,84 @@ class GlobalTaskSystemInitializer
     }
 
     /**
+     * Partial unique index that makes Queue Center group_key dedup atomic:
+     * at most one LIVE (pending/assigned/processing) row per (task_type,
+     * group_key). Terminal rows are excluded so retry/re-enqueue stays free.
+     *
+     * SELF-HEALING: legacy duplicate live rows would reject the unique index,
+     * so they are repaired first — redundant rows (all but the newest per
+     * group, the same winner QueueCenterService::findLiveByDedupKey picks)
+     * are cancelled through the canonical TaskManagerService::cancelTask path
+     * in bounded rounds. Idempotent: a clean database repairs nothing and the
+     * index probe makes re-runs no-ops.
+     *
+     * @return string Status: 'created', 'exists', 'skipped: ...', or 'error: ...'
+     */
+    private const GROUP_DEDUP_INDEX = 'idx_global_tasks_live_group_key';
+    private const GROUP_DEDUP_REPAIR_ROUNDS = 10;
+
+    private static function ensureLiveGroupKeyDedupIndex(): string
+    {
+        try {
+            $connection = DbConnections::MAIN;
+            if (!Schema::connection($connection)->hasTable('global_tasks')) {
+                return 'skipped: global_tasks missing';
+            }
+
+            $cancelledTotal = 0;
+            $taskManager = app(TaskManagerService::class);
+            for ($round = 0; $round < self::GROUP_DEDUP_REPAIR_ROUNDS; $round++) {
+                $redundant = GlobalTask::redundantLiveGroupKeyTaskKeys();
+                if ($redundant === []) {
+                    break;
+                }
+                foreach ($redundant as $taskId) {
+                    // 'not_cancellable' means a worker already moved the row
+                    // out of live status concurrently — the next round's
+                    // duplicate scan simply no longer sees it.
+                    if ($taskManager->cancelTask($taskId) === 'cancelled') {
+                        $cancelledTotal++;
+                    }
+                }
+            }
+            if (GlobalTask::redundantLiveGroupKeyTaskKeys() !== []) {
+                return 'error: duplicate live group_key rows remain after repair';
+            }
+            if ($cancelledTotal > 0) {
+                Log::info('[GlobalTaskSystemInitializer] Repaired duplicate live group_key tasks', [
+                    'cancelled' => $cancelledTotal,
+                ]);
+            }
+
+            $liveStatuses = GlobalTask::statuses('live');
+            $statusList = implode(', ', array_map(
+                static fn (string $status): string => "'" . str_replace("'", "''", $status) . "'",
+                $liveStatuses
+            ));
+
+            $result = SafeMigrationHelper::safeAddPgPartialIndex(
+                $connection,
+                'global_tasks',
+                self::GROUP_DEDUP_INDEX,
+                ['task_type', 'group_key'],
+                "group_key IS NOT NULL AND status IN ({$statusList})",
+                true
+            );
+
+            $status = (string) ($result['status'] ?? 'error');
+            if ($status === 'added') {
+                return 'created';
+            }
+            if ($status === 'exists') {
+                return 'exists';
+            }
+            return 'error: ' . (string) ($result['message'] ?? 'partial index creation failed');
+        } catch (\Exception $e) {
+            return 'error: ' . $e->getMessage();
+        }
+    }
+
+    /**
      * Ensure global_tasks table exists with all required fields
      *
      * @return string Status: 'created', 'updated', 'exists', or 'error'
@@ -82,7 +165,7 @@ class GlobalTaskSystemInitializer
     private static function ensureGlobalTasksTableUpdated(): string
     {
         try {
-            $connection = config('database.default');
+            $connection = DbConnections::MAIN;
 
             // Canonical structure -> create-if-missing + ALTER-add ANY missing column/
             // index via the shared helper (DRY; no hardcoded per-column `if` align).
@@ -100,6 +183,7 @@ class GlobalTaskSystemInitializer
                     'assigned_at'     => ['type' => 'timestamp', 'nullable' => true],
                     'timeout_at'      => ['type' => 'timestamp', 'nullable' => true, 'index' => true],
                     'timeout_seconds' => ['type' => 'integer', 'default' => 120],
+                    'queue_position'  => ['type' => 'bigInteger', 'default' => 0],
                     'priority'        => ['type' => 'integer', 'default' => 0, 'index' => true],
                     'retry_count'     => ['type' => 'integer', 'default' => 0],
                     'max_retries'     => ['type' => 'integer', 'default' => 3],
@@ -114,6 +198,7 @@ class GlobalTaskSystemInitializer
                 ],
                 'indexes' => [
                     ['columns' => ['status', 'execution_type', 'priority'], 'name' => 'idx_task_pulling'],
+                    ['columns' => ['task_type', 'status', 'queue_position', 'created_at'], 'name' => 'idx_gt_type_status_queue_position'],
                     ['columns' => ['status', 'timeout_at'], 'name' => 'idx_timeout_check'],
                 ],
             ];
@@ -140,7 +225,7 @@ class GlobalTaskSystemInitializer
     private static function ensureWorkersTableExists(): string
     {
         try {
-            $connection = config('database.default');
+            $connection = DbConnections::MAIN;
 
             // Same shared-helper alignment as global_tasks (DRY, add-only, idempotent).
             $structure = [
@@ -189,37 +274,16 @@ class GlobalTaskSystemInitializer
         $stats = [];
 
         try {
-            $connection = config('database.default');
+            $connection = DbConnections::MAIN;
 
             // Global tasks stats
             if (Schema::connection($connection)->hasTable('global_tasks')) {
-                // Use model connection for query builder (Laravel best practice)
-                $taskModel = new GlobalTask();
-                $taskModel->setConnection($connection);
-                $dbConnection = $taskModel->getConnection();
-                
-                $stats['global_tasks'] = [
-                    'total' => $dbConnection->table('global_tasks')->count(),
-                    'pending' => $dbConnection->table('global_tasks')->where('status', 'pending')->count(),
-                    'processing' => $dbConnection->table('global_tasks')->where('status', 'processing')->count(),
-                    'completed' => $dbConnection->table('global_tasks')->where('status', 'completed')->count(),
-                    'failed' => $dbConnection->table('global_tasks')->where('status', 'failed')->count(),
-                ];
+                $stats['global_tasks'] = GlobalTask::initializationStats();
             }
 
             // Workers stats
             if (Schema::connection($connection)->hasTable('workers')) {
-                // Use model connection for query builder (Laravel best practice)
-                $workerModel = new Worker();
-                $workerModel->setConnection($connection);
-                $dbConnection = $workerModel->getConnection();
-                
-                $stats['workers'] = [
-                    'total' => $dbConnection->table('workers')->count(),
-                    'online' => $dbConnection->table('workers')->where('status', 'online')->count(),
-                    'busy' => $dbConnection->table('workers')->where('status', 'busy')->count(),
-                    'offline' => $dbConnection->table('workers')->where('status', 'offline')->count(),
-                ];
+                $stats['workers'] = Worker::initializationStats();
             }
 
         } catch (\Exception $e) {

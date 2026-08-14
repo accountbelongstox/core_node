@@ -1,0 +1,86 @@
+[laravel +0.45s] GET /api/queue-center/queues/word_audio/diff -> 500 (242ms) success=False
+[Scheduler +0.01s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.99s] GET /api/queue-center/queues/word_audio/diff -> 500 (243ms) success=False
+[Scheduler +0.00s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +1.02s] GET /api/queue-center/queues/word_audio/diff -> 500 (256ms) success=False
+[Scheduler +0.02s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +1.21s] GET /api/queue-center/queues/word_audio/diff -> 500 (232ms) success=False
+[Scheduler +0.00s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[HttpServer +0.82s] Received POST /api/ui/agent_history/runtime_get
+[HttpServer +0.03s] POST /api/ui/agent_history/runtime_get -> 200 (34.6 ms)
+[HttpServer +0.06s] Received POST /api/ui/agent_history/status
+[HttpServer +0.03s] POST /api/ui/agent_history/status -> 200 (26.1 ms)
+[laravel +0.05s] GET /api/queue-center/queues/word_audio/diff -> 500 (221ms) success=False
+[Scheduler +0.00s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.99s] GET /api/queue-center/queues/word_audio/diff -> 500 (211ms) success=False
+[Scheduler +0.01s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +1.03s] GET /api/queue-center/queues/word_audio/diff -> 500 (234ms) success=False
+[Scheduler +0.01s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[AI +0.62s] text   openrouter/openrouter/free  src=agent_history_translate  8060ms  ok
+[HttpServer +0.04s] Received POST /api/ui/agent_history/status
+[HttpServer +0.06s] POST /api/ui/agent_history/status -> 200 (63.3 ms)
+[HttpServer +0.17s] Received POST /api/ui/version/version
+[HttpServer +0.01s] POST /api/ui/version/version -> 200 (10.7 ms)
+[HttpServer +0.00s] Received POST /api/ui/version/version
+[HttpServer +0.01s] POST /api/ui/version/version -> 200 (6.9 ms)
+[laravel +0.17s] GET /api/queue-center/queues/word_audio/diff -> 500 (228ms) success=False
+[Scheduler +0.02s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.97s] GET /api/queue-center/queues/word_audio/diff -> 500 (247ms) success=False
+[Scheduler +0.02s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[tts +0.76s] gptsovits unavailable; trying next engine
+[tts +0.01s] sherpa unavailable; trying next engine
+[tts +0.01s] melotts unavailable; trying next engine
+[HttpServer +0.02s] Received POST /api/ui/agent_history/status
+[chattts +0.01s] INFO:     127.0.0.1:57145 - "GET /health HTTP/1.1" 200 OK
+[HttpServer +0.05s] POST /api/ui/agent_history/status -> 200 (57.0 ms)
+[chattts +0.00s] found invalid characters: {"'", '-', '2', '0', '3', '1', '_'}
+[laravel +0.10s] GET /api/queue-center/queues/word_audio/diff -> 500 (243ms) success=False
+[Scheduler +0.01s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[HttpServer +0.03s] Received POST /api/ui/version/version
+[HttpServer +0.00s] POST /api/ui/version/version -> 200 (4.0 ms)
+[HttpServer +0.01s] Received POST /api/ui/version/version
+[HttpServer +0.01s] POST /api/ui/version/version -> 200 (5.5 ms)
+[HttpServer +0.07s] Received POST /api/ui/agent_history/runtime_get
+[HttpServer +0.16s] POST /api/ui/agent_history/runtime_get -> 200 (158.7 ms)
+[HttpServer +0.11s] Received POST /api/ui/agent_history/status
+[HttpServer +0.03s] POST /api/ui/agent_history/status -> 200 (28.1 ms)
+[laravel +0.69s] GET /api/queue-center/queues/word_audio/diff -> 500 (272ms) success=False
+[Scheduler +0.05s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.97s] GET /api/queue-center/queues/word_audio/diff -> 500 (242ms) success=False
+[Scheduler +0.06s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.94s] GET /api/queue-center/queues/word_audio/diff -> 500 (235ms) success=False
+[Scheduler +0.03s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +1.02s] GET /api/queue-center/queues/word_audio/diff -> 500 (249ms) success=False
+[Scheduler +0.01s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +0.96s] GET /api/queue-center/queues/word_audio/diff -> 500 (255ms) success=False
+[Scheduler +0.04s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+[laravel +1.03s] GET /api/queue-center/queues/word_audio/diff -> 500 (221ms) success=False
+[Scheduler +0.02s] Callback 'tts_queue_poller' error: Laravel queue diff failed for word_audio: HTTP 500
+› 
+[WordAudioWorker +0.02s] Pulled 1 task(s), dispatched 1
+  [WordAudioWorker +0.01s] synth_start task=task_cc3...
+  word='primary' progress=1%: priority=100
+  [WordAudioWorker +0.01s] progress task=task_cc3...
+  word='primary' progress=10%: synthesizing 全面重构4端，当
+  单词没有音频或翻译等等任务时，不是priority调整，而是插入队
+  首，wordnew 通过laravel main，将对应任务提取到队首，如果没
+  有则插入队首，这是laravel main要重构的，同时，laraem main
+  通知pycore 和 apps/mcp-chrome调整队首。注意使用diff算法减
+  小数据传输。先重构单词音频。laravel main要统一有一个音频网   关，当请求音频时如果存在则返回，没有则立即提取到队首，并通
+  知在线的pycore，当然pycore的通知和laravel协商，不是立即 ，
+  而是有间隔时间。按规范，合并中心类库，4个端 pycore /
+  pycore UI / laravel main / apps/mcp-chrome。
+
+
+给句子也加上音频网关，现在句子和音频都复用一些公共代码，同
+  时，对于pycore / pycore UI / mcp-chrome ，全面重构为，一直
+  提取队列的前面一部分process，而laravel负责调整队首。现在
+  pycore / mcp-chrome改为每次只提取一部份任务，但要携带统
+  计，比如xxx/xxxx能显示进度。laravel 同时提供一个diff API，
+  处理端每1秒请求一次，laravel进行最快的diff计算，如果还是缓
+  存，则前端继续处理上一批任务，如果diff有变化，说明队列首调
+  整过，则前端立即重新拉取一片任务，但是处理端已经在处理中的
+  则继续，防止浪费计算资源。将上面的所有开发要求追加到
+  _prompts\队列中心.txt 不能添加超过50行。包括上上次的提示
+  词。按规范对齐 pycore / pycore UI /laralved main / apps/
+  mcp-chrome.端 laravel端还要对其sys:initresume 019fff9c-15d4-7f41-8135-d07654396ee9

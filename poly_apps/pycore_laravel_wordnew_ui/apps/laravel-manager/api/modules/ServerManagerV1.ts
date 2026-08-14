@@ -1,7 +1,7 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type { NginxSite } from '../../uiTypes';
-import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
+import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 type NginxSiteType = NginxSite['site_type'];
 
@@ -89,19 +89,6 @@ export class ServerManagerV1API extends BaseAPI {
       page: params.page ?? 1,
       per_page: params.per_page ?? 100,
     });
-  }
-
-  // Alias methods for UI compatibility
-  async getSystemProcesses(): Promise<APIResponse> {
-    return this.getProcesses();
-  }
-
-  async getSystemStorage(): Promise<APIResponse> {
-    return this.getStorage();
-  }
-
-  async getSystemServices(): Promise<APIResponse> {
-    return this.getServices();
   }
 
   // ========== File Management ==========
@@ -327,11 +314,6 @@ export class ServerManagerV1API extends BaseAPI {
     return this.post('/nginx/sites/batch', { action, sites });
   }
 
-  // Alias method for UI compatibility
-  async getNginxSites(): Promise<APIResponse> {
-    return this.listNginxSites();
-  }
-
   // ========== Unified Manager ==========
   async listApps(): Promise<APIResponse> {
     const response = await this.get('/unified/apps');
@@ -360,19 +342,6 @@ export class ServerManagerV1API extends BaseAPI {
 
   async getAppLogs(appName: string): Promise<APIResponse> {
     return this.get('/unified/logs', { app_name: appName });
-  }
-
-  // Alias methods for UI compatibility
-  async getUnifiedApps(): Promise<APIResponse> {
-    return this.listApps();
-  }
-
-  async deployUnifiedApp(data: any): Promise<APIResponse> {
-    return this.deployApp(data);
-  }
-
-  async getUnifiedAppStatus(appName: string, appType: string): Promise<APIResponse> {
-    return this.getAppStatus(appName, appType);
   }
 
   // ========== SSL Certificates ==========
@@ -417,16 +386,4 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/certificates/detect-certbot');
   }
 
-  // Alias methods for UI compatibility
-  async getSSLCertificates(): Promise<APIResponse> {
-    return this.listCertificates();
-  }
-
-  async generateSSLCertificate(data: { domain: string; email?: string; provider?: 'dnspod' | 'cloudflare'; staging?: boolean }): Promise<APIResponse> {
-    return this.generateCertificate({ domain: data.domain, provider: data.provider, staging: data.staging });
-  }
-
-  async renewSSLCertificates(): Promise<APIResponse> {
-    return this.renewCertificates();
-  }
 }

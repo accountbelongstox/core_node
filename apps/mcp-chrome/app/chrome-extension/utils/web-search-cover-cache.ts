@@ -15,6 +15,7 @@ import { COVER_SEARCH_MAX, normalizeCoverUrls } from '@/utils/cover-playback';
 import { sha1Hex } from '@/utils/duoreader-importer-core';
 import { bookCoverQuery, type WebSearchEngine } from '@/utils/web-search-core';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { isOpfsAvailable, writeOpfsFile } from '@/utils/opfs';
 
 export const WEB_SEARCH_COVER_CACHE_ROOT = 'cache/web_search/covers';
 export const COVER_CACHE_MANIFEST_FILE = 'manifest.json';
@@ -57,20 +58,8 @@ export interface CoverSearchCacheMiss {
 
 export type CoverSearchCacheLookup = CoverSearchCacheHit | CoverSearchCacheMiss;
 
-function opfsAvailable(): boolean {
-  try {
-    return (
-      typeof navigator !== 'undefined'
-      && !!navigator.storage
-      && typeof navigator.storage.getDirectory === 'function'
-    );
-  } catch {
-    return false;
-  }
-}
-
 export function describeWebSearchCoverCacheLocation(): string {
-  if (opfsAvailable()) {
+  if (isOpfsAvailable()) {
     return `OPFS · ${WEB_SEARCH_COVER_CACHE_ROOT}/{cacheKey}/ + chrome.storage.local · ${COVER_CACHE_STORAGE_KEY}`;
   }
   return `OPFS unavailable — mirror: chrome.storage.local · ${COVER_CACHE_STORAGE_KEY}`;
@@ -110,42 +99,6 @@ function extForMime(mime: string): string {
   return 'jpg';
 }
 
-async function writeBytes(handle: FileSystemFileHandle, bytes: Uint8Array): Promise<void> {
-  const writable = await handle.createWritable();
-  let committed = false;
-  try {
-    await writable.write(bytes);
-    await writable.close();
-    committed = true;
-  } finally {
-    if (!committed) {
-      try {
-        await writable.abort();
-      } catch {
-        // ignore
-      }
-    }
-  }
-}
-
-async function writeText(handle: FileSystemFileHandle, text: string): Promise<void> {
-  const writable = await handle.createWritable();
-  let committed = false;
-  try {
-    await writable.write(text);
-    await writable.close();
-    committed = true;
-  } finally {
-    if (!committed) {
-      try {
-        await writable.abort();
-      } catch {
-        // ignore
-      }
-    }
-  }
-}
-
 async function readFileBytes(handle: FileSystemFileHandle): Promise<Uint8Array> {
   const file = await handle.getFile();
   return new Uint8Array(await file.arrayBuffer());
@@ -175,7 +128,7 @@ async function writeStorageManifest(manifest: CoverSearchCacheManifest): Promise
 }
 
 async function rebuildOpfsFromManifest(manifest: CoverSearchCacheManifest): Promise<boolean> {
-  if (!opfsAvailable() || !manifest.images?.length) return false;
+  if (!isOpfsAvailable() || !manifest.images?.length) return false;
   try {
     const dir = await getCacheDir(manifest.cacheKey, true);
     let saved = 0;
@@ -183,12 +136,12 @@ async function rebuildOpfsFromManifest(manifest: CoverSearchCacheManifest): Prom
       const fetched = await fetchImageBytes(rec.remoteUrl);
       if (!fetched) continue;
       const handle = await dir.getFileHandle(rec.file, { create: true });
-      await writeBytes(handle, fetched.bytes);
+      await writeOpfsFile(handle, fetched.bytes);
       saved += 1;
     }
     if (!saved) return false;
     const manifestHandle = await dir.getFileHandle(COVER_CACHE_MANIFEST_FILE, { create: true });
-    await writeText(manifestHandle, JSON.stringify(manifest, null, 2));
+    await writeOpfsFile(manifestHandle, JSON.stringify(manifest, null, 2));
     return true;
   } catch {
     return false;
@@ -217,7 +170,7 @@ export async function peekCoverSearchCache(
 ): Promise<CoverSearchCacheLookup> {
   const cacheKey = await buildCoverSearchCacheKey(query, engine);
 
-  if (opfsAvailable()) {
+  if (isOpfsAvailable()) {
     try {
       const dir = await getCacheDir(cacheKey, false);
       const manifestHandle = await dir.getFileHandle(COVER_CACHE_MANIFEST_FILE);
@@ -245,7 +198,7 @@ export async function peekCoverSearchCache(
 
   const stored = await readStorageManifest(cacheKey);
   if (isValidManifest(stored, query, engine)) {
-    if (opfsAvailable()) {
+    if (isOpfsAvailable()) {
       await rebuildOpfsFromManifest(stored);
     }
     const remoteUrls = stored.images.map((rec) => rec.remoteUrl).slice(0, COVER_SEARCH_MAX);
@@ -261,7 +214,7 @@ export async function loadCoverSearchCache(
   engine: WebSearchEngine,
 ): Promise<CoverSearchCacheLookup> {
   const cacheKey = await buildCoverSearchCacheKey(query, engine);
-  if (!opfsAvailable()) {
+  if (!isOpfsAvailable()) {
     return { hit: false, cacheKey };
   }
 
@@ -337,7 +290,7 @@ export async function saveCoverSearchCache(
   const unique = Array.from(new Set(remoteUrls.map((u) => String(u || '').trim()).filter(Boolean)))
     .slice(0, COVER_SEARCH_MAX);
 
-  if (!unique.length || !opfsAvailable()) {
+  if (!unique.length || !isOpfsAvailable()) {
     return { cacheKey, savedUrls: unique, skipped: true };
   }
 
@@ -351,7 +304,7 @@ export async function saveCoverSearchCache(
     if (!fetched) continue;
     const file = slotFileName(slot, fetched.mime);
     const handle = await dir.getFileHandle(file, { create: true });
-    await writeBytes(handle, fetched.bytes);
+    await writeOpfsFile(handle, fetched.bytes);
     images.push({
       slot,
       file,
@@ -378,7 +331,7 @@ export async function saveCoverSearchCache(
   };
 
   const manifestHandle = await dir.getFileHandle(COVER_CACHE_MANIFEST_FILE, { create: true });
-  await writeText(manifestHandle, JSON.stringify(manifest, null, 2));
+  await writeOpfsFile(manifestHandle, JSON.stringify(manifest, null, 2));
   await writeStorageManifest(manifest);
 
   return { cacheKey, savedUrls, skipped: false };

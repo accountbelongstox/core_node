@@ -11,7 +11,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -94,5 +94,45 @@ class CodeMartV1UserModel extends Model
             ->where('role_status', 'active')
             ->pluck('role_type')
             ->toArray();
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findByEmail(string $email): ?self
+    {
+        return static::query()->where('email', $email)->first();
+    }
+
+    public static function findRegistration(int $userId): ?self
+    {
+        return static::query()->with(['userRoles', 'phoneVerifications', 'kycVerification'])->find($userId);
+    }
+
+    public function hasVerifiedPhone(): bool
+    {
+        if ($this->relationLoaded('phoneVerifications')) {
+            return $this->phoneVerifications->contains(fn ($verification): bool => $verification->verified_at !== null);
+        }
+
+        return $this->phoneVerifications()->whereNotNull('verified_at')->exists();
+    }
+
+    public function roleStatusMap(): array
+    {
+        if ($this->relationLoaded('userRoles')) {
+            return $this->userRoles->pluck('role_status', 'role_type')->toArray();
+        }
+
+        return $this->userRoles()->pluck('role_status', 'role_type')->toArray();
+    }
+
+    public function isRegistrationComplete(): bool
+    {
+        return $this->email_verified_at !== null
+            && $this->hasVerifiedPhone()
+            && ($this->kycVerification?->isApproved() ?? false);
     }
 }

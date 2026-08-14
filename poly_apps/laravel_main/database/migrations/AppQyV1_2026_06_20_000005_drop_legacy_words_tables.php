@@ -39,32 +39,9 @@ return new class extends Migration
 
     public function up(): void
     {
-        $schema = Schema::connection($this->connection);
-
-        // Full-name map mirrors AppQyV1SystemInitComplianceCtl's nameMap exactly.
-        $nameMap = [
-            'en' => 'english',
-            'ja' => 'japanese',
-            'ko' => 'korean',
-            'vi' => 'vietnamese',
-            'lo' => 'lao',
-        ];
-
-        $candidates = [];
-        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
-            // By code: {prefix}_words_{code}
-            $candidates[$this->prefix . '_words_' . $lang] = true;
-            // By full name: {prefix}_words_{name}
-            if (isset($nameMap[$lang])) {
-                $candidates[$this->prefix . '_words_' . $nameMap[$lang]] = true;
-            }
-        }
-
-        foreach (array_keys($candidates) as $table) {
-            if ($schema->hasTable($table)) {
-                $schema->dropIfExists($table);
-            }
-        }
+        // Neutralized: initialization never drops a table (empty or not).
+        // Legacy words tables are left in place — dead, unread, harmless.
+        return;
     }
 
     public function down(): void

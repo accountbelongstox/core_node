@@ -116,7 +116,7 @@ class AppQyV1WordGroupCreationController
                 asort($words_frequency);
             }
             $existGroup->words_frequency = $words_frequency;
-            $existGroup->save();
+            $existGroup->saveRecord();
 
             $result = PDAPublic::addPersonDictionaries($mergeWords);
             $did = $result['id'];
@@ -144,4 +144,3 @@ class AppQyV1WordGroupCreationController
     }
 
 }
-

@@ -5,7 +5,6 @@ namespace App\Services\TimerTasks;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Word Media Auto-Scan (missing-image lane).
@@ -34,10 +33,6 @@ class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
     private const TARGET_LANGUAGE = 'zh';
     private const WORDS_PER_TASK = 40;
     private const MAX_TASKS_PER_LANGUAGE = 2;
-
-    // image_status existence is host-dependent; probed lazily per language table.
-    private array $imageStatusColumnCache = [];
-    private array $imageMcpColumnCache = [];
 
     public function getName(): string
     {
@@ -76,9 +71,12 @@ class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
             $scope = 'word_media:' . $langCode . ':' . $model->getTable();
             $page = $this->rowsForPendingPage(
                 $scope,
-                $model->newQuery(),
+                $model,
                 $limit,
-                fn (array $ids): array => $this->translatedWordsMissingImages($langCode, $ids)
+                static fn (array $ids): array => AppQyV1LangDictionaryModel::translatedWordsMissingImages(
+                    $langCode,
+                    $ids
+                )
             );
             if ($page['rows'] === [] && ($page['page'] ?? 0) === 0) {
                 continue;
@@ -102,76 +100,6 @@ class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
                 'total_tasks' => $totalCreated,
             ]);
         }
-    }
-
-    /**
-     * Translated, valid words without an mcp-chrome submission marker.
-     * Returns [{word,md5}].
-     */
-    private function translatedWordsMissingImages(string $langCode, array $ids): array
-    {
-        $hasStatus = $this->hasImageStatusColumn($langCode);
-        $hasMcpMarker = $this->hasImageMcpColumn($langCode);
-        $out = [];
-
-        $qa = AppQyV1LangDictionaryModel::forLanguage($langCode)
-            ->whereIn('id', $ids)
-            ->where('has_translation', true)
-            ->where('is_valid', true);
-        if ($hasMcpMarker) {
-            $qa->whereNull('image_mcp_submitted_at');
-        } else {
-            $qa->where(function ($q) {
-                $q->whereNull('image_files')
-                    ->orWhere('image_files', '')
-                    ->orWhere('image_files', '[]')
-                    ->orWhere('image_files', '{}');
-            });
-            if ($hasStatus) {
-                $qa->where(function ($q) {
-                    $q->whereNull('image_status')
-                        ->orWhereNotIn('image_status', ['completed', 'none']);
-                });
-            }
-        }
-        foreach ($qa->orderByDesc('query_count')->get(['content', 'md5']) as $row) {
-            $word = $row->content ?? null;
-            if (is_string($word) && $word !== '') {
-                $out[] = ['word' => $word, 'md5' => $row->md5 ?? md5($word)];
-            }
-        }
-
-        return $out;
-    }
-
-    private function hasImageStatusColumn(string $langCode): bool
-    {
-        if (array_key_exists($langCode, $this->imageStatusColumnCache)) {
-            return $this->imageStatusColumnCache[$langCode];
-        }
-        try {
-            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
-            $has = Schema::connection($model->getConnectionName())
-                ->hasColumn($model->getTable(), 'image_status');
-        } catch (\Throwable $e) {
-            $has = false;
-        }
-        return $this->imageStatusColumnCache[$langCode] = $has;
-    }
-
-    private function hasImageMcpColumn(string $langCode): bool
-    {
-        if (array_key_exists($langCode, $this->imageMcpColumnCache)) {
-            return $this->imageMcpColumnCache[$langCode];
-        }
-        try {
-            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
-            $has = Schema::connection($model->getConnectionName())
-                ->hasColumn($model->getTable(), 'image_mcp_submitted_at');
-        } catch (\Throwable $e) {
-            $has = false;
-        }
-        return $this->imageMcpColumnCache[$langCode] = $has;
     }
 
     private function countPendingForLanguage(string $langCode): int

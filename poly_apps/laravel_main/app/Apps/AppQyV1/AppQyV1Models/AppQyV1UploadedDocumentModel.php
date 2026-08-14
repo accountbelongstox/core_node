@@ -2,7 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 
@@ -14,6 +14,13 @@ use App\Providers\AppTablePrefixServiceProvider;
  */
 class AppQyV1UploadedDocumentModel extends Model
 {
+    public const BROWSE_SORT_KEYS = [
+        'title',
+        'language',
+        'words',
+        'uploaded',
+    ];
+
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
 
@@ -44,8 +51,69 @@ class AppQyV1UploadedDocumentModel extends Model
      * id (the legacy column NAME is kept for API/byte compatibility; the
      * conversion migration remapped any pre-existing collection ids).
      */
+    public function scopeBrowseOrder($query, string $sortKey, string $direction)
+    {
+        $order = strtolower($direction) === 'desc' ? 'desc' : 'asc';
+
+        if ($sortKey === 'title') {
+            $query->orderBy('original_name', $order);
+        } elseif ($sortKey === 'language') {
+            $query->orderBy('language', $order);
+        } elseif ($sortKey === 'words') {
+            $documentTable = $query->getModel()->getTable();
+            $libraryModel = new AppQyV1VocabularyLibraryModel();
+            $libraryTable = $libraryModel->getTable();
+            $wordCountQuery = $libraryModel->newQuery()
+                ->select('total_words')
+                ->whereColumn("{$libraryTable}.id", "{$documentTable}.collection_id")
+                ->limit(1);
+            $query->orderBy($wordCountQuery, $order);
+        } elseif ($sortKey === 'uploaded') {
+            $query->orderBy('created_at', $order);
+        } else {
+            return $query->orderByDesc('created_at')->orderBy('id');
+        }
+
+        return $query->orderBy('id', $order);
+    }
+
     public function library()
     {
         return $this->belongsTo(AppQyV1VocabularyLibraryModel::class, 'collection_id', 'id');
+    }
+
+    public static function deleteById(int $documentId): int
+    {
+        return self::query()->whereKey($documentId)->delete();
+    }
+
+    public static function findById(int $documentId): ?self
+    {
+        return self::query()->find($documentId);
+    }
+
+    public static function browseForUser(
+        int $userId,
+        ?string $language,
+        ?string $search,
+        string $sortKey,
+        string $direction,
+        int $perPage
+    ) {
+        $query = self::query()->where('user_id', $userId);
+
+        if ($language !== null && $language !== '') {
+            $query->where('language', $language);
+        }
+        if ($search !== null && $search !== '') {
+            $query->where('original_name', 'like', '%' . $search . '%');
+        }
+
+        return $query->browseOrder($sortKey, $direction)->with('library')->paginate($perPage);
+    }
+
+    public static function findOwned(int $documentId, int $userId): ?self
+    {
+        return self::query()->whereKey($documentId)->where('user_id', $userId)->first();
     }
 }

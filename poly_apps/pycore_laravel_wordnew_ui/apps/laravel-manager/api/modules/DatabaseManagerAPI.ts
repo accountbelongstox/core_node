@@ -1,5 +1,5 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
-import { LARAVEL_API_ROUTE } from '../../../../core/api-libs/laravel/transport/ApiContract';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
+import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 /**
  * DatabaseManagerAPI
@@ -82,6 +82,64 @@ export interface DbBackup {
   driver: string;
   connection: string;
   created_at: string;
+}
+
+export type DataSyncStatus = 'queued' | 'running' | 'paused' | 'completed' | 'failed';
+export type DataSyncStepStatus = 'pending' | 'running' | 'completed' | 'skipped' | 'failed';
+
+export interface DataSyncStep {
+  index: number;
+  key: string;
+  status: DataSyncStepStatus;
+  started_at: string | null;
+  completed_at: string | null;
+  detail: string | null;
+}
+
+export interface DataSyncSession {
+  id: string;
+  role: 'source' | 'receiver';
+  status: DataSyncStatus;
+  target_input: string | null;
+  target: string | null;
+  options: {
+    databases: boolean;
+    resources: boolean;
+    compression: boolean;
+  };
+  current_step: number;
+  progress: number;
+  backup_directory: string | null;
+  steps: DataSyncStep[];
+  context?: {
+    awaiting_target?: boolean;
+    local_manifest?: {
+      databases?: number;
+      tables?: number;
+      rows?: number;
+      resource_roots?: number;
+      resource_files?: number;
+      resource_bytes?: number;
+    };
+    database_results?: {
+      inserted: number;
+      updated: number;
+      unchanged: number;
+      verified: number;
+    };
+    [key: string]: unknown;
+  };
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface DataSyncStartRequest {
+  target?: string;
+  databases: boolean;
+  resources: boolean;
+  compression: boolean;
 }
 
 /**
@@ -270,6 +328,52 @@ export class DatabaseManagerAPI extends BaseAPI {
   async downloadBackup(id: string, filename?: string): Promise<void> {
     const url = this.buildURL(LARAVEL_API_ROUTE.database.downloadBackup(id));
     await this.downloadBlob(url, filename || `backup_${id}`);
+  }
+
+  async getDataSyncSessions(): Promise<DataSyncSession[]> {
+    const res = await this.get<{ sessions: DataSyncSession[] }>('sync');
+    if (!res.success || !res.data) return [];
+    return (res.data as { sessions: DataSyncSession[] }).sessions ?? [];
+  }
+
+  async startDataSync(payload: DataSyncStartRequest): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>('sync', payload);
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
+  async getDataSyncSession(id: string): Promise<DataSyncSession> {
+    const res = await this.get<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}`);
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
+  async setDataSyncTarget(id: string, target: string): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/target`, { target });
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
+  async pauseDataSync(id: string): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/pause`);
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
+    return (res.data as { session: DataSyncSession }).session;
+  }
+
+  async resumeDataSync(id: string): Promise<DataSyncSession> {
+    const res = await this.post<{ session: DataSyncSession }>(`sync/${encodeURIComponent(id)}/resume`);
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
+    return (res.data as { session: DataSyncSession }).session;
   }
 
   /**

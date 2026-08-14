@@ -277,14 +277,8 @@ class WfNewStudyProgressClass {
         /* ignore - local progress already recorded */
       }
     }
-    // best-effort recitation log (never throws)
-    if (wfNewApi.isAuthenticated()) {
-      try {
-        wordNewRecitationCenter.recordAction(word.text, 'read', language);
-      } catch {
-        /* standby center not wired — local progress already recorded */
-      }
-    }
+    // best-effort recitation log (guests skipped / never throws internally)
+    wordNewRecitationCenter.recordActionMirrored(word.text, 'read', language);
   }
 
   /**
@@ -376,15 +370,11 @@ class WfNewStudyProgressClass {
     } catch {
       /* ignore */
     }
-    try {
-      wordNewRecitationCenter.recordAction(
-        word.text,
-        known ? 'review_correct' : 'review_wrong',
-        language,
-      );
-    } catch {
-      /* ignore */
-    }
+    wordNewRecitationCenter.recordActionMirrored(
+      word.text,
+      known ? 'review_correct' : 'review_wrong',
+      language,
+    );
   }
 }
 

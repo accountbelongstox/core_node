@@ -15,6 +15,7 @@ from pycore.pyfoundations.serialized_worker import start_bus_task
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyutils.common.user_data_store import user_data_store
+from pycore.pyutils.common.queue_center_contract import QUEUE_CENTER_DIFF_DELIVERY
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pylauncher.launcher import ServiceLauncher
 from pycore.pythreadpool.starters import start_tray
@@ -59,10 +60,20 @@ from pycore.pylauncher.tray_codesync_cache import (
 
 
 _RUNTIME_WORKERS_REGISTERED = False
+# Heartbeat fallback cadence for the pull loops. The fast path is
+# event-driven: Reverb queue events reach worker.request_pull() through the
+# shared Queue Center socket, so these intervals only matter when realtime
+# is down. 1-second fallbacks used to keep every worker in a permanent
+# lockForUpdate claim transaction on the same global_tasks rows that the
+# browser UI bumps, which is what caused the mutual timeouts.
+_QUEUE_DIFF_INTERVAL_SECONDS = max(
+    1,
+    int(QUEUE_CENTER_DIFF_DELIVERY.get("poll_interval_ms") or 1000) // 1000,
+)
 _QUEUE_WORKER_CALLBACKS = (
-    ("translation_worker", translation_worker_service.pull_once, 5),
-    ("tts_queue_poller", laravel_word_audio_worker.pull_once, 1),
-    ("tts_sentence_worker", laravel_sentence_audio_worker.pull_once, 1),
+    ("translation_worker", translation_worker_service.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
+    ("tts_queue_poller", laravel_word_audio_worker.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
+    ("tts_sentence_worker", laravel_sentence_audio_worker.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
 )
 
 

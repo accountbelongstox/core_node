@@ -14,13 +14,8 @@ namespace App\Providers;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Log;
-use App\Events\TranslationTaskQueuedEvent;
-use App\Events\TranslationTaskPriorityEvent;
-use App\Events\WordTranslatedEvent;
-use App\Events\TranslationTaskCompletedEvent;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use Illuminate\Database\Eloquent\Model;
+use App\Support\DatabaseQueryMonitor;
 use App\Services\UserConfig\UserConfigService;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeployCommand;
 use App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands\ServerManagerV1DeploySelfCommand;
@@ -54,6 +49,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Model::shouldBeStrict(!app()->isProduction());
+        DatabaseQueryMonitor::register();
+
         Response::macro('goStyle', function () {
             return Response::make()
                 ->header('X-Go-Type', 'application/go')
@@ -62,26 +60,6 @@ class AppServiceProvider extends ServiceProvider
 
         ResetPassword::createUrlUsing(function (object $notifiable, string $token) {
             return config('app.frontend_url') . "/password-reset/$token?email={$notifiable->getEmailForPasswordReset()}";
-        });
-
-        // Translation real-time outbox (replaces Reverb). Every translation-queue
-        // event is mirrored into app_qy_v1_translation_events; the SSE endpoint
-        // (translation/queue/stream) streams them to pycore over Octane :9000.
-        // The events keep dispatching unchanged; this listener only fans them into
-        // the outbox (best-effort — a write failure never breaks the dispatch).
-        Event::listen([
-            TranslationTaskQueuedEvent::class,
-            TranslationTaskPriorityEvent::class,
-            WordTranslatedEvent::class,
-            TranslationTaskCompletedEvent::class,
-        ], function (object $event): void {
-            try {
-                AppQyV1TranslationEventModel::emit($event->broadcastAs(), $event->broadcastWith());
-            } catch (\Throwable $e) {
-                Log::warning('[AppServiceProvider] translation outbox listener failed', [
-                    'error' => $e->getMessage(),
-                ]);
-            }
         });
 
         // Register ServerManagerV1 CLI Commands

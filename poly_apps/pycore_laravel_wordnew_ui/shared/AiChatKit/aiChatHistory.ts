@@ -3,7 +3,7 @@
  * Other surfaces (e.g. provider probes) can append temporary log lines that
  * appear the next time the user opens AI Chat.
  */
-import type { AiChatMessage } from '../../shell/shellTypes';
+import type { AiChatUiMessage } from '../../core/contracts/ai';
 
 export const AICHAT_HISTORY_EVENT = 'aichat-history-updated';
 
@@ -11,7 +11,7 @@ export function historyKey(adapterId: string): string {
   return `aichat_history_${adapterId}`;
 }
 
-export function loadHistory(adapterId: string): AiChatMessage[] {
+export function loadHistory(adapterId: string): AiChatUiMessage[] {
   try {
     const raw = localStorage.getItem(historyKey(adapterId));
     if (!raw) return [];
@@ -22,7 +22,7 @@ export function loadHistory(adapterId: string): AiChatMessage[] {
   }
 }
 
-export function saveHistory(adapterId: string, messages: AiChatMessage[]): void {
+export function saveHistory(adapterId: string, messages: AiChatUiMessage[]): void {
   try {
     localStorage.setItem(historyKey(adapterId), JSON.stringify(messages.slice(-50)));
   } catch {
@@ -30,7 +30,7 @@ export function saveHistory(adapterId: string, messages: AiChatMessage[]): void 
   }
 }
 
-export function appendChatMessages(adapterId: string, msgs: AiChatMessage[]): void {
+export function appendChatMessages(adapterId: string, msgs: AiChatUiMessage[]): void {
   if (msgs.length === 0) return;
   const next = [...loadHistory(adapterId), ...msgs].slice(-50);
   saveHistory(adapterId, next);

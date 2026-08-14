@@ -8,7 +8,7 @@ Provides global constants and configuration for TTS operations.
 
 import os
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import map_web_path
@@ -87,6 +87,7 @@ class TTSConfig:
         'hi-IN': ['hi-IN-SwaraNeural', 'hi-IN-MadhurNeural'],
         'th-TH': ['th-TH-PremwadeeNeural', 'th-TH-NiwatNeural'],
         'vi-VN': ['vi-VN-HoaiMyNeural', 'vi-VN-NamMinhNeural'],
+        'lo-LA': ['lo-LA-KeomanyNeural', 'lo-LA-ChanthavongNeural'],
     }
     
     @staticmethod
@@ -108,6 +109,19 @@ class TTSConfig:
         if index < len(voices):
             return voices[index]
         return voices[0] if voices else ''
+
+    @staticmethod
+    def resolve_voice(
+        locale: str,
+        accent: Optional[str] = None,
+        gender: Optional[str] = None,
+    ) -> str:
+        if accent == "uk" and locale.startswith("en-"):
+            locale = "en-GB"
+        selected_gender = (gender or "female").strip().lower()
+        if selected_gender not in ("female", "male"):
+            selected_gender = "female"
+        return TTSConfig.get_voice(locale, selected_gender)
     
     @staticmethod
     def get_voice_dir(locale: str, item_type: str) -> Path:

@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, Lock, LayoutDashboard, BookA, LibraryBig, ListTodo, Languages,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import type { WfNewSuperAdminStatus } from '../api';
 import { wfNewAdminApi } from '../api';
 import { WfNewAdminOverview } from '../components/admin/WfNewAdminOverview';

@@ -2,8 +2,8 @@ import { useEffect, useMemo } from 'react';
 import type { ReactElement } from 'react';
 import { Loader2, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_BACKDROP, OVERLAY_CONTAINER, OVERLAY_Z } from '../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_BACKDROP, OVERLAY_CONTAINER, OVERLAY_Z } from '@/shared/styles/overlay';
 import type { WordTtsWorkerTask } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 
@@ -79,7 +79,9 @@ export function PcWordAudioQueueModal({ open, onClose }: PcWordAudioQueueModalPr
           ) : (
             <div className="mt-5 space-y-3">
               {tasks.map((task, index) => {
-                const progress = clampProgress(task.progress);
+                const progressCurrent = Math.max(0, Number(task.progress) || 0);
+                const progressTotal = Math.max(1, Number(task.progress_total) || 100);
+                const progress = clampProgress((progressCurrent / progressTotal) * 100);
                 const stage = task.stage || 'processing';
                 const word = task.word || task.text || task.content_id || '—';
                 return (
@@ -96,18 +98,25 @@ export function PcWordAudioQueueModal({ open, onClose }: PcWordAudioQueueModalPr
                           {task.language}
                         </span>
                       )}
+                      {task.task_display_id && (
+                        <span className="font-mono text-[10px] text-slate-400" title={String(task.task_id || '')}>
+                          {t('queueCenter.wordAudioQueue.task')}: {task.task_display_id}
+                        </span>
+                      )}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
                       <span>{t('queueCenter.wordAudioQueue.stage')}: {t(`queueCenter.sentenceQueue.stage.${stage}`, { defaultValue: stage })}</span>
                       <span>{t('queueCenter.wordAudioQueue.elapsed')}: {formatDuration(task.elapsed_seconds)}</span>
                       {task.current_provider && <span>{t('queueCenter.wordAudioQueue.engine')}: {task.current_provider}</span>}
-                      {task.priority != null && <span>{t('queueCenter.wordAudioQueue.priority')}: {task.priority}</span>}
+                      {task.queue_position != null && <span>{t('queueCenter.wordAudioQueue.queuePosition')}: #{task.queue_position}</span>}
                     </div>
                     <div className="mt-3 flex items-center gap-2">
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
                         <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${progress}%` }} />
                       </div>
-                      <span className="w-9 text-right font-mono text-xs text-slate-500">{Math.round(progress)}%</span>
+                      <span className="w-14 text-right font-mono text-xs text-slate-500">
+                        {Math.round(progressCurrent)}/{Math.round(progressTotal)}
+                      </span>
                     </div>
                   </div>
                 );

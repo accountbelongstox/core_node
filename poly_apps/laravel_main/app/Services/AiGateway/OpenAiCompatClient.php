@@ -52,7 +52,9 @@ class OpenAiCompatClient
                 ]);
 
             if ($response->status() !== 200) {
-                return ['success' => false, 'text' => '', 'error' => 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300)];
+                $error = 'HTTP ' . $response->status() . ': ' . mb_substr($response->body(), 0, 300);
+                $failure = AiRequestFailure::classify($error);
+                return ['success' => false, 'text' => '', 'error' => $error, 'error_code' => $failure['code'], 'provider_reached' => true];
             }
 
             $data = $response->json();
@@ -64,11 +66,18 @@ class OpenAiCompatClient
             $text = (string) $text;
 
             if ($text === '') {
-                return ['success' => false, 'text' => '', 'error' => 'Empty response from provider'];
+                return ['success' => false, 'text' => '', 'error' => 'Empty response from provider', 'error_code' => 'empty_response', 'provider_reached' => true];
             }
-            return ['success' => true, 'text' => $text, 'error' => null];
+            return ['success' => true, 'text' => $text, 'error' => null, 'error_code' => null, 'provider_reached' => true];
         } catch (\Throwable $e) {
-            return ['success' => false, 'text' => '', 'error' => $e->getMessage()];
+            $failure = AiRequestFailure::classify($e->getMessage());
+            return [
+                'success' => false,
+                'text' => '',
+                'error' => $e->getMessage(),
+                'error_code' => $failure['code'],
+                'provider_reached' => $failure['provider_reached'],
+            ];
         }
     }
 

@@ -10,14 +10,9 @@
 
 import { bingDictionaryTool, BingDictionaryResult } from '../tools/browser/bing-dictionary';
 import { logger } from '@/utils/logger';
+import type { NormalizedWord } from '@/utils/task-words';
 
 const LOG = 'Bing Worker';
-
-/** A normalized work item: a word plus its optional precomputed md5. */
-export interface NormalizedWord {
-  word: string;
-  md5?: string;
-}
 
 /** One word's rich result, ready to ship to the Laravel write-back. */
 export interface ResultEntry {
@@ -65,26 +60,6 @@ export interface Classification {
 }
 
 export const NO_RESULT_ERROR = 'No results found for this word';
-
-/**
- * Normalize a worker task's payload words (plain strings OR {word, md5, ...}
- * objects) into trimmed NormalizedWord[]. Shared by the Bing worker, its scrape
- * test, and the web-AI translate worker (one copy, not three).
- */
-export function normalizeWords(raw: unknown): NormalizedWord[] {
-  if (!Array.isArray(raw)) return [];
-  const out: NormalizedWord[] = [];
-  for (const item of raw as any[]) {
-    if (typeof item === 'string') {
-      const word = item.trim();
-      if (word) out.push({ word });
-    } else if (item && typeof item.word === 'string') {
-      const word = item.word.trim();
-      if (word) out.push({ word, md5: item.md5 });
-    }
-  }
-  return out;
-}
 
 /** Cap on sample images shipped per word — keeps the result payload lean. */
 export const MAX_IMAGES_PER_WORD = 3;

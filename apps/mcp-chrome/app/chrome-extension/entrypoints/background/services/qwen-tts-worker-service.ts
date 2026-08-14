@@ -11,7 +11,11 @@ import {
 } from '@/utils/qwen-tts-core';
 import { UI_STORAGE_PREFIX } from '@/utils/storage-keys';
 import { LANES } from '@/utils/task-center-lanes';
-import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
+import {
+  TASK_CAPABILITY_BY_ROLE,
+  TASK_TYPE_KEYS,
+  taskTypesForClaimant,
+} from '@/utils/queue-center-contract';
 
 const LOG = 'Qwen TTS Worker';
 
@@ -42,12 +46,11 @@ class QwenTtsWorkerService extends SimpleWorkerBase {
   }
 
   protected get pullTaskTypes(): string[] {
-    // word_audio LAST: the primary lane, holds the long-poll budget.
-    return [TASK_TYPE_KEYS.article_audio, TASK_TYPE_KEYS.word_audio];
+    return taskTypesForClaimant('chrome', TASK_CAPABILITY_BY_ROLE.audio);
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === TASK_TYPE_KEYS.word_audio || taskType === TASK_TYPE_KEYS.article_audio;
+    return this.pullTaskTypes.includes(taskType);
   }
 
   protected async executeTask(task: Task): Promise<void> {

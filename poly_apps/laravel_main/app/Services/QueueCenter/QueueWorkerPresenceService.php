@@ -2,11 +2,10 @@
 
 namespace App\Services\QueueCenter;
 
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Models\GlobalTask;
 use App\Models\Worker;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Support\QueueCenterContract;
 
 class QueueWorkerPresenceService
 {
@@ -14,37 +13,36 @@ class QueueWorkerPresenceService
     private const CACHE_SECONDS = 3;
     private const WORKER_LIMIT = 100;
 
+    public function publishChange(?string $workerId, ?bool $online): void
+    {
+        $realtime = QueueCenterContract::realtime();
+        $events = is_array($realtime['events'] ?? null) ? $realtime['events'] : [];
+        $event = (string) ($events['worker_presence'] ?? 'worker.presence');
+
+        QueueCenterCacheStore::get()->forget(self::CACHE_KEY);
+        AppQyV1TranslationEventModel::emit($event, [
+            'worker_id' => $workerId,
+            'online' => $online,
+            'changed_at' => now()->toIso8601String(),
+        ]);
+    }
+
     public function snapshot(): array
     {
-        return Cache::store('file')->remember(
+        return QueueCenterCacheStore::get()->remember(
             self::CACHE_KEY,
             self::CACHE_SECONDS,
             function (): array {
-                $workerTable = (new Worker())->getTable();
-                $taskTable = (new GlobalTask())->getTable();
-                if (!Schema::hasTable($workerTable)) {
+                if (!Worker::tableExists()) {
                     return [];
                 }
-                $rows = Worker::query()
-                    ->orderByDesc('last_heartbeat_at')
-                    ->limit(self::WORKER_LIMIT)
-                    ->get([
-                        'worker_id',
-                        'worker_name',
-                        'processor_types',
-                        'capabilities',
-                        'status',
-                        'last_heartbeat_at',
-                        'hostname',
-                    ]);
+                $rows = Worker::presenceRows(self::WORKER_LIMIT);
                 $claimedByWorker = collect();
-                if (Schema::hasTable($taskTable)) {
-                    $claimedByWorker = GlobalTask::query()
-                        ->whereIn('status', [GlobalTask::status('assigned'), GlobalTask::status('processing')])
-                        ->whereNotNull('assigned_to')
-                        ->groupBy('assigned_to')
-                        ->select('assigned_to', DB::raw('count(*) as total'))
-                        ->pluck('total', 'assigned_to');
+                if (GlobalTask::tableExists()) {
+                    $claimedByWorker = GlobalTask::claimedCountsByWorker([
+                        GlobalTask::status('assigned'),
+                        GlobalTask::status('processing'),
+                    ]);
                 }
                 $heartbeatFloor = now()->subSeconds(Worker::HEARTBEAT_TIMEOUT);
                 $workers = [];

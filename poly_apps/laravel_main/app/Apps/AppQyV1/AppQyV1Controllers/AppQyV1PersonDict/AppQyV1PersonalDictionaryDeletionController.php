@@ -40,9 +40,7 @@ class AppQyV1PersonalDictionaryDeletionController
         $uid = Auth::id();
         $id = $request->input('id');
 
-        AppQyV1PersonalDictionaryEntryModel::where('uid', $uid)
-            ->where('id', $id)
-            ->delete();
+        AppQyV1PersonalDictionaryEntryModel::deleteForUser((int) $uid, (int) $id);
 
         return $this->success([
             'message' => 'Personal dictionary entry deleted successfully',
@@ -53,7 +51,7 @@ class AppQyV1PersonalDictionaryDeletionController
     {
         $uid = Auth::id();
 
-        AppQyV1PersonalDictionaryEntryModel::where('uid', $uid)->delete();
+        AppQyV1PersonalDictionaryEntryModel::deleteForUser((int) $uid);
 
         return $this->success([
             'message' => 'All personal dictionary entries deleted successfully',

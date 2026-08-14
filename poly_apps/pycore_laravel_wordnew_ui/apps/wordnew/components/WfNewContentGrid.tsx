@@ -1,6 +1,6 @@
 import React from 'react';
 import type { WfNewContentGroup } from '../api';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { WfNewContentGroupCard } from './WfNewContentGroupCard';
 
 /** Column classes — keep IN SYNC with api/WfNewGrid computeCols (2/3/4/5). */

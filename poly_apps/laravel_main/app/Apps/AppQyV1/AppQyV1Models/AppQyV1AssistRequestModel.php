@@ -13,7 +13,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -261,5 +261,54 @@ class AppQyV1AssistRequestModel extends Model
         $this->claimed_at = null;
         $this->claimed_by = null;
         $this->save();
+    }
+
+    public static function groupedOverview(string $recordType, string $requestType, int $limit): array
+    {
+        $base = static fn () => self::query()
+            ->where('record_type', $recordType)
+            ->where('request_type', $requestType);
+        $byStatus = $base()->groupBy('status')->selectRaw('status, count(*) as total')->pluck('total', 'status');
+        $byLanguage = $base()->groupBy('language')->selectRaw('language, count(*) as total')->pluck('total', 'language');
+        $sample = $base()
+            ->whereIn('status', [self::STATUS_PENDING, self::STATUS_CLAIMED, self::STATUS_PROCESSING])
+            ->orderByDesc('priority')
+            ->orderBy('id')
+            ->limit($limit)
+            ->get(['id', 'source_key', 'language']);
+
+        return ['by_status' => $byStatus, 'by_language' => $byLanguage, 'sample' => $sample];
+    }
+
+    public static function queuePage(
+        string $recordType,
+        string $requestType,
+        ?string $status,
+        int $start,
+        int $limit,
+        string $search
+    ): array {
+        $query = self::query()->where('record_type', $recordType)->where('request_type', $requestType);
+
+        if ($status === 'leased') {
+            $query->whereNotNull('claimed_at')
+                ->where('claimed_at', '>=', now()->subMinutes(self::LEASE_MINUTES));
+        } elseif (in_array($status, ['pending', 'processing', 'completed', 'failed'], true)) {
+            $query->where('status', $status);
+        }
+        if ($search !== '') {
+            $like = '%' . $search . '%';
+            $query->where(function ($builder) use ($like): void {
+                $builder->where('record_id', 'like', $like)
+                    ->orWhere('language', 'like', $like)
+                    ->orWhere('claimed_by', 'like', $like);
+            });
+        }
+
+        return [
+            'total' => (int) (clone $query)->count(),
+            'rows' => $query->orderByDesc('priority')->orderByDesc('id')->offset($start)->limit($limit)
+                ->get(['id', 'status', 'priority', 'language', 'record_id', 'claimed_by', 'claimed_at', 'created_at']),
+        ];
     }
 }

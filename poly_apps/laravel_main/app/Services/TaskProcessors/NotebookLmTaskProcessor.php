@@ -64,7 +64,7 @@ class NotebookLmTaskProcessor extends AbstractTaskProcessor
         }
 
         try {
-            AppQyV1NotebookLmResult::create([
+            AppQyV1NotebookLmResult::createRecord([
                 'task_id' => $task->task_id,
                 'title' => is_string($title) ? mb_substr($title, 0, 255) : null,
                 'question' => is_string($question) ? $question : null,

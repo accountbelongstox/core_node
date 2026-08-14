@@ -8,6 +8,7 @@ Extends BaseTTSWorkerThread to implement Edge TTS specific processing.
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.speech_models import ItemType, DocumentModel, SentenceModel, WordModel
+from pycore.pyutils.tts.engine_policy import tts_locale
 from pycore.pyutils.tts.edge.client import edge_tts_client
 from pycore.pyutils.tts.edge.config import TTSConfig
 from pycore.pyutils.tts.worker_base import BaseTTSWorkerThread
@@ -43,9 +44,10 @@ class EdgeTTSWorkerThread(BaseTTSWorkerThread):
             return
         
         # Get voice
-        voice = TTSConfig.get_voice(sentence.locale, 'female')
+        locale = tts_locale(sentence.locale)
+        voice = TTSConfig.resolve_voice(locale, gender='female')
         if not voice:
-            voice = edge_tts_client.find_voice_by_locale(sentence.locale, 'female')
+            voice = edge_tts_client.find_voice_by_locale(locale, 'female')
         
         if voice:
             success = edge_tts_client.synthesize(
@@ -67,9 +69,10 @@ class EdgeTTSWorkerThread(BaseTTSWorkerThread):
             word.voice_files['default'] = str(output_path)
             return
         
-        voice = TTSConfig.get_voice(word.locale, 'female')
+        locale = tts_locale(word.locale)
+        voice = TTSConfig.resolve_voice(locale, gender='female')
         if not voice:
-            voice = edge_tts_client.find_voice_by_locale(word.locale, 'female')
+            voice = edge_tts_client.find_voice_by_locale(locale, 'female')
         
         if voice:
             success = edge_tts_client.synthesize(

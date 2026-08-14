@@ -5,9 +5,10 @@
  * Uses chrome.scripting.executeScript with ISOLATED world.
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { withTimeout } from '@/utils/async';
 
 interface JavaScriptToolParams {
   code: string;
@@ -44,7 +45,6 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
       const finalTabId = targetTab.id;
 
       // Execute script with timeout
-      let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
       const executePromise = chrome.scripting.executeScript({
         target: { tabId: finalTabId },
         world: 'ISOLATED',
@@ -76,23 +76,11 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
         args: [code],
       });
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutHandle = setTimeout(
-          () => reject(new Error(`Execution timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
-      });
-
-      let results: Array<{ result?: any }> | undefined;
-      try {
-        results = await Promise.race([executePromise, timeoutPromise]);
-      } finally {
-        // Clear the timer regardless of which promise won to prevent leaks
-        if (timeoutHandle !== null) {
-          clearTimeout(timeoutHandle);
-          timeoutHandle = null;
-        }
-      }
+      const results = await withTimeout(
+        executePromise,
+        timeoutMs,
+        `Execution timed out after ${timeoutMs}ms`,
+      );
       const firstFrame = results?.[0];
       const result = (firstFrame as { result?: any })?.result;
 
@@ -114,23 +102,15 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
         resultText = String(result.result);
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              tabId: finalTabId,
-              result: resultText,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        tabId: finalTabId,
+        result: resultText,
+      });
     } catch (error) {
       console.error('JavaScriptTool.execute error:', error);
       return createErrorResponse(
-        `JavaScript tool error: ${error instanceof Error ? error.message : String(error)}`,
+        `JavaScript tool error: ${toErrorMessage(error)}`,
       );
     }
   }

@@ -1,22 +1,40 @@
 {
-  "schema_version": 11,
+  "schema_version": 23,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "realtime": {
     "transport": "websocket",
     "channel": "queue-center",
-    "event": "queue.changed"
+    "event": "queue.changed",
+    "events": {
+      "task_priority": "task.priority",
+      "queue_changed": "queue.changed",
+      "word_audio_head": "word_audio.head",
+      "sentence_audio_head": "sentence_audio.head",
+      "word_image_priority": "word_image.priority",
+      "cover_priority": "cover.priority",
+      "poster_priority": "poster.priority",
+      "worker_presence": "worker.presence"
+    }
   },
   "diff_delivery": {
     "version": 1,
     "cursor_store": "Persistent revision and high-water metadata only.",
-    "id_page_store": "Bounded ID pages; priority promotion updates this layer without loading rows.",
+    "id_page_store": "Bounded ID pages; queue-head moves update this layer without loading rows.",
     "data_segment_store": "Full records are materialized only on a UI or consumer request and compacted after consumption.",
     "id_page_limit": 64,
     "id_limit": 4096,
     "data_segment_limit": 128,
+    "poll_interval_ms": 1000,
+    "consumer_slice_default": 8,
+    "head_reserve": 1,
+    "head_notification_interval_seconds": 2,
+    "producer_batch_limits": {
+      "word_audio": 100
+    },
     "consumer_batch_limits": {
-      "sentence_audio": 8
+      "word_audio": 100,
+      "sentence_audio": 100
     },
     "consumer_task_timeout_seconds": {
       "word_audio": 300,
@@ -31,6 +49,26 @@
     },
     "ready_ttl_seconds": 300,
     "consumed_ttl_seconds": 86400
+  },
+  "endpoints": {
+    "queue_center_overview": "/api/queue-center/overview",
+    "queue_center_events": "/api/queue-center/events",
+    "queue_center_receipts": "/api/queue-center/receipts",
+    "queue_center_queue_items": "/api/queue-center/queues/{queue}/items",
+    "queue_center_queue_diff": "/api/queue-center/queues/{queue}/diff",
+    "queue_center_queue_id_pages": "/api/queue-center/queues/{queue}/id-pages",
+    "queue_center_queue_page_data": "/api/queue-center/queues/{queue}/page-data",
+    "queue_center_queue_head": "/api/queue-center/queues/{queue}/head",
+    "queue_center_task_cancel": "/api/queue-center/tasks/{task_id}/cancel",
+    "queue_center_task_retry": "/api/queue-center/tasks/{task_id}/retry",
+    "worker_register": "/api/worker/register",
+    "worker_heartbeat": "/api/worker/heartbeat",
+    "worker_unregister": "/api/worker/unregister",
+    "worker_list": "/api/worker/list",
+    "worker_stats": "/api/worker/stats",
+    "worker_task_pull": "/api/worker/tasks/{task_type}/pull",
+    "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
+    "worker_task_result": "/api/worker/tasks/{task_type}/result"
   },
   "delivery_receipt": {
     "stages": {
@@ -78,7 +116,7 @@
     "translate": ["chrome"],
     "ai_translate": ["chrome"],
     "puter_translate": ["chrome"],
-    "audio": ["pycore", "chrome"],
+    "audio": ["pycore"],
     "image": ["chrome"],
     "sentence_audio": ["pycore"],
     "subtitle": ["pycore"],
@@ -185,7 +223,7 @@
       "list": 200,
       "monitor": 100,
       "worker_pull_default": 5,
-      "worker_pull": 50,
+      "worker_pull": 100,
       "completed": 500,
       "long_poll_seconds": 30,
       "history_records": 200,
@@ -213,7 +251,7 @@
       "stt": "remote_stt"
     },
     "fast_lane_capabilities": [
-      "translate", "ai_translate", "puter_translate", "audio", "image", "sentence_audio"
+      "translate", "ai_translate", "puter_translate", "image"
     ],
     "chrome_capability_switches": {
       "image": {
@@ -253,24 +291,24 @@
       }
     },
     "wire_shapes": {
-      "create_result": ["task_id", "execution_type", "priority", "is_fast_tier"],
+      "create_result": ["task_id", "execution_type", "queue_position", "priority", "is_fast_tier"],
       "summary": [
         "task_id", "app_name", "task_type", "execution_type", "status", "progress",
-        "assigned_to", "created_at", "capability", "priority", "is_fast_tier"
+        "assigned_to", "created_at", "capability", "queue_position", "priority", "is_fast_tier"
       ],
       "worker_pull": [
         "task_id", "app_name", "task_type", "execution_type", "status", "payload",
-        "timeout_seconds", "retry_count", "priority", "capability", "is_fast_tier", "created_at"
+        "timeout_seconds", "retry_count", "queue_position", "priority", "capability", "is_fast_tier", "created_at"
       ],
       "status": [
         "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
-        "status", "priority", "progress", "retry_count", "max_retries", "timeout_seconds",
+        "status", "queue_position", "priority", "progress", "retry_count", "max_retries", "timeout_seconds",
         "payload", "result", "error", "assigned_to", "assigned_at", "timeout_at",
         "completed_at", "created_at", "updated_at"
       ],
       "detail": [
         "task_id", "app_name", "task_type", "execution_type", "capability", "is_fast_tier",
-        "status", "priority", "progress", "payload", "result", "error", "assigned_to",
+        "status", "queue_position", "priority", "progress", "payload", "result", "error", "assigned_to",
         "assigned_at", "timeout_at", "completed_at", "created_at", "updated_at"
       ],
       "event": ["id", "task_id", "event", "worker_id", "attempt", "detail", "created_at"],
@@ -295,6 +333,7 @@
         "capability": "translate",
         "capability_mode": "selectable",
         "capabilities": ["translate", "ai_translate", "puter_translate"],
+        "ordering": "priority",
         "interactive": true,
         "fast_promotable": true,
         "pycore_local_label": "remote_translation",
@@ -306,6 +345,7 @@
         "execution_type": "remote_client",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_client",
         "ui": {"icon": "📖", "badge": "DICTIONARY", "summary_label": "待词典释义", "color": "#2563eb"}
@@ -316,6 +356,7 @@
         "execution_type": "remote_client",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_client",
         "ui": {"icon": "🧪", "badge": "DICTIONARY DEMO", "summary_label": "待演示词典释义", "color": "#3b82f6"}
@@ -326,6 +367,7 @@
         "execution_type": "remote_translation",
         "capability": null,
         "claimants": ["pycore", "chrome"],
+        "ordering": "priority",
         "interactive": false,
         "prompt_payload_field": "text",
         "pycore_local_label": "remote_translation",
@@ -336,6 +378,7 @@
         "label": "Word Image",
         "execution_type": "remote_fast",
         "capability": "image",
+        "ordering": "priority",
         "interactive": false,
         "fast_promotable": true,
         "pycore_local_label": "remote_image",
@@ -346,8 +389,11 @@
         "label": "Word Audio",
         "execution_type": "remote_audio",
         "capability": "audio",
+        "claimants": ["pycore", "chrome"],
+        "aliases": ["word"],
+        "ordering": "queue_position",
         "interactive": true,
-        "fast_promotable": true,
+        "fast_promotable": false,
         "pycore_local_label": "remote_audio",
         "ui": {"icon": "🔊", "badge": "AUDIO", "summary_label": "待生成语音", "color": "#2dd4bf"}
       },
@@ -356,27 +402,24 @@
         "label": "Article Audio",
         "execution_type": "remote_audio",
         "capability": "audio",
+        "claimants": ["pycore", "chrome"],
+        "aliases": ["article"],
+        "ordering": "queue_position",
         "interactive": false,
+        "fast_promotable": false,
         "pycore_local_label": "remote_audio",
         "ui": {"icon": "🔊", "badge": "ARTICLE AUDIO", "summary_label": "待文章语音", "color": "#14b8a6"}
-      },
-      {
-        "key": "article_tts_generation",
-        "label": "Article TTS Generation",
-        "execution_type": "local_timer",
-        "capability": null,
-        "claimants": ["laravel"],
-        "interactive": false,
-        "pycore_local_label": "local_timer",
-        "ui": {"icon": "📄", "badge": "ARTICLE TTS", "summary_label": "待文章音频生成", "color": "#0f766e"}
       },
       {
         "key": "sentence_audio",
         "label": "Sentence Audio",
         "execution_type": "remote_sentence_audio",
         "capability": "sentence_audio",
+        "claimants": ["pycore"],
+        "aliases": ["sentence"],
+        "ordering": "queue_position",
         "interactive": true,
-        "fast_promotable": true,
+        "fast_promotable": false,
         "pycore_local_label": "remote_sentence_audio",
         "ui": {"icon": "🎧", "badge": "SENTENCE", "summary_label": "待句子音频", "color": "#34d399"}
       },
@@ -385,6 +428,7 @@
         "label": "Subtitle Search",
         "execution_type": "remote_subtitle",
         "capability": "subtitle",
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_subtitle",
         "ui": {"icon": "💬", "badge": "SUBTITLE", "summary_label": "待字幕搜索", "color": "#60a5fa"}
@@ -394,6 +438,7 @@
         "label": "Book / Media Cover",
         "execution_type": "remote_poster",
         "capability": "poster",
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_poster",
         "ui": {"icon": "🎬", "badge": "COVER", "summary_label": "待搜索封面与海报", "color": "#fb7185"}
@@ -404,6 +449,7 @@
         "execution_type": "remote_notebooklm",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "prompt_payload_field": "question",
         "pycore_local_label": "remote_notebooklm",
@@ -414,6 +460,7 @@
         "label": "Gemini Image",
         "execution_type": "remote_gemini",
         "capability": "image",
+        "ordering": "priority",
         "interactive": false,
         "prompt_payload_field": "prompt",
         "pycore_local_label": "remote_image",
@@ -425,6 +472,7 @@
         "execution_type": "remote_gemini_text",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "prompt_payload_field": "question",
         "pycore_local_label": "remote_gemini_text",
@@ -436,6 +484,7 @@
         "execution_type": "remote_chatgpt",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "prompt_payload_field": "prompt",
         "pycore_local_label": "remote_chatgpt",
@@ -447,6 +496,7 @@
         "execution_type": "remote_validity",
         "capability": null,
         "claimants": ["chrome"],
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_validity",
         "ui": {"icon": "✅", "badge": "VALIDITY", "summary_label": "待有效检测", "color": "#22c55e"}
@@ -456,6 +506,7 @@
         "label": "Speech to Text",
         "execution_type": "remote_stt",
         "capability": "stt",
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_stt",
         "ui": {"icon": "🎙️", "badge": "STT", "summary_label": "待语音识别", "color": "#38bdf8"}
@@ -465,13 +516,14 @@
         "label": "Audio Transcription",
         "execution_type": "remote_stt",
         "capability": "stt",
+        "ordering": "priority",
         "interactive": false,
         "pycore_local_label": "remote_stt",
         "ui": {"icon": "🎙️", "badge": "STT", "summary_label": "待音频转写", "color": "#38bdf8"}
       }
     ],
     "history_buckets": {
-      "all": ["word_audio", "sentence_audio", "translation", "assist", "media_image"],
+      "all": ["word_audio", "sentence_audio", "article_audio", "translation", "assist", "media_image"],
       "exact_aliases": {
         "word_translation": "translation",
         "prompt_translation": "translation",
@@ -485,7 +537,9 @@
       "token_rules": [
         {"bucket": "word_audio", "all": ["word"], "any": ["tts", "audio"]},
         {"bucket": "sentence_audio", "all": ["sentence"], "any": ["tts", "audio", "prompt"]},
+        {"bucket": "article_audio", "all": ["article"], "any": ["tts", "audio"]},
         {"bucket": "translation", "all": [], "any": ["translate", "translation"]},
+        {"bucket": "assist", "all": [], "any": ["assist"]},
         {"bucket": "media_image", "all": [], "any": ["media", "image", "cover", "poster", "screenshot", "book"]}
       ],
       "fallback": "assist"

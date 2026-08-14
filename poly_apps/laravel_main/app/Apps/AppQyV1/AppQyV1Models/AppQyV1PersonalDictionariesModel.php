@@ -11,7 +11,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
@@ -88,5 +88,15 @@ class AppQyV1PersonalDictionariesModel extends Model
             'total_personal_dicts' => count($this->personal_dicts ?? []),
         ];
     }
-}
 
+    public static function findForUser(int $userId, bool $excludeDeleted = false): ?self
+    {
+        $query = static::query()->where('uid', $userId);
+
+        if ($excludeDeleted) {
+            $query->whereNull('deleted_at');
+        }
+
+        return $query->first();
+    }
+}

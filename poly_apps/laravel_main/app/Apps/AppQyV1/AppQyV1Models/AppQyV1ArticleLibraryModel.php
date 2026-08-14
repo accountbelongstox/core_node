@@ -2,10 +2,12 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\QueriesDiffIdPages;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
 
 /**
  * Multi-Language Article Library Model
@@ -16,6 +18,8 @@ use Illuminate\Support\Facades\Schema;
  */
 class AppQyV1ArticleLibraryModel extends Model
 {
+    use AppQyV1TtsQueueQueries, QueriesDiffIdPages;
+
     protected $appKey = AppKeys::APPQYV1;
     protected $table;
     protected $langCode;
@@ -37,7 +41,6 @@ class AppQyV1ArticleLibraryModel extends Model
         'tts_error',
         'tts_locked_at',
         'tts_locked_by',
-        'tts_priority',
         'tts_requested_at',
         'tts_completed_at',
     ];
@@ -50,7 +53,6 @@ class AppQyV1ArticleLibraryModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'tts_attempts' => 'integer',
-        'tts_priority' => 'integer',
         'tts_locked_at' => 'datetime',
         'tts_requested_at' => 'datetime',
         'tts_completed_at' => 'datetime',
@@ -138,28 +140,16 @@ class AppQyV1ArticleLibraryModel extends Model
         return !empty($this->audio_files);
     }
 
-    public static function getArticlesWithoutAudio(string $langCode, int $limit = 10, bool $skipQueued = true): \Illuminate\Database\Eloquent\Collection
+    public static function pendingSentenceAudioRowsByIds(string $langCode, array $ids): array
     {
-        // Queue-less coordination: "queued" now means an unstale processing
-        // claim on the article row itself (tts_status/tts_locked_at).
-        $query = self::forLanguage($langCode)
-            ->where('has_audio', false);
-
-        if ($skipQueued) {
-            $staleBefore = now()->subMinutes(10);
-            $query->where(function ($q) use ($staleBefore) {
-                $q->whereNull('tts_status')
-                    ->orWhere('tts_status', 'pending')
-                    ->orWhere(function ($qq) use ($staleBefore) {
-                        $qq->where('tts_status', 'processing')
-                            ->where('tts_locked_at', '<', $staleBefore);
-                    });
-            });
-        }
-
-        return $query->orderBy('added_at', 'desc')
-            ->limit($limit)
-            ->get();
+        return self::forLanguage($langCode)
+            ->newQuery()
+            ->whereIn('id', $ids)
+            ->where('has_audio', false)
+            ->whereNull('tts_global_task_id')
+            ->orderBy('id')
+            ->get()
+            ->all();
     }
 
     public static function updateHasAudio(string $langCode, string $md5, bool $hasAudio): void
@@ -189,6 +179,40 @@ class AppQyV1ArticleLibraryModel extends Model
         return [
             'articles' => (int) ($row->articles ?? 0),
             'audio' => (int) ($row->audio ?? 0),
+        ];
+    }
+
+    public static function languageSummary(string $langCode): ?array
+    {
+        $model = self::forLanguage($langCode);
+        $connectionName = $model->getConnectionName();
+        $table = $model->getTable();
+
+        if (!Schema::connection($connectionName)->hasTable($table)) {
+            return null;
+        }
+
+        $stats = self::aggregateStats($langCode);
+        $byOwner = $model->newQuery()
+            ->select('owner')
+            ->selectRaw('COUNT(*) as count')
+            ->groupBy('owner')
+            ->pluck('count', 'owner')
+            ->toArray();
+        $bySource = $model->newQuery()
+            ->select('source')
+            ->selectRaw('COUNT(*) as count')
+            ->groupBy('source')
+            ->limit(10)
+            ->pluck('count', 'source')
+            ->toArray();
+
+        return [
+            'total' => $stats['articles'],
+            'with_audio' => $stats['audio'],
+            'without_audio' => $stats['articles'] - $stats['audio'],
+            'by_owner' => $byOwner,
+            'by_source' => $bySource,
         ];
     }
 }

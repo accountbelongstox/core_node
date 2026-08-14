@@ -22,7 +22,7 @@ import {
   Plus, Play, Pause, Pencil, Trash2, X, Loader2, BarChart2,
   ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Volume2, Languages,
 } from 'lucide-react';
-import { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewAdminApi } from '../../api';
 import type {
   WfNewAdminWordRow, WfNewAdminWordsPage, WfNewAdminWordFilter,

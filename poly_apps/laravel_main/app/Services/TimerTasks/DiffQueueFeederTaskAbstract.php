@@ -20,25 +20,23 @@ abstract class DiffQueueFeederTaskAbstract extends OctaneTimerTaskAbstract
 
     protected function liveTaskCount(string $taskType, ?string $language = null): int
     {
-        $query = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', $taskType)
-            ->whereIn('status', [
+        $payloadFilters = $language === null ? [] : ['language' => $language];
+
+        return GlobalTask::liveTaskCount(
+            'AppQyV1',
+            [$taskType],
+            [
                 GlobalTask::status('pending'),
                 GlobalTask::status('assigned'),
                 GlobalTask::status('processing'),
-            ]);
-
-        if ($language !== null) {
-            $query->where('payload->language', $language);
-        }
-
-        return (int) $query->count();
+            ],
+            $payloadFilters
+        );
     }
 
     protected function rowsForPendingPage(
         string $scope,
-        object $idQuery,
+        object $idSource,
         int $pageSize,
         callable $loader
     ): array {
@@ -48,7 +46,7 @@ abstract class DiffQueueFeederTaskAbstract extends OctaneTimerTaskAbstract
                 1,
                 (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128)
             );
-            $this->diffIds->discover($scope, $idQuery, min($pageSize, $segmentLimit));
+            $this->diffIds->discover($scope, $idSource, min($pageSize, $segmentLimit));
             $page = $this->diffIds->pendingPage($scope);
         }
         $ids = is_array($page['ids'] ?? null) ? $page['ids'] : [];

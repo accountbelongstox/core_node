@@ -62,7 +62,8 @@ export interface AssistCategoryItem {
   category: string;
   task_type: string;
   status: string;
-  priority: number;
+  queue_position?: number;
+  priority?: number;
   content_text?: string | null;
   language?: string | null;
   media_type?: string | null;

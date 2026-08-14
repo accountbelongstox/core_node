@@ -13,16 +13,16 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Services\Realtime\OutboxCommitDispatcher;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Append-only real-time event outbox for the translation pipeline (replaces
- * Reverb). Each row is one translation-queue event mirrored from the dispatched
- * Laravel event; the SSE endpoint streams rows id > cursor to pycore. `data`
- * holds the JSON-encoded event payload (the originating event's broadcastWith).
+ * Persistent real-time event outbox shared by Queue Center publishers.
+ * Relevant events broadcast through Reverb immediately; rows remain available
+ * for bounded cursor replay after a client reconnects.
  */
 class AppQyV1TranslationEventModel extends Model
 {
@@ -35,11 +35,18 @@ class AppQyV1TranslationEventModel extends Model
         'event',
         'data',
         'created_at',
+        'published_at',
+        'publish_after',
+        'publish_attempts',
+        'last_publish_error',
     ];
 
     protected $casts = [
         'id' => 'integer',
         'created_at' => 'datetime',
+        'published_at' => 'datetime',
+        'publish_after' => 'datetime',
+        'publish_attempts' => 'integer',
     ];
 
     public function __construct(array $attributes = [])
@@ -55,24 +62,66 @@ class AppQyV1TranslationEventModel extends Model
     }
 
     /**
-     * Append one event to the outbox. Best-effort: a write failure is logged and
-     * swallowed so it can never break the dispatch that triggered it. `$data` is
-     * stored as a JSON string (the canonical SSE payload).
+     * Append one committed event to the outbox. Reverb publication is owned by
+     * RealtimeOutboxPublisher through the runtime's bounded publisher task.
      */
     public static function emit(string $event, array $data): void
     {
-        try {
-            static::query()->create([
-                'event' => $event,
-                'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
-                'created_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1TranslationEvent] outbox emit failed', [
-                'event' => $event,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        OutboxCommitDispatcher::dispatch(static function () use ($event, $data): void {
+            try {
+                static::query()->create([
+                    'event' => $event,
+                    'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
+                    'created_at' => now(),
+                    'publish_attempts' => 0,
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('[AppQyV1TranslationEvent] outbox append failed', [
+                    'event' => $event,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }, AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1));
+    }
+
+    public static function pendingForPublish(int $limit)
+    {
+        return static::query()
+            ->whereNull('published_at')
+            ->where(static function ($query): void {
+                $query->whereNull('publish_after')->orWhere('publish_after', '<=', now());
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function payload(): array
+    {
+        $payload = json_decode((string) $this->data, true);
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    public function markPublished(): void
+    {
+        $this->forceFill([
+            'published_at' => now(),
+            'publish_after' => null,
+            'last_publish_error' => null,
+        ])->save();
+    }
+
+    public function markPublishFailed(string $error): void
+    {
+        $attempts = (int) $this->publish_attempts + 1;
+        $retrySeconds = min(60, 2 ** min($attempts, 6));
+
+        $this->forceFill([
+            'publish_after' => now()->addSeconds($retrySeconds),
+            'publish_attempts' => $attempts,
+            'last_publish_error' => mb_substr($error, 0, 2000),
+        ])->save();
     }
 
     /**
@@ -102,7 +151,7 @@ class AppQyV1TranslationEventModel extends Model
         return $out;
     }
 
-    /** Highest event id currently stored (0 when empty). New SSE clients start here. */
+    /** Highest event id currently stored (0 when empty). New clients start here. */
     public static function maxId(): int
     {
         return (int) static::query()->max('id');
@@ -110,13 +159,14 @@ class AppQyV1TranslationEventModel extends Model
 
     /**
      * Delete events older than $seconds. Best-effort; returns deleted row count.
-     * The stream loop calls this occasionally to keep the outbox bounded.
+     * The publisher calls this occasionally to keep the outbox bounded.
      */
     public static function pruneOlderThan(int $seconds = 600): int
     {
         try {
             return (int) static::query()
-                ->where('created_at', '<', now()->subSeconds($seconds))
+                ->whereNotNull('published_at')
+                ->where('published_at', '<', now()->subSeconds($seconds))
                 ->delete();
         } catch (\Throwable $e) {
             Log::warning('[AppQyV1TranslationEvent] outbox prune failed', [

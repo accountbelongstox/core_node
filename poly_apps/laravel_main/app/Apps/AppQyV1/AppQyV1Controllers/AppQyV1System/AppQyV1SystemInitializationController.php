@@ -386,7 +386,7 @@ class AppQyV1SystemInitializationController extends Controller
             // rather than throwing.
             foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
                 try {
-                    if (AppQyV1LangDictionaryModel::forLanguage($lang)->count() > 0) {
+                    if (AppQyV1LangDictionaryModel::rowCount($lang) > 0) {
                         return true;
                     }
                 } catch (\Throwable $e) {
@@ -481,11 +481,9 @@ class AppQyV1SystemInitializationController extends Controller
         ];
         
         $statistics = collect($languages)->map(function ($langName, $langCode) {
-            $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
-            
-            $total = $model->count();
+            $total = AppQyV1MultiLangDictionaryModel::countAll($langCode);
             // Unified schema: has_translation is the reviewed/usable signal.
-            $reviewed = $model->where('has_translation', true)->count();
+            $reviewed = AppQyV1MultiLangDictionaryModel::countByTranslation($langCode);
             
             return [
                 'language' => $langName,

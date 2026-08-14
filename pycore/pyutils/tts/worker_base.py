@@ -87,15 +87,18 @@ class BaseTTSWorkerThread(threading.Thread, ABC):
 
     @abstractmethod
     def _process_document(self, document) -> None:
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def _process_sentence(self, sentence) -> None:
-        raise NotImplementedError
+        pass
 
     @abstractmethod
     def _process_word(self, word) -> None:
-        raise NotImplementedError
+        pass
 
     def stop(self) -> None:
         THREAD_BUS.signal(self._stop_signal, True)
+
+
+__all__ = ["BaseTTSWorkerThread"]

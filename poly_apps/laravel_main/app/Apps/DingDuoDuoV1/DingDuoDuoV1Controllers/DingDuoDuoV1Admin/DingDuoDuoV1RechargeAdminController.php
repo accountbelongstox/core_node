@@ -64,11 +64,11 @@ class DingDuoDuoV1RechargeAdminController extends BaseController
         if (array_key_exists('enabled', $data) && $data['enabled'] !== null) {
             $config->enabled = (bool) $data['enabled'];
         }
-        $config->save();
+        $config->saveRecord();
 
         return response()->json([
             'success' => true,
-            'data' => $config->fresh()->toArray(),
+            'data' => $config->freshRecord()->toArray(),
         ]);
     }
 
@@ -78,12 +78,12 @@ class DingDuoDuoV1RechargeAdminController extends BaseController
      */
     private static function firstOrCreateConfig(): DingDuoDuoV1RechargeConfigModel
     {
-        $config = DingDuoDuoV1RechargeConfigModel::query()->orderBy('id')->first();
+        $config = DingDuoDuoV1RechargeConfigModel::current();
         if ($config) {
             return $config;
         }
 
-        return DingDuoDuoV1RechargeConfigModel::query()->create([
+        return DingDuoDuoV1RechargeConfigModel::createRecord([
             'provider' => DingDuoDuoV1Constants::DEFAULT_PROVIDER,
             'enabled' => true,
             'packages' => DingDuoDuoV1Constants::DEFAULT_PACKAGES,

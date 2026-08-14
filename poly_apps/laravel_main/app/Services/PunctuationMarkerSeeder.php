@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use Illuminate\Support\Facades\Schema;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PunctuationMarkerModel;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\SafeMigrationHelper;
@@ -87,55 +87,13 @@ class PunctuationMarkerSeeder
             ]
         );
 
-        $db = \Illuminate\Support\Facades\DB::connection($connection);
-        $now = now();
-
-        $created = 0;
-        $updated = 0;
-        $unchanged = 0;
-
-        foreach (self::markers() as $marker) {
-            $existing = $db->table($tableName)->where('code', $marker['code'])->first();
-
-            if (!$existing) {
-                $db->table($tableName)->insert([
-                    'code' => $marker['code'],
-                    'char' => $marker['char'],
-                    'type' => $marker['type'],
-                    'category' => $marker['category'],
-                    'terminal' => $marker['terminal'],
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ]);
-                $created++;
-                continue;
-            }
-
-            // Re-align only when a canonical field drifted (never clobber otherwise).
-            $needsUpdate = (string) $existing->char !== (string) $marker['char']
-                || (string) $existing->type !== (string) $marker['type']
-                || (string) $existing->category !== (string) $marker['category']
-                || (bool) $existing->terminal !== (bool) $marker['terminal'];
-
-            if ($needsUpdate) {
-                $db->table($tableName)->where('code', $marker['code'])->update([
-                    'char' => $marker['char'],
-                    'type' => $marker['type'],
-                    'category' => $marker['category'],
-                    'terminal' => $marker['terminal'],
-                    'updated_at' => $now,
-                ]);
-                $updated++;
-            } else {
-                $unchanged++;
-            }
-        }
+        $counts = AppQyV1PunctuationMarkerModel::synchronizeMarkers(self::markers());
 
         return [
             'table' => $tableName,
-            'created' => $created,
-            'updated' => $updated,
-            'unchanged' => $unchanged,
+            'created' => $counts['created'],
+            'updated' => $counts['updated'],
+            'unchanged' => $counts['unchanged'],
         ];
     }
 
@@ -145,16 +103,7 @@ class PunctuationMarkerSeeder
     public static function getTableStats(): array
     {
         try {
-            $appKey = AppKeys::APPQYV1;
-            $connection = AppTablePrefixServiceProvider::getConnection($appKey);
-            $tableName = AppTablePrefixServiceProvider::buildTableName($appKey, 'punctuation_markers');
-            $db = \Illuminate\Support\Facades\DB::connection($connection);
-
-            return [
-                'markers' => Schema::connection($connection)->hasTable($tableName)
-                    ? $db->table($tableName)->count()
-                    : 0,
-            ];
+            return ['markers' => AppQyV1PunctuationMarkerModel::tableRowCount()];
         } catch (\Exception $e) {
             return ['error' => $e->getMessage()];
         }

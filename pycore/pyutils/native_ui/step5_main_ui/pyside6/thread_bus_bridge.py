@@ -193,6 +193,10 @@ class ThreadBusBridgeMixin(QObject):
         Handle close event from THREAD_BUS (may be called from any thread).
         Emits signal to execute in Qt main thread.
         """
+        self.request_quit()
+
+    def request_quit(self):
+        """Queue application shutdown on the Qt main thread."""
         self._thread_bus_close_signal.emit()
 
     def _on_thread_bus_minimize(self, event_data):

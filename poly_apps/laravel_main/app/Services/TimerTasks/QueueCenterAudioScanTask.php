@@ -15,7 +15,7 @@ use App\Services\QueueCenter\QueueCenterService;
 use App\Support\QueueCenterContract;
 
 /**
- * Queue Center Audio Scan (word_audio + sentence_audio feeder).
+ * Queue Center audio feeder for contract-owned persistent queues.
  *
  * Every 60s advances persistent ID-only page catalogs for the canonical word
  * and sentence tables. Already cataloged IDs are skipped by high-water cursor.
@@ -25,8 +25,8 @@ use App\Support\QueueCenterContract;
  *   - words:     mirrors the worker claim selection
  *                (AppQyV1DictionaryTTSCoordinator::pendingWordsQuery — pending,
  *                unleased, valid, retry budget left), capped per tick.
- *   - sentences: {prefix}_sentences_{lang} rows with has_audio=false, ordered
- *                by tts_priority, capped per tick.
+ *   - sentences: {prefix}_sentences_{lang} rows with has_audio=false, scanned
+ *                by stable ID; global_tasks.queue_position owns queue order.
  *
  * Cheap by construction: bounded ID pages, one full page in process memory,
  * indexed queue-capacity probes, and no repeated full-row scans.
@@ -43,13 +43,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
     private const LIBRARY_ARTICLES_PER_TICK = 50;
 
     private QueueCenterService $queueCenter;
-    private AppQyV1DictionaryTTSCoordinator $coordinator;
     private AppQyV1ArticleSentenceAudioService $articleAudioService;
     public function __construct()
     {
         parent::__construct();
         $this->queueCenter = app(QueueCenterService::class);
-        $this->coordinator = new AppQyV1DictionaryTTSCoordinator();
         $this->articleAudioService = new AppQyV1ArticleSentenceAudioService($this->queueCenter);
     }
 
@@ -107,14 +105,14 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
 
             try {
                 $model = AppQyV1LangDictionaryModel::forLanguage($lang)->getModel();
-                if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
+                if (!$model->diffIdTableExists()) {
                     continue;
                 }
                 $scope = QueueCenterService::QUEUE_WORD_AUDIO . ':' . $lang . ':' . $model->getTable();
                 if ($cataloged < self::WORDS_PER_TICK) {
                     $discovery = $this->diffIds->discover(
                         $scope,
-                        $model->newQuery(),
+                        $model,
                         self::WORDS_PER_TICK - $cataloged
                     );
                     $cataloged += (int) ($discovery['cataloged'] ?? 0);
@@ -132,10 +130,15 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                     $scope,
                     (int) ($page['page'] ?? 0),
                     $ids,
-                    fn (array $pageIds): array => $this->coordinator->pendingWordsQuery($lang)
-                        ->whereIn('id', $pageIds)
-                        ->get(['id', 'content', 'md5', 'tts_priority'])
-                        ->all()
+                    static fn (array $pageIds): array => AppQyV1LangDictionaryModel::pendingTtsRowsByIds(
+                        $lang,
+                        $pageIds,
+                        AppQyV1DictionaryTTSCoordinator::STATUS_PENDING,
+                        AppQyV1DictionaryTTSCoordinator::MAX_ATTEMPTS,
+                        AppQyV1DictionaryTTSCoordinator::LOCK_STALE_MINUTES,
+                        AppQyV1DictionaryTTSCoordinator::ASSIST_LEASE_MINUTES,
+                        AppQyV1DictionaryTTSCoordinator::ASSIST_WORKER_PREFIX
+                    )
                 );
             } catch (\Throwable $e) {
                 $this->logWarning('Word scan skipped language', [
@@ -163,16 +166,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                             'dict_row_id' => (int) $row->id,
                         ],
                         QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $lang, $md5),
-                        false,
                         [
                             'dict_row_id' => (int) $row->id,
                             'dict_language' => $lang,
                             'dict_row_table' => $model->getTable(),
                         ],
-                        // Background enqueue stays below the FAST tier so scan
-                        // rows never inflate pending_urgent; a genuine bump is
-                        // applied later by moveToHead.
-                        min((int) ($row->tts_priority ?? 0), GlobalTask::priority('fast') - 1),
                         300
                     );
                     if ($result['created']) {
@@ -217,14 +215,14 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
 
             try {
                 $model = LangSentence::for($lang);
-                if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
+                if (!$model->diffIdTableExists()) {
                     continue;
                 }
                 $scope = QueueCenterService::QUEUE_SENTENCE_AUDIO . ':' . $lang . ':' . $model->getTable();
                 if ($cataloged < self::SENTENCES_PER_TICK) {
                     $discovery = $this->diffIds->discover(
                         $scope,
-                        $model->newQuery(),
+                        $model,
                         self::SENTENCES_PER_TICK - $cataloged
                     );
                     $cataloged += (int) ($discovery['cataloged'] ?? 0);
@@ -242,13 +240,10 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                     $scope,
                     (int) ($page['page'] ?? 0),
                     $ids,
-                    static fn (array $pageIds): array => LangSentence::onLang($lang)
-                        ->whereIn('id', $pageIds)
-                        ->where('has_audio', false)
-                        ->orderByDesc('tts_priority')
-                        ->orderBy('id')
-                        ->get(['id', 'content_id', 'text', 'tts_priority'])
-                        ->all()
+                    static fn (array $pageIds): array => LangSentence::pendingAudioRowsByIds(
+                        $lang,
+                        $pageIds
+                    )
                 );
                 $excludedContentIds = AppQyV1SourceSentenceModel::contentIdsExclusiveToAgentHistory(
                     $lang,
@@ -280,9 +275,7 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
                             'content_id' => $contentId,
                         ],
                         QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_SENTENCE_AUDIO, $lang, $contentId),
-                        false,
                         [],
-                        min((int) ($row->tts_priority ?? 0), GlobalTask::priority('fast') - 1),
                         120
                     );
                     if ($result['created']) {
@@ -313,21 +306,9 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
         try {
             $page = $this->rowsForPendingPage(
                 $scope,
-                AppQyV1Article::query()->sentenceAudioQueueEligible(),
+                new AppQyV1Article(),
                 self::ARTICLES_PER_TICK,
-                static fn (array $ids): array => AppQyV1Article::query()
-                    ->whereIn('id', $ids)
-                    ->sentenceAudioQueueEligible()
-                    ->where('tts_generated', false)
-                    ->whereNotNull('content')
-                    ->where('content', '<>', '')
-                    ->where(function ($query): void {
-                        $query->whereNull('metadata->audio_status')
-                            ->orWhere('metadata->audio_status', 'failed');
-                    })
-                    ->orderBy('id')
-                    ->get()
-                    ->all()
+                static fn (array $ids): array => AppQyV1Article::sentenceAudioQueueRowsByIds($ids)
             );
         } catch (\Throwable $e) {
             $this->logWarning('Article scan skipped', ['error' => $e->getMessage()]);
@@ -372,22 +353,18 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
 
             try {
                 $model = AppQyV1ArticleLibraryModel::forLanguage($lang);
-                if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
+                if (!$model->diffIdTableExists()) {
                     continue;
                 }
                 $scope = 'library_article_sentence_audio:' . $lang . ':' . $model->getTable();
                 $page = $this->rowsForPendingPage(
                     $scope,
-                    $model->newQuery(),
+                    $model,
                     self::LIBRARY_ARTICLES_PER_TICK - $processed,
-                    static fn (array $ids): array => AppQyV1ArticleLibraryModel::forLanguage($lang)
-                        ->whereIn('id', $ids)
-                        ->where('has_audio', false)
-                        ->whereNull('tts_global_task_id')
-                        ->orderByDesc('tts_priority')
-                        ->orderBy('id')
-                        ->get()
-                        ->all()
+                    static fn (array $ids): array => AppQyV1ArticleLibraryModel::pendingSentenceAudioRowsByIds(
+                        $lang,
+                        $ids
+                    )
                 );
             } catch (\Throwable $e) {
                 $this->logWarning('Library article scan skipped language', [
@@ -425,13 +402,11 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
     private function hasQueueCapacity(string $taskType, int $target): bool
     {
         $target = max(1, $target);
-        $hasTargetBacklog = GlobalTask::query()
-            ->where('task_type', $taskType)
-            ->whereIn('status', QueueCenterContract::taskStatuses('live'))
-            ->orderBy('id')
-            ->offset($target - 1)
-            ->limit(1)
-            ->exists();
+        $hasTargetBacklog = GlobalTask::hasBacklogAtLeast(
+            $taskType,
+            QueueCenterContract::taskStatuses('live'),
+            $target
+        );
 
         return !$hasTargetBacklog;
     }

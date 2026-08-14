@@ -5,6 +5,7 @@ import {
   Cpu,
   Gauge,
   History,
+  TriangleAlert,
   X,
 } from 'lucide-react';
 import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
@@ -21,7 +22,7 @@ function formatLatency(value: unknown, tk: (key: string) => string): string {
 }
 
 function formatTimestamp(value: unknown): string {
-  const date = new Date(String(value || ''));
+  const date = typeof value === 'number' ? new Date(value) : new Date(String(value || ''));
   return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(value || '');
 }
 
@@ -33,7 +34,24 @@ function statusClass(status: string): string {
 }
 
 function taskKey(task: Record<string, any>): string {
+  if (task.id) return String(task.id);
   return [task.ts, task.source, task.model, task.runtime].map((value) => String(value || '')).join(':');
+}
+
+function failureLabel(code: unknown, tk: (key: string) => string): string {
+  const keys: Record<string, string> = {
+    local_rate_limit: 'failureLocalRateLimit',
+    dns: 'failureDns',
+    connect_timeout: 'failureConnectTimeout',
+    connection: 'failureConnection',
+    read_timeout: 'failureReadTimeout',
+    quota: 'failureQuota',
+    rate_limit: 'failureRateLimit',
+    authentication: 'failureAuthentication',
+    provider_unavailable: 'failureProviderUnavailable',
+    empty_response: 'failureEmptyResponse',
+  };
+  return tk(keys[String(code || '')] || 'failureUnknown');
 }
 
 const PcAgentHistoryAiPanel: React.FC<{
@@ -55,6 +73,7 @@ const PcAgentHistoryAiPanel: React.FC<{
   const minuteLimit = Math.max(0, Number(limits.rpm || 0));
   const quotaPercent = dayLimit > 0 ? Math.min(100, Math.round((dayUsed / dayLimit) * 100)) : 0;
   const quotaPaused = dayLimit > 0 && dayUsed >= dayLimit;
+  const cooldown = asRecord(rate.cooldown);
   const tasks = Array.isArray(dashboard.tasks) ? dashboard.tasks : [];
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedTaskKey, setSelectedTaskKey] = useState('');
@@ -67,6 +86,10 @@ const PcAgentHistoryAiPanel: React.FC<{
   const periodTotal = taskPeriod === 'today'
     ? Number(dashboard.today_task_total || 0)
     : Number(dashboard.task_total || 0);
+  const periodUsage = taskPeriod === 'today' ? todayUsage : historyUsage;
+  const periodFailures = Array.isArray(periodUsage.failure_breakdown)
+    ? periodUsage.failure_breakdown
+    : [];
   const selectedTask = visibleTasks.find((task) => taskKey(task) === selectedTaskKey) || null;
 
   const openTasks = (period: AgentHistoryTaskPeriod) => {
@@ -105,9 +128,26 @@ const PcAgentHistoryAiPanel: React.FC<{
             />
           </div>
           <div className="text-[10px] font-mono text-slate-400">
-            {tk('rpm')}: {minuteUsed}/{minuteLimit || 20}
+            {tk('rpm')}: {minuteUsed}/{minuteLimit || 20} · {tk('quotaCountedHint')}
           </div>
         </div>
+
+        {(cooldown.until || (Array.isArray(todayUsage.failure_breakdown) && todayUsage.failure_breakdown.length > 0)) && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-[11px] text-amber-700 dark:text-amber-200">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <TriangleAlert className="h-3.5 w-3.5" />
+              {cooldown.until ? tk('providerCooldown') : tk('failureDiagnosis')}
+            </div>
+            {cooldown.until && (
+              <p className="mt-1 font-mono">{String(cooldown.code || '')} · {formatTimestamp(Number(cooldown.until) * 1000)}</p>
+            )}
+            {Array.isArray(todayUsage.failure_breakdown) && todayUsage.failure_breakdown.slice(0, 2).map((failure: Record<string, any>) => (
+              <p key={String(failure.code)} className="mt-1">
+                {failureLabel(failure.code, tk)}: {Number(failure.count || 0)} · {tk('quotaCounted')}: {Number(failure.quota_counted || 0)}
+              </p>
+            ))}
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
@@ -125,7 +165,7 @@ const PcAgentHistoryAiPanel: React.FC<{
               {Number(todayUsage.requests || 0)} <span className="text-[11px] font-normal text-slate-500">{tk('requests')}</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">
-              {tk('tasks')}: {Number(dashboard.today_task_total || 0)} · {tk('succeeded')}: {Number(todayUsage.succeeded || 0)} · {tk('failed')}: {Number(todayUsage.failed || 0)} · {formatLatency(todayUsage.average_latency_ms, tk)}
+              {tk('requestAttempts')}: {Number(dashboard.today_task_total || 0)} · {tk('providerSucceeded')}: {Number(todayUsage.succeeded || 0)} · {tk('providerFailed')}: {Number(todayUsage.failed || 0)} · {tk('preDispatch')}: {Number(todayUsage.pre_dispatch_failures || 0)} · {formatLatency(todayUsage.average_latency_ms, tk)}
             </p>
           </button>
           <button
@@ -143,7 +183,7 @@ const PcAgentHistoryAiPanel: React.FC<{
               {Number(historyUsage.requests || 0)} <span className="text-[11px] font-normal text-slate-500">{tk('recordedRequests')}</span>
             </div>
             <p className="text-[10px] text-slate-500 mt-1">
-              {tk('tasks')}: {Number(dashboard.task_total || 0)} · {tk('succeeded')}: {Number(historyUsage.succeeded || 0)} · {tk('failed')}: {Number(historyUsage.failed || 0)} · {formatLatency(historyUsage.average_latency_ms, tk)}
+              {tk('requestAttempts')}: {Number(dashboard.task_total || 0)} · {tk('providerSucceeded')}: {Number(historyUsage.succeeded || 0)} · {tk('providerFailed')}: {Number(historyUsage.failed || 0)} · {tk('preDispatch')}: {Number(historyUsage.pre_dispatch_failures || 0)} · {formatLatency(historyUsage.average_latency_ms, tk)}
             </p>
           </button>
         </div>
@@ -154,7 +194,7 @@ const PcAgentHistoryAiPanel: React.FC<{
           <div className="w-full max-w-6xl max-h-[88vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
             <header className="flex items-center justify-between gap-3 border-b border-slate-200 dark:border-white/10 px-4 py-3">
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{tk('processingTasks')}</h3>
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">{tk('requestAttemptList')}</h3>
                 <p className="text-[11px] text-slate-500">{taskPeriod === 'today' ? tk('todayLoad') : tk('historyLoad')} · {tk('shown')}: {visibleTasks.length}/{periodTotal}</p>
               </div>
               <button type="button" onClick={() => setModalOpen(false)} aria-label={tk('close')} className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-white/10">
@@ -187,6 +227,19 @@ const PcAgentHistoryAiPanel: React.FC<{
               </aside>
 
               <main className="overflow-y-auto p-4">
+                {periodFailures.length > 0 && (
+                  <section className="mb-4 rounded-lg border border-rose-500/20 bg-rose-500/5 p-3">
+                    <h4 className="text-xs font-semibold text-rose-600 dark:text-rose-300">{tk('failureBreakdown')}</h4>
+                    <div className="mt-2 space-y-1.5 text-[11px]">
+                      {periodFailures.map((failure: Record<string, any>) => (
+                        <div key={String(failure.code)} className="flex flex-wrap justify-between gap-2">
+                          <span>{failureLabel(failure.code, tk)}</span>
+                          <span className="font-mono">{Number(failure.count || 0)} · {tk('providerReached')}: {Number(failure.provider_reached || 0)} · {tk('quotaCounted')}: {Number(failure.quota_counted || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                )}
                 {!selectedTask && <div className="flex h-full items-center justify-center text-xs text-slate-500">{tk('pickTask')}</div>}
                 {selectedTask && (
                   <div className="space-y-4">
@@ -204,6 +257,10 @@ const PcAgentHistoryAiPanel: React.FC<{
                         <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('model')}</span><span className="break-all font-mono">{String(selectedTask.model || dashboard.model || '')}</span></div>
                         <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('runtime')}</span>{String(selectedTask.runtime || '')}</div>
                         <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('requestSource')}</span><span className="break-all font-mono">{String(selectedTask.source || '')}</span></div>
+                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('failureCode')}</span><span className="break-all font-mono">{String(selectedTask.error_code || tk('noData'))}</span></div>
+                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('providerReached')}</span>{selectedTask.provider_reached ? tk('yes') : tk('no')}</div>
+                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('quotaCounted')}</span>{selectedTask.quota_counted ? tk('yes') : tk('no')}</div>
+                        <div className="rounded-lg border border-slate-200 dark:border-white/10 p-3"><span className="block text-[10px] text-slate-500">{tk('attemptContext')}</span><span className="break-all font-mono">{Object.keys(asRecord(selectedTask.context)).length > 0 ? JSON.stringify(selectedTask.context) : tk('noData')}</span></div>
                       </div>
                     </section>
                     {selectedTask.error && (

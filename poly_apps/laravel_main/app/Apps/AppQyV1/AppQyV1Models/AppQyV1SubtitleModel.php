@@ -14,8 +14,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaSourceQueries;
-use App\Utils\CountsPosterStatuses;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\QueriesPosterMedia;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -25,7 +25,7 @@ use App\Providers\AppTablePrefixServiceProvider;
  */
 class AppQyV1SubtitleModel extends Model
 {
-    use AppQyV1MediaSourceQueries, CountsPosterStatuses;
+    use AppQyV1MediaSourceQueries, QueriesPosterMedia;
 
     protected $appKey = AppKeys::APPQYV1;
     protected $table;

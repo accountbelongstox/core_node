@@ -7,8 +7,8 @@
  */
 import React from 'react';
 import { BookOpen, Trash2 } from 'lucide-react';
-import { ElementTheme, Word } from '../WfNewTypes';
-
+import type { ElementTheme } from '../WfNewThemes';
+import type { Word } from '../api/WfNewApiTypes';
 interface WfNewLabsTabProps {
   activeTheme: ElementTheme;
   trans: (key: string, replacements?: Record<string, string | number>) => string;

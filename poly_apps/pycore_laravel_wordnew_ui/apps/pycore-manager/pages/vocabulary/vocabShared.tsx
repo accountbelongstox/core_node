@@ -10,12 +10,12 @@ import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/Pycor
 
 /** The sub-tabs (mirrors the laravel-manager #/vocabulary page). */
 export const VOCAB_TABS = [
-  { key: 'translate', label: 'Translate' },           // 翻译
-  { key: 'words', label: 'Words' },                   // 单词
-  { key: 'libraries', label: 'Libraries' },           // 词库
-  { key: 'statistics', label: 'Statistics' },         // 统计
-  { key: 'tts-queue', label: 'TTS Queue' },           // TTS 队列
-  { key: 'learning', label: 'Learning Tasks' },       // 学习任务
+  { key: 'translate', labelKey: 'vocabularyPage.tabs.translate' },
+  { key: 'words', labelKey: 'vocabularyPage.tabs.words' },
+  { key: 'libraries', labelKey: 'vocabularyPage.tabs.libraries' },
+  { key: 'statistics', labelKey: 'vocabularyPage.tabs.statistics' },
+  { key: 'tts-queue', labelKey: 'vocabularyPage.tabs.ttsQueue' },
+  { key: 'learning', labelKey: 'vocabularyPage.tabs.learning' },
 ] as const;
 export type VocabTabKey = (typeof VOCAB_TABS)[number]['key'];
 export const VOCAB_TAB_KEY = StorageKeys.PYCORE_VOCAB_TAB;

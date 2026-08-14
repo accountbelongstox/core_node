@@ -21,7 +21,7 @@ import { motion } from 'framer-motion';
 import {
   ListTodo, Languages, RefreshCw, Activity, Send, ChevronLeft, ChevronRight,
 } from 'lucide-react';
-import { ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
 import { wfNewAdminApi } from '../../api';
 import type {
   WfNewAdminTtsQueueStats, WfNewAdminQueueItem, WfNewAdminTransTask,

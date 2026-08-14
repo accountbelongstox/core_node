@@ -28,7 +28,7 @@ class PddToolV1MembershipService
      */
     public static function resolvePackage(string $code): ?array
     {
-        $row = PddToolV1PackageModel::query()->where('code', $code)->first();
+        $row = PddToolV1PackageModel::findByCode($code);
         if ($row) {
             return [
                 'code' => (string) $row->code,
@@ -95,9 +95,9 @@ class PddToolV1MembershipService
             $profile->max_pdd_accounts = (int) $package['max_pdd_accounts'];
         }
 
-        $profile->save();
+        $profile->saveRecord();
 
-        return $profile->refresh();
+        return $profile->refreshRecord();
     }
 
     /**
@@ -106,7 +106,7 @@ class PddToolV1MembershipService
     public static function adjustPoints(PddToolV1ProfileModel $profile, float $delta): float
     {
         $profile->points = round((float) ($profile->points ?? 0) + $delta, 2);
-        $profile->save();
+        $profile->saveRecord();
         return (float) $profile->points;
     }
 }

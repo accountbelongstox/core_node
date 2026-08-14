@@ -8,18 +8,13 @@ export type LayoutMode = 'vertical' | 'horizontal';
 export enum ViewType {
   DASHBOARD = 'dashboard',
   MEDIA_BROWSER = 'media',
-  CODE_BROWSER = 'code',
   TOOLS = 'tools',
   API_TESTER = 'api',
   SETTINGS = 'settings',
   SYSTEM_INFO = 'system',
   VOCABULARY = 'vocabulary',
-  MCP_MANAGER = 'mcp',
   /** Unified Task Center (scheduler + queue + workers tabs). */
   TASK_CENTER = 'task_center',
-  /** Legacy deep-link values — both render TaskCenter on a specific tab. */
-  OCTANE_TASKS = 'octane',
-  GLOBAL_TASKS = 'global_tasks',
   SERVER_MANAGER = 'server',
   /** AI Management — laravel_main's unified AI gateway (provider grid, live
    *  rate/quota meters, gateway records, chat test). */
@@ -27,12 +22,7 @@ export enum ViewType {
   /** Word Audio — laravel_main real-pronunciation lookup (sources + fetch test). */
   WORD_AUDIO = 'word_audio',
   /** AI Dev History — extracted Claude/Codex/Gemini/Cursor prompts & sessions. */
-  /** Database Viewer was merged into DATABASE_MANAGER (Tables tab); the old
-   *  #/db-viewer slug deep-links there via the Laravel Manager router. */
   DATABASE_MANAGER = 'db_manager',
-  /** Movies & Books was merged into the Media hub (MEDIA_BROWSER); kept only as a
-   *  legacy deep-link alias (#/movies-books) — see the Laravel Manager router. */
-  MOVIES_BOOKS = 'movies_books'
 }
 
 export interface NavItem {

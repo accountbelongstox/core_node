@@ -14,6 +14,7 @@
  *   );
  */
 import { logger } from './logger';
+import { delay as waitForDelay } from './async';
 
 const LOG = 'sendWithWake';
 const WAKE_DELAY_MS = 400;
@@ -32,6 +33,6 @@ export async function sendWithWake<T = any>(
     LOG,
     `${providerLabel}: no response to 'start' (service worker likely cold) — retrying once`,
   );
-  await new Promise((r) => setTimeout(r, WAKE_DELAY_MS));
+  await waitForDelay(WAKE_DELAY_MS);
   return sendFn();
 }

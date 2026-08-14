@@ -1,7 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { logger } from '@/utils/logger';
+import { delay as waitForDelay } from '@/utils/async';
 import {
   WEB_SEARCH_LAST_VERIFIED,
   buildSearchUrl,
@@ -12,6 +13,7 @@ import {
   type WebSearchResult,
   type WebSearchStatus,
 } from '@/utils/web-search-core';
+import { waitForTabComplete } from '@/utils/tab-readiness';
 
 const LOG = 'Web Search Tool';
 const HELPER_SCRIPT = 'inject-scripts/web-search-helper.js';
@@ -76,7 +78,11 @@ class WebSearchTool extends BaseBrowserToolExecutor {
       }
       tabId = tab.id;
 
-      await this.waitForTabComplete(tabId);
+      await waitForTabComplete(tabId, {
+        timeoutMs: 20_000,
+        settleDelayMs: 500,
+        statusProbeDelayMs: 600,
+      });
       let status = await this.readPage(tabId, mode, maxResults);
       let finalStatus: WebSearchStatus = status.status;
 
@@ -110,14 +116,14 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         error: status.ok ? undefined : status.message,
       };
 
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+      return createJsonResponse(result, {
         isError: !result.ok && result.status !== 'verification_required',
-      };
+        space: 2,
+      });
     } catch (error) {
       logger.error(LOG, 'Search failed', error);
       return createErrorResponse(
-        `Web search failed: ${error instanceof Error ? error.message : String(error)}`,
+        `Web search failed: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -136,7 +142,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
     url?: string;
   }> {
     await this.injectContentScript(tabId, [HELPER_SCRIPT]);
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForDelay(300);
     const resp = await chrome.tabs.sendMessage(tabId, {
       action: 'webSearchExtract',
       mode: mode === 'news' ? 'web' : mode,
@@ -175,7 +181,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         const payload = await this.readPage(tabId, mode, maxResults);
         return { finalStatus: payload.status, payload };
       }
-      await new Promise((r) => setTimeout(r, 2000));
+      await waitForDelay(2000);
     }
     const payload = await this.readPage(tabId, mode, maxResults);
     return {
@@ -189,32 +195,6 @@ class WebSearchTool extends BaseBrowserToolExecutor {
     };
   }
 
-  private waitForTabComplete(tabId: number, timeoutMs = 20_000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // ignore
-        }
-        clearTimeout(timer);
-        setTimeout(resolve, 500);
-      };
-      const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
-        if (updatedTabId === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then((tab) => {
-          if (tab.status === 'complete') finish();
-        }, finish);
-      }, 600);
-    });
-  }
 }
 
 export const webSearchTool = new WebSearchTool();

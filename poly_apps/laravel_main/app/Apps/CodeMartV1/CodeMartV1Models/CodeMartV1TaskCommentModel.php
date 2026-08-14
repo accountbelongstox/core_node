@@ -2,7 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1TaskCommentModel extends Model
@@ -29,5 +30,10 @@ class CodeMartV1TaskCommentModel extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1UserModel::class, 'user_id');
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
     }
 }

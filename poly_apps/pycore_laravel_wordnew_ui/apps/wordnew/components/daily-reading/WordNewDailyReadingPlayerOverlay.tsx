@@ -1,19 +1,28 @@
-import React, { useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Home, Pause, Play, Plus, SkipBack, SkipForward, Trash2, X } from 'lucide-react';
-import type { DailyReadingPlaybackStep, DailyReadingPlayer } from './useDailyReadingPlayer';
+import React from 'react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Home, LoaderCircle, Pause, Play, Plus, SkipBack, SkipForward, Square, Trash2 } from 'lucide-react';
+import type { DailyReadingPlayer } from './useDailyReadingPlayer';
+import {
+  createDailyReadingStepId,
+  DAILY_READING_PLAYBACK_LIMITS,
+  type DailyReadingPlaybackStep,
+} from './DailyReadingPlaybackModel';
 import { WordNewDailyReadingWordGroupsPanel } from './WordNewDailyReadingWordGroupsPanel';
 import { WordNewDailyReadingPlaybackWordsPanel } from './WordNewDailyReadingPlaybackWordsPanel';
-import { wordNewArticlePlaybackHighlighter } from '../../services/WordNewArticlePlaybackHighlighter';
+import { WordNewDailyReadingArticleView } from './WordNewDailyReadingArticleView';
+import { WordNewDailyReadingRateInput } from './WordNewDailyReadingRateInput';
+import { WordNewDailyReadingEnglishResourceBar } from './WordNewDailyReadingEnglishResourceBar';
+import { countSentenceWordsAddedToTargetGroup } from '../../services/WordNewSentenceWordTable';
+import { useAutoCollapseWhilePlaying } from '../../hooks/useAutoCollapseWhilePlaying';
 
 interface Props {
   player: DailyReadingPlayer;
   trans: (k: string, r?: Record<string, string | number>) => string;
-  /** Navigate back to the wordnew home tab (closes the player first). */
+  /** Stop playback and navigate back to the wordnew home tab. */
   onGoHome?: () => void;
 }
 
 function fmtTime(sec: number): string {
-  if (!isFinite(sec) || sec <= 0) return '0:00';
+  if (!Number.isFinite(sec) || sec <= 0) return '0:00';
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
@@ -21,56 +30,19 @@ function fmtTime(sec: number): string {
 
 export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, trans, onGoHome }) => {
   const { open, playing, list, index, current, currentTime, duration } = player;
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
-  const englishSegments = useMemo(
-    () => wordNewArticlePlaybackHighlighter.segment(current?.article_en ?? ''),
-    [current?.article_en],
-  );
-  const chineseSegments = useMemo(
-    () => wordNewArticlePlaybackHighlighter.segment(current?.reference_cn ?? ''),
-    [current?.reference_cn],
-  );
+  const {
+    collapsed: panelCollapsed,
+    toggle: togglePanel,
+    noteInteraction: notePanelInteraction,
+  } = useAutoCollapseWhilePlaying(playing);
   if (!open || !current) return null;
-  const pct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
-  const dateLabel = current.reading_date ?? current.created_at ?? '';
-  const activeSentenceIndex = player.underlineCurrentSentence && player.activeStepType === 'sentence'
-    ? wordNewArticlePlaybackHighlighter.currentIndex(
-      player.activeSentenceLanguage === 'cn' ? chineseSegments : englishSegments,
-      currentTime,
-      duration,
-    )
-    : -1;
-  const renderSegments = (
-    segments: typeof englishSegments,
-    language: 'en' | 'cn',
-  ): React.ReactNode => segments.map((segment, sentenceIndex) => (
-    <span
-      key={`${language}-${sentenceIndex}`}
-      className={player.activeSentenceLanguage === language && sentenceIndex === activeSentenceIndex
-        ? 'underline decoration-indigo-300/50 decoration-1 underline-offset-4'
-        : undefined}
-    >
-      {segment.text}
-    </span>
-  ));
-
+  const pct = Number.isFinite(duration) && duration > 0
+    ? Math.min(100, (currentTime / duration) * 100)
+    : 0;
   return (
-    <div className="min-h-[calc(100vh-8rem)] bg-slate-950/70 rounded-3xl border border-white/5 flex flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 pt-10 pb-72">
-        <article className="max-w-2xl mx-auto space-y-5">
-          <header className="space-y-1.5">
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-zinc-50 leading-snug">
-              {current.title_en}
-            </h2>
-            {current.title_cn && (
-              <p className="text-sm text-zinc-400">{current.title_cn}</p>
-            )}
-            {dateLabel && (
-              <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600">
-                {new Date(dateLabel).toLocaleString()}
-              </p>
-            )}
-          </header>
+    <div className="flex h-[100dvh] flex-col overflow-hidden rounded-3xl border border-white/5 bg-slate-950/70">
+      <div className="flex-1 overflow-y-auto px-3 pb-24 pt-2 sm:px-6">
+        <article className="mx-auto min-w-0 max-w-2xl space-y-2">
           {player.activeStepType === 'words' && (
             <div className="sticky top-4 z-10">
               <WordNewDailyReadingPlaybackWordsPanel
@@ -82,24 +54,46 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
             </div>
           )}
           {current.article_en && (
-            <p className="text-base text-zinc-200 leading-relaxed whitespace-pre-wrap">
-              {renderSegments(englishSegments, 'en')}
-            </p>
-          )}
-          {current.reference_cn && (
-            <p className="text-sm text-zinc-500 leading-relaxed whitespace-pre-wrap border-t border-white/5 pt-4">
-              {renderSegments(chineseSegments, 'cn')}
-            </p>
+            <WordNewDailyReadingArticleView
+              articleId={current.id}
+              articleEn={current.article_en}
+              referenceCn={current.reference_cn}
+              articleWords={player.articleWords}
+              resourceStatus={player.resourceStatus}
+              currentTime={currentTime}
+              duration={duration}
+              activeStepType={player.activeStepType}
+              activeSentenceLanguage={player.activeSentenceLanguage}
+              bilingual={player.bilingual}
+              underline={player.underlineCurrentSentence}
+              hideEnglishResourceBar={panelCollapsed}
+              trans={trans}
+            />
           )}
           <WordNewDailyReadingWordGroupsPanel
             trans={trans}
             refreshToken={player.wordProgressVersion}
+            sessionReads={player.sessionReadTotal}
+            sessionNewWords={countSentenceWordsAddedToTargetGroup(player.articleWords)}
           />
         </article>
       </div>
 
       <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[160] w-[94%] max-w-lg">
-        <div className="rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl shadow-indigo-950/40 p-2.5 space-y-2 max-h-[62vh] overflow-y-auto">
+        <div
+          className="rounded-2xl border border-white/10 bg-slate-900/90 backdrop-blur-xl shadow-2xl shadow-indigo-950/40 p-2.5 space-y-2 max-h-[62vh] overflow-y-auto"
+          onPointerDownCapture={notePanelInteraction}
+          onKeyDownCapture={notePanelInteraction}
+        >
+          {panelCollapsed && (
+            <WordNewDailyReadingEnglishResourceBar
+              sentence={current.article_en ?? ''}
+              words={player.articleWords}
+              status={player.resourceStatus}
+              trans={trans}
+            />
+          )}
+
           {!panelCollapsed && player.activeStepType !== 'words' && (
             <div className="space-y-1">
               <div className="w-full bg-white/10 rounded-full h-1.5 overflow-hidden">
@@ -129,10 +123,19 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               <button
                 type="button"
                 onClick={player.toggle}
-                className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 transition-transform"
-                title={trans(playing ? 'home.dailyReading.pause' : 'home.dailyReading.play')}
+                disabled={player.transportState === 'loading'}
+                className="p-2.5 rounded-xl bg-gradient-to-tr from-indigo-500 to-fuchsia-500 text-white shadow-lg shadow-indigo-500/30 hover:scale-105 active:scale-95 disabled:cursor-wait disabled:opacity-60 disabled:hover:scale-100 transition-transform"
+                title={trans(player.transportState === 'loading'
+                  ? 'home.dailyReading.preparing'
+                  : playing
+                    ? 'home.dailyReading.pause'
+                    : player.paused
+                      ? 'home.dailyReading.resume'
+                      : 'home.dailyReading.play')}
               >
-                {playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+                {player.transportState === 'loading'
+                  ? <LoaderCircle className="w-5 h-5 animate-spin" />
+                  : playing ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
               </button>
               <button
                 type="button"
@@ -150,7 +153,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               </span>
               <button
                 type="button"
-                onClick={() => setPanelCollapsed((collapsed) => !collapsed)}
+                onClick={togglePanel}
                 className="p-2 rounded-xl border border-white/10 text-zinc-500 hover:text-indigo-300 transition-colors"
                 title={trans(panelCollapsed
                   ? 'home.dailyReading.expandPlayer'
@@ -163,7 +166,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               {onGoHome && (
                 <button
                   type="button"
-                  onClick={() => { player.close(); onGoHome(); }}
+                  onClick={() => { player.stop(); onGoHome(); }}
                   className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 transition-colors"
                   title={trans('home.dailyReading.backHome')}
                 >
@@ -172,29 +175,29 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
               )}
               <button
                 type="button"
-                onClick={player.close}
+                onClick={player.stop}
                 className="p-2 rounded-xl border border-white/10 text-zinc-400 hover:text-rose-300 hover:border-rose-500/30 transition-colors"
-                title={trans('home.dailyReading.close')}
+                title={trans('home.dailyReading.stop')}
               >
-                <X className="w-4 h-4" />
+                <Square className="w-4 h-4" />
               </button>
             </div>
           </div>
           {!panelCollapsed && (<>
-          <label className="flex items-center justify-between gap-3 text-[11px] text-zinc-500">
-            <span>{trans('home.dailyReading.playbackOrder')}</span>
-            <select
-              value={player.playbackMode}
-              onChange={(event) => player.updateSettings({ playbackMode: event.target.value as typeof player.playbackMode })}
-              className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
-            >
-              <option value="sequential">{trans('home.dailyReading.sequential')}</option>
-              <option value="repeat-all">{trans('home.dailyReading.repeatAll')}</option>
-              <option value="repeat-one">{trans('home.dailyReading.repeatOne')}</option>
-              <option value="shuffle">{trans('home.dailyReading.shuffle')}</option>
-            </select>
-          </label>
-          <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-500 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2 text-[11px] text-zinc-500">
+            <label className="flex items-center justify-between gap-2">
+              <span>{trans('home.dailyReading.playbackOrder')}</span>
+              <select
+                value={player.playbackMode}
+                onChange={(event) => player.updateSettings({ playbackMode: event.target.value as typeof player.playbackMode })}
+                className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
+              >
+                <option value="sequential">{trans('home.dailyReading.sequential')}</option>
+                <option value="repeat-all">{trans('home.dailyReading.repeatAll')}</option>
+                <option value="repeat-one">{trans('home.dailyReading.repeatOne')}</option>
+                <option value="shuffle">{trans('home.dailyReading.shuffle')}</option>
+              </select>
+            </label>
             <label className="flex items-center justify-between gap-2">
               <span>{trans('home.dailyReading.underlineCurrentSentence')}</span>
               <input
@@ -203,6 +206,32 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                 onChange={(event) => player.updateSettings({ underlineCurrentSentence: event.target.checked })}
                 aria-label={trans('home.dailyReading.underlineCurrentSentence')}
                 className="accent-indigo-500"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-2">
+              <span>{trans('home.dailyReading.bilingual')}</span>
+              <input
+                type="checkbox"
+                checked={player.bilingual}
+                onChange={(event) => player.updateSettings({ bilingual: event.target.checked })}
+                aria-label={trans('home.dailyReading.bilingual')}
+                className="accent-indigo-500"
+              />
+            </label>
+            <label className="flex items-center justify-between gap-2">
+              <span>{trans('home.dailyReading.sentenceSpeed')}</span>
+              <WordNewDailyReadingRateInput
+                value={player.sentenceRate}
+                onChange={(rate) => player.updateSettings({ sentenceRate: rate })}
+                ariaLabel={trans('home.dailyReading.sentenceSpeed')}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-2">
+              <span>{trans('home.dailyReading.wordSpeed')}</span>
+              <WordNewDailyReadingRateInput
+                value={player.wordRate}
+                onChange={(rate) => player.updateSettings({ wordRate: rate })}
+                ariaLabel={trans('home.dailyReading.wordSpeed')}
               />
             </label>
             <label className="flex items-center justify-between gap-2">
@@ -236,7 +265,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                 <input
                   type="number"
                   min={0}
-                  max={100}
+                  max={DAILY_READING_PLAYBACK_LIMITS.maxNewReadCount}
                   value={player.newOnlyMaxReadCount}
                   onChange={(event) => player.updateSettings({ newOnlyMaxReadCount: Number(event.target.value) })}
                   aria-label={trans('home.dailyReading.newOnlyMaxReadCount')}
@@ -254,10 +283,10 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                   onClick={() => player.updateSettings({
                     playbackPattern: [
                       ...player.playbackPattern,
-                      { type: 'sentence', lang: 'en', times: 1 },
+                      { id: createDailyReadingStepId(), type: 'sentence', lang: 'en', times: 1 },
                     ],
                   })}
-                  disabled={player.playbackPattern.length >= 12}
+                  disabled={player.playbackPattern.length >= DAILY_READING_PLAYBACK_LIMITS.maxSteps}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 transition-colors"
                   title={trans('home.dailyReading.addSentenceStep')}
                 >
@@ -266,9 +295,12 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                 <button
                   type="button"
                   onClick={() => player.updateSettings({
-                    playbackPattern: [...player.playbackPattern, { type: 'words', times: 1 }],
+                    playbackPattern: [
+                      ...player.playbackPattern,
+                      { id: createDailyReadingStepId(), type: 'words', times: 1 },
+                    ],
                   })}
-                  disabled={player.playbackPattern.length >= 12}
+                  disabled={player.playbackPattern.length >= DAILY_READING_PLAYBACK_LIMITS.maxSteps}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border border-white/10 text-zinc-400 hover:text-indigo-300 hover:border-indigo-500/30 disabled:opacity-30 transition-colors"
                   title={trans('home.dailyReading.addWordsStep')}
                 >
@@ -291,12 +323,18 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                 player.updateSettings({ playbackPattern: nextPattern });
               };
               return (
-                <div key={stepIndex} className="flex items-center gap-1.5">
+                <div
+                  key={step.id}
+                  aria-current={player.activeStepId === step.id ? 'step' : undefined}
+                  className={`flex items-center gap-1.5 rounded-md px-1 py-0.5 ${
+                    player.activeStepId === step.id ? 'bg-indigo-500/10 ring-1 ring-indigo-500/20' : ''
+                  }`}
+                >
                   <select
                     value={step.type}
                     onChange={(event) => replaceStep(event.target.value === 'words'
-                      ? { type: 'words', times: step.times }
-                      : { type: 'sentence', lang: 'en', times: step.times })}
+                      ? { id: step.id, type: 'words', times: step.times }
+                      : { id: step.id, type: 'sentence', lang: 'en', times: step.times })}
                     className="rounded-lg border border-white/10 bg-slate-950 px-2 py-1 text-zinc-300"
                   >
                     <option value="sentence">{trans('home.dailyReading.sentenceStep')}</option>
@@ -319,7 +357,7 @@ export const WordNewDailyReadingPlayerOverlay: React.FC<Props> = ({ player, tran
                   <input
                     type="number"
                     min={1}
-                    max={10}
+                    max={DAILY_READING_PLAYBACK_LIMITS.maxStepRepeats}
                     value={step.times}
                     onChange={(event) => replaceStep({
                       ...step,

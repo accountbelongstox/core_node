@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { handleDialogFirefox } from './dialog-firefox';
@@ -68,18 +68,10 @@ class HandleDialogTool extends BaseBrowserToolExecutor {
         }
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ success: true, action, promptText: promptText || null }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({ success: true, action, promptText: promptText || null });
     } catch (error) {
       return createErrorResponse(
-        `Failed to handle dialog: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to handle dialog: ${toErrorMessage(error)}`,
       );
     }
   }

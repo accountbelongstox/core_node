@@ -12,7 +12,7 @@ import { useShell } from '../../shell/ShellContext';
 import { requestAuthLogin } from '../../core/auth/AuthRequestCenter';
 // Single data gateway — mock vs real backend is decided ONLY by ./api/index.ts
 // (swap one import line there). All data shapes come from the same TYPE surface.
-import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT, startSocialSse, stopSocialSse, subscribeSocial } from './api';
+import { wfNewApi, wfNewAdminApi, wfNewEndpoints, wfNewEndpointStore, WORDNEW_API_HEALTH_EVENT } from './api';
 import type { Word, WordGroup, BentoGroup, WfNewContentGroup, WfNewContentKind, WfNewHomeContent, WfNewStatistics, WfNewLanguage, WfNewSuperAdminStatus } from './api';
 // Unified local cache (CapDatabase: native SQLite / web IndexedDB). Lets the home
 // hub paint INSTANTLY from cache, then refresh from the API, and lets a re-opened
@@ -29,7 +29,8 @@ import { wfNewSettings } from './WfNewSettingsStore';
 import { WfNewHomeContent as WfNewHomeContentWidget } from './components/WfNewHomeContent';
 
 // Modular Imports
-import { UserStats, ElementTheme } from './WfNewTypes';
+import type { ElementTheme } from './WfNewThemes';
+import type { UserStats } from './api/WfNewApiTypes';
 import { translate, getSupportedLanguages } from './WfNewLocales';
 import { CUSTOM_THEMES } from './WfNewThemes';
 import { WfNewSearchOverlay } from './components/WfNewSearchOverlay';
@@ -69,14 +70,20 @@ import { WfNewHomeDashboard } from './components/WfNewHomeDashboard';
 import { WfNewOnboarding } from './pages/WfNewOnboarding';
 import { WfNewNavLogo } from './components/WfNewNavLogo';
 import { WfNewNotificationBell } from './components/WfNewNotificationBell';
-import { WordNewQueueStatusBar } from './components/WordNewQueueStatusBar';
 import { WordNewDailyReadingSection } from './components/daily-reading/WordNewDailyReadingSection';
+import { useWordNewQueueRuntimeLifecycle } from './services/WordNewQueueRuntime';
 import { setAudioCachePaused } from './runtime-store/WfNewAudioCache';
 
 import { useWfNewAppState, type WordNewTab } from './hooks/useWfNewAppState';
 
 export const WfNewApp: React.FC = () => {
   const { lang: shellLang, setLang: setShellLang, dark, toggleDark } = useShell();
+  const [dailyReadingPlayerOpen, setDailyReadingPlayerOpen] = useState(false);
+  const handleDailyReadingPlaybackState = useCallback(
+    ({ open }: { open: boolean; playing: boolean }) => setDailyReadingPlayerOpen(open),
+    [],
+  );
+  useWordNewQueueRuntimeLifecycle();
 
   const {
     activeThemeId,
@@ -236,26 +243,27 @@ export const WfNewApp: React.FC = () => {
       <WfNewOrbs disableBgBreathing={disableBgBreathing} dark={dark} />
 
       {/* Header section with glass background */}
-      <WfNewHeader
-        activeTheme={activeTheme}
-        trans={trans}
-        navStack={navStack}
-        goBack={goBack}
-        goHome={goHome}
-        pageHeader={pageHeader}
-        setIsSearchOverlayOpen={setIsSearchOverlayOpen}
-        setActiveTab={setActiveTab}
-        activeTab={activeTab}
-        currentUser={currentUser}
-        superAdmin={superAdmin}
-        nickname={nickname}
-        avatarUrl={avatarUrl}
-        addToast={addToast}
-      />
-      <WordNewQueueStatusBar trans={trans} />
+      {!dailyReadingPlayerOpen && (
+        <WfNewHeader
+          activeTheme={activeTheme}
+          trans={trans}
+          navStack={navStack}
+          goBack={goBack}
+          goHome={goHome}
+          pageHeader={pageHeader}
+          setIsSearchOverlayOpen={setIsSearchOverlayOpen}
+          setActiveTab={setActiveTab}
+          activeTab={activeTab}
+          currentUser={currentUser}
+          superAdmin={superAdmin}
+          nickname={nickname}
+          avatarUrl={avatarUrl}
+          addToast={addToast}
+        />
+      )}
 
       {/* Main scrolling wrapper */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 pb-32">
+      <main className={`mx-auto max-w-7xl ${dailyReadingPlayerOpen ? 'px-0 py-0 pb-0' : 'px-4 py-8 pb-32 sm:px-8'}`}>
         <AnimatePresence mode="wait">
           
           {/* ====== HOME CONTROL CENTER ====== */}
@@ -624,6 +632,7 @@ export const WfNewApp: React.FC = () => {
                 trans={trans}
                 routeMode
                 onGoHome={goHome}
+                onPlaybackStateChange={handleDailyReadingPlaybackState}
                 onOpenBook={(sourceKey, title) => openHomeGroup({
                   id: sourceKey,
                   kind: 'book',
@@ -789,21 +798,23 @@ export const WfNewApp: React.FC = () => {
         trans={trans}
       />
 
-      {/* Floating Bottom Navigator dock */}
-      <WfNewBottomDock
-        activeTab={activeTab}
-        setActiveTab={(tab) => {
-          // Dock Home is a direct "go home" (clears history); other dock tabs are
-          // forward navigations that push onto the stack.
-          if (tab === 'home') goHome();
-          else setActiveTab(tab as WordNewTab);
-          setSelectedCourse(null);
-          setPracticeMode(null);
-        }}
-        trans={trans}
-        activeTheme={activeTheme}
-        dark={dark}
-      />
+      {/* Floating Bottom Navigator dock (hidden on the daily-reading page) */}
+      {activeTab !== 'daily-reading' && (
+        <WfNewBottomDock
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            // Dock Home is a direct "go home" (clears history); other dock tabs are
+            // forward navigations that push onto the stack.
+            if (tab === 'home') goHome();
+            else setActiveTab(tab as WordNewTab);
+            setSelectedCourse(null);
+            setPracticeMode(null);
+          }}
+          trans={trans}
+          activeTheme={activeTheme}
+          dark={dark}
+        />
+      )}
 
       {/* Dynamic 3-Step Startup Onboarding Wizard */}
       <AnimatePresence>

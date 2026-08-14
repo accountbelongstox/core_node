@@ -35,7 +35,7 @@ class AppQyV1AuthenticationUserLoginController
      */
     public static function loginByUserToken($userAuthToken)
     {
-        $user = User::where('user_token', $userAuthToken)->first();
+        $user = User::findByUserToken($userAuthToken);
         if ($user) {
             Auth::login($user);
             return $user;
@@ -45,7 +45,7 @@ class AppQyV1AuthenticationUserLoginController
 
     public static function loginByUsernamePassword($username, $password)
     {
-        $user = User::where('username', $username)->first();
+        $user = User::findByUsername($username);
         if ($user) {
             if (Hash::check($password, $user->password)) {
                 Auth::login($user);
@@ -57,4 +57,3 @@ class AppQyV1AuthenticationUserLoginController
 
 
 }
-

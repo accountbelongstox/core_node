@@ -9,6 +9,8 @@ import {
   type DeepSeekTask,
   type DeepSeekTaskResult,
 } from '@/utils/deepseek-task-queue';
+import { AsyncOperationController } from '@/utils/async';
+import { toErrorMessage } from '@/utils/errors';
 
 /**
  * DeepSeek UI selectors
@@ -66,24 +68,14 @@ export class DeepSeekPollingService {
   private overflowQueue: string[] = [];
   private taskQueueManager = getTaskQueueManager();
   private initialized = false;
-  // Guard against concurrent initialize() calls: the first caller creates a
-  // promise that subsequent callers await, so they all see the same result
-  // instead of racing through the async body and double-starting polling.
-  private initPromise: Promise<void> | null = null;
+  private readonly initialization = new AsyncOperationController<void>();
 
   /**
    * Initialize the polling service
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
-    if (this.initPromise) return this.initPromise;
-
-    this.initPromise = this._doInitialize();
-    try {
-      await this.initPromise;
-    } finally {
-      this.initPromise = null;
-    }
+    return this.initialization.run(() => this._doInitialize());
   }
 
   private async _doInitialize(): Promise<void> {
@@ -280,7 +272,7 @@ export class DeepSeekPollingService {
       state.lastCheck = Date.now();
     } catch (error) {
       console.error(`Error polling task ${taskId}:`, error);
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = toErrorMessage(error);
       // Tab-gone errors are permanent: fail immediately instead of burning
       // every remaining retry on a tab that will never come back.
       if (/no such tab|tab.*closed|cannot.*tab|invalid tab/i.test(msg)) {
@@ -394,7 +386,7 @@ export class DeepSeekPollingService {
         isCompleted: false,
         isGenerating: false,
         isError: true,
-        error: error instanceof Error ? error.message : String(error),
+        error: toErrorMessage(error),
       };
     }
   }

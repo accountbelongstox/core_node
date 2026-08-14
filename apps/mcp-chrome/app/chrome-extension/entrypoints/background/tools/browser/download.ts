@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 
@@ -21,10 +21,7 @@ class HandleDownloadTool extends BaseBrowserToolExecutor {
 
     try {
       const result = await waitForDownload({ filenameContains, waitForComplete, timeoutMs });
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ success: true, download: result }) }],
-        isError: false,
-      };
+      return createJsonResponse({ success: true, download: result });
     } catch (e: any) {
       return createErrorResponse(`Handle download failed: ${e?.message || String(e)}`);
     }

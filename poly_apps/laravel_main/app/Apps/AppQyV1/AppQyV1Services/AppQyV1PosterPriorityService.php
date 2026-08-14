@@ -42,6 +42,6 @@ class AppQyV1PosterPriorityService
             $updates['poster_mcp_submitted_at'] = null;
         }
 
-        return $modelClass::query()->whereIn('id', $uniqueIds)->update($updates);
+        return $modelClass::updatePosterPriorityByIds($uniqueIds, $updates);
     }
 }

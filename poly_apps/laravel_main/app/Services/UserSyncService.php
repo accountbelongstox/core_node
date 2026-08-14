@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Models\User;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Support\Facades\DB;
+use App\Utils\SystemArchiveManager;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Schema\Blueprint;
@@ -33,14 +33,14 @@ class UserSyncService
         // Canonical-identity model: the user exists ONCE in the main `users`
         // table. There is no fan-out write to per-sub-app `users` tables
         // (that duplication is removed). Kept for backward compatibility.
-        DB::beginTransaction();
+        User::beginModelTransaction();
 
         try {
-            $mainUser = User::create($userData);
+            $mainUser = User::createRecord($userData);
             $results['main'] = true;
             $results['main_user_id'] = $mainUser->id;
 
-            DB::commit();
+            User::commitModelTransaction();
 
             return [
                 'success' => true,
@@ -49,7 +49,7 @@ class UserSyncService
             ];
 
         } catch (\Exception $e) {
-            DB::rollBack();
+            User::rollBackModelTransaction();
             
             Log::error('[UserSync] Failed to create main user: ' . $e->getMessage());
             
@@ -1100,7 +1100,7 @@ class UserSyncService
         // binary is missing we must FAIL LOUDLY here -- previously this fell
         // through to a hardcoded `7z` exec that silently failed, dropping every
         // translation and leaving the dictionary at has_translation=0.
-        $sevenZipBin = self::resolve7zBinary();
+        $sevenZipBin = SystemArchiveManager::executable();
         if ($sevenZipBin === null) {
             $msg = '7z binary not found (p7zip). Dictionary translations cannot be extracted. '
                 . 'Install it: Debian/Ubuntu/WSL -> sudo apt-get install -y p7zip-full '
@@ -1180,13 +1180,8 @@ class UserSyncService
                     mkdir($extractDir, 0755, true);
                 }
 
-                $extractCmd = escapeshellarg($sevenZipBin)
-                    . ' x ' . escapeshellarg($combinedFile)
-                    . ' -o' . escapeshellarg($extractDir)
-                    . ' -y 2>&1';
-                exec($extractCmd, $extractOutput, $extractCode);
-
-                if ($extractCode === 0) {
+                try {
+                    SystemArchiveManager::extract7z($combinedFile, $extractDir);
                     $results['extracted'] = 1;
                     $results['extract_dir'] = $extractDir;
 
@@ -1194,8 +1189,8 @@ class UserSyncService
                         $results['json_file'] = $jsonFile;
                         $results['json_size'] = filesize($jsonFile);
                     }
-                } else {
-                    $results['errors'][] = "Failed to extract: " . implode("\n", $extractOutput);
+                } catch (\Throwable $exception) {
+                    $results['errors'][] = 'Failed to extract: ' . $exception->getMessage();
                 }
             } else {
                 $results['errors'][] = "Failed to combine parts into {$combinedFile}";
@@ -1203,31 +1198,6 @@ class UserSyncService
         }
 
         return $results;
-    }
-
-    /**
-     * Resolve a 7z-compatible extractor binary (p7zip provides 7z / 7za / 7zr).
-     * Returns the absolute path, or null when none is installed.
-     */
-    private static function resolve7zBinary(): ?string
-    {
-        foreach (['7z', '7za', '7zr'] as $candidate) {
-            $resolved = trim((string) @shell_exec('command -v ' . escapeshellarg($candidate) . ' 2>/dev/null'));
-            if ($resolved !== '' && @is_executable($resolved)) {
-                return $resolved;
-            }
-        }
-
-        // Windows fallback: locate 7z.exe via `where`.
-        $where = trim((string) @shell_exec('where 7z 2>NUL'));
-        if ($where !== '') {
-            $first = strtok($where, "\r\n");
-            if ($first !== false && @is_executable($first)) {
-                return $first;
-            }
-        }
-
-        return null;
     }
 
     private static function importDictionaryWords(): array

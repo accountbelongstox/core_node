@@ -38,10 +38,7 @@ class DingDuoDuoV1LicenseService
 
         // 1) Super code stored in the DB (active + not expired). Case-insensitive
         //    match so a lowercase-presented code still resolves.
-        $superCode = DingDuoDuoV1SuperCodeModel::query()
-            ->whereRaw('UPPER(code) = ?', [strtoupper($token)])
-            ->where('status', DingDuoDuoV1SuperCodeModel::STATUS_ACTIVE)
-            ->first();
+        $superCode = DingDuoDuoV1SuperCodeModel::findActiveCode($token);
 
         if ($superCode && !self::isExpired($superCode->expires_at)) {
             return [
@@ -70,10 +67,7 @@ class DingDuoDuoV1LicenseService
         }
 
         // 3) Member token (active + not expired).
-        $member = DingDuoDuoV1MemberModel::query()
-            ->where('token', $token)
-            ->where('status', 'active')
-            ->first();
+        $member = DingDuoDuoV1MemberModel::activeByToken($token);
 
         if ($member && !self::isExpired($member->expires_at)) {
             $features = is_array($member->permissions) ? array_values($member->permissions) : [];

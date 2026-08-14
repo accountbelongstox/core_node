@@ -1,14 +1,12 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { delay as waitForDelay } from '@/utils/async';
 import {
-  AD_ANALYTICS_DOMAINS,
-  STATIC_RESOURCE_EXTENSIONS,
   STATIC_MIME_TYPES_TO_FILTER,
   API_MIME_TYPES,
   StopReason,
-  shouldFilterRequestByUrl,
-  shouldFilterRequestByExtension,
+  shouldFilterRequest,
   shouldFilterByMimeType,
   analyzeCommonHeaders,
   filterOutCommonHeaders,
@@ -122,7 +120,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
       if (!openerCaptureInfo) return;
 
       // Wait a short time to ensure the tab is ready
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await waitForDelay(500);
 
       // Start capturing requests for the new tab
       await this.startCaptureForTab(newTabId, {
@@ -347,19 +345,6 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
     await this.stopCapture(tabId, 'inactivity_timeout');
   }
 
-  private shouldFilterRequestByUrl(url: string): boolean {
-    return shouldFilterRequestByUrl(url);
-  }
-
-  private shouldFilterRequestByExtension(url: string, includeStatic: boolean): boolean {
-    return shouldFilterRequestByExtension(url, includeStatic);
-  }
-
-  // MIME type-based filtering, called after response is received
-  private shouldFilterByMimeType(mimeType: string, includeStatic: boolean): boolean {
-    return shouldFilterByMimeType(mimeType, includeStatic);
-  }
-
   private handleRequestWillBeSent(tabId: number, params: any) {
     const captureInfo = this.captureData.get(tabId);
     if (!captureInfo) return;
@@ -368,8 +353,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
 
     // Initial filtering by URL (ads, analytics) and extension (if !includeStatic)
     if (
-      this.shouldFilterRequestByUrl(request.url) ||
-      this.shouldFilterRequestByExtension(request.url, captureInfo.includeStatic)
+      shouldFilterRequest(request.url, captureInfo.includeStatic)
     ) {
       return;
     }
@@ -430,7 +414,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
     }
 
     // Secondary filtering based on MIME type, now that we have it
-    if (this.shouldFilterByMimeType(response.mimeType, captureInfo.includeStatic)) {
+    if (shouldFilterByMimeType(response.mimeType, captureInfo.includeStatic)) {
       // console.log(`NetworkDebuggerStartTool: Filtering request by MIME type (${response.mimeType}): ${requestInfo.url}`);
       delete captureInfo.requests[requestId]; // Remove from captured data
       // Note: We don't decrement requestCounter here as it's meant to track how many *potential* requests were processed up to MAX_REQUESTS.
@@ -500,7 +484,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
         // console.warn(`NetworkDebuggerStartTool: Failed to get response body for ${requestId}:`, error);
         requestInfo.errorText =
           (requestInfo.errorText || '') +
-          ` Failed to get body: ${error instanceof Error ? error.message : String(error)}`;
+          ` Failed to get body: ${toErrorMessage(error)}`;
       }
     }
   }
@@ -675,15 +659,15 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
 
     // Process data even if detach/disable failed, as some data might have been captured.
     const allRequests = Object.values(captureInfo.requests) as NetworkRequestInfo[];
-    const commonRequestHeaders = this.analyzeCommonHeaders(allRequests, 'requestHeaders');
-    const commonResponseHeaders = this.analyzeCommonHeaders(allRequests, 'responseHeaders');
+    const commonRequestHeaders = analyzeCommonHeaders(allRequests, 'requestHeaders');
+    const commonResponseHeaders = analyzeCommonHeaders(allRequests, 'responseHeaders');
 
     const processedRequests = allRequests.map((req) => {
       const finalReq: Partial<NetworkRequestInfo> &
         Pick<NetworkRequestInfo, 'requestId' | 'url' | 'method' | 'type' | 'status'> = { ...req };
 
       if (finalReq.requestHeaders) {
-        finalReq.specificRequestHeaders = this.filterOutCommonHeaders(
+        finalReq.specificRequestHeaders = filterOutCommonHeaders(
           finalReq.requestHeaders,
           commonRequestHeaders,
         );
@@ -693,7 +677,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
       }
 
       if (finalReq.responseHeaders) {
-        finalReq.specificResponseHeaders = this.filterOutCommonHeaders(
+        finalReq.specificResponseHeaders = filterOutCommonHeaders(
           finalReq.responseHeaders,
           commonResponseHeaders,
         );
@@ -737,20 +721,6 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
     };
   }
 
-  private analyzeCommonHeaders(
-    requests: NetworkRequestInfo[],
-    headerTypeKey: 'requestHeaders' | 'responseHeaders',
-  ): Record<string, string> {
-    return analyzeCommonHeaders(requests, headerTypeKey);
-  }
-
-  private filterOutCommonHeaders(
-    headers: Record<string, string>,
-    commonHeaders: Record<string, string>,
-  ): Record<string, string> {
-    return filterOutCommonHeaders(headers, commonHeaders);
-  }
-
   async execute(args: NetworkDebuggerStartToolParams): Promise<ToolResult> {
     if (import.meta.env.FIREFOX) {
       return createErrorResponse(FIREFOX_UNSUPPORTED_MESSAGE);
@@ -787,7 +757,7 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
           tabToOperateOn = await chrome.tabs.create({ url: targetUrl, active: true });
           // Wait for tab to be somewhat ready. A better way is to listen to tabs.onUpdated status='complete'
           // but for debugger attachment, it just needs the tabId.
-          await new Promise((resolve) => setTimeout(resolve, 500)); // Short delay
+          await waitForDelay(500);
         }
       } else {
         const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -816,24 +786,16 @@ class NetworkDebuggerStartTool extends BaseBrowserToolExecutor {
         );
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Network capture started on tab ${tabId}. Waiting for stop command or timeout.`,
-              tabId,
-              url: tabToOperateOn.url,
-              maxCaptureTime,
-              inactivityTimeout,
-              includeStatic,
-              maxRequests: NetworkDebuggerStartTool.MAX_REQUESTS_PER_CAPTURE,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: `Network capture started on tab ${tabId}. Waiting for stop command or timeout.`,
+        tabId,
+        url: tabToOperateOn.url,
+        maxCaptureTime,
+        inactivityTimeout,
+        includeStatic,
+        maxRequests: NetworkDebuggerStartTool.MAX_REQUESTS_PER_CAPTURE,
+      });
     } catch (error: any) {
       console.error('NetworkDebuggerStartTool: Critical error during execute:', error);
       // If a tabId was involved and debugger might be attached, try to clean up.
@@ -980,33 +942,25 @@ class NetworkDebuggerStopTool extends BaseBrowserToolExecutor {
       );
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            message: `Capture for tab ${tabId} (${resultData.tabUrl || 'N/A'}) stopped. ${resultData.requestCount || 0} requests captured.`,
-            tabId: tabId,
-            tabUrl: resultData.tabUrl || 'N/A',
-            tabTitle: resultData.tabTitle || 'Unknown Tab',
-            requestCount: resultData.requestCount || 0,
-            commonRequestHeaders: resultData.commonRequestHeaders || {},
-            commonResponseHeaders: resultData.commonResponseHeaders || {},
-            requests: resultData.requests || [],
-            captureStartTime: resultData.captureStartTime,
-            captureEndTime: resultData.captureEndTime,
-            totalDurationMs: resultData.totalDurationMs,
-            settingsUsed: resultData.settingsUsed || {},
-            remainingCaptures: remainingCaptures,
-            totalRequestsReceived: resultData.totalRequestsReceived || resultData.requestCount || 0,
-            requestLimitReached: resultData.requestLimitReached || false,
-            stoppedBy: resultData.stoppedBy || 'user_request',
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      message: `Capture for tab ${tabId} (${resultData.tabUrl || 'N/A'}) stopped. ${resultData.requestCount || 0} requests captured.`,
+      tabId,
+      tabUrl: resultData.tabUrl || 'N/A',
+      tabTitle: resultData.tabTitle || 'Unknown Tab',
+      requestCount: resultData.requestCount || 0,
+      commonRequestHeaders: resultData.commonRequestHeaders || {},
+      commonResponseHeaders: resultData.commonResponseHeaders || {},
+      requests: resultData.requests || [],
+      captureStartTime: resultData.captureStartTime,
+      captureEndTime: resultData.captureEndTime,
+      totalDurationMs: resultData.totalDurationMs,
+      settingsUsed: resultData.settingsUsed || {},
+      remainingCaptures,
+      totalRequestsReceived: resultData.totalRequestsReceived || resultData.requestCount || 0,
+      requestLimitReached: resultData.requestLimitReached || false,
+      stoppedBy: resultData.stoppedBy || 'user_request',
+    });
   }
 }
 

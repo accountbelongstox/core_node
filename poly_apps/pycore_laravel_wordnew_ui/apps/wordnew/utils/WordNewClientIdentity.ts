@@ -17,13 +17,7 @@ let identityPromise: Promise<string> | null = null;
 
 function readSessionCache(): string | null {
   try {
-    const cached = StorageManager.getSession<string | null>(StorageKeys.WORDNEW_FINGERPRINT_VISITOR, null)
-      ?? StorageManager.getSessionRaw(StorageKeys.WORDNEW_FINGERPRINT_VISITOR_LEGACY);
-    if (cached) {
-      StorageManager.setSession(StorageKeys.WORDNEW_FINGERPRINT_VISITOR, cached);
-      StorageManager.removeSession(StorageKeys.WORDNEW_FINGERPRINT_VISITOR_LEGACY);
-    }
-    return cached;
+    return StorageManager.getSession<string | null>(StorageKeys.WORDNEW_FINGERPRINT_VISITOR, null);
   } catch {
     return null;
   }
@@ -38,15 +32,8 @@ function writeSessionCache(id: string): void {
 }
 
 function localFallbackId(): string {
-  const existing = StorageManager.get<string | null>(StorageKeys.WORDNEW_CLIENT_ID, null)
-    ?? StorageManager.getRaw(StorageKeys.WORDNEW_CLIENT_ID_CURRENT_LEGACY)
-    ?? StorageManager.getRaw(StorageKeys.WORDNEW_CLIENT_ID_LEGACY);
-  if (existing) {
-    StorageManager.set(StorageKeys.WORDNEW_CLIENT_ID, existing);
-    StorageManager.remove(StorageKeys.WORDNEW_CLIENT_ID_CURRENT_LEGACY);
-    StorageManager.remove(StorageKeys.WORDNEW_CLIENT_ID_LEGACY);
-    return existing;
-  }
+  const existing = StorageManager.get<string | null>(StorageKeys.WORDNEW_CLIENT_ID, null);
+  if (existing) return existing;
   const id = `local-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
   StorageManager.set(StorageKeys.WORDNEW_CLIENT_ID, id);
   return id;

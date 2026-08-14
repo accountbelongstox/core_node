@@ -30,9 +30,7 @@ class LoginController extends Controller
             return $this->authErrorResponse(AuthErrorCodes::AUTH_VALIDATION_FAILED, 422);
         }
 
-        $user = User::where('username', $request->username)
-            ->orWhere('email', $request->username)
-            ->first();
+        $user = User::findByUsernameOrEmail($request->username);
 
         if (!$user) {
             return $this->authErrorResponse(AuthErrorCodes::AUTH_USER_NOT_FOUND, 422);
@@ -57,12 +55,7 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
-        if ($request->user()) {
-            $currentToken = $request->user()->currentAccessToken();
-            if ($currentToken && !($currentToken instanceof \Laravel\Sanctum\TransientToken)) {
-                $currentToken->delete();
-            }
-        }
+        $request->user()?->revokeCurrentAccessToken();
 
         return response()->json([
             'message' => 'Successfully logged out'

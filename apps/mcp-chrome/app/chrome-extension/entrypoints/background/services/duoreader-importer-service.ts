@@ -4,6 +4,8 @@
 
 import { apiManager } from '@/services/ApiManager';
 import { logger } from '@/utils/logger';
+import { delay } from '@/utils/async';
+import { toErrorMessage } from '@/utils/errors';
 import {
   DEFAULT_IMPORTER_CONFIG,
   PROGRESS_STORAGE_KEY,
@@ -99,7 +101,7 @@ async function saveSession(patch: Partial<DuoreaderImportSession> & { config?: D
 /** Wait while paused; return false when stop was requested. */
 async function importShouldContinue(): Promise<boolean> {
   while (pauseRequested && !stopRequested) {
-    await sleep(350);
+    await delay(350);
   }
   return !stopRequested;
 }
@@ -123,10 +125,6 @@ async function resolveApiBase(): Promise<string> {
   return apiManager.getCurrentBaseUrl();
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function ensureHelperInjected(tabId: number): Promise<void> {
   try {
     const ping = await chrome.tabs.sendMessage(tabId, { action: PING_ACTION, files: [HELPER_SCRIPT] });
@@ -141,7 +139,7 @@ async function ensureHelperInjected(tabId: number): Promise<void> {
     });
     logger.debug(LOG, `Injected helper into tab ${tabId}`);
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
+    const msg = toErrorMessage(error);
     if (/duplicate script id/i.test(msg)) {
       logger.debug(LOG, `Helper already registered in tab ${tabId}`);
       return;
@@ -173,7 +171,7 @@ async function ensureWorkerTab(): Promise<number> {
   if (!workerTabId) throw new Error('Failed to create worker tab');
   logger.info(LOG, `Opened worker tab ${workerTabId}`);
   await waitForTabComplete(workerTabId, 60000);
-  await sleep(1500);
+  await delay(1500);
   const dismissed = await callPage<{ dismissed: boolean; reason: string }>(
     workerTabId,
     'duoreaderDismissLanguage',
@@ -186,7 +184,7 @@ async function navigateAndWait(tabId: number, url: string): Promise<void> {
   logger.info(LOG, `Navigate → ${url}`);
   await chrome.tabs.update(tabId, { url, active: true });
   await waitForTabComplete(tabId, 60000);
-  await sleep(800);
+  await delay(800);
   const ready = await callPage<{ ready: boolean; paragraphs: number }>(tabId, 'duoreaderWaitChapter', {
     timeoutMs: 45000,
   });
@@ -481,7 +479,7 @@ async function fetchChapterAudio(
       }
       progress.detail = `slot ${slotIdx + 1}/${slots.length} · ${lang} ${result}`;
       await saveProgress(progress);
-      await sleep(AUDIO_FETCH_DELAY_MS);
+      await delay(AUDIO_FETCH_DELAY_MS);
     }
   }
 
@@ -887,7 +885,7 @@ async function importBookViaCdnApi(
     await saveProgress(uploadCtx.progress);
 
     uploadCtx = await uploadChapterIfNeeded(uploadCtx, chapter, 'Upload');
-    await sleep(80);
+    await delay(80);
   }
 
   uploadCtx.progress.chaptersTotal = Math.max(
@@ -1209,7 +1207,7 @@ export async function startDuoreaderImport(
         await saveProgress(progress);
 
         uploadCtx = await uploadChapterIfNeeded(uploadCtx, chapter, 'Uploading');
-        await sleep(500);
+        await delay(500);
       }
 
       uploadCtx.progress.chaptersTotal = Math.max(

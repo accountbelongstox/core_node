@@ -36,7 +36,7 @@ class AppQyV1WordGroupManagementController
     public function isGroupNameExist($gname)
     {
         $uid = Auth::id();
-        $group = AppQyV1WordGroupModel::where('gname', $gname)->where('uid', $uid)->first();
+        $group = AppQyV1WordGroupModel::findOwnedByName($uid, $gname);
         return $group;
     }
 
@@ -131,9 +131,7 @@ class AppQyV1WordGroupManagementController
         $gid = $request->input('gid');
         $default_select = ['gid', 'gname', 'words_frequency', 'created_at', 'updated_at'];
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select($default_select)
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid($gid, $default_select);
 
         if (!$group) {
             return $this->groupNotFound(['gid' => $gid]);
@@ -163,9 +161,7 @@ class AppQyV1WordGroupManagementController
             $default_select[] = 'gwords';
         }
 
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select($default_select)
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid($gid, $default_select);
 
         if (!$group) {
             return $this->groupNotFound(['gid' => $gid]);
@@ -188,9 +184,10 @@ class AppQyV1WordGroupManagementController
     public function getGwords(Request $request): JsonResponse
     {
         $gid = $request->input('gid');
-        $group = AppQyV1WordGroupModel::where('gid', $gid)
-            ->select(['gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at'])
-            ->first();
+        $group = AppQyV1WordGroupModel::findByGid(
+            $gid,
+            ['gid', 'gname', 'gwords', 'words_frequency', 'created_at', 'updated_at']
+        );
 
         if (!$group) {
             return $this->groupNotFound(['gid' => $gid]);
@@ -220,11 +217,7 @@ class AppQyV1WordGroupManagementController
         $start = $request->input('start', 0);
         $limit = $request->input('limit', 1000);
 
-        $groups = AppQyV1WordGroupModel::with('wordProgress:id,group_id,total_words')
-            ->orderBy('created_at', 'desc')
-            ->skip($start)
-            ->take($limit)
-            ->get()
+        $groups = AppQyV1WordGroupModel::pageWithProgress(null, $start, $limit, ['*'])
             ->makeHidden('gcontent');
 
         $uid = Auth::id();

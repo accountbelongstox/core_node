@@ -4,7 +4,7 @@
 - Do not hardcode language strings in code; use multi-language (i18n). Shell scripts must use English.
 - Global standards take precedence and stack with any specific .md guides.
 - Reuse or upgrade existing components before creating new ones.
-- Keep changes minimal, idempotent, and aligned with surrounding style.
+- Refactor to align underlying logic: extract centralized shared classes, remove duplicate implementations, and centralize global constants.
 - Never execute destructive actions without explicit approval.
 - Declare variables at file top; use resolved absolute paths in PowerShell.
 

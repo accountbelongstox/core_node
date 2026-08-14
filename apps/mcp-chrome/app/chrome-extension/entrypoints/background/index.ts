@@ -2,6 +2,7 @@
 import '@/utils/browser-shim';
 import { initializeBackground } from './bootstrap';
 import { logger } from '@/utils/logger';
+import { toErrorMessage } from '@/utils/errors';
 
 const BENIGN_REJECTION_PATTERNS = [
   'Could not establish connection',
@@ -10,7 +11,7 @@ const BENIGN_REJECTION_PATTERNS = [
 ] as const;
 
 function handleUnhandledRejection(event: PromiseRejectionEvent): void {
-  const message = event.reason instanceof Error ? event.reason.message : String(event.reason ?? '');
+  const message = toErrorMessage(event.reason ?? '');
   if (BENIGN_REJECTION_PATTERNS.some((pattern) => message.includes(pattern))) {
     event.preventDefault();
     return;

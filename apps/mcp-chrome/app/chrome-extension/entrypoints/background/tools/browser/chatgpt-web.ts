@@ -7,7 +7,7 @@
  * protocol. Optionally captures the read-aloud audio (bytes returned from the
  * page) and uploads the binary to the Laravel backend.
  */
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { logger } from '@/utils/logger';
 import { WebChatJobToolBase, type WebChatJobConfig } from './web-chat-job-base';
 import {
@@ -94,25 +94,17 @@ class ChatGptWebTool extends WebChatJobToolBase {
         );
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              provider: 'chatgpt-web',
-              success: true,
-              answer: reply.answer,
-              tabId: resolvedTabId,
-              audio: audioResult,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        provider: 'chatgpt-web',
+        success: true,
+        answer: reply.answer,
+        tabId: resolvedTabId,
+        audio: audioResult,
+      });
     } catch (error) {
       console.error('Error in chrome_chatgpt:', error);
       return createErrorResponse(
-        `ChatGPT automation failed: ${error instanceof Error ? error.message : String(error)}`,
+        `ChatGPT automation failed: ${toErrorMessage(error)}`,
       );
     }
   }

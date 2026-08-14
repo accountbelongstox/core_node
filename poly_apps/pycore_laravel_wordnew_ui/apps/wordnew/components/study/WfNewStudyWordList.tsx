@@ -20,11 +20,12 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { Star, Check, RotateCcw } from 'lucide-react';
-import type { Word, ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
+import type { Word } from '../../api/WfNewApiTypes';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewNoTranslation } from './WfNewNoTranslation';
 import { useVisibleWordPriority } from '../../hooks/useVisibleWordPriority';
-import { WordNewAudioStatusIcon } from '../WordNewAudioStatusIcon';
+import { WordNewResourceStatusIcon } from '../WordNewResourceStatusIcon';
 import { wordAudioQueueKey, wordTranslationQueueKey } from '../../services/WordNewQueueRuntime';
 
 interface WfNewStudyWordListProps {
@@ -175,7 +176,7 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
               {!word.translation ? (
                 <span className="mt-1 flex items-center gap-1.5">
                   <WfNewNoTranslation lang={lang} />
-                  <WordNewAudioStatusIcon
+                  <WordNewResourceStatusIcon
                     state="waiting"
                     resource="translation"
                     queueKey={wordTranslationQueueKey(word.text, sourceLanguage, lang)}
@@ -210,7 +211,7 @@ export const WfNewStudyWordList: React.FC<WfNewStudyWordListProps> = ({
               {/* No animated wave icon during playback (per design request) —
                   the active-row highlight alone marks the playing word. */}
               <span className="relative">
-                <WordNewAudioStatusIcon
+                <WordNewResourceStatusIcon
                   state={word.audioUrl || (word.audioFiles?.length ?? 0) > 0 ? 'ready' : 'waiting'}
                   queueKey={wordAudioQueueKey(word.text, sourceLanguage)}
                   trans={(key) => studyT(lang, key)}

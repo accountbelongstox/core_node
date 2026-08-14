@@ -33,7 +33,7 @@ Endpoints:
   POST /synthesize           -> { text, language, speaker, instruct? } -> mp3 bytes
   POST /synthesize_batch     -> { text, language, variants:[{key,accent,gender}] }
                                  -> { results: [{key, ok, audio_base64, error}] }
-  POST /queue/submit         -> enqueue an idempotent priority job
+  POST /queue/submit         -> enqueue an idempotent FIFO job
   GET  /queue/status         -> authoritative queue snapshot
   GET  /queue/events         -> bounded event replay and long polling
   POST /queue/events/ack     -> acknowledge the processed event sequence
@@ -414,9 +414,11 @@ class BatchSynthRequest(BaseModel):
 
 
 class QueueSubmitRequest(SynthRequest):
-    priority: int = 0
     client_job_id: Optional[str] = None
     job_id: Optional[str] = None
+
+    class Config:
+        extra = "forbid"
 
 
 class QueueCancelRequest(BaseModel):

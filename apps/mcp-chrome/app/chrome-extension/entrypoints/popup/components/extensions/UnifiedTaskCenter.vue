@@ -58,7 +58,7 @@
         <select v-model="sortKey" class="utc-select">
           <option value="created_desc">{{ getMessage('taskCenterSortNewest') }}</option>
           <option value="created_asc">{{ getMessage('taskCenterSortOldest') }}</option>
-          <option value="priority_desc">{{ getMessage('taskCenterSortPriority') }} ↓</option>
+          <option value="priority_desc">{{ getMessage('taskCenterSortOrder') }} ↓</option>
           <option value="status">{{ getMessage('taskCenterStatusLabel') }}</option>
         </select>
       </label>
@@ -204,7 +204,10 @@
               <span class="utc-status-pill" :style="statusStyle(item.status)">
                 <span class="utc-statusdot" />{{ localizedStatus(item.status) }}
               </span>
-              <span v-if="item.priority" class="utc-modal-priority">P{{ item.priority }}</span>
+              <span v-if="isQueuePositionOrderedTask(item.task_type)" class="utc-modal-priority">
+                {{ getMessage('taskCenterQueuePosition') }} #{{ item.queue_position ?? 0 }}
+              </span>
+              <span v-else-if="item.priority" class="utc-modal-priority">P{{ item.priority }}</span>
             </div>
           </li>
         </ul>
@@ -248,6 +251,8 @@ import {
   TASK_LIMITS,
   TASK_STATUS_BY_ROLE,
   TASK_TYPE_CATALOG,
+  compareTasksByContract,
+  isQueuePositionOrderedTask,
 } from '@/utils/queue-center-contract';
 import TaskDetailModal from './TaskDetailModal.vue';
 import {
@@ -271,11 +276,17 @@ interface SummaryCat {
 // The popup renders the central Laravel task catalog in contract order. Adding
 // or changing a task type starts in config/queue_center_contract.json and is
 // immediately reflected by Laravel, Pycore, mcp-chrome, and both task UIs.
-const PYCORE_ONLY_SUMMARY_TYPES = new Set(['word_audio', 'sentence_audio']);
+const CHROME_TASK_TYPE_KEYS = new Set(CHROME_TASK_TYPES.map((definition) => definition.key));
+const PYCORE_ONLY_SUMMARY_TYPES = new Set(
+  TASK_TYPE_CATALOG
+    .filter((definition) => isQueuePositionOrderedTask(definition.key)
+      && !CHROME_TASK_TYPE_KEYS.has(definition.key))
+    .map((definition) => definition.key),
+);
 
 const SUMMARY_CATS: SummaryCat[] = TASK_TYPE_CATALOG
-  // Pycore owns production word and sentence audio. Keep their shared task
-  // definitions available to the runtime while omitting them from this panel.
+  // Keep contract definitions available to the runtime while omitting queue-
+  // position task types that the Chrome claimant does not own.
   .filter((definition) => Boolean(definition.ui.summary_label)
     && !PYCORE_ONLY_SUMMARY_TYPES.has(definition.key))
   .map((definition) => ({
@@ -414,7 +425,12 @@ const totalPending = computed(() => {
 });
 
 const rowIsFast = (row: TaskRow): boolean =>
-  isFastTier({ is_fast_tier: row.is_fast_tier, priority: row.priority, execution_type: row.execution_type });
+  isFastTier({
+    task_type: row.task_type,
+    is_fast_tier: row.is_fast_tier,
+    priority: row.priority,
+    execution_type: row.execution_type,
+  });
 
 const rowIsAi = (row: TaskRow): boolean => isAiTranslate(row.capability);
 
@@ -436,7 +452,7 @@ const sortRows = (list: TaskRow[]): TaskRow[] => {
   arr.sort((a, b) => {
     switch (sortKey.value) {
       case 'created_asc':   return (a.created_at || '').localeCompare(b.created_at || '');
-      case 'priority_desc': return (b.priority ?? 0) - (a.priority ?? 0);
+      case 'priority_desc': return compareTasksByContract(a, b);
       case 'status':        return (a.status || '').localeCompare(b.status || '');
       default:              return (b.created_at || '').localeCompare(a.created_at || '');
     }
@@ -614,7 +630,6 @@ const refresh = async (): Promise<void> => {
   }
 };
 
-const CHROME_TASK_TYPE_KEYS = new Set(CHROME_TASK_TYPES.map((definition) => definition.key));
 
 const loadAll = async (): Promise<void> => {
   if (loadAllBusy.value) return;

@@ -24,33 +24,15 @@ class AppQyV1UserStatsController extends Controller
 
         $language = $request->input('language');
 
-        $baseQuery = AppQyV1UserLearningProgressModel::where('user_id', $userId);
-        if (is_string($language) && $language !== '') {
-            $baseQuery->where('lang_code', $language);
-        }
-
-        $totalWords = (clone $baseQuery)->count();
-
-        $masteredCount = (clone $baseQuery)
-            ->where('learning_status', 'mastered')
-            ->count();
-
-        $criticalCount = (clone $baseQuery)
-            ->whereIn('learning_status', ['learning', 'reviewing'])
-            ->where('next_review_at', '<=', now())
-            ->count();
-
-        $reviewCount = (clone $baseQuery)
-            ->whereIn('learning_status', ['learning', 'reviewing'])
-            ->where(function ($query) {
-                $query->where('next_review_at', '>', now())
-                    ->orWhereNull('next_review_at');
-            })
-            ->count();
-
-        $learningCount = (clone $baseQuery)
-            ->where('learning_status', 'new')
-            ->count();
+        $counts = AppQyV1UserLearningProgressModel::retentionCounts(
+            (int) $userId,
+            is_string($language) ? $language : null
+        );
+        $totalWords = $counts['total'];
+        $masteredCount = $counts['mastered'];
+        $criticalCount = $counts['critical'];
+        $reviewCount = $counts['review'];
+        $learningCount = $counts['learning'];
 
         $buckets = [
             ['level' => 'Critical', 'count' => $criticalCount, 'color' => 'bg-red-500'],

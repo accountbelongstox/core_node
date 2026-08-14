@@ -2,24 +2,39 @@
 
 namespace App\Services\QueueCenter;
 
-use App\Events\QueueCenterChangedEvent;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Services\Realtime\RealtimeConnectionService;
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Cache;
 
 class QueueCenterRealtimeService
 {
     private const REVISION_KEY = 'queue_center:realtime:revision';
+    private RealtimeConnectionService $connections;
+
+    public function __construct(?RealtimeConnectionService $connections = null)
+    {
+        $this->connections = $connections ?? new RealtimeConnectionService();
+    }
 
     public function publish(string $resource, ?string $language = null, int|string|null $id = null): int
     {
         try {
-            if (!Cache::add(self::REVISION_KEY . ':signal', true, 1)) {
+            $cache = QueueCenterCacheStore::get();
+            if (!$cache->add(self::REVISION_KEY . ':signal', true, 1)) {
                 return $this->revision();
             }
 
-            $revision = $this->revision() + 1;
-            Cache::forever(self::REVISION_KEY, $revision);
-            QueueCenterChangedEvent::dispatch($revision, $resource, $language, $id);
+            $revision = QueueCenterCacheStore::increment(self::REVISION_KEY);
+            AppQyV1TranslationEventModel::emit(
+                (string) (QueueCenterContract::realtime()['event'] ?? 'queue.changed'),
+                [
+                    'revision' => $revision,
+                    'resource' => $resource,
+                    'language' => $language,
+                    'resource_id' => $id,
+                    'changed_at' => now()->toIso8601String(),
+                ]
+            );
 
             return $revision;
         } catch (\Throwable) {
@@ -30,7 +45,7 @@ class QueueCenterRealtimeService
     public function revision(): int
     {
         try {
-            return (int) Cache::get(self::REVISION_KEY, 0);
+            return (int) QueueCenterCacheStore::get()->get(self::REVISION_KEY, 0);
         } catch (\Throwable) {
             return 0;
         }
@@ -39,7 +54,7 @@ class QueueCenterRealtimeService
     public function publishBatch(string $resource, ?string $language = null, int|string|null $id = null): int
     {
         try {
-            Cache::forget(self::REVISION_KEY . ':signal');
+            QueueCenterCacheStore::get()->forget(self::REVISION_KEY . ':signal');
         } catch (\Throwable) {
             return 0;
         }
@@ -50,17 +65,43 @@ class QueueCenterRealtimeService
     public function connection(): array
     {
         $contract = QueueCenterContract::realtime();
-        $options = config('broadcasting.connections.reverb.options', []);
+
+        return $this->connections->connection(
+            (string) ($contract['channel'] ?? 'queue-center'),
+            [
+                'event' => (string) ($contract['event'] ?? 'queue.changed'),
+                'revision' => $this->revision(),
+            ]
+        );
+    }
+
+    public function replay(int $cursor, int $limit): array
+    {
+        $current = $cursor > 0 ? $cursor : AppQyV1TranslationEventModel::maxId();
+        $events = [];
+        $rows = [];
+
+        if ($cursor > 0) {
+            $rows = AppQyV1TranslationEventModel::since($cursor, $limit);
+            foreach ($rows as $row) {
+                $current = max($current, (int) $row['id']);
+                if (!in_array($row['event'], QueueCenterContract::realtimeEvents(), true)) {
+                    continue;
+                }
+                $payload = $row['data'];
+                $payload['_id'] = (int) $row['id'];
+                $events[] = [
+                    'id' => (int) $row['id'],
+                    'event' => (string) $row['event'],
+                    'data' => $payload,
+                ];
+            }
+        }
 
         return [
-            'transport' => 'websocket',
-            'app_key' => (string) config('broadcasting.connections.reverb.key', ''),
-            'host' => (string) ($options['host'] ?? ''),
-            'port' => (int) ($options['port'] ?? 8080),
-            'scheme' => (string) ($options['scheme'] ?? 'http'),
-            'channel' => (string) ($contract['channel'] ?? 'queue-center'),
-            'event' => (string) ($contract['event'] ?? 'queue.changed'),
-            'revision' => $this->revision(),
+            'cursor' => $current,
+            'events' => $events,
+            'has_more' => count($rows) >= $limit,
         ];
     }
 }

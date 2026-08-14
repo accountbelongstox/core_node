@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from typing import Any, Dict, List
 
+import pycore.pyutils.agent_history.article_records as article_records
 from pycore.pyutils.common.user_data_store import user_data_store
 
 _SECTION = "agent_history_article"
@@ -151,15 +152,13 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
 
 def get_status() -> Dict[str, Any]:
     cfg = get_config()
+    summary = article_records.summarize_records()
     # Note: pending_fragments is now managed by the worker operation
     return {
         "config": cfg,
         "pending_fragments": 0, 
-        "published_count": len(cfg.get("published") or []),
+        "published_count": int(summary["uploaded"]),
     }
 
 def list_articles(limit: int = 50) -> list:
-    cfg = get_config()
-    rows = list(cfg.get("published") or [])
-    rows.sort(key=lambda r: str(r.get("published_at") or ""), reverse=True)
-    return rows[: max(1, min(int(limit or 50), 200))]
+    return article_records.list_records(max(1, min(int(limit or 50), 200)))

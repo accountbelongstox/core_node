@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
-import type { LlmStatus } from '../../../core/api-libs/pycore';
+import type { LlmStatus } from '../../../core/integrations/pycore';
 import {
   connectPycoreHttp,
   pycoreApi,
@@ -7,7 +7,7 @@ import {
   pycoreRouteRecoveryStore,
   PYCORE_BROWSER_EVENTS,
   PYCORE_HTTP_ROUTES,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 
 const STORE_EVENT = 'pycore-llm-status-runtime-changed';
 const recovered = pycoreRouteRecoveryStore.read<LlmStatus>(

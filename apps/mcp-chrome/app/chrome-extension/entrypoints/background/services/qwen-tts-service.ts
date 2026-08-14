@@ -4,6 +4,8 @@
  */
 
 import { logger } from '@/utils/logger';
+import { toErrorMessage } from '@/utils/errors';
+import { createProgressStorage } from '@/utils/progress-storage';
 import { qwenTtsTool } from '../tools/browser/qwen-tts';
 import {
   QWEN_TTS_LAST_VERIFIED,
@@ -15,23 +17,18 @@ import {
 } from '@/utils/qwen-tts-core';
 
 const LOG = 'Qwen TTS';
+const qwenTtsProgressStorage = createProgressStorage<QwenTtsProgress>(
+  QWEN_TTS_PROGRESS_KEY,
+  emptyQwenTtsProgress,
+);
 let runQueue: Promise<void> = Promise.resolve();
 
 export async function saveQwenTtsProgress(patch: Partial<QwenTtsProgress>): Promise<void> {
-  const prev = (await chrome.storage.local.get([QWEN_TTS_PROGRESS_KEY]))[QWEN_TTS_PROGRESS_KEY]
-    || emptyQwenTtsProgress();
-  const next: QwenTtsProgress = {
-    ...emptyQwenTtsProgress(),
-    ...prev,
-    ...patch,
-    updatedAt: Date.now(),
-  };
-  await chrome.storage.local.set({ [QWEN_TTS_PROGRESS_KEY]: next });
+  await qwenTtsProgressStorage.update(patch);
 }
 
 export async function getQwenTtsProgress(): Promise<QwenTtsProgress> {
-  const stored = (await chrome.storage.local.get([QWEN_TTS_PROGRESS_KEY]))[QWEN_TTS_PROGRESS_KEY];
-  return stored ? { ...emptyQwenTtsProgress(), ...stored } : emptyQwenTtsProgress();
+  return qwenTtsProgressStorage.get();
 }
 
 export function runQwenTts(request: QwenTtsRequest): Promise<QwenTtsResult> {
@@ -82,7 +79,7 @@ async function executeQwenTts(request: QwenTtsRequest): Promise<QwenTtsResult> {
     logger.info(LOG, `${result.ok ? 'OK' : 'FAIL'} · ${result.elapsedMs}ms · ${result.downloadFilename || 'no-download'}`);
     return result;
   } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
+    const error = toErrorMessage(err);
     await saveQwenTtsProgress({
       running: false,
       phase: 'Error',

@@ -31,21 +31,12 @@ class DingDuoDuoV1MemberAdminController extends BaseController
     public function index(Request $request): JsonResponse
     {
         $perPage = max(1, min(100, (int) $request->input('per_page', 20)));
-        $query = DingDuoDuoV1MemberModel::query()->orderByDesc('id');
-
         $q = trim((string) $request->input('q', ''));
-        if ($q !== '') {
-            $query->where('username', 'like', '%' . $q . '%');
-        }
-
         $tier = trim((string) $request->input('tier', ''));
-        if ($tier !== '') {
-            $query->where('tier', $tier);
-        }
 
         return response()->json([
             'success' => true,
-            'data' => $query->paginate($perPage),
+            'data' => DingDuoDuoV1MemberModel::adminPage($q, $tier, $perPage),
         ]);
     }
 
@@ -54,7 +45,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function show(int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
@@ -82,7 +73,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
             'remark' => ['nullable', 'string', 'max:255'],
         ]);
 
-        if (DingDuoDuoV1MemberModel::query()->where('username', $data['username'])->exists()) {
+        if (DingDuoDuoV1MemberModel::usernameExists($data['username'])) {
             return response()->json([
                 'success' => false,
                 'message' => DingDuoDuoV1ErrorCodes::getMessage(DingDuoDuoV1ErrorCodes::DUPLICATE_ENTRY),
@@ -100,7 +91,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
         $member->expires_at = $data['expires_at'] ?? null;
         $member->status = $data['status'] ?? 'active';
         $member->remark = $data['remark'] ?? null;
-        $member->save();
+        $member->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -113,7 +104,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function update(Request $request, int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
@@ -153,7 +144,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
         if (array_key_exists('remark', $data)) {
             $member->remark = $data['remark'];
         }
-        $member->save();
+        $member->saveRecord();
 
         return response()->json([
             'success' => true,
@@ -166,12 +157,12 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function destroy(int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
 
-        $member->delete();
+        $member->deleteRecord();
 
         return response()->json([
             'success' => true,
@@ -184,7 +175,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function setExpiry(Request $request, int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
@@ -197,7 +188,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
 
         return response()->json([
             'success' => true,
-            'data' => $member->fresh()->toArray(),
+            'data' => $member->freshRecord()->toArray(),
         ]);
     }
 
@@ -206,7 +197,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function setPermissions(Request $request, int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
@@ -220,7 +211,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
 
         return response()->json([
             'success' => true,
-            'data' => $member->fresh()->toArray(),
+            'data' => $member->freshRecord()->toArray(),
         ]);
     }
 
@@ -229,7 +220,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
      */
     public function setTier(Request $request, int $id): JsonResponse
     {
-        $member = DingDuoDuoV1MemberModel::query()->find($id);
+        $member = DingDuoDuoV1MemberModel::findById($id);
         if (!$member) {
             return $this->notFound();
         }
@@ -247,7 +238,7 @@ class DingDuoDuoV1MemberAdminController extends BaseController
 
         return response()->json([
             'success' => true,
-            'data' => $member->fresh()->toArray(),
+            'data' => $member->freshRecord()->toArray(),
         ]);
     }
 

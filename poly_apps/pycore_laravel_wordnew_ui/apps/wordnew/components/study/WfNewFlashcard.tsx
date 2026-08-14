@@ -10,7 +10,8 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Volume2, Check, RotateCcw } from 'lucide-react';
-import type { Word, ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
+import type { Word } from '../../api/WfNewApiTypes';
 import { studyT } from './WfNewStudyLocales';
 import { WfNewAudioWave } from './WfNewAudioWave';
 import { WfNewNoTranslation } from './WfNewNoTranslation';

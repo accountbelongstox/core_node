@@ -2,6 +2,8 @@
  * Fetch sentence MP3 from Duoreader live-translation API (same as web player).
  */
 
+import { delay as waitForDelay, fetchWithTimeout } from './async';
+
 export const DUOREADER_AUDIO_SERVER = 'https://duoreader-api.botanisense.app';
 export const DUOREADER_AUDIO_ENDPOINT = `${DUOREADER_AUDIO_SERVER}/tts`;
 export const DUOREADER_WEB_ORIGIN = 'https://web.duoreader.cn';
@@ -50,7 +52,7 @@ async function throttleAudioFetch(): Promise<void> {
   const now = Date.now();
   const wait = AUDIO_FETCH_MIN_INTERVAL_MS - (now - lastAudioFetchAt);
   if (wait > 0) {
-    await new Promise((resolve) => setTimeout(resolve, wait));
+    await waitForDelay(wait);
   }
   lastAudioFetchAt = Date.now();
 }
@@ -66,13 +68,10 @@ async function fetchDuoreaderAudioOnce(
   }
   const url = buildDuoreaderAudioUrl(trimmed, lang, options);
   const timeoutMs = options.timeoutMs ?? 45000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
     await throttleAudioFetch();
-    res = await fetch(url, {
-      signal: controller.signal,
+    res = await fetchWithTimeout(url, timeoutMs, {
       cache: 'no-store',
       headers: {
         Accept: 'audio/mpeg,*/*',
@@ -80,12 +79,10 @@ async function fetchDuoreaderAudioOnce(
       },
     });
   } catch (error: unknown) {
-    clearTimeout(timer);
     const err = error as { name?: string; message?: string };
     const timedOut = err?.name === 'AbortError';
     throw new Error(timedOut ? `audio fetch timeout (${timeoutMs}ms)` : (err?.message || String(error)));
   }
-  clearTimeout(timer);
   if (!res.ok) {
     throw new Error(`Duoreader audio HTTP ${res.status}`);
   }
@@ -114,7 +111,7 @@ export async function fetchDuoreaderAudio(
         throw new Error(lastError);
       }
       const delay = AUDIO_FETCH_RETRY_BASE_MS * (attempt + 1);
-      await new Promise((resolve) => setTimeout(resolve, delay));
+      await waitForDelay(delay);
     }
   }
   throw new Error(lastError);

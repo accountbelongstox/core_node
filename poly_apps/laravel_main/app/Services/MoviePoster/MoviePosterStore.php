@@ -3,7 +3,7 @@
 namespace App\Services\MoviePoster;
 
 use App\Providers\PathMapper;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -101,7 +101,7 @@ class MoviePosterStore
         $model->setAttribute('poster_status', 'ready');
         $model->setAttribute('poster_meta', is_array($posterResult['meta'] ?? null) ? $posterResult['meta'] : null);
         $model->setAttribute('poster_fetched_at', now());
-        $model->save();
+        $model->saveRecord();
 
         return [
             'ok' => true,
@@ -276,7 +276,7 @@ class MoviePosterStore
         }
         $meta['cover_files'] = $covers;
         $model->setAttribute('poster_meta', $meta);
-        $model->save();
+        $model->saveRecord();
 
         return [
             'ok' => true,

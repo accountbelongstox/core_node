@@ -1,6 +1,8 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { delay as waitForDelay } from '@/utils/async';
 
 const NOTEBOOKLM_URL = 'https://notebooklm.google.com';
 
@@ -40,13 +42,10 @@ class NotebookLMTool extends BaseBrowserToolExecutor {
       }
 
       const result = await this.runInTab(tab.id, question, timeoutMs);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        isError: !result.success,
-      };
+      return createJsonResponse(result, { isError: !result.success, space: 2 });
     } catch (error) {
       return createErrorResponse(
-        `NotebookLM automation error: ${error instanceof Error ? error.message : String(error)}`,
+        `NotebookLM automation error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -57,9 +56,13 @@ class NotebookLMTool extends BaseBrowserToolExecutor {
     question: string | undefined,
     timeoutMs = 60000,
   ): Promise<NotebookLMResult> {
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, {
+      timeoutMs: 20000,
+      settleDelayMs: 600,
+      statusProbeDelayMs: 700,
+    });
     await this.injectContentScript(tabId, ['inject-scripts/notebooklm-helper.js']);
-    await new Promise((r) => setTimeout(r, 300));
+    await waitForDelay(300);
 
     const action = question && question.trim() ? 'notebooklmAsk' : 'notebooklmExtract';
     const response: NotebookLMResult = await this.sendMessageToTab(tabId, {
@@ -94,35 +97,6 @@ class NotebookLMTool extends BaseBrowserToolExecutor {
     return tab;
   }
 
-  private waitForTabComplete(tabId: number, timeoutMs = 20000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // listener already gone
-        }
-        clearTimeout(timer);
-        setTimeout(resolve, 600);
-      };
-      const onUpdated = (id: number, info: chrome.tabs.TabChangeInfo) => {
-        if (id === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then(
-          (t) => {
-            if (t.status === 'complete') finish();
-          },
-          () => finish(),
-        );
-      }, 700);
-    });
-  }
 }
 
 export const notebookLmTool = new NotebookLMTool();

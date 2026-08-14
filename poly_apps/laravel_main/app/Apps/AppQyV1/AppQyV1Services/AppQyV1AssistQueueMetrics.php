@@ -7,15 +7,13 @@ use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
 use App\Services\TimerTasks\AppQyV1CoverGenerationTask;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
@@ -40,12 +38,7 @@ trait AppQyV1AssistQueueMetrics
      *  query, never per-status counts). */
     public function translationCounts(): array
     {
-        $grouped = \App\Models\GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', 'word_translation')
-            ->groupBy('status')
-            ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-            ->pluck('total', 'status');
+        $grouped = GlobalTask::filteredStatusCounts('AppQyV1', 'word_translation');
 
         $sumOf = static function (array $statuses) use ($grouped): int {
             $sum = 0;
@@ -90,9 +83,7 @@ trait AppQyV1AssistQueueMetrics
     public function wordTranslationCounts(): array
     {
         $task = $this->globalTaskStatusCounts('word_translation', null, GlobalTask::capability('ai_translate'));
-        $byLanguage = $this->dictionaryByLanguage(static function ($query) {
-            $query->where('has_translation', false);
-        });
+        $byLanguage = $this->dictionaryByLanguage('has_translation = false');
 
         return [
             'pending' => $task['pending'],
@@ -115,11 +106,10 @@ trait AppQyV1AssistQueueMetrics
     public function wordImageCounts(): array
     {
         $task = $this->globalTaskStatusCounts('word_media');
-        $byLanguage = $this->dictionaryByLanguage(static function ($query) {
-            $query->where('has_translation', true)
-                ->where('is_valid', true)
-                ->whereNull('image_mcp_submitted_at');
-        });
+        $byLanguage = $this->dictionaryByLanguage(
+            'has_translation = true AND is_valid = true AND image_mcp_submitted_at IS NULL',
+            ['has_translation', 'is_valid', 'image_mcp_submitted_at']
+        );
 
         return [
             'pending' => $task['pending'],
@@ -142,12 +132,7 @@ trait AppQyV1AssistQueueMetrics
     public function wordAudioCounts(): array
     {
         $task = $this->globalTaskStatusCounts('word_audio');
-        $byLanguage = $this->dictionaryByLanguage(static function ($query) {
-            $query->where(function ($q) {
-                $q->where('has_audio', false)
-                    ->orWhere('tts_status', 'pending');
-            });
-        });
+        $byLanguage = $this->dictionaryByLanguage("(has_audio = false OR tts_status = 'pending')");
 
         return [
             'pending' => $task['pending'],
@@ -255,21 +240,12 @@ trait AppQyV1AssistQueueMetrics
         ?string $excludedCapability = null
     ): array
     {
-        $query = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', $taskType);
-        if ($capability !== null) {
-            $query->where('capability', $capability);
-        }
-        if ($excludedCapability !== null) {
-            $query->where(function ($builder) use ($excludedCapability) {
-                $builder->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
-            });
-        }
-        $grouped = $query
-            ->groupBy('status')
-            ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-            ->pluck('total', 'status');
+        $grouped = GlobalTask::filteredStatusCounts(
+            'AppQyV1',
+            $taskType,
+            $capability,
+            $excludedCapability
+        );
 
         $pending = (int) ($grouped->get(GlobalTask::status('pending')) ?? 0);
         $leased = (int) ($grouped->get(GlobalTask::status('assigned')) ?? 0);
@@ -324,22 +300,13 @@ trait AppQyV1AssistQueueMetrics
         ?string $excludedCapability = null
     ): array
     {
-        $query = GlobalTask::query()
-            ->where('app_name', 'AppQyV1')
-            ->where('task_type', $taskType)
-            ->whereIn('status', [GlobalTask::status('pending'), GlobalTask::status('assigned'), GlobalTask::status('processing')])
-            ->orderByDesc('priority');
-        if ($capability !== null) {
-            $query->where('capability', $capability);
-        }
-        if ($excludedCapability !== null) {
-            $query->where(function ($builder) use ($excludedCapability) {
-                $builder->whereNull('capability')->orWhere('capability', '!=', $excludedCapability);
-            });
-        }
-        $rows = $query
-            ->limit(self::OVERVIEW_SAMPLE_LIMIT)
-            ->get(['payload']);
+        $rows = GlobalTask::activePayloadSamples(
+            'AppQyV1',
+            $taskType,
+            self::OVERVIEW_SAMPLE_LIMIT,
+            $capability,
+            $excludedCapability
+        );
 
         $sample = [];
         foreach ($rows as $row) {
@@ -367,34 +334,29 @@ trait AppQyV1AssistQueueMetrics
     }
 
     /**
-     * Count dictionary rows matching $filter across EVERY supported per-language
-     * table, returning a {lang: count} map (langs with zero matches are omitted).
-     * One COUNT query per existing table; missing tables are skipped silently.
+     * Count dictionary rows matching $whereSql across EVERY supported
+     * per-language table, returning a {lang: count} map (langs with zero
+     * matches are omitted). The whole sweep is ONE information_schema
+     * round-trip plus ONE UNION ALL COUNT query via
+     * AppQyV1PerLanguageMetrics — constant round-trips regardless of the
+     * language count. Languages whose table is missing, or that lack any of
+     * $requiredColumns (not-yet-migrated install), are skipped silently,
+     * matching the contract of the old per-table try/catch loop.
      *
-     * @param callable(\Illuminate\Database\Eloquent\Builder):void $filter
      * @return array<string,int>
      */
-    private function dictionaryByLanguage(callable $filter): array
+    private function dictionaryByLanguage(string $whereSql, array $requiredColumns = []): array
     {
-        $byLanguage = [];
-        foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
-            try {
-                $model = AppQyV1LangDictionaryModel::forLanguage($lang);
-                if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-                    continue;
-                }
-                $query = $model->newQuery();
-                $filter($query);
-                $count = (int) $query->count();
-                if ($count > 0) {
-                    $byLanguage[$lang] = $count;
-                }
-            } catch (\Throwable $e) {
-                // Missing column / table on a not-yet-migrated language: skip it.
-                continue;
-            }
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+        $tables = [];
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $tables[$lang] = AppQyV1TableMaps::getDictionaryTableName($lang);
         }
-        return $byLanguage;
+
+        $tables = AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables);
+        $tables = AppQyV1PerLanguageMetrics::requireColumns($connection, $tables, $requiredColumns);
+
+        return AppQyV1PerLanguageMetrics::countByLanguage($connection, $tables, $whereSql);
     }
 
     /**
@@ -409,48 +371,28 @@ trait AppQyV1AssistQueueMetrics
     public function sentenceCounts(): array
     {
         $service = new AppQyV1SentenceAudioService();
-        $byLanguage = [];
-        $sample = [];
+        $task = $this->globalTaskStatusCounts('sentence_audio');
 
-        foreach (\App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getSupportedLanguages() as $lang) {
-            try {
-                $model = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::for($lang);
-                if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-                    continue;
-                }
-                $count = (int) \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::onLang($lang)->where('has_audio', false)->count();
-                if ($count > 0) {
-                    $byLanguage[$lang] = $count;
-                }
-                // Collect a few sample rows until the display limit is reached.
-                if (count($sample) < self::OVERVIEW_SAMPLE_LIMIT && $count > 0) {
-                    $rows = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel::onLang($lang)
-                        ->where('has_audio', false)
-                        ->orderByDesc('tts_priority')
-                        ->orderByDesc('occurrence_count')
-                        ->limit(self::OVERVIEW_SAMPLE_LIMIT - count($sample))
-                        ->get(['content_id', 'text']);
-                    foreach ($rows as $row) {
-                        $sample[] = [
-                            'source_key' => (string) $row->content_id,
-                            'title' => mb_substr((string) $row->text, 0, 80),
-                            'language' => $lang,
-                        ];
-                    }
-                }
-            } catch (\Throwable $e) {
-                continue;
-            }
+        // Per-language pending counts in ONE information_schema + ONE UNION
+        // ALL COUNT query (constant round-trips). Queue totals and ordering
+        // remain owned by canonical global tasks.
+        $connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
+        $tables = [];
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $tables[$lang] = AppQyV1TableMaps::getSentenceTableName($lang);
         }
+        $byLanguage = AppQyV1PerLanguageMetrics::countByLanguage(
+            $connection,
+            AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
+            'has_audio = false'
+        );
 
-        $population = array_sum($byLanguage);
-        $leased = $service->leasedCount(null);
-
+        $sample = $this->wordTaskSample('sentence_audio');
         return [
-            'pending' => max(0, $population - $leased),
-            'processing' => 0,
-            'leased' => $leased,
-            'total' => $population,
+            'pending' => $task['pending'],
+            'processing' => $task['processing'],
+            'leased' => $task['leased'],
+            'total' => $task['total'],
             'by_language' => $byLanguage,
             'sample' => $sample,
             // Declared engine for this lane (qwen3tts-first, GPU-gated by pycore).
@@ -488,21 +430,13 @@ trait AppQyV1AssistQueueMetrics
         }
 
         try {
-            $base = fn () => \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::query()
-                ->where('record_type', $recordType)
-                ->where('request_type', $requestType);
-
-            // Per-status counts (one grouped query).
-            $byStatus = $base()
-                ->groupBy('status')
-                ->select('status', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-                ->pluck('total', 'status');
-
-            // Per-language counts (one grouped query).
-            $byLangRaw = $base()
-                ->groupBy('language')
-                ->select('language', \Illuminate\Support\Facades\DB::raw('count(*) as total'))
-                ->pluck('total', 'language');
+            $overview = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::groupedOverview(
+                $recordType,
+                $requestType,
+                self::OVERVIEW_SAMPLE_LIMIT
+            );
+            $byStatus = $overview['by_status'];
+            $byLangRaw = $overview['by_language'];
 
             $byLanguage = [];
             foreach ($byLangRaw as $lang => $total) {
@@ -517,16 +451,7 @@ trait AppQyV1AssistQueueMetrics
                 $total += (int) $value;
             }
 
-            $sample = $base()
-                ->whereIn('status', [
-                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PENDING,
-                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_CLAIMED,
-                    \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::STATUS_PROCESSING,
-                ])
-                ->orderByDesc('priority')
-                ->orderBy('id')
-                ->limit(self::OVERVIEW_SAMPLE_LIMIT)
-                ->get(['id', 'source_key', 'language'])
+            $sample = $overview['sample']
                 ->map(static fn ($row) => [
                     'id' => (int) $row->id,
                     'source_key' => (string) $row->source_key,

@@ -35,6 +35,10 @@ return new class extends Migration
 
     public function up(): void
     {
+        // Column drops are a legal in-place structure adjustment (never a
+        // table drop/rebuild): the per-language link lives in
+        // lang_content_ids, so this redundant column is removed in place.
+        // Idempotent: hasColumn() guard makes a re-run a no-op.
         $schema = Schema::connection($this->connection);
 
         if (!$schema->hasTable($this->tableName)) {

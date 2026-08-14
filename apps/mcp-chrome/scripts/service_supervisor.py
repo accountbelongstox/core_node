@@ -30,6 +30,7 @@ POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
 RECOVERY_DEBOUNCE_SECONDS = 2.0
 RECOVERY_COOLDOWN_SECONDS = 20.0
+RECOVERY_MAX_ATTEMPTS = 5
 TAKEOVER_WAIT_SECONDS = 30.0
 WINDOWS_ALREADY_EXISTS = 183
 WATCH_MODE_DEV = "dev"
@@ -281,6 +282,8 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
     watch_mode = initial_watch_mode
     pending_recovery_at: Optional[float] = time.monotonic() if recover_on_start else None
     last_recovery_at = 0.0
+    consecutive_down_recoveries = 0
+    auto_recovery_suspended_logged = False
 
     print(f"[Supervisor] Watch mode: {watch_mode}.", flush=True)
 
@@ -296,28 +299,51 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
             if current_watch_mode is not None and current_watch_mode != watch_mode:
                 watch_mode = current_watch_mode
                 print(f"[Supervisor] Watch mode changed to: {watch_mode}.", flush=True)
-                if watch_mode == WATCH_MODE_ONCE and child is not None:
-                    stop_dev_process(child)
-                    child = None
 
         now = time.monotonic()
         current_signature = artifact_signature(project_root)
         if current_signature != signature:
             signature = current_signature
             pending_recovery_at = now + RECOVERY_DEBOUNCE_SECONDS
+            consecutive_down_recoveries = 0
+            auto_recovery_suspended_logged = False
 
         current_request_signature = recovery_request_signature()
         if current_request_signature != request_signature:
             request_signature = current_request_signature
             pending_recovery_at = now
+            consecutive_down_recoveries = 0
+            auto_recovery_suspended_logged = False
 
-        service_down = not port_is_listening()
+        service_up = port_is_listening()
+        if service_up:
+            consecutive_down_recoveries = 0
+            auto_recovery_suspended_logged = False
         recovery_due = pending_recovery_at is not None and now >= pending_recovery_at
         cooldown_elapsed = now - last_recovery_at >= RECOVERY_COOLDOWN_SECONDS
-        if recovery_due or (cooldown_elapsed and service_down):
+        if recovery_due or (
+            cooldown_elapsed
+            and not service_up
+            and consecutive_down_recoveries < RECOVERY_MAX_ATTEMPTS
+        ):
             wake_extension()
             last_recovery_at = now
-            pending_recovery_at = None
+            if recovery_due:
+                pending_recovery_at = None
+            else:
+                consecutive_down_recoveries += 1
+        elif (
+            not service_up
+            and consecutive_down_recoveries >= RECOVERY_MAX_ATTEMPTS
+            and not auto_recovery_suspended_logged
+        ):
+            auto_recovery_suspended_logged = True
+            print(
+                "[Supervisor] MCP service is still not listening after "
+                f"{RECOVERY_MAX_ATTEMPTS} recovery attempts; pausing automatic "
+                "recovery until the next build or explicit request.",
+                flush=True,
+            )
 
         stop_event.wait(POLL_INTERVAL_SECONDS)
 

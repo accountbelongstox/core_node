@@ -4,7 +4,7 @@ import type {
   SelfStatus,
   SyncLogEntry,
   SyncSettings,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 import {
   connectPycoreHttp,
   pycoreApi,
@@ -13,7 +13,7 @@ import {
   PYCORE_BROWSER_EVENTS,
   PYCORE_EVENT_TOPICS,
   PYCORE_HTTP_ROUTES,
-} from '../../../core/api-libs/pycore';
+} from '../../../core/integrations/pycore';
 import { StorageManager } from '../../../core/persistence';
 import { TASK_INDEX_KEY, taskStorageKey } from '../../../core/tasks/taskStorageKeys';
 

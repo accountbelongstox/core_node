@@ -160,9 +160,8 @@ class AppQyV1PersonalDictionaryProcessPublicController
             }
         }
         $personDModel->personal_dicts = json_encode($personDict);
-        $personDModel->save();
+        $personDModel->saveRecord();
         return $upPropertyResult;
     }
 
 }
-

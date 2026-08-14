@@ -84,28 +84,9 @@ class AppQyV1PosterCollectionTask extends OctaneTimerTaskAbstract
         $staleLeases = 0;
 
         foreach ([Book::class, Subtitle::class] as $modelClass) {
-            // 1) failed posters past the backoff -> pending (clear lease + ts).
-            $requeued += (int) $modelClass::query()
-                ->where('poster_status', 'failed')
-                ->where(function ($q) use ($failedBefore) {
-                    $q->whereNull('poster_fetched_at')
-                        ->orWhere('poster_fetched_at', '<=', $failedBefore);
-                })
-                ->update([
-                    'poster_status' => 'pending',
-                    'poster_fetched_at' => null,
-                    'assist_claimed_at' => null,
-                    'assist_claimed_by' => null,
-                ]);
-
-            // 2) stale assist leases (> 60 min) -> cleared for mcp-chrome.
-            $staleLeases += (int) $modelClass::query()
-                ->whereNotNull('assist_claimed_at')
-                ->where('assist_claimed_at', '<', $leaseBefore)
-                ->update([
-                    'assist_claimed_at' => null,
-                    'assist_claimed_by' => null,
-                ]);
+            $recovered = $modelClass::recoverPosterMaintenance($failedBefore, $leaseBefore);
+            $requeued += $recovered['requeued'];
+            $staleLeases += $recovered['stale_leases'];
         }
 
         return [

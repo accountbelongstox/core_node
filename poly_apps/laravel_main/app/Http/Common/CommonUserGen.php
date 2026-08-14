@@ -79,7 +79,7 @@ class CommonUserGen
 
     public static function checkUsernameIsExist($username)
     {
-        $user = User::where('username', $username)->first();
+        $user = User::findByUsername($username);
         if ($user) {
             return true;
         }

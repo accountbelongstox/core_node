@@ -472,12 +472,19 @@ class AppQyV1AssistController extends Controller
         $fresh = (bool) $request->query('fresh', false);
 
         try {
-            $snapshot = $this->assist->overviewSnapshot($fresh);
+            // Fast path: return the pre-warmed cache immediately. A cold cache
+            // never blocks the HTTP worker; the Octane timer warms it every 20s.
+            // ?fresh=1 still forces a synchronous rebuild for explicit refresh.
+            $snapshot = $fresh
+                ? $this->assist->warmOverviewSnapshot()
+                : $this->assist->overviewSnapshotFast();
             $durationMs = round((microtime(true) - $startTime) * 1000, 2);
             Log::info('[QueueCenter] overview accessed', [
                 'request_id' => $requestId,
                 'client' => $request->ip(),
                 'fresh' => $fresh,
+                'cached' => $snapshot['cached'] ?? null,
+                'stale' => $snapshot['stale'] ?? null,
                 'duration_ms' => $durationMs,
             ]);
         } catch (\Throwable $e) {
@@ -489,11 +496,13 @@ class AppQyV1AssistController extends Controller
                 'duration_ms' => $durationMs,
             ]);
             return response()->json([
-                'success' => false,
-                'error' => 'Internal error building overview: ' . $e->getMessage(),
+                'success' => true,
+                'cached' => false,
+                'stale' => true,
+                'error' => 'overview_degraded: ' . $e->getMessage(),
                 'categories' => [],
                 'workers' => [],
-            ], 500);
+            ], 200);
         }
 
         return response()->json($snapshot);

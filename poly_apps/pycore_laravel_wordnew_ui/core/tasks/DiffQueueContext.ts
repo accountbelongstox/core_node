@@ -8,7 +8,7 @@ export type DiffPage = {
   /** Local sequential page key (server pages are positional chunks, not stable IDs). */
   page: number;
   ids: string[];
-  state: 'priority' | 'ready' | 'consumed';
+  state: 'head' | 'ready' | 'consumed';
   consumedIds?: string[];
   updatedAt: number;
 };
@@ -43,7 +43,7 @@ class DiffQueueContext {
   /**
    * Incremental alignment on the server cursor/revision model: appends only
    * server pages with IDs not already known, adopts the high-water cursor,
-   * the realtime revision, and the priority-promoted head IDs. Never performs
+   * the realtime revision, and the moved-to-head IDs. Never performs
    * a cold full pull — callers pass the server delta pages only. Fully
    * consumed pages are compacted out and the table stays bounded by the
    * contract id_page_limit.
@@ -84,7 +84,7 @@ class DiffQueueContext {
       ...current,
       headIds: this.normalize([...normalized, ...current.headIds]),
       pages: [
-        { page: nextPage, ids: normalized, state: 'priority' as const, updatedAt: Date.now() },
+        { page: nextPage, ids: normalized, state: 'head' as const, updatedAt: Date.now() },
         ...current.pages,
       ].slice(0, QUEUE_CENTER_DIFF_DELIVERY.id_page_limit),
       updatedAt: Date.now(),
@@ -128,7 +128,11 @@ class DiffQueueContext {
         return {
           page: Number(legacy.page ?? legacy.revision ?? index + 1),
           ids: this.normalize(legacy.ids ?? []),
-          state: legacy.state === 'consumed' || legacy.state === 'priority' ? legacy.state : 'ready',
+          state: legacy.state === 'consumed'
+            ? 'consumed'
+            : legacy.state === 'head' || (legacy as { state?: string }).state === 'priority'
+              ? 'head'
+              : 'ready',
           consumedIds: legacy.consumedIds ? this.normalize(legacy.consumedIds) : undefined,
           updatedAt: Number(legacy.updatedAt ?? 0),
         };

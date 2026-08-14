@@ -28,7 +28,9 @@ return new class extends Migration
     public function up(): void
     {
         $table = $this->prefix . '_user_languages';
-        Schema::connection($this->connection)->dropIfExists($table);
+        // Neutralized: initialization never drops a table (empty or not).
+        // The orphan table is left in place — dead, unread, harmless.
+        return;
     }
 
     public function down(): void

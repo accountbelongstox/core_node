@@ -38,7 +38,7 @@ return [
     |
     */
 
-    'server' => env('OCTANE_SERVER', 'roadrunner'),
+    'server' => env('OCTANE_SERVER', 'swoole'),
 
     /*
     |--------------------------------------------------------------------------
@@ -182,7 +182,9 @@ return [
 
     'cache' => [
         'rows' => 1000,
-        'bytes' => 10000,
+        // Overview snapshots and large pending snapshots can exceed 10 KB;
+        // 128 KB keeps them in worker-shared memory without truncation.
+        'bytes' => 131072,
     ],
 
     /*

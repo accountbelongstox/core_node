@@ -4,7 +4,7 @@ namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -109,5 +109,56 @@ class CodeMartV1TaskModel extends Model
             ->whereIn('status', ['in_progress', 'review', 'completed'])
             ->latest('updated_at')
             ->get();
+    }
+
+    public static function filteredPage(array $filters, int $page, int $pageSize): array
+    {
+        $query = static::query()->with(['milestone', 'assignee']);
+
+        foreach (['milestone_id', 'status', 'priority', 'assigned_to'] as $field) {
+            if (array_key_exists($field, $filters)) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+        if (array_key_exists('search', $filters)) {
+            $search = (string) $filters['search'];
+            $query->where(function ($builder) use ($search): void {
+                $builder->where('title', 'like', '%' . $search . '%')
+                    ->orWhere('description', 'like', '%' . $search . '%');
+            });
+        }
+
+        return self::paginateQuery(
+            $query->orderBy('order')->orderByDesc('created_at'),
+            'tasks',
+            $page,
+            $pageSize
+        );
+    }
+
+    public static function createForMilestone(int $milestoneId, array $attributes): self
+    {
+        $nextOrder = ((int) static::query()->where('milestone_id', $milestoneId)->max('order')) + 1;
+
+        return static::query()->create(array_merge($attributes, [
+            'milestone_id' => $milestoneId,
+            'order' => $nextOrder,
+            'status' => 'pending',
+        ]));
+    }
+
+    public static function findById(int $taskId): ?self
+    {
+        return static::query()->find($taskId);
+    }
+
+    public static function findDetailed(int $taskId): ?self
+    {
+        return static::query()->with([
+            'milestone',
+            'assignee',
+            'submissions' => fn ($query) => $query->latest(),
+            'comments' => fn ($query) => $query->latest(),
+        ])->find($taskId);
     }
 }

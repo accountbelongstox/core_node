@@ -3,7 +3,7 @@
 
 The language-neutral source is ``config/queue_center_contract.json``. Keep this adapter,
 the Laravel ``App\\Support\\QueueCenterContract`` adapter, and the TypeScript
-``core/api-libs/pycore/QueueCenterContract.ts`` adapter pointed at that file. The
+``core/contracts/QueueCenterContract.ts`` adapter pointed at that file. The
 mcp-chrome adapter is ``apps/mcp-chrome/app/chrome-extension/utils/queue-center-contract.ts``.
 
 Changing a task status, execution lane, capability, wire field, or task-type route
@@ -15,19 +15,14 @@ import json
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, TypedDict
+from urllib.parse import quote
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 _CONTRACT_PATH = _PROJECT_ROOT / "config" / "queue_center_contract.json"
 _CONTRACT_DOCUMENT: Dict[str, Any] = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
 _TASK_CONTRACT: Dict[str, Any] = _CONTRACT_DOCUMENT["task_contract"]
 
-QueueCenterScope = Literal[
-    "heartbeat",
-    "assist_translation",
-    "word_audio",
-    "sentence_audio",
-    "media_image",
-]
+QueueCenterScope = str
 QueueCenterSectionLifecycle = Literal["off", "starting", "on", "error"]
 
 
@@ -78,6 +73,7 @@ class GlobalTaskRecord(TypedDict, total=False):
     capability: Optional[str]
     is_fast_tier: bool
     status: str
+    queue_position: int
     priority: int
     progress: float
     payload: Dict[str, Any]
@@ -94,9 +90,10 @@ class GlobalTaskRecord(TypedDict, total=False):
     updated_at: Optional[str]
 
 
-class GlobalTaskCreateResult(TypedDict):
+class GlobalTaskCreateResult(TypedDict, total=False):
     task_id: str
     execution_type: str
+    queue_position: int
     priority: int
     is_fast_tier: bool
 
@@ -164,7 +161,31 @@ class GlobalTaskWorkerResult(TypedDict, total=False):
 
 
 QUEUE_CENTER_SCHEMA_VERSION = int(_CONTRACT_DOCUMENT["schema_version"])
+QUEUE_CENTER_REALTIME: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["realtime"])
+QUEUE_CENTER_REALTIME_EVENTS: Dict[str, str] = {
+    str(key): str(value)
+    for key, value in QUEUE_CENTER_REALTIME["events"].items()
+}
 QUEUE_CENTER_DIFF_DELIVERY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["diff_delivery"])
+QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
+    str(key): str(value)
+    for key, value in _CONTRACT_DOCUMENT["endpoints"].items()
+}
+
+
+def queue_center_endpoint(role: str, **tokens: Any) -> str:
+    """Render one contract-owned Laravel endpoint path.
+
+    Templates live in config/queue_center_contract.json ``endpoints``; token
+    values are URL path segments and are percent-encoded here.
+    """
+    template = QUEUE_CENTER_ENDPOINTS.get(role)
+    if not template:
+        raise RuntimeError(f"Unknown Queue Center endpoint role: {role}")
+    path = template
+    for key, value in tokens.items():
+        path = path.replace("{" + key + "}", quote(str(value), safe=""))
+    return path
 QUEUE_CENTER_DELIVERY_RECEIPT: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["delivery_receipt"])
 QUEUE_CENTER_CONTROL_NAMES: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["control_names"])
 QUEUE_CENTER_CAPABILITY_CLAIMANTS: Dict[str, Tuple[str, ...]] = {
@@ -175,18 +196,63 @@ QUEUE_CENTER_SECTION_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     key: dict(value)
     for key, value in _CONTRACT_DOCUMENT["section_scopes"].items()
 }
+QUEUE_CENTER_SCOPES: Tuple[QueueCenterScope, ...] = tuple(
+    QUEUE_CENTER_SECTION_DEFINITIONS
+)
 QUEUE_CATEGORY_CATALOG: List[Dict[str, Any]] = []
 for _category_definition in _CONTRACT_DOCUMENT["categories"]:
     _category = dict(_category_definition)
     _capability = _category.get("capability")
+    _task_type = next(
+        (
+            definition
+            for definition in _CONTRACT_DOCUMENT["task_contract"]["task_types"]
+            if definition.get("key") == _category.get("laravel_task_type")
+        ),
+        {},
+    )
     _category["claimants"] = list(
-        QUEUE_CENTER_CAPABILITY_CLAIMANTS.get(
-            str(_capability),
-            (str(_category["primary_handler"]),),
+        _task_type.get(
+            "claimants",
+            QUEUE_CENTER_CAPABILITY_CLAIMANTS.get(
+                str(_capability),
+                (str(_category["primary_handler"]),),
+            ),
         )
     )
     QUEUE_CATEGORY_CATALOG.append(_category)
 QUEUE_COUNT_KEYS: Tuple[str, ...] = tuple(_CONTRACT_DOCUMENT["metric_semantics"].keys())
+
+
+def _assert_queue_center_section_coverage() -> None:
+    category_keys = {
+        str(definition["key"])
+        for definition in QUEUE_CATEGORY_CATALOG
+    }
+    missing_controls = set(QUEUE_CENTER_CONTROL_NAMES).difference(QUEUE_CENTER_SCOPES)
+    if missing_controls:
+        missing = ", ".join(sorted(missing_controls))
+        raise RuntimeError(f"Queue Center controls missing section scopes: {missing}")
+    for scope, definition in QUEUE_CENTER_SECTION_DEFINITIONS.items():
+        category = definition.get("category")
+        scope_category_keys = definition.get("category_keys")
+        if not isinstance(category, str) or not category:
+            raise RuntimeError(f"Queue Center section missing category: {scope}")
+        if not isinstance(scope_category_keys, list) or not scope_category_keys:
+            raise RuntimeError(f"Queue Center section missing category keys: {scope}")
+        unknown_keys = {
+            str(value)
+            for value in scope_category_keys
+            if str(value) not in category_keys
+        }
+        if unknown_keys:
+            unknown = ", ".join(sorted(unknown_keys))
+            raise RuntimeError(
+                f"Queue Center section {scope} has unknown category keys: {unknown}"
+            )
+
+
+_assert_queue_center_section_coverage()
 
 GLOBAL_TASK_STATUSES_BY_ROLE: Dict[str, str] = {
     str(key): str(value) for key, value in _TASK_CONTRACT["statuses"]["values"].items()
@@ -268,6 +334,26 @@ GLOBAL_TASK_TYPE_CATALOG: Tuple[Dict[str, Any], ...] = tuple(
 GLOBAL_TASK_TYPES_BY_KEY: Dict[str, Dict[str, Any]] = {
     str(definition["key"]): definition for definition in GLOBAL_TASK_TYPE_CATALOG
 }
+
+
+def _build_task_types_by_name() -> Dict[str, Dict[str, Any]]:
+    definitions: Dict[str, Dict[str, Any]] = {}
+    for definition in GLOBAL_TASK_TYPE_CATALOG:
+        ordering = definition.get("ordering")
+        key = str(definition.get("key") or "").strip().lower()
+        if not key or ordering not in ("queue_position", "priority"):
+            raise RuntimeError(f"Queue Center task type has invalid ordering: {key}")
+        for name in (key, *definition.get("aliases", [])):
+            normalized = str(name).strip().lower()
+            if not normalized or normalized in definitions:
+                raise RuntimeError(
+                    f"Queue Center task type name is duplicated: {normalized}"
+                )
+            definitions[normalized] = definition
+    return definitions
+
+
+GLOBAL_TASK_TYPES_BY_NAME: Dict[str, Dict[str, Any]] = _build_task_types_by_name()
 _HISTORY_CONTRACT: Dict[str, Any] = _TASK_CONTRACT["history_buckets"]
 GLOBAL_TASK_HISTORY_BUCKETS: Tuple[str, ...] = tuple(_HISTORY_CONTRACT["all"])
 
@@ -300,8 +386,45 @@ def get_queue_center_contract() -> Dict[str, Any]:
 def task_type_definition(task_type: object) -> Optional[Dict[str, Any]]:
     """Return an isolated central task-type definition, if one exists."""
     key = str(task_type or "").strip().lower()
-    definition = GLOBAL_TASK_TYPES_BY_KEY.get(key)
+    definition = GLOBAL_TASK_TYPES_BY_NAME.get(key)
     return deepcopy(definition) if definition is not None else None
+
+
+def task_type_claimants(task_type: object) -> Tuple[str, ...]:
+    """Return the contract-owned claimant list for one task type."""
+    definition = GLOBAL_TASK_TYPES_BY_NAME.get(str(task_type or "").strip().lower())
+    if definition is None:
+        return ()
+    explicit = definition.get("claimants")
+    if isinstance(explicit, list):
+        return tuple(str(claimant) for claimant in explicit)
+    capability = definition.get("capability")
+    return QUEUE_CENTER_CAPABILITY_CLAIMANTS.get(str(capability), ())
+
+
+def task_types_for_claimant(claimant: object, capability: object = None) -> Tuple[str, ...]:
+    """Return task types assigned to a claimant, optionally for one capability."""
+    claimant_name = str(claimant or "").strip().lower()
+    capability_name = str(capability or "").strip()
+    return tuple(
+        str(definition["key"])
+        for definition in GLOBAL_TASK_TYPE_CATALOG
+        if (not capability_name or str(definition.get("capability") or "") == capability_name)
+        and claimant_name in task_type_claimants(definition["key"])
+    )
+
+
+def queue_consumer_slice_limit(task_type: object) -> int:
+    """Return the canonical bounded pull size for one queue."""
+    limits = QUEUE_CENTER_DIFF_DELIVERY.get("consumer_batch_limits") or {}
+    return max(
+        1,
+        int(
+            limits.get(str(task_type or ""))
+            or QUEUE_CENTER_DIFF_DELIVERY.get("consumer_slice_default")
+            or GLOBAL_TASK_LIMITS["worker_pull_default"]
+        ),
+    )
 
 
 def task_execution_type(task_type: object, fallback: str = "remote_translation") -> str:
@@ -315,6 +438,51 @@ def task_capability(task_type: object) -> Optional[str]:
     definition = task_type_definition(task_type)
     capability = definition.get("capability") if definition else None
     return str(capability) if capability else None
+
+
+def task_ordering(task_type: object) -> str:
+    """Return the single ordering authority for a task type.
+
+    ``queue_position`` means Laravel-owned Queue Center head ordering;
+    ``priority`` means the contract-defined numeric task priority. No caller
+    may branch on literal audio task-type lists.
+    """
+    definition = task_type_definition(task_type)
+    if definition is None:
+        return "priority"
+    ordering = definition.get("ordering")
+    if ordering in ("queue_position", "priority"):
+        return str(ordering)
+    raise RuntimeError(f"Queue Center task type has invalid ordering: {task_type}")
+
+
+def is_queue_position_ordered(task_type: object) -> bool:
+    """Whether a task type orders strictly by Laravel-owned queue_position."""
+    return task_ordering(task_type) == "queue_position"
+
+
+QUEUE_CENTER_QUEUE_POSITION_CONTROLS: Tuple[str, ...] = tuple(
+    scope
+    for scope in QUEUE_CENTER_CONTROL_NAMES
+    if is_queue_position_ordered(scope)
+)
+QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES: Tuple[str, ...] = tuple(
+    str(alias)
+    for definition in GLOBAL_TASK_TYPE_CATALOG
+    if definition.get("ordering") == "queue_position"
+    for alias in definition.get("aliases", [])
+)
+
+
+def task_order_value(task: Mapping[str, Any]) -> int:
+    """Read the contract-owned ordering value from one task record."""
+    field = task_ordering(task.get("task_type"))
+    return int(task.get(field) or 0)
+
+
+def task_order_key(task: Mapping[str, Any]) -> Tuple[int]:
+    """Return a stable ascending-sort key for descending contract order."""
+    return (-task_order_value(task),)
 
 
 def task_prompt_payload_field(task_type: object) -> str:
@@ -415,8 +583,15 @@ __all__ = [
     "QUEUE_CENTER_CONTROL_NAMES",
     "QUEUE_CENTER_CAPABILITY_CLAIMANTS",
     "QUEUE_CENTER_SCHEMA_VERSION",
+    "QUEUE_CENTER_REALTIME",
+    "QUEUE_CENTER_REALTIME_EVENTS",
+    "QUEUE_CENTER_QUEUE_POSITION_CONTROLS",
+    "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DIFF_DELIVERY",
+    "QUEUE_CENTER_ENDPOINTS",
+    "queue_center_endpoint",
     "QUEUE_CENTER_SECTION_DEFINITIONS",
+    "QUEUE_CENTER_SCOPES",
     "QUEUE_COUNT_KEYS",
     "GLOBAL_TASK_CAPABILITIES",
     "GLOBAL_TASK_CAPABILITIES_BY_ROLE",
@@ -437,6 +612,7 @@ __all__ = [
     "GLOBAL_TASK_TERMINAL_EVENTS",
     "GLOBAL_TASK_TYPE_CATALOG",
     "GLOBAL_TASK_TYPES_BY_KEY",
+    "GLOBAL_TASK_TYPES_BY_NAME",
     "GLOBAL_TASK_WIRE_SHAPES",
     "GLOBAL_TASK_WORKER_RESULT_STATUSES",
     "GlobalTaskCurrentPhase",
@@ -457,13 +633,20 @@ __all__ = [
     "build_empty_queue_contract",
     "category_keys_for_scope",
     "get_queue_center_contract",
+    "is_queue_position_ordered",
     "normalize_task_history_type",
     "project_task_record",
+    "queue_consumer_slice_limit",
     "task_capability",
     "task_execution_type",
     "task_local_label",
+    "task_ordering",
+    "task_order_key",
+    "task_order_value",
     "task_prompt_payload_field",
     "task_prompt_text",
     "task_type_definition",
+    "task_type_claimants",
+    "task_types_for_claimant",
     "task_types_for_execution",
 ]

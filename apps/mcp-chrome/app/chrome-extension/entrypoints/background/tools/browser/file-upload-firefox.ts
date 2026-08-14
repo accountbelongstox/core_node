@@ -13,6 +13,7 @@
  * which builds File objects and assigns them to the <input type="file">.
  */
 import { getNativePort } from '../../native-host';
+import { base64ToBytes } from '@/utils/binary';
 
 // Hard cap for a single upload materialized in extension memory.
 export const MAX_UPLOAD_FILE_BYTES = 50 * 1024 * 1024;
@@ -75,20 +76,6 @@ function assertWithinSizeLimit(size: number): void {
       `File is too large for Firefox upload: ${size} bytes (limit ${MAX_UPLOAD_FILE_BYTES} bytes / 50 MB)`,
     );
   }
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  let binary: string;
-  try {
-    binary = atob(base64);
-  } catch {
-    throw new Error('Invalid base64 data');
-  }
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
 }
 
 /**

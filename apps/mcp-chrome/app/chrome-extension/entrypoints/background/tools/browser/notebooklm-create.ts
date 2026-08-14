@@ -1,6 +1,9 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { delay } from '@/utils/async';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { SessionJobStore } from '@/utils/session-job-store';
 
 // Literal name (mirrored in chrome-mcp-shared TOOL_NAMES.BROWSER.NOTEBOOKLM_CREATE).
 const TOOL_NAME = 'chrome_notebooklm_create';
@@ -8,8 +11,6 @@ const NBLM_HOME = 'https://notebooklm.google.com/';
 const HELPER = 'inject-scripts/notebooklm-create-helper.js';
 const LOG = 'NotebookLM Create';
 const JOBS_KEY = 'nblm_create_jobs';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export type NblmJobStatus = 'creating' | 'generating' | 'done' | 'failed';
 
@@ -46,7 +47,7 @@ interface NblmParams {
  */
 class NotebookLMCreateTool extends BaseBrowserToolExecutor {
   name = TOOL_NAME;
-  private jobs = new Map<string, NblmJob>();
+  private readonly jobStore = new SessionJobStore<NblmJob>(JOBS_KEY);
 
   async execute(args: NblmParams): Promise<ToolResult> {
     const action = args?.action || (args?.jobId ? 'status' : 'start');
@@ -55,18 +56,18 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
         const jobId = String(args?.jobId || '');
         if (!jobId) return createErrorResponse("jobId is required for action='status'");
         const r = await this.status(jobId);
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ jobId, ...r }, null, 2) }],
+        return createJsonResponse({ jobId, ...r }, {
           isError: r.status === 'failed' || r.status === 'unknown',
-        };
+          space: 2,
+        });
       }
       const text = (args?.text || '').trim();
       if (!text) return createErrorResponse('text is required to start a notebook');
       const r = await this.start(text, !!args?.openInNewTab, args?.timeoutMs ?? 180000);
-      return { content: [{ type: 'text', text: JSON.stringify(r, null, 2) }], isError: !r.ok };
+      return createJsonResponse(r, { isError: !r.ok, space: 2 });
     } catch (error) {
       return createErrorResponse(
-        `NotebookLM create error: ${error instanceof Error ? error.message : String(error)}`,
+        `NotebookLM create error: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -93,7 +94,7 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
     // navigating to /notebook/creating directly just spins forever).
     await this.ensureOnHome(tabId);
     await this.injectContentScript(tabId, [HELPER]);
-    await sleep(400);
+    await delay(400);
     const created = await this.sendMessageToTab(tabId, { action: 'nblmClickCreate' }).catch((e: any) => ({
       clicked: false,
       error: String(e?.message || e),
@@ -110,7 +111,7 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
 
     // Add the text/topic source and submit on the new notebook page.
     await this.injectContentScript(tabId, [HELPER]);
-    await sleep(500);
+    await delay(500);
     const added = await this.sendMessageToTab(tabId, { action: 'nblmAddSourceText', text }).catch((e: any) => ({
       submitted: false,
       error: String(e?.message || e),
@@ -125,7 +126,7 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
     }
 
     const jobId = this.genId();
-    this.jobs.set(jobId, {
+    this.jobStore.set({
       jobId,
       tabId,
       text,
@@ -133,7 +134,7 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
       deadline: Date.now() + Math.max(30000, timeoutMs),
       notebookUrl,
     });
-    await this.persist();
+    await this.jobStore.persist();
     logger.info(LOG, `Started job ${jobId} (${notebookUrl}) via ${added.via || '?'}`);
     return {
       ok: true,
@@ -155,8 +156,8 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
     sourceCount?: number;
     error?: string;
   }> {
-    let job = this.jobs.get(jobId);
-    if (!job) job = await this.hydrate(jobId);
+    let job = this.jobStore.get(jobId);
+    if (!job) job = await this.jobStore.hydrate(jobId);
     if (!job) return { ok: false, status: 'unknown', error: 'Unknown jobId (expired or never started)' };
     if (job.status === 'done') {
       return { ok: true, status: 'done', notebookUrl: job.notebookUrl, title: job.title, sourceCount: job.sourceCount };
@@ -168,14 +169,14 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
         job.status = 'done';
         job.title = r.title;
         job.sourceCount = r.sourceCount;
-        await this.persist();
+        await this.jobStore.persist();
         logger.info(LOG, `Job ${jobId} done (${r.sourceCount} sources)`);
         return { ok: true, status: 'done', notebookUrl: job.notebookUrl, title: r.title, sourceCount: r.sourceCount };
       }
       if (Date.now() > job.deadline) {
         job.status = 'failed';
         job.error = 'Timed out waiting for the notebook to finish generating';
-        await this.persist();
+        await this.jobStore.persist();
         return { ok: false, status: 'failed', error: job.error, notebookUrl: job.notebookUrl };
       }
       return { ok: true, status: 'generating', generating: !!(r && r.generating), notebookUrl: job.notebookUrl };
@@ -184,7 +185,7 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
         const msg = error?.message || 'NotebookLM tab unreachable';
         job.status = 'failed';
         job.error = msg;
-        await this.persist();
+        await this.jobStore.persist();
         return { ok: false, status: 'failed', error: msg };
       }
       return { ok: true, status: 'generating', generating: true, notebookUrl: job.notebookUrl };
@@ -203,7 +204,11 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
     if (!tab || !tab.url || !tab.url.includes('notebooklm.google.com')) {
       await chrome.tabs.update(tabId, { url: NBLM_HOME });
     }
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, {
+      timeoutMs: 25000,
+      settleDelayMs: 700,
+      statusProbeDelayMs: 800,
+    });
   }
 
   private async resolveTab(openInNewTab: boolean): Promise<chrome.tabs.Tab | undefined> {
@@ -222,72 +227,18 @@ class NotebookLMCreateTool extends BaseBrowserToolExecutor {
   private async waitForNotebookUrl(tabId: number, timeoutMs: number): Promise<string | null> {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      await sleep(1000);
+      await delay(1000);
       const tab = await this.tryGetTab(tabId);
       const url = tab?.url || '';
       if (/\/notebook\/[0-9a-f-]{8,}/i.test(url)) {
         // Give the add-source UI a moment to render.
-        await sleep(1200);
+        await delay(1200);
         return url;
       }
     }
     return null;
   }
 
-  private async persist(): Promise<void> {
-    try {
-      const lite = Array.from(this.jobs.values()).slice(-20);
-      await chrome.storage.session.set({ [JOBS_KEY]: lite });
-    } catch {
-      // session storage unavailable
-    }
-  }
-
-  private async hydrate(jobId: string): Promise<NblmJob | undefined> {
-    try {
-      const arr = (await chrome.storage.session.get(JOBS_KEY))[JOBS_KEY];
-      if (Array.isArray(arr)) {
-        const found = arr.find((j: any) => j && j.jobId === jobId);
-        if (found) {
-          this.jobs.set(jobId, found);
-          return found;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return undefined;
-  }
-
-  private waitForTabComplete(tabId: number, timeoutMs = 25000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // already gone
-        }
-        clearTimeout(timer);
-        setTimeout(resolve, 700);
-      };
-      const onUpdated = (id: number, info: chrome.tabs.TabChangeInfo) => {
-        if (id === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then(
-          (t) => {
-            if (t.status === 'complete') finish();
-          },
-          () => finish(),
-        );
-      }, 800);
-    });
-  }
 }
 
 export const notebookLmCreateTool = new NotebookLMCreateTool();

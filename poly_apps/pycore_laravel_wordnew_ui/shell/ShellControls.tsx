@@ -22,10 +22,9 @@ import {
   SHELL_DOCK_INSET_PX, SHELL_DOCK_BUTTON_PX,
   SHELL_DOCK_PANEL_GAP_PX, SHELL_DOCK_PANEL_WIDTH_PX, SHELL_DOCK_Z_INDEX,
 } from './shellChrome';
-import { StorageKeys, StorageManager } from '../core/persistence';
+import { StorageManager } from '../core/persistence';
+import { ShellStorageKeys as StorageKeys } from './ShellStorageKeys';
 
-/** Preserve the dock position while retiring the old shell-prefixed key. */
-StorageManager.migrateRaw(StorageKeys.SHELL_DOCK_Y_LEGACY, StorageKeys.SHELL_DOCK_Y);
 /** Pointer travel (px) beyond which a press counts as a drag, not a tap. */
 const DRAG_THRESHOLD_PX = 4;
 
@@ -50,7 +49,7 @@ export const ShellControls: React.FC = () => {
 
   // Committed vertical position (px from top). Horizontal is always the right edge.
   const [dockY, setDockY] = useState<number>(() => {
-    const saved = Number(StorageManager.getRaw(StorageKeys.SHELL_DOCK_Y));
+    const saved = Number(StorageManager.getRaw(StorageKeys.DOCK_Y));
     return Number.isFinite(saved) && saved > 0 ? clampDockY(saved) : defaultDockY();
   });
   // Live drag offset while a pointer-drag is in progress (null = not dragging).
@@ -101,7 +100,7 @@ export const ShellControls: React.FC = () => {
       const dx = drag?.dx ?? 0;
       const newY = clampDockY(d.startY + dy);
       setDockY(newY);
-      StorageManager.setRaw(StorageKeys.SHELL_DOCK_Y, String(newY));
+      StorageManager.setRaw(StorageKeys.DOCK_Y, String(newY));
       setSnapX(dx);
     } else {
       // A tap (no real movement) toggles the panel.

@@ -1,4 +1,17 @@
-import { ElementTheme } from './WfNewTypes';
+export interface ElementTheme {
+  id: string;
+  nameEn: string;
+  nameZh: string;
+  bgClass: string;
+  cardClass: string;
+  textPrimaryClass: string;
+  textSecondaryClass: string;
+  accentText: string;
+  accentBg: string;
+  borderClass: string;
+  glowClass: string;
+  inputClass: string;
+}
 
 export const CUSTOM_THEMES: ElementTheme[] = [
   {

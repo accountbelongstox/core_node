@@ -32,10 +32,7 @@ class PddToolV1Presenter
      */
     public static function user(User $user, PddToolV1ProfileModel $profile): array
     {
-        $accounts = PddToolV1PddAccountModel::query()
-            ->where('user_id', $user->id)
-            ->orderBy('id')
-            ->get();
+        $accounts = PddToolV1PddAccountModel::forUser((int) $user->id);
 
         return [
             'id' => (int) $user->id,
@@ -93,9 +90,7 @@ class PddToolV1Presenter
      */
     public static function userAdmin(PddToolV1ProfileModel $profile, string $username): array
     {
-        $accountsCount = PddToolV1PddAccountModel::query()
-            ->where('user_id', $profile->user_id)
-            ->count();
+        $accountsCount = PddToolV1PddAccountModel::countForUser((int) $profile->user_id);
 
         return [
             'id' => (int) $profile->user_id,

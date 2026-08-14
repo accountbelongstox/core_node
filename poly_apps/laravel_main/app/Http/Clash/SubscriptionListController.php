@@ -11,7 +11,7 @@
 
 namespace App\Http\Clash;
 
-use App\Models\ClashUrlsConfig;
+use App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel as ClashUrlsConfig;
 use App\Services\ContentFetchers\UrlContentFetcher;
 use App\Services\ContentFetchers\WebContentFetcher;
 use App\Helpers\BrowserSimulator;
@@ -54,9 +54,7 @@ class SubscriptionListController
         }
 
         $defaultConfig = ClashDefaultConfigProcessor::processConfig();
-        $configs = ClashUrlsConfig::where('group_id', $groupId)
-            ->orderBy('created_at', 'desc')
-            ->get()
+        $configs = ClashUrlsConfig::forGroup((int) $groupId)
             ->map(function ($config) {
                 $expiryMonths = $this->calculateExpiryMonths($config);
                 $yamlContent = $this->handleContentWithYamlCache($config);
@@ -102,9 +100,7 @@ class SubscriptionListController
         }
 
         $defaultConfig = ClashDefaultConfigProcessor::processConfig();
-        $configs = ClashUrlsConfig::where('group_id', $groupId)
-            ->orderBy('created_at', 'desc')
-            ->get()
+        $configs = ClashUrlsConfig::forGroup((int) $groupId)
             ->map(function ($config) {
                 $expiryMonths = $this->calculateExpiryMonths($config);
                 $yamlContent = $this->handleContentWithYamlCache($config);

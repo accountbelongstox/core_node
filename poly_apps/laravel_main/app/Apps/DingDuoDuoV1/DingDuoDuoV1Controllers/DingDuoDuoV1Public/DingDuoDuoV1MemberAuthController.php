@@ -67,10 +67,7 @@ class DingDuoDuoV1MemberAuthController extends BaseController
 
         $member = $token === ''
             ? null
-            : DingDuoDuoV1MemberModel::query()
-                ->where('token', $token)
-                ->where('status', 'active')
-                ->first();
+            : DingDuoDuoV1MemberModel::activeByToken($token);
 
         if (!$member) {
             return response()->json([

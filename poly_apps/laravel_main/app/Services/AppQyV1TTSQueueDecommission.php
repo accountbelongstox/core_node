@@ -143,7 +143,6 @@ class AppQyV1TTSQueueDecommission
                         ->update([
                             // processing claims do not survive the cutover.
                             'tts_status' => $row->status === 'failed' ? 'failed' : 'pending',
-                            'tts_priority' => (int) ($row->priority ?? 0),
                             'tts_attempts' => (int) ($row->retry_count ?? 0),
                             'tts_error' => $row->error_message,
                             'tts_requested_at' => $row->requested_at ?? $row->created_at,

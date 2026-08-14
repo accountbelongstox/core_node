@@ -2,39 +2,18 @@
 
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 
-use Illuminate\Support\Facades\DB;
+use App\Apps\McpV1\McpV1Models\McpV1VoiceSubtitleUserSettingsModel;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
 
 class UserSettingsManager
 {
     private array $tableColumns = [];
     private array $supportedLanguageCodes = [];
 
-    /**
-     * Query-builder connection for the voice_subtitle_user_settings table.
-     * Same connection resolution as ensureTableColumns() (the McpV1 app
-     * connection via AppTablePrefixServiceProvider) so reads, writes and the
-     * schema introspection can never disagree. An earlier refactor left both
-     * this method and the $this->dbConnection property it replaced missing,
-     * which 500'd every voice-subtitle route ("Call to undefined method").
-     */
-    private function getDbConnection(): \Illuminate\Database\Connection
-    {
-        $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
-        return DB::connection($connectionName);
-    }
-
     public function getUserSettings(string $userIdentifier): array
     {
         // Use model connection for query builder (Laravel best practice)
-        $dbConnection = $this->getDbConnection();
-        $settings = $dbConnection->table('voice_subtitle_user_settings')
-            ->where('user_identifier', $userIdentifier)
-            ->first();
+        $settings = McpV1VoiceSubtitleUserSettingsModel::findForUser($userIdentifier);
 
         if (!$settings) {
             return $this->createDefaultSettings($userIdentifier);
@@ -89,23 +68,7 @@ class UserSettingsManager
             $updateData['updated_at'] = now();
         }
 
-        $exists = $this->getDbConnection()->table('voice_subtitle_user_settings')
-            ->where('user_identifier', $userIdentifier)
-            ->exists();
-
-        if ($exists) {
-            $this->getDbConnection()->table('voice_subtitle_user_settings')
-                ->where('user_identifier', $userIdentifier)
-                ->update($updateData);
-        } else {
-            if ($this->hasColumn('user_identifier')) {
-                $updateData['user_identifier'] = $userIdentifier;
-            }
-            if ($this->hasColumn('created_at')) {
-                $updateData['created_at'] = now();
-            }
-            $this->getDbConnection()->table('voice_subtitle_user_settings')->insert($updateData);
-        }
+        McpV1VoiceSubtitleUserSettingsModel::saveForUser($userIdentifier, $updateData);
 
         return [
             'success' => true,
@@ -131,7 +94,7 @@ class UserSettingsManager
 
         $dbSettings = $this->filterColumns($defaultSettings);
         if (!empty($dbSettings)) {
-            $this->getDbConnection()->table('voice_subtitle_user_settings')->insert($dbSettings);
+            McpV1VoiceSubtitleUserSettingsModel::saveForUser($userIdentifier, $dbSettings);
         }
 
         Log::info('[UserSettingsManager] Created default settings', [
@@ -179,8 +142,7 @@ class UserSettingsManager
         }
 
         try {
-            $connectionName = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
-            $this->tableColumns = Schema::connection($connectionName)->getColumnListing('voice_subtitle_user_settings');
+            $this->tableColumns = McpV1VoiceSubtitleUserSettingsModel::availableColumns();
         } catch (\Throwable $e) {
             Log::error('[UserSettingsManager] Failed to fetch column listing', [
                 'error' => $e->getMessage(),

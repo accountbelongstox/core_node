@@ -1,6 +1,9 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { arrayBufferToBase64 } from '@/utils/binary';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { delay as waitForDelay, fetchWithTimeout } from '@/utils/async';
 
 /**
  * HowToPronounce browser tool
@@ -25,6 +28,11 @@ const HELPER_SCRIPT = 'inject-scripts/howtopronounce-helper.js';
 const MAX_AUDIO_CLIPS = 3;
 /** Per-clip fetch budget (howtopronounce mp3s are ~10-30KB; allow headroom). */
 const AUDIO_FETCH_TIMEOUT_MS = 12_000;
+const HOWTO_TAB_COMPLETE_OPTIONS = {
+  timeoutMs: 15_000,
+  settleDelayMs: 400,
+  statusProbeDelayMs: 600,
+};
 
 interface HowToPronounceParams {
   word: string;
@@ -85,11 +93,11 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
       if (!tab.id) return createErrorResponse('Failed to create or access tab');
       const data = await this.lookupInTab(tab.id, word);
       if (!data) return createErrorResponse('No response from content script');
-      return { content: [{ type: 'text', text: JSON.stringify(data, null, 2) }], isError: false };
+      return createJsonResponse(data, { space: 2 });
     } catch (error) {
       logger.error(LOG, 'Lookup error', error);
       return createErrorResponse(
-        `Error looking up word in HowToPronounce: ${error instanceof Error ? error.message : String(error)}`,
+        `Error looking up word in HowToPronounce: ${toErrorMessage(error)}`,
       );
     }
   }
@@ -105,17 +113,17 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
     const wordUrl = buildWordUrl(word);
     try {
       await chrome.tabs.update(tabId, { url: wordUrl });
-      await this.waitForTabComplete(tabId);
+      await waitForTabComplete(tabId, HOWTO_TAB_COMPLETE_OPTIONS);
       let data = await this.extractFromTab(tabId, wordUrl);
       // Search-box fallback: a direct /<word> nav occasionally lands on a
       // no-result page for phrases; retry once via the on-page search box.
       if (!data || !data.hasContent) {
         logger.info(LOG, `Direct nav yielded no content for "${word}"; trying search box`);
         await chrome.tabs.update(tabId, { url: HOWTO_BASE });
-        await this.waitForTabComplete(tabId);
+        await waitForTabComplete(tabId, HOWTO_TAB_COMPLETE_OPTIONS);
         const searchRes = await this.sendToHelper(tabId, { action: 'htpSearch', word: word.trim() });
         if (searchRes?.found) {
-          await this.waitForTabComplete(tabId);
+          await waitForTabComplete(tabId, HOWTO_TAB_COMPLETE_OPTIONS);
           data = await this.extractFromTab(tabId, `${HOWTO_BASE}/<${word}>`);
         }
       }
@@ -132,7 +140,7 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
       return data;
     } catch (error) {
       logger.warn(LOG, `lookupInTab failed for "${word}":`, error);
-      return this.emptyResult(wordUrl, tabId, error instanceof Error ? error.message : String(error));
+      return this.emptyResult(wordUrl, tabId, toErrorMessage(error));
     }
   }
 
@@ -171,10 +179,11 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
     await Promise.all(
       clips.map(async (c) => {
         try {
-          const ctrl = new AbortController();
-          const timer = setTimeout(() => ctrl.abort(), AUDIO_FETCH_TIMEOUT_MS);
-          const res = await fetch(c.url, { cache: 'no-store', signal: ctrl.signal });
-          clearTimeout(timer);
+          const res = await fetchWithTimeout(
+            c.url,
+            AUDIO_FETCH_TIMEOUT_MS,
+            { cache: 'no-store' },
+          );
           if (!res.ok) return;
           const buf = await res.arrayBuffer();
           if (!buf || buf.byteLength === 0) return;
@@ -225,14 +234,14 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
     settleMs = 300,
   ): Promise<any> {
     await this.injectContentScript(tabId, [HELPER_SCRIPT]);
-    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    await waitForDelay(settleMs);
     try {
       return await chrome.tabs.sendMessage(tabId, message);
     } catch (err) {
-      const m = err instanceof Error ? err.message : String(err);
+      const m = toErrorMessage(err);
       if (/Could not establish connection|Receiving end does not exist/i.test(m)) {
         await this.injectContentScript(tabId, [HELPER_SCRIPT]);
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await waitForDelay(400);
         return await chrome.tabs.sendMessage(tabId, message);
       }
       throw err;
@@ -241,52 +250,8 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
 
   /** Public full-load barrier (mirrors bing-dictionary.ts:waitForTabIdle). */
   async waitForTabIdle(tabId: number): Promise<void> {
-    await this.waitForTabComplete(tabId);
+    await waitForTabComplete(tabId, HOWTO_TAB_COMPLETE_OPTIONS);
   }
-
-  /**
-   * Resolve once the tab finishes loading. Prefers the chrome.tabs "complete"
-   * status event, with a hard timeout fallback so a hung nav never wedges the
-   * worker. Mirrors bing-dictionary.ts (includes the stale-complete probe).
-   */
-  private waitForTabComplete(tabId: number, timeoutMs = 15000): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {}
-        clearTimeout(timer);
-        setTimeout(resolve, 400); // settle delay for late-rendered nodes
-      };
-      const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo) => {
-        if (updatedTabId === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      setTimeout(() => {
-        chrome.tabs.get(tabId).then(
-          (tab) => {
-            if (tab.status === 'complete') finish();
-          },
-          () => finish(),
-        );
-      }, 600);
-    });
-  }
-}
-
-/** ArrayBuffer -> base64 (chunked; service-worker safe). */
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  const view = new Uint8Array(buf);
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < view.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, Array.from(view.subarray(i, i + chunkSize)));
-  }
-  return btoa(binary);
 }
 
 export const howToPronounceTool = new HowToPronounceTool();

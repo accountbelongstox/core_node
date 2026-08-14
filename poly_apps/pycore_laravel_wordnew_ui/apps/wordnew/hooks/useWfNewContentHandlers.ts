@@ -14,7 +14,7 @@ import {
 } from '../runtime-store/WfNewContentCache';
 import { wfNewSettings } from '../WfNewSettingsStore';
 import { wordNewProgressCenter } from '../services/WordNewProgressCenter';
-import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 import { wfNewStudyProgress } from '../components/study/WfNewStudyProgress';
 import { isDefaultVocabularyGroup } from '../api';
 import { wfNewPageHeader, type WordNewTab } from './useWfNewAppState';
@@ -428,6 +428,27 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
     setUserStats(prev => ({ ...prev, dailyGoal: wfNewSettings.get('dailyGoal') }));
   }, []);
 
+  // Live-refresh the home dashboard statistics (today's recite / streak / ...)
+  // whenever any surface reports study activity (daily reading, recite loop,
+  // quiz). Debounced: a burst of per-word events collapses into one refetch.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unsubscribe = wordNewProgressCenter.subscribe(() => {
+      if (!wfNewApi.isAuthenticated()) return;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timer = null;
+        void wfNewApi.getUserStatistics()
+          .then((fresh) => { if (fresh) setStatistics(fresh); })
+          .catch(() => undefined);
+      }, 2500);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+    };
+  }, []);
+
   // Cache scope — set ONCE on mount BEFORE any content load runs, so the very
   // first cache reads/writes are already namespaced to (endpoint, current user).
   // Declared above the content-load effect so React fires it first.
@@ -473,7 +494,7 @@ export function useWfNewContentHandlers(deps: Record<string, any>) {
 
   // Perform Speeches robustly with rates
   const playPhoneticSpeech = (word: Word) => {
-    wordNewAudioQueueCenter.notifyMissingWord(word.text, 'en');
+    wordNewQueueCenter.notifyMissingWord(word.text, 'en');
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(word.text);

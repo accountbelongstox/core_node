@@ -4,7 +4,7 @@
  * own locale namespace (lm / pc / wf) so the global language switch drives all
  * three. Full per-end locale dictionaries are loaded in a later phase.
  */
-import i18n from '../apps/laravel-manager/i18n';
+import i18n from '../core/i18n/UiI18n';
 
 export type EndNamespace = 'lm' | 'pc' | 'wf' | 'pdd';
 

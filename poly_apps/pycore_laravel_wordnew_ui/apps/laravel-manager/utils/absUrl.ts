@@ -1,4 +1,4 @@
-import { apiManager } from '../../../core/api-libs/laravel/ApiManager';
+import { apiManager } from '../../../core/integrations/laravel/ApiManager';
 
 /**
  * Resolve a Laravel-relative url (e.g. audio) against the active :9000 base.

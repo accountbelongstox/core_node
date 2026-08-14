@@ -12,7 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * AI prompt library row.
@@ -51,4 +51,19 @@ class AppQyV1AiPromptModel extends Model
         'response_schema' => 'array',
         'enabled' => 'boolean',
     ];
+
+    public static function enabledByKey()
+    {
+        return self::query()->where('enabled', true)->get()->keyBy('prompt_key');
+    }
+
+    public static function storeDefault(string $promptKey, array $attributes): self
+    {
+        return self::query()->updateOrCreate(['prompt_key' => $promptKey], $attributes);
+    }
+
+    public static function rowsByKeys(array $promptKeys)
+    {
+        return self::query()->whereIn('prompt_key', $promptKeys)->get();
+    }
 }

@@ -22,6 +22,7 @@ LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 POLY_APPS_DIR="$(cd "${LARAVEL_DIR}/.." && pwd)"
 REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 PORT="${PORT:-9000}"
+LARAVEL_RUNTIME_SCRIPT="${SCRIPT_DIR}/run_runtime.sh"
 
 # Canonical init-ensure installer scripts (dynamic, derived from REPO_ROOT)
 INSTALL_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux/debian/install_shells"
@@ -79,6 +80,8 @@ WIN_REST=""
 INSTALLATION_ACCESS_CODE_FILE="${LARAVEL_DIR}/app/Support/InstallationAccessCode.php"
 GENERATED_ACCESS_CODE=""
 ACCESS_CODE_WRITE_ERROR=""
+OCTANE_RUNTIME_WATCH="0"
+OCTANE_RUNTIME_POLL="0"
 
 # Background systemd service options (idempotent registration via debian_service_manager).
 # AS_SERVICE: yes|no|empty(ask). LARAVEL_SERVICE_RUN=1 marks the in-service run so it
@@ -101,6 +104,14 @@ STORED_SUPER_CODE=""
 # service is registered (idempotent; the UI script owns its own systemd registration).
 INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
+
+cleanup_runtime() {
+    cd "$ORIGINAL_DIR" || true
+    echo ""
+    echo "Restored to initial directory: $ORIGINAL_DIR"
+    echo ""
+    echo "Installation access value: ${GENERATED_ACCESS_CODE}"
+}
 
 print_usage() {
     echo "Usage: bash ${SELF} [options]"
@@ -165,7 +176,7 @@ if [ "$SHOW_SUPER_CODE" = "yes" ]; then
 fi
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
-trap 'cd "$ORIGINAL_DIR" && echo "" && echo "Restored to initial directory: $ORIGINAL_DIR" && echo "" && echo "Installation access value: ${GENERATED_ACCESS_CODE}"' EXIT
+trap cleanup_runtime EXIT
 
 # --- Functions ---
 
@@ -1055,8 +1066,16 @@ if [ -n "$OCTANE_AVAILABLE" ]; then
                 ;;
         esac
     fi
+    if [[ "$WATCH_FLAG" == *"--watch"* ]]; then
+        OCTANE_RUNTIME_WATCH="1"
+    fi
+    if [[ "$WATCH_FLAG" == *"--poll"* ]]; then
+        OCTANE_RUNTIME_POLL="1"
+    fi
     echo "Starting headless API runtime (Octane swoole -> server 0.0.0.0:${PORT}, single timer driver)"
-    "$PHP_BIN" artisan octane:start --server=swoole --host=0.0.0.0 --port="$PORT" $WATCH_FLAG
+    PORT="$PORT" PHP_BIN="$PHP_BIN" OCTANE_SERVER="swoole" \
+        OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
+        /bin/bash "$LARAVEL_RUNTIME_SCRIPT"
 elif [ -n "$NPX_BIN" ]; then
     echo "WARNING: Swoole unavailable -> Octane HTTP server disabled, using node-based fallback."
     echo "Starting fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue + timer)"

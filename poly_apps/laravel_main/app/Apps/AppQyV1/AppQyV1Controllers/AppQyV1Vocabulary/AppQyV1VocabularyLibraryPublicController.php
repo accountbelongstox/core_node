@@ -42,14 +42,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $fetchCap = max($limit * 4, 50);
 
         $libraries = self::dedupLibraryCollection(
-            AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->forLanguage($language)
-                ->where('is_recommended', true)
-                ->orderByDesc('total_words')
-                ->orderBy('id')
-                ->limit($fetchCap)
-                ->get()
+            AppQyV1VocabularyLibraryModel::publicRecommended($language, $fetchCap)
         )
             ->take($limit)
             ->map(fn ($library) => $this->transformLibrary($library))
@@ -258,24 +251,6 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', 20), 100));
 
-        $query = AppQyV1VocabularyLibraryModel::query()
-            ->public()
-            ->forLanguage($request->query('language'));
-
-        if ($category = $request->query('category')) {
-            $query->where('category', $category);
-        }
-
-        if ($difficulty = $request->query('difficulty')) {
-            $query->where('difficulty_level', $difficulty);
-        }
-
-        if ($search = $request->query('search')) {
-            // Case-insensitive on BOTH drivers: plain LIKE is case-insensitive
-            // on sqlite but case-SENSITIVE on pgsql.
-            $query->searchTextInsensitive($search);
-        }
-
         // Dedup-then-paginate: duplicate library rows (same canonical key) must
         // collapse BEFORE slicing the page, or the total/last_page counts and the
         // page contents would both double-count. The full filtered set is fetched
@@ -283,12 +258,12 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         // of rows), and only then sliced — so the pagination math is over the
         // DISTINCT set. word_ids is excluded from the fetch (heavy JSON, unused
         // here).
-        $allRows = $query
-            ->orderByDesc('is_recommended')
-            ->orderBy('difficulty_level')
-            ->orderByDesc('total_words')
-            ->orderBy('id')
-            ->get();
+        $allRows = AppQyV1VocabularyLibraryModel::filteredPublicRows(
+            $request->query('language'),
+            $request->query('category'),
+            $request->query('difficulty'),
+            $request->query('search')
+        );
 
         $deduped = self::dedupLibraryCollection($allRows);
 
@@ -314,9 +289,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
 
     public function getLibraryWords(Request $request, int $libraryId): JsonResponse
     {
-        $library = AppQyV1VocabularyLibraryModel::query()
-            ->public()
-            ->findOrFail($libraryId);
+        $library = AppQyV1VocabularyLibraryModel::findPublicById($libraryId, true);
 
         $page = max(1, (int) $request->query('page', 1));
         $perPage = max(1, min((int) $request->query('per_page', 1000), 2000));
@@ -481,11 +454,10 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         // ORDER BY w.word), then resolve full dictionary rows for the page.
         $libraries = new \Illuminate\Support\Collection();
         if ($hasDictionaryTable) {
-            $libraries = AppQyV1VocabularyLibraryModel::query()
-                ->public()
-                ->forLanguage($language)
-                ->orderBy('id')
-                ->get(['id', 'name', 'language', 'word_ids']);
+            $libraries = AppQyV1VocabularyLibraryModel::publicForLanguage(
+                $language,
+                ['id', 'name', 'language', 'word_ids']
+            );
         }
 
         $pairs = [];
@@ -504,9 +476,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
         // Chunked id -> content lookups (light columns only) for the sort key.
         $contentById = [];
         foreach (array_chunk(array_keys($allIds), 1000) as $chunk) {
-            $rows = AppQyV1LangDictionaryModel::forLanguage($languageCode)
-                ->whereIn('id', $chunk)
-                ->get(['id', 'content']);
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, $chunk, ['id', 'content']);
             foreach ($rows as $row) {
                 $contentById[(int) $row->id] = (string) $row->content;
             }
@@ -539,9 +509,7 @@ class AppQyV1VocabularyLibraryPublicController extends Controller
 
         $rowsById = [];
         if (!empty($pageIds)) {
-            $rows = AppQyV1LangDictionaryModel::forLanguage($languageCode)
-                ->whereIn('id', array_keys($pageIds))
-                ->get();
+            $rows = AppQyV1LangDictionaryModel::rowsByIds($languageCode, array_keys($pageIds));
             foreach ($rows as $row) {
                 $rowsById[(int) $row->id] = $row;
             }

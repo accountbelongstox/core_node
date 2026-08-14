@@ -4,9 +4,9 @@ import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
-import { laravelMediaUrl } from '@/apps/laravel-manager/network/mediaUrl';
+import { laravelMediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import type { AgentHistoryArticleRecord, AgentHistoryArticleRecordMetadata } from '@/apps/pycore-manager/api';
-import { agentHistoryPageTableStore } from '@/core/tasks/AgentHistoryPageTableStore';
+import { agentHistoryPageTableStore } from '@/apps/pycore-manager/persistence/AgentHistoryPageTableStore';
 import { StorageManager } from '../../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
 

@@ -57,11 +57,7 @@ class PddToolV1AdminController extends BaseController
         if (empty($userIds)) {
             return [];
         }
-        return User::query()
-            ->whereIn('id', $userIds)
-            ->pluck('username', 'id')
-            ->map(fn ($u) => (string) $u)
-            ->all();
+        return User::usernamesByIds($userIds);
     }
 
     /**
@@ -69,8 +65,7 @@ class PddToolV1AdminController extends BaseController
      */
     private function usernameFor(int $userId): string
     {
-        $username = User::query()->where('id', $userId)->value('username');
-        return $username !== null ? (string) $username : '';
+        return User::usernameById($userId);
     }
 
     /**
@@ -79,30 +74,16 @@ class PddToolV1AdminController extends BaseController
     public function stats(Request $request): JsonResponse
     {
         $now = now();
-        $usersTotal = PddToolV1ProfileModel::query()->count();
-        $usersActive = PddToolV1ProfileModel::query()
-            ->where('disabled', false)
-            ->where('valid_until', '>', $now)
-            ->count();
-        $expiring7d = PddToolV1ProfileModel::query()
-            ->whereBetween('valid_until', [$now, (clone $now)->addDays(7)])
-            ->count();
-        $revenueTotal = (float) PddToolV1RechargeModel::query()
-            ->where('status', PddToolV1RechargeModel::STATUS_PAID)
-            ->sum('amount');
-        $revenue30d = (float) PddToolV1RechargeModel::query()
-            ->where('status', PddToolV1RechargeModel::STATUS_PAID)
-            ->where('paid_at', '>=', (clone $now)->subDays(30))
-            ->sum('amount');
-        $pddAccountsTotal = PddToolV1PddAccountModel::query()->count();
+        $profileStats = PddToolV1ProfileModel::adminStats($now);
+        $revenue = PddToolV1RechargeModel::paidRevenue($now);
 
         return $this->ok([
-            'users_total' => $usersTotal,
-            'users_active' => $usersActive,
-            'expiring_7d' => $expiring7d,
-            'revenue_total' => round($revenueTotal, 2),
-            'revenue_30d' => round($revenue30d, 2),
-            'pdd_accounts_total' => $pddAccountsTotal,
+            'users_total' => $profileStats['users_total'],
+            'users_active' => $profileStats['users_active'],
+            'expiring_7d' => $profileStats['expiring_7d'],
+            'revenue_total' => round($revenue['total'], 2),
+            'revenue_30d' => round($revenue['last_30_days'], 2),
+            'pdd_accounts_total' => PddToolV1PddAccountModel::totalCount(),
         ]);
     }
 
@@ -117,44 +98,25 @@ class PddToolV1AdminController extends BaseController
         $package = trim((string) $request->input('package', ''));
         $expired = $request->input('expired', null);
 
-        $query = PddToolV1ProfileModel::query();
-
-        // Username lives on the global users table (different connection), so a
-        // username search resolves matching user ids there first, then filters
-        // profiles by user_id.
-        if ($search !== '') {
-            $matchingIds = User::query()
-                ->where('username', 'like', '%' . $search . '%')
-                ->pluck('id')
-                ->map(fn ($id) => (int) $id)
-                ->all();
-            if (empty($matchingIds)) {
-                return $this->ok(['data' => [], 'total' => 0, 'page' => $page, 'per_page' => $perPage]);
-            }
-            $query->whereIn('user_id', $matchingIds);
-        }
-        if ($package !== '') {
-            $query->where('package_name', $package);
-        }
-        if ($expired !== null && $expired !== '') {
-            $isExpired = filter_var($expired, FILTER_VALIDATE_BOOLEAN);
-            if ($isExpired) {
-                $query->where('valid_until', '<=', now());
-            } else {
-                $query->where('valid_until', '>', now());
-            }
-        }
-
-        $total = (clone $query)->count();
-        $rows = $query->orderByDesc('user_id')
-            ->forPage($page, $perPage)
-            ->get();
+        $matchingIds = $search === '' ? [] : User::idsMatchingUsername($search);
+        $isExpired = $expired === null || $expired === ''
+            ? null
+            : filter_var($expired, FILTER_VALIDATE_BOOLEAN);
+        $result = PddToolV1ProfileModel::adminPage(
+            $matchingIds,
+            $search !== '',
+            $package,
+            $isExpired,
+            $page,
+            $perPage
+        );
+        $rows = $result['rows'];
 
         $usernames = $this->usernamesFor($rows->pluck('user_id')->all());
 
         return $this->ok([
             'data' => $rows->map(fn ($p) => PddToolV1Presenter::userAdmin($p, $usernames[(int) $p->user_id] ?? ''))->all(),
-            'total' => $total,
+            'total' => $result['total'],
             'page' => $page,
             'per_page' => $perPage,
         ]);
@@ -170,13 +132,9 @@ class PddToolV1AdminController extends BaseController
             return response()->json(['detail' => 'User not found'], 404);
         }
 
-        $batchOrders = PddToolV1BatchOrderModel::query()->where('user_id', $id)->count();
-        $bindCount = PddToolV1PddAccountModel::query()->where('user_id', $id)->count();
-        $recharges = PddToolV1RechargeModel::query()
-            ->where('user_id', $id)
-            ->orderByDesc('id')
-            ->limit(50)
-            ->get();
+        $batchOrders = PddToolV1BatchOrderModel::countForUser($id);
+        $bindCount = PddToolV1PddAccountModel::countForUser($id);
+        $recharges = PddToolV1RechargeModel::recentForUser($id);
 
         return $this->ok([
             'user' => PddToolV1Presenter::userAdmin($profile, $this->usernameFor($id)),
@@ -229,9 +187,9 @@ class PddToolV1AdminController extends BaseController
             $profile->max_pdd_accounts = (int) $request->input('max_pdd_accounts');
         }
 
-        $profile->save();
+        $profile->saveRecord();
 
-        return $this->ok(PddToolV1Presenter::userAdmin($profile->refresh(), $this->usernameFor($id)));
+        return $this->ok(PddToolV1Presenter::userAdmin($profile->refreshRecord(), $this->usernameFor($id)));
     }
 
     /**
@@ -276,7 +234,7 @@ class PddToolV1AdminController extends BaseController
             return response()->json(['detail' => 'User not found'], 404);
         }
         $profile->disabled = $disabled;
-        $profile->save();
+        $profile->saveRecord();
         return $this->ok(['ok' => true]);
     }
 
@@ -288,11 +246,11 @@ class PddToolV1AdminController extends BaseController
      */
     private function findProfile(int $id): ?PddToolV1ProfileModel
     {
-        $profile = PddToolV1ProfileModel::query()->where('user_id', $id)->first();
+        $profile = PddToolV1ProfileModel::findByUserId($id);
         if ($profile) {
             return $profile;
         }
-        if (!User::query()->where('id', $id)->exists()) {
+        if (!User::existsById($id)) {
             return null;
         }
         return PddToolV1ProfileModel::ensureTrial($id);
@@ -307,17 +265,12 @@ class PddToolV1AdminController extends BaseController
         $perPage = min(200, max(1, (int) $request->input('per_page', 20)));
         $status = trim((string) $request->input('status', ''));
 
-        $query = PddToolV1RechargeModel::query();
-        if ($status !== '') {
-            $query->where('status', $status);
-        }
-
-        $total = (clone $query)->count();
-        $rows = $query->orderByDesc('id')->forPage($page, $perPage)->get();
+        $result = PddToolV1RechargeModel::adminPage($status, $page, $perPage);
+        $rows = $result['rows'];
 
         return $this->ok([
             'data' => $rows->map(fn ($r) => PddToolV1Presenter::recharge($r))->all(),
-            'total' => $total,
+            'total' => $result['total'],
         ]);
     }
 
@@ -327,10 +280,7 @@ class PddToolV1AdminController extends BaseController
     public function expiring(Request $request): JsonResponse
     {
         $days = max(1, (int) $request->input('days', 7));
-        $rows = PddToolV1ProfileModel::query()
-            ->whereBetween('valid_until', [now(), now()->addDays($days)])
-            ->orderBy('valid_until')
-            ->get();
+        $rows = PddToolV1ProfileModel::expiringWithinDays($days);
 
         $usernames = $this->usernamesFor($rows->pluck('user_id')->all());
 
@@ -344,7 +294,7 @@ class PddToolV1AdminController extends BaseController
      */
     public function getPaymentSettings(Request $request): JsonResponse
     {
-        $settings = PddToolV1PaymentSettingModel::query()->first();
+        $settings = PddToolV1PaymentSettingModel::current();
 
         return $this->ok([
             'alipay' => [
@@ -368,7 +318,7 @@ class PddToolV1AdminController extends BaseController
      */
     public function savePaymentSettings(Request $request): JsonResponse
     {
-        $settings = PddToolV1PaymentSettingModel::query()->first() ?: new PddToolV1PaymentSettingModel();
+        $settings = PddToolV1PaymentSettingModel::currentOrNew();
 
         $alipay = (array) $request->input('alipay', []);
         $wechat = (array) $request->input('wechat', []);
@@ -389,7 +339,7 @@ class PddToolV1AdminController extends BaseController
             $settings->wechat_app_id = (string) $wechat['app_id'];
         }
 
-        $settings->save();
+        $settings->saveRecord();
 
         // Persist secret credentials to CoreNodeSecrets (never the DB / .env). A blank
         // value means "keep existing" — only write when a non-empty value was supplied.
@@ -418,7 +368,7 @@ class PddToolV1AdminController extends BaseController
      */
     public function packages(Request $request): JsonResponse
     {
-        $rows = PddToolV1PackageModel::query()->orderBy('id')->get();
+        $rows = PddToolV1PackageModel::ordered();
         if ($rows->isEmpty()) {
             $data = array_values(array_map(
                 fn ($p) => PddToolV1Presenter::package($p),
@@ -447,7 +397,7 @@ class PddToolV1AdminController extends BaseController
             if ($code === '') {
                 continue;
             }
-            $package = PddToolV1PackageModel::query()->where('code', $code)->first() ?: new PddToolV1PackageModel();
+            $package = PddToolV1PackageModel::findByCodeOrNew($code);
             $package->code = $code;
             $package->name = (string) ($item['name'] ?? $package->name ?? $code);
             if (array_key_exists('price_month', $item)) {
@@ -465,7 +415,7 @@ class PddToolV1AdminController extends BaseController
             if (array_key_exists('enabled', $item)) {
                 $package->enabled = filter_var($item['enabled'], FILTER_VALIDATE_BOOLEAN);
             }
-            $package->save();
+            $package->saveRecord();
         }
 
         return $this->packages($request);

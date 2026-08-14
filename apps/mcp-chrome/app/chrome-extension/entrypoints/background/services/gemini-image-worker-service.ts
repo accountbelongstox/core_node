@@ -12,7 +12,8 @@
  * consent, like the ChatGPT/NotebookLM/Gemini-chat web workers.
  */
 import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
-import { SimpleWorkerBase, SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { SimpleWorkerConfig } from './task-center/SimpleWorkerBase';
+import { AssistPollingWorkerBase } from './task-center/AssistPollingWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
 import { TASK_TYPE_KEYS, taskPromptText } from '@/utils/queue-center-contract';
 import { generateViaGemini } from './gemini-image-generate';
@@ -29,12 +30,9 @@ import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-li
 
 const LOG = 'Gemini Image';
 const ASSIST_CLAIMER = 'mcp-chrome-gemini-cover';
-const ASSIST_POLL_MS = 30_000;
 
-class GeminiImageWorkerService extends SimpleWorkerBase {
-  private assistTimer: ReturnType<typeof setInterval> | null = null;
-  private assistBusy = false;
-  private assistStats = {
+class GeminiImageWorkerService extends AssistPollingWorkerBase<Record<string, unknown>> {
+  protected readonly assistStats = {
     coversSubmitted: 0,
     assistFailed: 0,
     lastAssistRun: null as number | null,
@@ -74,40 +72,16 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
 
   async start(config: SimpleWorkerConfig): Promise<void> {
     await super.start({ ...config, pollWait: 0 });
-    this.startAssistLoop();
+    this.startAssistPolling();
     logger.info(LOG, 'Vocabulary-cover polling activated', {
       apiUrl: config.apiUrl,
       types: ['cover'],
-      intervalMs: ASSIST_POLL_MS,
+      intervalMs: this.assistPollIntervalMs,
     });
   }
 
-  stop(): void {
-    if (this.assistTimer) {
-      clearInterval(this.assistTimer);
-      this.assistTimer = null;
-    }
-    super.stop();
-  }
-
-  getStatus() {
-    const base = super.getStatus();
-    return { ...base, stats: { ...base.stats, ...this.assistStats } };
-  }
-
-  private startAssistLoop(): void {
-    if (this.assistTimer) return;
-    const tick = () => {
-      if (!this.getStatus().isRunning || this.assistBusy) return;
-      void this.runAssistCycle();
-    };
-    tick();
-    this.assistTimer = setInterval(tick, ASSIST_POLL_MS);
-  }
-
-  private async runAssistCycle(): Promise<void> {
-    if (!this.config?.apiUrl || this.assistBusy) return;
-    this.assistBusy = true;
+  protected async executeAssistCycle(): Promise<void> {
+    if (!this.config?.apiUrl) return;
     this.assistStats.lastAssistRun = Date.now();
     this.assistStats.lastAssistError = null;
     this.assistStats.currentAssistStage = 'claiming';
@@ -138,7 +112,6 @@ class GeminiImageWorkerService extends SimpleWorkerBase {
       this.assistStats.currentAssistStage = 'failed';
       logger.error(LOG, `Vocabulary-cover cycle failed: ${message}`);
     } finally {
-      this.assistBusy = false;
       this.assistStats.currentAssistItem = null;
       this.stats.currentTaskId = null;
       if (this.assistStats.currentAssistStage !== 'failed') {

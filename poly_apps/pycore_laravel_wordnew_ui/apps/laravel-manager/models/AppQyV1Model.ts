@@ -42,7 +42,7 @@ export class AppQyV1Model extends BaseModel {
     // Translation
     translation: {
       translate: (text: string, sourceLang: string, targetLang: string) =>
-        this.execute(api.appQyV1.translate(text, sourceLang, targetLang)),
+        this.execute(api.appQyV1.translate({ text, sourceLang, targetLang })),
 
       detectAndTranslate: (text: string, targetLang: string) =>
         this.execute(api.appQyV1.detectAndTranslate(text, targetLang)),
@@ -122,12 +122,6 @@ export class AppQyV1Model extends BaseModel {
       this.execute(api.appQyV1.get('/system/config', undefined, true, 600000))
   };
 
-  // Legacy method aliases for backward compatibility (deprecated)
-  login = this.auth.login;
-  logout = this.auth.logout;
-  translate = this.aiTools.translation.translate;
-  generateTTS = this.aiTools.tts.generate;
-  getLibraries = this.vocabulary.libraries.list;
 }
 
 export const appQyV1Model = AppQyV1Model.getInstance();

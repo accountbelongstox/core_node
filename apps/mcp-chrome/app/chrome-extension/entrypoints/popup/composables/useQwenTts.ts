@@ -8,6 +8,8 @@ import { useQwenTtsSettings } from './useQwenTtsSettings';
 import { logger } from '@/utils/logger';
 import { sendWithWake } from '@/utils/sendWithWake';
 import { getMessage } from '@/utils/i18n';
+import { IntervalController } from '@/utils/async';
+import { toErrorMessage } from '@/utils/errors';
 import {
   DEFAULT_QWEN_TTS_TEXT,
   QWEN_TTS_SETTING_KEYS,
@@ -40,7 +42,7 @@ export function useQwenTts() {
   const result = ref<QwenTtsResult | null>(null);
   const progress = ref<QwenTtsProgress>(emptyQwenTtsProgress());
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  const progressPolling = new IntervalController();
 
   const refreshProgress = async () => {
     const res = await sendQwen<{ progress?: QwenTtsProgress }>({
@@ -81,7 +83,7 @@ export function useQwenTts() {
         logger.info(LOG, `Generated ${result.value.downloadFilename || 'audio'} in ${result.value.elapsedMs}ms`);
       }
     } catch (e: unknown) {
-      error.value = e instanceof Error ? e.message : getMessage('qwenTtsFailed');
+      error.value = toErrorMessage(e) || getMessage('qwenTtsFailed');
       logger.error(LOG, error.value, e);
     } finally {
       loading.value = false;
@@ -107,13 +109,13 @@ export function useQwenTts() {
 
   onMounted(() => {
     void refreshProgress();
-    pollTimer = setInterval(() => {
+    progressPolling.start(() => {
       if (loading.value || progress.value.running) void refreshProgress();
     }, 1500);
   });
 
   onUnmounted(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    progressPolling.stop();
   });
 
   return {

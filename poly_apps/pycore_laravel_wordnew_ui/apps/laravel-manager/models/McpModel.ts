@@ -216,10 +216,6 @@ export class McpModel extends BaseModel {
       api.mcpV1.getStaticFileStreamUrl(path)
   };
 
-  // Legacy method aliases for backward compatibility (deprecated)
-  uploadScreenshot = this.screenshots.upload;
-  deleteScreenshot = this.screenshots.delete;
-  getScreenshots = this.screenshots.list;
 }
 
 export const mcpModel = McpModel.getInstance();

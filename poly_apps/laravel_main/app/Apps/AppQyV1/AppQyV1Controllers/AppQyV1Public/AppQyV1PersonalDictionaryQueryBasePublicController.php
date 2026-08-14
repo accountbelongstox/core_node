@@ -29,11 +29,10 @@ class AppQyV1PersonalDictionaryQueryBasePublicController
     {
 
         $uid = Auth::id();
-        if ($query_soft_delete) {
-            $personDictModel = AppQyV1PersonalDictionariesModel::where('uid', $uid)->whereNull('deleted_at')->first();
-        } else {
-            $personDictModel = AppQyV1PersonalDictionariesModel::where('uid', $uid)->first();
-        }
+        $personDictModel = AppQyV1PersonalDictionariesModel::findForUser(
+            (int) $uid,
+            (bool) $query_soft_delete
+        );
         if (!$personDictModel) {
             $personDictModel = new AppQyV1PersonalDictionariesModel();
             $personDictModel->uid = $uid;
@@ -88,4 +87,3 @@ class AppQyV1PersonalDictionaryQueryBasePublicController
 
 
 }
-

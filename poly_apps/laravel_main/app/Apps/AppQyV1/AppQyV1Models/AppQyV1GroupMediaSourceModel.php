@@ -13,7 +13,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,5 +58,24 @@ class AppQyV1GroupMediaSourceModel extends Model
     public function group(): BelongsTo
     {
         return $this->belongsTo(AppQyV1WordGroupModel::class, 'group_id');
+    }
+
+    public static function findLink(int $groupId, string $sourceType, string $sourceKey): ?self
+    {
+        return self::query()
+            ->where('group_id', $groupId)
+            ->where('source_type', $sourceType)
+            ->where('source_key', $sourceKey)
+            ->first();
+    }
+
+    public static function createLink(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
+
+    public static function forGroup(int $groupId)
+    {
+        return self::query()->where('group_id', $groupId)->orderBy('added_at')->get();
     }
 }

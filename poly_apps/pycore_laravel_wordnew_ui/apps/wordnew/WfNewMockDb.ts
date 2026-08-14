@@ -7,17 +7,6 @@ import {
   WfNewContentGroup,
 } from './api/WfNewApiTypes';
 
-// Re-export the shared types so existing `from '../WfNewMockDb'` imports keep
-// resolving to the canonical definitions (no parallel/duplicate shapes).
-export type {
-  SubtitleWord, SubtitleLine, SubtitleCourse,
-  BilingualWord, BilingualSentence,
-  WeeklyActivity, AnalyticsStats,
-} from './api/WfNewApiTypes';
-
-/** @deprecated Use `BentoGroup` from ./api/WfNewApiTypes — kept as an alias. */
-export type ElegantBentoGroup = BentoGroup;
-
 // 1. Core Bento Box Word Groups with detailed descriptive parameters
 export const MOCK_BENTO_GROUPS: BentoGroup[] = [
   {
@@ -402,6 +391,5 @@ export const MOCK_DOCUMENT_GROUPS: WfNewContentGroup[] = [
   { id: 'doc-1', kind: 'document', title: 'Research Notes — Cognition.pdf', count: 214, countUnit: 'words', language: 'en', description: 'Uploaded study notes extracted into a vocabulary set.' },
   { id: 'doc-2', kind: 'document', title: 'Lecture 03 Transcript.txt', count: 96, countUnit: 'words', language: 'en', description: 'Auto-extracted words from an uploaded transcript.' },
 ];
-
 
 

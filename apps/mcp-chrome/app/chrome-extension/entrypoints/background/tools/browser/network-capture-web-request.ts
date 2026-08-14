@@ -1,17 +1,13 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { LIMITS } from '@/common/constants';
 import { firefoxNetworkBodyCapture } from './network-capture-body-firefox';
+import { delay as waitForDelay } from '@/utils/async';
 import {
-  STATIC_RESOURCE_EXTENSIONS,
-  AD_ANALYTICS_DOMAINS,
-  STATIC_MIME_TYPES_TO_FILTER,
-  API_MIME_TYPES,
   StopReason,
-  shouldFilterRequestByUrl,
-  shouldFilterRequestByExtension,
-  shouldFilterByMimeType as sharedShouldFilterByMimeType,
+  shouldFilterRequest,
+  shouldFilterByMimeType,
   analyzeCommonHeaders,
   filterOutCommonHeaders,
 } from './network-capture-utils';
@@ -131,7 +127,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       if (!openerCaptureInfo) return;
 
       // Wait a short time to ensure the tab is ready
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await waitForDelay(500);
 
       // Start capturing requests for the new tab
       await this.startCaptureForTab(newTabId, {
@@ -144,20 +140,6 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error(`NetworkCaptureV2: Error extending capture to new tab:`, error);
     }
-  }
-
-  /**
-   * Determine whether a request should be filtered (based on URL and extension)
-   */
-  private shouldFilterRequest(url: string, includeStatic: boolean): boolean {
-    return shouldFilterRequestByUrl(url) || shouldFilterRequestByExtension(url, includeStatic);
-  }
-
-  /**
-   * Filter based on MIME type
-   */
-  private shouldFilterByMimeType(mimeType: string, includeStatic: boolean): boolean {
-    return sharedShouldFilterByMimeType(mimeType, includeStatic);
   }
 
   /**
@@ -258,7 +240,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       const captureInfo = this.captureData.get(details.tabId);
       if (!captureInfo) return;
 
-      if (this.shouldFilterRequest(details.url, captureInfo.includeStatic)) {
+      if (shouldFilterRequest(details.url, captureInfo.includeStatic)) {
         return;
       }
 
@@ -330,7 +312,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
       // Secondary filtering based on MIME type
       if (
         requestInfo.mimeType &&
-        this.shouldFilterByMimeType(requestInfo.mimeType, captureInfo.includeStatic)
+        shouldFilterByMimeType(requestInfo.mimeType, captureInfo.includeStatic)
       ) {
         delete captureInfo.requests[details.requestId];
 
@@ -643,7 +625,7 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
           tabToOperateOn = await chrome.tabs.create({ url: targetUrl, active: true });
 
           // Wait for page to load
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          await waitForDelay(1000);
         }
       } else {
         // Use current active tab
@@ -671,24 +653,16 @@ class NetworkCaptureStartTool extends BaseBrowserToolExecutor {
         );
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: 'Network capture V2 started successfully, waiting for stop command.',
-              tabId: tabToOperateOn.id,
-              url: tabToOperateOn.url,
-              maxCaptureTime,
-              inactivityTimeout,
-              includeStatic,
-              maxRequests: NetworkCaptureStartTool.MAX_REQUESTS_PER_CAPTURE,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: 'Network capture V2 started successfully, waiting for stop command.',
+        tabId: tabToOperateOn.id,
+        url: tabToOperateOn.url,
+        maxCaptureTime,
+        inactivityTimeout,
+        includeStatic,
+        maxRequests: NetworkCaptureStartTool.MAX_REQUESTS_PER_CAPTURE,
+      });
     } catch (error: any) {
       console.error('NetworkCaptureStartTool: Critical error:', error);
       return createErrorResponse(
@@ -797,33 +771,25 @@ class NetworkCaptureStopTool extends BaseBrowserToolExecutor {
           }
         }
       }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: `Capture complete. ${stopResult.data?.requestCount || 0} requests captured.`,
-              tabId: primaryTabId,
-              tabUrl: stopResult.data?.tabUrl || 'N/A',
-              tabTitle: stopResult.data?.tabTitle || 'Unknown Tab',
-              requestCount: stopResult.data?.requestCount || 0,
-              commonRequestHeaders: stopResult.data?.commonRequestHeaders || {},
-              commonResponseHeaders: stopResult.data?.commonResponseHeaders || {},
-              requests: stopResult.data?.requests || [],
-              captureStartTime: stopResult.data?.captureStartTime,
-              captureEndTime: stopResult.data?.captureEndTime,
-              totalDurationMs: stopResult.data?.totalDurationMs,
-              settingsUsed: stopResult.data?.settingsUsed || {},
-              totalRequestsReceived: stopResult.data?.totalRequestsReceived || 0,
-              requestLimitReached: stopResult.data?.requestLimitReached || false,
-              stoppedBy: stopResult.data?.stoppedBy || 'user_request',
-              remainingCaptures: Array.from(startTool.captureData.keys()),
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: `Capture complete. ${stopResult.data?.requestCount || 0} requests captured.`,
+        tabId: primaryTabId,
+        tabUrl: stopResult.data?.tabUrl || 'N/A',
+        tabTitle: stopResult.data?.tabTitle || 'Unknown Tab',
+        requestCount: stopResult.data?.requestCount || 0,
+        commonRequestHeaders: stopResult.data?.commonRequestHeaders || {},
+        commonResponseHeaders: stopResult.data?.commonResponseHeaders || {},
+        requests: stopResult.data?.requests || [],
+        captureStartTime: stopResult.data?.captureStartTime,
+        captureEndTime: stopResult.data?.captureEndTime,
+        totalDurationMs: stopResult.data?.totalDurationMs,
+        settingsUsed: stopResult.data?.settingsUsed || {},
+        totalRequestsReceived: stopResult.data?.totalRequestsReceived || 0,
+        requestLimitReached: stopResult.data?.requestLimitReached || false,
+        stoppedBy: stopResult.data?.stoppedBy || 'user_request',
+        remainingCaptures: Array.from(startTool.captureData.keys()),
+      });
     } catch (error: any) {
       console.error('NetworkCaptureStopTool: Critical error:', error);
       return createErrorResponse(

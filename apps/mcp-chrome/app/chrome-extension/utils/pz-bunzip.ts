@@ -6,6 +6,8 @@
  */
 
 import initBzip2Wasm from '../public/wasm/bzip2.mjs';
+import { InitializationController } from './async';
+import { toErrorMessage } from './errors';
 
 const XOR_KEY = 175;
 const MIN_DEST_SIZE = 262144;
@@ -38,23 +40,19 @@ type Bzip2WasmModule = {
 
 type Bzip2WasmFactory = (moduleOverrides?: { locateFile?: (path: string) => string }) => Promise<Bzip2WasmModule>;
 
-let wasmInit: Promise<Bzip2WasmModule> | null = null;
-let wasmModule: Bzip2WasmModule | null = null;
+const wasmInitialization = new InitializationController<Bzip2WasmModule>();
 
 function wasmAssetUrl(file: string): string {
   return chrome.runtime.getURL(`wasm/${file}`);
 }
 
 async function getWasmModule(): Promise<Bzip2WasmModule> {
-  if (wasmModule) return wasmModule;
-  if (!wasmInit) {
+  return wasmInitialization.run(() => {
     const factory = initBzip2Wasm as Bzip2WasmFactory;
-    wasmInit = factory({
+    return factory({
       locateFile: (path: string) => wasmAssetUrl(path),
     });
-  }
-  wasmModule = await wasmInit;
-  return wasmModule;
+  });
 }
 
 function xorBytes(byteList: ArrayLike<number>): Uint8Array {
@@ -114,7 +112,7 @@ async function wasmDecompress(xored: Uint8Array): Promise<Uint8Array> {
       return decompressWithModule(M, xored, destSize);
     } catch (error) {
       lastError = error;
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = toErrorMessage(error);
       if (!msg.includes('OUTBUFF_FULL')) break;
       if (destSize >= MAX_DEST_SIZE) break;
       destSize = Math.min(MAX_DEST_SIZE, destSize * 2);

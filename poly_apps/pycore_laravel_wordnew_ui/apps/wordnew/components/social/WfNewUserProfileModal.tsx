@@ -5,8 +5,8 @@
  * GET /social/users/{id} through wfNewApi.getPublicUserProfile. */
 import React, { useEffect, useState, useCallback } from 'react';
 import { X, UserPlus, UserCheck, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
-import Portal from '../../../../components/shared/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import { wfNewApi, type WfNewPublicUserProfile } from '../../api';
 import { presenceClass } from './socialPresence';
 

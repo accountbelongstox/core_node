@@ -10,7 +10,8 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Support\Collection;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -46,4 +47,13 @@ class PddToolV1BatchPurchaseOrderModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function forUserBatch(int $userId, string $batchId): Collection
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('batch_id', $batchId)
+            ->orderBy('id')
+            ->get();
+    }
 }

@@ -2,22 +2,20 @@
 
 namespace App\Services\QueueCenter;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Database\QueryException;
 
 /**
  * Queue Center — single definition for queue operations over global_tasks.
  *
  * Owns the two audio queues declared as control_names in
- * config/queue_center_contract.json (word_audio, sentence_audio). Every
+ * config/queue_center_contract.json. Every
  * enqueue / move-to-head / cancel / retry / stats / list operation for those
  * queues goes through this service so the on-miss hooks (word media resolve,
- * sentence resolve, boost endpoints) and the background scan timer share ONE
- * implementation instead of duplicating bump logic.
+ * sentence resolve, queue-head endpoints) and the background scan timer share
+ * one implementation.
  *
  * Dedup model: every task carries a group_key. Callers pass a deterministic
  * dedup key ("{language}:{contentId}" via dedupKeyFor); when omitted, one is
@@ -30,18 +28,6 @@ class QueueCenterService
     public const QUEUE_WORD_AUDIO = 'word_audio';
     public const QUEUE_SENTENCE_AUDIO = 'sentence_audio';
 
-    /** The two audio queues (contract control_names) this service owns. */
-    public const SUPPORTED_QUEUES = [self::QUEUE_WORD_AUDIO, self::QUEUE_SENTENCE_AUDIO];
-
-    /**
-     * Outbox event streamed to pycore per queue (existing wire vocabulary —
-     * the AppQyV1 translation_events outbox already carries these names).
-     */
-    private const OUTBOX_EVENTS = [
-        self::QUEUE_WORD_AUDIO => 'word_audio.priority',
-        self::QUEUE_SENTENCE_AUDIO => 'sentence.priority',
-    ];
-
     /** Worker lease per queue (mirrors the legacy enqueue paths). */
     private const DEFAULT_TIMEOUT_SECONDS = [
         self::QUEUE_WORD_AUDIO => 300,
@@ -49,20 +35,28 @@ class QueueCenterService
     ];
 
     protected TaskManagerService $taskManager;
+    protected QueueHeadService $queueHead;
+    protected QueueHeadNotificationService $headNotifications;
 
-    public function __construct(?TaskManagerService $taskManager = null)
+    public function __construct(
+        ?TaskManagerService $taskManager = null,
+        ?QueueHeadService $queueHead = null,
+        ?QueueHeadNotificationService $headNotifications = null
+    )
     {
         $this->taskManager = $taskManager ?? app(TaskManagerService::class);
+        $this->queueHead = $queueHead ?? app(QueueHeadService::class);
+        $this->headNotifications = $headNotifications ?? app(QueueHeadNotificationService::class);
     }
 
     public static function queueKeys(): array
     {
-        return self::SUPPORTED_QUEUES;
+        return QueueCenterContract::queuePositionOrderedControlNames();
     }
 
     public static function isSupportedQueue(string $queueKey): bool
     {
-        return in_array($queueKey, self::SUPPORTED_QUEUES, true);
+        return in_array($queueKey, self::queueKeys(), true);
     }
 
     /**
@@ -78,14 +72,11 @@ class QueueCenterService
     /**
      * Idempotently enqueue one audio task. When a live task with the same
      * group_key already exists it is returned with created=false and nothing
-     * is written; otherwise the task is created via TaskManagerService (lane,
-     * capability and fast-lane promotion come from the contract definition).
+     * is written; otherwise the task is created via TaskManagerService.
      *
-     * @param string $taskType       word_audio | sentence_audio
+     * @param string $taskType       Contract-defined queue-position task type
      * @param array  $payload        Raw payload; normalized via normalizeAudioPayload()
      * @param string|null $dedupKey  Deterministic group_key (defaultDedupKey when null)
-     * @param bool   $interactive    True: contract fast_promotable rewrite onto
-     *                               remote_fast at the FAST priority tier
      * @param array  $linkAttributes Phase 5 substrate links (dict_row_id,
      *                               dict_language, dict_row_table) — whitelisted
      *                               by TaskManagerService::createTask
@@ -95,9 +86,7 @@ class QueueCenterService
         string $taskType,
         array $payload,
         ?string $dedupKey = null,
-        bool $interactive = false,
         array $linkAttributes = [],
-        ?int $priority = null,
         ?int $timeoutSeconds = null
     ): array {
         $this->assertSupportedQueue($taskType);
@@ -106,46 +95,65 @@ class QueueCenterService
             ? $dedupKey
             : self::defaultDedupKey($taskType, $payload);
 
-        $existing = GlobalTask::query()
-            ->where('task_type', $taskType)
-            ->where('group_key', $dedupKey)
-            ->whereIn('status', QueueCenterContract::taskStatuses('live'))
-            ->orderByDesc('id')
-            ->first();
+        $existing = self::findLiveByDedupKey($taskType, $dedupKey);
         if ($existing) {
             return ['task' => $existing, 'created' => false];
         }
 
-        $task = $this->taskManager->createTask(
-            'AppQyV1',
-            $taskType,
-            (string) (QueueCenterContract::taskTypeExecution($taskType) ?? ''),
-            $payload,
-            $timeoutSeconds ?? (int) (
-                QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$taskType]
-                ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120)
-            ),
-            $priority ?? GlobalTask::priority('default'),
-            3,
-            $interactive,
-            null, // capability is fixed by the contract task-type definition
-            array_merge($linkAttributes, ['group_key' => $dedupKey])
-        );
+        try {
+            $task = $this->taskManager->createTask(
+                'AppQyV1',
+                $taskType,
+                (string) (QueueCenterContract::taskTypeExecution($taskType) ?? ''),
+                $payload,
+                $timeoutSeconds ?? (int) (
+                    QueueCenterContract::diffDelivery()['consumer_task_timeout_seconds'][$taskType]
+                    ?? (self::DEFAULT_TIMEOUT_SECONDS[$taskType] ?? 120)
+                ),
+                0,
+                3,
+                false,
+                null,
+                array_merge($linkAttributes, ['group_key' => $dedupKey])
+            );
+        } catch (QueryException $exception) {
+            // The idx_global_tasks_live_group_key partial unique index
+            // (sys:init) rejects a concurrent duplicate insert; the winner row
+            // is re-read and reported with created=false, same as the
+            // pre-check path. Any other database error propagates unchanged.
+            if (($exception->errorInfo[0] ?? null) !== '23505') {
+                throw $exception;
+            }
+            $existing = self::findLiveByDedupKey($taskType, $dedupKey);
+            if ($existing === null) {
+                throw $exception;
+            }
+            return ['task' => $existing, 'created' => false];
+        }
 
         return ['task' => $task, 'created' => true];
     }
 
     /**
-     * Move one item to the queue head: enqueue-if-missing on the interactive
-     * fast lane, bump the still-pending task, then emit the queue's outbox
-     * event (word_audio.priority / sentence.priority). Laravel's typed pull
-     * returns immediately to a waiting Pycore worker, while UI subscribers use
-     * the outbox event for live queue-head updates.
+     * The newest live task for one (task_type, group_key) dedup identity, or
+     * null. Single lookup shared by the enqueue pre-check and the unique-index
+     * conflict fallback.
+     */
+    private static function findLiveByDedupKey(string $taskType, string $dedupKey): ?GlobalTask
+    {
+        return GlobalTask::findNewestLiveByGroupKey(
+            $taskType,
+            $dedupKey,
+            QueueCenterContract::taskStatuses('live')
+        );
+    }
+
+    /**
+     * Move one item to the queue head: enqueue it when absent, otherwise extract
+     * the existing queued task, assign a monotonic queue_position head ticket,
+     * and stage one compact diff notification for the interval publisher.
      *
-     * @return array{ok:bool,task_id:string,created:bool,bump:string,status:string}
-     *         bump is one of TaskManagerService::bumpTaskPriority outcomes
-     *         ('bumped'|'not_found'|'not_pending'); 'bumped' for a fresh task
-     *         (already created at the head of the fast lane).
+     * @return array{ok:bool,task_id:string,created:bool,head_action:string,status:string,queue_position:int}
      */
     public function moveToHead(
         string $taskType,
@@ -154,50 +162,61 @@ class QueueCenterService
         bool $emitEvent = true,
         array $linkAttributes = []
     ): array {
-        $result = $this->enqueue($taskType, $payload, $dedupKey, true, $linkAttributes);
+        $result = $this->enqueue(
+            $taskType,
+            $payload,
+            $dedupKey,
+            $linkAttributes
+        );
         $task = $result['task'];
-
-        // A freshly created interactive task is already on remote_fast at the
-        // FAST tier; only an existing live task needs the reorder.
-        $bump = 'bumped';
-        if (!$result['created']) {
-            $bump = $this->taskManager->bumpTaskPriority((string) $task->task_id);
-            $refreshedTask = $task->fresh();
-            if ($refreshedTask !== null) {
-                $task = $refreshedTask;
-            }
-        } else {
-            // bumpTaskPriority promotes the head ID page for existing tasks; a
-            // fresh task skips that path, so record it on the head page here.
-            (new DiffIdPageCatalog())->promote(
-                'global_tasks:queue:' . $taskType,
-                (string) $task->task_id
-            );
-        }
-
-        if ($emitEvent) {
-            $this->emitQueueEvent(
-                $taskType,
-                $task,
-                $dedupKey,
-                $this->normalizeAudioPayload($taskType, $payload),
-                $bump
-            );
+        $head = $this->moveExistingTaskToHead((string) $task->task_id, $emitEvent);
+        $headAction = (string) $head['status'];
+        if ($head['task'] instanceof GlobalTask) {
+            $task = $head['task'];
         }
 
         return [
             'ok' => true,
             'task_id' => (string) $task->task_id,
             'created' => $result['created'],
-            'bump' => $bump,
+            'head_action' => $headAction,
             'status' => (string) $task->status,
+            'queue_position' => (int) $task->queue_position,
         ];
     }
 
+    /** Move an existing queue-position task to the physical head. */
+    public function moveExistingTaskToHead(string $taskId, bool $emitEvent = true): array
+    {
+        $storedTaskType = GlobalTask::taskTypeOf($taskId);
+        if ($storedTaskType === null) {
+            return ['status' => 'not_found', 'task' => null, 'queue_position' => 0];
+        }
+        if (!QueueCenterContract::isQueuePositionOrdered($storedTaskType)) {
+            throw new \InvalidArgumentException("Task type does not use queue-position ordering: {$storedTaskType}");
+        }
+
+        $head = $this->queueHead->moveTaskToHead($taskId);
+        $task = $head['task'] ?? null;
+        if (!$emitEvent
+            || ($head['status'] ?? null) !== 'moved_to_head'
+            || !($task instanceof GlobalTask)) {
+            return $head;
+        }
+
+        $taskType = (string) $task->task_type;
+        if (!self::isSupportedQueue($taskType)) {
+            return $head;
+        }
+        $this->headNotifications->record($taskType);
+
+        return $head;
+    }
+
     /**
-     * Canonical enqueue-or-promote entry for audio producers.
+     * Canonical enqueue-or-head entry for audio producers.
      *
-     * @return array{ok:bool,task_id:string,created:bool,bump:string,status:string}
+     * @return array{ok:bool,task_id:string,created:bool,head_action:string,status:string}
      */
     public function schedule(
         string $taskType,
@@ -206,7 +225,6 @@ class QueueCenterService
         bool $moveToHead,
         bool $emitEvent = true,
         array $linkAttributes = [],
-        ?int $priority = null,
         ?int $timeoutSeconds = null
     ): array {
         if ($moveToHead) {
@@ -223,9 +241,7 @@ class QueueCenterService
             $taskType,
             $payload,
             $dedupKey,
-            false,
             $linkAttributes,
-            $priority,
             $timeoutSeconds
         );
         $task = $result['task'];
@@ -234,15 +250,14 @@ class QueueCenterService
             'ok' => true,
             'task_id' => (string) $task->task_id,
             'created' => (bool) $result['created'],
-            'bump' => 'not_requested',
+            'head_action' => 'not_requested',
             'status' => (string) $task->status,
+            'queue_position' => (int) $task->queue_position,
         ];
     }
 
     /**
-     * Paginated queue listing, live tasks first (priority DESC, oldest first
-     * within a priority), terminal tasks last. Items are projected onto the
-     * contract 'status' wire shape.
+     * Paginated queue listing, live tasks first and newest head tickets first.
      */
     public function listQueue(string $queueKey, int $page = 1, int $limit = 20): array
     {
@@ -251,42 +266,23 @@ class QueueCenterService
         $limit = max(1, min($limit, QueueCenterContract::taskLimit('list')));
 
         $liveStatuses = QueueCenterContract::taskStatuses('live');
-        $liveList = implode(',', array_map(
-            static fn (string $s): string => "'" . str_replace("'", "''", $s) . "'",
-            $liveStatuses
-        ));
-
-        $query = GlobalTask::query()->where('task_type', $queueKey);
-        $total = (int) (clone $query)->count();
-        $orderedQuery = $query
-            ->orderByRaw("CASE WHEN status IN ({$liveList}) THEN 0 ELSE 1 END")
-            ->orderByDesc('priority')
-            ->orderBy('created_at')
-            ->forPage($page, $limit);
+        $pageData = GlobalTask::queuePageTaskIds($queueKey, $liveStatuses, $page, $limit);
+        $total = (int) $pageData['total'];
         $scope = 'global_tasks:queue:' . $queueKey;
         $catalog = new DiffIdPageCatalog();
-        $idPage = $catalog->snapshotPage($scope, $page, clone $orderedQuery, 'task_id');
+        $idPage = $catalog->snapshotIds($scope, $page, $pageData['task_ids']);
         $taskIds = $idPage['ids'];
         $tasks = $catalog->materialize(
             $scope,
             $idPage['segment'],
             $taskIds,
-            static function (array $ids): array {
-                $indexed = GlobalTask::query()
-                    ->whereIn('task_id', $ids)
-                    ->get()
-                    ->keyBy('task_id');
-
-                return array_values(array_filter(array_map(
-                    static fn ($id) => $indexed->get($id),
-                    $ids
-                )));
-            }
+            static fn (array $ids): array => GlobalTask::tasksByTaskIds($ids)
         );
 
         $items = [];
         foreach ($tasks as $task) {
             $record = QueueCenterContract::projectTask($task, 'status');
+            unset($record['priority']);
             $record['group_key'] = $task->group_key;
             $items[] = $record;
         }
@@ -320,30 +316,27 @@ class QueueCenterService
         $limit = max(1, min($limit, QueueCenterContract::taskLimit('list')));
         $language = $language !== null ? strtolower(trim($language)) : null;
         $liveStatuses = QueueCenterContract::taskStatuses('live');
-        $baseQuery = GlobalTask::query()
-            ->where('task_type', $queueKey)
-            ->whereIn('status', $liveStatuses);
-
-        if ($language !== null && $language !== '') {
-            $baseQuery->where('payload->language', $language);
-        }
-
-        $total = (int) (clone $baseQuery)->count();
-        $tasks = (clone $baseQuery)
-            ->orderByDesc('priority')
-            ->orderBy('created_at')
-            ->forPage($page, $limit)
-            ->get([
-                'task_id', 'status', 'priority', 'progress', 'payload', 'result',
+        $snapshot = GlobalTask::liveQueuePage(
+            $queueKey,
+            $liveStatuses,
+            $page,
+            $limit,
+            $language,
+            [
+                'task_id', 'status', 'queue_position', 'progress', 'payload', 'result',
                 'assigned_to', 'assigned_at', 'created_at', 'updated_at',
-            ]);
+            ]
+        );
+        $total = (int) $snapshot['total'];
+        $tasks = $snapshot['tasks'];
 
+        // Language tally stays SQL-side (one grouped scan, PostgreSQL jsonb
+        // text extraction) — never a payload cursor over every live task.
         $languages = [];
-        foreach ((clone $baseQuery)->select('payload')->cursor() as $row) {
-            $payload = is_array($row->payload) ? $row->payload : [];
-            $key = strtolower(trim((string) ($payload['language'] ?? '')));
+        foreach ($snapshot['language_counts'] as $key => $aggregate) {
+            $key = (string) $key;
             if ($key !== '') {
-                $languages[$key] = (int) ($languages[$key] ?? 0) + 1;
+                $languages[$key] = (int) $aggregate;
             }
         }
 
@@ -354,7 +347,7 @@ class QueueCenterService
             'items' => array_map(static fn (GlobalTask $task): array => [
                 'task_id' => (string) $task->task_id,
                 'status' => (string) $task->status,
-                'priority' => (int) $task->priority,
+                'queue_position' => (int) $task->queue_position,
                 'progress' => (float) $task->progress,
                 'stage' => is_array($task->result)
                     ? (string) ($task->result['stage'] ?? $task->status)
@@ -376,7 +369,7 @@ class QueueCenterService
      * High-water diff ID page table for the UI pump (rule 1/2: IDs + status
      * metadata only, never full rows). Tasks with a primary id above $cursor
      * are returned in bounded ID pages; the realtime revision lets the client
-     * align incrementally, and head_ids carries priority-promoted tasks.
+     * align incrementally, and head_ids carries tasks moved to the queue head.
      *
      * @return array<string,mixed>
      */
@@ -391,12 +384,7 @@ class QueueCenterService
         $rowLimit = min($idLimit, $pageSize * $maxPages);
 
         $cursor = max(0, $cursor);
-        $rows = GlobalTask::query()
-            ->where('task_type', $queueKey)
-            ->where('id', '>', $cursor)
-            ->orderBy('id')
-            ->limit($rowLimit)
-            ->get(['id', 'task_id', 'status', 'priority']);
+        $rows = GlobalTask::queueRowsAfterId($queueKey, $cursor, $rowLimit);
 
         $highWater = $cursor;
         $entries = [];
@@ -405,7 +393,7 @@ class QueueCenterService
             $entries[] = [
                 'task_id' => (string) $row->task_id,
                 'status' => (string) $row->status,
-                'priority' => (int) $row->priority,
+                'queue_position' => (int) $row->queue_position,
             ];
         }
 
@@ -459,11 +447,8 @@ class QueueCenterService
             $ids,
             static function (array $pageIds) use ($queueKey): array {
                 $columns = QueueCenterContract::taskWireShape('worker_pull');
-                $indexed = GlobalTask::query()
-                    ->where('task_type', $queueKey)
-                    ->whereIn('task_id', $pageIds)
-                    ->get($columns)
-                    ->keyBy('task_id');
+                $tasks = GlobalTask::tasksByTaskIds($pageIds, $queueKey, $columns);
+                $indexed = collect($tasks)->keyBy('task_id');
 
                 return array_values(array_filter(array_map(
                     static function ($id) use ($indexed): ?array {
@@ -516,29 +501,11 @@ class QueueCenterService
     {
         $types = $queueKey !== null
             ? [$this->assertSupportedQueue($queueKey)]
-            : self::SUPPORTED_QUEUES;
-        $cacheKey = 'queue_center:stats:' . implode(',', $types);
-        $grouped = Cache::remember($cacheKey, 30, static fn () => GlobalTask::query()
-            ->whereIn('task_type', $types)
-            ->groupBy('task_type', 'status')
-            ->selectRaw('task_type, status, count(*) as aggregate')
-            ->get());
-
+            : self::queueKeys();
+        $metrics = app(QueueCenterMetricsService::class);
         $perQueue = [];
         foreach ($types as $type) {
-            $perQueue[$type] = ['pending' => 0, 'assigned' => 0, 'processing' => 0, 'total' => 0];
-        }
-        foreach ($grouped as $row) {
-            $type = (string) $row->task_type;
-            $status = (string) $row->status;
-            $count = (int) $row->aggregate;
-            if (!isset($perQueue[$type])) {
-                continue;
-            }
-            if (array_key_exists($status, $perQueue[$type])) {
-                $perQueue[$type][$status] = $count;
-            }
-            $perQueue[$type]['total'] += $count;
+            $perQueue[$type] = $metrics->liveQueue($type);
         }
 
         return $queueKey !== null ? $perQueue[$queueKey] : $perQueue;
@@ -658,67 +625,11 @@ class QueueCenterService
         return sha1($taskType . '|' . json_encode($identity));
     }
 
-    /**
-     * Emit the queue's priority outbox event. The payload is a compact
-     * superset of the legacy wire shapes (word_audio.priority carried
-     * md5/language/priority; sentence.priority carried
-     * content_id/language/priority/text) so existing realtime consumers keep
-     * working, plus queue/task_id/dedup_key/bump for Queue Center.
-     */
-    private function emitQueueEvent(
-        string $taskType,
-        GlobalTask $task,
-        string $dedupKey,
-        array $payload,
-        string $bump
-    ): void {
-        $event = self::OUTBOX_EVENTS[$taskType] ?? null;
-        if ($event === null) {
-            return;
-        }
-
-        $data = [
-            'queue' => $taskType,
-            'task_id' => (string) $task->task_id,
-            'dedup_key' => $dedupKey,
-            'language' => $payload['language'] ?? null,
-            'priority' => (int) $task->priority,
-            'bump' => $bump,
-        ];
-        if ($taskType === self::QUEUE_WORD_AUDIO) {
-            $data['md5'] = $payload['md5'] ?? null;
-            $word = $payload['word'] ?? ($payload['content'] ?? null);
-            if (is_string($word) && $word !== '') {
-                $data['word'] = $word;
-            }
-        } else {
-            $data['content_id'] = $payload['content_id'] ?? null;
-            $text = $payload['text'] ?? ($payload['content'] ?? null);
-            if (is_string($text) && $text !== '') {
-                $data['text'] = $text;
-            }
-        }
-
-        AppQyV1TranslationEventModel::emit($event, $data);
-        $logMessage = $bump === 'bumped'
-            ? '[QueueCenter] Queue head changed'
-            : '[QueueCenter] Queue priority unchanged';
-        Log::info($logMessage, [
-            'event' => $event,
-            'queue' => $taskType,
-            'task_id' => (string) $task->task_id,
-            'priority' => (int) $task->priority,
-            'bump' => $bump,
-            'language' => $data['language'],
-            'label' => $data['word'] ?? ($data['text'] ?? null),
-        ]);
-    }
-
     private function assertSupportedQueue(string $taskType): string
     {
         if (!self::isSupportedQueue($taskType)) {
             throw new \InvalidArgumentException(
-                "Unsupported queue-center queue: {$taskType} (supported: " . implode(', ', self::SUPPORTED_QUEUES) . ')'
+                "Unsupported queue-center queue: {$taskType} (supported: " . implode(', ', self::queueKeys()) . ')'
             );
         }
         return $taskType;

@@ -8,7 +8,7 @@ import { SystemConfigAPI } from './modules/SystemConfigAPI';
 import { AuthAPI } from './modules/AuthAPI';
 import { DatabaseManagerAPI, AuthDebugAPI } from './modules/DatabaseManagerAPI';
 import { CodeUpdateAPI } from './modules/CodeUpdateAPI';
-import { MediaQueryAPI } from '../../../core/api-libs/laravel/transport/MediaQueryAPI';
+import { MediaQueryAPI } from '../../../core/integrations/laravel/transport/MediaQueryAPI';
 import { BooksAPI } from './modules/BooksAPI';
 import { CodeBrowserAPI } from './modules/CodeBrowserAPI';
 import { AiStatusAPI } from './modules/AiStatusAPI';
@@ -21,8 +21,8 @@ import {
   getSharedBaseURL,
   setSharedAuthToken,
   setSharedBaseURL,
-} from '../../../core/api-libs/laravel/transport/BaseAPI';
-import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from '../../../core/api-libs/laravel/transport/ApiContract';
+} from '../../../core/integrations/laravel/transport/BaseAPI';
+import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from '../../../core/integrations/laravel/transport/ApiContract';
 
 /**
  * Laravel backend implementation used only through the Laravel Manager API

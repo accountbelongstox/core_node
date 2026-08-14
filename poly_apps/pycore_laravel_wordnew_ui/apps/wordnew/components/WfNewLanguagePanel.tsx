@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Languages, Globe, Target, Check, X, Save, Search, ChevronDown, ChevronUp } from 'lucide-react';
-import Portal from '../../../components/shared/Portal';
-import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '../../../styles/overlay';
+import Portal from '@/shared/ui/Portal';
+import { OVERLAY_Z, OVERLAY_CONTAINER, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 import { wfNewApi, type WfNewLanguage } from '../api';
 import { WFNEW_BUILTIN_LANGUAGES } from '../api/WfNewApiDefaults';
 

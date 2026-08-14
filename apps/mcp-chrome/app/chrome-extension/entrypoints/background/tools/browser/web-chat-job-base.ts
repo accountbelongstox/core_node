@@ -16,9 +16,11 @@
  * poll starts is not missed, unlike a design that restarts a "3 consecutive
  * stable reads" search from scratch inside every single call.
  */
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { logger } from '@/utils/logger';
+import { delay as waitForDelay } from '@/utils/async';
+import { SessionJobStore } from '@/utils/session-job-store';
 import { findOrCreateProviderTab, waitForTabComplete } from './ai-web-common';
 
 // Poll cadence for the default synchronous execute() wrapper below.
@@ -58,7 +60,7 @@ export interface WebChatJobConfig {
 export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
   protected abstract jobConfig: WebChatJobConfig;
 
-  private jobs = new Map<string, WebChatJob>();
+  private jobStore: SessionJobStore<WebChatJob> | null = null;
 
   /** Phase 1: open/reuse the provider tab, submit the prompt, register a job. */
   async start(
@@ -86,7 +88,7 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
       }
 
       const jobId = this.genJobId();
-      this.jobs.set(jobId, {
+      this.getJobStore().set({
         jobId,
         tabId,
         prompt: p,
@@ -95,7 +97,7 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
         deadline: Date.now() + Math.max(15000, timeoutMs),
         answer: null,
       });
-      await this.persistJobs();
+      await this.getJobStore().persist();
       logger.info(cfg.providerLabel, `Started job ${jobId} on tab ${tabId}: "${p.slice(0, 60)}"`);
       return {
         ok: true,
@@ -105,7 +107,7 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
         hint: "Poll with action='status' and this jobId until status is 'done' or 'failed'.",
       };
     } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
+      const msg = toErrorMessage(error);
       logger.error(cfg.providerLabel, `start: threw before a job could be created: ${msg}`);
       return { ok: false, error: msg };
     }
@@ -125,23 +127,15 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
     const jobId = started.jobId;
     const deadline = Date.now() + Math.max(15000, timeoutMs);
     while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, EXECUTE_POLL_INTERVAL_MS));
+      await waitForDelay(EXECUTE_POLL_INTERVAL_MS);
       const s = await this.status(jobId);
       if (s.status === 'done') {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({
-                provider: this.jobConfig.providerLabel,
-                success: true,
-                answer: s.answer,
-                tabId: started.tabId,
-              }),
-            },
-          ],
-          isError: false,
-        };
+        return createJsonResponse({
+          provider: this.jobConfig.providerLabel,
+          success: true,
+          answer: s.answer,
+          tabId: started.tabId,
+        });
       }
       if (s.status === 'failed' || s.status === 'unknown') {
         return createErrorResponse(s.error || `${this.jobConfig.providerLabel} reply failed`);
@@ -155,8 +149,8 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
     jobId: string,
   ): Promise<{ ok: boolean; status: WebChatJobStatus | 'unknown'; answer?: string | null; error?: string }> {
     const cfg = this.jobConfig;
-    let job = this.jobs.get(jobId);
-    if (!job) job = await this.hydrateJob(jobId);
+    let job = this.getJobStore().get(jobId);
+    if (!job) job = await this.getJobStore().hydrate(jobId);
     if (!job) return { ok: false, status: 'unknown', error: 'Unknown jobId (expired or never started)' };
 
     if (job.status === 'done') {
@@ -185,7 +179,7 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
         if (job.stableRounds >= STABLE_ROUNDS_REQUIRED) {
           job.status = 'done';
           job.answer = text;
-          await this.persistJobs();
+          await this.getJobStore().persist();
           logger.info(cfg.providerLabel, `Job ${jobId} done (${text.length} chars)`);
           if (cfg.cleanupAction) {
             // Fire-and-forget: e.g. Copilot closing the canvas page it opened
@@ -208,10 +202,10 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
         const timeoutMsg = 'Timed out waiting for the reply to stabilize';
         job.status = 'failed';
         job.error = timeoutMsg;
-        await this.persistJobs();
+        await this.getJobStore().persist();
         return { ok: false, status: 'failed', error: timeoutMsg };
       }
-      await this.persistJobs();
+      await this.getJobStore().persist();
       return { ok: true, status: 'generating' };
     } catch (error: any) {
       // Tab message failed (tab closed / not ready). Fail only past the deadline.
@@ -219,7 +213,7 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
         const msg = error?.message || 'Tab unreachable';
         job.status = 'failed';
         job.error = msg;
-        await this.persistJobs();
+        await this.getJobStore().persist();
         return { ok: false, status: 'failed', error: msg };
       }
       return { ok: true, status: 'generating' };
@@ -230,29 +224,10 @@ export abstract class WebChatJobToolBase extends BaseBrowserToolExecutor {
     return `wc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  /** Persist a lightweight job index for SW-restart recovery. */
-  private async persistJobs(): Promise<void> {
-    try {
-      const lite = Array.from(this.jobs.values()).slice(-20);
-      await chrome.storage.session.set({ [this.jobConfig.jobsStorageKey]: lite });
-    } catch {
-      // session storage unavailable — in-memory only.
+  private getJobStore(): SessionJobStore<WebChatJob> {
+    if (!this.jobStore) {
+      this.jobStore = new SessionJobStore<WebChatJob>(this.jobConfig.jobsStorageKey);
     }
-  }
-
-  private async hydrateJob(jobId: string): Promise<WebChatJob | undefined> {
-    try {
-      const arr = (await chrome.storage.session.get(this.jobConfig.jobsStorageKey))[this.jobConfig.jobsStorageKey];
-      if (Array.isArray(arr)) {
-        const found = arr.find((j: any) => j && j.jobId === jobId);
-        if (found) {
-          this.jobs.set(jobId, found);
-          return found as WebChatJob;
-        }
-      }
-    } catch {
-      // ignore
-    }
-    return undefined;
+    return this.jobStore;
   }
 }

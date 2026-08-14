@@ -21,10 +21,10 @@ import type {
 import {
   agentHistoryPageTableStore,
   type AgentHistoryPageTable,
-} from '@/core/tasks/AgentHistoryPageTableStore';
-import { AGENT_HISTORY_TOOLS, PAGE_SIZE, toolLabel } from '../../../components/views/dev-history/shared';
-import SessionRow from '../../../components/views/dev-history/SessionRow';
-import SessionDetailView from '../../../components/views/dev-history/SessionDetailView';
+} from '@/apps/pycore-manager/persistence/AgentHistoryPageTableStore';
+import { AGENT_HISTORY_TOOLS, PAGE_SIZE, toolLabel } from './agent-history/presentation';
+import SessionRow from './agent-history/SessionRow';
+import SessionDetailView from './agent-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
@@ -582,7 +582,7 @@ const PcAgentHistoryPage: React.FC = () => {
             ) : detailError ? (
               <div className="text-sm text-red-500">{detailError}</div>
             ) : detail ? (
-              <SessionDetailView detail={detail as any} subagentLabel={tk('subagent')} />
+              <SessionDetailView detail={detail} subagentLabel={tk('subagent')} />
             ) : (
               <div className="text-sm text-slate-500 flex items-center gap-2">
                 <UserIcon className="w-4 h-4" />

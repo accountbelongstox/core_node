@@ -4,9 +4,9 @@ import {
   Lock, Mail, User, Shield, Sparkles, Languages, Compass, ArrowRight,
   ChevronRight, CheckCircle2, UserPlus, LogIn, Heart, Star, LogOut, Github
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { wfNewApi, type WfNewAuthUser } from '../api';
-import { useSocialAuth, type CapSocialProvider } from '@/shared/capabilities/CapSocialAuth';
+import { useSocialAuth, type CapSocialProvider } from '@/apps/wordnew/platform/capabilities/CapSocialAuth';
 import { WfNewLanguagePanel } from '../components/WfNewLanguagePanel';
 import { WfNewAgreementModal } from '../components/WfNewAgreementModal';
 import { getLanguageConfig } from '../WfNewLocales';
@@ -129,7 +129,7 @@ export const WfNewAuth: React.FC<WfNewAuthProps> = ({
     if (!social.configured[provider]) {
       // Keys not provisioned yet → tell the user it's COMING SOON (即将上线)
       // rather than surfacing a technical "not configured" message. Wire the
-      // OAuth client IDs (capSocial.configure / config/constants.ts) to enable it.
+      // OAuth client IDs through capSocial.configure to enable it.
       addToast(trans('auth.socialComingSoon'), 'info');
       return;
     }

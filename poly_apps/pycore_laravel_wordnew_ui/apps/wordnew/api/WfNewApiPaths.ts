@@ -31,11 +31,9 @@ import type { WfNewWordMediaOptions } from './WfNewApiTypes';
 
 /** Laravel api.php mount (`/api`) + the AppQyV1 route prefix (`app_qy_v1`). */
 export const WFNEW_API_BASE = '/api/app_qy_v1';
-export const WFNEW_ROOT_API_BASE = '/api';
 
 /** Prefix a route suffix with the AppQyV1 base. */
 const p = (suffix: string): string => `${WFNEW_API_BASE}${suffix}`;
-const rootApi = (suffix: string): string => `${WFNEW_ROOT_API_BASE}${suffix}`;
 const sentenceAudioPath = (text: string, language: string, variantKey?: string, passive = false): string =>
   p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
     variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}${passive ? '&passive=1' : ''}`);
@@ -46,13 +44,6 @@ const sentenceAudioPath = (text: string, language: string, variantKey?: string, 
  * hand-concatenate a URL).
  */
 export const WfNewApiPaths = {
-  queueCenterOverview: rootApi('/queue-center/overview'),
-  queueCenterReceipts: (taskIds: string[]): string => {
-    const params = new URLSearchParams();
-    taskIds.forEach((taskId) => params.append('task_ids[]', taskId));
-    return rootApi(`/queue-center/receipts?${params.toString()}`);
-  },
-
   // ---- Auth (AppQyV1Auth.php — prefix app_qy_v1) ----
   register: p('/register'),
   login: p('/login'),
@@ -95,23 +86,13 @@ export const WfNewApiPaths = {
   /** Available TTS voices = the Laravel audio library. GET → data.voices = { lang: voice_id }. */
   ttsVoices: p('/ai_tools/tts/voices'),
   recentAgentArticles: (limit = 20): string => p(`/ai_tools/article/worker/recent?limit=${limit}`),
-  translationQueueStream: p('/ai_tools/translation/queue/stream'),
 
   // ---- Sentence audio (book reader on-demand TTS) ----
   sentenceAudio: sentenceAudioPath,
-  /** Raise TTS priority for ONE sentence by content_id/hash
-   *  (POST { content_id, language, interactive?, create_task?, text? }). */
-  sentenceBump: p('/ai_tools/tts/sentence/bump'),
-  /** Raise TTS priority for a batch of visible sentences (POST { items, interactive? }). */
-  sentenceBumpBatch: p('/ai_tools/tts/sentence/bump-batch'),
-  /** Enqueue + prioritize word-audio generation by word text
-   *  (POST { tasks: [{content, language, type}], interactive? }); interactive=true
-   *  moves the batch to the FRONT of the audio queue (move-to-front ticket). */
-  ttsQueueBatchAdd: p('/ai_tools/tts/queue/batch/add'),
-  /** Raise word-audio priority by dictionary hash (POST { md5, lang }). */
-  wordAudioBoostPriority: p('/word/boost-priority'),
-  /** Stack words into the translation queue at high priority (POST { words, language, target_language, priority? }). */
-  translationQueueStack: p('/ai_tools/translation/queue/stack'),
+  /** Insert missing sentence-audio tasks or move existing tasks to the queue head. */
+  sentenceAudioHead: p('/ai_tools/tts/sentence/audio/head'),
+  /** Insert or move word-audio tasks to the queue head. */
+  wordAudioHead: p('/word/audio/head'),
   wordImageQueueAdd: p('/ai_tools/word_image/queue/add'),
 
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
@@ -207,6 +188,13 @@ export const WfNewApiPaths = {
     const query = params.toString();
     return p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/media${query ? `?${query}` : ''}`);
   },
+  wordAudio: (lang: string, word: string, options: WfNewWordMediaOptions = {}): string => {
+    const params = new URLSearchParams();
+    if (options.accent) params.set('accent', options.accent);
+    if (options.passive) params.set('passive', '1');
+    const query = params.toString();
+    return p(`/word/${encodeURIComponent(lang)}/${encodeURIComponent(word)}/audio${query ? `?${query}` : ''}`);
+  },
 
   // ---- Dictionary words (AppQyV1Vocabulary.php — paginated, PUBLIC) ----
   /** Paginated dictionary words with audio + translation for the word-stats sidebar.
@@ -290,9 +278,10 @@ export const WfNewApiPaths = {
   socialNotificationsUnreadCount: p('/social/notifications/unread-count'),
   socialNotificationRead: p('/social/notifications/read'),
 
-  /** Per-user SSE stream; query-token authenticated because EventSource cannot send headers. */
-  socialStream: (cursor?: number | null): string =>
-    p(`/social/stream${cursor != null ? `?cursor=${cursor}` : ''}`),
+  /** Per-user private Reverb connection and bounded cursor replay. */
+  socialRealtimeConnection: p('/social/realtime/connection'),
+  socialRealtimeEvents: (cursor?: number | null): string =>
+    p(`/social/realtime/events${cursor != null ? `?cursor=${cursor}` : ''}`),
 
   // ---- Social Center: posts / comments (AppQyV1Social.php — prefix app_qy_v1/social) ----
   /** Plaza posts list (GET, auth required): ?cursor=&limit=&filter=all|images|videos|following.

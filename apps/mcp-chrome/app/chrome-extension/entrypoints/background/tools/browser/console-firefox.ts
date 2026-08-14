@@ -20,6 +20,7 @@ import {
   ensureRelayBridge,
   runInMainWorld,
 } from '@/utils/firefox-main-world-relay';
+import { delay as waitForDelay } from '@/utils/async';
 
 // Same flush window the Chrome CDP path waits after enabling the domains.
 const CAPTURE_WINDOW_MS = 2000;
@@ -248,7 +249,7 @@ export async function captureConsoleMessagesFirefox(
       sessionId,
       WRAPPED_CONSOLE_METHODS,
     ]);
-    await new Promise((resolve) => setTimeout(resolve, CAPTURE_WINDOW_MS));
+    await waitForDelay(CAPTURE_WINDOW_MS);
   } finally {
     removeListener();
     try {

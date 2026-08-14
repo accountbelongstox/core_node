@@ -117,7 +117,7 @@ class FileSystemManager
             }
         }
 
-        $result = file_put_contents($path, $content) !== false;
+        $result = file_put_contents($path, $content, LOCK_EX) !== false;
 
         if ($result && $userInfo && isset($userInfo['uid'], $userInfo['gid'])) {
             @chown($path, $userInfo['uid']);
@@ -141,7 +141,17 @@ class FileSystemManager
             self::fixPermissions($mappedPath);
         }
 
-        return file_get_contents($mappedPath);
+        $handle = fopen($mappedPath, 'rb');
+        if ($handle === false) {
+            return false;
+        }
+
+        flock($handle, LOCK_SH);
+        $content = stream_get_contents($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        return $content;
     }
 
     public static function readFileSegment(string $path, int $offset = 0, ?int $length = null): string|false
@@ -176,42 +186,127 @@ class FileSystemManager
         return $content;
     }
 
+    public static function writeFileSegment(string $path, string $content, int $expectedOffset): array
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $parentDir = dirname($mappedPath);
+        $handle = null;
+        $currentSize = 0;
+        $written = 0;
+
+        self::ensureDirectoryExists($parentDir);
+        $handle = fopen($mappedPath, 'c+b');
+        if ($handle === false) {
+            return ['success' => false, 'offset' => 0];
+        }
+
+        flock($handle, LOCK_EX);
+        fseek($handle, 0, SEEK_END);
+        $currentSize = ftell($handle);
+        if ($currentSize !== $expectedOffset) {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+            return ['success' => false, 'offset' => $currentSize];
+        }
+
+        $written = fwrite($handle, $content);
+        fflush($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        if ($written === false || $written !== strlen($content)) {
+            return ['success' => false, 'offset' => $currentSize];
+        }
+
+        self::fixPermissions($mappedPath);
+        return ['success' => true, 'offset' => $currentSize + $written];
+    }
+
+    public static function hashFile(string $path, string $algorithm = 'sha256'): string|false
+    {
+        $mappedPath = self::mapExternalPath($path);
+
+        if (!is_file($mappedPath) || !is_readable($mappedPath)) {
+            return false;
+        }
+
+        return hash_file($algorithm, $mappedPath);
+    }
+
+    public static function fileManifest(string $rootPath): array
+    {
+        $mappedRoot = self::mapExternalPath($rootPath);
+        $manifest = [];
+        $iterator = null;
+
+        if (!is_dir($mappedRoot)) {
+            return $manifest;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($mappedRoot, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::LEAVES_ONLY
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file->isFile() || !$file->isReadable()) {
+                continue;
+            }
+
+            $absolutePath = $file->getPathname();
+            $relativePath = substr($absolutePath, strlen(rtrim($mappedRoot, '/\\')) + 1);
+            $relativePath = str_replace('\\', '/', $relativePath);
+            $manifest[$relativePath] = [
+                'size' => $file->getSize(),
+                'sha256' => hash_file('sha256', $absolutePath),
+            ];
+        }
+
+        ksort($manifest);
+        return $manifest;
+    }
+
     public static function copy(string $source, string $destination): bool
     {
         $mappedSource = self::mapExternalPath($source);
         $mappedDestination = self::mapExternalPath($destination);
-
-        $userInfo = self::$cachedUserInfo;
-        if ($userInfo === null) {
-            $userInfo = SystemUserDetector::getActualUser();
-            self::$cachedUserInfo = $userInfo;
-        }
+        $result = false;
 
         if (self::$autoFixPermissions) {
             if (file_exists($mappedSource)) {
                 self::fixPermissions($mappedSource);
             }
-
-            $destParent = dirname($mappedDestination);
-            if (file_exists($destParent)) {
-                self::fixPermissions($destParent);
-            }
         }
 
-        $escapedSource = escapeshellarg($mappedSource);
-        $escapedDest = escapeshellarg($mappedDestination);
-        $username = escapeshellarg($userInfo['username']);
-
-        $command = "sudo -u {$username} cp {$escapedSource} {$escapedDest} 2>&1";
-        shell_exec($command);
-
-        $result = file_exists($mappedDestination);
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        $result = copy($mappedSource, $mappedDestination);
 
         if ($result && self::$autoFixPermissions) {
             self::fixPermissions($mappedDestination);
         }
 
         return $result;
+    }
+
+    public static function replaceFile(string $source, string $destination): bool
+    {
+        $mappedSource = self::mapExternalPath($source);
+        $mappedDestination = self::mapExternalPath($destination);
+        $copied = false;
+
+        if (!is_file($mappedSource)) {
+            return false;
+        }
+
+        self::ensureDirectoryExists(dirname($mappedDestination));
+        $copied = copy($mappedSource, $mappedDestination);
+        if (!$copied) {
+            return false;
+        }
+
+        self::fixPermissions($mappedDestination);
+        unlink($mappedSource);
+        return true;
     }
 
     public static function rename(string $oldPath, string $newPath): bool

@@ -19,9 +19,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $project = CodeMartV1ProjectModel::where('id', $projectId)
-            ->where('client_id', $user->id)
-            ->first();
+        $project = CodeMartV1ProjectModel::findOwnedByClient((int) $projectId, (int) $user->id);
 
         if (!$project) {
             return $this->notFound('Project not found');
@@ -33,9 +31,9 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         CodeMartV1AIAnalysisModel::beginModelTransaction();
 
-        $project->update(['analysis_status' => 'analyzing']);
+        $project->updateRecord(['analysis_status' => 'analyzing']);
 
-        $analysis = CodeMartV1AIAnalysisModel::create([
+        $analysis = CodeMartV1AIAnalysisModel::createRecord([
             'project_id' => $projectId,
             'status' => 'processing',
             'keywords' => $this->extractKeywords($project->title, $project->description),
@@ -57,7 +55,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $analysis = CodeMartV1AIAnalysisModel::with('project')->find($analysisId);
+        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
 
         if (!$analysis || $analysis->project->client_id !== $user->id) {
             return $this->notFound('Analysis not found');
@@ -85,7 +83,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
         $user = AuthHelper::requireAuth($request);
         if (!$user) return $this->unauthorized();
 
-        $analysis = CodeMartV1AIAnalysisModel::with('project')->find($analysisId);
+        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
 
         if (!$analysis || $analysis->project->client_id !== $user->id) {
             return $this->notFound('Analysis not found');
@@ -97,9 +95,9 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         CodeMartV1AIAnalysisModel::beginModelTransaction();
 
-        $analysis->update(['accepted_at' => now()]);
+        $analysis->updateRecord(['accepted_at' => now()]);
 
-        $analysis->project->update([
+        $analysis->project->updateRecord([
             'analysis_status' => 'accepted',
             'estimated_cost' => $analysis->estimated_cost,
             'status' => 'awaiting_payment',
@@ -127,7 +125,7 @@ class CodeMartV1AIAnalysisCtl extends Controller
             return $this->error('Validation failed', 422, $validator->errors());
         }
 
-        $analysis = CodeMartV1AIAnalysisModel::with('project')->find($analysisId);
+        $analysis = CodeMartV1AIAnalysisModel::findWithProject((int) $analysisId);
 
         if (!$analysis || $analysis->project->client_id !== $user->id) {
             return $this->notFound('Analysis not found');
@@ -135,12 +133,12 @@ class CodeMartV1AIAnalysisCtl extends Controller
 
         CodeMartV1AIAnalysisModel::beginModelTransaction();
 
-        $analysis->update([
+        $analysis->updateRecord([
             'status' => 'revising',
             'revision_notes' => $request->revision_notes,
         ]);
 
-        $analysis->project->update(['analysis_status' => 'revising']);
+        $analysis->project->updateRecord(['analysis_status' => 'revising']);
 
         CodeMartV1AIAnalysisModel::commitModelTransaction();
 

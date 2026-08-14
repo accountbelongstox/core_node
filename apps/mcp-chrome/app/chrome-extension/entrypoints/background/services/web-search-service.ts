@@ -5,6 +5,9 @@
  */
 
 import { logger } from '@/utils/logger';
+import { toErrorMessage } from '@/utils/errors';
+import { delay as waitForDelay } from '@/utils/async';
+import { createProgressStorage } from '@/utils/progress-storage';
 import { webSearchTool } from '../tools/browser/web-search';
 import { COVER_SEARCH_MAX, normalizeCoverUrls } from '@/utils/cover-playback';
 import {
@@ -26,22 +29,17 @@ import {
 } from '@/utils/web-search-core';
 
 const LOG = 'Web Search';
+const webSearchProgressStorage = createProgressStorage<WebSearchProgress>(
+  WEB_SEARCH_PROGRESS_KEY,
+  emptyWebSearchProgress,
+);
 
 export async function saveWebSearchProgress(patch: Partial<WebSearchProgress>): Promise<void> {
-  const prev = (await chrome.storage.local.get([WEB_SEARCH_PROGRESS_KEY]))[WEB_SEARCH_PROGRESS_KEY]
-    || emptyWebSearchProgress();
-  const next: WebSearchProgress = {
-    ...emptyWebSearchProgress(),
-    ...prev,
-    ...patch,
-    updatedAt: Date.now(),
-  };
-  await chrome.storage.local.set({ [WEB_SEARCH_PROGRESS_KEY]: next });
+  await webSearchProgressStorage.update(patch);
 }
 
 export async function getWebSearchProgress(): Promise<WebSearchProgress> {
-  const stored = (await chrome.storage.local.get([WEB_SEARCH_PROGRESS_KEY]))[WEB_SEARCH_PROGRESS_KEY];
-  return stored ? { ...emptyWebSearchProgress(), ...stored } : emptyWebSearchProgress();
+  return webSearchProgressStorage.get();
 }
 
 /**
@@ -177,7 +175,7 @@ export async function runWebSearch(request: WebSearchRequest): Promise<WebSearch
 
     return parsed;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     logger.error(LOG, message, err);
     await saveWebSearchProgress({ running: false, phase: 'Error', detail: message, status: 'error' });
     return {
@@ -353,7 +351,7 @@ export async function enrichBookCovers<
       coverUrl: coverUrls[0] || book.coverUrl || '',
     });
 
-    await new Promise((r) => setTimeout(r, 800));
+    await waitForDelay(800);
   }
 
   await saveWebSearchProgress({ running: false, phase: 'Idle', detail: '', status: 'idle' });

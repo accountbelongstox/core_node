@@ -2024,6 +2024,12 @@
   "taskCenterSortPriority": {
     "message": "優先度"
   },
+  "taskCenterSortOrder": {
+    "message": "キュー順序"
+  },
+  "taskCenterQueuePosition": {
+    "message": "キュー位置"
+  },
   "taskCenterStartFailed": {
     "message": "タスクセンターの起動に失敗しました"
   },

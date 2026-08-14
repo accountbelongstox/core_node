@@ -1,5 +1,6 @@
 import { API_ENDPOINTS, buildApiUrl, getEndpointById, type ApiEndpoint } from '../config/api-endpoints';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { delay, fetchWithTimeout } from '@/utils/async';
 
 // Re-export so consumers can import the endpoint type from ApiManager directly.
 export type { ApiEndpoint };
@@ -109,10 +110,6 @@ export class ApiManager {
     return this.customEndpoints.find((e) => e.id === id) || getEndpointById(id);
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
   /**
    * One reachability/health probe. Prefers a REAL check routed through the
    * background service worker (which bypasses CORS via host_permissions and can
@@ -143,20 +140,15 @@ export class ApiManager {
     }
 
     // Fallback: direct no-cors reachability probe (opaque; can't read the body).
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
     try {
-      await fetch(buildApiUrl(endpoint, '/up'), {
+      await fetchWithTimeout(buildApiUrl(endpoint, '/up'), timeout, {
         method: 'GET',
-        signal: controller.signal,
         mode: 'no-cors',
         cache: 'no-store',
       });
       return true;
     } catch {
       return false;
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
@@ -169,7 +161,7 @@ export class ApiManager {
 
     let reachable = await this.probeOnce(endpoint, timeout);
     for (let attempt = 0; !reachable && attempt < retries; attempt++) {
-      await this.delay(PROBE_RETRY_DELAY_MS);
+      await delay(PROBE_RETRY_DELAY_MS);
       reachable = await this.probeOnce(endpoint, timeout);
     }
 

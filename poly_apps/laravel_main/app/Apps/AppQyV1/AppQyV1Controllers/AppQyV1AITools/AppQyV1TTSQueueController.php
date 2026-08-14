@@ -6,17 +6,18 @@ use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TTSQueueMetrics;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1AddTTSTaskRequest;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Validation\Rule;
 
 /**
  * Unified TTS Queue API Controller
  *
  * Provides endpoints for:
- * - Adding tasks (word/sentence/article) to TTS queue
+ * - Adding contract-defined audio tasks to the TTS queue
  * - Querying queue status
  * - Getting task details
  * - Getting queue statistics
@@ -44,8 +45,8 @@ class AppQyV1TTSQueueController extends Controller
      * {
      *   "content": "hello world",
      *   "language": "en",
-     *   "type": "word",        // Optional: word/sentence/article (auto-detect if omitted)
-     *   "priority": 50         // Optional: 0-100 (default 50)
+     *   "type": "word",        // Optional contract alias (auto-detect if omitted)
+     *   "position": "end"      // Optional: beginning or end
      * }
      *
      * Response:
@@ -55,7 +56,7 @@ class AppQyV1TTSQueueController extends Controller
      *     "task_id": 123,
      *     "task_type": "word",
      *     "queue_status": "queued" | "moved_to_front" | "already_available" | "already_completed",
-     *     "priority": 50
+     *     "queue_position": 42
      *   }
      * }
      */
@@ -66,10 +67,7 @@ class AppQyV1TTSQueueController extends Controller
             return $this->unauthorized('Authentication required');
         }
 
-        // FE fast-track: interactive=true forces the row to the FRONT of the
-        // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
-        // via Pycore's dedicated word-audio worker. The front priority also propagates into
-        // the linked GlobalTask when APPQYV1_DUAL_WRITE_GLOBAL is enabled.
+        // Compatibility flag: interactive audio tasks move to the global queue head.
         $position = (bool) $request->input('interactive', false)
             ? 'beginning'
             : $request->input('position', 'end');
@@ -97,7 +95,7 @@ class AppQyV1TTSQueueController extends Controller
      * - page: Page number (default: 1)
      * - per_page: Items per page (default: 50)
      * - status: Filter by status (pending/processing/completed/failed)
-     * - type: Filter by type (word/sentence/article)
+     * - type: Filter by a contract-defined audio alias
      *
      * Response:
      * {
@@ -110,7 +108,6 @@ class AppQyV1TTSQueueController extends Controller
      *         "content_text": "hello",
      *         "language": "en",
      *         "status": "pending",
-     *         "priority": 50,
      *         "requested_at": "2025-12-21T10:30:00.000000Z"
      *       }
      *     ],
@@ -153,7 +150,7 @@ class AppQyV1TTSQueueController extends Controller
      * Query params:
      * - page: Page number (default: 1)
      * - per_page: Items per page (default: 50)
-     * - type: Filter by type (word/sentence/article)
+     * - type: Filter by a contract-defined audio alias
      *
      * Response: Same as getQueueSummary but filtered to completed tasks
      */
@@ -187,7 +184,6 @@ class AppQyV1TTSQueueController extends Controller
      *     "content_text": "hello",
      *     "language": "en",
      *     "status": "completed",
-     *     "priority": 50,
      *     "audio_path": "p0pct/default/abc123.mp3",
      *     "audio_url": "/api/app_qy_v1/ai_tools/tts/audio/en/word/p0pct/default/abc123.mp3",
      *     "requested_at": "2025-12-21T10:30:00.000000Z",
@@ -323,10 +319,10 @@ class AppQyV1TTSQueueController extends Controller
      * Request:
      * {
      *   "tasks": [
-     *     {"content": "hello", "language": "en", "type": "word", "priority": 50},
+     *     {"content": "hello", "language": "en", "type": "word"},
      *     {"content": "world", "language": "en"}
      *   ],
-     *   "default_priority": 50
+     *   "default_position": "beginning"
      * }
      *
      * Response:
@@ -358,27 +354,12 @@ class AppQyV1TTSQueueController extends Controller
         $tasks = $request->input('tasks');
         $defaultPosition = $request->input('default_position', 'end');
 
-        // FE fast-track: interactive=true sends the batch to the FRONT of the
-        // audio queue (tts_priority=MAX(tts_priority)+1 move-to-front ticket) — the working fast path for word audio
-        // via Pycore's dedicated word-audio worker (audio is Pycore-owned; Chrome
-        // serves only `sentence_audio`). Propagates into the linked GlobalTask
-        // when APPQYV1_DUAL_WRITE_GLOBAL is enabled.
+        // Compatibility flag: interactive audio tasks move to the global queue head.
         if ((bool) $request->input('interactive', false)) {
             $defaultPosition = 'beginning';
         }
 
         $result = $this->queueService->batchAddTasks($tasks, $defaultPosition);
-
-        if ((bool) $request->input('interactive', false)) {
-            AppQyV1TranslationEventModel::emit('word_audio.priority', [
-                'batch' => true,
-                'count' => count($tasks),
-                'items' => array_map(static fn ($task) => [
-                    'content' => $task['content'] ?? '',
-                    'language' => $task['language'] ?? '',
-                ], $tasks),
-            ]);
-        }
 
         return $this->success($this->addLogsToResponse($result), 'Batch tasks processed successfully');
     }
@@ -408,7 +389,7 @@ class AppQyV1TTSQueueController extends Controller
      *       {
      *         "task_id": 124,
      *         "status": "pending",
-     *         "priority": 50
+     *         "queue_position": 42
      *       },
      *       {
      *         "task_id": 125,
@@ -443,7 +424,7 @@ class AppQyV1TTSQueueController extends Controller
      *     {"content": "hello", "language": "en", "type": "word"},
      *     {"content": "How are you?", "language": "en"}
      *   ],
-     *   "default_priority": 50
+     *   "default_position": "end"
      * }
      *
      * Response:
@@ -555,7 +536,7 @@ class AppQyV1TTSQueueController extends Controller
      *   "content": "hello world",
      *   "language": "en",
      *   "type": "word",
-     *   "position": "beginning" | "middle" | "end"
+     *   "position": "beginning" | "end"
      * }
      *
      * Response:
@@ -565,7 +546,7 @@ class AppQyV1TTSQueueController extends Controller
      *     "task_id": 123,
      *     "task_type": "word",
      *     "queue_status": "queued",
-     *     "priority": 100
+     *     "queue_position": 42
      *   }
      * }
      */
@@ -579,8 +560,8 @@ class AppQyV1TTSQueueController extends Controller
         $request->validate([
             'content' => 'required|string|max:10000',
             'language' => 'required|string|max:10',
-            'type' => 'nullable|string|in:word,sentence,article',
-            'position' => 'required|string|in:beginning,middle,end',
+            'type' => ['nullable', 'string', Rule::in(QueueCenterContract::queuePositionOrderedTaskAliases())],
+            'position' => 'required|string|in:beginning,end',
         ]);
 
         $result = $this->queueService->addTaskAtPosition(

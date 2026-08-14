@@ -32,6 +32,7 @@ import { LANES } from '@/utils/task-center-lanes';
 import { runWordValidityClassification } from './services/word-validity/word-validity-web-runtime';
 import type { AiWebProvider } from './tools/browser/ai-web-common';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { AsyncOperationController } from '@/utils/async';
 
 interface PersistedTaskCenterRuntime {
   running: boolean;
@@ -43,13 +44,13 @@ const TASK_CENTER_WATCHDOG_ALARM = STORAGE_KEYS.TASK_CENTER_WATCHDOG_ALARM;
 const BING_WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
 const WATCHDOG_PERIOD_MINUTES = 1;
 const TASK_VALIDITY_PROVIDER: AiWebProvider = 'deepseek';
+const runtimeRestore = new AsyncOperationController<void>();
 
 /**
  * Last successful start config, so a live `set_capability` toggle can start a
  * lane with the same apiUrl the user started with (no full restart needed).
  */
 let lastStartConfig: TaskCenterConfig | null = null;
-let restoreInFlight: Promise<void> | null = null;
 let runtimeEpoch = 0;
 let lifecycleQueue: Promise<void> = Promise.resolve();
 
@@ -211,21 +212,15 @@ async function performRuntimeRestore(): Promise<void> {
 }
 
 export function restoreTaskCenterRuntime(): Promise<void> {
-  if (!restoreInFlight) {
-    restoreInFlight = lifecycleQueue
+  return runtimeRestore.run(() => lifecycleQueue
       .then(() => performRuntimeRestore())
       .catch((error) => {
         console.error('[Task Center] Runtime restore failed:', error);
-      })
-      .finally(() => {
-        restoreInFlight = null;
-      });
-  }
-  return restoreInFlight;
+      }));
 }
 
 async function runLifecycleAction(action: () => Promise<void>): Promise<void> {
-  const pendingRestore = restoreInFlight;
+  const pendingRestore = runtimeRestore.current;
   // A preemptive Stop bumps runtimeEpoch outside this queue; an action still
   // WAITING here when that happens must be dropped, not run after the Stop.
   const enqueueEpoch = runtimeEpoch;
@@ -364,7 +359,7 @@ async function handleTaskCenterMessage(
       }
 
       case 'get_status': {
-        if (restoreInFlight) await restoreInFlight;
+        if (runtimeRestore.current) await runtimeRestore.current;
         sendResponse({ success: true, ...(await buildFullStatus()) });
         break;
       }

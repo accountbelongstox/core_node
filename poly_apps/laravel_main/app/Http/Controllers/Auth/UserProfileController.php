@@ -120,7 +120,7 @@ class UserProfileController extends Controller
         }
 
         if (!empty($updateData)) {
-            $user->update($updateData);
+            $user->updateRecord($updateData);
         }
 
         $userProfile = [
@@ -172,7 +172,7 @@ class UserProfileController extends Controller
         }
 
         $user->password = Hash::make($request->new_password);
-        $user->save();
+        $user->saveRecord();
 
         return $this->success([], 'Password changed successfully');
     }
@@ -244,7 +244,7 @@ class UserProfileController extends Controller
         $updatedPreferences = array_merge($defaultPreferences, $currentPreferences, $validated);
 
         $user->preferences = $updatedPreferences;
-        $user->save();
+        $user->saveRecord();
 
         return $this->success($updatedPreferences, 'Preferences updated successfully');
     }
@@ -273,4 +273,3 @@ class UserProfileController extends Controller
         return AvatarService::getAvatarUrl($avatar);
     }
 }
-

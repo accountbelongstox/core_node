@@ -14,7 +14,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
@@ -76,5 +76,44 @@ class AppQyV1PersonalDictionaryEntryModel extends Model
     public function scopeWordContainsInsensitive($query, string $word)
     {
         return $query->whereRaw('LOWER(word) LIKE ?', ['%' . strtolower($word) . '%']);
+    }
+
+    public static function searchForUser(
+        int $userId,
+        ?string $word,
+        ?string $language,
+        int $offset,
+        int $limit
+    ) {
+        $query = static::query()->where('uid', $userId);
+
+        if ($word !== null && $word !== '') {
+            $query->wordContainsInsensitive($word);
+        }
+        if ($language !== null && $language !== '') {
+            $query->where('language', $language);
+        }
+
+        return $query->orderByDesc('id')->offset($offset)->limit($limit)->get();
+    }
+
+    public static function forUserWords(int $userId, array $words)
+    {
+        return static::query()
+            ->where('uid', $userId)
+            ->whereIn('word', $words)
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    public static function deleteForUser(int $userId, ?int $entryId = null): int
+    {
+        $query = static::query()->where('uid', $userId);
+
+        if ($entryId !== null) {
+            $query->whereKey($entryId);
+        }
+
+        return $query->delete();
     }
 }

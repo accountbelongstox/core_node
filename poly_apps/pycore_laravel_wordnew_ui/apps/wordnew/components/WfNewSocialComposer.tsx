@@ -1,8 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ImagePlus, Camera, X, Send, Loader2 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
-import { pickPhoto } from '../../../shared/capabilities';
+import type { ElementTheme } from '../WfNewThemes';
+import { pickPhoto } from '@/apps/wordnew/platform/capabilities';
 import {
   wfNewApi,
   type WfNewPost,

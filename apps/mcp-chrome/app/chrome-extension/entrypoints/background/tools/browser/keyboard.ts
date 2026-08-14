@@ -1,8 +1,9 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
+import { delay as waitForDelay } from '@/utils/async';
 
 interface KeyboardToolParams {
   keys: string; // Required: string representing keys or key combinations to simulate (e.g., "Enter", "Ctrl+C")
@@ -68,29 +69,21 @@ class KeyboardTool extends BaseBrowserToolExecutor {
 
         // Brief pause between repeats to avoid overwhelming the page
         if (i < safeRepeat - 1 && delay > 0) {
-          await new Promise((r) => setTimeout(r, delay));
+          await waitForDelay(delay);
         }
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              message: lastResult?.message || 'Keyboard operation successful',
-              targetElement: lastResult?.targetElement,
-              results: lastResult?.results,
-              repeat: safeRepeat,
-            }),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse({
+        success: true,
+        message: lastResult?.message || 'Keyboard operation successful',
+        targetElement: lastResult?.targetElement,
+        results: lastResult?.results,
+        repeat: safeRepeat,
+      });
     } catch (error) {
       console.error('Error in keyboard operation:', error);
       return createErrorResponse(
-        `Error simulating keyboard events: ${error instanceof Error ? error.message : String(error)}`,
+        `Error simulating keyboard events: ${toErrorMessage(error)}`,
       );
     }
   }

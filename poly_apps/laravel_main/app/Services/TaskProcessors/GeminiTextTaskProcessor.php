@@ -65,7 +65,7 @@ class GeminiTextTaskProcessor extends AbstractTaskProcessor
         }
 
         try {
-            AppQyV1GeminiTextResult::create([
+            AppQyV1GeminiTextResult::createRecord([
                 'task_id' => $task->task_id,
                 'title' => is_string($title) ? mb_substr($title, 0, 255) : null,
                 'question' => is_string($question) ? $question : null,

@@ -6,7 +6,7 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { ShellControls } from './ShellControls';
-import { AiChatPanel } from '../shared/AiChatKit/AiChatPanel';
+import { ShellAiChatPanel } from './ShellAiChatPanel';
 import { SHELL_DOCK_GUTTER_CSS_VAR, shellDockRightGutterPx } from './shellChrome';
 
 export const ShellLayout: React.FC = () => {
@@ -17,7 +17,7 @@ export const ShellLayout: React.FC = () => {
     >
       <Outlet />
       <ShellControls />
-      <AiChatPanel />
+      <ShellAiChatPanel />
     </div>
   );
 };

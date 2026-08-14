@@ -1,8 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { WfNewApiPaths } from '../api/WfNewApiPaths';
-import { postJSON } from '../api/WfNewApiTransport';
-import { wordNewAudioQueueCenter } from '../services/WordNewAudioQueueCenter';
-import { wordNewQueueRuntime } from '../services/WordNewQueueRuntime';
+import { wordNewQueueCenter } from '../services/WordNewQueueCenter';
 
 const FLUSH_DELAY_MS = 250;
 const MAX_BATCH_SIZE = 100;
@@ -47,21 +44,17 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       .map((row) => ({ word: row.word, language: row.language }));
     const requests: Promise<unknown>[] = [];
     if (translationWords.length > 0) {
-      requests.push(wordNewQueueRuntime.prioritizeTranslations(
+      requests.push(wordNewQueueCenter.prioritizeTranslations(
         translationWords,
         languageRef.current,
         targetLanguageRef.current,
       ));
     }
     if (audioWords.length > 0) {
-      requests.push(wordNewAudioQueueCenter.prioritizeWords(audioWords, languageRef.current));
+      requests.push(wordNewQueueCenter.moveWordsToHead(audioWords, languageRef.current));
     }
     if (imageItems.length > 0) {
-      requests.push(postJSON(WfNewApiPaths.wordImageQueueAdd, {
-        words: imageItems,
-        priority: 'front',
-        interactive: true,
-      }));
+      requests.push(wordNewQueueCenter.prioritizeWordImages(imageItems));
     }
     void Promise.allSettled(requests).finally(() => {
       if (pendingRef.current.size > 0 && timerRef.current === null) {

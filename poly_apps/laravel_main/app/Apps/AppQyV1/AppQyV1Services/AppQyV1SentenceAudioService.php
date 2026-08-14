@@ -9,7 +9,6 @@ use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1SentenceAudioUrl;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Providers\PathMapper;
 use App\Services\MediaIngestService;
-use App\Services\QueueCenter\QueueCenterService;
 use App\Utils\FileSystemManager;
 use Illuminate\Support\Facades\Log;
 
@@ -32,17 +31,7 @@ use Illuminate\Support\Facades\Log;
 class AppQyV1SentenceAudioService
 {
     use AppQyV1SentenceAudioLookupTrait;
-    use AppQyV1SentenceAudioPriorityTrait;
-
-    /**
-     * Global-task fast-lane priority (global_tasks.priority lane only).
-     * Sentence-table bumps do NOT use this constant: tts_priority is a
-     * move-to-front ticket assigned by assignFrontTicket() (MAX+1).
-     */
-    public const PRIORITY_FRONT = 100;
-
-    /** Default backfill priority when no explicit bump occurred. */
-    public const PRIORITY_DEFAULT = 0;
+    use AppQyV1SentenceAudioQueueTrait;
 
     /** A local worker's processing lease is stale after this many minutes. */
     public const LOCK_STALE_MINUTES = 10;
@@ -63,13 +52,13 @@ class AppQyV1SentenceAudioService
     private ?array $sentenceEngineInfoCache = null;
 
     // ------------------------------------------------------------------
-    // §6  Claim sentences needing audio (priority ordered)
+    // §6  Compatibility claim for sentences needing audio
     // ------------------------------------------------------------------
 
     /**
      * Claim up to $limit sentences missing one or more audio variants and not
-     * currently leased, ordered by tts_priority DESC, occurrence_count DESC,
-     * id ASC — across the requested language(s).
+     * currently leased, ordered by occurrence_count DESC and id ASC across the
+     * requested language(s). Canonical workers claim global_tasks front slices.
      *
      * Per-variant: a row is claimable when missingVariantsForRow() finds any
      * configured variant absent on disk - including rows that already have
@@ -184,38 +173,10 @@ class AppQyV1SentenceAudioService
         }
 
         $cutoff = now()->subMinutes((int) ceil($window));
-        $model = LangSentence::for($lang);
         $candidateLimit = min(250, max($limit * 8, $limit));
 
-        return $model->getConnection()->transaction(function () use ($lang, $workerId, $cutoff, $limit, $candidateLimit) {
-            $rows = LangSentence::onLang($lang)
-                ->where(function ($q) use ($cutoff) {
-                    $q->whereNull('tts_locked_at')
-                        ->orWhere('tts_locked_at', '<', $cutoff);
-                })
-                ->where(function ($q) {
-                    // Per-variant claim: candidates are explicitly pending/failed
-                    // OR any row whose variant completeness is not yet reconciled.
-                    // A row with has_audio=true + tts_status='completed' may still
-                    // miss a non-primary variant (e.g. duoreader_tts present, uk_f
-                    // absent) - reconcilePartialRow + missingVariantsForRow make
-                    // the final per-variant decision after the disk stat. Bounded
-                    // by $candidateLimit; reconciled rows flip to 'pending' so the
-                    // completed-branch is drained once per row.
-                    $q->where('has_audio', false)
-                        ->orWhereIn('tts_status', ['pending', 'failed'])
-                        ->orWhere(function ($q2) {
-                            $q2->where('has_audio', true)
-                                ->where('tts_status', 'completed');
-                        });
-                })
-                ->orderByDesc('tts_priority')
-                ->orderByDesc('occurrence_count')
-                ->orderBy('id')
-                ->limit($candidateLimit)
-                ->lockForUpdate()
-                ->get();
-
+        return LangSentence::runForLanguageTransaction($lang, function () use ($lang, $workerId, $cutoff, $limit, $candidateLimit) {
+            $rows = LangSentence::claimableAudioRows($lang, $cutoff, $candidateLimit);
             $tasks = [];
             foreach ($rows as $row) {
                 if (count($tasks) >= $limit) {
@@ -230,7 +191,7 @@ class AppQyV1SentenceAudioService
                 $row->tts_locked_at = now();
                 $row->tts_locked_by = mb_substr($workerId, 0, 100);
                 $row->tts_status = 'processing';
-                $row->save();
+                $row->saveRecord();
 
                 $tasks[] = $this->buildTask($lang, $row, $missing);
             }
@@ -269,13 +230,13 @@ class AppQyV1SentenceAudioService
         if ($missing === []) {
             if ($sentence->tts_status !== 'completed') {
                 $sentence->tts_status = 'completed';
-                $sentence->save();
+                $sentence->saveRecord();
             }
             return;
         }
         if ($sentence->tts_status === 'completed') {
             $sentence->tts_status = 'pending';
-            $sentence->save();
+            $sentence->saveRecord();
         }
     }
 
@@ -297,7 +258,6 @@ class AppQyV1SentenceAudioService
             'content' => (string) $sentence->text,
             'language' => $lang,
             'audio_relative_path' => $lang . '/' . $contentId . '.mp3',
-            'priority' => max(0, (int) ($sentence->tts_priority ?? 0)),
             // Engine PREFERENCE for this lane: qwen3tts-first (GPU). pycore's
             // orchestrator uses the "sentence" priority_profile and GPU-gates the
             // real choice — this label never forces the engine. Memoized so a
@@ -357,7 +317,7 @@ class AppQyV1SentenceAudioService
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Unknown or missing language', 'http_status' => 422];
         }
 
-        $sentence = LangSentence::onLang($language)->where('content_id', $contentId)->first();
+        $sentence = LangSentence::findByContentId($language, $contentId);
         if (!$sentence) {
             return ['ok' => false, 'status' => 'not_found', 'error' => 'Sentence not found', 'http_status' => 404];
         }
@@ -371,7 +331,7 @@ class AppQyV1SentenceAudioService
             $this->clearLease($sentence);
             $sentence->tts_status = 'failed';
             $sentence->tts_attempts = (int) $sentence->tts_attempts + 1;
-            $sentence->save();
+            $sentence->saveRecord();
             return ['ok' => true, 'status' => 'failed', 'http_status' => 200];
         }
 
@@ -380,7 +340,7 @@ class AppQyV1SentenceAudioService
         if (is_file($fullPath) && filesize($fullPath) > 0) {
             $this->reconcilePresent($sentence, $relativePath);
             $this->clearLease($sentence);
-            $sentence->save();
+            $sentence->saveRecord();
             return [
                 'ok' => true,
                 'status' => 'completed',
@@ -395,14 +355,14 @@ class AppQyV1SentenceAudioService
             $this->recordError($sentence, 'Rejected: empty or undersized audio payload');
             $this->clearLease($sentence);
             $sentence->tts_status = 'failed';
-            $sentence->save();
+            $sentence->saveRecord();
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Audio payload empty or too small (<100 bytes)', 'http_status' => 422];
         }
         if (!AppQyV1DictionaryTTSCoordinator::looksLikeMp3($audioBinary)) {
             $this->recordError($sentence, 'Rejected: payload is not a valid MP3');
             $this->clearLease($sentence);
             $sentence->tts_status = 'failed';
-            $sentence->save();
+            $sentence->saveRecord();
             return ['ok' => false, 'status' => 'invalid', 'error' => 'Audio payload failed MP3 validation', 'http_status' => 422];
         }
 
@@ -448,7 +408,7 @@ class AppQyV1SentenceAudioService
         } else {
             $sentence->tts_status = 'pending';
         }
-        $sentence->save();
+        $sentence->saveRecord();
 
         Log::info('[SentenceAudio] Worker result accepted', [
             'content_id' => $contentId,
@@ -566,7 +526,7 @@ class AppQyV1SentenceAudioService
             if ($sentence && (!$sentence->has_audio || $sentence->audio !== $found['relative'])) {
                 $sentence->has_audio = true;
                 $sentence->audio = $found['relative'];
-                $sentence->save();
+                $sentence->saveRecord();
             }
 
             return [
@@ -594,7 +554,7 @@ class AppQyV1SentenceAudioService
             ];
         }
 
-        // Missing on disk: ensure a LangSentence row exists so claim/bump can run.
+        // Missing on disk: ensure a LangSentence row exists before queue-head insertion.
         // Book-reader resolve always sends text+language; without text we cannot
         // create a row and must NOT pretend the sentence was queued.
         $textTrimmed = ($text !== null) ? trim($text) : '';
@@ -607,42 +567,39 @@ class AppQyV1SentenceAudioService
                 $sentence->has_audio = false;
                 $sentence->audio = null;
             }
-            // Keep the row state consistent for the report flow / claim
-            // fallback, then let the queue center own ordering: pycore claims
-            // sentence_audio via global_tasks (the old "skip GlobalTask to
-            // avoid racing" workaround is gone).
-            $sentence->tts_requested_at = now();
-            if ($sentence->tts_status !== 'processing') {
-                $sentence->tts_status = 'pending';
-            }
-            $sentence->save();
-            try {
-                app(QueueCenterService::class)->moveToHead(
-                    QueueCenterService::QUEUE_SENTENCE_AUDIO,
-                    QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_SENTENCE_AUDIO, $resolvedLang, $resolvedHash),
-                    [
-                        'text' => (string) $sentence->text,
-                        'language' => $resolvedLang,
-                        'content_id' => $resolvedHash,
-                    ]
-                );
-            } catch (\Throwable $e) {
-                Log::warning('[SentenceAudio] queue-center moveToHead failed', [
+            $queueResult = $this->moveToHead(
+                $resolvedHash,
+                $resolvedLang,
+                true,
+                (string) $sentence->text,
+                true
+            );
+            if (!(bool) ($queueResult['ok'] ?? false)) {
+                return [
+                    'success' => false,
+                    'exists' => false,
+                    'queued' => false,
+                    'error' => $queueResult['error'] ?? 'Queue Center task creation failed',
+                    'hash' => $resolvedHash,
                     'content_id' => $resolvedHash,
                     'language' => $resolvedLang,
-                    'error' => $e->getMessage(),
-                ]);
+                    'audio_files' => $audioFilesPayload,
+                ];
             }
 
             return [
                 'success' => true,
                 'exists' => false,
-                'queued' => true,
+                'queued' => !(bool) ($queueResult['already_done'] ?? false),
                 'hash' => $resolvedHash,
                 'content_id' => $resolvedHash,
                 'language' => $resolvedLang,
                 'tts_status' => $sentence->tts_status,
                 'audio_files' => $audioFilesPayload,
+                'queue_task_id' => $queueResult['task_id'] ?? null,
+                'queue_position' => $queueResult['queue_position'] ?? null,
+                'queue_status' => $queueResult['status'] ?? null,
+                'queue_head_action' => $queueResult['head_action'] ?? null,
             ];
         }
 
@@ -664,24 +621,27 @@ class AppQyV1SentenceAudioService
     /** Sentences still needing one or more audio variants, optionally per-language. */
     public function pendingCount(?string $language = null): int
     {
-        $total = 0;
-        foreach ($this->languagesFor($language) as $lang) {
-            if (!$this->tableExists($lang)) {
-                continue;
-            }
-            $total += $this->pendingCountForLanguage($lang);
+        if ($language !== null && trim($language) !== '') {
+            $lang = AppQyV1TableMaps::normalizeLangCode($language);
+            return $this->tableExists($lang) ? $this->pendingCountForLanguage($lang) : 0;
         }
-        return $total;
+
+        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection(\App\Constants\AppKeys::APPQYV1);
+        $tables = [];
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $tables[$lang] = AppQyV1TableMaps::getSentenceTableName($lang);
+        }
+
+        return array_sum(AppQyV1PerLanguageMetrics::countByLanguage(
+            $connection,
+            AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
+            "(has_audio = false OR tts_status IN ('pending', 'failed'))"
+        ));
     }
 
     private function pendingCountForLanguage(string $lang): int
     {
-        return (int) LangSentence::onLang($lang)
-            ->where(function ($q) {
-                $q->where('has_audio', false)
-                    ->orWhereIn('tts_status', ['pending', 'failed']);
-            })
-            ->count();
+        return LangSentence::pendingAudioCount($lang);
     }
 
     /**
@@ -693,29 +653,37 @@ class AppQyV1SentenceAudioService
         $localCutoff = now()->subMinutes((int) ceil(self::LOCK_STALE_MINUTES));
         $assistCutoff = now()->subMinutes((int) ceil(self::ASSIST_LEASE_MINUTES));
 
-        $total = 0;
-        foreach ($this->languagesFor($language) as $lang) {
+        // A lease is live when: an assist owner locked it after assistCutoff,
+        // OR any owner locked it after the (stricter) local cutoff.
+        $whereSql = "(has_audio = false OR tts_status IN ('pending', 'failed', 'processing'))"
+            . ' AND tts_locked_at IS NOT NULL'
+            . ' AND (tts_locked_at >= ? OR (tts_locked_at >= ? AND tts_locked_by LIKE ?))';
+        $bindings = [
+            $localCutoff->toDateTimeString(),
+            $assistCutoff->toDateTimeString(),
+            self::ASSIST_WORKER_PREFIX . '%',
+        ];
+
+        if ($language !== null && trim($language) !== '') {
+            $lang = AppQyV1TableMaps::normalizeLangCode($language);
             if (!$this->tableExists($lang)) {
-                continue;
+                return 0;
             }
-            // A lease is live when: an assist owner locked it after assistCutoff,
-            // OR any owner locked it after the (stricter) local cutoff.
-            $total += (int) LangSentence::onLang($lang)
-                ->where(function ($q) {
-                    $q->where('has_audio', false)
-                        ->orWhereIn('tts_status', ['pending', 'failed', 'processing']);
-                })
-                ->whereNotNull('tts_locked_at')
-                ->where(function ($q) use ($localCutoff, $assistCutoff) {
-                    $q->where('tts_locked_at', '>=', $localCutoff)
-                        ->orWhere(function ($q2) use ($assistCutoff) {
-                            $q2->where('tts_locked_at', '>=', $assistCutoff)
-                                ->where('tts_locked_by', 'like', self::ASSIST_WORKER_PREFIX . '%');
-                        });
-                })
-                ->count();
+            return LangSentence::countBySqlFilter($lang, $whereSql, $bindings);
         }
-        return $total;
+
+        $connection = \App\Providers\AppTablePrefixServiceProvider::getConnection(\App\Constants\AppKeys::APPQYV1);
+        $tables = [];
+        foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
+            $tables[$lang] = AppQyV1TableMaps::getSentenceTableName($lang);
+        }
+
+        return array_sum(AppQyV1PerLanguageMetrics::countByLanguage(
+            $connection,
+            AppQyV1PerLanguageMetrics::filterExistingTables($connection, $tables),
+            $whereSql,
+            $bindings
+        ));
     }
 
     /** Drop the lease columns (in-memory; caller saves). */

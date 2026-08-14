@@ -484,7 +484,7 @@ class AppQyV1ApiInfo
                 "path" => "/api/app_qy_v1/ai_tools/tts/sentence/claim",
                 "method" => "POST",
                 "feature" => "Claim Sentence Audio",
-                "description" => "Worker claim of sentences needing audio, priority ordered (limit=0 -> counts only)",
+                "description" => "Compatibility claim for sentences needing audio; canonical workers pull bounded queue-head slices (limit=0 returns counts only)",
                 "auth_required" => false,
                 "parameters" => ["worker_id", "language", "limit"]
             ],

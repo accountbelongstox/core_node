@@ -36,7 +36,12 @@ from typing import Any, Dict, List, Optional
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.diff_task_segments import diff_task_segment_store
-from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method
+from pycore.pyfoundations.serialized_worker import (
+    SerializedValue,
+    init_serialized_owner,
+    serialized_method,
+    start_bus_task,
+)
 from pycore.pyutils.laravel.endpoint_manager import (
     laravel_endpoint_manager,
 )
@@ -46,6 +51,8 @@ from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_STATUSES_BY_ROLE,
     GLOBAL_TASK_TERMINAL_STATUSES,
     GLOBAL_TASK_WORKER_RESULT_STATUSES,
+    QUEUE_CENTER_DIFF_DELIVERY,
+    queue_center_endpoint,
 )
 from pycore.pyutils.common.service_config import PYCORE_WORKER_INSTANCE
 
@@ -84,10 +91,10 @@ class BaseLaravelWorkerService:
     STATE_OWNER_KEY = "laravel.worker.state"
     RESULT_HTTP_TIMEOUT = 60
     PULL_LIMIT = GLOBAL_TASK_LIMITS["worker_pull_default"]
-    PULL_LONG_POLL_SECONDS = GLOBAL_TASK_LIMITS["long_poll_seconds"]
-    PULL_HTTP_GRACE_SECONDS = 15
+    PULL_HTTP_TIMEOUT_SECONDS = 15
     STATE_OWNER_NAME = "LaravelWorkerState"
     WORKER_ID_PREFIX = "pycore-worker"
+    LOG_ACCEPTED_RESULTS = True
     # Serialized state-owner timeout (seconds). The audio workers override with
     # 180s: their on-owner engine probe (tts_status) can outlive 60s on a cold box.
     STATE_OWNER_TIMEOUT = 60.0
@@ -112,6 +119,7 @@ class BaseLaravelWorkerService:
         self.platform = platform.platform()
 
         self._registered = False
+        self._pull_task_type_cursor = 0
         # Backend circuit breaker state (see CIRCUIT_* constants). Streak counts
         # CONSECUTIVE server-side (HTTP 5xx) result-POST give-ups; the circuit is
         # open while monotonic time() < _circuit_open_until.
@@ -131,6 +139,12 @@ class BaseLaravelWorkerService:
         # passing it through. Bounded in _remember_task_types.
         self._task_type_by_id: Dict[str, str] = {}
         self._task_endpoint_by_id: Dict[str, str] = {}
+        self._queue_diff_cursors: Dict[str, int] = {}
+        self._queue_progress: Dict[str, Dict[str, int]] = {}
+        self._pull_guard = SerializedValue(
+            False,
+            name=f"{self.STATE_OWNER_NAME}PullGuard",
+        )
         # The serialized worker owns every mutation of this store.
 
         # Log prefix - subclass overrides (e.g. "[TranslationWorker]"). Default
@@ -189,6 +203,12 @@ class BaseLaravelWorkerService:
             return f"{prefix}-{safe}-{safe_instance}"
         return f"{prefix}-{safe}"
 
+    @staticmethod
+    def _display_task_id(task_id: Any) -> str:
+        """Return a compact task identifier for human-facing logs only."""
+        value = str(task_id or "")
+        return f"{value[:8]}..." if len(value) > 8 else value
+
     def _sync_laravel_endpoint(self, fallback: str = "") -> str:
         """Refresh candidate list + resolved base from LaravelEndpointManager.
 
@@ -246,15 +266,26 @@ class BaseLaravelWorkerService:
         """Contract task types owned by this concrete worker."""
         return []
 
+    def _ordered_pull_task_types(self) -> List[str]:
+        """Rotate multi-type pulls without mutating the declared type set."""
+        task_types = self._pull_task_types()
+        if len(task_types) < 2:
+            return task_types
+        offset = self._pull_task_type_cursor % len(task_types)
+        self._pull_task_type_cursor = (offset + 1) % len(task_types)
+        return task_types[offset:] + task_types[:offset]
+
     def _pull_capacity(self) -> int:
         """Maximum tasks that may be claimed in the next cycle."""
+        reserve = max(0, int(QUEUE_CENTER_DIFF_DELIVERY.get("head_reserve") or 0))
+        target = max(1, int(self.PULL_LIMIT) - reserve)
+        return max(0, target - len(self._inflight))
+
+    def _diff_pull_capacity(self) -> int:
+        """Claim capacity including the slot reserved for a changed queue head."""
         return max(0, int(self.PULL_LIMIT) - len(self._inflight))
 
-    def _pull_wait_seconds(self, task_types: List[str]) -> int:
-        """Use Laravel long polling only for a dedicated single-type worker."""
-        return self.PULL_LONG_POLL_SECONDS if len(task_types) == 1 else 0
-
-    def _pull_params(self, limit: int, wait_seconds: int) -> Dict[str, Any]:
+    def _pull_params(self, limit: int) -> Dict[str, Any]:
         capabilities = self._effective_capabilities()
         processor_types = self._effective_processor_types()
         params: Dict[str, Any] = {
@@ -264,13 +295,62 @@ class BaseLaravelWorkerService:
             "hostname": self.hostname,
             "platform": self.platform,
             "limit": max(1, min(int(limit), GLOBAL_TASK_LIMITS["worker_pull"])),
-            "wait": max(0, min(int(wait_seconds), self.PULL_LONG_POLL_SECONDS)),
         }
         for index, processor_type in enumerate(processor_types):
             params[f"processor_types[{index}]"] = processor_type
         for index, capability in enumerate(capabilities):
             params[f"capabilities[{index}]"] = capability
         return params
+
+    def poll_diff_once(self) -> Dict[str, Any]:
+        """Poll compact queue revisions and pull only when the front slice changed."""
+        task_types = self._pull_task_types()
+        if not task_types:
+            return {"ok": True, "changed": False, "processed": 0}
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        scope = self._diff_segment_scope(base_url)
+        changed = False
+        for task_type in task_types:
+            cursor = max(
+                int(self._queue_diff_cursors.get(task_type, 0)),
+                diff_task_segment_store.remote_cursor(scope, task_type),
+            )
+            response = laravel_client.get(
+                queue_center_endpoint("queue_center_queue_diff", queue=task_type),
+                base_url=base_url,
+                params={"cursor": cursor},
+                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
+                log_line=False,
+            )
+            if response.status_code != 200:
+                raise RuntimeError(
+                    f"Laravel queue diff failed for {task_type}: HTTP {response.status_code}"
+                )
+            data = self._response_data(response)
+            lane_changed = bool(data.get("changed"))
+            # Compact poll line: diff[200]->true means the remote head moved and
+            # a bounded re-pull follows; false means keep the local segment.
+            ColorPrint.gray(
+                f"{self._log_prefix} diff[{response.status_code}]->"
+                f"{'true' if lane_changed else 'false'}"
+            )
+            progress = data.get("progress")
+            if isinstance(progress, dict):
+                self._queue_progress[task_type] = {
+                    str(key): int(value or 0)
+                    for key, value in progress.items()
+                    if isinstance(value, (int, float))
+                }
+            if not lane_changed:
+                continue
+            changed = True
+            if self._diff_pull_capacity() <= 0:
+                continue
+        if changed and self._diff_pull_capacity() > 0:
+            result = self.pull_once(prefer_remote=True)
+            result["changed"] = True
+            return result
+        return {"ok": True, "changed": changed, "processed": 0}
 
     @staticmethod
     def _response_data(response: Any) -> Dict[str, Any]:
@@ -282,7 +362,7 @@ class BaseLaravelWorkerService:
 
     def _accept_pulled_task(self, task_type: str, task_id: str, base_url: str) -> bool:
         response = laravel_client.post(
-            f"/api/worker/tasks/{task_type}/accept",
+            queue_center_endpoint("worker_task_accept", task_type=task_type),
             base_url=base_url,
             json={"task_id": task_id, "worker_id": self.worker_id},
             timeout=self.RESULT_HTTP_TIMEOUT,
@@ -292,7 +372,8 @@ class BaseLaravelWorkerService:
         if response.status_code in (404, 409):
             return False
         raise RuntimeError(
-            f"Laravel worker accept failed for {task_id}: HTTP {response.status_code}"
+            f"Laravel worker accept failed for {self._display_task_id(task_id)}: "
+            f"HTTP {response.status_code}"
         )
 
     def _dispatch_staged_tasks(
@@ -317,73 +398,143 @@ class BaseLaravelWorkerService:
                 continue
             retry_ids.append(task_id)
             ColorPrint.yellow(
-                f"{self._log_prefix} Local dispatch deferred for task {task_id}: "
+                f"{self._log_prefix} Local dispatch deferred for task "
+                f"{self._display_task_id(task_id)}: "
                 f"{accepted.get('error') or 'worker busy'}"
             )
         if retry_ids:
             diff_task_segment_store.release(scope, retry_ids)
         return dispatched
 
-    def pull_once(self, wait_seconds: Optional[int] = None) -> Dict[str, Any]:
-        """Recover owned segments, then pull and dispatch one bounded typed batch."""
+    def request_pull(self, prefer_remote: bool = False) -> None:
+        """Coalesce one event-driven immediate pull on the shared bus."""
+        if not self._pull_guard.compare_and_set(False, True):
+            return
+        try:
+            start_bus_task(
+                self._run_claimed_pull,
+                bool(prefer_remote),
+                thread_name=f"{self.STATE_OWNER_NAME}Pull",
+            )
+        except Exception:
+            self._pull_guard.set(False)
+            raise
+
+    def pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
+        """Serialize one immediate pull cycle across timer and realtime wakes."""
+        if not self._pull_guard.compare_and_set(False, True):
+            return {"ok": True, "processed": 0, "reason": "pull_inflight"}
+        try:
+            return self._pull_once(prefer_remote=prefer_remote)
+        finally:
+            self._pull_guard.set(False)
+
+    def _run_claimed_pull(self, prefer_remote: bool = False) -> Dict[str, Any]:
+        try:
+            return self._pull_once(prefer_remote=prefer_remote)
+        finally:
+            self._pull_guard.set(False)
+
+    def _pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
+        """Pull and recover one bounded segment, preferring a changed remote head."""
         if self._circuit_is_open():
             return {"ok": False, "processed": 0, "reason": "result_circuit_open"}
-        task_types = self._pull_task_types()
-        capacity = self._pull_capacity()
+        task_types = self._ordered_pull_task_types()
+        capacity = (
+            self._diff_pull_capacity()
+            if prefer_remote
+            else self._pull_capacity()
+        )
         if not task_types or capacity <= 0:
             return {"ok": True, "processed": 0}
 
         base_url = self._sync_laravel_endpoint(self.api_url)
         scope = self._diff_segment_scope(base_url)
-        recovered = diff_task_segment_store.pending(scope, capacity)
+        recovered_count = 0
+        processed = 0
+        if not prefer_remote:
+            recovered = diff_task_segment_store.pending(scope, capacity)
+        else:
+            recovered = []
         if recovered:
             self._remember_task_types(recovered, base_url)
-            processed = self._dispatch_staged_tasks(recovered, base_url, scope)
-            return {"ok": True, "processed": processed, "recovered": len(recovered)}
+            recovered_count = len(recovered)
+            processed += self._dispatch_staged_tasks(recovered, base_url, scope)
+            capacity = max(0, capacity - recovered_count)
 
-        capacity = min(capacity, diff_task_segment_store.available_capacity(scope))
-        if capacity <= 0:
-            return {"ok": True, "processed": 0, "reason": "segment_capacity"}
-
-        effective_wait = self._pull_wait_seconds(task_types) if wait_seconds is None else max(
-            0,
-            min(int(wait_seconds), self.PULL_LONG_POLL_SECONDS),
+        remote_capacity = min(
+            capacity,
+            diff_task_segment_store.available_capacity(scope),
         )
-        remaining = capacity
-        processed = 0
+        remaining = remote_capacity
         pulled = 0
         for task_type in task_types:
             if remaining <= 0:
                 break
             response = laravel_client.get(
-                f"/api/worker/tasks/{task_type}/pull",
+                queue_center_endpoint("worker_task_pull", task_type=task_type),
                 base_url=base_url,
-                params=self._pull_params(remaining, effective_wait),
-                timeout=effective_wait + self.PULL_HTTP_GRACE_SECONDS,
+                params=self._pull_params(remaining),
+                timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
             )
             if response.status_code != 200:
                 raise RuntimeError(
                     f"Laravel worker pull failed for {task_type}: HTTP {response.status_code}"
                 )
             data = self._response_data(response)
+            progress = data.get("progress")
+            if isinstance(progress, dict):
+                self._queue_progress[task_type] = {
+                    str(key): int(value or 0)
+                    for key, value in progress.items()
+                    if isinstance(value, (int, float))
+                }
             raw_tasks = data.get("tasks")
             tasks = (
                 [dict(task) for task in raw_tasks if isinstance(task, dict)]
                 if isinstance(raw_tasks, list)
                 else []
             )
-            if not tasks:
+            staged = diff_task_segment_store.stage(scope, tasks) if tasks else []
+            if staged:
+                self._remember_task_types(staged, base_url)
+                pulled += len(staged)
+            queue_cursor = int(
+                data.get("queue_cursor")
+                or self._queue_diff_cursors.get(task_type, 0)
+                or diff_task_segment_store.remote_cursor(scope, task_type)
+            )
+            self._queue_diff_cursors[task_type] = queue_cursor
+            diff_task_segment_store.set_remote_cursor(scope, task_type, queue_cursor)
+            if not staged:
                 continue
-            staged = diff_task_segment_store.stage(scope, tasks)
-            self._remember_task_types(staged, base_url)
-            pulled += len(staged)
             processed += self._dispatch_staged_tasks(staged, base_url, scope)
-            remaining = max(0, capacity - pulled)
+            remaining = max(0, remote_capacity - pulled)
+        if prefer_remote:
+            recovery_capacity = max(0, capacity - pulled)
+            recovered = diff_task_segment_store.pending(scope, recovery_capacity)
+            if recovered:
+                self._remember_task_types(recovered, base_url)
+                recovered_count += len(recovered)
+                processed += self._dispatch_staged_tasks(recovered, base_url, scope)
         if pulled:
+            progress = self._queue_progress.get(task_types[0], {}) if task_types else {}
+            progress_label = (
+                f" progress={int(progress.get('completed') or 0)}/"
+                f"{int(progress.get('total') or 0)}"
+                if progress
+                else ""
+            )
             ColorPrint.blue(
                 f"{self._log_prefix} Pulled {pulled} task(s), dispatched {processed}"
+                f"{progress_label}"
             )
-        return {"ok": True, "processed": processed, "pulled": pulled}
+        return {
+            "ok": True,
+            "processed": processed,
+            "pulled": pulled,
+            "recovered": recovered_count,
+        }
 
     # -------------------- dispatched-task registry --------------------
 
@@ -449,6 +600,7 @@ class BaseLaravelWorkerService:
         carries the same information).
         """
         status = GLOBAL_TASK_STATUSES_BY_ROLE.get(status_role, status_role)
+        task_display_id = self._display_task_id(task_id)
         if status not in GLOBAL_TASK_WORKER_RESULT_STATUSES:
             raise ValueError(f"Unsupported Laravel worker result status: {status_role}")
         body: Dict[str, Any] = {
@@ -478,15 +630,15 @@ class BaseLaravelWorkerService:
                 self._task_endpoint_by_id.setdefault(task_key, self.api_url.rstrip("/"))
                 ColorPrint.yellow(
                     f"{self._log_prefix} Restored missing task_type for task "
-                    f"{task_id} as {task_type}"
+                    f"{task_display_id} as {task_type}"
                 )
         if not task_type:
             ColorPrint.red(
-                f"{self._log_prefix} Result for task {task_id} has no recorded "
+                f"{self._log_prefix} Result for task {task_display_id} has no recorded "
                 "task_type - dropping (Laravel re-queues at lease timeout)"
             )
             return False
-        result_url = f"/api/worker/tasks/{task_type}/result"
+        result_url = queue_center_endpoint("worker_task_result", task_type=task_type)
         result_base_url = self._task_base_url(task_id)
         terminal_result = status in GLOBAL_TASK_TERMINAL_STATUSES
 
@@ -496,7 +648,8 @@ class BaseLaravelWorkerService:
         for attempt in range(1, max_attempts + 1):
             if THREAD_BUS.is_shutdown_requested() and not terminal_result:
                 ColorPrint.yellow(
-                    f"{self._log_prefix} Result POST for task {task_id} cancelled during shutdown"
+                    f"{self._log_prefix} Result POST for task {task_display_id} "
+                    "cancelled during shutdown"
                 )
                 return False
             try:
@@ -507,7 +660,11 @@ class BaseLaravelWorkerService:
                     timeout=self.RESULT_HTTP_TIMEOUT,
                 )
                 if resp.status_code in (200, 201):
-                    ColorPrint.green(f"{self._log_prefix} Posted '{status}' for task {task_id}")
+                    if self.LOG_ACCEPTED_RESULTS:
+                        ColorPrint.green(
+                            f"{self._log_prefix} Posted '{status}' for task "
+                            f"{task_display_id}"
+                        )
                     self._note_result_accepted()
                     if status in GLOBAL_TASK_TERMINAL_STATUSES:
                         diff_task_segment_store.consume(
@@ -520,7 +677,7 @@ class BaseLaravelWorkerService:
                     # Task reassigned (we lost the claim, e.g. after a timeout
                     # release) - the new owner reports it; do not retry.
                     ColorPrint.yellow(
-                        f"{self._log_prefix} Result for task {task_id} rejected (409: "
+                        f"{self._log_prefix} Result for task {task_display_id} rejected (409: "
                         f"task reassigned / not ours) - dropping"
                     )
                     diff_task_segment_store.consume(
@@ -531,7 +688,7 @@ class BaseLaravelWorkerService:
                     return False
                 if 400 <= resp.status_code < 500:
                     ColorPrint.yellow(
-                        f"{self._log_prefix} Result POST for task {task_id} -> "
+                        f"{self._log_prefix} Result POST for task {task_display_id} -> "
                         f"HTTP {resp.status_code} (not retryable)"
                     )
                     if terminal_result:
@@ -550,14 +707,15 @@ class BaseLaravelWorkerService:
             if attempt < max_attempts:
                 if THREAD_BUS.is_shutdown_requested() and not terminal_result:
                     ColorPrint.yellow(
-                        f"{self._log_prefix} Result retry for task {task_id} cancelled during shutdown"
+                        f"{self._log_prefix} Result retry for task {task_display_id} "
+                        "cancelled during shutdown"
                     )
                     return False
                 delay = self.RESULT_POST_BACKOFF_SECONDS[
                     min(attempt - 1, len(self.RESULT_POST_BACKOFF_SECONDS) - 1)
                 ]
                 ColorPrint.yellow(
-                    f"{self._log_prefix} Result POST for task {task_id} failed "
+                    f"{self._log_prefix} Result POST for task {task_display_id} failed "
                     f"({last_note}); retry {attempt}/{max_attempts - 1} "
                     f"in {delay}s"
                 )
@@ -565,7 +723,7 @@ class BaseLaravelWorkerService:
 
         if max_attempts > 1:
             ColorPrint.red(
-                f"{self._log_prefix} Result POST for task {task_id} gave up after "
+                f"{self._log_prefix} Result POST for task {task_display_id} gave up after "
                 f"{max_attempts} attempts ({last_note}); Laravel's timeout "
                 f"release will re-queue the task"
             )
@@ -581,7 +739,7 @@ class BaseLaravelWorkerService:
                 self.CIRCUIT_COOLDOWN_SECONDS,
             )
             ColorPrint.yellow(
-                f"{self._log_prefix} Deferred task {task_id} for persistent retry"
+                f"{self._log_prefix} Deferred task {task_display_id} for persistent retry"
             )
         return False
 
@@ -601,6 +759,15 @@ class BaseLaravelWorkerService:
             task_id,
             priority,
             move_to_head,
+        )
+
+    def set_cached_task_head(self, task_id: Any, queue_position: int) -> None:
+        """Apply one Laravel queue-head event to the bounded local cache."""
+        base_url = self._sync_laravel_endpoint(self.api_url)
+        diff_task_segment_store.move_to_head(
+            self._diff_segment_scope(base_url),
+            task_id,
+            queue_position,
         )
 
     def promote_cached_task(self, task_id: Any, priority: int) -> None:

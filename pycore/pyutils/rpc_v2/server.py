@@ -450,25 +450,34 @@ class HttpServer:
                 self.add_static_dir(str(url_prefix), str(directory))
 
     @staticmethod
-    async def _read_http_params(request: Any) -> Dict[str, Any]:
+    def _read_query_params(request: Any) -> Dict[str, Any]:
+        params: Dict[str, Any] = {}
+        for key, value in request.query_params.multi_items():
+            current = params.get(key)
+            if current is None:
+                params[key] = value
+            elif isinstance(current, list):
+                current.append(value)
+            else:
+                params[key] = [current, value]
+        return params
+
+    @classmethod
+    async def _read_http_params(cls, request: Any) -> Dict[str, Any]:
+        params = cls._read_query_params(request)
         if str(request.method).upper() == "GET":
-            params: Dict[str, Any] = {}
-            for key, value in request.query_params.multi_items():
-                current = params.get(key)
-                if current is None:
-                    params[key] = value
-                elif isinstance(current, list):
-                    current.append(value)
-                else:
-                    params[key] = [current, value]
             return params
         body = await request.body()
         if not body:
-            return {}
+            return params
+        content_type = str(request.headers.get("Content-Type") or "").lower()
+        if content_type.startswith("text/plain"):
+            params["text"] = body.decode("utf-8", errors="replace")
+            return params
         payload = json.loads(body)
         if not isinstance(payload, dict):
             raise ValueError("HTTP request body must be a JSON object")
-        return payload
+        return {**params, **payload}
 
     @staticmethod
     def _build_http_context(request: Any, request_id: str) -> Dict[str, Any]:

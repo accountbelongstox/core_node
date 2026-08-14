@@ -16,7 +16,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyGrammarPointModel as StudyGrammarPoint;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyPhraseModel as StudyPhrase;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Study-content generation control plane (Book Study-Content Generation pipeline
@@ -73,22 +72,20 @@ class AppQyV1StudyGenService
         $wantBooks = ($type === 'book' || $type === 'all');
         $wantArticles = ($type === 'article' || $type === 'all');
 
-        $booksTotal = $wantBooks ? $this->sourcesBaseQuery('book', $q)->count() : 0;
-        $articlesTotal = $wantArticles ? $this->sourcesBaseQuery('article', $q)->count() : 0;
+        $booksTotal = $wantBooks ? Book::studySourceCount($q) : 0;
+        $articlesTotal = $wantArticles ? AppQyV1Article::studySourceCount($q) : 0;
 
         $bookRows = collect();
         $articleRows = collect();
 
         // Stable order: books first, then articles (§5.1 merged listing).
         if ($wantBooks && $offset < $booksTotal) {
-            $bookRows = $this->sourcesBaseQuery('book', $q)
-                ->orderBy('id')->skip($offset)->take($perPage)->get();
+            $bookRows = Book::studySourceRows($q, $offset, $perPage);
         }
         $remaining = $perPage - $bookRows->count();
         if ($wantArticles && $remaining > 0) {
             $articleOffset = $offset > $booksTotal ? $offset - $booksTotal : 0;
-            $articleRows = $this->sourcesBaseQuery('article', $q)
-                ->orderBy('id')->skip($articleOffset)->take($remaining)->get();
+            $articleRows = AppQyV1Article::studySourceRows($q, $articleOffset, $remaining);
         }
 
         $items = [];
@@ -108,26 +105,6 @@ class AppQyV1StudyGenService
             'page' => $page,
             'per_page' => $perPage,
         ];
-    }
-
-    /** Base select for one source type, hasColumn-guarded for the marker columns. */
-    private function sourcesBaseQuery(string $sourceType, ?string $q)
-    {
-        if ($sourceType === 'book') {
-            $query = Book::query();
-            $columns = ['id', 'source_key', 'title', 'language', 'sentence_count'];
-        } else {
-            $query = AppQyV1Article::query();
-            $columns = ['id', 'article_id', 'title', 'language', 'sentence_count'];
-        }
-        if ($this->markerColumnsReady($sourceType)) {
-            $columns[] = 'study_gen_status';
-            $columns[] = 'study_gen_progress';
-        }
-        if ($q !== null && $q !== '') {
-            $query->where('title', 'like', '%' . $q . '%');
-        }
-        return $query->select($columns);
     }
 
     /** One source-row -> item shape (cached marker columns; live count added later). */
@@ -176,12 +153,7 @@ class AppQyV1StudyGenService
         // grouped: (source_type|source_key) -> [status => count]
         $grouped = [];
         foreach ($keysByType as $sourceType => $keys) {
-            $rows = StudySegment::query()
-                ->where('source_type', $sourceType)
-                ->whereIn('source_key', array_values(array_unique($keys)))
-                ->groupBy('source_key', 'status')
-                ->select('source_key', 'status', DB::raw('count(*) as total'))
-                ->get();
+            $rows = StudySegment::statusCountsForSources($sourceType, $keys);
             foreach ($rows as $r) {
                 $grouped[$sourceType . '|' . $r->source_key][(string) $r->status] = (int) $r->total;
             }
@@ -223,46 +195,14 @@ class AppQyV1StudyGenService
             return ['success' => true, 'lease_minutes' => self::LEASE_MINUTES, 'items' => []];
         }
 
-        $connection = StudySegment::query()->getModel()->getConnectionName();
-        $claimedIds = DB::connection($connection)->transaction(function () use ($sourceType, $sourceKey, $segmentIndex, $limit, $claimerId) {
-            $leaseFloor = now()->subMinutes(self::LEASE_MINUTES);
-
-            $query = StudySegment::query()
-                ->where('source_type', $sourceType)
-                ->where('source_key', $sourceKey)
-                ->where(function ($w) use ($leaseFloor) {
-                    // Claimable = pending OR failed OR lease-expired (any status
-                    // except done). Expired leases are silently reclaimed.
-                    $w->where('status', 'pending')
-                        ->orWhere('status', 'failed')
-                        ->orWhere(function ($x) use ($leaseFloor) {
-                            $x->where('status', '!=', 'done')
-                                ->whereNotNull('claimed_at')
-                                ->where('claimed_at', '<', $leaseFloor);
-                        });
-                });
-
-            if ($segmentIndex !== null) {
-                $query->where('segment_index', $segmentIndex);
-            }
-
-            $rows = $query->orderBy('segment_index')
-                ->limit($limit)
-                ->lockForUpdate()
-                ->get();
-
-            $ids = [];
-            foreach ($rows as $row) {
-                $row->status = 'generating';
-                $row->claimed_at = now();
-                $row->claimed_by = $claimerId;
-                $row->attempts = (int) $row->attempts + 1;
-                $row->error = null;
-                $row->save();
-                $ids[] = (int) $row->id;
-            }
-            return $ids;
-        }, 1);
+        $claimedIds = StudySegment::claimForSource(
+            $sourceType,
+            $sourceKey,
+            $segmentIndex,
+            $limit,
+            $claimerId,
+            self::LEASE_MINUTES
+        );
 
         if (empty($claimedIds)) {
             return ['success' => true, 'lease_minutes' => self::LEASE_MINUTES, 'items' => []];
@@ -270,7 +210,7 @@ class AppQyV1StudyGenService
 
         $targetLanguages = $this->resolveTargetLanguages($sourceType, $sourceKey, $languages);
 
-        $segments = StudySegment::query()->whereIn('id', $claimedIds)->orderBy('segment_index')->get();
+        $segments = StudySegment::orderedByIds($claimedIds);
         $items = [];
         foreach ($segments as $segment) {
             $primaryLanguage = (string) ($segment->primary_language ?? '');
@@ -326,9 +266,9 @@ class AppQyV1StudyGenService
     {
         $metadata = null;
         if ($sourceType === 'book') {
-            $metadata = Book::query()->where('source_key', $sourceKey)->value('metadata');
+            $metadata = Book::sourceMetadata($sourceKey);
         } elseif ($sourceType === 'article') {
-            $metadata = AppQyV1Article::query()->where('article_id', $sourceKey)->value('metadata');
+            $metadata = AppQyV1Article::sourceMetadata($sourceKey);
         }
         if (is_string($metadata)) {
             $decoded = json_decode($metadata, true);
@@ -358,11 +298,7 @@ class AppQyV1StudyGenService
         $phrases = (isset($body['phrases']) && is_array($body['phrases'])) ? $body['phrases'] : [];
         $grammar = (isset($body['grammar_points']) && is_array($body['grammar_points'])) ? $body['grammar_points'] : [];
 
-        $segment = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->where('segment_index', $segmentIndex)
-            ->first();
+        $segment = StudySegment::findSourceSegment($sourceType, $sourceKey, $segmentIndex);
 
         if (!$segment) {
             return ['ok' => false, 'status' => 'not_found', 'http_status' => 404];
@@ -375,14 +311,12 @@ class AppQyV1StudyGenService
         }
 
         $wasFailed = ($segment->status === 'failed');
-        $connection = StudySegment::query()->getModel()->getConnectionName();
-
-        $result = DB::connection($connection)->transaction(function () use ($segment, $slots, $phrases, $grammar, $provider, $wasFailed) {
+        $result = StudySegment::runInTransaction(function () use ($segment, $slots, $phrases, $grammar, $provider, $wasFailed) {
             // Failed-segment resubmit: replace this segment's phrase/grammar
             // batches (delete-then-insert) so a retry never accumulates.
             if ($wasFailed) {
-                StudyPhrase::query()->where('segment_id', $segment->id)->delete();
-                StudyGrammarPoint::query()->where('segment_id', $segment->id)->delete();
+                StudyPhrase::deleteForSegment((int) $segment->id);
+                StudyGrammarPoint::deleteForSegment((int) $segment->id);
             }
 
             $applied = $this->writeback->apply($segment, $slots, $phrases, $grammar);
@@ -396,7 +330,7 @@ class AppQyV1StudyGenService
             $segment->claimed_at = null;
             $segment->claimed_by = null;
             $segment->error = null;
-            $segment->save();
+            $segment->saveRecord();
 
             return $applied;
         });
@@ -428,29 +362,7 @@ class AppQyV1StudyGenService
         }
 
         // Only rows actually holding a lease are touched; done rows never demoted.
-        $base = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->whereIn('segment_index', $indexes)
-            ->whereNotNull('claimed_at')
-            ->where('status', '!=', 'done');
-
-        $released = (clone $base)->count();
-
-        if ($error !== null && $error !== '') {
-            (clone $base)->update([
-                'status' => 'failed',
-                'error' => mb_substr($error, 0, 2000),
-                'claimed_at' => null,
-                'claimed_by' => null,
-            ]);
-        } else {
-            (clone $base)->update([
-                'status' => 'pending',
-                'claimed_at' => null,
-                'claimed_by' => null,
-            ]);
-        }
+        $released = StudySegment::releaseLeases($sourceType, $sourceKey, $indexes, $error);
 
         $this->recomputeProgress($sourceType, $sourceKey);
 
@@ -466,11 +378,7 @@ class AppQyV1StudyGenService
      */
     public function status(string $sourceType, string $sourceKey): array
     {
-        $segments = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->orderBy('segment_index')
-            ->get();
+        $segments = StudySegment::orderedForSource($sourceType, $sourceKey);
 
         $total = $segments->count();
         $done = $segments->where('status', 'done')->count();
@@ -517,35 +425,13 @@ class AppQyV1StudyGenService
      */
     public function segmentContent(string $sourceType, string $sourceKey, ?int $segmentIndex, ?int $seq): array
     {
-        $query = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey);
-
-        if ($segmentIndex !== null) {
-            $query->where('segment_index', $segmentIndex);
-        } else {
-            // Covering segment via seq BETWEEN seq_start AND seq_end.
-            $query->where('seq_start', '<=', $seq)->where('seq_end', '>=', $seq);
-        }
-
-        $segment = $query->orderBy('segment_index')->first();
+        $segment = StudySegment::findContentSegment($sourceType, $sourceKey, $segmentIndex, $seq);
         if (!$segment) {
             return ['success' => false, 'status' => 'not_found', 'http_status' => 404];
         }
 
-        $phrases = StudyPhrase::query()
-            ->where('segment_id', $segment->id)
-            ->orderBy('id')
-            ->get(['language', 'phrase', 'meaning'])
-            ->map(static fn ($p) => ['language' => $p->language, 'phrase' => $p->phrase, 'meaning' => $p->meaning])
-            ->all();
-
-        $grammar = StudyGrammarPoint::query()
-            ->where('segment_id', $segment->id)
-            ->orderBy('id')
-            ->get(['language', 'point', 'explanation'])
-            ->map(static fn ($g) => ['language' => $g->language, 'point' => $g->point, 'explanation' => $g->explanation])
-            ->all();
+        $phrases = StudyPhrase::contentForSegment((int) $segment->id);
+        $grammar = StudyGrammarPoint::contentForSegment((int) $segment->id);
 
         return [
             'success' => true,
@@ -580,12 +466,8 @@ class AppQyV1StudyGenService
             return;
         }
 
-        $byStatus = StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->groupBy('status')
-            ->select('status', DB::raw('count(*) as total'))
-            ->pluck('total', 'status');
+        $progressData = StudySegment::progressForSource($sourceType, $sourceKey);
+        $byStatus = $progressData['counts'];
 
         $total = 0;
         foreach ($byStatus as $count) {
@@ -595,25 +477,10 @@ class AppQyV1StudyGenService
         $status = $this->deriveStatus($total, $done);
 
         // Union of languages across done segments.
-        $languages = [];
-        StudySegment::query()
-            ->where('source_type', $sourceType)
-            ->where('source_key', $sourceKey)
-            ->where('status', 'done')
-            ->select('languages_done')
-            ->chunk(500, function ($rows) use (&$languages) {
-                foreach ($rows as $row) {
-                    $rowLangs = is_array($row->languages_done) ? $row->languages_done : [];
-                    foreach ($rowLangs as $code) {
-                        $languages[(string) $code] = true;
-                    }
-                }
-            });
-
         $progress = [
             'segments_total' => $total,
             'segments_done' => $done,
-            'languages' => array_keys($languages),
+            'languages' => $progressData['languages'],
             'updated_at' => now()->toIso8601String(),
         ];
 
@@ -624,9 +491,9 @@ class AppQyV1StudyGenService
             'study_gen_progress' => json_encode($progress),
         ];
         if ($sourceType === 'book') {
-            Book::query()->where('source_key', $sourceKey)->update($payload);
+            Book::updateStudyMarker($sourceKey, $payload);
         } else {
-            AppQyV1Article::query()->where('article_id', $sourceKey)->update($payload);
+            AppQyV1Article::updateStudyMarker($sourceKey, $payload);
         }
     }
 
@@ -653,10 +520,9 @@ class AppQyV1StudyGenService
     {
         if (!array_key_exists($sourceType, self::$markerColumns)) {
             try {
-                $model = $sourceType === 'book' ? new Book() : new AppQyV1Article();
-                self::$markerColumns[$sourceType] = $model->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasColumn($model->getTable(), 'study_gen_status');
+                self::$markerColumns[$sourceType] = $sourceType === 'book'
+                    ? Book::studyMarkerColumnsReady()
+                    : AppQyV1Article::studyMarkerColumnsReady();
             } catch (\Throwable $e) {
                 self::$markerColumns[$sourceType] = false;
             }

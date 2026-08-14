@@ -31,7 +31,7 @@ param(
 
 # Variable Declarations (all globals at top, per rule 5)
 $ErrorActionPreference = 'Stop'
-$SCRIPT_INDEX          = '[Step19-EdgeTts]'
+$SCRIPT_INDEX          = '[Step12-EdgeTts]'
 $resolvedPython        = $null
 $pipExePath            = $null
 $pipArgs               = $null

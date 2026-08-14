@@ -37,13 +37,10 @@ from pathlib import Path
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_system_cache_dir
+from pycore.pyutils.common.terminal_identifiers import WINDOWS_TERMINAL_HOST_CLASS
 
 # Win32 API constants
 _WM_CLOSE = 0x0010
-# Windows Terminal top-level window class (stable across localizations; the
-# window title varies with the shell/cwd, so the class is the reliable match).
-_WT_WINDOW_CLASS = "CASCADIA_HOSTING_WINDOW_CLASS"
-
 # Two calibration sizes; far enough apart that the per-cell delta dominates any
 # 1px rounding error. Both must be valid Windows Terminal --size values.
 _CALIB_SIZE_A = (80, 25)
@@ -98,7 +95,7 @@ def _enum_wt_hwnds():
 
     def _cb(hwnd, _lparam):
         buf = ctypes.create_unicode_buffer(256)
-        if user32.GetClassNameW(hwnd, buf, 256) > 0 and buf.value == _WT_WINDOW_CLASS:
+        if user32.GetClassNameW(hwnd, buf, 256) > 0 and buf.value == WINDOWS_TERMINAL_HOST_CLASS:
             found.append(hwnd)
         return True
 

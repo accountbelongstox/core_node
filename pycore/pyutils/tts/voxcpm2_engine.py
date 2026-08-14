@@ -19,11 +19,9 @@ import importlib.util
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyutils.tts.audio_utils import wav_to_mp3
-
 from pycore.pyfoundations.third_party.api import (
     get_third_package_soundfile,
     get_third_package_torch,
@@ -32,15 +30,11 @@ from pycore.pyfoundations.third_party.api import (
 from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyutils.common.python_env.runtime_policy import engine_compatibility
-from pycore.pyfoundations.serialized_worker import (
-    SerializedWorkerThread,
-    call_serialized,
-)
+from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
 
 _MODEL_QUEUE = 'pyutils.tts.voxcpm2.model'
-_MODEL_WORKER = SerializedWorkerThread(_MODEL_QUEUE, 'VoxCPM2ModelThread')
-_MODEL_WORKER.start()
-_model: Any = None
+_MODEL_THREAD = 'VoxCPM2ModelThread'
+_WAV_SUFFIX = '.voxcpm2.wav'
 
 
 def _device() -> str:
@@ -79,99 +73,71 @@ def _timesteps() -> int:
         return 10
 
 
-def available() -> bool:
-    python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    compatibility = engine_compatibility("voxcpm2", python_version)
-    if not compatibility["compatible"]:
-        return False
-    try:
-        return (
-            importlib.util.find_spec("voxcpm") is not None
+class VoxCPM2Engine(SerializedModelEngine):
+    def available(self) -> bool:
+        python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        compatibility = engine_compatibility("voxcpm2", python_version)
+        return bool(
+            compatibility["compatible"]
+            and importlib.util.find_spec("voxcpm") is not None
             and importlib.util.find_spec("soundfile") is not None
         )
-    except Exception:
-        return False
 
+    def load_resource(self) -> Any:
+        dev = _device()
+        model_id = _model_id()
+        kwargs = {"load_denoiser": False}
+        if dev != "auto":
+            kwargs["device"] = dev
+        voxcpm = get_third_package_voxcpm()
+        model_class = getattr(voxcpm, "VoxCPM", None)
+        if model_class is None:
+            ColorPrint.red("[voxcpm2] VoxCPM class is unavailable")
+            return None
+        model = model_class.from_pretrained(model_id, **kwargs)
+        ColorPrint.green(f"[voxcpm2] loaded {model_id} (device={dev})")
+        return model
 
-def _load_model() -> Any:
-    global _model
-    if _model is not None:
-        return _model
-    dev = _device()
-    kwargs = {"load_denoiser": False}
-    if dev != "auto":
-        kwargs["device"] = dev
-    voxcpm = get_third_package_voxcpm()
-    model_class = getattr(voxcpm, "VoxCPM", None)
-    if model_class is None:
-        ColorPrint.red("[voxcpm2] VoxCPM class is unavailable")
-        return None
-    _model = model_class.from_pretrained(_model_id(), **kwargs)
-    ColorPrint.green(f"[voxcpm2] loaded {_model_id()} (device={dev})")
-    return _model
-
-
-def _get_model() -> Any:
-    """Load or read the model through its owner thread."""
-    return call_serialized(_MODEL_QUEUE, _load_model, timeout=900.0)
-
-
-def _generate_audio(model: Any, text: str) -> Any:
-    """Generate audio on the model-owner thread."""
-    return model.generate(
-        text=text,
-        cfg_value=_cfg_value(),
-        inference_timesteps=_timesteps(),
-    )
-
-
-def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
-    cleaned = (text or "").strip()
-    if not cleaned or not available():
-        return False
-    tmp_wav = output_mp3.with_suffix(".voxcpm2.wav")
-    try:
-        model = _get_model()
-        if model is None:
-            return False
-        wav = call_serialized(
-            _MODEL_QUEUE,
-            _generate_audio,
-            model,
-            cleaned,
-            timeout=900.0,
+    def render_wav(
+        self,
+        resource: Any,
+        text: str,
+        lang: str,
+        output_wav: Path,
+        speed: float,
+    ) -> bool:
+        del lang, speed
+        wav = resource.generate(
+            text=text,
+            cfg_value=_cfg_value(),
+            inference_timesteps=_timesteps(),
         )
-        tmp_wav.parent.mkdir(parents=True, exist_ok=True)
-        rate = getattr(getattr(model, "tts_model", None), "sample_rate", 44100)
+        rate = getattr(getattr(resource, "tts_model", None), "sample_rate", 44100)
         soundfile = get_third_package_soundfile()
         if soundfile is None:
             ColorPrint.red("[voxcpm2] soundfile is unavailable")
             return False
-        soundfile.write(str(tmp_wav), wav, rate)
-    except Exception as e:
-        ColorPrint.red(f"[voxcpm2] synth failed: {e}")
-        return False
-    try:
-        return wav_to_mp3(tmp_wav, output_mp3)
-    finally:
-        try:
-            tmp_wav.unlink()
-        except OSError:
-            pass
+        soundfile.write(str(output_wav), wav, rate)
+        return True
+
+
+voxcpm2_engine = VoxCPM2Engine(_MODEL_QUEUE, _MODEL_THREAD, _WAV_SUFFIX)
+
+
+def available() -> bool:
+    return voxcpm2_engine.available()
+
+
+def synthesize(text: str, lang: str, output_mp3: Path, speed: float = 1.0) -> bool:
+    return voxcpm2_engine.synthesize(text, lang, output_mp3, speed)
 
 
 def is_model_loaded() -> bool:
-    return _model is not None
-
-
-def _unload_model() -> None:
-    global _model
-    _model = None
+    return voxcpm2_engine.is_loaded()
 
 
 def unload_model() -> None:
-    """Unload model state through its owner thread."""
-    call_serialized(_MODEL_QUEUE, _unload_model)
+    voxcpm2_engine.unload()
 
 
 __all__ = ["available", "synthesize", "is_model_loaded", "unload_model"]

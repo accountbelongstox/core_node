@@ -6,10 +6,10 @@ import uuid
 from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.serialized_worker import start_bus_task
+from pycore.pyutils.common.managed_service import managed_services
 from pycore.pyutils.common.operation_service import operation_service as operations
 from pycore.pyutils.tts.qwen.client import queue_cancel, queue_submit_and_wait
 from pycore.pyutils.tts.qwen.config import ENGINE_NAME, request_timeout_seconds
-from pycore.pyutils.tts.tts_service_manager import prepare_server_for_use
 
 
 def submit(scope: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -76,7 +76,6 @@ def _run(
         "text": text,
         "language": language,
         "format": audio_format,
-        "priority": int(params.get("priority") or 0),
     }
     if speaker:
         payload["speaker"] = speaker
@@ -84,16 +83,17 @@ def _run(
         payload["instruct"] = instruct
 
     started = time.monotonic()
-    if prepare_server_for_use(ENGINE_NAME):
-        success, audio, error = queue_submit_and_wait(
-            payload,
-            client_job_id=f"{operation_id}:{item_key}",
-            timeout=request_timeout_seconds(),
-        )
-    else:
+    try:
+        with managed_services.lease(ENGINE_NAME):
+            success, audio, error = queue_submit_and_wait(
+                payload,
+                client_job_id=f"{operation_id}:{item_key}",
+                timeout=request_timeout_seconds(),
+            )
+    except Exception as exc:  # noqa: BLE001
         success = False
         audio = b""
-        error = "qwen3tts service failed to start"
+        error = str(exc) or "qwen3tts service failed to start"
     metadata = {
         "elapsed_ms": round((time.monotonic() - started) * 1000),
         "format": audio_format,

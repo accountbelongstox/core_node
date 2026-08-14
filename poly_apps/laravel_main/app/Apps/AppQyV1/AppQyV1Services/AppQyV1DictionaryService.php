@@ -12,6 +12,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -251,9 +252,7 @@ class AppQyV1DictionaryService
         $untranslated = $total - $translated;
 
         // Unified schema: audio presence is the has_audio boolean.
-        $needingTTS = AppQyV1MultiLangDictionaryModel::forLanguage($langCode)
-            ->where('has_audio', false)
-            ->count();
+        $needingTTS = AppQyV1LangDictionaryModel::missingAudioCount($langCode);
 
         return [
             'language' => $language,
@@ -391,8 +390,7 @@ class AppQyV1DictionaryService
 
         foreach ($wordTables as $langCode => $tableName) {
             try {
-                $model = AppQyV1MultiLangDictionaryModel::forLanguage($langCode);
-                $count = $model->count();
+                $count = AppQyV1MultiLangDictionaryModel::countAll($langCode);
 
                 if ($count > 0) {
                     $availableLanguages[] = $langCode;

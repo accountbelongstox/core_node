@@ -25,7 +25,7 @@ import {
   type WordNewRecitationToday,
   type WordNewRecitationTodayPlan,
 } from '../api';
-import { isQueuedError } from '../../../core/api-libs/base';
+import { isQueuedError } from '../../../core/network/api-client';
 import { wordNewEventBus } from './WordNewEventBus';
 
 const FLUSH_INTERVAL_MS = 5000;
@@ -120,6 +120,18 @@ class WordNewRecitationCenterClass {
     this.localUniqueWords.add(trimmed.toLowerCase());
 
     this.scheduleFlush();
+  }
+
+  /** Fire-and-forget variant for progress mirrors (study loop, daily-reading
+   * player): guests are skipped (the log endpoint requires auth) and it never
+   * throws — the caller's local record has already landed. */
+  recordActionMirrored(word: string, action: WordNewRecitationAction, language?: string): void {
+    if (!wfNewApi.isAuthenticated()) return;
+    try {
+      this.recordAction(word, action, language);
+    } catch {
+      /* mirror only */
+    }
   }
 
   /**

@@ -8,7 +8,6 @@ export const PycoreManagerCacheStorageKeys = {
 /** Pycore Manager-owned UI persistence registry. */
 export const PycoreManagerUiStorageKeys = {
   PYCORE_CACHE_SETTINGS: 'pycore_settings',
-  PYCORE_CACHE_THEME_LEGACY: 'pycore_theme',
   PYCORE_SENTENCE_WORKER_CONCURRENCY: 'pc_sentence_worker_concurrency',
   PYCORE_SENTENCE_QWEN_SPEAKER: 'pc_sentence_qwen_speaker',
   PYCORE_VIDEO_EXTRACT_AUTO_SYNC: 'pycore.video-extract.autoSync',

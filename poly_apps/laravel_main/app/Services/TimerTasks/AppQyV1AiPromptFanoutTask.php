@@ -52,17 +52,13 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
 
     public function exec(): void
     {
-        $requests = AppQyV1AiPromptRequest::query()
-            ->where('status', AppQyV1AiPromptRequest::STATUS_PENDING)
-            ->orderBy('created_at')
-            ->limit(self::REQUEST_BATCH_SIZE)
-            ->get();
+        $requests = AppQyV1AiPromptRequest::pendingBatch(self::REQUEST_BATCH_SIZE);
 
         if ($requests->isEmpty()) {
             return;
         }
 
-        $enabledPrompts = AppQyV1AiPrompt::query()->where('enabled', true)->get()->keyBy('prompt_key');
+        $enabledPrompts = AppQyV1AiPrompt::enabledByKey();
 
         foreach ($requests as $request) {
             $this->processRequest($request, $enabledPrompts);
@@ -80,7 +76,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
             ->filter();
 
         if ($prompts->isEmpty()) {
-            $request->update([
+            $request->updateRecord([
                 'status' => AppQyV1AiPromptRequest::STATUS_FAILED,
                 'processed_at' => now(),
                 'error' => 'No enabled prompt matched the requested prompt_keys',
@@ -88,10 +84,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
             return;
         }
 
-        $alreadyDispatched = AppQyV1AiPromptRequestTask::query()
-            ->where('request_id', $request->id)
-            ->pluck('prompt_key')
-            ->all();
+        $alreadyDispatched = AppQyV1AiPromptRequestTask::promptKeysForRequest((int) $request->id);
 
         $allDispatched = true;
 
@@ -106,7 +99,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
         }
 
         if ($allDispatched) {
-            $request->update([
+            $request->updateRecord([
                 'status' => AppQyV1AiPromptRequest::STATUS_PROCESSED,
                 'processed_at' => now(),
             ]);
@@ -140,7 +133,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
         }
 
         try {
-            $ledger = AppQyV1AiPromptRequestTask::create([
+            $ledger = AppQyV1AiPromptRequestTask::createRecord([
                 'request_id' => $request->id,
                 'prompt_key' => $prompt->prompt_key,
                 'task_id' => null,
@@ -190,7 +183,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
         } catch (\Throwable $e) {
             // No global_tasks row was created -- safe to release the
             // reservation so a later tick retries this pair cleanly.
-            $ledger->delete();
+            $ledger->deleteRecord();
             $this->logError('Failed to create task for prompt (reservation released, will retry)', [
                 'request_id' => $request->id,
                 'prompt_key' => $prompt->prompt_key,
@@ -200,7 +193,7 @@ class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
         }
 
         try {
-            $ledger->update(['task_id' => $task->task_id]);
+            $ledger->updateRecord(['task_id' => $task->task_id]);
         } catch (\Throwable $e) {
             // The global_tasks row WAS created -- do NOT delete the
             // reservation here, that would let a later tick create a

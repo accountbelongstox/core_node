@@ -7,20 +7,47 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Safe Migration Helper
+ * Safe Migration Helper — the canonical engine for ALL idempotent
+ * initialization (sys:init initializers AND migrations).
  *
- * Provides idempotent database migration tools that guarantee:
- * - Tables and data are never dropped
- * - Tables are created only when they do not exist
- * - Columns are added only when they do not exist
- * - Column type expansion is supported (e.g. string(50) -> string(255)), but never shrinking
- * - Index alignment is supported (adds missing indexes)
- * - Code is aligned to the database structure (not by rebuilding the table)
+ * INITIALIZATION CONTRACT (binding for every initializer/migration):
+ *
+ * 1. IDEMPOTENT BY CONSTRUCTION. Re-running any initialization N times
+ *    converges to the same state. Always probe before acting (hasTable /
+ *    hasColumn / indexExists / pg_indexes); never act blindly.
+ *
+ * 2. TABLES ARE NEVER DROPPED OR REBUILT — not even when empty. A legacy
+ *    table that becomes dead is simply left in place (a dead table costs
+ *    nothing; any drop risks data). copy-drop-rename rebuilds are equally
+ *    forbidden. There is intentionally NO drop-table helper in this class.
+ *
+ * 3. EXISTING TABLES (WITH DATA) ARE ADJUSTED IN PLACE to the new
+ *    structure, idempotently:
+ *      - add missing columns / indexes / foreign keys (probe-first);
+ *      - WIDEN column lengths (never shrink — a shrink fails on longer
+ *        values and silent truncation is data loss);
+ *      - RELAX nullability (never enforce NOT NULL on existing rows);
+ *      - align defaults (PostgreSQL SET DEFAULT is metadata-only);
+ *      - drop a column (dropColumn with a hasColumn guard, or the opt-in
+ *        'shrink_columns' alignment) — a column drop is a legal in-place
+ *        structure adjustment, NOT a table deletion.
+ *
+ * 4. INDEXES WITH A WHERE PREDICATE (partial indexes) go exclusively
+ *    through safeAddPgPartialIndex() — Blueprint cannot express them.
+ *
+ * 5. ROW-LEVEL DATA REPAIR (dedup, cancel, backfill) never happens via
+ *    raw deletes here; it goes through the canonical service path
+ *    (e.g. TaskManagerService::cancelTask) in bounded batches.
+ *
+ * 6. DATA-MUTATION migrations extend
+ *    App\Support\Migrations\TransactionalMigration so a mid-run failure
+ *    rolls back and every retry starts from a clean state.
  *
  * Use cases:
  * - Table missing: create the table and all columns
  * - Table exists but a column is missing: add the missing column
- * - Table exists but a column type needs widening: expand the column type (no shrinking)
+ * - Table exists but a column type needs widening: expand in place
+ * - Table exists but a column is obsolete: drop the column in place
  * - Table exists but an index is missing: add the missing index
  */
 class SafeMigrationHelper
@@ -298,6 +325,62 @@ class SafeMigrationHelper
         return [
             'status' => 'added',
             'message' => "Index {$indexName} on {$tableName} added successfully"
+        ];
+    }
+
+    /**
+     * Safely add a PostgreSQL PARTIAL (filtered) index, unique or plain.
+     *
+     * Blueprint cannot express a WHERE predicate, so this is raw DDL — the
+     * single supported place for partial indexes. Idempotent via the shared
+     * indexExists() probe; re-runs are no-ops. PostgreSQL-only: callers must
+     * target a pgsql connection. A UNIQUE variant fails loudly (exception) if
+     * existing rows already violate the predicate — repair the data first.
+     *
+     * @param string        $connection Connection name (pgsql)
+     * @param string        $tableName  Table name
+     * @param string        $indexName  Explicit index name (required: partial
+     *                                  indexes carry semantics in their name)
+     * @param array<string> $columns    Index columns (identifiers, quoted here)
+     * @param string        $whereSql   Predicate WITHOUT the WHERE keyword
+     * @param bool          $unique     Create a UNIQUE partial index
+     * @return array ['status' => 'added'|'exists'|'error', 'message' => string]
+     */
+    public static function safeAddPgPartialIndex(
+        string $connection,
+        string $tableName,
+        string $indexName,
+        array $columns,
+        string $whereSql,
+        bool $unique = true
+    ): array {
+        $schema = Schema::connection($connection);
+
+        if (!$schema->hasTable($tableName)) {
+            return [
+                'status' => 'error',
+                'message' => "Table {$tableName} does not exist"
+            ];
+        }
+
+        if (self::indexExists($connection, $tableName, $indexName)) {
+            return [
+                'status' => 'exists',
+                'message' => "Index {$indexName} on {$tableName} already exists"
+            ];
+        }
+
+        $quote = static fn (string $identifier): string => '"' . str_replace('"', '""', $identifier) . '"';
+        $columnList = implode(', ', array_map($quote, $columns));
+        $uniqueSql = $unique ? 'UNIQUE ' : '';
+
+        DB::connection($connection)->statement(
+            "CREATE {$uniqueSql}INDEX {$quote($indexName)} ON {$quote($tableName)} ({$columnList}) WHERE {$whereSql}"
+        );
+
+        return [
+            'status' => 'added',
+            'message' => "Partial index {$indexName} on {$tableName} added successfully"
         ];
     }
 
@@ -983,27 +1066,19 @@ class SafeMigrationHelper
      */
     private static function columnNeedsModification(array $currentInfo, array $expectedDef): bool
     {
-        // Check the type
         $currentType = strtolower($currentInfo['type'] ?? '');
         $expectedType = strtolower($expectedDef['type'] ?? 'string');
 
-        // Check nullable
-        $currentNullable = $currentInfo['nullable'] ?? false;
-        $expectedNullable = $expectedDef['nullable'] ?? true;
-
-        // Check the default value
-        $currentDefault = $currentInfo['default'] ?? null;
-        $expectedDefault = $expectedDef['default'] ?? null;
-
-        // Check the length (for the string type)
+        // String length: only WIDENING triggers an in-place change. A shrink
+        // attempt (expected < current) is skipped — narrowing a column that
+        // holds longer values would fail on PostgreSQL and brick sys:init,
+        // and silent truncation is data loss.
         if ($expectedType === 'string' && isset($expectedDef['length'])) {
             preg_match('/\((\d+)\)/', $currentType, $matches);
-            $currentLength = $matches[1] ?? 255;
-            if ($expectedDef['length'] != $currentLength) {
-                return true;
-            }
+            $currentLength = (int) ($matches[1] ?? 255);
+            return (int) $expectedDef['length'] > $currentLength;
         }
-        
+
         return false;
     }
 
@@ -1054,11 +1129,16 @@ class SafeMigrationHelper
                     $column = $table->string($columnName);
             }
             
-            if (isset($expectedDef['nullable']) && $expectedDef['nullable']) {
+            // Data-safe property adjustments only: RELAXING nullability is
+            // always safe; enforcing NOT NULL on rows that contain NULLs
+            // would fail, so it is never applied here. Defaults are a
+            // metadata-only SET DEFAULT on PostgreSQL (existing rows keep
+            // their values), so they are safe to align.
+            if (!empty($expectedDef['nullable'])) {
                 $column->nullable();
             }
             
-            if (isset($expectedDef['default'])) {
+            if (array_key_exists('default', $expectedDef)) {
                 $column->default($expectedDef['default']);
             }
             
@@ -1073,6 +1153,12 @@ class SafeMigrationHelper
 
     /**
      * Define a table structure and align it (convenience method)
+     *
+     * Implements contract §3 in-place adjustment: create-if-missing, add
+     * missing columns (probe-first), optionally drop extra columns
+     * ('shrink_columns', a legal column-level adjustment), widen-only
+     * column correction, add missing indexes/foreign keys. Every step is
+     * idempotent; no table is ever dropped or rebuilt.
      *
      * Uses a table structure array definition, which is easier to use
      *

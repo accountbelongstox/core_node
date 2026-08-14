@@ -3,10 +3,11 @@
  * Simplified implementation that delegates to existing tools
  */
 
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
+import { delay as waitForDelay } from '@/utils/async';
 import { clickTool, fillTool } from './interaction';
 import { keyboardTool } from './keyboard';
 import { screenshotTool } from './screenshot';
@@ -207,20 +208,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
       return createErrorResponse(result.error || 'Mouse event dispatch failed');
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            action: eventType,
-            message: result.message,
-            element: result.element,
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      action: eventType,
+      message: result.message,
+      element: result.element,
+    });
   }
 
   /**
@@ -291,20 +284,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
       return createErrorResponse(result?.error || 'Scroll failed');
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({
-            success: true,
-            action: 'scroll',
-            direction: result.direction,
-            ticks: result.ticks,
-          }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({
+      success: true,
+      action: 'scroll',
+      direction: result.direction,
+      ticks: result.ticks,
+    });
   }
 
   /**
@@ -355,15 +340,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
       return createErrorResponse(result?.error || 'scroll_to failed');
     }
 
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({ success: true, action: 'scroll_to', tagName: result.tagName }),
-        },
-      ],
-      isError: false,
-    };
+    return createJsonResponse({ success: true, action: 'scroll_to', tagName: result.tagName });
   }
 
   async execute(args: ComputerParams): Promise<ToolResult> {
@@ -478,7 +455,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
               }
             } catch (e) {
               return createErrorResponse(
-                `Failed to resolve ref: ${e instanceof Error ? e.message : String(e)}`,
+                `Failed to resolve ref: ${toErrorMessage(e)}`,
               );
             }
           }
@@ -519,20 +496,15 @@ class ComputerTool extends BaseBrowserToolExecutor {
               results.push({
                 ref: item.ref,
                 success: false,
-                error: e instanceof Error ? e.message : String(e),
+                error: toErrorMessage(e),
               });
             }
           }
           const allOk = results.every((r) => r.success);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: allOk, action: 'fill_form', results }),
-              },
-            ],
-            isError: !allOk,
-          };
+          return createJsonResponse(
+            { success: allOk, action: 'fill_form', results },
+            { isError: !allOk },
+          );
         }
 
         case 'type':
@@ -562,20 +534,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
           if (typeof winId === 'number') {
             await chrome.windows.update(winId, updateOpts);
           }
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  action: 'resize_page',
-                  width: updateOpts.width,
-                  height: updateOpts.height,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            action: 'resize_page',
+            width: updateOpts.width,
+            height: updateOpts.height,
+          });
         }
 
         case 'screenshot': {
@@ -596,16 +560,8 @@ class ComputerTool extends BaseBrowserToolExecutor {
 
         case 'wait': {
           const waitDuration = args.duration ? Math.min(args.duration * 1000, 30000) : 1000;
-          await new Promise((resolve) => setTimeout(resolve, waitDuration));
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ success: true, action: 'wait', duration: waitDuration }),
-              },
-            ],
-            isError: false,
-          };
+          await waitForDelay(waitDuration);
+          return createJsonResponse({ success: true, action: 'wait', duration: waitDuration });
         }
 
         case 'left_click_drag': {
@@ -673,20 +629,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
             return createErrorResponse(dragResult?.error || 'Drag operation failed');
           }
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  action: 'left_click_drag',
-                  from: startCoords,
-                  to: endCoords,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            action: 'left_click_drag',
+            from: startCoords,
+            to: endCoords,
+          });
         }
 
         case 'zoom': {
@@ -696,20 +644,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
           // Zoom is essentially a page zoom level change; use chrome.tabs.setZoom
           const zoomFactor = args.scrollAmount || 1;
           await chrome.tabs.setZoom(targetTabId, zoomFactor);
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({
-                  success: true,
-                  action: 'zoom',
-                  zoomFactor,
-                  region,
-                }),
-              },
-            ],
-            isError: false,
-          };
+          return createJsonResponse({
+            success: true,
+            action: 'zoom',
+            zoomFactor,
+            region,
+          });
         }
 
         default:
@@ -720,7 +660,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
     } catch (error) {
       console.error('Error in computer tool:', error);
       return createErrorResponse(
-        `Failed to execute action: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to execute action: ${toErrorMessage(error)}`,
       );
     }
   }

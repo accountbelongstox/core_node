@@ -13,20 +13,36 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Services\Realtime\OutboxCommitDispatcher;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Per-user real-time event outbox for the social subsystem (replaces Reverb).
- * Mirrors AppQyV1TranslationEventModel but PER RECIPIENT: each row's user_id is
- * the recipient whose SSE stream (/social/stream) drains rows id > cursor for
- * THAT user only. `data` holds the JSON-encoded payload.
+ * Per-user realtime event outbox for the social subsystem.
+ * Reverb delivers the live private-channel frame while this table provides
+ * cursor recovery after disconnects. `data` holds the JSON-encoded payload.
  */
 class AppQyV1SocialEventModel extends Model
 {
+    private const CHANNEL_PREFIX = 'wordnew-social.';
+    private const EVENT_NAMES = [
+        'message.new',
+        'friend.request',
+        'friend.accept',
+        'friend.online',
+        'friend.offline',
+        'notification.new',
+        'presence.update',
+        'post.created',
+        'post.liked',
+        'post.comment',
+        'live.started',
+        'live.chat.new',
+    ];
+
     protected $appKey = AppKeys::APPQYV1;
 
     // created_at only (append-only log); no updated_at column.
@@ -37,12 +53,19 @@ class AppQyV1SocialEventModel extends Model
         'event',
         'data',
         'created_at',
+        'published_at',
+        'publish_after',
+        'publish_attempts',
+        'last_publish_error',
     ];
 
     protected $casts = [
         'id' => 'integer',
         'user_id' => 'integer',
         'created_at' => 'datetime',
+        'published_at' => 'datetime',
+        'publish_after' => 'datetime',
+        'publish_attempts' => 'integer',
     ];
 
     public function __construct(array $attributes = [])
@@ -58,26 +81,83 @@ class AppQyV1SocialEventModel extends Model
     }
 
     /**
-     * Append one event addressed to $userId (the RECIPIENT). Best-effort: a write
-     * failure is logged and swallowed so it can never break the action that
-     * triggered it. `$data` is stored as a JSON string (the SSE payload).
+     * Persist one committed recipient event for bounded cursor recovery and
+     * asynchronous Reverb publication.
      */
     public static function emit(int $userId, string $event, array $data): void
     {
-        try {
-            static::query()->create([
-                'user_id' => $userId,
-                'event' => $event,
-                'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
-                'created_at' => now(),
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1SocialEvent] outbox emit failed', [
-                'user_id' => $userId,
-                'event' => $event,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        OutboxCommitDispatcher::dispatch(static function () use ($userId, $event, $data): void {
+            try {
+                static::query()->create([
+                    'user_id' => $userId,
+                    'event' => $event,
+                    'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
+                    'created_at' => now(),
+                    'publish_attempts' => 0,
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('[AppQyV1SocialEvent] outbox append failed', [
+                    'user_id' => $userId,
+                    'event' => $event,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }, AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1));
+    }
+
+    public static function pendingForPublish(int $limit)
+    {
+        return static::query()
+            ->whereNull('published_at')
+            ->where(static function ($query): void {
+                $query->whereNull('publish_after')->orWhere('publish_after', '<=', now());
+            })
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function payload(): array
+    {
+        $payload = json_decode((string) $this->data, true);
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    public function markPublished(): void
+    {
+        $this->forceFill([
+            'published_at' => now(),
+            'publish_after' => null,
+            'last_publish_error' => null,
+        ])->save();
+    }
+
+    public function markPublishFailed(string $error): void
+    {
+        $attempts = (int) $this->publish_attempts + 1;
+        $retrySeconds = min(60, 2 ** min($attempts, 6));
+
+        $this->forceFill([
+            'publish_after' => now()->addSeconds($retrySeconds),
+            'publish_attempts' => $attempts,
+            'last_publish_error' => mb_substr($error, 0, 2000),
+        ])->save();
+    }
+
+    public static function channel(int $userId): string
+    {
+        return self::CHANNEL_PREFIX.$userId;
+    }
+
+    public static function privateChannel(int $userId): string
+    {
+        return 'private-'.self::channel($userId);
+    }
+
+    public static function eventNames(): array
+    {
+        return self::EVENT_NAMES;
     }
 
     /**
@@ -110,21 +190,22 @@ class AppQyV1SocialEventModel extends Model
         return $out;
     }
 
-    /** Highest event id for $userId (0 when none). A fresh SSE client starts here. */
+    /** Highest event id for $userId (0 when none). A fresh client starts here. */
     public static function maxId(int $userId): int
     {
         return (int) static::query()->where('user_id', $userId)->max('id');
     }
 
     /**
-     * Delete events older than $seconds (across all users). Best-effort; returns
-     * deleted row count. The stream loop calls this occasionally to stay bounded.
+     * Delete events older than $seconds across all users. Best-effort; returns
+     * the deleted row count. Emit scheduling keeps this operation bounded.
      */
     public static function pruneOlderThan(int $seconds = 600): int
     {
         try {
             return (int) static::query()
-                ->where('created_at', '<', now()->subSeconds($seconds))
+                ->whereNotNull('published_at')
+                ->where('published_at', '<', now()->subSeconds($seconds))
                 ->delete();
         } catch (\Throwable $e) {
             Log::warning('[AppQyV1SocialEvent] outbox prune failed', [
@@ -133,4 +214,5 @@ class AppQyV1SocialEventModel extends Model
             return 0;
         }
     }
+
 }

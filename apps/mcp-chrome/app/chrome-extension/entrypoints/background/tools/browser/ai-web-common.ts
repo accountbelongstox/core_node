@@ -22,6 +22,10 @@ import {
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
 import { apiManager } from '@/services/ApiManager';
+import { delay as waitForDelay, fetchWithTimeout } from '@/utils/async';
+import { toErrorMessage } from '@/utils/errors';
+
+export { waitForTabComplete } from '@/utils/tab-readiness';
 
 export { getPreferredProvider, getValidityProvider, setPreferredProvider };
 export type { AiWebProvider };
@@ -49,24 +53,6 @@ export async function resolveBackendBase(override?: string): Promise<string> {
     // Endpoint storage may be unavailable in some contexts; use the local default.
   }
   return DEFAULT_BACKEND_BASE;
-}
-
-/** Poll until a tab finishes loading (status === 'complete') or the timeout elapses. */
-export async function waitForTabComplete(tabId: number, timeoutMs = 30000): Promise<void> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    let tab: chrome.tabs.Tab | null = null;
-    try {
-      tab = await chrome.tabs.get(tabId);
-    } catch {
-      throw new Error(`Tab ${tabId} was closed while loading`);
-    }
-    if (tab && tab.status === 'complete') {
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 300));
-  }
-  // Best-effort: don't hard-fail on a slow SPA that never flips to 'complete'.
 }
 
 /**
@@ -157,10 +143,7 @@ export async function uploadReplyAudio(params: {
       form.append('language', language);
       form.append('audio', blob, `${provider}-${promptHash}.${ext}`);
 
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 30000);
-      const resp = await fetch(url, { method: 'POST', body: form, signal: controller.signal });
-      clearTimeout(timer);
+      const resp = await fetchWithTimeout(url, 30000, { method: 'POST', body: form });
 
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data && data.ok !== false) {
@@ -168,9 +151,9 @@ export async function uploadReplyAudio(params: {
       }
       lastError = `HTTP ${resp.status}: ${data?.error || data?.message || 'upload rejected'}`;
     } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e);
+      lastError = toErrorMessage(e);
     }
-    await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+    await waitForDelay(500 * (attempt + 1));
   }
   return { uploaded: false, error: lastError };
 }

@@ -12,7 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 
 /**
  * NotebookLM answer record.
@@ -42,4 +42,9 @@ class AppQyV1NotebookLmResultModel extends Model
         'notebook_url',
         'provider',
     ];
+
+    public static function createRecord(array $attributes): self
+    {
+        return self::query()->create($attributes);
+    }
 }

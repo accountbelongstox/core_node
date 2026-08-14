@@ -3,7 +3,7 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use App\Constants\AppKeys;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
@@ -75,5 +75,15 @@ class CodeMartV1TaskSubmissionModel extends Model
     public function needsRevision(): bool
     {
         return $this->status === 'needs_revision';
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findById(int $submissionId): ?self
+    {
+        return static::query()->find($submissionId);
     }
 }

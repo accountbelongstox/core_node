@@ -24,7 +24,7 @@ import type {
   ImageHistoryEntry, ImageSearchHistoryEntry, SubtitleSearchHistoryEntry,
   TranslateHistoryEntry,
 } from '@/apps/pycore-manager/api';
-import AiUsagePanel from '../../../components/ai-tools/AiUsagePanel';
+import AiUsagePanel from '@/shared/ai-usage/AiUsagePanel';
 
 type HistKind = 'aiImage' | 'imageSearch' | 'subtitleSearch' | 'translate';
 

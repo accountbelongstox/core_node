@@ -25,6 +25,7 @@ class AppQyV1SentenceWordTableController extends Controller
             'target_language' => 'nullable|string|max:16',
             'client_key' => 'required|string|max:64',
             'max_read_count' => 'nullable|integer|min:0|max:100',
+            'group_id' => 'nullable|string|max:64',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
@@ -36,7 +37,8 @@ class AppQyV1SentenceWordTableController extends Controller
             $request->input('target_language'),
             (string) $request->input('client_key'),
             $request->user('sanctum')?->id,
-            (int) $request->input('max_read_count', 0)
+            (int) $request->input('max_read_count', 0),
+            $request->input('group_id')
         );
         return response()->json(['success' => true, 'data' => ['words' => $rows]]);
     }
@@ -48,6 +50,7 @@ class AppQyV1SentenceWordTableController extends Controller
             'words.*' => 'required|string|max:255',
             'language' => 'required|string|max:16',
             'client_key' => 'required|string|max:64',
+            'group_id' => 'nullable|string|max:64',
         ]);
         if ($validator->fails()) {
             return response()->json(['success' => false, 'message' => $validator->errors()->first()], 422);
@@ -57,7 +60,8 @@ class AppQyV1SentenceWordTableController extends Controller
             $request->input('words'),
             (string) $request->input('language'),
             (string) $request->input('client_key'),
-            $request->user('sanctum')?->id
+            $request->user('sanctum')?->id,
+            $request->input('group_id')
         );
         return response()->json(['success' => true, 'data' => ['updated' => $count]]);
     }

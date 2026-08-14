@@ -15,16 +15,7 @@ class InviteCodeController extends Controller
 
     public function listPublic(Request $request): JsonResponse
     {
-        $codes = InviteCode::where('is_active', true)
-            ->where(function ($query) {
-                $query->whereNull('expires_at')
-                    ->orWhere('expires_at', '>', now());
-            })
-            ->whereColumn('used_count', '<', 'max_uses')
-            ->select(['id', 'code', 'type', 'max_uses', 'used_count', 'expires_at', 'is_active', 'created_at'])
-            ->orderBy('created_at', 'desc')
-            ->limit(10)
-            ->get();
+        $codes = InviteCode::publicCodes(10);
 
         return $this->success($codes, 'Public invite codes retrieved successfully');
     }
@@ -35,7 +26,7 @@ class InviteCodeController extends Controller
             'code' => 'required|string',
         ]);
 
-        $code = InviteCode::where('code', $validated['code'])->first();
+        $code = InviteCode::findByCode($validated['code']);
         if (!$code) {
             return $this->error('Invalid invite code', 400);
         }
@@ -80,12 +71,7 @@ class InviteCodeController extends Controller
             ], 'User already has super-admin access');
         }
 
-        User::query()->whereKey($userId)->update([
-            'rolelevel' => 100,
-            'rolename' => 'Super Administrator',
-        ]);
-
-        $fresh = User::query()->find($userId);
+        $fresh = User::grantSuperAdmin($userId);
         if (!$fresh) {
             return $this->error('User not found after role update', 500);
         }

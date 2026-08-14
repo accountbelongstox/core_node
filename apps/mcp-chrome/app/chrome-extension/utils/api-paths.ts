@@ -8,22 +8,46 @@
  * request concatenates a base URL, the caller keeps doing so — this module never
  * embeds an origin. Id-parameterized routes use the builders (which percent-
  * encode the id exactly as the callers did before).
+ *
+ * The worker and queue-center planes are owned by the shared contract
+ * (config/queue_center_contract.json `endpoints`) and are rendered through
+ * `queueCenterEndpoint` — those paths are NOT repeated as literals here.
  */
+
+import { queueCenterEndpoint } from './queue-center-contract';
 
 // ─────────────────────── Worker control plane (/api/worker/*) ───────────────────────
 export const WORKER_PATHS = {
-  REGISTER: '/api/worker/register',
-  HEARTBEAT: '/api/worker/heartbeat',
-  LIST: '/api/worker/list',
-  STATS: '/api/worker/stats',
+  REGISTER: queueCenterEndpoint('worker_register'),
+  HEARTBEAT: queueCenterEndpoint('worker_heartbeat'),
+  UNREGISTER: queueCenterEndpoint('worker_unregister'),
+  LIST: queueCenterEndpoint('worker_list'),
+  STATS: queueCenterEndpoint('worker_stats'),
+} as const;
+
+// ─────────────────────── Queue Center plane (/api/queue-center/*) ───────────────────────
+export const QUEUE_CENTER_PATHS = {
+  OVERVIEW: queueCenterEndpoint('queue_center_overview'),
+  EVENTS: queueCenterEndpoint('queue_center_events'),
+  RECEIPTS: queueCenterEndpoint('queue_center_receipts'),
 } as const;
 
 /** Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}. */
 export type WorkerTaskAction = 'pull' | 'accept' | 'result';
 
+const WORKER_TASK_ACTION_ROLES = {
+  pull: 'worker_task_pull',
+  accept: 'worker_task_accept',
+  result: 'worker_task_result',
+} as const;
+
 /** Build `/api/worker/tasks/{taskType}/{action}` (taskType percent-encoded). */
 export function workerTaskPath(taskType: string, action: WorkerTaskAction): string {
-  return `/api/worker/tasks/${encodeURIComponent(taskType)}/${action}`;
+  return queueCenterEndpoint(WORKER_TASK_ACTION_ROLES[action], { task_type: taskType });
+}
+
+export function queueCenterDiffPath(taskType: string): string {
+  return queueCenterEndpoint('queue_center_queue_diff', { queue: taskType });
 }
 
 // ─────────────────────── Global-task plane (/api/task/*) ───────────────────────

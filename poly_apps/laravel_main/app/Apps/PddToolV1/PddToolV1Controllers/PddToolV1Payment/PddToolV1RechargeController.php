@@ -33,7 +33,7 @@ class PddToolV1RechargeController extends BaseController
      */
     public function packages(Request $request): JsonResponse
     {
-        $rows = PddToolV1PackageModel::query()->where('enabled', true)->orderBy('id')->get();
+        $rows = PddToolV1PackageModel::enabledPackages();
 
         if ($rows->isEmpty()) {
             // Fallback to the canonical defaults if the table is not seeded yet.
@@ -60,7 +60,7 @@ class PddToolV1RechargeController extends BaseController
     {
         $username = htmlspecialchars((string) $request->query('username', ''), ENT_QUOTES, 'UTF-8');
 
-        $rows = PddToolV1PackageModel::query()->where('enabled', true)->orderBy('id')->get();
+        $rows = PddToolV1PackageModel::enabledPackages();
         $packages = $rows->isEmpty()
             ? array_values(array_map(fn ($p) => PddToolV1Presenter::package($p), PddToolV1Defaults::PACKAGES))
             : $rows->map(fn ($p) => PddToolV1Presenter::package($p))->all();
@@ -135,7 +135,7 @@ class PddToolV1RechargeController extends BaseController
         $recharge->package_name = $package['code'];
         $recharge->period = $period;
         $recharge->grant_days = $grantDays;
-        $recharge->save();
+        $recharge->saveRecord();
 
         $payment = new PddToolV1PaymentService();
         $result = $payment->create($recharge);
@@ -143,7 +143,7 @@ class PddToolV1RechargeController extends BaseController
         $recharge->pay_url = $result['pay_url'];
         $recharge->qr_code = $result['qr_code'];
         $recharge->sandbox = (bool) $result['sandbox'];
-        $recharge->save();
+        $recharge->saveRecord();
 
         return response()->json([
             'out_trade_no' => $recharge->out_trade_no,
@@ -167,10 +167,7 @@ class PddToolV1RechargeController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $recharge = PddToolV1RechargeModel::query()
-            ->where('user_id', $user->id)
-            ->where('out_trade_no', $outTradeNo)
-            ->first();
+        $recharge = PddToolV1RechargeModel::findForUserTrade((int) $user->id, $outTradeNo);
 
         if (!$recharge) {
             return response()->json(['detail' => 'Recharge not found'], 404);
@@ -199,7 +196,7 @@ class PddToolV1RechargeController extends BaseController
         }
 
         $outTradeNo = (string) ($payload['out_trade_no'] ?? '');
-        $recharge = PddToolV1RechargeModel::query()->where('out_trade_no', $outTradeNo)->first();
+        $recharge = PddToolV1RechargeModel::findByTradeNo($outTradeNo);
         if ($recharge && $recharge->status === PddToolV1RechargeModel::STATUS_PENDING) {
             $this->settle($recharge);
         }
@@ -221,7 +218,7 @@ class PddToolV1RechargeController extends BaseController
         }
 
         $outTradeNo = (string) ($decrypted['out_trade_no'] ?? '');
-        $recharge = PddToolV1RechargeModel::query()->where('out_trade_no', $outTradeNo)->first();
+        $recharge = PddToolV1RechargeModel::findByTradeNo($outTradeNo);
         if ($recharge && $recharge->status === PddToolV1RechargeModel::STATUS_PENDING) {
             $this->settle($recharge);
         }
@@ -236,7 +233,7 @@ class PddToolV1RechargeController extends BaseController
     {
         $recharge->status = PddToolV1RechargeModel::STATUS_PAID;
         $recharge->paid_at = now();
-        $recharge->save();
+        $recharge->saveRecord();
 
         $profile = PddToolV1ProfileModel::ensureTrial((int) $recharge->user_id);
         if ($recharge->package_name) {

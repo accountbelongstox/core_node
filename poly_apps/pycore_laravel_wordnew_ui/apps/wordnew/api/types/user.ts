@@ -65,7 +65,7 @@ export interface WfNewRegisterPayload {
  * frontend NEVER logs itself in — it sends this `code` to the backend, which
  * exchanges it with the server-side client secret, verifies the provider profile,
  * finds-or-creates the user, and returns a real WfNewAuthResult. Structurally a
- * subset of shared/capabilities CapSocialCredential.
+ * subset of apps/wordnew/platform/capabilities CapSocialCredential.
  */
 export interface WfNewSocialCredential {
   provider: 'google' | 'github';

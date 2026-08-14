@@ -147,7 +147,21 @@ if ($null -eq $sharedCacheLoaded -or -not [bool]$sharedCacheLoaded.Value) {
     Set-Variable -Name 'PycoreSharedCacheEnvLoaded' -Scope Script -Value $true
 }
 
-$Global:USER_DIR = "D:\programing\Users\$env:USERNAME\.core_node"
+$Global:PROGRAMING_USERS_DIR = "D:\programing\Users"
+$Global:PROGRAMING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR $env:USERNAME
+$Global:USER_DIR = Join-Path $Global:PROGRAMING_USER_DIR ".core_node"
+$Global:PI_COMMON_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiYolo"
+$Global:PI_KIMI_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiKimi"
+$Global:PI_CLAUDE_CODE_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiClaudeCode"
+$Global:PI_CODEX_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiCodex"
+$Global:PI_VOLC_AGENT_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiVolcAgent"
+$Global:PI_VOLC_CODING_USER_DIR = Join-Path $Global:PROGRAMING_USERS_DIR "PiVolcCoding"
+$Global:PI_COMMON_AGENT_DIR = Join-Path $Global:PI_COMMON_USER_DIR ".pi\agent"
+$Global:PI_KIMI_AGENT_DIR = Join-Path $Global:PI_KIMI_USER_DIR ".pi\agent"
+$Global:PI_CLAUDE_CODE_AGENT_DIR = Join-Path $Global:PI_CLAUDE_CODE_USER_DIR ".pi\agent"
+$Global:PI_CODEX_AGENT_DIR = Join-Path $Global:PI_CODEX_USER_DIR ".pi\agent"
+$Global:PI_VOLC_AGENT_AGENT_DIR = Join-Path $Global:PI_VOLC_AGENT_USER_DIR ".pi\agent"
+$Global:PI_VOLC_CODING_AGENT_DIR = Join-Path $Global:PI_VOLC_CODING_USER_DIR ".pi\agent"
 $Global:USER_CACHE_DIR = Join-Path $Global:CORE_NODE_CACHE_DIR 'core_node'
 if (-not (Test-Path $Global:USER_CACHE_DIR)) {
     New-Item -ItemType Directory -Path $Global:USER_CACHE_DIR -Force | Out-Null
@@ -203,7 +217,12 @@ $Global:NODE_DIR = Join-Path $Global:LANG_COMPILER_DIR "node-v$Global:NODE_VERSI
 $Global:NODE_EXE_PATH = Join-Path $Global:NODE_DIR "node.exe"
 $Global:NPM_EXE_PATH = Join-Path $Global:NODE_DIR "npm.cmd"
 $Global:PNPM_EXE_PATH = Join-Path $Global:NODE_DIR "pnpm.cmd"
+$Global:PNPM_GLOBAL_DIR = Join-Path $Global:NODE_DIR "pnpm-global"
+$Global:PNPM_GLOBAL_BIN_DIR = Join-Path $Global:PNPM_GLOBAL_DIR ".bin"
 $Global:YARN_EXE_PATH = Join-Path $Global:NODE_DIR "yarn.cmd"
+$Global:BUN_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "bun"
+$Global:BUN_BIN_DIR = Join-Path $Global:BUN_INSTALL_DIR "bin"
+$Global:BUN_EXE_PATH = Join-Path $Global:BUN_BIN_DIR "bun.exe"
 $Global:NODE_WINGET_ID = "OpenJS.NodeJS.LTS"
 
 # Standalone system Python policy (no conda) — paths composed from LANG_COMPILER_DIR

@@ -242,7 +242,7 @@ Type=simple
 User=${service_user}
 Group=${service_group}
 WorkingDirectory=${laravel_path}
-ExecStart=/usr/bin/php ${laravel_path}/artisan octane:start --host=127.0.0.1 --port=${port} --workers=${workers}
+ExecStart=/bin/bash ${laravel_path}/scripts/run_runtime.sh
 ExecReload=/bin/kill -USR1 \$MAINPID
 
 # Auto-restart configuration
@@ -262,6 +262,9 @@ SyslogIdentifier=${service_name}
 # SYNC WITH PHP: Line 647-649 (PATH-BASED) and Line 772-774 (LEGACY)
 Environment="PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 Environment="NODE_PATH=/usr/local/lib/node_modules"
+Environment="OCTANE_HOST=127.0.0.1"
+Environment="PORT=${port}"
+Environment="WORKERS=${workers}"
 
 # Security (Relaxed for development/TTS requirements)
 # SYNC WITH PHP: Line 651-657 (PATH-BASED) and Line 776-786 (LEGACY)

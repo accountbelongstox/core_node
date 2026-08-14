@@ -10,12 +10,10 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
-use App\Services\QueueCenter\QueueCenterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller as BaseController;
@@ -27,17 +25,65 @@ use Illuminate\Support\Facades\Log;
  * GET /api/app_qy_v1/word/{lang}/{word}/media
  *
  * FILE-FIRST: image_url / audio_url are returned ONLY when the resolved file is
- * on disk. On a miss the word is enqueued (image queue + TTS queue) and a
- * 'word_media' global task is ensured/bumped to the front, and the relevant
- * status flips to 'pending'. The active query also moves the word to the FRONT
- * of every queue layer (on-query prioritization).
+ * on disk. On a miss the word is enqueued for image work and the audio gateway
+ * inserts or moves its global task to the word_audio queue head.
  *
- * All file resolution + enqueue + prioritization lives in
+ * All file resolution and queue ordering lives in
  * AppQyV1WordMediaService so the resolve endpoint, the smart image-serve route
  * and the on-query hooks share one implementation.
  */
 class AppQyV1WordMediaController extends BaseController
 {
+    public function audio(Request $request, string $lang, string $word): JsonResponse
+    {
+        $word = trim(urldecode($word));
+        if ($word === '') {
+            return response()->json(['success' => false, 'error' => 'word_required'], 400);
+        }
+
+        $accent = $request->query('accent');
+        $accent = is_string($accent) && in_array(strtolower(trim($accent)), ['us', 'uk'], true)
+            ? strtolower(trim($accent))
+            : null;
+        $data = (new AppQyV1AudioGateway())->requestWord(
+            $word,
+            $lang,
+            $accent,
+            !$request->boolean('passive'),
+            true
+        );
+
+        return response()->json(['success' => (bool) $data['success'], 'data' => $data]);
+    }
+
+    public function moveAudioToHead(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'words' => 'required|array|min:1|max:100',
+            'words.*' => 'required|string|max:255',
+            'language' => 'required|string|max:20',
+        ]);
+        $results = (new AppQyV1AudioGateway())->requestWordBatch(
+            $validated['words'],
+            $validated['language']
+        );
+
+        return response()->json([
+            'success' => !in_array(false, array_map(
+                static fn (array $item): bool => (bool) ($item['success'] ?? false),
+                $results
+            ), true),
+            'data' => [
+                'queued' => count(array_filter(
+                    $results,
+                    static fn (array $item): bool => ($item['audio_status'] ?? null) !== 'ready'
+                )),
+                'total' => count($results),
+                'results' => $results,
+            ],
+        ]);
+    }
+
     /**
      * GET /api/app_qy_v1/word/{lang}/{word}/media
      *
@@ -177,156 +223,6 @@ class AppQyV1WordMediaController extends BaseController
     }
 
     /**
-     * POST /api/app_qy_v1/word/boost-priority
-     *
-     * Bump a word's tts_priority so it rises to the front of the audio
-     * generation queue on the next missing-batch call. Move-to-front ticket:
-     * the row gets MAX(tts_priority)+1 under a transaction-scoped advisory
-     * lock on the table, so the newest boost always sorts strictly ahead of
-     * every other row and two concurrent boosts cannot share a ticket. Safe
-     * to call multiple times. Skips is_valid=false rows.
-     *
-     * Body: { md5, lang }
-     *
-     * @return JsonResponse { success, updated }
-     */
-    public function boostPriority(Request $request): JsonResponse
-    {
-        $md5 = trim((string) $request->input('md5', ''));
-        $langInput = trim((string) $request->input('lang', ''));
-
-        if ($md5 === '' || $langInput === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'md5 and lang are required',
-            ], 400);
-        }
-
-        $langCode = AppQyV1DictionaryService::getLanguageCode($langInput);
-        $dictModel = AppQyV1LangDictionaryModel::forLanguage($langCode);
-        $table = $dictModel->getTable();
-        if (!AppQyV1LangDictionaryModel::languageTableExists($langCode)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unsupported language',
-            ], 400);
-        }
-        try {
-            $boost = AppQyV1LangDictionaryModel::boostTtsPriority($langCode, $md5);
-            if ($boost['updated'] > 0) {
-                // Ordering + the word_audio.priority outbox event are owned by
-                // the queue center now (no local emit — that would double-emit).
-                // The row tts_priority ticket above stays: the row-based claim
-                // fallback still orders by it.
-                try {
-                    app(QueueCenterService::class)->moveToHead(
-                        QueueCenterService::QUEUE_WORD_AUDIO,
-                        QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $langCode, $md5),
-                        [
-                            'word' => $boost['content'],
-                            'language' => $langCode,
-                            'md5' => $md5,
-                            'dict_row_id' => $boost['row_id'],
-                        ],
-                        true,
-                        array_filter([
-                            'dict_row_id' => $boost['row_id'] > 0 ? $boost['row_id'] : null,
-                            'dict_language' => $langCode,
-                            'dict_row_table' => $table,
-                        ])
-                    );
-                } catch (\Throwable $e) {
-                    Log::warning('[WordMedia] queue-center boost failed: ' . $e->getMessage());
-                }
-            }
-            return response()->json([
-                'success' => true,
-                'updated' => $boost['updated'],
-                'priority' => $boost['priority'],
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('[WordMedia] boostPriority failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'DB error: ' . $e->getMessage(),
-            ]);
-        }
-    }
-
-    public function boostPriorityBatch(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'items' => 'required|array|min:1|max:200',
-            'items.*.md5' => 'required|string|max:64',
-            'items.*.lang' => 'required|string|max:20',
-        ]);
-        $groups = [];
-        foreach ($validated['items'] as $item) {
-            $language = AppQyV1DictionaryService::getLanguageCode(trim((string) $item['lang']));
-            $groups[$language][] = trim((string) $item['md5']);
-        }
-        $boosted = [];
-        try {
-            foreach ($groups as $language => $md5s) {
-                if (!AppQyV1LangDictionaryModel::languageTableExists($language)) {
-                    continue;
-                }
-                $rows = AppQyV1LangDictionaryModel::boostTtsPriorities($language, $md5s);
-                $boosted = array_merge($boosted, $rows);
-            }
-            if (!empty($boosted)) {
-                // Queue center owns ordering now: move each boosted word to the
-                // head of word_audio (per-item outbox events suppressed so a
-                // batch cannot storm the outbox), then ONE aggregate wake event.
-                $queueCenter = app(QueueCenterService::class);
-                foreach ($boosted as $item) {
-                    try {
-                        $queueCenter->moveToHead(
-                            QueueCenterService::QUEUE_WORD_AUDIO,
-                            QueueCenterService::dedupKeyFor(QueueCenterService::QUEUE_WORD_AUDIO, $item['language'], $item['md5']),
-                            [
-                                'word' => $item['content'],
-                                'language' => $item['language'],
-                                'md5' => $item['md5'],
-                                'dict_row_id' => $item['row_id'],
-                            ],
-                            false,
-                            array_filter([
-                                'dict_row_id' => $item['row_id'] > 0 ? $item['row_id'] : null,
-                                'dict_language' => $item['language'],
-                                'dict_row_table' => $item['row_table'],
-                            ])
-                        );
-                    } catch (\Throwable $e) {
-                        Log::warning('[WordMedia] queue-center batch boost item failed', [
-                            'md5' => $item['md5'],
-                            'error' => $e->getMessage(),
-                        ]);
-                    }
-                }
-                $publicItems = array_map(static fn (array $i): array => [
-                    'md5' => $i['md5'],
-                    'language' => $i['language'],
-                    'priority' => $i['priority'],
-                ], $boosted);
-                AppQyV1TranslationEventModel::emit('word_audio.priority', [
-                    'batch' => true,
-                    'count' => count($boosted),
-                    'items' => $publicItems,
-                ]);
-            }
-            return response()->json([
-                'success' => true,
-                'count' => count($boosted),
-                'items' => $publicItems ?? [],
-            ]);
-        } catch (\Throwable $e) {
-            Log::warning('[WordMedia] boostPriorityBatch failed: ' . $e->getMessage());
-            return response()->json(['success' => false, 'message' => 'DB error: ' . $e->getMessage()]);
-        }
-    }
-
-    /**
      * POST /api/app_qy_v1/word/fix-text
      *
      * Update the content (word text) of a dictionary row that was found to
@@ -355,28 +251,13 @@ class AppQyV1WordMediaController extends BaseController
             ], 400);
         }
 
-        $langCode = AppQyV1DictionaryService::getLanguageCode($langInput);
-        try {
-            $updated = AppQyV1LangDictionaryModel::forLanguage($langCode)
-                ->where('md5', $md5)
-                ->where(function ($q) {
-                    $q->whereNull('is_valid')->orWhere('is_valid', true);
-                })
-                ->update(['content' => $cleanedWord]);
-            Log::info('[WordMedia] fixWordText applied', [
-                'language' => $langCode,
-                'md5' => $md5,
-                'cleaned_word' => $cleanedWord,
-                'updated' => $updated,
-            ]);
-            return response()->json(['success' => true, 'updated' => $updated]);
-        } catch (\Throwable $e) {
-            Log::warning('[WordMedia] fixWordText failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'DB error: ' . $e->getMessage(),
-            ]);
-        }
+        $result = (new AppQyV1WordMediaService())->fixWordText(
+            $md5,
+            $langInput,
+            $cleanedWord
+        );
+
+        return response()->json($result);
     }
 
     /**
@@ -394,96 +275,11 @@ class AppQyV1WordMediaController extends BaseController
         $limit = (int) $request->query('limit', 1000);
         $limit = max(1, min($limit, 100000)); // supports 1000/5000/10000/all
         $langInput = trim((string) $request->query('language', ''));
-        $langCode = AppQyV1DictionaryService::getLanguageCode(
-            $langInput !== '' ? $langInput : 'en'
+        $result = (new AppQyV1WordMediaService())->missingAudioBatch(
+            $langInput !== '' ? $langInput : 'en',
+            $limit
         );
 
-        $words = [];
-        try {
-            $columns = AppQyV1LangDictionaryModel::languageColumnAvailability($langCode, [
-                'has_audio',
-                'is_valid',
-                'tts_status',
-                'content',
-                'audio_files',
-                'tts_files',
-            ]);
-            $hasHasAudio = $columns['has_audio'];
-            $hasIsValid = $columns['is_valid'];
-            $hasTtsStatus = $columns['tts_status'];
-            // The word text lives in the `content` column (the tts_cache_{lang}
-            // table has no `word` column); guard it for safety.
-            $hasContent = $columns['content'];
-            $query = AppQyV1LangDictionaryModel::forLanguage($langCode);
-            if ($hasHasAudio) {
-                $query->where('has_audio', false);
-            }
-            if ($hasIsValid) {
-                // Skip backend-marked invalid words - never request audio for them.
-                $query->where(function ($q) {
-                    $q->where('is_valid', true)->orWhereNull('is_valid');
-                });
-            }
-            if ($hasTtsStatus) {
-                // Skip permanently-failed words so the batch doesn't cycle through
-                // TTS-worker rejects that will never recover.
-                $query->where(function ($q) {
-                    $q->whereNull('tts_status')->orWhere('tts_status', '!=', 'failed');
-                });
-            }
-            // Exclude words that already have at least one audio file in the JSON
-            // arrays — has_audio flag can be stale. "有一个就算有" (one = covered).
-            $hasAudioFilesCol = $columns['audio_files'];
-            $hasTtsFilesCol = $columns['tts_files'];
-            // Independent guards (NOT elseif): when both columns exist a row must be
-            // excluded if EITHER array is non-empty. The old elseif checked only
-            // audio_files, so a legacy row with tts_files populated but audio_files
-            // still empty (promotion is read-time only) was re-served every batch.
-            if ($hasAudioFilesCol) {
-                $query->missingAudioFiles();
-            }
-            if ($hasTtsFilesCol) {
-                $query->missingTtsFiles();
-            }
-            // Word rows only: sentences are also stored in tts_cache_{lang} (long
-            // content); restrict to short content so the batch targets words.
-            if ($hasContent) {
-                $query->wordLength();
-            }
-            // Full model instances (need id + tts_* columns) so stale rows whose
-            // audio file actually exists on disk can be self-healed and excluded.
-            $rows = $query->orderBy('id')->limit($limit)->get();
-            // The DB flags (has_audio / audio_files / tts_files) can lag the real
-            // file on disk (crash between file write and DB save, or legacy import).
-            // Reconcile every candidate against the authoritative file: rows with a
-            // real file are marked completed and dropped so the batch ONLY returns
-            // words that TRULY have no audio (no more "already exists" re-serving).
-            if ($hasContent) {
-                $rows = (new AppQyV1DictionaryTTSCoordinator())
-                    ->filterTrulyMissingWords($langCode, $rows);
-            }
-            foreach ($rows as $row) {
-                $words[] = [
-                    'word' => $hasContent ? (string) $row->content : '',
-                    'md5' => (string) $row->md5,
-                    'language' => $langCode,
-                ];
-            }
-        } catch (\Throwable $e) {
-            Log::warning('[WordMedia] missingBatch failed: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'error' => 'Internal error: ' . $e->getMessage(),
-                'language' => $langCode,
-                'words' => [],
-            ], 200);
-        }
-
-        return response()->json([
-            'success' => true,
-            'language' => $langCode,
-            'count' => count($words),
-            'words' => $words,
-        ]);
+        return response()->json($result);
     }
 }

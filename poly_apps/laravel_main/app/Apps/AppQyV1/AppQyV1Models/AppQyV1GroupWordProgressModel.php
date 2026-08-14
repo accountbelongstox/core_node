@@ -2,7 +2,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
@@ -135,17 +135,30 @@ class AppQyV1GroupWordProgressModel extends Model
      */
     public static function forUserGroup(int $userId, int $groupId, string $languageCode = 'en'): self
     {
-        $existing = self::where('group_id', $groupId)->first();
-        if ($existing) {
-            return $existing;
-        }
-        return self::create([
-            'user_id' => $userId,
-            'group_id' => $groupId,
-            'language_code' => $languageCode,
-            'words' => [],
-            'total_words' => 0,
-        ]);
+        return self::firstOrCreate(
+            ['group_id' => $groupId],
+            [
+                'user_id' => $userId,
+                'language_code' => $languageCode,
+                'words' => [],
+                'total_words' => 0,
+            ]
+        );
+    }
+
+    public static function findForUserGroup(int $userId, int $groupId): ?self
+    {
+        return self::query()->where('user_id', $userId)->where('group_id', $groupId)->first();
+    }
+
+    public static function findByGroupId(int $groupId): ?self
+    {
+        return static::query()->where('group_id', $groupId)->first();
+    }
+
+    public static function forUser(int $userId)
+    {
+        return static::query()->where('user_id', $userId)->get();
     }
 
     /**

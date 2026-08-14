@@ -1,7 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1PhoneVerificationModel extends Model
@@ -41,5 +42,20 @@ class CodeMartV1PhoneVerificationModel extends Model
     public function isVerified(): bool
     {
         return $this->verified_at !== null;
+    }
+
+    public static function storeOtp(int $userId, array $attributes): self
+    {
+        return static::query()->updateOrCreate(['user_id' => $userId], $attributes);
+    }
+
+    public static function forUser(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
+    public static function isVerifiedForUser(int $userId): bool
+    {
+        return static::query()->where('user_id', $userId)->whereNotNull('verified_at')->exists();
     }
 }

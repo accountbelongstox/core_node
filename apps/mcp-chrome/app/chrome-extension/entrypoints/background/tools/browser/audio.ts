@@ -1,4 +1,4 @@
-import { createErrorResponse, ToolResult } from '@/common/tool-handler';
+import { createErrorResponse, createJsonResponse, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import {
@@ -27,15 +27,7 @@ class AudioStartTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error || 'Failed to start audio recording');
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result.data),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result.data);
     } catch (error: any) {
       console.error('AudioStartTool: Error during execute:', error);
       return createErrorResponse(`Error in AudioStartTool: ${error.message || String(error)}`);
@@ -61,15 +53,7 @@ class AudioStopTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error || 'Failed to stop audio recording');
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result.data),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result.data);
     } catch (error: any) {
       console.error('AudioStopTool: Error during execute:', error);
       return createErrorResponse(`Error in AudioStopTool: ${error.message || String(error)}`);
@@ -95,16 +79,7 @@ class AudioStatusTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error || 'Failed to get audio status');
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            // handleAudioStatus returns the payload under .status, not .data
-            text: JSON.stringify(result.status),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result.status);
     } catch (error: any) {
       console.error('AudioStatusTool: Error during execute:', error);
       return createErrorResponse(`Error in AudioStatusTool: ${error.message || String(error)}`);
@@ -130,15 +105,7 @@ class AudioDurationTool extends BaseBrowserToolExecutor {
         return createErrorResponse(result.error || 'Failed to get audio duration');
       }
 
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(result.data),
-          },
-        ],
-        isError: false,
-      };
+      return createJsonResponse(result.data);
     } catch (error: any) {
       console.error('AudioDurationTool: Error during execute:', error);
       return createErrorResponse(`Error in AudioDurationTool: ${error.message || String(error)}`);

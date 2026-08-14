@@ -1,4 +1,5 @@
-import { CapResourcePackage } from '@/shared/capabilities';
+import { CapResourcePackage } from '@/apps/wordnew/platform/capabilities';
+import { stableHash } from '../platform/utils/stableHash';
 import { wfNewEndpoints } from '../api/WfNewEndpoints';
 import { preloadAudioFromPayload } from './WfNewAudioCache';
 
@@ -9,15 +10,6 @@ const resourcePackage = new CapResourcePackage({
   defaultTtlMs: 5 * 60 * 1000,
   onValue: preloadAudioFromPayload,
 });
-
-function hash(value: string): string {
-  let result = 2166136261;
-  for (let index = 0; index < value.length; index += 1) {
-    result ^= value.charCodeAt(index);
-    result = Math.imul(result, 16777619);
-  }
-  return (result >>> 0).toString(36);
-}
 
 function stableSerialize(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableSerialize).join(',')}]`;
@@ -31,7 +23,7 @@ function stableSerialize(value: unknown): string {
 }
 
 function scopeFor(token: string | null): string {
-  return token ? `user-${hash(token)}` : 'public';
+  return token ? `user-${stableHash(token)}` : 'public';
 }
 
 function resourceKey(path: string, variant = 'GET'): string {
@@ -68,7 +60,7 @@ function staticMediaResponseIsUsable(path: string, payload: unknown): boolean {
 
 export function requestVariant(method: string, body?: unknown): string {
   if (body === undefined) return method.toUpperCase();
-  return `${method.toUpperCase()}:${hash(stableSerialize(body))}`;
+  return `${method.toUpperCase()}:${stableHash(stableSerialize(body))}`;
 }
 
 export function queryServerResource<T>(

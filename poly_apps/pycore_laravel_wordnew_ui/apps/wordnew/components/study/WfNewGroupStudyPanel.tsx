@@ -39,7 +39,8 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Layers, Play, Settings2, RotateCcw, GraduationCap, RefreshCw,
 } from 'lucide-react';
-import type { Word, WordGroup, ElementTheme } from '../../WfNewTypes';
+import type { ElementTheme } from '../../WfNewThemes';
+import type { Word, WordGroup } from '../../api/WfNewApiTypes';
 import { wfNewApi, isDefaultVocabularyGroup } from '../../api';
 import { wfNewSettings } from '../../WfNewSettingsStore';
 import { wfNewNotify } from '../../WfNewNotify';

@@ -15,7 +15,7 @@
  * expose typed accessors on top of `get` / `patch` / `replace` / `reset`.
  */
 import { StorageManager } from './StorageManager';
-import type { StorageKey } from './StorageKeys';
+import type { StorageKey } from './StorageKey';
 
 export abstract class PersistedStore<T extends object> {
   /** Memoized current value; null until first read. Replaced (not mutated) on write. */

@@ -31,8 +31,8 @@ class CodeMartV1OtpService
     {
         $otp = $this->generateOtp();
 
-        $phoneVerification = CodeMartV1PhoneVerificationModel::updateOrCreate(
-            ['user_id' => $userId],
+        $phoneVerification = CodeMartV1PhoneVerificationModel::storeOtp(
+            $userId,
             [
                 'phone' => $phone,
                 'otp_code' => $otp,
@@ -52,8 +52,7 @@ class CodeMartV1OtpService
 
     public function verifyOtp(int $userId, string $otpCode): bool
     {
-        $phoneVerification = CodeMartV1PhoneVerificationModel::where('user_id', $userId)
-            ->first();
+        $phoneVerification = CodeMartV1PhoneVerificationModel::forUser($userId);
 
         if (!$phoneVerification) {
             return false;
@@ -72,11 +71,11 @@ class CodeMartV1OtpService
         }
 
         if ($phoneVerification->otp_code !== $otpCode) {
-            $phoneVerification->increment('otp_attempts');
+            $phoneVerification->incrementRecord('otp_attempts');
             return false;
         }
 
-        $phoneVerification->update([
+        $phoneVerification->updateRecord([
             'verified_at' => now(),
             'otp_attempts' => 0,
         ]);
@@ -86,8 +85,7 @@ class CodeMartV1OtpService
 
     public function resendOtp(int $userId): array|bool
     {
-        $phoneVerification = CodeMartV1PhoneVerificationModel::where('user_id', $userId)
-            ->first();
+        $phoneVerification = CodeMartV1PhoneVerificationModel::forUser($userId);
 
         if (!$phoneVerification) {
             return false;
@@ -102,10 +100,6 @@ class CodeMartV1OtpService
 
     public function isPhoneVerified(int $userId): bool
     {
-        $phoneVerification = CodeMartV1PhoneVerificationModel::where('user_id', $userId)
-            ->where('verified_at', '!=', null)
-            ->first();
-
-        return $phoneVerification !== null;
+        return CodeMartV1PhoneVerificationModel::isVerifiedForUser($userId);
     }
 }

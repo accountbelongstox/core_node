@@ -25,27 +25,14 @@ from xml.sax.saxutils import escape
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.api_secrets import azure_speech_key, azure_speech_region
+from pycore.pyutils.tts.edge.config import TTSConfig
+from pycore.pyutils.tts.engine_policy import tts_locale
 
 try:  # optional third-party (already in pycore requirements)
     _AZURE_SDK_AVAILABLE = True
 except Exception:  # noqa: BLE001 — SDK absent / import error -> engine simply unavailable
     _speechsdk = None
     _AZURE_SDK_AVAILABLE = False
-
-# locale + a known-good neural voice per language (female, language-learning friendly).
-_VOICE_BY_LANG = {
-    "en": "en-US-JennyNeural",
-    "zh": "zh-CN-XiaoxiaoNeural",
-    "ja": "ja-JP-NanamiNeural",
-    "ko": "ko-KR-SunHiNeural",
-    "es": "es-ES-ElviraNeural",
-    "fr": "fr-FR-DeniseNeural",
-}
-_LOCALE_BY_LANG = {
-    "en": "en-US", "zh": "zh-CN", "ja": "ja-JP",
-    "ko": "ko-KR", "es": "es-ES", "fr": "fr-FR",
-}
-
 
 def _key() -> str:
     # Single key-reading center (pyutils/common/api_secrets) — same global indexed
@@ -63,12 +50,12 @@ def available() -> bool:
 
 
 def _voice(lang: Optional[str]) -> str:
-    return _VOICE_BY_LANG.get((lang or "en").lower(), "en-US-JennyNeural")
+    return TTSConfig.resolve_voice(tts_locale(lang), gender="female")
 
 
 def _ssml(text: str, lang: Optional[str], rate: Optional[str]) -> str:
     """Wrap text in SSML so a percent rate (e.g. '-20%') maps to prosody@rate."""
-    locale = _LOCALE_BY_LANG.get((lang or "en").lower(), "en-US")
+    locale = tts_locale(lang)
     voice = _voice(lang)
     inner = escape(text)
     if rate:
@@ -84,7 +71,7 @@ def _ssml(text: str, lang: Optional[str], rate: Optional[str]) -> str:
 
 def synthesize(text: str, lang: str, output_mp3: Path, rate: Optional[str] = None) -> bool:
     """Synthesize ``text`` to ``output_mp3`` via Azure Speech. False on any failure."""
-    if not available():
+    if not available() or not _voice(lang):
         return False
     key, region = _key(), _region()
     try:

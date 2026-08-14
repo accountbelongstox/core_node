@@ -1,4 +1,4 @@
-import { BaseAPI } from '../../../../core/api-libs/laravel/transport/BaseAPI';
+import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
 import type { WordAudioStatus } from '../../../../core/contracts/wordAudio';
 

@@ -16,6 +16,8 @@
  */
 
 import { logger } from '@/utils/logger';
+import { waitForTabComplete } from '@/utils/tab-readiness';
+import { toErrorMessage } from '@/utils/errors';
 
 /** Hard ceiling on parallel Bing tabs (also enforced by the config sanitizer). */
 export const MAX_BING_TABS = 8;
@@ -29,7 +31,7 @@ export const MAX_BING_TABS = 8;
  * lookup healing, so the two can never diverge.
  */
 export function isRecoverableTabError(error: unknown): boolean {
-  const msg = error instanceof Error ? error.message : String(error);
+  const msg = toErrorMessage(error);
   return /No tab with id|Failed to inject content script|No frame with id|Frame with id|Could not establish connection|Receiving end does not exist|message channel closed|message port closed|cannot access|showing error page|chrome-error|ERR_[A-Z_]+/i.test(
     msg,
   );
@@ -182,7 +184,7 @@ export class BingTabPool {
       throw new Error('Failed to create replacement Bing tab');
     }
     this.tabIds.push(created.id);
-    await this.waitForComplete(created.id, 15000);
+    await waitForTabComplete(created.id, { timeoutMs: 15000 });
     return created.id;
   }
 
@@ -214,40 +216,6 @@ export class BingTabPool {
       if (await this.exists(id)) out.push(id);
     }
     return out;
-  }
-
-  /**
-   * Resolve once the tab reports status 'complete' (or after a hard timeout).
-   * Used so a freshly opened replacement is given time to finish loading before
-   * the worker drives it — a still-loading page must not be treated as broken.
-   */
-  private waitForComplete(tabId: number, timeoutMs: number): Promise<void> {
-    return new Promise((resolve) => {
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        try {
-          chrome.tabs.onUpdated.removeListener(onUpdated);
-        } catch {
-          // listener already gone
-        }
-        clearTimeout(timer);
-        resolve();
-      };
-      const onUpdated = (id: number, info: chrome.tabs.TabChangeInfo) => {
-        if (id === tabId && info.status === 'complete') finish();
-      };
-      const timer = setTimeout(finish, timeoutMs);
-      chrome.tabs.onUpdated.addListener(onUpdated);
-      // Maybe it's already complete.
-      chrome.tabs.get(tabId).then(
-        (tab) => {
-          if (tab.status === 'complete') finish();
-        },
-        () => finish(),
-      );
-    });
   }
 
   /**
@@ -395,7 +363,7 @@ export class BingTabPool {
       // executeScript throws on a non-scriptable chrome-error page / detached
       // frame — treat as an error tab; any other scripting hiccup is left as 'ok'
       // so a momentary glitch never closes a healthy tab.
-      const m = error instanceof Error ? error.message : String(error);
+      const m = toErrorMessage(error);
       if (/chrome-error|cannot access|showing error page|No tab with id|No frame/i.test(m)) {
         return 'error';
       }

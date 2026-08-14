@@ -13,7 +13,10 @@ One-directional dependency: imports only pyfoundations/third_party + ColorPrint.
 NEVER imports back into screenshot.py (avoids circular import within the window package).
 """
 
-from typing import Optional, Tuple
+import base64
+import time
+from io import BytesIO
+from typing import Any, Dict, List, Optional, Tuple
 
 from pycore.pyfoundations.third_party.api import get_third_package_PIL_Image, get_third_package_mss
 
@@ -21,6 +24,11 @@ mss = get_third_package_mss()
 Image = get_third_package_PIL_Image()
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+
+
+TERMINAL_CAPTURE_MAX_WIDTH = 640
+TERMINAL_CAPTURE_MAX_HEIGHT = 360
+TERMINAL_CAPTURE_PNG_COMPRESSION = 1
 
 
 def grab_fullscreen_pil():
@@ -77,6 +85,70 @@ def capture_screen_region(
     except Exception as e:
         ColorPrint.print_min_interval(f"[ERROR] capture_screen_region: {e}", "1min", "red")
         return None
+
+
+def capture_screen_regions_base64(
+    regions: List[Dict[str, Any]],
+) -> Dict[str, Dict[str, Any]]:
+    captures: Dict[str, Dict[str, Any]] = {}
+    captured_at = int(time.time() * 1000)
+    try:
+        with mss.mss() as screen_capture:
+            for region in regions:
+                region_id = str(region.get("id") or "")
+                left = int(region.get("left") or 0)
+                top = int(region.get("top") or 0)
+                width = int(region.get("width") or 0)
+                height = int(region.get("height") or 0)
+                if not region_id or width <= 0 or height <= 0:
+                    continue
+                try:
+                    screenshot = screen_capture.grab({
+                        "left": left,
+                        "top": top,
+                        "width": width,
+                        "height": height,
+                    })
+                    image = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+                    scale = min(
+                        1.0,
+                        TERMINAL_CAPTURE_MAX_WIDTH / width,
+                        TERMINAL_CAPTURE_MAX_HEIGHT / height,
+                    )
+                    if scale < 1.0:
+                        image = image.resize(
+                            (
+                                max(1, int(width * scale)),
+                                max(1, int(height * scale)),
+                            ),
+                            Image.Resampling.BILINEAR,
+                        )
+                    output = BytesIO()
+                    image.save(
+                        output,
+                        format="PNG",
+                        compress_level=TERMINAL_CAPTURE_PNG_COMPRESSION,
+                    )
+                    captures[region_id] = {
+                        "mime": "image/png",
+                        "content_base64": base64.b64encode(output.getvalue()).decode("ascii"),
+                        "width": image.width,
+                        "height": image.height,
+                        "captured_at": captured_at,
+                    }
+                except Exception as error:
+                    ColorPrint.print_min_interval(
+                        f"[TerminalCapture] Failed to capture {region_id}: {error}",
+                        "1min",
+                        "yellow",
+                    )
+    except Exception as error:
+        ColorPrint.print_min_interval(
+            f"[TerminalCapture] Native capture unavailable: {error}",
+            "1min",
+            "yellow",
+        )
+    return captures
 
 
 def get_primary_monitor_size() -> Optional[Tuple[int, int]]:

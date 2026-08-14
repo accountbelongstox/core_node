@@ -704,30 +704,62 @@ export const wfNewApiMock: WfNewApi = {
     });
   },
 
-  async bumpSentenceAudio(_contentId: string, _language: string) {
-    return delay({ success: true, priority: 1, error: undefined });
-  },
-
-  async bumpSentenceAudioBatch(items: Array<{ text: string; language: string }>) {
+  async moveSentenceAudioToHead(items: Array<{ text: string; language: string }>) {
     return delay({
       success: true,
-      queued: items.length,
+      queued: 0,
       total: items.length,
-      items: items.map((item) => ({ ...item, task_id: null })),
+      items: items.map((item) => ({
+        ...item,
+        success: true,
+        status: 'already_available',
+        task_id: null,
+      })),
       error: undefined,
     });
   },
 
-  async boostWordAudioPriority(_md5: string, _language: string) {
-    return delay({ success: true, priority: 1, error: undefined });
+  async getWordAudio(
+    language: string,
+    word: string,
+    opts: WfNewWordMediaOptions = {},
+  ): Promise<WfNewWordMedia> {
+    const key = `audio:${language}/${word}`;
+    const calls = (MOCK_WORD_MEDIA_CALLS.get(key) ?? 0) + 1;
+    MOCK_WORD_MEDIA_CALLS.set(key, calls);
+    const ready = calls > 1;
+    const accent: WfNewWordAccent = opts.accent === 'uk' ? 'uk' : 'us';
+    const audioUrl = ready
+      ? `https://example.test/mock-audio/${accent}/${encodeURIComponent(word)}.mp3`
+      : null;
+    return delay({
+      word,
+      md5: mockMd5(`${language}/${word}`),
+      language,
+      imageUrl: null,
+      audioUrl,
+      imageStatus: 'pending',
+      audioStatus: ready ? 'ready' : 'pending',
+      audioAccent: ready ? accent : null,
+      accentFallback: false,
+      audioVariants: [{ accent, url: audioUrl, status: ready ? 'ready' : 'pending' }],
+      translations: [],
+    });
   },
 
-  async prioritizeWordAudio(words: string[], _language: string) {
+  async moveWordAudioToHead(words: string[], _language: string) {
     return delay({
       success: true,
-      queued: words.length,
+      queued: 0,
       total: words.length,
-      results: words.map((content) => ({ content, language: _language, queue_task_id: null })),
+      results: words.map((content) => ({
+        content,
+        language: _language,
+        success: true,
+        status: 'already_available',
+        queue_task_id: null,
+        queue_position: null,
+      })),
       error: undefined,
     });
   },

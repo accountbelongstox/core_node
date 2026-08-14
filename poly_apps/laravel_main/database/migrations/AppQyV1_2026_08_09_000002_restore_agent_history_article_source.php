@@ -7,10 +7,13 @@ use App\Constants\AppKeys;
 use App\Models\GlobalTask;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\QueueCenter\QueueCenterService;
-use Illuminate\Database\Migrations\Migration;
+use App\Support\Migrations\TransactionalMigration;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration
+// TransactionalMigration: all-or-nothing per run (PG schema transactions), so
+// a mid-run failure rolls back and every retry starts from a clean,
+// fully-idempotent state instead of a half-rewritten articles table.
+return new class extends TransactionalMigration
 {
     protected $connection;
 
@@ -35,8 +38,11 @@ return new class extends Migration
             ->where('article_type', AppQyV1Article::TYPE_DAILY)
             ->where('is_daily_reading', true)
             ->where('user_id', 0)
-            ->whereRaw("metadata::jsonb ? 'raw_word_count'")
-            ->whereRaw("metadata::jsonb ? 'reference_lang'")
+            // whereJsonContainsKey (not a raw `?` jsonb operator): the PG
+            // grammar emits the escaped `??` form, so the operator cannot be
+            // mistaken for a positional binding ($n) during substitution.
+            ->whereJsonContainsKey('metadata->raw_word_count')
+            ->whereJsonContainsKey('metadata->reference_lang')
             ->update(['source' => AppQyV1Article::SOURCE_AGENT_HISTORY]);
 
         AppQyV1Article::query()

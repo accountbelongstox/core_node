@@ -59,9 +59,7 @@ class AppQyV1WordImageQueueController extends BaseController
         // is unchanged and no second task is created here.
         if ((bool) ($validated['interactive'] ?? false)) {
             $mediaService = new AppQyV1WordMediaService();
-            foreach ($validated['words'] as $w) {
-                $mediaService->ensureImageFastTask($w['word'], $w['language']);
-            }
+            $mediaService->ensureImageFastTasks($validated['words']);
         }
 
         if ($position === 'beginning') {

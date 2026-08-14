@@ -10,7 +10,8 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Model;
+use Illuminate\Support\Collection;
 use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
@@ -46,4 +47,27 @@ class PddToolV1PddAccountModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    public static function totalCount(): int
+    {
+        return static::query()->count();
+    }
+
+    public static function countForUser(int $userId): int
+    {
+        return static::query()->where('user_id', $userId)->count();
+    }
+
+    public static function forUser(int $userId): Collection
+    {
+        return static::query()->where('user_id', $userId)->orderBy('id')->get();
+    }
+
+    public static function findForUser(int $userId, string $pddUserId): ?self
+    {
+        return static::query()
+            ->where('user_id', $userId)
+            ->where('pdd_user_id', $pddUserId)
+            ->first();
+    }
 }

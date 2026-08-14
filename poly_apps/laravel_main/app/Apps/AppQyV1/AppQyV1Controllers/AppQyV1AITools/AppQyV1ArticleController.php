@@ -13,12 +13,10 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\Utils\AppQyV1ArticleTextParser;
-use App\Services\TaskManagerService;
 use App\Services\BookTextStatsService;
 use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
@@ -28,13 +26,12 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use Illuminate\Support\Facades\Log;
 
 class AppQyV1ArticleController
 {
     use ApiResponse;
-
-    protected $taskManager;
 
     protected BookTextStatsService $stats;
 
@@ -42,16 +39,18 @@ class AppQyV1ArticleController
 
     protected AppQyV1DailyReadingService $dailyReadingService;
 
+    protected AppQyV1ArticleSentenceAudioService $articleAudioService;
+
     public function __construct(
-        TaskManagerService $taskManager,
         BookTextStatsService $stats,
         MediaIngestService $ingestService,
-        AppQyV1DailyReadingService $dailyReadingService
+        AppQyV1DailyReadingService $dailyReadingService,
+        AppQyV1ArticleSentenceAudioService $articleAudioService
     ) {
-        $this->taskManager = $taskManager;
         $this->stats = $stats;
         $this->ingestService = $ingestService;
         $this->dailyReadingService = $dailyReadingService;
+        $this->articleAudioService = $articleAudioService;
     }
 
     /**
@@ -131,7 +130,7 @@ class AppQyV1ArticleController
         $userId = $request->user()->id;
 
         $article = null;
-        $task = null;
+        $taskId = null;
 
         try {
         AppQyV1Article::runInTransaction(function () use (
@@ -145,7 +144,7 @@ class AppQyV1ArticleController
                 $generateWordAudio,
                 &$article
             ) {
-                $article = AppQyV1Article::create([
+                $article = AppQyV1Article::createRecord([
                     'article_id' => $articleId,
                     'user_id' => $userId,
                     'title' => $request->input('title'),
@@ -183,46 +182,12 @@ class AppQyV1ArticleController
             $this->mapArticleToLibrary($articleId, $articleText, $language);
 
             if ($generateSentenceAudio || $generateWordAudio) {
-                $timeoutSeconds = 120 + (count($parsedResult['sentences']) * 5) + (count($parsedResult['words']) * 2);
-                if ($timeoutSeconds > 3600) {
-                    $timeoutSeconds = 3600;
+                $queueResult = $this->articleAudioService->enqueueArticle($article);
+                if (!($queueResult['ok'] ?? false) || empty($queueResult['task_id'])) {
+                    throw new \RuntimeException('Queue Center article audio enqueue failed');
                 }
-
-                $task = $this->taskManager->createTask(
-                    'AppQyV1',
-                    'article_tts_generation',
-                    GlobalTask::executionType('local_timer'),
-                    [
-                        'article_id' => $articleId,
-                        'language' => $language,
-                        'generate_sentence_audio' => $generateSentenceAudio,
-                        'generate_word_audio' => $generateWordAudio,
-                    ],
-                    $timeoutSeconds,
-                    50,
-                    3
-                );
-
-                $article->update(['task_id' => $task->task_id]);
-
-                $cacheKey = "article_task:{$task->task_id}";
-                Cache::put($cacheKey, [
-                    'article_id' => $articleId,
-                    'user_id' => $userId,
-                    'article_text' => $articleText,
-                    'language' => $language,
-                    'sentences' => $parsedResult['sentences'],
-                    'sentences_with_md5' => $parsedResult['sentences_with_md5'],
-                    'words' => $parsedResult['words'],
-                    'word_frequency' => $parsedResult['word_frequency'],
-                    'total_sentences' => $parsedResult['total_sentences'],
-                    'total_words' => $parsedResult['total_words'],
-                    'unique_words' => $parsedResult['unique_words'],
-                    'generate_sentence_audio' => $generateSentenceAudio,
-                    'generate_word_audio' => $generateWordAudio,
-                    'sentence_audio_urls' => [],
-                    'word_audio_urls' => [],
-                ], 3600);
+                $taskId = (string) $queueResult['task_id'];
+                $article->updateRecord(['task_id' => $taskId]);
             }
 
             $sentencesData = array_map(function($sentence) {
@@ -244,8 +209,8 @@ class AppQyV1ArticleController
 
             return $this->success([
                 'article_id' => $articleId,
-                'task_id' => $task ? $task->task_id : null,
-                'tts_status' => $task ? 'processing' : 'not_requested',
+                'task_id' => $taskId,
+                'tts_status' => $taskId !== null ? 'pending' : 'not_requested',
                 'article' => [
                     'title' => $article->title,
                     'language' => $language,
@@ -275,41 +240,34 @@ class AppQyV1ArticleController
      *         "task_id": "uuid",
      *         "status": "completed|processing|pending|failed",
      *         "progress": 75.5,
-     *         "article_data": {
-     *             "article_text": "...",
-     *             "sentences": [...],
-     *             "words": [...],
-     *             "sentence_audio_urls": [...],
-     *             "word_audio_urls": [...]
-     *         }
+     *         "article_id": "article_uuid",
+     *         "audio_url": "/static/app_qy_v1/audio/..."
      *     }
      * }
      */
     public function getTaskStatus(string $taskId): JsonResponse
     {
-        $task = GlobalTask::where('task_id', $taskId)->first();
+        $task = GlobalTask::findByTaskId($taskId);
 
         if (!$task) {
             return $this->notFound('Task not found');
         }
 
-        $cacheKey = "article_task:{$taskId}";
-        $articleData = Cache::get($cacheKey);
-
-        $article = null;
-        if (!$articleData) {
-            $article = AppQyV1Article::where('task_id', $taskId)->first();
-            if (!$article) {
-                return $this->error('Article data not found', 404);
-            }
+        $article = AppQyV1Article::findByTaskId($taskId);
+        if (!$article) {
+            return $this->error('Article data not found', 404);
         }
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
 
         $responseData = [
             'task_id' => $task->task_id,
-            'article_id' => $task->result['article_id'] ?? ($articleData['article_id'] ?? $article?->article_id),
+            'article_id' => $task->payload['article_id'] ?? $article->article_id,
             'status' => $task->status,
             'progress' => $task->progress,
             'error' => null,
+            'total_sentences' => (int) $article->sentence_count,
+            'total_words' => (int) $article->word_count,
+            'unique_words' => (int) $article->unique_word_count,
         ];
 
         if ($task->error) {
@@ -317,33 +275,7 @@ class AppQyV1ArticleController
         }
 
         if ($task->status === GlobalTask::status('completed')) {
-            if ($articleData) {
-                $responseData['sentences'] = array_map(function($item) {
-                    return [
-                        'text' => $item['sentence'],
-                        'audio_url' => $item['audio_url'],
-                        'status' => 'completed',
-                    ];
-                }, $articleData['sentence_audio_urls'] ?? []);
-
-                $responseData['words'] = array_map(function($item) {
-                    return [
-                        'word' => $item['word'],
-                        'audio_url' => $item['audio_url'],
-                        'status' => 'completed',
-                    ];
-                }, $articleData['word_audio_urls'] ?? []);
-            } else {
-                $responseData['sentences'] = [];
-                $responseData['words'] = [];
-                $responseData['note'] = 'TTS data cached expired, query article directly for audio URLs';
-            }
-        } else {
-            if ($articleData) {
-                $responseData['total_sentences'] = $articleData['total_sentences'];
-                $responseData['total_words'] = $articleData['total_words'];
-                $responseData['unique_words'] = $articleData['unique_words'];
-            }
+            $responseData['audio_url'] = $metadata['audio_url'] ?? null;
         }
 
         return $this->success($responseData, 'Task status retrieved successfully');
@@ -423,26 +355,24 @@ class AppQyV1ArticleController
     {
         $articleId = $request->input('article_id');
 
-        $query = AppQyV1Article::query();
-        if (is_string($articleId) && $articleId !== '') {
-            $query->where('article_id', $articleId);
-        }
-
         $mapped = 0;
         $failed = 0;
-        $query->orderBy('id')->chunkById(200, function ($articles) use (&$mapped, &$failed) {
-            foreach ($articles as $article) {
-                $content = (string) $article->content;
-                if (trim($content) === '') {
-                    continue;
-                }
-                if ($this->mapArticleToLibrary((string) $article->article_id, $content, (string) $article->language)) {
-                    $mapped++;
-                } else {
-                    $failed++;
+        AppQyV1Article::chunkForLibraryBackfill(
+            is_string($articleId) ? $articleId : null,
+            function ($articles) use (&$mapped, &$failed): void {
+                foreach ($articles as $article) {
+                    $content = (string) $article->content;
+                    if (trim($content) === '') {
+                        continue;
+                    }
+                    if ($this->mapArticleToLibrary((string) $article->article_id, $content, (string) $article->language)) {
+                        $mapped++;
+                    } else {
+                        $failed++;
+                    }
                 }
             }
-        });
+        );
 
         return $this->success([
             'mapped' => $mapped,
@@ -688,7 +618,7 @@ class AppQyV1ArticleController
                 throw new \RuntimeException('Agent history article audio could not be stored.');
             }
 
-            $article = AppQyV1Article::create([
+            $article = AppQyV1Article::createRecord([
                 'article_id' => $articleId,
                 'user_id' => 0,
                 'title' => $titleEn,
@@ -761,7 +691,6 @@ class AppQyV1ArticleController
                 'title' => $article->title,
                 'article_type' => $articleType,
                 'source' => $source,
-                'sentence_bumps' => 0,
             ], 'Agent history article stored');
         } catch (\Throwable $e) {
             return $this->error('Failed to store worker article: ' . $e->getMessage(), 500);

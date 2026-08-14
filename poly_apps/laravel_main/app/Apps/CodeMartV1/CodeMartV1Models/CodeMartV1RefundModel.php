@@ -2,7 +2,8 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Constants\AppKeys;
+use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CodeMartV1RefundModel extends Model
@@ -29,6 +30,16 @@ class CodeMartV1RefundModel extends Model
     public function payment(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1PaymentModel::class, 'payment_id');
+    }
+
+    public static function createRecord(array $attributes): self
+    {
+        return static::query()->create($attributes);
+    }
+
+    public static function findById(int $refundId): ?self
+    {
+        return static::query()->find($refundId);
     }
 
     public function approve(): bool
@@ -62,7 +73,7 @@ class CodeMartV1RefundModel extends Model
             'processed_at' => now(),
         ]);
 
-        $payerWallet = CodeMartV1WalletModel::where('user_id', $this->payment->payer_id)->first();
+        $payerWallet = CodeMartV1WalletModel::forUser((int) $this->payment->payer_id);
         if ($payerWallet) {
             $payerWallet->deposit($this->amount->toFloat(), "Refund for payment {$this->payment_id}");
         }

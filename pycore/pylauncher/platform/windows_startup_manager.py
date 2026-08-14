@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 r"""
-Launcher Windows startup manager using PS1 and native shortcuts.
+Launcher Windows startup manager using pythonw, PS1, and native shortcuts.
 
 Two-part design:
 
@@ -10,24 +10,21 @@ Two-part design:
      the repo's canonical entry point ``pyservice.ps1 -NoInstall`` so boot starts
      the SAME stack as a manual run: the unified dashboard UI dev server
      (poly_apps/pycore_laravel_wordnew_ui, exported as PYCORE_UI_URL) and then the pycore
-     worker. Launching the bare worker directly is kept only as a fallback when
-     pyservice.ps1 cannot be found (it would skip the UI server, leaving the
-     PySide6 webview with nothing to load -> ERR_CONNECTION_REFUSED). The script
-     CONTENT is regenerated on every ``enable()`` AND on every service start
-     (``refresh()``) so config/entry-point changes are picked up without touching
-     the shortcut.
+     worker. The script CONTENT is regenerated on every ``enable()`` AND on every
+     service start (``refresh()``) so config/entry-point changes are picked up.
 
   2. A **shortcut (.lnk)** in the **common (All Users) Startup folder**
      (``%PROGRAMDATA%\Microsoft\Windows\Start Menu\Programs\Startup``) that points
-     at PowerShell running that fixed .ps1. Created with the native Windows shell
-     (WScript.Shell COM via pywin32, PowerShell fallback) - NOT Qt/PySide6. If the
-     common folder isn't writable (no admin), it falls back to the per-user Startup
-     folder. "Enabled?" is answered purely by whether the shortcut exists.
+     at the full path to ``pythonw.exe``. The windowless Python process runs a fixed
+     bridge with full-path arguments for PowerShell, the generated PS1, and the repo
+     working directory. Created with the native Windows shell (WScript.Shell COM via
+     pywin32, PowerShell fallback) - NOT Qt/PySide6. If the common folder isn't
+     writable (no admin), it falls back to the per-user Startup folder. "Enabled?"
+     is answered purely by whether the shortcut exists.
 """
 
 import os
 import sys
-import shutil
 import subprocess
 from pathlib import Path
 from typing import List
@@ -42,8 +39,55 @@ from pycore.pylauncher.platform.autostart_target import (
     write_preference,
 )
 
-from pycore.pyfoundations.third_party.api import get_third_package_pythoncom
+from pycore.pyfoundations.third_party.api import (
+    get_third_package_pythoncom,
+    get_third_package_win32com_client,
+)
 
+
+CORE_NODE_ROOT_PATH = Path(__file__).resolve().parents[3]
+PYCORE_MODULE_CALLER_PATH = CORE_NODE_ROOT_PATH / "pycore" / "pycore_module_caller.py"
+PYSERVICE_SCRIPT_PATH = CORE_NODE_ROOT_PATH / "pyservice.ps1"
+WINDOWS_STARTUP_RUNNER_PATH = Path(__file__).resolve().with_name(
+    "windows_startup_runner.py"
+)
+PYTHON_EXE_PATH = Path(sys.executable).resolve()
+PYTHONW_EXE_PATH = PYTHON_EXE_PATH.with_name("pythonw.exe")
+SYSTEM_ROOT_PATH = Path(os.environ.get("SystemRoot", r"C:\Windows")).resolve()
+POWERSHELL_EXE_PATH = (
+    SYSTEM_ROOT_PATH
+    / "System32"
+    / "WindowsPowerShell"
+    / "v1.0"
+    / "powershell.exe"
+).resolve()
+PROGRAM_DATA_PATH = Path(
+    os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+).resolve()
+USER_PROFILE_PATH = Path(
+    os.environ.get("USERPROFILE") or Path.home()
+).resolve()
+ROAMING_APP_DATA_PATH = Path(
+    os.environ.get("APPDATA")
+    or USER_PROFILE_PATH / "AppData" / "Roaming"
+).resolve()
+COMMON_STARTUP_PATH = (
+    PROGRAM_DATA_PATH
+    / "Microsoft"
+    / "Windows"
+    / "Start Menu"
+    / "Programs"
+    / "Startup"
+).resolve()
+USER_STARTUP_PATH = (
+    ROAMING_APP_DATA_PATH
+    / "Microsoft"
+    / "Windows"
+    / "Start Menu"
+    / "Programs"
+    / "Startup"
+).resolve()
+AUTOSTART_DATA_PATH = (get_app_data_dir() / "autostart").resolve()
 
 
 def _ps_single_quote(value: str) -> str:
@@ -62,67 +106,22 @@ class WindowsStartupManager:
         self.target = normalize_target(
             target if target is not None else read_preference()["target"])
 
-        # Common (All Users) Startup folder - preferred, system-wide location.
-        program_data = os.environ.get('PROGRAMDATA', r'C:\ProgramData')
-        self.common_startup = (Path(program_data) / 'Microsoft' / 'Windows'
-                               / 'Start Menu' / 'Programs' / 'Startup')
-        # Per-user Startup folder - fallback when the common folder isn't writable.
-        # APPDATA can be empty under a stripped service env; fall back to an ABSOLUTE
-        # path (USERPROFILE\AppData\Roaming, else the home dir) so we never build a
-        # RELATIVE 'Microsoft\Windows\...' path that mkdir(parents=True) would create
-        # as a stray directory under the current working directory.
-        appdata = os.environ.get('APPDATA') or str(
-            Path(os.environ.get('USERPROFILE') or Path.home()) / 'AppData' / 'Roaming')
-        self.user_startup = (Path(appdata) / 'Microsoft' / 'Windows'
-                             / 'Start Menu' / 'Programs' / 'Startup')
+        self.common_startup = COMMON_STARTUP_PATH
+        self.user_startup = USER_STARTUP_PATH
 
         self.common_shortcut = self.common_startup / self.shortcut_name
         self.user_shortcut = self.user_startup / self.shortcut_name
 
         # Fixed-location PowerShell launcher script (content regenerated each enable).
-        self.script_dir = get_app_data_dir() / "autostart"
+        self.script_dir = AUTOSTART_DATA_PATH
         self.ps1_path = self.script_dir / f"{app_name}.ps1"
 
-        # What the .ps1 launches: the full-stack entry point pyservice.ps1
-        # (UI dev server + worker); pythonw.exe + the bare worker is the fallback.
-        self.python_exe = sys.executable
-        self.pythonw_exe = self._get_pythonw_path()
-        self.launcher_script = self._get_launcher_path()
-        self.pyservice_script = self._get_pyservice_path()
-        self.powershell_exe = self._resolve_powershell()
-
-    # ----- path resolution ------------------------------------------------- #
-    def _get_pythonw_path(self) -> Path:
-        """pythonw.exe next to python.exe (falls back to python.exe)."""
-        pythonw = Path(self.python_exe).parent / "pythonw.exe"
-        return pythonw if pythonw.exists() else Path(self.python_exe)
-
-    def _get_launcher_path(self) -> Path:
-        """Locate pycore_module_caller.py (source tree or installed)."""
-        current_file = Path(__file__)
-        # .../pycore/callmodule/platform/windows_startup_manager.py -> pycore/ is 3 up.
-        pycore_dir = current_file.parent.parent.parent
-        for path in (
-            pycore_dir / "pycore_module_caller.py",                                 # pycore/ (canonical)
-            pycore_dir.parent / "pycore_module_caller.py",                          # repo root (fallback)
-            Path(sys.executable).parent / "Scripts" / "pycore_module_caller.py",    # installed
-        ):
-            if path.exists():
-                return path
-        return pycore_dir / "pycore_module_caller.py"
-
-    def _get_pyservice_path(self) -> Path:
-        """Locate pyservice.ps1, the canonical full-stack entry point (repo root)."""
-        # .../pycore/callmodule/platform/windows_startup_manager.py -> repo root is 4 up.
-        return Path(__file__).resolve().parents[3] / "pyservice.ps1"
-
-    def _resolve_powershell(self) -> str:
-        """Absolute path to powershell.exe (or pwsh), with a System32 fallback."""
-        exe = shutil.which("powershell") or shutil.which("pwsh")
-        if exe:
-            return exe
-        sysroot = os.environ.get("SystemRoot", r"C:\Windows")
-        return str(Path(sysroot) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe")
+        self.python_exe = PYTHON_EXE_PATH
+        self.pythonw_exe = PYTHONW_EXE_PATH
+        self.launcher_script = PYCORE_MODULE_CALLER_PATH
+        self.pyservice_script = PYSERVICE_SCRIPT_PATH
+        self.startup_runner = WINDOWS_STARTUP_RUNNER_PATH
+        self.powershell_exe = POWERSHELL_EXE_PATH
 
     def _shortcut_paths(self) -> List[Path]:
         """All locations a shortcut may live (common first)."""
@@ -130,27 +129,12 @@ class WindowsStartupManager:
 
     # ----- PS1 launcher script -------------------------------------------- #
     def _pyservice_ps1(self) -> str:
-        """PowerShell lines that start the full pycore RPC stack (inline).
-
-        Prefers pyservice.ps1 (UI dev server + worker, invoked inline with & so
-        this hidden PowerShell stays the service host); falls back to launching
-        the bare worker (pythonw + pycore_module_caller.py) when pyservice.ps1
-        cannot be found.
-        """
-        if self.pyservice_script.exists():
-            script = _ps_single_quote(str(self.pyservice_script))
-            workdir = _ps_single_quote(str(self.pyservice_script.parent))
-            return (
-                f"Set-Location -LiteralPath {workdir}\n"
-                f"& {script} -NoInstall\n"
-            )
-        pythonw = _ps_single_quote(str(self.pythonw_exe))
-        workdir = _ps_single_quote(str(self.launcher_script.parent))
-        # ArgumentList: a single-quoted PS string containing the double-quoted .py path.
-        arglist = "'" + '"' + str(self.launcher_script).replace("'", "''") + '"' + "'"
+        """PowerShell lines that start the full pycore RPC stack inline."""
+        script = _ps_single_quote(str(self.pyservice_script))
+        workdir = _ps_single_quote(str(self.pyservice_script.parent))
         return (
-            f"Start-Process -FilePath {pythonw} -ArgumentList {arglist} "
-            f"-WorkingDirectory {workdir} -WindowStyle Hidden\n"
+            f"Set-Location -LiteralPath {workdir}\n"
+            f"& {script} -NoInstall\n"
         )
 
     def _launcher_ps1(self, inline: bool = True) -> str:
@@ -186,8 +170,9 @@ class WindowsStartupManager:
         elif self.target == "both":
             # Start pyservice detached, then run the launcher inline (foreground).
             pyservice_inline = self._pyservice_ps1()
+            powershell = _ps_single_quote(str(self.powershell_exe))
             body += (
-                "Start-Process -FilePath powershell -ArgumentList "
+                f"Start-Process -FilePath {powershell} -ArgumentList "
                 "'-NoProfile','-WindowStyle','Hidden','-Command',"
                 + _ps_single_quote(pyservice_inline)
                 + "\n"
@@ -205,30 +190,35 @@ class WindowsStartupManager:
 
     # ----- native shortcut creation --------------------------------------- #
     def _shortcut_arguments(self) -> str:
-        """powershell.exe arguments that run the fixed .ps1 hidden."""
-        return (f'-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden '
-                f'-File "{self.ps1_path}"')
+        """Full-path arguments for the windowless Python startup bridge."""
+        return (
+            f'"{self.startup_runner}" '
+            f'"{self.powershell_exe}" '
+            f'"{self.ps1_path}" '
+            f'"{self.pyservice_script.parent}"'
+        )
 
     def _create_shortcut(self, lnk_path: Path) -> bool:
-        """Create the .lnk (pointing at powershell + the .ps1) with the native shell."""
+        """Create the .lnk pointing at pythonw and the full-path startup bridge."""
         # Guard: refuse a relative target so a missing env var (e.g. empty APPDATA)
         # can never make mkdir(parents=True) materialize a stray 'Microsoft\Windows\...'
         # tree under the current working directory.
         if not lnk_path.is_absolute():
             return False
         lnk_path.parent.mkdir(parents=True, exist_ok=True)
-        target = str(self.powershell_exe)
+        target = str(self.pythonw_exe)
         arguments = self._shortcut_arguments()
-        workdir = str(self.launcher_script.parent)
+        workdir = str(self.pyservice_script.parent)
 
         # Primary: WScript.Shell COM via pywin32 (the canonical native way).
         try:
             pythoncom = get_third_package_pythoncom()
+            win32com_client = get_third_package_win32com_client()
             try:
                 pythoncom.CoInitialize()
             except Exception:
                 pass
-            shell = Dispatch('WScript.Shell')
+            shell = win32com_client.Dispatch('WScript.Shell')
             sc = shell.CreateShortcut(str(lnk_path))
             sc.TargetPath = target
             sc.Arguments = arguments
@@ -321,18 +311,18 @@ class WindowsStartupManager:
         return self.disable() if self.is_enabled() else self.enable()
 
     def refresh(self) -> bool:
-        """If enabled, rewrite the fixed launcher .ps1 in place (self-heal).
+        """If enabled, rewrite the launcher and recreate existing shortcuts.
 
         Called on every service start so launchers written by an OLDER version
-        (bare worker, no UI server) are upgraded to the current entry point
-        without the user having to toggle auto-start off and on. The shortcut
-        points at the fixed .ps1 path, so only the file content needs refreshing.
+        are upgraded to the current full-path pythonw entry without the user
+        having to toggle auto-start off and on.
         """
-        if not self.is_enabled():
+        shortcut_paths = [path for path in self._shortcut_paths() if path.exists()]
+        if not shortcut_paths:
             return False
         try:
             self._write_ps1()
-            return True
+            return all(self._create_shortcut(path) for path in shortcut_paths)
         except Exception:
             return False
 
@@ -353,6 +343,9 @@ class WindowsStartupManager:
             "user_shortcut": str(self.user_shortcut),
             "script_path": str(self.ps1_path),
             "script_exists": self.ps1_path.exists(),
+            "pythonw": str(self.pythonw_exe),
+            "startup_runner": str(self.startup_runner),
+            "powershell": str(self.powershell_exe),
             "entry_point": str(self.pyservice_script),
             "entry_exists": self.pyservice_script.exists(),
             "launcher_script": str(self.launcher_script),

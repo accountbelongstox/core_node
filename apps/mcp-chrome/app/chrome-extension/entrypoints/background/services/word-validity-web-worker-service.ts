@@ -25,13 +25,11 @@ import { Task, WorkerCapability, ProcessorType } from '../api/WorkerApiClient';
 import { SimpleWorkerBase } from './task-center/SimpleWorkerBase';
 import { LANES } from '@/utils/task-center-lanes';
 import { TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
-import type { ClassifierWord } from './word-validity/word-validity-classifier';
 import { runWordValidityClassification } from './word-validity/word-validity-web-runtime';
 import { logger } from '@/utils/logger';
+import { normalizeWords } from '@/utils/task-words';
 
 const LOG = 'Word-Validity Web';
-
-type NormalizedWord = ClassifierWord;
 
 class WordValidityWebWorkerService extends SimpleWorkerBase {
   protected get processorKey(): string {
@@ -65,7 +63,7 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
   }
 
   protected async executeTask(task: Task): Promise<void> {
-    const words = this.normalizeWords((task.payload as any)?.words);
+    const words = normalizeWords((task.payload as any)?.words);
     if (words.length === 0) {
       await this.submitResult(task.task_id, 'failed', undefined, { error: 'no words in payload' });
       return;
@@ -107,21 +105,6 @@ class WordValidityWebWorkerService extends SimpleWorkerBase {
     );
   }
 
-  /** Payload words may be plain strings or {word, md5, ...} objects. */
-  private normalizeWords(raw: unknown): NormalizedWord[] {
-    if (!Array.isArray(raw)) return [];
-    const out: NormalizedWord[] = [];
-    for (const item of raw as any[]) {
-      if (typeof item === 'string') {
-        const word = item.trim();
-        if (word) out.push({ word });
-      } else if (item && typeof item.word === 'string') {
-        const word = item.word.trim();
-        if (word) out.push({ word, md5: item.md5 });
-      }
-    }
-    return out;
-  }
 }
 
 // Singleton instance.

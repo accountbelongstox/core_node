@@ -87,9 +87,7 @@ class DingDuoDuoV1LicenseController extends BaseController
     {
         $memberId = null;
         if (($license['mode'] ?? null) === DingDuoDuoV1LicenseMode::Member->value) {
-            $member = DingDuoDuoV1MemberModel::query()
-                ->where('token', $license['token'] ?? '')
-                ->first();
+            $member = DingDuoDuoV1MemberModel::byToken((string) ($license['token'] ?? ''));
             $memberId = $member ? (int) $member->id : null;
         }
 

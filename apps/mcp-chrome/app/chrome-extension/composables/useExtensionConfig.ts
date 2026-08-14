@@ -6,10 +6,11 @@ import {
   type FeatureState,
 } from '@/common/feature-registry';
 import { localStorage } from '@/services/ExtensionStorage';
+import { InitializationController } from '@/utils/async';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 
 const extensions: Ref<FeatureConfig[]> = ref([]);
-let initialization: Promise<void> | null = null;
+const initialization = new InitializationController<void>();
 let persistedSnapshot = '';
 let storageSyncReady = false;
 
@@ -63,11 +64,10 @@ async function initializeState(): Promise<void> {
 
 export function useExtensionConfig() {
   const initialize = async () => {
-    initialization ??= initializeState().catch((error) => {
+    await initialization.run(() => initializeState().catch((error) => {
       extensions.value = createDefaults();
       console.error('[ExtensionConfig] Initialization failed:', error);
-    });
-    await initialization;
+    }));
   };
 
   const getExtension = (id: FeatureId) => extensions.value.find((feature) => feature.id === id);

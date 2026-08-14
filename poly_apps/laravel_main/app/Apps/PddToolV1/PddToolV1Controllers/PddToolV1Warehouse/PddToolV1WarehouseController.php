@@ -34,10 +34,7 @@ class PddToolV1WarehouseController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $rows = PddToolV1WarehouseModel::query()
-            ->where('user_id', $user->id)
-            ->orderBy('id')
-            ->get();
+        $rows = PddToolV1WarehouseModel::forUser((int) $user->id);
 
         return response()->json($rows->map(fn ($w) => PddToolV1Presenter::warehouse($w))->all());
     }
@@ -57,16 +54,13 @@ class PddToolV1WarehouseController extends BaseController
             $code = 'WH' . strtoupper(Str::random(10));
         }
 
-        $existing = PddToolV1WarehouseModel::query()
-            ->where('user_id', $user->id)
-            ->where('warehouse_code', $code)
-            ->first();
+        $existing = PddToolV1WarehouseModel::findForUser((int) $user->id, $code);
 
         $warehouse = $existing ?: new PddToolV1WarehouseModel();
         $warehouse->user_id = $user->id;
         $warehouse->warehouse_code = $code;
         $this->fillFromRequest($warehouse, $request);
-        $warehouse->save();
+        $warehouse->saveRecord();
 
         return response()->json(PddToolV1Presenter::warehouse($warehouse));
     }
@@ -81,17 +75,14 @@ class PddToolV1WarehouseController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $warehouse = PddToolV1WarehouseModel::query()
-            ->where('user_id', $user->id)
-            ->where('warehouse_code', $warehouseCode)
-            ->first();
+        $warehouse = PddToolV1WarehouseModel::findForUser((int) $user->id, $warehouseCode);
 
         if (!$warehouse) {
             return response()->json(['detail' => 'Warehouse not found'], 404);
         }
 
         $this->fillFromRequest($warehouse, $request);
-        $warehouse->save();
+        $warehouse->saveRecord();
 
         return response()->json(PddToolV1Presenter::warehouse($warehouse));
     }
@@ -106,10 +97,7 @@ class PddToolV1WarehouseController extends BaseController
             return response()->json(['detail' => 'Could not validate credentials'], 401);
         }
 
-        $deleted = PddToolV1WarehouseModel::query()
-            ->where('user_id', $user->id)
-            ->where('warehouse_code', $warehouseCode)
-            ->delete();
+        $deleted = PddToolV1WarehouseModel::deleteForUser((int) $user->id, $warehouseCode);
 
         if (!$deleted) {
             return response()->json(['detail' => 'Warehouse not found'], 404);

@@ -27,7 +27,7 @@ import {
   Languages, BookOpen, RefreshCw, GraduationCap, Flame, CalendarCheck,
   Target, Sparkles, Save, TrendingUp, Layers,
 } from 'lucide-react';
-import { ElementTheme } from '../WfNewTypes';
+import type { ElementTheme } from '../WfNewThemes';
 import { getLanguageConfig } from '../WfNewLocales';
 import { WfNewLanguagePanel } from './WfNewLanguagePanel';
 import { wfNewSettings } from '../WfNewSettingsStore';

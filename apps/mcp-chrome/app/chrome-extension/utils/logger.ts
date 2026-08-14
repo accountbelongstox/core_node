@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from './storage-keys';
+import { TimeoutController } from './async';
 
 /**
  * Global logger (extension-wide).
@@ -41,7 +42,7 @@ type LogListener = (entries: LogEntry[]) => void;
 class GlobalLogger {
   private entries: LogEntry[] = [];
   private loaded = false;
-  private persistTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly persistTimeout = new TimeoutController();
   /** Same-context live subscribers (e.g. a panel rendering in this context). */
   private listeners = new Set<LogListener>();
 
@@ -156,9 +157,7 @@ class GlobalLogger {
 
   private schedulePersist(): void {
     if (!this.hasStorage()) return;
-    if (this.persistTimer) return;
-    this.persistTimer = setTimeout(() => {
-      this.persistTimer = null;
+    this.persistTimeout.schedule(() => {
       this.flush();
     }, PERSIST_DEBOUNCE_MS);
   }
