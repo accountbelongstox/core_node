@@ -1,0 +1,144 @@
+ curl -L "https://downloads.openwrt.org/releases/24.10.0/targets/qualcommax/ipq807x/openwrt-24.10.0-qualcommax-ip
+q807x-linksys_mx4200v1-squashfs-factory.bin" | mtd write - kernel
+
+
+composer global require laravel/installer
+Changed current directory to C:/Users/mpc/AppData/Roaming/Composer
+./composer.json has been created
+Running composer update laravel/installer
+Loading composer repositories with package information
+Updating dependencies
+Lock file operations: 33 installs, 0 updates, 0 removals
+  - Locking carbonphp/carbon-doctrine-types (3.2.0)
+  - Locking doctrine/inflector (2.1.0)
+  - Locking illuminate/collections (v13.25.0)
+  - Locking illuminate/conditionable (v13.25.0)
+  - Locking illuminate/contracts (v13.25.0)
+  - Locking illuminate/filesystem (v13.25.0)
+  - Locking illuminate/macroable (v13.25.0)
+  - Locking illuminate/reflection (v13.25.0)
+  - Locking illuminate/support (v13.25.0)
+  - Locking laravel/agent-detector (v2.0.2)
+  - Locking laravel/installer (v5.31.1)
+  - Locking laravel/prompts (v0.3.22)
+  - Locking nesbot/carbon (3.13.2)
+  - Locking psr/clock (1.0.0)
+  - Locking psr/container (2.0.2)
+  - Locking psr/simple-cache (3.0.0)
+  - Locking symfony/clock (v8.1.0)
+  - Locking symfony/console (v8.1.4)
+  - Locking symfony/deprecation-contracts (v3.7.1)
+  - Locking symfony/finder (v8.1.1)
+  - Locking symfony/polyfill-ctype (v1.37.0)
+  - Locking symfony/polyfill-intl-grapheme (v1.41.0)
+  - Locking symfony/polyfill-intl-normalizer (v1.38.0)
+  - Locking symfony/polyfill-mbstring (v1.38.2)
+  - Locking symfony/polyfill-php84 (v1.38.1)
+  - Locking symfony/polyfill-php85 (v1.41.0)
+  - Locking symfony/polyfill-php86 (v1.41.0)
+  - Locking symfony/process (v8.1.0)
+  - Locking symfony/service-contracts (v3.7.1)
+  - Locking symfony/string (v8.1.2)
+  - Locking symfony/translation (v8.1.4)
+  - Locking symfony/translation-contracts (v3.7.1)
+  - Locking voku/portable-ascii (2.1.1)
+Writing lock file
+Installing dependencies from lock file (including require-dev)
+Package operations: 33 installs, 0 updates, 0 removals
+  - Downloading doctrine/inflector (2.1.0)
+  - Downloading illuminate/conditionable (v13.25.0)
+  - Downloading illuminate/macroable (v13.25.0)
+  - Downloading psr/simple-cache (3.0.0)
+  - Downloading psr/container (2.0.2)
+  - Downloading illuminate/contracts (v13.25.0)
+  - Downloading symfony/polyfill-php86 (v1.41.0)
+  - Downloading symfony/polyfill-php85 (v1.41.0)
+  - Downloading symfony/polyfill-php84 (v1.38.1)
+  - Downloading illuminate/collections (v13.25.0)
+  - Downloading illuminate/reflection (v13.25.0)
+  - Downloading symfony/process (v8.1.0)
+  - Downloading symfony/polyfill-mbstring (v1.38.2)
+  - Downloading symfony/polyfill-intl-normalizer (v1.38.0)
+  - Downloading symfony/polyfill-intl-grapheme (v1.41.0)
+  - Downloading symfony/polyfill-ctype (v1.37.0)
+  - Downloading symfony/string (v8.1.2)
+  - Downloading symfony/deprecation-contracts (v3.7.1)
+  - Downloading symfony/service-contracts (v3.7.1)
+  - Downloading symfony/console (v8.1.4)
+  - Downloading laravel/prompts (v0.3.22)
+  - Downloading laravel/agent-detector (v2.0.2)
+  - Downloading voku/portable-ascii (2.1.1)
+  - Downloading symfony/translation-contracts (v3.7.1)
+  - Downloading symfony/translation (v8.1.4)
+  - Downloading psr/clock (1.0.0)
+  - Downloading symfony/clock (v8.1.0)
+  - Downloading carbonphp/carbon-doctrine-types (3.2.0)
+  - Downloading nesbot/carbon (3.13.2)
+  - Downloading illuminate/support (v13.25.0)
+  - Downloading symfony/finder (v8.1.1)
+  - Downloading illuminate/filesystem (v13.25.0)
+  - Downloading laravel/installer (v5.31.1)
+  - Installing doctrine/inflector (2.1.0): Extracting archive
+  - Installing illuminate/conditionable (v13.25.0): Extracting archive
+  - Installing illuminate/macroable (v13.25.0): Extracting archive
+  - Installing psr/simple-cache (3.0.0): Extracting archive
+  - Installing psr/container (2.0.2): Extracting archive
+  - Installing illuminate/contracts (v13.25.0): Extracting archive
+  - Installing symfony/polyfill-php86 (v1.41.0): Extracting archive
+  - Installing symfony/polyfill-php85 (v1.41.0): Extracting archive
+  - Installing symfony/polyfill-php84 (v1.38.1): Extracting archive
+  - Installing illuminate/collections (v13.25.0): Extracting archive
+  - Installing illuminate/reflection (v13.25.0): Extracting archive
+  - Installing symfony/process (v8.1.0): Extracting archive
+  - Installing symfony/polyfill-mbstring (v1.38.2): Extracting archive
+  - Installing symfony/polyfill-intl-normalizer (v1.38.0): Extracting archive
+  - Installing symfony/polyfill-intl-grapheme (v1.41.0): Extracting archive
+  - Installing symfony/polyfill-ctype (v1.37.0): Extracting archive
+  - Installing symfony/string (v8.1.2): Extracting archive
+  - Installing symfony/deprecation-contracts (v3.7.1): Extracting archive
+  - Installing symfony/service-contracts (v3.7.1): Extracting archive
+  - Installing symfony/console (v8.1.4): Extracting archive
+  - Installing laravel/prompts (v0.3.22): Extracting archive
+  - Installing laravel/agent-detector (v2.0.2): Extracting archive
+  - Installing voku/portable-ascii (2.1.1): Extracting archive
+  - Installing symfony/translation-contracts (v3.7.1): Extrac  - Installing psr/clock (1.0.0): Extracting archive
+  - Installing symfony/clock (v8.1.0): Extracting archive
+  - Installing carbonphp/carbon-doctrine-types (3.2.0): Extracting archive
+  - Installing nesbot/carbon (3.13.2): Extracting archive
+  - Installing illuminate/support (v13.25.0): Extracting archive
+  - Installing symfony/finder (v8.1.1): Extracting archive
+  - Installing illuminate/filesystem (v13.25.0): Extracting archive
+  - Installing laravel/installer (v5.31.1): Extracting archive
+20 package suggestions were added by new dependencies, use `composer suggest` to see details.
+20 packages you are using are looking for funding.
+Use the `composer fund` command to find out more!
+No security vulnerability advisories found.
+Using version ^5.31 for laravel/installer
+PS D:\programing\core_node> cd .\poly_apps\
+PS D:\programing\core_node\poly_apps> laravel new laravel13-example
+laravel : The term 'laravel' is not recognized as the name
+of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included,
+verify that the path is correct and try again.
+At line:1 char:1
++ laravel new laravel13-example
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (laravel:Stri
+   ng) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\programing\core_node\poly_apps> laravel new laravel13-example^C
+PS D:\programing\core_node\poly_apps> ^C
+PS D:\programing\core_node\poly_apps> laravel
+laravel : The term 'laravel' is not recognized as the name
+of a cmdlet, function, script file, or operable program.
+Check the spelling of the name, or if a path was included,
+verify that the path is correct and try again.
+At line:1 char:1
++ laravel
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (laravel:Stri
+   ng) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\programing\core_node\poly_apps>

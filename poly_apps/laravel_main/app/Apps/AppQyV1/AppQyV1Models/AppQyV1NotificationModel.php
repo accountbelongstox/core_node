@@ -13,10 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
@@ -24,20 +20,13 @@ use Illuminate\Support\Facades\Log;
  * Per-user notification inbox (SOCIAL_FEATURE_SPECIFICATION.md §1/§2).
  * read_at null = unread. created_at only (no updated_at).
  */
-class AppQyV1NotificationModel extends Model
+class AppQyV1NotificationModel extends AppQyV1Model
 {
     // created_at only; read_at flips on read. No updated_at column.
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('NOTIFICATIONS');
-    }
+    protected ?string $appTableMapKey = 'NOTIFICATIONS';
 
     protected $fillable = [
         'user_id',
@@ -47,12 +36,15 @@ class AppQyV1NotificationModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'payload' => 'array',
-        'read_at' => 'datetime',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'payload' => 'array',
+            'read_at' => 'datetime',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public static function inboxForUser(int $userId, int $cursor, bool $unreadOnly, int $limit): Collection
     {

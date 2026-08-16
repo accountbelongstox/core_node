@@ -479,10 +479,7 @@ trait AppQyV1AssistQueueMetrics
     {
         if (self::$assistRequestsTable === null) {
             try {
-                $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel();
-                self::$assistRequestsTable = $model->getConnection()
-                    ->getSchemaBuilder()
-                    ->hasTable($model->getTable());
+                self::$assistRequestsTable = \App\Apps\AppQyV1\AppQyV1Models\AppQyV1AssistRequestModel::configuredTableExists();
             } catch (\Throwable $e) {
                 self::$assistRequestsTable = false;
             }

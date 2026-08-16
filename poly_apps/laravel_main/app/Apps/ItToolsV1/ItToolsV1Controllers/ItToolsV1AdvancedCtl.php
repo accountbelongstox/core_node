@@ -21,455 +21,421 @@ class ItToolsV1AdvancedCtl extends ItToolsV1BaseCtl
 {
     public function imageResize(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $width = $request->input('width');
-            $height = $request->input('height');
-            
-            if (!$file || !$width || !$height) {
-                return $this->error('Missing required parameters', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::resizeImage($fullPath, (int)$width, (int)$height);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/png;base64,' . $base64,
-                'original_size' => $result['original_size'],
-                'new_size' => $result['new_size'],
-                'file_size' => $result['file_size']
-            ];
-        });
+        $file = $request->file('image');
+        $width = $request->input('width');
+        $height = $request->input('height');
+        
+        if (!$file || !$width || !$height) {
+            return $this->error('Missing required parameters', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::resizeImage($fullPath, (int)$width, (int)$height);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/png;base64,' . $base64,
+            'original_size' => $result['original_size'],
+            'new_size' => $result['new_size'],
+            'file_size' => $result['file_size']
+        ]);
     }
     
     public function imageRotate(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $angle = $request->input('angle', 90);
-            
-            if (!$file) {
-                return $this->error('Image file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::rotateImage($fullPath, (int)$angle);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/png;base64,' . $base64,
-                'angle' => $result['angle']
-            ];
-        });
+        $file = $request->file('image');
+        $angle = $request->input('angle', 90);
+        
+        if (!$file) {
+            return $this->error('Image file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::rotateImage($fullPath, (int)$angle);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/png;base64,' . $base64,
+            'angle' => $result['angle']
+        ]);
     }
     
     public function imageFlip(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $direction = $request->input('direction', 'horizontal');
-            
-            if (!$file) {
-                return $this->error('Image file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::flipImage($fullPath, $direction);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/png;base64,' . $base64,
-                'direction' => $result['direction']
-            ];
-        });
+        $file = $request->file('image');
+        $direction = $request->input('direction', 'horizontal');
+        
+        if (!$file) {
+            return $this->error('Image file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::flipImage($fullPath, $direction);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/png;base64,' . $base64,
+            'direction' => $result['direction']
+        ]);
     }
     
     public function imageExtractColors(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $numColors = $request->input('num_colors', 5);
-            
-            if (!$file) {
-                return $this->error('Image file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $colors = ItToolsV1ImageUtil::extractColors($fullPath, (int)$numColors);
-            
-            unlink($fullPath);
-            
-            return [
-                'colors' => $colors,
-                'count' => count($colors)
-            ];
-        });
+        $file = $request->file('image');
+        $numColors = $request->input('num_colors', 5);
+        
+        if (!$file) {
+            return $this->error('Image file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $colors = ItToolsV1ImageUtil::extractColors($fullPath, (int)$numColors);
+        
+        unlink($fullPath);
+        
+        return $this->success([
+            'colors' => $colors,
+            'count' => count($colors)
+        ]);
     }
     
     public function imageCompress(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $quality = $request->input('quality', 85);
-            $format = $request->input('format');
-            
-            if (!$file) {
-                return $this->error('Image file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::compressImage($fullPath, (int)$quality, $format);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/' . $result['format'] . ';base64,' . $base64,
-                'format' => $result['format'],
-                'quality' => $result['quality'],
-                'original_size' => $result['original_size'],
-                'compressed_size' => $result['compressed_size'],
-                'compression_ratio' => $result['compression_ratio'] . '%',
-                'original_size_readable' => ItToolsV1ImageUtil::formatBytes($result['original_size']),
-                'compressed_size_readable' => ItToolsV1ImageUtil::formatBytes($result['compressed_size'])
-            ];
-        });
+        $file = $request->file('image');
+        $quality = $request->input('quality', 85);
+        $format = $request->input('format');
+        
+        if (!$file) {
+            return $this->error('Image file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::compressImage($fullPath, (int)$quality, $format);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/' . $result['format'] . ';base64,' . $base64,
+            'format' => $result['format'],
+            'quality' => $result['quality'],
+            'original_size' => $result['original_size'],
+            'compressed_size' => $result['compressed_size'],
+            'compression_ratio' => $result['compression_ratio'] . '%',
+            'original_size_readable' => ItToolsV1ImageUtil::formatBytes($result['original_size']),
+            'compressed_size_readable' => ItToolsV1ImageUtil::formatBytes($result['compressed_size'])
+        ]);
     }
     
     public function imageCrop(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $x = $request->input('x', 0);
-            $y = $request->input('y', 0);
-            $width = $request->input('width');
-            $height = $request->input('height');
-            
-            if (!$file || !$width || !$height) {
-                return $this->error('Image file, width and height required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::cropImage($fullPath, (int)$x, (int)$y, (int)$width, (int)$height);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/png;base64,' . $base64,
-                'crop_area' => $result['crop_area'],
-                'file_size' => $result['file_size']
-            ];
-        });
+        $file = $request->file('image');
+        $x = $request->input('x', 0);
+        $y = $request->input('y', 0);
+        $width = $request->input('width');
+        $height = $request->input('height');
+        
+        if (!$file || !$width || !$height) {
+            return $this->error('Image file, width and height required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::cropImage($fullPath, (int)$x, (int)$y, (int)$width, (int)$height);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/png;base64,' . $base64,
+            'crop_area' => $result['crop_area'],
+            'file_size' => $result['file_size']
+        ]);
     }
     
     public function imageConvert(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('image');
-            $format = $request->input('format', 'png');
-            
-            if (!$file) {
-                return $this->error('Image file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1ImageUtil::convertImage($fullPath, $format);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'image_data' => 'data:image/' . $format . ';base64,' . $base64,
-                'format' => $result['format'],
-                'file_size' => $result['file_size']
-            ];
-        });
+        $file = $request->file('image');
+        $format = $request->input('format', 'png');
+        
+        if (!$file) {
+            return $this->error('Image file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1ImageUtil::convertImage($fullPath, $format);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'image_data' => 'data:image/' . $format . ';base64,' . $base64,
+            'format' => $result['format'],
+            'file_size' => $result['file_size']
+        ]);
     }
     
     public function calculateAge(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $birthdate = $request->input('birthdate');
-            
-            if ($error = $this->validateRequired($request->all(), ['birthdate'])) {
-                return $error;
-            }
-            
-            return ItToolsV1CalculatorUtil::calculateAge($birthdate);
-        });
+        $birthdate = $request->input('birthdate');
+        
+        if ($error = $this->validateRequired($request->all(), ['birthdate'])) {
+            return $error;
+        }
+        
+        return $this->success(ItToolsV1CalculatorUtil::calculateAge($birthdate));
     }
     
     public function calculateBMI(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $weight = $request->input('weight');
-            $height = $request->input('height');
-            $unit = $request->input('unit', 'metric');
-            
-            if ($error = $this->validateRequired($request->all(), ['weight', 'height'])) {
-                return $error;
-            }
-            
-            return ItToolsV1CalculatorUtil::calculateBMI((float)$weight, (float)$height, $unit);
-        });
+        $weight = $request->input('weight');
+        $height = $request->input('height');
+        $unit = $request->input('unit', 'metric');
+        
+        if ($error = $this->validateRequired($request->all(), ['weight', 'height'])) {
+            return $error;
+        }
+        
+        return $this->success(ItToolsV1CalculatorUtil::calculateBMI((float)$weight, (float)$height, $unit));
     }
     
     public function calculateLoanEMI(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $principal = $request->input('principal');
-            $rate = $request->input('rate');
-            $months = $request->input('months');
-            
-            if ($error = $this->validateRequired($request->all(), ['principal', 'rate', 'months'])) {
-                return $error;
-            }
-            
-            return ItToolsV1CalculatorUtil::calculateLoanEMI((float)$principal, (float)$rate, (int)$months);
-        });
+        $principal = $request->input('principal');
+        $rate = $request->input('rate');
+        $months = $request->input('months');
+        
+        if ($error = $this->validateRequired($request->all(), ['principal', 'rate', 'months'])) {
+            return $error;
+        }
+        
+        return $this->success(ItToolsV1CalculatorUtil::calculateLoanEMI((float)$principal, (float)$rate, (int)$months));
     }
     
     public function calculateGST(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $amount = $request->input('amount');
-            $gstRate = $request->input('gst_rate');
-            $operation = $request->input('operation', 'add');
-            
-            if ($error = $this->validateRequired($request->all(), ['amount', 'gst_rate'])) {
-                return $error;
-            }
-            
-            return ItToolsV1CalculatorUtil::calculateGST((float)$amount, (float)$gstRate, $operation);
-        });
+        $amount = $request->input('amount');
+        $gstRate = $request->input('gst_rate');
+        $operation = $request->input('operation', 'add');
+        
+        if ($error = $this->validateRequired($request->all(), ['amount', 'gst_rate'])) {
+            return $error;
+        }
+        
+        return $this->success(ItToolsV1CalculatorUtil::calculateGST((float)$amount, (float)$gstRate, $operation));
     }
     
     public function numberToWords(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $number = $request->input('number');
-            
-            if ($error = $this->validateRequired($request->all(), ['number'])) {
-                return $error;
-            }
-            
-            return [
-                'number' => $number,
-                'words' => ItToolsV1CalculatorUtil::numberToWords((int)$number)
-            ];
-        });
+        $number = $request->input('number');
+        
+        if ($error = $this->validateRequired($request->all(), ['number'])) {
+            return $error;
+        }
+        
+        return $this->success([
+            'number' => $number,
+            'words' => ItToolsV1CalculatorUtil::numberToWords((int)$number)
+        ]);
     }
     
     public function pdfSplit(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('pdf');
-            $ranges = $request->input('ranges');
-            
-            if (!$file) {
-                return $this->error('PDF file required', null, 422);
-            }
-            
-            if (!$ranges) {
-                return $this->error('Page ranges required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $pageRanges = json_decode($ranges, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                $pageRanges = explode(',', $ranges);
-            }
-            // A single scalar range (e.g. "1" -> int 1) is valid JSON but splitPdf()
-            // requires an array; wrap any non-array value so it never TypeErrors.
-            if (!is_array($pageRanges)) {
-                $pageRanges = [$pageRanges];
-            }
+        $file = $request->file('pdf');
+        $ranges = $request->input('ranges');
+        
+        if (!$file) {
+            return $this->error('PDF file required', 422);
+        }
+        
+        if (!$ranges) {
+            return $this->error('Page ranges required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $pageRanges = json_decode($ranges, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $pageRanges = explode(',', $ranges);
+        }
+        // A single scalar range (e.g. "1" -> int 1) is valid JSON but splitPdf()
+        // requires an array; wrap any non-array value so it never TypeErrors.
+        if (!is_array($pageRanges)) {
+            $pageRanges = [$pageRanges];
+        }
 
-            $results = ItToolsV1PdfUtil::splitPdf($fullPath, $pageRanges);
-            
-            $outputFiles = [];
-            foreach ($results as $result) {
-                $base64 = base64_encode(file_get_contents($result['path']));
-                $outputFiles[] = [
-                    'data' => 'data:application/pdf;base64,' . $base64,
-                    'pages' => $result['pages'],
-                    'file_size' => $result['file_size'],
-                    'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
-                    'index' => $result['index']
-                ];
-                unlink($result['path']);
-            }
-            
-            unlink($fullPath);
-            
-            return [
-                'files' => $outputFiles,
-                'count' => count($outputFiles)
+        $results = ItToolsV1PdfUtil::splitPdf($fullPath, $pageRanges);
+        
+        $outputFiles = [];
+        foreach ($results as $result) {
+            $base64 = base64_encode(file_get_contents($result['path']));
+            $outputFiles[] = [
+                'data' => 'data:application/pdf;base64,' . $base64,
+                'pages' => $result['pages'],
+                'file_size' => $result['file_size'],
+                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
+                'index' => $result['index']
             ];
-        });
+            unlink($result['path']);
+        }
+        
+        unlink($fullPath);
+        
+        return $this->success([
+            'files' => $outputFiles,
+            'count' => count($outputFiles)
+        ]);
     }
     
     public function pdfMerge(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $files = $request->file('pdfs');
-            
-            if (!$files || !is_array($files)) {
-                return $this->error('Multiple PDF files required', null, 422);
-            }
-            
-            $tempPaths = [];
-            foreach ($files as $file) {
-                $tempPath = $file->store('temp');
-                $tempPaths[] = Storage::path($tempPath);
-            }
-            
-            $result = ItToolsV1PdfUtil::mergePdfs($tempPaths);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            foreach ($tempPaths as $path) {
-                unlink($path);
-            }
-            unlink($result['path']);
-            
-            return [
-                'data' => 'data:application/pdf;base64,' . $base64,
-                'file_size' => $result['file_size'],
-                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
-                'page_count' => $result['page_count'],
-                'input_count' => $result['input_count']
-            ];
-        });
+        $files = $request->file('pdfs');
+        
+        if (!$files || !is_array($files)) {
+            return $this->error('Multiple PDF files required', 422);
+        }
+        
+        $tempPaths = [];
+        foreach ($files as $file) {
+            $tempPath = $file->store('temp');
+            $tempPaths[] = Storage::path($tempPath);
+        }
+        
+        $result = ItToolsV1PdfUtil::mergePdfs($tempPaths);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        foreach ($tempPaths as $path) {
+            unlink($path);
+        }
+        unlink($result['path']);
+        
+        return $this->success([
+            'data' => 'data:application/pdf;base64,' . $base64,
+            'file_size' => $result['file_size'],
+            'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size']),
+            'page_count' => $result['page_count'],
+            'input_count' => $result['input_count']
+        ]);
     }
     
     public function pdfCompress(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('pdf');
-            $quality = $request->input('quality', 'screen');
-            
-            if (!$file) {
-                return $this->error('PDF file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1PdfUtil::compressPdf($fullPath, $quality);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'data' => 'data:application/pdf;base64,' . $base64,
-                'original_size' => $result['original_size'],
-                'compressed_size' => $result['compressed_size'],
-                'original_size_readable' => ItToolsV1PdfUtil::formatBytes($result['original_size']),
-                'compressed_size_readable' => ItToolsV1PdfUtil::formatBytes($result['compressed_size']),
-                'compression_ratio' => $result['compression_ratio'] . '%',
-                'quality' => $result['quality']
-            ];
-        });
+        $file = $request->file('pdf');
+        $quality = $request->input('quality', 'screen');
+        
+        if (!$file) {
+            return $this->error('PDF file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1PdfUtil::compressPdf($fullPath, $quality);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'data' => 'data:application/pdf;base64,' . $base64,
+            'original_size' => $result['original_size'],
+            'compressed_size' => $result['compressed_size'],
+            'original_size_readable' => ItToolsV1PdfUtil::formatBytes($result['original_size']),
+            'compressed_size_readable' => ItToolsV1PdfUtil::formatBytes($result['compressed_size']),
+            'compression_ratio' => $result['compression_ratio'] . '%',
+            'quality' => $result['quality']
+        ]);
     }
     
     public function pdfRotate(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('pdf');
-            $rotation = $request->input('rotation', 90);
-            $pages = $request->input('pages');
-            
-            if (!$file) {
-                return $this->error('PDF file required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $pageArray = $pages ? json_decode($pages, true) : null;
-            
-            $result = ItToolsV1PdfUtil::rotatePdf($fullPath, (int)$rotation, $pageArray);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'data' => 'data:application/pdf;base64,' . $base64,
-                'rotation' => $result['rotation'],
-                'pages' => $result['pages'],
-                'file_size' => $result['file_size'],
-                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
-            ];
-        });
+        $file = $request->file('pdf');
+        $rotation = $request->input('rotation', 90);
+        $pages = $request->input('pages');
+        
+        if (!$file) {
+            return $this->error('PDF file required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $pageArray = $pages ? json_decode($pages, true) : null;
+        
+        $result = ItToolsV1PdfUtil::rotatePdf($fullPath, (int)$rotation, $pageArray);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'data' => 'data:application/pdf;base64,' . $base64,
+            'rotation' => $result['rotation'],
+            'pages' => $result['pages'],
+            'file_size' => $result['file_size'],
+            'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
+        ]);
     }
     
     public function pdfAddPassword(Request $request): JsonResponse
     {
-        return $this->safeExecute(function() use ($request) {
-            $file = $request->file('pdf');
-            $password = $request->input('password');
-            
-            if (!$file || !$password) {
-                return $this->error('PDF file and password required', null, 422);
-            }
-            
-            $tempPath = $file->store('temp');
-            $fullPath = Storage::path($tempPath);
-            
-            $result = ItToolsV1PdfUtil::addPasswordToPdf($fullPath, $password);
-            
-            $base64 = base64_encode(file_get_contents($result['path']));
-            
-            unlink($fullPath);
-            unlink($result['path']);
-            
-            return [
-                'data' => 'data:application/pdf;base64,' . $base64,
-                'protected' => $result['protected'],
-                'file_size' => $result['file_size'],
-                'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
-            ];
-        });
+        $file = $request->file('pdf');
+        $password = $request->input('password');
+        
+        if (!$file || !$password) {
+            return $this->error('PDF file and password required', 422);
+        }
+        
+        $tempPath = $file->store('temp');
+        $fullPath = Storage::path($tempPath);
+        
+        $result = ItToolsV1PdfUtil::addPasswordToPdf($fullPath, $password);
+        
+        $base64 = base64_encode(file_get_contents($result['path']));
+        
+        unlink($fullPath);
+        unlink($result['path']);
+        
+        return $this->success([
+            'data' => 'data:application/pdf;base64,' . $base64,
+            'protected' => $result['protected'],
+            'file_size' => $result['file_size'],
+            'file_size_readable' => ItToolsV1PdfUtil::formatBytes($result['file_size'])
+        ]);
     }
 }

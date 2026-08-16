@@ -141,7 +141,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 });
             }
             
-            return $this->successResponse([
+            return $this->success([
                 'scripts' => array_values($scripts),
                 'total_scripts' => count($scripts),
                 'categories' => ServerManagerV1Constants::SCRIPT_CATEGORIES,
@@ -173,7 +173,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             $scripts = $this->getPredefinedScripts();
             
             if (!isset($scripts[$scriptId])) {
-                return $this->errorResponse(
+                return $this->error(
                     'Script not found. Use /executor/scripts to list available scripts.',
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -183,7 +183,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             
             // Security check: no sudo scripts for now
             if ($script['requires_sudo']) {
-                return $this->errorResponse(
+                return $this->error(
                     'Scripts requiring sudo are not allowed in this environment.',
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
@@ -242,7 +242,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 ? 'Script executed successfully' 
                 : 'Script execution failed';
             
-            return $this->successResponse($executionResult, $message);
+            return $this->success($executionResult, $message);
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_run_script');
@@ -286,7 +286,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 $logs = $executionLogs;
             }
             
-            return $this->successResponse([
+            return $this->success([
                 'logs' => $logs,
                 'total_logs' => count($logs),
                 'log_source' => 'Laravel application logs',
@@ -312,7 +312,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
             $executionId = $request->input('execution_id');
             
             if (!$executionId) {
-                return $this->errorResponse(
+                return $this->error(
                     'execution_id parameter is required',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -338,7 +338,7 @@ class ServerManagerV1CodeExecutorCtl extends ServerManagerV1BaseCtl
                 }
             }
             
-            return $this->successResponse($status, 'Execution status retrieved');
+            return $this->success($status, 'Execution status retrieved');
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'executor_get_status');

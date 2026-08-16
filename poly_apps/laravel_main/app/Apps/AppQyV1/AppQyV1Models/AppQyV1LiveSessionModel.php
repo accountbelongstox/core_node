@@ -13,11 +13,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,22 +21,15 @@ use Illuminate\Support\Collection;
  * external embed (external_url) plus SSE chat. status live|ended; viewer_count
  * recomputed from recent live_viewers heartbeats. created_at only.
  */
-class AppQyV1LiveSessionModel extends Model
+class AppQyV1LiveSessionModel extends AppQyV1Model
 {
     public const STATUS_LIVE = 'live';
     public const STATUS_ENDED = 'ended';
 
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('LIVE_SESSIONS');
-    }
+    protected ?string $appTableMapKey = 'LIVE_SESSIONS';
 
     protected $fillable = [
         'host_id',
@@ -54,13 +43,16 @@ class AppQyV1LiveSessionModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'host_id' => 'integer',
-        'viewer_count' => 'integer',
-        'started_at' => 'datetime',
-        'ended_at' => 'datetime',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'host_id' => 'integer',
+            'viewer_count' => 'integer',
+            'started_at' => 'datetime',
+            'ended_at' => 'datetime',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function messages(): HasMany
     {

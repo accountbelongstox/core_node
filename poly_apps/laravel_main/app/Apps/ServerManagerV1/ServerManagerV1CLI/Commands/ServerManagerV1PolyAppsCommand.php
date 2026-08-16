@@ -5,8 +5,9 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\DB;
-use App\Apps\ServerManagerV1\ServerManagerV1Managers\ServerManagerV1DomainManager;
-use App\Apps\ServerManagerV1\ServerManagerV1Managers\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 
 class ServerManagerV1PolyAppsCommand extends ServerManagerV1BaseCommand
 {
@@ -462,16 +463,15 @@ LAUNCHER;
 
         $config .= "}\n\n";
 
-        // HTTPS server (if SSL enabled)
+        // HTTPS server (if SSL enabled) - shared TLS/HTTP3 stanza from the
+        // builder, app-specific proxy locations stay local (Reverb/HMR).
         if ($sslEnabled && $certificate) {
             $config .= "server {\n";
-            $config .= "    listen 443 ssl http2;\n";
-            $config .= "    server_name {$domain};\n\n";
-            $config .= "    ssl_certificate {$certificate['cert_path']};\n";
-            $config .= "    ssl_certificate_key {$certificate['key_path']};\n";
-            $config .= "    ssl_protocols TLSv1.2 TLSv1.3;\n";
-            $config .= "    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES256-GCM-SHA384;\n";
-            $config .= "    ssl_prefer_server_ciphers off;\n\n";
+            $config .= ServerManagerV1NginxConfigBuilder::renderTlsStanza(
+                $certificate['cert_path'],
+                $certificate['key_path']
+            );
+            $config .= "\n    server_name {$domain};\n\n";
             $config .= "    # Security headers\n";
             $config .= "    add_header X-Frame-Options DENY;\n";
             $config .= "    add_header X-Content-Type-Options nosniff;\n";

@@ -11,6 +11,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
@@ -29,7 +30,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
 use Illuminate\Support\Facades\Log;
 
-class AppQyV1ArticleController
+class AppQyV1ArticleController extends Controller
 {
     use ApiResponse;
 
@@ -582,6 +583,8 @@ class AppQyV1ArticleController
             'raw_word_count' => 'nullable|integer|min:0',
             'audio_base64' => 'required|string',
             'tts_engine' => 'nullable|string|max:100',
+            'tts_model' => 'nullable|string|max:200',
+            'tts_chunked' => 'nullable|boolean',
             'tts_accent' => 'nullable|string|max:20',
             'openrouter_model' => 'nullable|string|max:200',
         ]);
@@ -645,6 +648,8 @@ class AppQyV1ArticleController
                     'audio_url' => $audioUrl,
                     'audio_status' => 'ready',
                     'tts_engine' => $request->input('tts_engine'),
+                    'tts_model' => $request->input('tts_model'),
+                    'tts_chunked' => (bool) $request->input('tts_chunked', false),
                     'tts_accent' => $request->input('tts_accent'),
                     'audio_files' => [[
                         'sentence' => $articleText,
@@ -695,6 +700,70 @@ class AppQyV1ArticleController
         } catch (\Throwable $e) {
             return $this->error('Failed to store worker article: ' . $e->getMessage(), 500);
         }
+    }
+
+    /**
+     * Worker-facing audio replacement (no auth — pycore Agent History legacy
+     * audio rebuild lane). Overwrites the deterministic <article_id>.mp3 file
+     * of an existing agent_history article and refreshes its provenance
+     * metadata; the public audio_url stays stable.
+     *
+     * POST /api/app_qy_v1/ai_tools/article/worker/replace-audio
+     */
+    public function workerReplaceAudio(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'article_id' => 'nullable|string|max:100',
+            'reading_date' => 'nullable|date',
+            'audio_base64' => 'required|string',
+            'tts_engine' => 'nullable|string|max:100',
+            'tts_model' => 'nullable|string|max:200',
+            'tts_chunked' => 'nullable|boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error($validator->errors()->first(), 422);
+        }
+
+        $articleId = trim((string) $request->input('article_id', ''));
+        $readingDate = trim((string) $request->input('reading_date', ''));
+
+        $article = null;
+        if ($articleId !== '') {
+            $article = AppQyV1Article::query()
+                ->where('article_id', $articleId)
+                ->where('source', AppQyV1Article::SOURCE_AGENT_HISTORY)
+                ->first();
+        }
+        if ($article === null && $readingDate !== '') {
+            $article = AppQyV1Article::query()
+                ->where('source', AppQyV1Article::SOURCE_AGENT_HISTORY)
+                ->where('article_type', AppQyV1Article::TYPE_DAILY)
+                ->where('reading_date', $readingDate)
+                ->orderByDesc('id')
+                ->first();
+        }
+        if ($article === null) {
+            return $this->error('Agent history article not found for audio replacement', 404);
+        }
+
+        $audioUrl = $this->dailyReadingService->replaceAudio(
+            $article,
+            (string) $request->input('audio_base64'),
+            [
+                'tts_engine' => $request->input('tts_engine'),
+                'tts_model' => $request->input('tts_model'),
+                'tts_chunked' => (bool) $request->input('tts_chunked', false),
+            ]
+        );
+        if ($audioUrl === null) {
+            return $this->error('Replacement audio could not be stored', 500);
+        }
+
+        return $this->success([
+            'article_id' => $article->article_id,
+            'audio_url' => $audioUrl,
+        ], 'Agent history article audio replaced');
     }
 
     /**

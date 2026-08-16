@@ -232,14 +232,9 @@ class AppQyV1LearningController extends Controller
         $progressWords = $progressWords->shuffle();
 
         $wordMd5s = $progressWords->pluck('word_md5')->toArray();
-        $dictionaryEntries = [];
-
-        foreach ($wordMd5s as $md5) {
-            $entry = AppQyV1LangDictionaryModel::findByMd5($langCode, $md5);
-            if ($entry) {
-                $dictionaryEntries[$md5] = $entry;
-            }
-        }
+        $dictionaryEntries = AppQyV1LangDictionaryModel::rowsByHashes($langCode, $wordMd5s)
+            ->keyBy('md5')
+            ->all();
 
         $ttsService = new \App\Services\EdgeTTS\EdgeTTSService();
 

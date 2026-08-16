@@ -64,7 +64,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Load service status for each app
             $this->enrichAppsWithStatus($apps);
 
-            return $this->successResponse([
+            return $this->success([
                 'apps' => $apps,
                 'total_apps' => count($apps),
                 'base_port' => $basePort,
@@ -510,14 +510,14 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Check if service exists
             $serviceFile = "/etc/systemd/system/{$serviceName}.service";
             if (!file_exists($serviceFile)) {
-                return $this->errorResponse("Service not installed: {$serviceName}", 404);
+                return $this->error("Service not installed: {$serviceName}", 404);
             }
 
             // Start service
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['start', $serviceName], 10);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to start service: {$serviceName}", 500, [
+                return $this->error("Failed to start service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
@@ -526,7 +526,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Get updated status
             $status = $this->checkSystemdService($serviceName);
 
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'service_name' => $serviceName,
                 'status' => $status,
@@ -562,7 +562,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['stop', $serviceName], 10);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to stop service: {$serviceName}", 500, [
+                return $this->error("Failed to stop service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
@@ -571,7 +571,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Get updated status
             $status = $this->checkSystemdService($serviceName);
 
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'service_name' => $serviceName,
                 'status' => $status,
@@ -606,14 +606,14 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Check if service exists
             $serviceFile = "/etc/systemd/system/{$serviceName}.service";
             if (!file_exists($serviceFile)) {
-                return $this->errorResponse("Service not installed: {$serviceName}", 404);
+                return $this->error("Service not installed: {$serviceName}", 404);
             }
 
             // Restart service
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 10);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to restart service: {$serviceName}", 500, [
+                return $this->error("Failed to restart service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
@@ -622,7 +622,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             // Get updated status
             $status = $this->checkSystemdService($serviceName);
 
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'service_name' => $serviceName,
                 'status' => $status,
@@ -687,7 +687,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                     $args[] = $appName;
                     break;
                 default:
-                    return $this->errorResponse(
+                    return $this->error(
                         "Invalid action: $action. Valid actions: deploy, start, stop, restart",
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                     );
@@ -727,7 +727,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                 ? "Application $action completed successfully" 
                 : "Application $action failed";
             
-            return $this->successResponse($deploymentResult, $message);
+            return $this->success($deploymentResult, $message);
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'unified_deploy_app');
@@ -761,7 +761,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $launcherPath = "/var/_core_node/unified_manager/temp_scripts/{$serviceName}.sh";
             $launcherExists = file_exists($launcherPath);
 
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'app_type' => $appType,
                 'service_name' => $serviceName,
@@ -823,7 +823,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             });
 
             // Return success response immediately
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'message' => 'Server will restart in 1 second',
                 'caches_cleared' => ['config', 'route', 'cache']
@@ -851,13 +851,13 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['reload', $serviceName], 10);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to reload Octane: {$serviceName}", 500, [
+                return $this->error("Failed to reload Octane: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'output' => $result['output']
             ], 'Octane server reloaded successfully');
@@ -942,7 +942,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                 return 0;
             });
             
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'logs' => $logs,
                 'total_lines' => count($logs),
@@ -1135,7 +1135,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse('Failed to list services', 500, [
+                return $this->error('Failed to list services', 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
@@ -1162,7 +1162,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $totalServices = count($services);
             $services = array_slice($services, $offset, $limit);
 
-            return $this->successResponse([
+            return $this->success([
                 'services' => $services,
                 'total' => $totalServices,
                 'limit' => $limit,
@@ -1189,13 +1189,13 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $keyword = $request->input('keyword');
 
             if (empty($keyword)) {
-                return $this->errorResponse('Keyword parameter is required', 400);
+                return $this->error('Keyword parameter is required', 400);
             }
 
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse('Failed to search services', 500, [
+                return $this->error('Failed to search services', 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
@@ -1210,7 +1210,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
 
             $matched = array_values($matched);
 
-            return $this->successResponse([
+            return $this->success([
                 'services' => $matched,
                 'keyword' => $keyword,
                 'total_matched' => count($matched)
@@ -1235,14 +1235,14 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $serviceName = $request->input('service_name');
 
             if (empty($serviceName)) {
-                return $this->errorResponse('service_name parameter is required', 400);
+                return $this->error('service_name parameter is required', 400);
             }
 
             $detailedStatus = $this->getDetailedServiceStatus($serviceName);
 
             $statusResult = ServerManagerV1Utils::executeCommand('systemctl', ['status', $serviceName, '--no-pager'], 10);
 
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'exists' => $detailedStatus['exists'],
                 'running' => $detailedStatus['running'],
@@ -1273,17 +1273,17 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $async = $request->input('async', false);
 
             if (empty($serviceName)) {
-                return $this->errorResponse('service_name parameter is required', 400);
+                return $this->error('service_name parameter is required', 400);
             }
 
             if (!$this->isServiceNameValid($serviceName)) {
-                return $this->errorResponse('Invalid service name format', 400);
+                return $this->error('Invalid service name format', 400);
             }
 
             $beforeStatus = $this->getDetailedServiceStatus($serviceName);
 
             if (!$beforeStatus['exists']) {
-                return $this->errorResponse('Service does not exist: ' . $serviceName, 404, [
+                return $this->error('Service does not exist: ' . $serviceName, 404, [
                     'service_name' => $serviceName,
                     'exists' => false
                 ]);
@@ -1306,7 +1306,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                     }
                 });
 
-                return $this->successResponse([
+                return $this->success([
                     'service_name' => $serviceName,
                     'before_restart' => $beforeStatus,
                     'message' => 'Service will restart in 1 second',
@@ -1317,7 +1317,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to restart service: {$serviceName}", 500, [
+                return $this->error("Failed to restart service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code'],
                     'output' => $result['output'],
@@ -1328,7 +1328,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             sleep(1);
             $afterStatus = $this->getDetailedServiceStatus($serviceName);
 
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'before_restart' => $beforeStatus,
                 'after_restart' => $afterStatus,
@@ -1358,13 +1358,13 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $async = $request->input('async', false);
 
             if (empty($keyword)) {
-                return $this->errorResponse('keyword parameter is required', 400);
+                return $this->error('keyword parameter is required', 400);
             }
 
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse('Failed to list services', 500, [
+                return $this->error('Failed to list services', 500, [
                     'error' => $result['error']
                 ]);
             }
@@ -1378,7 +1378,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $matched = array_values($matched);
 
             if (empty($matched)) {
-                return $this->successResponse([
+                return $this->success([
                     'keyword' => $keyword,
                     'matched_services' => [],
                     'total_matched' => 0,
@@ -1387,7 +1387,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             }
 
             if ($dryRun) {
-                return $this->successResponse([
+                return $this->success([
                     'keyword' => $keyword,
                     'matched_services' => $matched,
                     'total_matched' => count($matched),
@@ -1418,7 +1418,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                     }
                 });
 
-                return $this->successResponse([
+                return $this->success([
                     'keyword' => $keyword,
                     'matched_services' => $matched,
                     'total_matched' => count($matched),
@@ -1444,7 +1444,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                 }
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'keyword' => $keyword,
                 'total_matched' => count($matched),
                 'restarted' => $restarted,
@@ -1472,23 +1472,23 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $serviceName = $request->input('service_name');
 
             if (empty($serviceName)) {
-                return $this->errorResponse('service_name parameter is required', 400);
+                return $this->error('service_name parameter is required', 400);
             }
 
             if (!$this->isServiceNameValid($serviceName)) {
-                return $this->errorResponse('Invalid service name format', 400);
+                return $this->error('Invalid service name format', 400);
             }
 
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['start', $serviceName], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to start service: {$serviceName}", 500, [
+                return $this->error("Failed to start service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'output' => $result['output']
             ], 'Service started successfully');
@@ -1512,23 +1512,23 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $serviceName = $request->input('service_name');
 
             if (empty($serviceName)) {
-                return $this->errorResponse('service_name parameter is required', 400);
+                return $this->error('service_name parameter is required', 400);
             }
 
             if (!$this->isServiceNameValid($serviceName)) {
-                return $this->errorResponse('Invalid service name format', 400);
+                return $this->error('Invalid service name format', 400);
             }
 
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['stop', $serviceName], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse("Failed to stop service: {$serviceName}", 500, [
+                return $this->error("Failed to stop service: {$serviceName}", 500, [
                     'error' => $result['error'],
                     'exit_code' => $result['exit_code']
                 ]);
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'service_name' => $serviceName,
                 'output' => $result['output']
             ], 'Service stopped successfully');
@@ -1583,7 +1583,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $async = $request->input('async', false);
 
             if (empty($appName)) {
-                return $this->errorResponse('app_name parameter is required', 400);
+                return $this->error('app_name parameter is required', 400);
             }
 
             $appName = trim($appName, '/');
@@ -1592,7 +1592,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('systemctl', ['list-units', '--type=service', '--all', '--no-pager', '--no-legend'], 30);
 
             if (!$result['success']) {
-                return $this->errorResponse('Failed to list services', 500, [
+                return $this->error('Failed to list services', 500, [
                     'error' => $result['error']
                 ]);
             }
@@ -1606,14 +1606,14 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $matched = array_values($matched);
 
             if (empty($matched)) {
-                return $this->errorResponse('No service found for application: ' . $appName, 404, [
+                return $this->error('No service found for application: ' . $appName, 404, [
                     'app_name' => $appName,
                     'searched_patterns' => [$appName]
                 ]);
             }
 
             if (count($matched) > 1) {
-                return $this->successResponse([
+                return $this->success([
                     'app_name' => $appName,
                     'matched_services' => $matched,
                     'total_matched' => count($matched),
@@ -1627,7 +1627,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $beforeStatus = $this->getDetailedServiceStatus($serviceName);
 
             if (!$beforeStatus['exists']) {
-                return $this->errorResponse('Service does not exist: ' . $serviceName, 404);
+                return $this->error('Service does not exist: ' . $serviceName, 404);
             }
 
             if ($async) {
@@ -1649,7 +1649,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
                     }
                 });
 
-                return $this->successResponse([
+                return $this->success([
                     'app_name' => $appName,
                     'service_name' => $serviceName,
                     'before_restart' => $beforeStatus,
@@ -1661,7 +1661,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             $restartResult = ServerManagerV1Utils::executeCommand('systemctl', ['restart', $serviceName], 30);
 
             if (!$restartResult['success']) {
-                return $this->errorResponse("Failed to restart service: {$serviceName}", 500, [
+                return $this->error("Failed to restart service: {$serviceName}", 500, [
                     'error' => $restartResult['error'],
                     'exit_code' => $restartResult['exit_code'],
                     'before_restart' => $beforeStatus
@@ -1671,7 +1671,7 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             sleep(1);
             $afterStatus = $this->getDetailedServiceStatus($serviceName);
 
-            return $this->successResponse([
+            return $this->success([
                 'app_name' => $appName,
                 'service_name' => $serviceName,
                 'before_restart' => $beforeStatus,

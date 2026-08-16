@@ -12,7 +12,7 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Str;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1MemberService;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
@@ -28,7 +28,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Enums\DingDuoDuoV1OrderStatus;
  * and a payment callback that marks the order paid (idempotent by out_trade_no)
  * and applies the membership extension.
  */
-class DingDuoDuoV1RechargeController extends BaseController
+class DingDuoDuoV1RechargeController extends Controller
 {
     /**
      * GET recharge/packages -> the enabled config's package list (or the default).
@@ -150,7 +150,9 @@ class DingDuoDuoV1RechargeController extends BaseController
     }
 
     /**
-     * Resolve the member from an explicit token, then the X-DD-Token header.
+     * Resolve the member from an explicit Sanctum token, then the X-DD-Token
+     * header. Validation goes through Sanctum (legacy member tokens are no
+     * longer honored).
      */
     private function resolveMember(Request $request, ?string $token): ?DingDuoDuoV1MemberModel
     {
@@ -163,7 +165,7 @@ class DingDuoDuoV1RechargeController extends BaseController
             return null;
         }
 
-        return DingDuoDuoV1MemberModel::activeByToken($token);
+        return DingDuoDuoV1MemberService::activeMemberForToken($token);
     }
 
     /**

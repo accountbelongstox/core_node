@@ -2,31 +2,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
-use Illuminate\Support\Facades\Schema;
 
-class AppQyV1TtsCacheModel extends Model
+class AppQyV1TtsCacheModel extends AppQyV1Model
 {
     public $timestamps = false;
 
     protected $guarded = [];
-    protected $appKey = AppKeys::APPQYV1;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_cache');
-    }
-
-    public static function tableExists(): bool
-    {
-        $model = new static();
-
-        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
-    }
+    protected ?string $appTableSuffix = 'tts_cache';
 
     public static function findCached(string $textHash, string $language, string $voice): ?self
     {
@@ -63,11 +46,6 @@ class AppQyV1TtsCacheModel extends Model
     public static function recordAccess(int $cacheId): int
     {
         return static::query()->whereKey($cacheId)->increment('access_count', 1, ['last_accessed' => now()]);
-    }
-
-    public static function findById(int $cacheId): ?self
-    {
-        return static::query()->find($cacheId);
     }
 
     public static function deleteById(int $cacheId): int

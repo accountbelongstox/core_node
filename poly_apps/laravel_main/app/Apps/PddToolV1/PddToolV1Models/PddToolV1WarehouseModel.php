@@ -10,26 +10,14 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
 use Illuminate\Support\Collection;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * A member's shipping warehouse / receiver address.
  */
-class PddToolV1WarehouseModel extends Model
+class PddToolV1WarehouseModel extends PddToolV1Model
 {
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('WAREHOUSES');
-    }
+    protected ?string $appTableMapKey = 'WAREHOUSES';
 
     protected $fillable = [
         'user_id',

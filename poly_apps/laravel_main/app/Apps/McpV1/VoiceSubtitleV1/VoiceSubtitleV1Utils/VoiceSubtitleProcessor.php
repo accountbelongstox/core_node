@@ -5,11 +5,11 @@ namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils;
 use Illuminate\Support\Facades\Log;
 use App\CallPycoreUtils\PycoreHttpClient;
 use App\CallPycoreUtils\PycoreOCRUtil;
-use App\CallPycoreUtils\PycoreGoogleTranslateUtil;
+use App\CallPycoreUtils\PycoreTranslatorUtil;
 use App\CallPycoreUtils\PycoreEdgeTTSUtil;
 use App\Services\AIServiceDispatcher;
 use App\Services\TTSCacheManager;
-use App\Services\Translation\TranslationConstants;
+use App\Services\TranslationService;
 
 class VoiceSubtitleProcessor
 {
@@ -261,7 +261,7 @@ class VoiceSubtitleProcessor
     private function translateText(string $text, string $targetLanguage): string
     {
         try {
-            $result = PycoreGoogleTranslateUtil::translate($text, $targetLanguage);
+            $result = PycoreTranslatorUtil::translateSingle($text, 'auto', $targetLanguage);
 
             if ($result && isset($result['translated_text'])) {
                 return $result['translated_text'];
@@ -430,6 +430,6 @@ class VoiceSubtitleProcessor
     private function resolveLanguageName(string $language): string
     {
         $code = strtolower(trim($language));
-        return TranslationConstants::LANGUAGES[$code] ?? $language;
+        return TranslationService::LANGUAGES[$code] ?? $language;
     }
 }

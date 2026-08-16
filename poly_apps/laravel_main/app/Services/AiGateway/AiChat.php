@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Http;
  * contract the UI depends on:
  *   { success, provider, model, nickname, text, latency_ms, error, retry_after_s }
  *
- * Keys are loaded with the SAME indexed precedence as the probe (AiSecretLoader
- * via AiProviderRegistry). Most providers go through the OpenAI-compatible
+ * Keys are loaded with the same indexed precedence as the probe through
+ * AiProviderRegistry. Most providers go through the OpenAI-compatible
  * client; gemini / anthropic / cloudflare speak their own dialect and are built
  * directly here on the Http facade.
  */

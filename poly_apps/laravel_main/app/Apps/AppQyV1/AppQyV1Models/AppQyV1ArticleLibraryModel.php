@@ -3,10 +3,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Models\Concerns\QueriesDiffIdPages;
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Schema;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1DynamicLanguageTable;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
 
 /**
@@ -16,13 +14,10 @@ use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
  * Used for article TTS generation, storage, and management
  * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
  */
-class AppQyV1ArticleLibraryModel extends Model
+class AppQyV1ArticleLibraryModel extends AppQyV1Model
 {
-    use AppQyV1TtsQueueQueries, QueriesDiffIdPages;
+    use AppQyV1TtsQueueQueries, BindsAppQyV1DynamicLanguageTable, QueriesDiffIdPages;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
-    protected $langCode;
 
     protected $fillable = [
         'content',
@@ -45,51 +40,25 @@ class AppQyV1ArticleLibraryModel extends Model
         'tts_completed_at',
     ];
 
-    protected $casts = [
-        'audio_files' => 'array',
-        'metadata' => 'array',
-        'has_audio' => 'boolean',
-        'added_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'tts_attempts' => 'integer',
-        'tts_locked_at' => 'datetime',
-        'tts_requested_at' => 'datetime',
-        'tts_completed_at' => 'datetime',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-
-        if (isset($attributes['lang_code'])) {
-            $this->setLanguage($attributes['lang_code']);
-        }
-    }
-    
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return [
+            'audio_files' => 'array',
+            'metadata' => 'array',
+            'has_audio' => 'boolean',
+            'added_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'tts_attempts' => 'integer',
+            'tts_locked_at' => 'datetime',
+            'tts_requested_at' => 'datetime',
+            'tts_completed_at' => 'datetime',
+        ];
     }
 
-    public function setLanguage(string $langCode): self
+    protected function resolveDynamicLanguageTable(string $language): string
     {
-        $this->langCode = strtolower($langCode);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, "{$this->langCode}_article_library");
-        return $this;
-    }
-
-    public function getLanguage(): ?string
-    {
-        return $this->langCode;
-    }
-
-    public static function forLanguage(string $langCode): self
-    {
-        $instance = new self();
-        $instance->setLanguage($langCode);
-        return $instance;
+        return $this->appTable("{$language}_article_library");
     }
 
     public static function findByMd5(string $langCode, string $md5)

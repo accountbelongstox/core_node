@@ -39,6 +39,11 @@ from pycore.pythreadpool.pool import GlobalThreadPool, ThreadStatus
 _CALLBACKS_SIGNAL = 'heartbeat.callbacks'
 _CALLBACK_RESULT_QUEUE = 'heartbeat.callback.results'
 _CALLBACK_WORK_QUEUE_PREFIX = 'heartbeat.callback.work'
+# Serializes every read-modify-write of the bus-owned callbacks map. Without
+# this, a scheduler tick that copies the map, disables a callback in its own
+# copy, and writes the copy back can silently revert a concurrent
+# enable/disable flip published by the Queue Center control plane.
+_CALLBACKS_STATE_LOCK = threading.RLock()
 
 
 # ============================================================
@@ -241,25 +246,27 @@ class HeartbeatPusherThread(threading.Thread):
             interval: Interval in seconds (default: 1)
             enabled: Whether callback is enabled
         """
-        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-        callbacks[name] = CallbackInfo(
-            name=name,
-            callback=callback,
-            interval=interval,
-            enabled=enabled,
-        )
-        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        with _CALLBACKS_STATE_LOCK:
+            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+            callbacks[name] = CallbackInfo(
+                name=name,
+                callback=callback,
+                interval=interval,
+                enabled=enabled,
+            )
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
         ColorPrint.green(
             f"[Scheduler] Registered callback: {name} (interval={interval}s)"
         )
 
     def unregister_callback(self, name: str):
         """Unregister a callback"""
-        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-        if name not in callbacks:
-            return
-        callbacks.pop(name, None)
-        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        with _CALLBACKS_STATE_LOCK:
+            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+            if name not in callbacks:
+                return
+            callbacks.pop(name, None)
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
         ColorPrint.blue(f"[Scheduler] Unregistered callback: {name}")
 
     def enable_callback(self, name: str) -> bool:
@@ -279,14 +286,15 @@ class HeartbeatPusherThread(threading.Thread):
     @staticmethod
     def _set_callback_enabled(name: str, enabled: bool) -> bool:
         """Publish an updated callback snapshot to THREAD_BUS."""
-        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-        info = callbacks.get(name)
-        if info is None:
-            return False
-        updated_info = info.copy()
-        updated_info.enabled = enabled
-        callbacks[name] = updated_info
-        THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+        with _CALLBACKS_STATE_LOCK:
+            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+            info = callbacks.get(name)
+            if info is None:
+                return False
+            updated_info = info.copy()
+            updated_info.enabled = enabled
+            callbacks[name] = updated_info
+            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
         return True
 
     def run(self):
@@ -353,54 +361,56 @@ class HeartbeatPusherThread(threading.Thread):
         queue; in-flight callbacks are skipped.
         """
         self._apply_callback_results()
-        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-        changed = False
-        for callback_name, callback_info in tuple(callbacks.items()):
-            if not callback_info.should_run(self._total_ticks):
-                continue
-            ci = callback_info.copy()
-            if ci.in_flight:
-                ci.skip_count += 1
+        with _CALLBACKS_STATE_LOCK:
+            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+            changed = False
+            for callback_name, callback_info in tuple(callbacks.items()):
+                if not callback_info.should_run(self._total_ticks):
+                    continue
+                ci = callback_info.copy()
+                if ci.in_flight:
+                    ci.skip_count += 1
+                    callbacks[callback_name] = ci
+                    changed = True
+                    continue
+                ci.in_flight = True
                 callbacks[callback_name] = ci
                 changed = True
-                continue
-            ci.in_flight = True
-            callbacks[callback_name] = ci
-            changed = True
-            queue_name = (
-                f"{_CALLBACK_WORK_QUEUE_PREFIX}."
-                f"{callback_name}.{self._total_ticks}"
-            )
-            THREAD_BUS.send_message(queue_name, {
-                'callback': ci.callback,
-                'name': callback_name,
-                'due_tick': self._total_ticks,
-            })
-            HeartbeatCallbackThread(queue_name, callback_name).start()
+                queue_name = (
+                    f"{_CALLBACK_WORK_QUEUE_PREFIX}."
+                    f"{callback_name}.{self._total_ticks}"
+                )
+                THREAD_BUS.send_message(queue_name, {
+                    'callback': ci.callback,
+                    'name': callback_name,
+                    'due_tick': self._total_ticks,
+                })
+                HeartbeatCallbackThread(queue_name, callback_name).start()
 
-        if changed:
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+            if changed:
+                THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
 
     @staticmethod
     def _apply_callback_results() -> None:
         """Apply callback completion messages to the bus-owned snapshot."""
-        callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
-        changed = False
-        result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
-        while isinstance(result, dict):
-            callback_name = result.get('name', '')
-            info = callbacks.get(callback_name)
-            if info is not None:
-                updated_info = info.copy()
-                updated_info.mark_run(result.get('due_tick', 0))
-                updated_info.in_flight = False
-                updated_info.last_error = result.get('error')
-                callbacks[callback_name] = updated_info
-                changed = True
+        with _CALLBACKS_STATE_LOCK:
+            callbacks = dict(THREAD_BUS.get_signal(_CALLBACKS_SIGNAL, {}) or {})
+            changed = False
             result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
+            while isinstance(result, dict):
+                callback_name = result.get('name', '')
+                info = callbacks.get(callback_name)
+                if info is not None:
+                    updated_info = info.copy()
+                    updated_info.mark_run(result.get('due_tick', 0))
+                    updated_info.in_flight = False
+                    updated_info.last_error = result.get('error')
+                    callbacks[callback_name] = updated_info
+                    changed = True
+                result = THREAD_BUS.receive_message(_CALLBACK_RESULT_QUEUE)
 
-        if changed:
-            THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
+            if changed:
+                THREAD_BUS.signal(_CALLBACKS_SIGNAL, callbacks)
 
     def _process_tasks(self):
         """Process tasks from task queue"""

@@ -10,26 +10,16 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
 /**
  * Fan-out idempotency ledger: one row per (request_id, prompt_key) pair
  * already turned into a global_tasks row. Unique on (request_id, prompt_key)
  * -- see AppQyV1AiPromptFanoutTask.
  */
-class AppQyV1AiPromptRequestTaskModel extends Model
+class AppQyV1AiPromptRequestTaskModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_prompt_request_tasks');
-    }
+    protected ?string $appTableSuffix = 'ai_prompt_request_tasks';
 
     protected $fillable = [
         'request_id',
@@ -45,8 +35,4 @@ class AppQyV1AiPromptRequestTaskModel extends Model
             ->all();
     }
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
 }

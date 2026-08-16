@@ -25,7 +25,7 @@ class ItToolsV1ImageUtil
         return ImageProcessUtil::getImageInfo($imagePath);
     }
 
-    public static function resizeImage(string $sourcePath, int $newWidth, int $newHeight, string $outputPath = null): array
+    public static function resizeImage(string $sourcePath, int $newWidth, int $newHeight, ?string $outputPath = null): array
     {
         return ImageProcessUtil::resizeImage($sourcePath, $newWidth, $newHeight, $outputPath);
     }
@@ -45,7 +45,7 @@ class ItToolsV1ImageUtil
         return ImageProcessUtil::flipImage($sourcePath, $direction);
     }
 
-    public static function compressImage(string $sourcePath, int $quality = 85, string $format = null): array
+    public static function compressImage(string $sourcePath, int $quality = 85, ?string $format = null): array
     {
         return ImageProcessUtil::compressImage($sourcePath, $quality, $format);
     }
@@ -60,7 +60,7 @@ class ItToolsV1ImageUtil
         return ImageProcessUtil::extractColors($imagePath, $numColors);
     }
 
-    public static function mergeImagesVertically(array $imagePaths, array $descriptions = [], string $outputPath = null): array
+    public static function mergeImagesVertically(array $imagePaths, array $descriptions = [], ?string $outputPath = null): array
     {
         return ImageProcessUtil::mergeImagesVertically($imagePaths, $descriptions, $outputPath);
     }

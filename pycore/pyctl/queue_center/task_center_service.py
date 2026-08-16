@@ -4,21 +4,21 @@
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.third_party.api import get_third_package_pydantic
-from pycore.pyctl.assist.assist_settings import load_assist_settings
-from pycore.pyctl.assist.service import assist_config
+from pycore.pyctl.assist.assist_settings import set_assist_capability
+from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 from pycore.pyctl.assist.wiring import bind_selected_endpoint_for_workers
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyctl.queue_center.control_service import (
     normalize_control_name,
     record_control_intent,
 )
+from pycore.pyctl.queue_center.lane_registry import lane_capability
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
 from pycore.pyctl.tts.sentence_audio_auto import (
-    apply_auto_start as apply_sentence_auto_start,
+    get_status as get_sentence_audio_status,
 )
-from pycore.pyctl.tts.word_tts_auto import (
-    apply_auto_start as apply_word_auto_start,
-)
+from pycore.pyctl.tts.sentence_audio_auto import warm_engine_after_enable
+from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 
 pydantic = get_third_package_pydantic()
 BaseModel = pydantic.BaseModel
@@ -36,14 +36,28 @@ def set_queue_center_control(
     control_name: str,
     req: QueueCenterControlRequest,
 ) -> Dict[str, Any]:
-    """Apply one frontend-requested Queue Center worker control."""
+    """Apply one frontend-requested Queue Center lane control.
+
+    One flow for every lane: record the intent, flip the capability through the
+    shared assist control plane, and let apply_assist_runtime reconcile the
+    heartbeat callbacks and the explicit lane lifecycle (immediate stop
+    releases claimed-but-unstarted tasks back to Laravel's pending queue).
+    """
     enabled = bool(req.enabled)
     canonical_name = normalize_control_name(control_name)
-    endpoint_result: Dict[str, Any] = {}
-    if enabled:
-        endpoint_result = bind_selected_endpoint_for_workers(
-            req.laravel_endpoint or ""
-        )
+    capability = lane_capability(canonical_name)
+    if not capability:
+        return {
+            "success": False,
+            "control": canonical_name,
+            "enabled": False,
+            "error": "UNKNOWN_QUEUE_CENTER_LANE",
+        }
+
+    endpoint: Optional[str] = None
+    requested_endpoint = (req.laravel_endpoint or "").strip()
+    if enabled and requested_endpoint:
+        endpoint_result = bind_selected_endpoint_for_workers(requested_endpoint)
         if not endpoint_result.get("success"):
             return {
                 "success": False,
@@ -52,6 +66,7 @@ def set_queue_center_control(
                 "error": endpoint_result.get("error")
                 or "LARAVEL_ENDPOINT_BIND_FAILED",
             }
+        endpoint = endpoint_result.get("endpoint")
 
     requested_by = (
         req.requested_by.strip()
@@ -66,30 +81,21 @@ def set_queue_center_control(
         graceful_stop=req.graceful_stop,
     )
 
-    errors: List[str] = []
-    result: Dict[str, Any] = {}
-    if canonical_name == "assist_translation":
-        assist_state = load_assist_settings()
-        capabilities = dict(assist_state.get("capabilities") or {})
-        capabilities.update({"translation": False, "ai_translate": False})
-        result = assist_config({
-            "enabled": bool(any(capabilities.values())),
-            "capabilities": capabilities,
-        })
-        if result.get("success") is False:
-            errors.extend(list(result.get("errors") or []))
-            if result.get("error") and result.get("error") not in errors:
-                errors.append(str(result["error"]))
-    elif canonical_name == "word_audio":
-        status = apply_word_auto_start(enabled)
+    settings = set_assist_capability(capability, enabled)
+    runtime = apply_assist_runtime(settings, graceful_stop=req.graceful_stop)
+    errors: List[str] = list(runtime.get("errors") or [])
+
+    result: Dict[str, Any] = {"config": settings}
+    if canonical_name == "word_audio":
+        status = get_word_audio_status()
         result = {"ok": not bool(status.get("error")), "status": status}
-        if status.get("error"):
-            errors.append(str(status["error"]))
     elif canonical_name == "sentence_audio":
-        status = apply_sentence_auto_start(enabled)
+        if enabled:
+            warm_engine_after_enable()
+        status = get_sentence_audio_status()
         result = {"ok": not bool(status.get("error")), "status": status}
-        if status.get("error"):
-            errors.append(str(status["error"]))
+    if isinstance(result.get("status"), dict) and result["status"].get("error"):
+        errors.append(str(result["status"]["error"]))
 
     payload: Dict[str, Any] = {
         "success": not errors,
@@ -97,7 +103,7 @@ def set_queue_center_control(
         "enabled": enabled,
         "requested_by": requested_by,
         "graceful_stop": req.graceful_stop,
-        "laravel_endpoint": endpoint_result.get("endpoint"),
+        "laravel_endpoint": endpoint,
         "result": result,
     }
     if errors:

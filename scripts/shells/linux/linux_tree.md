@@ -51,14 +51,14 @@ linux/
 │   │   ├── 32_install_edge.sh
 │   │   ├── 33_ensure_php84_intelligent.sh
 │   │   ├── 34_configure_php84.sh
-│   │   ├── 36_install_composer.sh
+│   │   ├── 35_install_composer.sh
 │   │   ├── 37_install_rust.sh
 │   │   ├── 38_install_ruby.sh
 │   │   ├── 39_install_dotnet.sh
 │   │   ├── 40_install_flutter.sh
 │   │   ├── 3_stop_aliyun_cloudmonitor.sh
-│   │   ├── 47_install_redis.sh
-│   │   ├── 48_install_postgresql.sh
+│   │   ├── 46_install_redis.sh
+│   │   ├── 47_install_postgresql.sh
 │   │   ├── 49_install_docker.sh
 │   │   ├── 50_install_bt.sh
 │   │   ├── 50_install_mysql.sh

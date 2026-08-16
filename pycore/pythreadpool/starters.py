@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from pycore.pyctl.speech.speech_thread import SpeechTranscriptionThread
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.ui_thread import PySide6UIThread
 from pycore.pyutils.native_ui.step5_main_ui.pyside6.config import PySide6UIConfig, StartupWindowConfig
 from pycore.pyutils.native_ui.platform_adapter import get_platform_adapter
@@ -182,46 +181,6 @@ def start_rpc_v2(config: Dict[str, Any]) -> Any:
     ColorPrint.blue(f"[rpc_v2] HTTP controllers: http://{host}:{port}{HTTP_API_PREFIX}/<path>")
     ColorPrint.blue(f"[rpc_v2] HTTP events: {'enabled' if enable_http_events else 'disabled'}")
 
-    return instance
-
-
-# ============================================================
-# Speech Service
-# ============================================================
-
-def start_speech(config: Dict[str, Any]) -> Any:
-    """Start speech service (original class)"""
-
-    mode = config.get('mode', 'single')
-    mic_language = config.get('mic_language', 'zh-CN')
-    system_language = config.get('system_language', 'en-US')
-    daemon = config.get('daemon', True)
-
-    ColorPrint.blue(f"[speech] Starting Speech Service (mode: {mode})...")
-
-    instance = SpeechTranscriptionThread(
-        mode=mode,
-        mic_language=mic_language,
-        system_language=system_language,
-        daemon=daemon
-    )
-    instance.start()
-
-    # Register shutdown handler
-    def stop_speech():
-        ColorPrint.blue("[speech] Stopping Speech Service...")
-        if hasattr(instance, 'stop'):
-            instance.stop()
-        ColorPrint.green("[speech] Speech Service stopped")
-
-    priority = THREAD_REGISTRY['speech']['shutdown_priority']
-    THREAD_BUS.register_shutdown_handler(
-        handler=stop_speech,
-        priority=priority,
-        name="speech"
-    )
-
-    ColorPrint.green(f"[speech] Speech Service started (mode: {mode})")
     return instance
 
 
@@ -504,6 +463,5 @@ def start_tray(config: Dict[str, Any]) -> Any:
 
 SERVICE_STARTERS['heartbeat'] = start_heartbeat
 SERVICE_STARTERS['rpc_v2'] = start_rpc_v2
-SERVICE_STARTERS['speech'] = start_speech
 SERVICE_STARTERS['ui'] = start_ui
 SERVICE_STARTERS['tray'] = start_tray

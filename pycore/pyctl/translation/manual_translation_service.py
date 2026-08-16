@@ -37,14 +37,16 @@ def status() -> Dict[str, Any]:
         "recommended_version": RECOMMENDED_GOOGLETRANS_VERSION,
     }
 
-async def translate_google(params: Dict[str, Any]) -> Dict[str, Any]:
+async def translate_single(params: Dict[str, Any], *, origin: str = "rpc") -> Dict[str, Any]:
+    """Stable single-text Google translation handler (origin is keyword-only so
+    the HTTP dispatcher only passes the params dict)."""
     text = str(params.get("text") or "").strip()
     source = str(params.get("src") or "auto")
     target = str(params.get("dest") or "en")
     if not GOOGLETRANS_AVAILABLE:
-        return {"provider": "google", "error": "googletrans is not installed"}
+        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
     if not text:
-        return {"provider": "google", "error": "text is required"}
+        return {"success": False, "provider": "google", "error": "text is required"}
     async with GoogleTranslator() as translator:
         result = await translator.translate_single(
             text,
@@ -53,7 +55,7 @@ async def translate_google(params: Dict[str, Any]) -> Dict[str, Any]:
             use_cache=bool(params.get("use_cache", True)),
         )
     if result.error:
-        return {"provider": "google", "error": result.error}
+        return {"success": False, "provider": "google", "error": result.error}
     translated = str(result.translated_text or "")
     translate_history.record(
         source=str(result.src_lang or source),
@@ -61,16 +63,63 @@ async def translate_google(params: Dict[str, Any]) -> Dict[str, Any]:
         text=text,
         engine="google",
         result=translated,
-        origin="ui",
+        origin=origin,
     )
     return {
+        "success": True,
+        "provider": "google",
+        "original_text": result.original_text,
         "translated_text": translated,
         "src": result.src_lang,
         "dest": result.dest_lang,
+        "src_lang": result.src_lang,
+        "dest_lang": result.dest_lang,
         "pronunciation": result.pronunciation,
         "from_cache": bool(result.from_cache),
-        "provider": "google",
     }
+
+async def translate_batch(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Stable batch Google translation handler (single target language)."""
+    texts = params.get("texts") or []
+    if isinstance(texts, str):
+        texts = [texts]
+    texts = [str(text) for text in texts]
+    source = str(params.get("src") or "auto")
+    target = str(params.get("dest") or "en")
+    if not GOOGLETRANS_AVAILABLE:
+        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
+    if not texts:
+        return {"success": False, "provider": "google", "error": "texts is required"}
+    async with GoogleTranslator() as translator:
+        results = await translator.translate_batch(
+            texts,
+            src=source,
+            dest=target,
+            use_cache=bool(params.get("use_cache", True)),
+        )
+    return {
+        "success": True,
+        "provider": "google",
+        "src": source,
+        "dest": target,
+        "results": [result.to_dict() for result in results],
+    }
+
+async def detect_language(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Stable language detection handler."""
+    text = str(params.get("text") or "").strip()
+    if not GOOGLETRANS_AVAILABLE:
+        return {"success": False, "provider": "google", "error": "googletrans is not installed"}
+    if not text:
+        return {"success": False, "provider": "google", "error": "text is required"}
+    async with GoogleTranslator() as translator:
+        result = await translator.detect_language(text)
+    if result.get("error"):
+        return {"success": False, "provider": "google", **result}
+    return {"success": True, "provider": "google", **result}
+
+async def translate_google(params: Dict[str, Any]) -> Dict[str, Any]:
+    return await translate_single(params, origin="ui")
 
 def translate_ai(params: Dict[str, Any]) -> Dict[str, Any]:
     text = str(params.get("text") or "").strip()
@@ -117,5 +166,15 @@ def history_clear(_params: Dict[str, Any]) -> Dict[str, Any]:
     return {"success": True, "removed": translate_history.clear_history()}
 
 
-__all__ = ["status", "translate_google", "translate_ai", "history", "history_delete", "history_clear"]
+__all__ = [
+    "status",
+    "translate_single",
+    "translate_batch",
+    "detect_language",
+    "translate_google",
+    "translate_ai",
+    "history",
+    "history_delete",
+    "history_clear",
+]
 

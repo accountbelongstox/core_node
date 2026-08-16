@@ -12,10 +12,9 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1LicenseService;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1MemberService;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Enums\DingDuoDuoV1LicenseMode;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 
@@ -24,7 +23,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
  * super-code: verify resolves the entitlement; heartbeat additionally bumps the
  * device's last-seen timestamp.
  */
-class DingDuoDuoV1LicenseController extends BaseController
+class DingDuoDuoV1LicenseController extends Controller
 {
     /**
      * POST license/verify {device_id, token} -> resolved license payload.
@@ -87,8 +86,10 @@ class DingDuoDuoV1LicenseController extends BaseController
     {
         $memberId = null;
         if (($license['mode'] ?? null) === DingDuoDuoV1LicenseMode::Member->value) {
-            $member = DingDuoDuoV1MemberModel::byToken((string) ($license['token'] ?? ''));
-            $memberId = $member ? (int) $member->id : null;
+            $memberId = isset($license['member_id']) ? (int) $license['member_id'] : null;
+            if ($memberId !== null && $memberId < 1) {
+                $memberId = null;
+            }
         }
 
         DingDuoDuoV1MemberService::upsertDevice($deviceId, $memberId);

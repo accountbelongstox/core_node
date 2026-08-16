@@ -4,8 +4,7 @@ namespace App\Traits;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Contracts\Validation\Validator;
-use App\Apps\AppQyV1\AppQyV1Constants\AppQyV1ErrorCodes;
-use App\Constants\AuthErrorCodes as AuthErrorCodesConstants;
+use App\Constants\ErrorCodes;
 
 /**
  * API Response Trait
@@ -43,6 +42,27 @@ trait ApiResponse
         ], $code);
     }
 
+    /**
+     * Return a standard error envelope with an application code and details.
+     */
+    protected function codedError(
+        string $errorCode,
+        string $message,
+        $details = null,
+        int $httpCode = 400
+    ): JsonResponse {
+        return response()->json([
+            'success' => false,
+            'data' => $details,
+            'details' => $details,
+            'error' => $message,
+            'message' => $message,
+            'error_code' => $errorCode,
+            'code' => $httpCode,
+            'status' => 'error',
+        ], $httpCode);
+    }
+
     protected function unauthorized(string $message = 'Unauthorized. Authentication required.'): JsonResponse
     {
         return $this->error($message, 401);
@@ -75,7 +95,7 @@ trait ApiResponse
      */
     protected function authErrorResponse(string $errorCode, int $httpCode = 422): JsonResponse
     {
-        $message = AuthErrorCodesConstants::getMessage($errorCode);
+        $message = ErrorCodes::getMessage($errorCode);
         return response()->json([
             'success' => false,
             'data' => null,
@@ -100,8 +120,8 @@ trait ApiResponse
         $data = null,
         string $locale = 'en'
     ): JsonResponse {
-        $message = $customMessage ?? AppQyV1ErrorCodes::getMessage($errorCode, $locale);
-        $code = $httpCode ?? AppQyV1ErrorCodes::getHttpCode($errorCode);
+        $message = $customMessage ?? ErrorCodes::getMessage($errorCode, $locale);
+        $code = $httpCode ?? ErrorCodes::getHttpCode($errorCode);
 
         return response()->json([
             'success' => false,
@@ -199,7 +219,7 @@ trait ApiResponse
      */
     protected function groupNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::GROUP_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::GROUP_NOT_FOUND, null, null, $data);
     }
 
     /**
@@ -207,7 +227,7 @@ trait ApiResponse
      */
     protected function libraryNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_NOT_FOUND, null, null, $data);
     }
 
     /**
@@ -215,7 +235,7 @@ trait ApiResponse
      */
     protected function wordNotFound($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::WORD_NOT_FOUND, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::WORD_NOT_FOUND, null, null, $data);
     }
 
     /**
@@ -229,7 +249,7 @@ trait ApiResponse
             'group_language' => $groupLang,
         ], $data ?? []);
 
-        return $this->errorWithCode(AppQyV1ErrorCodes::LANGUAGE_MISMATCH, $message, null, $additionalData);
+        return $this->errorWithCode(ErrorCodes::LANGUAGE_MISMATCH, $message, null, $additionalData);
     }
 
     /**
@@ -237,7 +257,7 @@ trait ApiResponse
      */
     protected function libraryAlreadyAdded($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_ALREADY_ADDED, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_ALREADY_ADDED, null, null, $data);
     }
 
     /**
@@ -245,6 +265,6 @@ trait ApiResponse
      */
     protected function libraryNotLinked($data = null): JsonResponse
     {
-        return $this->errorWithCode(AppQyV1ErrorCodes::LIBRARY_NOT_LINKED, null, null, $data);
+        return $this->errorWithCode(ErrorCodes::LIBRARY_NOT_LINKED, null, null, $data);
     }
 }

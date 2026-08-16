@@ -42,14 +42,18 @@ class AvatarService
     ];
 
     /**
-     * Generate avatar using DiceBear API and save to file system
+     * Generate avatar and save to file system.
+     *
+     * Single generation pipeline: DiceBear HTTP first, then the local Laravolt
+     * generator as fallback so avatar creation never hard-depends on an external
+     * service.
      *
      * @param string $seed Seed for deterministic generation (username, email, etc.)
      * @param int $userId User ID for filename
      * @param string $appKey App key for subdirectory (e.g., AppKeys::APPQYV1)
      * @return string|null Relative path to avatar file
      */
-    public static function generateAndSave(string $seed, int $userId, string $appKey = null): ?string
+    public static function generateAndSave(string $seed, int $userId, ?string $appKey = null): ?string
     {
         if ($appKey === null) {
             $appKey = \App\Constants\AppKeys::APPQYV1;
@@ -63,7 +67,6 @@ class AvatarService
             'user_id' => $userId,
         ]);
 
-        $response = null;
         $imageData = null;
         $path = null;
         $fullPath = null;
@@ -71,26 +74,37 @@ class AvatarService
         try {
             $response = Http::timeout(10)->get($url);
 
-            if (!$response->successful()) {
-                Log::error('[AvatarService] Failed to generate avatar', [
+            if ($response->successful()) {
+                $imageData = $response->body();
+            } else {
+                Log::error('[AvatarService] DiceBear avatar request failed, falling back to local generator', [
                     'status' => $response->status(),
                     'seed' => $seed,
                 ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('[AvatarService] Exception during DiceBear avatar generation, falling back to local generator', [
+                'error' => $e->getMessage(),
+                'seed' => $seed,
+            ]);
+        }
+
+        $filename = 'avatar_' . $userId . '_' . time() . '.png';
+
+        $avatarsDir = PathMapper::getLaravelAvatarsDir();
+        $appDir = $avatarsDir . '/' . $appKey;
+
+        if (!file_exists($appDir)) {
+            mkdir($appDir, 0755, true);
+        }
+
+        $fullPath = $appDir . '/' . $filename;
+
+        if ($imageData === null) {
+            if (!self::generateLocalAvatar($seed, $fullPath)) {
                 return null;
             }
-
-            $imageData = $response->body();
-
-            $filename = 'avatar_' . $userId . '_' . time() . '.png';
-
-            $avatarsDir = PathMapper::getLaravelAvatarsDir();
-            $appDir = $avatarsDir . '/' . $appKey;
-
-            if (!file_exists($appDir)) {
-                mkdir($appDir, 0755, true);
-            }
-
-            $fullPath = $appDir . '/' . $filename;
+        } else {
             $saved = file_put_contents($fullPath, $imageData);
 
             if ($saved === false) {
@@ -99,23 +113,162 @@ class AvatarService
                 ]);
                 return null;
             }
+        }
 
-            $path = 'avatars/' . $appKey . '/' . $filename;
+        $path = 'avatars/' . $appKey . '/' . $filename;
 
-            Log::info('[AvatarService] Avatar generated and saved', [
-                'relative_path' => $path,
+        Log::info('[AvatarService] Avatar generated and saved', [
+            'relative_path' => $path,
+            'full_path' => $fullPath,
+        ]);
+
+        return $path;
+    }
+
+    /**
+     * Local avatar generation fallback (Laravolt initials avatar). Used when the
+     * external DiceBear HTTP API is unreachable so registration/login never
+     * depends on outbound connectivity.
+     *
+     * @param string $seed Seed text (username, email, etc.)
+     * @param string $fullPath Absolute output path for the PNG
+     * @return bool Success
+     */
+    private static function generateLocalAvatar(string $seed, string $fullPath): bool
+    {
+        if (!class_exists(\Laravolt\Avatar\Avatar::class)) {
+            Log::error('[AvatarService] Laravolt avatar generator not installed, no local fallback available', [
+                'seed' => $seed,
+            ]);
+            return false;
+        }
+
+        try {
+            $avatarCreator = new \Laravolt\Avatar\Avatar();
+            $avatarCreator->create($seed);
+            $avatarCreator->save($fullPath, 80);
+
+            if (!file_exists($fullPath)) {
+                Log::error('[AvatarService] Local avatar generator produced no file', [
+                    'path' => $fullPath,
+                ]);
+                return false;
+            }
+
+            Log::info('[AvatarService] Avatar generated locally (fallback)', [
+                'seed' => $seed,
                 'full_path' => $fullPath,
-                'size' => strlen($imageData),
             ]);
 
-            return $path;
+            return true;
         } catch (\Exception $e) {
-            Log::error('[AvatarService] Exception during avatar generation', [
+            Log::error('[AvatarService] Exception during local avatar generation', [
                 'error' => $e->getMessage(),
                 'seed' => $seed,
             ]);
-            return null;
+            return false;
         }
+    }
+
+    /**
+     * Idempotent read-time repair for a user's avatar.
+     *
+     * Only acts when the avatar is actually broken, so it does not slow down
+     * normal requests. Regenerates through the single pipeline (DiceBear HTTP
+     * with local Laravolt fallback), persists the new path, and returns the
+     * (possibly unchanged) user.
+     *
+     * Repaired when:
+     *  - avatar is empty / "null",
+     *  - the referenced local file is missing,
+     *  - the on-disk file exceeds self::MAX_UPLOAD_BYTES
+     *    (legacy oversized avatars, e.g. the 27 MB case).
+     *
+     * Remote URLs (http/https) are left untouched.
+     *
+     * @param User|null $user
+     * @return mixed The same user instance
+     */
+    public static function backfillAvatar($user)
+    {
+        $avatarDir = null;
+        $avatar = null;
+        $needsRepair = false;
+        $relative = null;
+        $localPath = null;
+        $seed = null;
+        $path = null;
+
+        if (!$user) {
+            return $user;
+        }
+
+        $avatarDir = PathMapper::getLaravelAvatarsDir();
+        $avatar = $user->avatar;
+
+        if (!$avatar || $avatar === '' || $avatar === 'null') {
+            $needsRepair = true;
+        } else if (stripos($avatar, 'http://') === 0 || stripos($avatar, 'https://') === 0) {
+            // External URL (e.g. gravatar fallback) - nothing local to check.
+            $needsRepair = false;
+        } else {
+            // Resolve the on-disk location strictly via the canonical
+            // PathMapper-backed avatars dir helper. Stored values are either
+            // "avatars/<app>/<file>" (strip the "avatars/" prefix) or a
+            // bare/root "/avatars/<id>.png" (legacy default layout).
+            $relative = ltrim($avatar, '/');
+            if (strpos($relative, 'avatars/') === 0) {
+                $relative = substr($relative, strlen('avatars/'));
+            }
+            $localPath = PathMapper::getLaravelAvatarsDir($relative);
+
+            if (!file_exists($localPath)) {
+                $needsRepair = true;
+            } else if (filesize($localPath) > self::MAX_UPLOAD_BYTES) {
+                $needsRepair = true;
+            }
+        }
+
+        if (!$needsRepair) {
+            return $user;
+        }
+
+        if (!file_exists($avatarDir)) {
+            mkdir($avatarDir, 0755, true);
+        }
+
+        // Drop the broken oversized file so the legacy 27 MB payloads do not
+        // linger once the avatar moves to the standard per-app layout.
+        if ($localPath !== null && file_exists($localPath) && filesize($localPath) > self::MAX_UPLOAD_BYTES) {
+            self::deleteAvatar($avatar);
+        }
+
+        $seed = $user->username;
+        if (!$seed) {
+            $seed = $user->email;
+        }
+        if (!$seed) {
+            $seed = 'user' . $user->id;
+        }
+
+        $path = self::generateAndSave($seed, (int) $user->id);
+
+        if ($path === null) {
+            Log::error('[AvatarService] Backfill failed, avatar left unchanged', [
+                'user_id' => $user->id,
+            ]);
+            return $user;
+        }
+
+        $user->avatar = $path;
+        $user->saveRecord();
+
+        Log::info('[AvatarService] Avatar backfilled', [
+            'user_id' => $user->id,
+            'avatar_path' => $path,
+        ]);
+
+        return $user;
     }
 
     /**
@@ -127,7 +280,7 @@ class AvatarService
      * @param string|null $filename Optional custom filename
      * @return string|null Relative path to avatar file
      */
-    public static function saveBase64Avatar(string $base64Data, int $userId, string $appName = null, ?string $filename = null): ?string
+    public static function saveBase64Avatar(string $base64Data, int $userId, ?string $appName = null, ?string $filename = null): ?string
     {
         $allowedExtensions = ['png', 'jpg', 'jpeg', 'webp'];
         $extension = 'png';

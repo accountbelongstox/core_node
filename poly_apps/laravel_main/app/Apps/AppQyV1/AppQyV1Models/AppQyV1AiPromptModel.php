@@ -10,9 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
 /**
  * AI prompt library row.
@@ -22,17 +19,10 @@ use App\Models\Model;
  * from code); `source = 'database'` rows are operator-owned and never touched
  * by the seeder. See AppQyV1AiPromptFanoutTask for the consumer.
  */
-class AppQyV1AiPromptModel extends Model
+class AppQyV1AiPromptModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_prompts');
-    }
+    protected ?string $appTableSuffix = 'ai_prompts';
 
     const SOURCE_CODE = 'code';
     const SOURCE_DATABASE = 'database';
@@ -47,10 +37,13 @@ class AppQyV1AiPromptModel extends Model
         'enabled',
     ];
 
-    protected $casts = [
-        'response_schema' => 'array',
-        'enabled' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'response_schema' => 'array',
+            'enabled' => 'boolean',
+        ];
+    }
 
     public static function enabledByKey()
     {

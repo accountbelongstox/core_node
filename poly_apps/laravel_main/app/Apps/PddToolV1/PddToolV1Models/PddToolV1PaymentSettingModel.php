@@ -10,26 +10,13 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-
 /**
  * Single-row gateway config (enable toggles + non-secret identifiers). The real
- * merchant secrets (private keys / api_v3_key) live in CoreNodeSecrets, NOT here.
+ * merchant secrets (private keys / api_v3_key) live in RuntimeConfigurationStore, NOT here.
  */
-class PddToolV1PaymentSettingModel extends Model
+class PddToolV1PaymentSettingModel extends PddToolV1Model
 {
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('PAYMENT_SETTINGS');
-    }
+    protected ?string $appTableMapKey = 'PAYMENT_SETTINGS';
 
     protected $fillable = [
         'alipay_enabled',

@@ -10,7 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1System;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use App\Traits\ApiResponse;
@@ -35,7 +35,7 @@ use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
  *     languages:[{lang,formal,staging,promoted,status}] }
  * status enum: "pass" | "fail" | "warn" | "skip".
  */
-class AppQyV1SystemInitComplianceCtl extends BaseController
+class AppQyV1SystemInitComplianceCtl extends Controller
 {
     use ApiResponse;
 

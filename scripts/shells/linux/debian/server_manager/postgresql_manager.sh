@@ -32,7 +32,7 @@ COLOR_CYAN="\033[36m"
 check_postgresql_installed() {
     if ! command -v psql >/dev/null 2>&1; then
         echo -e "${COLOR_RED}PostgreSQL is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 48_install_postgresql.sh"
+        echo "Please run installation script first: 47_install_postgresql.sh"
         return 1
     fi
     return 0

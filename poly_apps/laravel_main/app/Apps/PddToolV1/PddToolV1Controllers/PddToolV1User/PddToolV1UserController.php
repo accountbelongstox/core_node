@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1User;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +24,7 @@ use App\Apps\PddToolV1\PddToolV1Services\PddToolV1ProfileResolver;
  * authenticated principal is the global App\Models\User, its membership lives in
  * a PddToolV1ProfileModel resolved via PddToolV1ProfileResolver.
  */
-class PddToolV1UserController extends BaseController
+class PddToolV1UserController extends Controller
 {
     /**
      * GET /users/me -> USER

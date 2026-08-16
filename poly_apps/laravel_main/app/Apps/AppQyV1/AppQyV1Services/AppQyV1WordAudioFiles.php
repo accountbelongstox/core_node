@@ -160,9 +160,8 @@ class AppQyV1WordAudioFiles
 
     /**
      * TTS variant specs per language. DB-driven via app_qy_v1_tts_variant_specs
-     * (seeded at sys:init); falls back to the hardcoded spec set when the table
-     * is missing/empty. Identical return shape across sentence + word audio
-     * (single read path on the model).
+     * and seeded at sys:init. Missing configuration is a runtime error so the
+     * sentence and word audio paths share one authoritative model read path.
      *
      * @return array<int,array{key:string,accent:?string,gender:string}>
      */

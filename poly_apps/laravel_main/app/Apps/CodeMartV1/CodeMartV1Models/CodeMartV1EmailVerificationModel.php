@@ -3,26 +3,15 @@
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
 use App\Apps\CodeMartV1\CodeMartV1TablesMaps\CodeMartV1TablesMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
-class CodeMartV1EmailVerificationModel extends Model
+class CodeMartV1EmailVerificationModel extends CodeMartV1Model
 {
     protected $guarded = [];
-    protected $table;
+    protected $table = CodeMartV1TablesMaps::EMAIL_VERIFICATIONS_TABLE;
 
     protected $casts = [
         'verified_at' => 'datetime',
     ];
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-
-        $this->connection = AppTablePrefixServiceProvider::getConnection(AppKeys::CODEMARTV1);
-        $this->table = CodeMartV1TablesMaps::EMAIL_VERIFICATIONS_TABLE;
-    }
 
     public static function consume(string $email, string $token): bool
     {

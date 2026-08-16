@@ -13,10 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,7 +21,7 @@ use Illuminate\Support\Collection;
  * effectively offline regardless of the stored status. created_at only is not
  * tracked (heartbeat upsert sets last_seen_at + updated_at).
  */
-class AppQyV1UserPresenceModel extends Model
+class AppQyV1UserPresenceModel extends AppQyV1Model
 {
     public const STATUS_ONLINE = 'online';
     public const STATUS_AWAY = 'away';
@@ -38,15 +34,8 @@ class AppQyV1UserPresenceModel extends Model
     // No created_at; updated_at is set explicitly on heartbeat upsert.
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('USER_PRESENCE');
-    }
+    protected ?string $appTableMapKey = 'USER_PRESENCE';
 
     protected $fillable = [
         'user_id',
@@ -60,16 +49,19 @@ class AppQyV1UserPresenceModel extends Model
         'updated_at',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'last_seen_at' => 'datetime',
-        'latitude' => 'float',
-        'longitude' => 'float',
-        'location_accuracy' => 'float',
-        'location_visible' => 'boolean',
-        'location_updated_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'last_seen_at' => 'datetime',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'location_accuracy' => 'float',
+            'location_visible' => 'boolean',
+            'location_updated_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public static function findByUserId(int $userId): ?self
     {

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Services\AiGateway\AiSecretLoader;
+use App\Utils\SecretStore;
 use App\Services\WordAudio\WordAudioClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,7 +28,7 @@ class WordAudioLocalController extends Controller
     {
         // Determine Forvo key presence the SAME way WordAudioClient does — a plain
         // secret lookup, no network call, and the key value never leaves this method.
-        $forvoKeyPresent = trim(AiSecretLoader::getIndexed('FORVO_API_KEY')) !== '';
+        $forvoKeyPresent = trim(SecretStore::getIndexed('FORVO_API_KEY')) !== '';
 
         return response()->json([
             'backend' => 'laravel',

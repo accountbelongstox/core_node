@@ -2,11 +2,15 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models\Concerns;
 
+use App\Models\Concerns\QueriesPosterMedia;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Schema;
 
 trait AppQyV1MediaSourceQueries
 {
+    use QueriesPosterMedia;
+
     public static function browsePage(?string $language, ?string $search, int $perPage): LengthAwarePaginator
     {
         $query = self::query();
@@ -15,9 +19,9 @@ trait AppQyV1MediaSourceQueries
             $query->where('language', $language);
         }
         if ($search !== null && $search !== '') {
-            $query->where(function ($searchQuery) use ($search) {
-                $searchQuery->where('title', 'like', "%{$search}%")
-                    ->orWhere('original_name', 'like', "%{$search}%");
+            $query->where(function (Builder $searchQuery) use ($search): void {
+                $searchQuery->whereLike('title', "%{$search}%", caseSensitive: false)
+                    ->orWhereLike('original_name', "%{$search}%", caseSensitive: false);
             });
         }
 
@@ -29,24 +33,9 @@ trait AppQyV1MediaSourceQueries
         return self::query()->where('source_key', $sourceKey)->first();
     }
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
-
     public static function sourceExists(string $sourceKey): bool
     {
         return self::query()->where('source_key', $sourceKey)->exists();
-    }
-
-    public static function tableRowCount(): int
-    {
-        $model = new static();
-        if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-            return 0;
-        }
-
-        return self::query()->count();
     }
 
     public static function findSource(int $id): ?self
@@ -100,13 +89,6 @@ trait AppQyV1MediaSourceQueries
             && $schema->hasColumn($model->getTable(), 'assist_claimed_at');
     }
 
-    public static function posterColumnAvailable(string $column): bool
-    {
-        $model = new static();
-
-        return Schema::connection($model->getConnectionName())->hasColumn($model->getTable(), $column);
-    }
-
     public static function claimPosterRows(
         string $claimerId,
         int $limit,
@@ -125,6 +107,7 @@ trait AppQyV1MediaSourceQueries
             $provenanceSupported,
             $compliantProviders
         ) {
+            $claimedAt = now();
             $rows = self::query()
                 ->where(function ($status) use ($failedFloor, $provenanceSupported, $compliantProviders): void {
                     $status->where('poster_status', 'pending')
@@ -152,13 +135,18 @@ trait AppQyV1MediaSourceQueries
                 ->orderByRaw('poster_fetched_at IS NULL DESC')
                 ->orderBy('poster_fetched_at')
                 ->limit($limit)
-                ->lockForUpdate()
+                ->lock('FOR UPDATE SKIP LOCKED')
                 ->get();
 
-            foreach ($rows as $row) {
-                $row->assist_claimed_at = now();
-                $row->assist_claimed_by = $claimerId;
-                $row->save();
+            if ($rows->isNotEmpty()) {
+                self::query()->whereKey($rows->modelKeys())->update([
+                    'assist_claimed_at' => $claimedAt,
+                    'assist_claimed_by' => $claimerId,
+                ]);
+                foreach ($rows as $row) {
+                    $row->assist_claimed_at = $claimedAt;
+                    $row->assist_claimed_by = $claimerId;
+                }
             }
 
             return $rows;
@@ -168,15 +156,17 @@ trait AppQyV1MediaSourceQueries
     public static function releasePosterClaims(array $ids, $failedAt): int
     {
         $query = self::query()->whereIn('id', $ids)->whereNotNull('assist_claimed_at');
-        $released = (clone $query)->count();
 
-        (clone $query)->where('poster_status', '!=', 'ready')->update([
+        $released = (clone $query)->where('poster_status', '!=', 'ready')->update([
             'poster_status' => 'failed',
             'poster_fetched_at' => $failedAt,
             'assist_claimed_at' => null,
             'assist_claimed_by' => null,
         ]);
-        $query->update(['assist_claimed_at' => null, 'assist_claimed_by' => null]);
+        $released += $query->where('poster_status', 'ready')->update([
+            'assist_claimed_at' => null,
+            'assist_claimed_by' => null,
+        ]);
 
         return $released;
     }
@@ -184,14 +174,18 @@ trait AppQyV1MediaSourceQueries
     public static function assistPosterCounts($leaseFloor): array
     {
         $grouped = self::query()
+            ->select('poster_status')
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw(
+                'SUM(CASE WHEN poster_status = ? AND assist_claimed_at >= ? THEN 1 ELSE 0 END) AS leased',
+                ['pending', $leaseFloor]
+            )
             ->groupBy('poster_status')
-            ->selectRaw('poster_status, count(*) as total')
-            ->pluck('total', 'poster_status');
-        $leased = self::query()
-            ->where('poster_status', 'pending')
-            ->where('assist_claimed_at', '>=', $leaseFloor)
-            ->count();
+            ->get();
 
-        return ['statuses' => $grouped, 'leased' => $leased];
+        return [
+            'statuses' => $grouped->pluck('total', 'poster_status'),
+            'leased' => (int) $grouped->sum('leased'),
+        ];
     }
 }

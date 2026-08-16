@@ -13,9 +13,9 @@ use App\Providers\PathMapper;
  * - Replace Map: Content replacement rules
  *
  * Supports both MCP (Model Context Protocol) and web query interfaces
- * Following Laravel 12.x MCP specifications
+ * Following Laravel 13.x MCP specifications
  *
- * @see https://laravel.com/docs/12.x/mcp
+ * @see https://laravel.com/docs/13.x/mcp
  */
 class PromptMappingService
 {
@@ -29,7 +29,7 @@ class PromptMappingService
         ],
         'mcp-dev' => [
             'prefix' => '[MCP Development Context]' . "\n",
-            'suffix' => "\n" . '[Follow Laravel 12.x MCP specifications]',
+            'suffix' => "\n" . '[Follow Laravel 13.x MCP specifications]',
             'replace_map' => [
                 'API' => 'MCP API',
                 'interface' => 'MCP interface',

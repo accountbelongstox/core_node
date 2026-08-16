@@ -16,6 +16,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyGrammarPointModel as StudyGrammarPoint;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudyPhraseModel as StudyPhrase;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1StudySegmentModel as StudySegment;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * Study-content generation control plane (Book Study-Content Generation pipeline
@@ -50,7 +51,7 @@ class AppQyV1StudyGenService
      */
     public static function isEnabled(): bool
     {
-        return (bool) env('APPQYV1_STUDY_GEN_ENABLED', true);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_STUDY_GEN_ENABLED, true);
     }
 
     // ------------------------------------------------------------------

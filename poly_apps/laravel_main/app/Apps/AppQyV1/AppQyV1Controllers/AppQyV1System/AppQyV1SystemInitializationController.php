@@ -24,7 +24,6 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
 
 class AppQyV1SystemInitializationController extends Controller
 {
@@ -481,9 +480,9 @@ class AppQyV1SystemInitializationController extends Controller
         ];
         
         $statistics = collect($languages)->map(function ($langName, $langCode) {
-            $total = AppQyV1MultiLangDictionaryModel::countAll($langCode);
+            $total = AppQyV1LangDictionaryModel::rowCount($langCode);
             // Unified schema: has_translation is the reviewed/usable signal.
-            $reviewed = AppQyV1MultiLangDictionaryModel::countByTranslation($langCode);
+            $reviewed = AppQyV1LangDictionaryModel::translatedCount($langCode);
             
             return [
                 'language' => $langName,

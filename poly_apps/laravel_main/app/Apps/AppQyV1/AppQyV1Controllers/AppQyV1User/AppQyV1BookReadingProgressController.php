@@ -4,13 +4,13 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1BookReadingProgressService;
 
-class AppQyV1BookReadingProgressController extends BaseController
+class AppQyV1BookReadingProgressController extends Controller
 {
     use ApiResponse;
 

@@ -4,13 +4,13 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserSelectedLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Traits\ApiResponse;
 
-class AppQyV1VocabularyRecommendationController extends BaseController
+class AppQyV1VocabularyRecommendationController extends Controller
 {
     use ApiResponse;
 

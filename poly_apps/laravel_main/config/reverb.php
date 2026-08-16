@@ -1,40 +1,39 @@
 <?php
 
-$allowedOrigins = array_values(array_filter(array_map(
-    static fn (string $origin): string => trim($origin),
-    explode(',', (string) env('REVERB_ALLOWED_ORIGINS', '*'))
-)));
+use App\Constants\LaravelConfig;
+
+$allowedOrigins = ['*'];
 
 return [
 
-    'default' => env('REVERB_SERVER', 'reverb'),
+    'default' => 'reverb',
 
     'servers' => [
 
         'reverb' => [
-            'host' => env('REVERB_SERVER_HOST', '0.0.0.0'),
-            'port' => env('REVERB_SERVER_PORT', 8080),
-            'path' => env('REVERB_SERVER_PATH', ''),
-            'hostname' => env('REVERB_HOST'),
+            'host' => LaravelConfig::REVERB_SERVER_HOST,
+            'port' => LaravelConfig::REVERB_PORT,
+            'path' => '',
+            'hostname' => LaravelConfig::REVERB_CLIENT_HOST,
             'options' => [
                 'tls' => [],
             ],
-            'max_request_size' => env('REVERB_MAX_REQUEST_SIZE', 10_000),
+            'max_request_size' => 10_000,
             'scaling' => [
-                'enabled' => env('REVERB_SCALING_ENABLED', false),
-                'channel' => env('REVERB_SCALING_CHANNEL', 'reverb'),
+                'enabled' => false,
+                'channel' => 'reverb',
                 'server' => [
-                    'url' => env('REDIS_URL'),
-                    'host' => env('REDIS_HOST', '127.0.0.1'),
-                    'port' => env('REDIS_PORT', '6379'),
-                    'username' => env('REDIS_USERNAME'),
-                    'password' => env('REDIS_PASSWORD'),
-                    'database' => env('REDIS_DB', '0'),
-                    'timeout' => env('REDIS_TIMEOUT', 60),
+                    'url' => null,
+                    'host' => LaravelConfig::REDIS_HOST,
+                    'port' => LaravelConfig::REDIS_PORT,
+                    'username' => null,
+                    'password' => null,
+                    'database' => LaravelConfig::REDIS_DATABASE,
+                    'timeout' => 60,
                 ],
             ],
-            'pulse_ingest_interval' => env('REVERB_PULSE_INGEST_INTERVAL', 15),
-            'telescope_ingest_interval' => env('REVERB_TELESCOPE_INGEST_INTERVAL', 15),
+            'pulse_ingest_interval' => 15,
+            'telescope_ingest_interval' => 15,
         ],
 
     ],
@@ -47,18 +46,18 @@ return [
             [
                 'key' => env('REVERB_APP_KEY'),
                 'secret' => env('REVERB_APP_SECRET'),
-                'app_id' => env('REVERB_APP_ID'),
+                'app_id' => LaravelConfig::REVERB_APP_ID,
                 'options' => [
-                    'host' => env('REVERB_HOST'),
-                    'port' => env('REVERB_PORT', 443),
-                    'scheme' => env('REVERB_SCHEME', 'https'),
-                    'useTLS' => env('REVERB_SCHEME', 'https') === 'https',
+                    'host' => LaravelConfig::REVERB_CLIENT_HOST,
+                    'port' => LaravelConfig::REVERB_PORT,
+                    'scheme' => LaravelConfig::REVERB_SCHEME,
+                    'useTLS' => false,
                 ],
                 'allowed_origins' => $allowedOrigins ?: ['*'],
-                'ping_interval' => env('REVERB_APP_PING_INTERVAL', 60),
-                'activity_timeout' => env('REVERB_APP_ACTIVITY_TIMEOUT', 30),
-                'max_connections' => env('REVERB_APP_MAX_CONNECTIONS'),
-                'max_message_size' => env('REVERB_APP_MAX_MESSAGE_SIZE', 10_000),
+                'ping_interval' => 60,
+                'activity_timeout' => 30,
+                'max_connections' => null,
+                'max_message_size' => 10_000,
             ],
         ],
 

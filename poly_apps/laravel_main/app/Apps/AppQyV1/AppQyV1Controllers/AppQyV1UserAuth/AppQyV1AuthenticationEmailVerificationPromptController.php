@@ -11,14 +11,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 use App\Traits\ApiResponse;
 
-class AppQyV1AuthenticationEmailVerificationPromptController extends BaseController
+class AppQyV1AuthenticationEmailVerificationPromptController extends Controller
 {
     use ApiResponse;
 

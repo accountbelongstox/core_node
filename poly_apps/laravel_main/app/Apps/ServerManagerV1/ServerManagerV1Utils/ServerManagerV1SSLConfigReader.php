@@ -344,8 +344,8 @@ class ServerManagerV1SSLConfigReader
                     if ($name === 'dnspod') {
                         // Check if DNSPod credentials are available from secret storage
                         try {
-                            $email = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_EMAILS');
-                            $apiToken = \App\Helpers\GlobalSecretReader::getSecretContent('DNS_DNSPOD_API_TOKENS');
+                            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
+                            $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
 
                             if (empty($email)) {
                                 $errors[] = "DNSPod provider missing email in secret storage";

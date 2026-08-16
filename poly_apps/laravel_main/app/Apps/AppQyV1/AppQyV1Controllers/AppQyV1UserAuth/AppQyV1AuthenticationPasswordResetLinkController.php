@@ -11,14 +11,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\ValidationException;
 use App\Traits\ApiResponse;
 
-class AppQyV1AuthenticationPasswordResetLinkController extends BaseController
+class AppQyV1AuthenticationPasswordResetLinkController extends Controller
 {
     use ApiResponse;
 

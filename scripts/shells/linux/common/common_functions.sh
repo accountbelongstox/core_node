@@ -651,3 +651,35 @@ add_to_global_path_from_common_functions() {
 
 . "$COMMON_FUNCS_DIR/download_functions_common.sh"
 . "$COMMON_FUNCS_DIR/runtime_helpers_common.sh"
+
+# Write stdin to <target> only when the content changed. When <backup_dir> is
+# given, the previous version is copied there once with a timestamp suffix.
+# Single shared implementation used by the nginx/certbot/domain installers.
+# Usage: write_file_if_changed <target> [backup_dir] <<EOF ... EOF
+write_file_if_changed() {
+    local target="$1"
+    local backup_dir="${2:-}"
+    local tmp_content
+    tmp_content=$(mktemp)
+    cat > "$tmp_content"
+
+    if [ -f "$target" ] && cmp -s "$tmp_content" "$target"; then
+        rm -f "$tmp_content"
+        echo "[${SCRIPT_INDEX:-common}] [SKIP] $target already up to date"
+        return 0
+    fi
+
+    if [ -n "$backup_dir" ] && [ -f "$target" ]; then
+        $USE_SUDO mkdir -p "$backup_dir"
+        $USE_SUDO cp -a "$target" "$backup_dir/$(basename "$target").$(date +%Y%m%d%H%M%S).bak"
+    fi
+    $USE_SUDO mkdir -p "$(dirname "$target")"
+    $USE_SUDO cp "$tmp_content" "$target"
+    rm -f "$tmp_content"
+    # House policy: files written by the idempotent replace path are set to
+    # mode 777 (shared NTFS data disks ignore chmod; native fs keeps them
+    # writable for every management end).
+    $USE_SUDO chmod 777 "$target" 2>/dev/null || true
+    echo "[${SCRIPT_INDEX:-common}] [OK] $target written"
+    return 0
+}

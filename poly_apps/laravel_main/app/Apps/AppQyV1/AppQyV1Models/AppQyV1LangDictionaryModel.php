@@ -5,13 +5,11 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Builder;
-use App\Models\Model;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Services\QueueCenter\QueueCenterRealtimeService;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1DynamicLanguageTable;
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
 
 /**
@@ -19,17 +17,14 @@ use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1TtsQueueQueries;
  *
  * Operates on language-specific dictionary tables: {prefix}_{lang}_dictionaries
  * Used for TTS caching, translations, and word metadata
- * Table prefix is obtained from key center (AppTablePrefixServiceProvider)
+ * Table names are resolved through the canonical AppQyV1 table map.
  */
-class AppQyV1LangDictionaryModel extends Model
+class AppQyV1LangDictionaryModel extends AppQyV1Model
 {
-    use AppQyV1TtsQueueQueries, QueriesDiffIdPages, RunsModelTransactions;
+    use AppQyV1TtsQueueQueries, BindsAppQyV1DynamicLanguageTable, QueriesDiffIdPages, RunsModelTransactions;
 
     private const QUERY_CHUNK_SIZE = 1000;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
-    protected $langCode;
 
     protected $fillable = [
         'content',
@@ -80,70 +75,134 @@ class AppQyV1LangDictionaryModel extends Model
         'bing_resource_urls',
     ];
 
-    protected $casts = [
-        'translations' => 'json',
-        'tts_files' => 'json',
-        'audio_files' => 'json',
-        'image_files' => 'json',
-        'word_details' => 'json',
-        'bing_resource_urls' => 'json',
-        'has_translation' => 'boolean',
-        'has_audio' => 'boolean',
-        'is_exist_local' => 'boolean',
-        'has_operations' => 'boolean',
-        'is_valid' => 'boolean',
-        'validity_checked_at' => 'datetime',
-        'query_count' => 'integer',
-        'last_modified' => 'datetime',
-        'last_query_time' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'tts_attempts' => 'integer',
-        'tts_locked_at' => 'datetime',
-        'tts_requested_at' => 'datetime',
-        'tts_completed_at' => 'datetime',
-        'image_attempts' => 'integer',
-        'image_priority' => 'integer',
-        'image_locked_at' => 'datetime',
-        'image_requested_at' => 'datetime',
-        'image_completed_at' => 'datetime',
-        'image_mcp_submitted_at' => 'datetime',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return [
+            'translations' => 'json',
+            'tts_files' => 'json',
+            'audio_files' => 'json',
+            'image_files' => 'json',
+            'word_details' => 'json',
+            'bing_resource_urls' => 'json',
+            'has_translation' => 'boolean',
+            'has_audio' => 'boolean',
+            'is_exist_local' => 'boolean',
+            'has_operations' => 'boolean',
+            'is_valid' => 'boolean',
+            'validity_checked_at' => 'datetime',
+            'query_count' => 'integer',
+            'last_modified' => 'datetime',
+            'last_query_time' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'tts_attempts' => 'integer',
+            'tts_locked_at' => 'datetime',
+            'tts_requested_at' => 'datetime',
+            'tts_completed_at' => 'datetime',
+            'image_attempts' => 'integer',
+            'image_priority' => 'integer',
+            'image_locked_at' => 'datetime',
+            'image_requested_at' => 'datetime',
+            'image_completed_at' => 'datetime',
+            'image_mcp_submitted_at' => 'datetime',
+        ];
+    }
 
-        if (isset($attributes['lang_code'])) {
-            $this->setLanguage($attributes['lang_code']);
+    protected function resolveDynamicLanguageTable(string $language): string
+    {
+        return AppQyV1TableMaps::getDictionaryTableName($language);
+    }
+
+    public static function initializationLanguageState(string $langCode): array
+    {
+        $model = self::forLanguage($langCode);
+        $schema = Schema::connection($model->getConnectionName());
+        $table = $model->getTable();
+        $row = null;
+
+        if (!$schema->hasTable($table)) {
+            return ['exists' => false, 'total' => 0, 'translated' => 0];
         }
-    }
-    
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
+
+        $row = $model->newQuery()
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw('COALESCE(SUM(CASE WHEN has_translation = true THEN 1 ELSE 0 END), 0) AS translated')
+            ->first();
+
+        return [
+            'exists' => true,
+            'total' => (int) ($row->total ?? 0),
+            'translated' => (int) ($row->translated ?? 0),
+        ];
     }
 
-    public function setLanguage(string $langCode): self
+    public static function initializationTableSummary(): array
     {
-        $this->langCode = strtolower($langCode);
-        // Resolve through the canonical table map so reads hit the same table
-        // the dictionary importer populates (app_qy_v1_tts_cache_{lang}).
-        $this->table = AppQyV1TableMaps::getDictionaryTableName($this->langCode);
-        return $this;
-    }
+        $languages = AppQyV1TableMaps::getSupportedLanguages();
+        $tablesWithData = [];
+        $emptyCount = 0;
+        $totalTables = 0;
+        $errors = [];
+        $model = new self();
+        $connection = $model->getConnection();
+        $existingTables = array_fill_keys(
+            $connection->getSchemaBuilder()->getTableListing(null, false),
+            true
+        );
+        $languageByTable = [];
+        $aggregateQuery = null;
+        $table = '';
+        $tableQuery = null;
+        $count = 0;
+        $distinctMd5 = 0;
+        $rows = null;
 
-    public function getLanguage(): ?string
-    {
-        return $this->langCode;
-    }
+        foreach ($languages as $language) {
+            $table = self::forLanguage($language)->getTable();
+            if (!isset($existingTables[$table])) {
+                continue;
+            }
 
-    public static function forLanguage(string $langCode): self
-    {
-        $instance = new self();
-        $instance->setLanguage($langCode);
-        return $instance;
+            $languageByTable[$table] = $language;
+            $tableQuery = $connection->table($table)
+                ->selectRaw('?::text AS table_name', [$table])
+                ->selectRaw('COUNT(*) AS total')
+                ->selectRaw('COUNT(DISTINCT md5) AS distinct_md5');
+            if ($aggregateQuery === null) {
+                $aggregateQuery = $tableQuery;
+            } else {
+                $aggregateQuery->unionAll($tableQuery);
+            }
+        }
+
+        $totalTables = count($languageByTable);
+        if ($aggregateQuery !== null) {
+            $rows = $aggregateQuery->get();
+            foreach ($rows as $row) {
+                $table = (string) $row->table_name;
+                $count = (int) $row->total;
+                $distinctMd5 = (int) $row->distinct_md5;
+                if ($count === 0) {
+                    $emptyCount++;
+                    continue;
+                }
+
+                $tablesWithData[] = [
+                    'name' => $table,
+                    'code' => $languageByTable[$table],
+                    'count' => $count,
+                    'distinct_md5' => $distinctMd5,
+                    'unique_ok' => $count === $distinctMd5,
+                ];
+            }
+        }
+
+        return [
+            'tables_with_data' => $tablesWithData,
+            'empty_count' => $emptyCount,
+            'total_tables' => $totalTables,
+            'errors' => $errors,
+        ];
     }
 
     public static function findForLanguage(string $langCode, int $wordId): ?self
@@ -336,10 +395,15 @@ class AppQyV1LangDictionaryModel extends Model
 
     public static function validitySummary(string $langCode): array
     {
-        $query = self::forLanguage($langCode)->newQuery();
-        $total = (clone $query)->count();
-        $invalid = (clone $query)->where('is_valid', false)->count();
-        $unchecked = (clone $query)->whereNull('validity_checked_at')->count();
+        $stats = self::forLanguage($langCode)
+            ->newQuery()
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw('SUM(CASE WHEN is_valid = false THEN 1 ELSE 0 END) AS invalid')
+            ->selectRaw('SUM(CASE WHEN validity_checked_at IS NULL THEN 1 ELSE 0 END) AS unchecked')
+            ->first();
+        $total = (int) ($stats->total ?? 0);
+        $invalid = (int) ($stats->invalid ?? 0);
+        $unchecked = (int) ($stats->unchecked ?? 0);
 
         return [
             'total' => $total,
@@ -430,15 +494,29 @@ class AppQyV1LangDictionaryModel extends Model
         return self::rowsByColumnValues($language, 'md5', $hashes, $columns);
     }
 
+    public static function rowsByLanguageHashes(array $hashesByLanguage, array $columns = ['*']): array
+    {
+        $rowsByLanguage = [];
+
+        foreach ($hashesByLanguage as $language => $hashes) {
+            $rowsByLanguage[$language] = self::rowsByHashes($language, $hashes, $columns)->keyBy('md5');
+        }
+
+        return $rowsByLanguage;
+    }
+
     public static function queriedRowsByContents(string $language, array $contents): array
     {
         $hashes = [];
+        $queryCounts = [];
         $rows = null;
         $rowsByHash = [];
 
         foreach ($contents as $content) {
             if (is_string($content)) {
-                $hashes[] = md5($content);
+                $hash = md5($content);
+                $hashes[] = $hash;
+                $queryCounts[$hash] = ($queryCounts[$hash] ?? 0) + 1;
             }
         }
 
@@ -453,13 +531,34 @@ class AppQyV1LangDictionaryModel extends Model
         }
 
         if ($rowsByHash !== []) {
-            self::forLanguage($language)
-                ->newQuery()
-                ->whereIn('md5', array_keys($rowsByHash))
-                ->increment('query_count', 1, ['last_query_time' => now()]);
+            self::incrementQueryCounts($language, array_intersect_key($queryCounts, $rowsByHash));
         }
 
         return $rowsByHash;
+    }
+
+    private static function incrementQueryCounts(string $language, array $countsByHash): void
+    {
+        $model = self::forLanguage($language);
+        $connection = $model->getConnection();
+        $table = $connection->getQueryGrammar()->wrapTable($model->getTable());
+
+        foreach (array_chunk($countsByHash, self::QUERY_CHUNK_SIZE, true) as $chunk) {
+            $valueClauses = [];
+            $bindings = [];
+
+            foreach ($chunk as $hash => $count) {
+                $valueClauses[] = '(?::text, ?::integer)';
+                $bindings[] = $hash;
+                $bindings[] = $count;
+            }
+
+            $values = implode(', ', $valueClauses);
+            $connection->update(
+                "UPDATE {$table} AS dictionary SET query_count = COALESCE(dictionary.query_count, 0) + requested.amount, last_query_time = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP FROM (VALUES {$values}) AS requested(md5, amount) WHERE dictionary.md5 = requested.md5",
+                $bindings
+            );
+        }
     }
 
     public static function idMapByHashes(string $language, array $hashes): array
@@ -717,6 +816,21 @@ class AppQyV1LangDictionaryModel extends Model
         return self::forLanguage($language)->count();
     }
 
+    public static function translatedCount(string $language): int
+    {
+        return self::forLanguage($language)->where('has_translation', true)->count();
+    }
+
+    public static function untranslatedRows(string $language, int $limit)
+    {
+        return self::forLanguage($language)
+            ->where('has_translation', false)
+            ->where('is_valid', true)
+            ->orderByDesc('query_count')
+            ->limit($limit)
+            ->get();
+    }
+
     public static function idBounds(string $language): array
     {
         $row = self::forLanguage($language)
@@ -822,6 +936,44 @@ class AppQyV1LangDictionaryModel extends Model
         return $instance;
     }
 
+    public static function storeTranslationCache(
+        string $langCode,
+        string $content,
+        string $cacheKey,
+        array $cacheValue,
+        string $provider
+    ): void {
+        $model = self::forLanguage($langCode);
+        $hash = md5($content);
+
+        $model->getConnection()->transaction(function () use (
+            $langCode,
+            $content,
+            $cacheKey,
+            $cacheValue,
+            $provider,
+            $hash
+        ): void {
+            $entry = self::lockByHash($langCode, $hash);
+            if (!$entry) {
+                $entry = self::forLanguage($langCode);
+                $entry->content = $content;
+                $entry->md5 = $hash;
+                $entry->has_audio = false;
+                $entry->query_count = 0;
+            }
+
+            $translations = is_array($entry->translations) ? $entry->translations : [];
+            $translations[$cacheKey] = $cacheValue;
+            $entry->translations = $translations;
+            $entry->has_translation = true;
+            $entry->translation_provider = $provider;
+            $entry->saveRecord();
+        });
+
+        self::forgetMetricsCache($langCode);
+    }
+
     public static function newImageQueueEntry(string $langCode, string $content): self
     {
         $entry = self::forLanguage($langCode);
@@ -917,8 +1069,7 @@ class AppQyV1LangDictionaryModel extends Model
         $connection = $model->getConnection();
         $table = $connection->getQueryGrammar()->wrapTable($model->getTable());
         $recordsByHash = [];
-        $valueClauses = [];
-        $bindings = [];
+        $existingRecords = [];
         $existingHashes = [];
         $existingLookup = [];
         $updated = 0;
@@ -950,11 +1101,7 @@ class AppQyV1LangDictionaryModel extends Model
                 continue;
             }
 
-            $valueClauses[] = '(?::text, ?::boolean, ?::text, ?::text)';
-            $bindings[] = $hash;
-            $bindings[] = $record['is_valid'];
-            $bindings[] = $record['source'];
-            $bindings[] = $record['note'];
+            $existingRecords[$hash] = $record;
 
             if ($record['is_valid']) {
                 $valid++;
@@ -963,9 +1110,20 @@ class AppQyV1LangDictionaryModel extends Model
             }
         }
 
-        if ($valueClauses !== []) {
+        foreach (array_chunk($existingRecords, self::QUERY_CHUNK_SIZE, true) as $chunk) {
+            $valueClauses = [];
+            $bindings = [];
+
+            foreach ($chunk as $hash => $record) {
+                $valueClauses[] = '(?::text, ?::boolean, ?::text, ?::text)';
+                $bindings[] = $hash;
+                $bindings[] = $record['is_valid'];
+                $bindings[] = $record['source'];
+                $bindings[] = $record['note'];
+            }
+
             $values = implode(', ', $valueClauses);
-            $updated = $connection->update(
+            $updated += $connection->update(
                 "UPDATE {$table} AS dictionary SET is_valid = validity.is_valid, validity_checked_at = CURRENT_TIMESTAMP, validity_source = validity.source, validity_note = validity.note, updated_at = CURRENT_TIMESTAMP FROM (VALUES {$values}) AS validity(md5, is_valid, source, note) WHERE dictionary.md5 = validity.md5",
                 $bindings
             );
@@ -987,26 +1145,29 @@ class AppQyV1LangDictionaryModel extends Model
      * falls in the sentence range (50 < LENGTH(content) < 500).
      *
      * LENGTH() has no native query-builder equivalent, so the comparison stays
-     * in whereRaw. LENGTH() behaves identically on sqlite and pgsql (both count
-     * characters for text), so this scope is cross-DB safe.
+     * in whereRaw.
      */
-    public function scopeSentenceLength($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function sentenceLength(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereRaw('LENGTH(content) > 50')
             ->whereRaw('LENGTH(content) < 500');
     }
 
-    public function scopeContentContainsInsensitive($query, string $value)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function contentContainsInsensitive(\Illuminate\Database\Eloquent\Builder $query, string $value): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->whereRaw('LOWER(content) LIKE ?', ['%' . strtolower($value) . '%']);
+        return $query->whereLike('content', "%{$value}%", caseSensitive: false);
     }
 
-    public function scopeContentStartsWithInsensitive($query, string $value)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function contentStartsWithInsensitive(\Illuminate\Database\Eloquent\Builder $query, string $value): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->whereRaw('LOWER(content) LIKE ?', [strtolower($value) . '%']);
+        return $query->whereLike('content', "{$value}%", caseSensitive: false);
     }
 
-    public function scopeManagementFilter($query, string $filter)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function managementFilter(\Illuminate\Database\Eloquent\Builder $query, string $filter): \Illuminate\Database\Eloquent\Builder
     {
         if ($filter === 'with_translation') {
             return $query->withTranslationCoverage();
@@ -1032,7 +1193,8 @@ class AppQyV1LangDictionaryModel extends Model
         return $query;
     }
 
-    public function scopeManagementOrder($query, string $sortKey, string $direction)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function managementOrder(\Illuminate\Database\Eloquent\Builder $query, string $sortKey, string $direction): \Illuminate\Database\Eloquent\Builder
     {
         $order = strtolower($direction) === 'desc' ? 'desc' : 'asc';
 
@@ -1061,34 +1223,26 @@ class AppQyV1LangDictionaryModel extends Model
         return $sortKey === 'id' ? $query : $query->orderBy('id', $order);
     }
 
-    public function scopeWordLength($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function wordLength(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereRaw('LENGTH(content) <= 50');
     }
 
-    public function scopeMissingAudioFiles($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function missingAudioFiles(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
-        $driver = $query->getModel()->getConnection()->getDriverName();
-
-        if ($driver === 'pgsql') {
-            return $query->whereRaw("(audio_files IS NULL OR audio_files::jsonb = '[]'::jsonb)");
-        }
-
-        return $query->whereRaw('(audio_files IS NULL OR json_array_length(audio_files) = 0)');
+        return $query->whereRaw("(audio_files IS NULL OR audio_files::jsonb = '[]'::jsonb)");
     }
 
-    public function scopeMissingTtsFiles($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function missingTtsFiles(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
-        $driver = $query->getModel()->getConnection()->getDriverName();
-
-        if ($driver === 'pgsql') {
-            return $query->whereRaw("(tts_files IS NULL OR tts_files::jsonb = '[]'::jsonb)");
-        }
-
-        return $query->whereRaw('(tts_files IS NULL OR json_array_length(tts_files) = 0)');
+        return $query->whereRaw("(tts_files IS NULL OR tts_files::jsonb = '[]'::jsonb)");
     }
 
-    public function scopeWithTranslationCoverage($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function withTranslationCoverage(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($builder) {
             $builder->where('has_translation', true)
@@ -1096,7 +1250,8 @@ class AppQyV1LangDictionaryModel extends Model
         });
     }
 
-    public function scopeWithoutTranslationCoverage($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function withoutTranslationCoverage(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($builder) {
             $builder->where(function ($flagQuery) {
@@ -1109,7 +1264,7 @@ class AppQyV1LangDictionaryModel extends Model
     {
         $cacheKey = 'appqyv1:wordtrans_pending_summary:' . strtolower($langCode);
 
-        return Cache::remember($cacheKey, 60, static function () use ($langCode): array {
+        return Cache::flexible($cacheKey, [15, 60], static function () use ($langCode): array {
             $counts = self::forLanguage($langCode)
                 ->newQuery()
                 ->selectRaw('count(*) as total')
@@ -1176,10 +1331,10 @@ class AppQyV1LangDictionaryModel extends Model
     {
         $languageCode = AppQyV1TableMaps::normalizeLangCode($langCode);
 
-        return Cache::remember(
+        return Cache::flexible(
             self::metricsCacheKey($languageCode),
-            self::METRICS_CACHE_TTL,
-            fn () => self::languageBreakdownMetrics($languageCode)
+            [60, self::METRICS_CACHE_TTL],
+            static fn () => self::languageBreakdownMetrics($languageCode)
         );
     }
 
@@ -1235,10 +1390,10 @@ class AppQyV1LangDictionaryModel extends Model
 
     public static function cachedCoverageMetrics(string $langCode): ?array
     {
-        return Cache::remember(
+        return Cache::flexible(
             self::coverageCacheKey($langCode),
-            self::METRICS_CACHE_TTL,
-            fn () => self::coverageMetrics($langCode)
+            [60, self::METRICS_CACHE_TTL],
+            static fn () => self::coverageMetrics($langCode)
         );
     }
 
@@ -1345,13 +1500,15 @@ class AppQyV1LangDictionaryModel extends Model
     }
 
     /** Only words explicitly marked invalid by a third-party check. */
-    public function scopeInvalid($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function invalid(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('is_valid', false);
     }
 
     /** Words that are valid (default state, i.e. not explicitly invalid). */
-    public function scopeValid($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function valid(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($builder) {
             $builder->where('is_valid', true)->orWhereNull('is_valid');
@@ -1359,7 +1516,8 @@ class AppQyV1LangDictionaryModel extends Model
     }
 
     /** Words a third-party client has not yet checked. */
-    public function scopeValidityUnchecked($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function validityUnchecked(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->whereNull('validity_checked_at');
     }
@@ -1552,7 +1710,7 @@ class AppQyV1LangDictionaryModel extends Model
             });
 
         if ($search !== '') {
-            $query->where('content', 'like', '%' . $search . '%');
+            $query->whereLike('content', '%' . $search . '%', caseSensitive: false);
         }
 
         return $query;

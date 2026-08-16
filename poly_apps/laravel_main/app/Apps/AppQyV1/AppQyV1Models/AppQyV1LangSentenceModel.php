@@ -14,13 +14,10 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Closure;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1LanguageTable;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Collection;
 
 /**
@@ -32,21 +29,15 @@ use Illuminate\Support\Collection;
  * (or a query via AppQyV1LangSentenceModel::onLang($lang)) so the correct table is selected.
  * Deduped on content_id. AI/detail fields are enrich-only (never clobbered).
  */
-class AppQyV1LangSentenceModel extends Model
+class AppQyV1LangSentenceModel extends AppQyV1Model
 {
-    use QueriesDiffIdPages, RunsModelTransactions;
+    use BindsAppQyV1LanguageTable, QueriesDiffIdPages, RunsModelTransactions;
 
-    public function scopeContainingWord($query, string $word)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function containingWord(\Illuminate\Database\Eloquent\Builder $query, string $word): \Illuminate\Database\Eloquent\Builder
     {
-        $driver = $query->getModel()->getConnection()->getDriverName();
-
-        if ($driver === 'pgsql') {
-            return $query->whereRaw('text ~* ?', ['\\y' . preg_quote($word, '/') . '\\y']);
-        }
-
-        return $query->whereRaw('LOWER(text) LIKE ?', ['%' . strtolower($word) . '%']);
+        return $query->whereRaw('text ~* ?', ['\\y' . preg_quote($word, '/') . '\\y']);
     }
-    protected $appKey = AppKeys::APPQYV1;
 
     protected $fillable = [
         'content_id',
@@ -72,61 +63,23 @@ class AppQyV1LangSentenceModel extends Model
         'tts_completed_at',
     ];
 
-    protected $casts = [
-        'has_audio' => 'boolean',
-        'occurrence_count' => 'integer',
-        'metadata' => 'array',
-        'audio_files' => 'array',
-        'tts_attempts' => 'integer',
-        'tts_locked_at' => 'datetime',
-        'tts_requested_at' => 'datetime',
-        'tts_completed_at' => 'datetime',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return [
+            'has_audio' => 'boolean',
+            'occurrence_count' => 'integer',
+            'metadata' => 'array',
+            'audio_files' => 'array',
+            'tts_attempts' => 'integer',
+            'tts_locked_at' => 'datetime',
+            'tts_requested_at' => 'datetime',
+            'tts_completed_at' => 'datetime',
+        ];
     }
 
-    /**
-     * Bind this instance to the per-language sentence table for $lang.
-     * Returns $this for fluent chaining.
-     */
-    public function bindLanguage(string $lang): self
+    protected static function resolveLanguageTable(string $language): string
     {
-        $this->setTable(AppQyV1TableMaps::getSentenceTableName(AppQyV1TableMaps::normalizeLangCode($lang)));
-        return $this;
-    }
-
-    /**
-     * A fresh model instance bound to the per-language sentence table for $lang.
-     */
-    public static function for(string $lang): self
-    {
-        $model = new self();
-        $model->bindLanguage($lang);
-        return $model;
-    }
-
-    /**
-     * A query builder against the per-language sentence table for $lang.
-     */
-    public static function onLang(string $lang)
-    {
-        return self::for($lang)->newQuery();
-    }
-
-    public static function tableExists(string $lang): bool
-    {
-        $model = self::for($lang);
-
-        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
-    }
-
-    public static function tableRowCount(string $lang): int
-    {
-        return self::tableExists($lang) ? self::onLang($lang)->count() : 0;
+        return AppQyV1TableMaps::getSentenceTableName(AppQyV1TableMaps::normalizeLangCode($language));
     }
 
     public static function findByContentId(string $lang, string $contentId): ?self

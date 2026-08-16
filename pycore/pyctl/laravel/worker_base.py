@@ -120,6 +120,12 @@ class BaseLaravelWorkerService:
 
         self._registered = False
         self._pull_task_type_cursor = 0
+        # Explicit lane lifecycle state (request_start / request_stop). A stop
+        # is graceful when the claimed-but-unstarted heap may finish; an
+        # immediate stop halts the drain between tasks and actively releases
+        # the unstarted claims back to Laravel's pending queue.
+        self._lane_stop_requested = False
+        self._lane_stop_graceful = True
         # Backend circuit breaker state (see CIRCUIT_* constants). Streak counts
         # CONSECUTIVE server-side (HTTP 5xx) result-POST give-ups; the circuit is
         # open while monotonic time() < _circuit_open_until.
@@ -268,6 +274,8 @@ class BaseLaravelWorkerService:
 
     def _ordered_pull_task_types(self) -> List[str]:
         """Rotate multi-type pulls without mutating the declared type set."""
+        if self._lane_halt_requested():
+            return []
         task_types = self._pull_task_types()
         if len(task_types) < 2:
             return task_types
@@ -304,6 +312,8 @@ class BaseLaravelWorkerService:
 
     def poll_diff_once(self) -> Dict[str, Any]:
         """Poll compact queue revisions and pull only when the front slice changed."""
+        if self._lane_halt_requested():
+            return {"ok": True, "changed": False, "processed": 0}
         task_types = self._pull_task_types()
         if not task_types:
             return {"ok": True, "changed": False, "processed": 0}
@@ -382,6 +392,15 @@ class BaseLaravelWorkerService:
         base_url: str,
         scope: str,
     ) -> int:
+        if self._lane_halt_requested():
+            # A stop landed while this pull was in flight: hand the staged
+            # claims straight back to Laravel instead of accepting new work.
+            releasable = [
+                task for task in tasks if str(task.get("task_id") or "").strip()
+            ]
+            if releasable:
+                self._release_claimed_tasks(releasable)
+            return 0
         dispatched = 0
         retry_ids: List[Any] = []
         for task in tasks:
@@ -434,6 +453,105 @@ class BaseLaravelWorkerService:
             return self._pull_once(prefer_remote=prefer_remote)
         finally:
             self._pull_guard.set(False)
+
+    # -------------------- lane lifecycle --------------------
+
+    def _lane_halt_requested(self) -> bool:
+        """True while an immediate stop is in effect (halt drains and pulls)."""
+        return bool(self._lane_stop_requested and not self._lane_stop_graceful)
+
+    def request_start(self) -> None:
+        """Clear any lane stop and wake one immediate remote-first pull."""
+        stopped = self._lane_stop_requested
+        self._lane_stop_requested = False
+        self._lane_stop_graceful = True
+        if stopped:
+            ColorPrint.green(f"{self._log_prefix} lane start requested")
+        self.request_pull(prefer_remote=True)
+
+    def request_stop(self, graceful: bool = True) -> None:
+        """Stop the lane: close pull/accept gates and halt background drains.
+
+        graceful=True finishes the already-claimed heap without pulling new
+        work; graceful=False halts between tasks and returns the
+        claimed-but-unstarted tasks to Laravel via the release endpoint (the
+        lease-timeout maintenance is the documented fallback when that POST
+        cannot reach the backend). In-flight tasks are never killed - they
+        finish and report their results through the normal route.
+        """
+        was_stopped = self._lane_stop_requested
+        was_graceful = self._lane_stop_graceful
+        self._lane_stop_requested = True
+        self._lane_stop_graceful = bool(graceful)
+        if not was_stopped or was_graceful != bool(graceful):
+            ColorPrint.yellow(
+                f"{self._log_prefix} lane stop requested (graceful={bool(graceful)})"
+            )
+        if not graceful:
+            dropped = self._drop_queued_tasks()
+            if dropped:
+                self._release_claimed_tasks(dropped)
+
+    def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
+        """Pop every queued-but-unstarted task; overridden by heap lanes."""
+        return []
+
+    def _release_claimed_tasks(self, tasks: List[Dict[str, Any]]) -> None:
+        """Return claimed-but-unstarted tasks to Laravel (best-effort, async)."""
+        try:
+            start_bus_task(
+                self._post_task_release,
+                tasks,
+                thread_name=f"{self.STATE_OWNER_NAME}Release",
+            )
+        except Exception as exc:  # noqa: BLE001 - release is best-effort
+            ColorPrint.yellow(
+                f"{self._log_prefix} task release spawn failed: {exc}"
+            )
+
+    def _post_task_release(self, tasks: List[Dict[str, Any]]) -> None:
+        grouped: Dict[str, List[str]] = {}
+        for task in tasks:
+            task_id = str(task.get("task_id") or "")
+            if not task_id:
+                continue
+            task_type = str(
+                task.get("task_type")
+                or self._task_type_by_id.get(task_id)
+                or ""
+            )
+            if not task_type:
+                continue
+            grouped.setdefault(task_type, []).append(task_id)
+        for task_type, task_ids in grouped.items():
+            try:
+                response = laravel_client.post(
+                    queue_center_endpoint(
+                        "worker_task_release", task_type=task_type
+                    ),
+                    base_url=self._task_base_url(task_ids[0]),
+                    json={
+                        "worker_id": self.worker_id,
+                        "task_ids": task_ids[: GLOBAL_TASK_LIMITS["worker_pull"]],
+                    },
+                    timeout=self.RESULT_HTTP_TIMEOUT,
+                )
+                if response.status_code == 200:
+                    ColorPrint.blue(
+                        f"{self._log_prefix} released {len(task_ids)} "
+                        f"unstarted {task_type} task(s) back to pending"
+                    )
+                else:
+                    ColorPrint.yellow(
+                        f"{self._log_prefix} task release for {task_type} "
+                        f"failed: HTTP {response.status_code} - lease timeout "
+                        f"will re-queue them"
+                    )
+            except Exception as exc:  # noqa: BLE001 - lease timeout is the fallback
+                ColorPrint.yellow(
+                    f"{self._log_prefix} task release for {task_type} "
+                    f"failed ({exc}) - lease timeout will re-queue them"
+                )
 
     def _pull_once(self, prefer_remote: bool = False) -> Dict[str, Any]:
         """Pull and recover one bounded segment, preferring a changed remote head."""

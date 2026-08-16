@@ -69,6 +69,7 @@ from pycore.pyutils.tts.qwen.config import (
 # the main interpreter's shared pin.
 _MELOTTS_API_SERVER = "melotts_api_server.py"
 _TTS_SERVICE_FACADE = ManagedServiceFacade("tts", "server_")
+_ASSETS_DIR = Path(__file__).resolve().parents[2] / "tts_install_assets"
 
 
 # --------------------------------------------------------------------------- #
@@ -96,6 +97,36 @@ def _sync_server_script(staging: Path, filename: str) -> None:
             shutil.copy2(src, dst)
         except OSError:
             pass
+
+
+def _server_scripts(engine: str) -> List[Path]:
+    """Launch script set of one owned class-C server - the identity source of
+    the managed code-identity contract (managed_service.service_script_code_id).
+
+    qwen3tts and melotts launch straight from tts_install_assets; chattts,
+    fishspeech and f5tts launch a staging copy that _start_command re-syncs
+    from the SAME template right before every launch, so hashing the template
+    hashes exactly what a fresh start would run. Engines whose server code
+    pycore does not own (cosyvoice, gptsovits run cloned repositories) return
+    [] and stay off the contract. An engine also needs a get_status probe
+    (engine module + /status endpoint) before registration activates it."""
+    if engine == "qwen3tts":
+        return [
+            _ASSETS_DIR / "qwen3tts_api_server.py",
+            _ASSETS_DIR / "qwen3tts_synthesis.py",
+            _ASSETS_DIR / "qwen3tts_queue.py",
+            _ASSETS_DIR / "qwen3tts_gpu.py",
+            _ASSETS_DIR / "qwen3tts_web.py",
+        ]
+    if engine == "chattts":
+        return [_ASSETS_DIR / "chattts_api_server.py"]
+    if engine == "fishspeech":
+        return [_ASSETS_DIR / "fishspeech_api_server.py"]
+    if engine == "f5tts":
+        return [_ASSETS_DIR / "f5tts_api_server.py"]
+    if engine == "melotts":
+        return [_ASSETS_DIR / "melotts_api_server.py"]
+    return []
 
 
 def _start_command(engine: str) -> Optional[Tuple]:
@@ -363,6 +394,17 @@ def _stop_foreign_server(engine: str) -> Optional[bool]:
 def _register_services() -> None:
     for adapter in tts_engine_registry.values("server"):
         engine = adapter.name
+        # Code-identity contract activates only when BOTH halves exist: the
+        # launch script set (identity of what a start runs) and a live status
+        # probe (what the running listener reports). Engines missing either
+        # half keep the plain adoption/reclaim behavior.
+        status_capable = callable(getattr(adapter.module, "get_status", None))
+        script_set = _server_scripts(engine)
+        code_scripts = (
+            (lambda e=engine: _server_scripts(e))
+            if script_set and status_capable
+            else None
+        )
         _TTS_SERVICE_FACADE.register(ServiceSpec(
             name=engine, category="tts", kind="server",
             installed=lambda engine=engine, adapter=adapter: (
@@ -384,6 +426,12 @@ def _register_services() -> None:
                 else None
             ),
             stop_foreign=lambda engine=engine: _stop_foreign_server(engine),
+            server_scripts=code_scripts,
+            reported_code_id=(
+                adapter.reported_code_id
+                if status_capable
+                else None
+            ),
             ready_without_process=adapter.ready_without_process,
         ))
     for adapter in tts_engine_registry.values("model"):

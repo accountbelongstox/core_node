@@ -10,6 +10,7 @@
 
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
@@ -18,7 +19,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQ
 use Illuminate\Support\Facades\Auth;
 use App\Traits\ApiResponse;
 
-class AppQyV1PersonalDictionaryPublicController
+class AppQyV1PersonalDictionaryPublicController extends Controller
 {
     use ApiResponse;
 

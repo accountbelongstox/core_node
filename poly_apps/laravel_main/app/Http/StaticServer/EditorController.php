@@ -11,9 +11,11 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 
-class EditorController
+class EditorController extends Controller
 {
     public function single()
     {

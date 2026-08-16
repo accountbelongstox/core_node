@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
 use App\Services\MoviePoster\MoviePosterStore;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * Shared Queue Center read model and mcp-chrome media lease facade.
@@ -50,6 +51,6 @@ class AppQyV1AssistService
 
     public static function isAssistEnabled(): bool
     {
-        return (bool) env('APPQYV1_ASSIST_ENABLED', true);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_ASSIST_ENABLED, true);
     }
 }

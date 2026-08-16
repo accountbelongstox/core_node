@@ -10,7 +10,7 @@ use App\Utils\StrTool;
 
 return new class extends Migration
 {
-    protected $connection = 'sqlite';
+    protected $connection = 'main';
     protected $tableName = 'users';
 
     public function up(): void

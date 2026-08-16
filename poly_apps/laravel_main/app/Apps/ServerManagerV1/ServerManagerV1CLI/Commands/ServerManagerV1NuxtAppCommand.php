@@ -5,6 +5,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NuxtServiceManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use App\Providers\PathMapper;
 use App\Utils\SystemUtil;
@@ -685,39 +686,11 @@ class ServerManagerV1NuxtAppCommand extends ServerManagerV1BaseCommand
             $serverName .= " www.$domain";
         }
 
-        $sslConfig = '';
-        if ($sslEnabled && $certificate) {
-            $sslConfig = <<<SSL
+        $certPaths = ($sslEnabled && $certificate)
+            ? ['cert' => $certificate['cert_path'], 'key' => $certificate['key_path']]
+            : null;
 
-    ssl_certificate {$certificate['cert_path']};
-    ssl_certificate_key {$certificate['key_path']};
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-SSL;
-        }
-
-        $listenDirective = $sslEnabled ? "443 ssl http2" : "80";
-
-        return <<<NGINX
-server {
-    listen $listenDirective;
-    listen [::]:$listenDirective;
-    server_name $serverName;
-$sslConfig
-
-    location / {
-        proxy_pass http://127.0.0.1:$port;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_cache_bypass \$http_upgrade;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}
-NGINX;
+        return ServerManagerV1NginxConfigBuilder::buildProxy($serverName, "127.0.0.1:{$port}", $certPaths);
     }
 
     private function startService(string $appname): bool

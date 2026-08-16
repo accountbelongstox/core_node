@@ -13,10 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,19 +20,12 @@ use Illuminate\Support\Collection;
  * the FE (cursor by id) and mirrored to viewers/host via the social_events SSE
  * outbox. created_at only.
  */
-class AppQyV1LiveMessageModel extends Model
+class AppQyV1LiveMessageModel extends AppQyV1Model
 {
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('LIVE_MESSAGES');
-    }
+    protected ?string $appTableMapKey = 'LIVE_MESSAGES';
 
     protected $fillable = [
         'session_id',
@@ -45,11 +34,14 @@ class AppQyV1LiveMessageModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'session_id' => 'integer',
-        'user_id' => 'integer',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'session_id' => 'integer',
+            'user_id' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public static function afterCursor(int $sessionId, int $cursor, int $limit): Collection
     {

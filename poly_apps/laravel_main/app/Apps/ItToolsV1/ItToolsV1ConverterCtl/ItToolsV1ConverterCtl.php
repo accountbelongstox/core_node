@@ -3,19 +3,21 @@
 namespace App\Apps\ItToolsV1\ItToolsV1ConverterCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1ConverterCtl extends Controller
 {
+    use ApiResponse;
+
     public function base64Encode(Request $request)
     {
         $request->validate(['text' => 'required|string']);
 
         $encoded = base64_encode($request->input('text'));
 
-        return ResponseHelper::success(['encoded' => $encoded]);
+        return $this->success(['encoded' => $encoded]);
     }
 
     public function base64Decode(Request $request)
@@ -29,10 +31,10 @@ class ItToolsV1ConverterCtl extends Controller
                 throw new \Exception('Invalid base64 string');
             }
 
-            return ResponseHelper::success(['decoded' => $decoded]);
+            return $this->success(['decoded' => $decoded]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -66,7 +68,7 @@ class ItToolsV1ConverterCtl extends Controller
             return ucwords(strtolower(str_replace(['-', '_'], ' ', $str)));
         };
 
-        return ResponseHelper::success([
+        return $this->success([
             'camelCase' => $toCamelCase($text),
             'PascalCase' => $toPascalCase($text),
             'snake_case' => $toSnakeCase($text),
@@ -84,7 +86,7 @@ class ItToolsV1ConverterCtl extends Controller
 
         $encoded = urlencode($request->input('url'));
 
-        return ResponseHelper::success(['encoded' => $encoded]);
+        return $this->success(['encoded' => $encoded]);
     }
 
     public function urlDecode(Request $request)
@@ -93,7 +95,7 @@ class ItToolsV1ConverterCtl extends Controller
 
         $decoded = urldecode($request->input('encoded'));
 
-        return ResponseHelper::success(['decoded' => $decoded]);
+        return $this->success(['decoded' => $decoded]);
     }
 
     public function convertColor(Request $request)
@@ -121,7 +123,7 @@ class ItToolsV1ConverterCtl extends Controller
             $hsv = $this->rgbToHsv($r, $g, $b);
             $cmyk = $this->rgbToCmyk($r, $g, $b);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'hex' => $hex,
                 'rgb' => "rgb($r, $g, $b)",
                 'hsl' => sprintf('hsl(%d, %d%%, %d%%)', $hsl['h'], $hsl['s'], $hsl['l']),
@@ -129,8 +131,8 @@ class ItToolsV1ConverterCtl extends Controller
                 'cmyk' => sprintf('cmyk(%d%%, %d%%, %d%%, %d%%)', $cmyk['c'], $cmyk['m'], $cmyk['y'], $cmyk['k'])
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -152,15 +154,15 @@ class ItToolsV1ConverterCtl extends Controller
         try {
             $decimal = base_convert($value, $from, 10);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'binary' => base_convert($decimal, 10, 2),
                 'octal' => base_convert($decimal, 10, 8),
                 'decimal' => $decimal,
                 'hexadecimal' => strtoupper(base_convert($decimal, 10, 16))
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -187,7 +189,7 @@ class ItToolsV1ConverterCtl extends Controller
             $slug = strtolower($slug);
         }
 
-        return ResponseHelper::success(['slug' => $slug]);
+        return $this->success(['slug' => $slug]);
     }
 
     private function rgbToHsl($r, $g, $b)
@@ -275,10 +277,10 @@ class ItToolsV1ConverterCtl extends Controller
 
             $yaml = $this->arrayToYaml($data);
 
-            return ResponseHelper::success(['yaml' => $yaml]);
+            return $this->success(['yaml' => $yaml]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -294,10 +296,10 @@ class ItToolsV1ConverterCtl extends Controller
             $data = $this->yamlToArray($request->input('yaml'));
             $json = json_encode($data, JSON_PRETTY_PRINT);
 
-            return ResponseHelper::success(['json' => $json]);
+            return $this->success(['json' => $json]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -331,10 +333,10 @@ class ItToolsV1ConverterCtl extends Controller
                 $csv .= implode($delimiter, array_values($row)) . "\n";
             }
 
-            return ResponseHelper::success(['csv' => trim($csv)]);
+            return $this->success(['csv' => trim($csv)]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -367,14 +369,14 @@ class ItToolsV1ConverterCtl extends Controller
                 $kelvin = $value;
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'celsius' => round($celsius, 2),
                 'fahrenheit' => round($fahrenheit, 2),
                 'kelvin' => round($kelvin, 2)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -403,10 +405,10 @@ class ItToolsV1ConverterCtl extends Controller
                 $prevValue = $value;
             }
 
-            return ResponseHelper::success(['arabic' => $arabic]);
+            return $this->success(['arabic' => $arabic]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -470,15 +472,15 @@ class ItToolsV1ConverterCtl extends Controller
             $encoded = base64_encode($fileData);
             $size = strlen($fileData);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'encoded' => $encoded,
                 'fileName' => $fileName,
                 'size' => $size,
                 'dataUri' => 'data:application/octet-stream;base64,' . $encoded
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -501,15 +503,15 @@ class ItToolsV1ConverterCtl extends Controller
             $size = strlen($decoded);
             $mimeType = $this->detectMimeType($decoded);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'fileData' => $decoded,
                 'size' => $size,
                 'mimeType' => $mimeType,
                 'dataUri' => 'data:' . $mimeType . ';base64,' . $encoded
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -596,10 +598,10 @@ class ItToolsV1ConverterCtl extends Controller
             $result['week'] = (int)$dateTime->format('W');
             $result['timezone'] = $dateTime->getTimezone()->getName();
 
-            return ResponseHelper::success($result);
+            return $this->success($result);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -619,10 +621,10 @@ class ItToolsV1ConverterCtl extends Controller
 
             $xml = $this->arrayToXml($data);
 
-            return ResponseHelper::success(['xml' => $xml]);
+            return $this->success(['xml' => $xml]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -642,10 +644,10 @@ class ItToolsV1ConverterCtl extends Controller
 
             $json = json_encode($xml, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
-            return ResponseHelper::success(['json' => $json]);
+            return $this->success(['json' => $json]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -665,10 +667,10 @@ class ItToolsV1ConverterCtl extends Controller
 
             $toml = $this->arrayToToml($data);
 
-            return ResponseHelper::success(['toml' => $toml]);
+            return $this->success(['toml' => $toml]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -684,10 +686,10 @@ class ItToolsV1ConverterCtl extends Controller
             $data = $this->tomlToArray($request->input('toml'));
             $json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
 
-            return ResponseHelper::success(['json' => $json]);
+            return $this->success(['json' => $json]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -703,10 +705,10 @@ class ItToolsV1ConverterCtl extends Controller
             $data = $this->tomlToArray($request->input('toml'));
             $yaml = $this->arrayToYaml($data);
 
-            return ResponseHelper::success(['yaml' => $yaml]);
+            return $this->success(['yaml' => $yaml]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -722,10 +724,10 @@ class ItToolsV1ConverterCtl extends Controller
             $data = $this->yamlToArray($request->input('yaml'));
             $toml = $this->arrayToToml($data);
 
-            return ResponseHelper::success(['toml' => $toml]);
+            return $this->success(['toml' => $toml]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -744,7 +746,7 @@ class ItToolsV1ConverterCtl extends Controller
             $binary .= str_pad(decbin(ord($text[$i])), 8, '0', STR_PAD_LEFT) . ' ';
         }
 
-        return ResponseHelper::success(['binary' => trim($binary)]);
+        return $this->success(['binary' => trim($binary)]);
     }
 
     public function textToUnicode(Request $request)
@@ -759,7 +761,7 @@ class ItToolsV1ConverterCtl extends Controller
             $unicode[] = 'U+' . strtoupper(str_pad(dechex(mb_ord($char, 'UTF-8')), 4, '0', STR_PAD_LEFT));
         }
 
-        return ResponseHelper::success(['unicode' => implode(' ', $unicode)]);
+        return $this->success(['unicode' => implode(' ', $unicode)]);
     }
 
     public function textToNato(Request $request)
@@ -786,7 +788,7 @@ class ItToolsV1ConverterCtl extends Controller
             $nato[] = $natoAlphabet[$char] ?? $char;
         }
 
-        return ResponseHelper::success(['nato' => implode(' ', $nato)]);
+        return $this->success(['nato' => implode(' ', $nato)]);
     }
 
     public function convertList(Request $request)
@@ -820,7 +822,7 @@ class ItToolsV1ConverterCtl extends Controller
 
             $result = implode($toSep, $items);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'original' => $list,
                 'converted' => $result,
                 'from' => $from,
@@ -828,8 +830,8 @@ class ItToolsV1ConverterCtl extends Controller
                 'itemCount' => count($items)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

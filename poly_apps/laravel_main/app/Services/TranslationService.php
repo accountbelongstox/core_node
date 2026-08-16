@@ -2,16 +2,17 @@
 
 namespace App\Services;
 
+use App\CallPycoreUtils\PycoreTranslatorUtil;
+use App\Utils\SecretStore;
+use Illuminate\Support\Facades\Log;
+
 /**
- * @deprecated This class is deprecated. Use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService instead.
- * All translation functionality has been moved to AppQyV1 with database-backed caching.
- * 
- * Migration Path:
- * - Old: App\Services\TranslationService
- * - New: App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService
- * 
- * Old API endpoints: /translation/*
- * New API endpoints: /app_qy_v1/ai_tools/translation/*
+ * Canonical translation service (main layer).
+ *
+ * Owns all provider invocation (OpenRouter / DeepSeek / Gemini and the pycore
+ * Google bridge), prompt building, batching, multi-provider fallback chains and
+ * provider probing. App layers (e.g. AppQyV1) delegate here and only add
+ * app-specific glue such as dictionary-table persistence.
  */
 class TranslationService
 {
@@ -233,6 +234,415 @@ XML,
         ];
     }
     
+    /**
+     * Single-provider translation with the normalized result shape
+     * ('translation' key). Provider 'google' delegates to the pycore
+     * translator bridge; every other provider goes through callAIProvider.
+     * $targetLanguage accepts a language code (resolved through LANGUAGES) or
+     * an already-resolved language name.
+     */
+    public function translateViaProvider(
+        string $text,
+        string $targetLanguage,
+        string $type = 'general',
+        ?string $model = null,
+        string $provider = 'openrouter',
+        bool $useCache = true
+    ): array {
+        if ($provider === 'google') {
+            return $this->translateViaGoogle($text, $targetLanguage, $type, $useCache);
+        }
+
+        $languageName = self::LANGUAGES[$targetLanguage] ?? $targetLanguage;
+
+        // 'learning' carries a {format_instructions} placeholder that only the
+        // multi-language prompt builder fills; fall back like the simple
+        // prompt builder always did.
+        $promptType = $type;
+        if (!isset(self::TRANSLATION_PROMPTS[$promptType]) || $promptType === 'learning') {
+            $promptType = 'general';
+        }
+
+        $prompt = str_replace(
+            ['{target_language}', '{text}'],
+            [$languageName, $text],
+            self::TRANSLATION_PROMPTS[$promptType]
+        );
+
+        try {
+            $response = $this->callAIProvider($provider, $model, $prompt);
+        } catch (\Throwable $e) {
+            Log::error('[TranslationService] Provider error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'provider' => $provider,
+                'model' => $model,
+            ];
+        }
+
+        return [
+            'success' => true,
+            'translation' => trim($response),
+            'source_text' => $text,
+            'target_language' => $targetLanguage,
+            'type' => $type,
+            'provider' => $provider,
+            'model' => $model,
+        ];
+    }
+
+    /**
+     * Translate with graceful multi-provider fallback.
+     *
+     * Tries each provider in $chain (default openrouter -> gemini -> deepseek
+     * -> google) until one returns a usable translation. Providers without a
+     * key configured are skipped (they never count as a "failure"). The final
+     * "google" link delegates to pycore, so a translation still completes when
+     * every direct LLM key is down or over-quota — the robustness guarantee
+     * for weak servers.
+     *
+     * @param array<int,string>|null $chain Optional explicit provider order.
+     * @param array<string,string>|null $modelOverrides Per-provider model map.
+     * @return array Same shape as translateViaProvider(), plus 'attempts'
+     *               (per-provider attempt log) and the winning 'provider'.
+     */
+    public function translateWithFallback(
+        string $text,
+        string $targetLanguage,
+        string $type = 'general',
+        ?array $chain = null,
+        ?array $modelOverrides = null
+    ): array {
+        $chain = $chain ?? ['openrouter', 'gemini', 'deepseek', 'google'];
+        $modelOverrides = $modelOverrides ?? [];
+
+        $attempts = [];
+
+        foreach ($chain as $provider) {
+            $provider = trim((string) $provider);
+            if ($provider === '') {
+                continue;
+            }
+
+            if (!$this->isProviderConfigured($provider)) {
+                $attempts[] = ['provider' => $provider, 'status' => 'skipped', 'reason' => 'not_configured'];
+                continue;
+            }
+
+            $model = $modelOverrides[$provider] ?? null;
+
+            try {
+                $result = $this->translateViaProvider($text, $targetLanguage, $type, $model, $provider);
+            } catch (\Throwable $e) {
+                $attempts[] = ['provider' => $provider, 'status' => 'error', 'reason' => $e->getMessage()];
+                Log::warning('[TranslationService] Provider threw, falling back', [
+                    'provider' => $provider,
+                    'error' => $e->getMessage(),
+                ]);
+                continue;
+            }
+
+            if (($result['success'] ?? false) === true && trim((string) ($result['translation'] ?? '')) !== '') {
+                $result['attempts'] = $attempts;
+                $result['provider'] = $result['provider'] ?? $provider;
+                return $result;
+            }
+
+            $attempts[] = [
+                'provider' => $provider,
+                'status' => 'failed',
+                'reason' => $result['error'] ?? 'empty_translation',
+            ];
+            Log::info('[TranslationService] Provider failed, trying next', [
+                'provider' => $provider,
+                'reason' => $result['error'] ?? 'empty_translation',
+            ]);
+        }
+
+        return [
+            'success' => false,
+            'error' => 'All translation providers failed or are unconfigured',
+            'attempts' => $attempts,
+        ];
+    }
+
+    /**
+     * Final-fallback translation via the pycore Google translator bridge.
+     * Returns the same shape as translateViaProvider() so the fallback chain
+     * is uniform.
+     */
+    private function translateViaGoogle(
+        string $text,
+        string $targetLanguage,
+        string $type,
+        bool $useCache
+    ): array {
+        $response = PycoreTranslatorUtil::translateSingle($text, 'auto', $targetLanguage, $useCache);
+
+        if (!is_array($response) || isset($response['error'])) {
+            return [
+                'success' => false,
+                'error' => is_array($response) ? ($response['error'] ?? 'pycore translate failed') : 'pycore unreachable',
+            ];
+        }
+
+        $translation = $response['translated_text']
+            ?? $response['translation']
+            ?? $response['text']
+            ?? '';
+
+        if (trim((string) $translation) === '') {
+            return ['success' => false, 'error' => 'pycore returned empty translation'];
+        }
+
+        return [
+            'success' => true,
+            'translation' => trim((string) $translation),
+            'source_text' => $text,
+            'target_language' => $targetLanguage,
+            'type' => $type,
+            'provider' => 'google',
+            'model' => 'pycore-google',
+        ];
+    }
+
+    /**
+     * Dispatch a prompt to a single AI provider client.
+     */
+    public function callAIProvider(string $provider, ?string $model, string $prompt): string
+    {
+        switch ($provider) {
+            case 'deepseek':
+                return $this->deepseekClient->chat($prompt, $model);
+            case 'gemini':
+                return $this->geminiClient->chat($prompt, $model);
+            case 'openrouter':
+            default:
+                return $this->openrouterClient->chat($prompt, $model);
+        }
+    }
+
+    /**
+     * Whether a provider has a usable key configured (google needs none — it
+     * is the pycore delegate). Used to skip dead links in the fallback chain.
+     */
+    public function isProviderConfigured(string $provider): bool
+    {
+        switch ($provider) {
+            case 'google':
+                return true;
+            case 'gemini':
+                return $this->geminiClient->hasApiKey();
+            case 'deepseek':
+                return $this->deepseekClient->hasApiKey();
+            case 'openrouter':
+                return $this->openrouterClient->hasApiKey();
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Probe every direct AI provider for the AI status endpoint.
+     *
+     * Returns the pycore ai_probe contract:
+     *   { providers: [ { name, configured, available, key_masked, models,
+     *                     error, latency_ms } ] }
+     * so the Laravel status payload aligns field-for-field with pycore's
+     * /api/local/ai/probe and the desktop UI can consume either.
+     */
+    public function probeProviders(): array
+    {
+        $providers = [];
+
+        $orKey = $this->resolveProviderKey('openrouter');
+        $orProbe = $this->openrouterClient->probe();
+        $providers[] = $this->buildProbeEntry('openrouter', $orKey, $orProbe);
+
+        $gKey = $this->resolveProviderKey('gemini');
+        $gProbe = $this->geminiClient->probe();
+        $providers[] = $this->buildProbeEntry('gemini', $gKey, $gProbe);
+
+        $dKey = $this->resolveProviderKey('deepseek');
+        $dProbe = $this->deepseekClient->probe();
+        $providers[] = $this->buildProbeEntry('deepseek', $dKey, $dProbe);
+
+        return ['providers' => $providers];
+    }
+
+    private function buildProbeEntry(string $name, string $key, array $probe): array
+    {
+        $configured = $key !== '';
+        return [
+            'name' => $name,
+            'configured' => $configured,
+            'available' => (bool) ($probe['available'] ?? false),
+            'key_masked' => $this->maskKey($key),
+            'models' => $probe['models'] ?? [],
+            'error' => $probe['error'] ?? ($configured ? null : 'No API key configured'),
+            'latency_ms' => $probe['latency_ms'] ?? null,
+        ];
+    }
+
+    /**
+     * Resolve the raw key a client uses, for masking only (never returned
+     * whole). Mirrors each client's own lookup order.
+     */
+    private function resolveProviderKey(string $provider): string
+    {
+        switch ($provider) {
+            case 'openrouter':
+                return SecretStore::get('OPENROUTER_API_KEY_1')
+                    ?: SecretStore::get('OPENROUTER_API_KEY');
+            case 'gemini':
+                return SecretStore::get('GOOGLE_API_KEY_1')
+                    ?: SecretStore::get('GOOGLE_API_KEY_2');
+            case 'deepseek':
+                return SecretStore::get('DEEPSEEK_API_KEY_1')
+                    ?: SecretStore::get('DEEPSEEK_API_KEY')
+                    ?: SecretStore::get('OPENROUTER_API_KEY_2');
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Mask a secret as first4 + ellipsis + last4 (matches pycore ai_probe).
+     */
+    private function maskKey(string $key): ?string
+    {
+        $key = trim($key);
+        if ($key === '') {
+            return null;
+        }
+        if (strlen($key) <= 8) {
+            return '…';
+        }
+        return substr($key, 0, 4) . '…' . substr($key, -4);
+    }
+
+    /**
+     * Live one-shot chat against a single provider/model (dashboard "test"
+     * panel). Never throws — every failure is captured and returned in the
+     * result array so a no-auth endpoint can surface it verbatim.
+     *
+     * @return array{success:bool,provider:string,model:?string,response?:string,error?:string,latency_ms:float}
+     */
+    public function chatOnce(string $provider, ?string $model, string $prompt): array
+    {
+        if (!in_array($provider, ['openrouter', 'gemini', 'deepseek'], true)) {
+            return ['success' => false, 'error' => 'unknown provider'];
+        }
+
+        $prompt = trim($prompt) !== '' ? $prompt : 'Reply with the single word: ok';
+
+        $start = microtime(true);
+        try {
+            $text = $this->callAIProvider($provider, $model, $prompt);
+            $ms = (microtime(true) - $start) * 1000;
+            return [
+                'success' => true,
+                'provider' => $provider,
+                'model' => $model,
+                'response' => $text,
+                'latency_ms' => round($ms, 1),
+            ];
+        } catch (\Throwable $e) {
+            $ms = (microtime(true) - $start) * 1000;
+            return [
+                'success' => false,
+                'provider' => $provider,
+                'model' => $model,
+                'error' => $e->getMessage(),
+                'latency_ms' => round($ms, 1),
+            ];
+        }
+    }
+
+    /**
+     * Google (pycore) single-word translation — the folded-in provider
+     * capability of the removed Process-based Google translator service, now
+     * routed through the canonical PycoreTranslatorUtil bridge instead of a
+     * Process-spawned inline Python snippet.
+     */
+    public function googleTranslateWord(string $word, string $srcLang = 'en', string $destLang = 'zh-CN'): ?array
+    {
+        $response = PycoreTranslatorUtil::translateSingle($word, $srcLang, $destLang, false);
+
+        if (!is_array($response) || isset($response['error'])) {
+            Log::error('[TranslationService] Google word translation failed', [
+                'word' => $word,
+                'response' => $response,
+            ]);
+            return null;
+        }
+
+        return [
+            'original' => $response['original_text'] ?? $word,
+            'translation' => $response['translated_text'] ?? null,
+            'pronunciation' => $response['pronunciation'] ?? null,
+            'src_lang' => $response['src_lang'] ?? $srcLang,
+            'dest_lang' => $response['dest_lang'] ?? $destLang,
+        ];
+    }
+
+    /**
+     * Google (pycore) batch word translation. Returns one entry per input
+     * word (null on failure), mirroring the removed Process-based batch
+     * contract.
+     */
+    public function googleTranslateBatch(array $words, string $srcLang = 'en', string $destLang = 'zh-CN'): array
+    {
+        if (empty($words)) {
+            return [];
+        }
+
+        $response = PycoreTranslatorUtil::translateBatch($words, $srcLang, [$destLang], false);
+
+        if (!is_array($response)) {
+            return array_fill(0, count($words), null);
+        }
+
+        $results = [];
+        foreach (array_values($words) as $index => $word) {
+            $entry = $response[$index][0] ?? null;
+
+            if (!is_array($entry) || isset($entry['error'])) {
+                $results[] = null;
+                continue;
+            }
+
+            $results[] = [
+                'original' => $entry['original_text'] ?? $word,
+                'translation' => $entry['translated_text'] ?? null,
+                'pronunciation' => $entry['pronunciation'] ?? null,
+                'src_lang' => $entry['src_lang'] ?? $srcLang,
+                'dest_lang' => $entry['dest_lang'] ?? $destLang,
+                'error' => null,
+            ];
+        }
+
+        return $results;
+    }
+
+    /**
+     * ASCII word sanity check (folded in from the removed Process-based
+     * Google translator service).
+     */
+    public function isWordValid(string $word): bool
+    {
+        if (strlen($word) < 2 || strlen($word) > 50) {
+            return false;
+        }
+
+        if (!preg_match('/^[a-zA-Z\-\']+$/', $word)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function batchTranslate(
         array $texts,
         string $targetLanguage,
@@ -517,9 +927,7 @@ XML,
         array $targetLanguages,
         bool $generateAudio = false
     ): array {
-        $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
-        
-        $googleResults = $translatorUtil->translateBatch(
+        $googleResults = PycoreTranslatorUtil::translateBatch(
             [$text],
             'auto',
             $targetLanguages,

@@ -4,12 +4,10 @@ namespace App\Http\Controllers\Auth;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\User;
-use Illuminate\Support\Facades\Hash;
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\Auth\AvatarPublic;
+use App\Http\Common\CommonAuthService;
 use App\Traits\ApiResponse;
-use App\Constants\AuthErrorCodes;
+use App\Constants\ErrorCodes;
 
 /**
  * NO try-catch allowed - trust Laravel validation
@@ -27,29 +25,30 @@ class LoginController extends Controller
         ]);
 
         if (!$credentials) {
-            return $this->authErrorResponse(AuthErrorCodes::AUTH_VALIDATION_FAILED, 422);
+            return $this->authErrorResponse(ErrorCodes::AUTH_VALIDATION_FAILED, 422);
         }
 
-        $user = User::findByUsernameOrEmail($request->username);
+        $check = CommonAuthService::verifyCredentials($request->username, $request->password);
 
-        if (!$user) {
-            return $this->authErrorResponse(AuthErrorCodes::AUTH_USER_NOT_FOUND, 422);
+        if ($check['status'] === 'not_found') {
+            return $this->authErrorResponse(ErrorCodes::AUTH_USER_NOT_FOUND, 422);
         }
 
-        if (!Hash::check($request->password, $user->password)) {
-            return $this->authErrorResponse(AuthErrorCodes::AUTH_INVALID_PASSWORD, 422);
+        if ($check['status'] === 'invalid_password') {
+            return $this->authErrorResponse(ErrorCodes::AUTH_INVALID_PASSWORD, 422);
         }
+
+        $user = $check['user'];
 
         Auth::login($user, $request->boolean('remember'));
 
-        $user = AvatarPublic::createAvatar($user, true);
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $session = CommonAuthService::issueLoginToken($user);
 
         return $this->success([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            'expiration' => config('sanctum.expiration'),
-            'user' => $user,
+            'token' => $session['token'],
+            'token_type' => $session['token_type'],
+            'expiration' => $session['expiration'],
+            'user' => $session['user'],
         ], 'Login successful');
     }
 

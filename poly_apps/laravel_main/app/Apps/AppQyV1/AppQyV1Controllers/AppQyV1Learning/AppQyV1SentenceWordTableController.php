@@ -5,7 +5,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1SentenceWordTableService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 
 class AppQyV1SentenceWordTableController extends Controller

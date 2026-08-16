@@ -2,6 +2,8 @@
 
 namespace App\Apps\McpV1\McpV1Controllers;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\McpV1\McpV1Models\McpV1PlaceholderImageModel;
 use App\Apps\McpV1\McpV1Utils\McpV1PlaceholderUtil;
 use App\Utils\FileSystemManager;
@@ -10,7 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-class McpV1PlaceholderCtl
+class McpV1PlaceholderCtl extends Controller
 {
     public function generate(Request $request): JsonResponse
     {

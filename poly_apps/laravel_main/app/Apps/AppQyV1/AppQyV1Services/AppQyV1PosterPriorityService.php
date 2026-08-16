@@ -27,7 +27,6 @@ class AppQyV1PosterPriorityService
     private function promoteModel(string $modelClass, array $ids): int
     {
         $uniqueIds = array_values(array_unique(array_map('intval', $ids)));
-        $model = new $modelClass();
         $updates = [
             'poster_status' => 'pending',
             'poster_fetched_at' => null,
@@ -38,7 +37,7 @@ class AppQyV1PosterPriorityService
         if (empty($uniqueIds)) {
             return 0;
         }
-        if ($model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), 'poster_mcp_submitted_at')) {
+        if ($modelClass::posterColumnAvailable('poster_mcp_submitted_at')) {
             $updates['poster_mcp_submitted_at'] = null;
         }
 

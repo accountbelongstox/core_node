@@ -3,6 +3,7 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use Illuminate\Http\Request;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1BaseCtl extends Controller
 {
+    use ApiResponse;
+
     /**
      * Authenticate request using API key
      * In debug/local mode, authentication is bypassed for easier development
@@ -63,28 +66,6 @@ class ServerManagerV1BaseCtl extends Controller
     }
     
     /**
-     * Return success response
-     */
-    protected function successResponse($data = null, string $message = '', int $code = 200): JsonResponse
-    {
-        return response()->json(
-            ServerManagerV1Utils::apiResponse(true, $data, $message, $code),
-            $code
-        );
-    }
-    
-    /**
-     * Return error response
-     */
-    protected function errorResponse(string $message, int $code = 400, $data = null): JsonResponse
-    {
-        return response()->json(
-            ServerManagerV1Utils::apiResponse(false, $data, $message, $code),
-            $code
-        );
-    }
-    
-    /**
      * Validate request authentication
      */
     protected function validateRequest(Request $request, string $action): ?JsonResponse
@@ -94,7 +75,7 @@ class ServerManagerV1BaseCtl extends Controller
         
         // Check authentication
         if (!$this->authenticate($request)) {
-            return $this->errorResponse(
+            return $this->error(
                 'Authentication required. Please provide valid API key in ' . ServerManagerV1Constants::AUTH_HEADER . ' header.',
                 ServerManagerV1Constants::RESPONSE_UNAUTHORIZED
             );
@@ -116,7 +97,7 @@ class ServerManagerV1BaseCtl extends Controller
             'trace' => $e->getTraceAsString()
         ]);
         
-        return $this->errorResponse(
+        return $this->error(
             'Internal server error occurred.',
             ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
         );
@@ -136,7 +117,7 @@ class ServerManagerV1BaseCtl extends Controller
         }
         
         if (!empty($missing)) {
-            return $this->errorResponse(
+            return $this->error(
                 'Missing required parameters: ' . implode(', ', $missing),
                 ServerManagerV1Constants::RESPONSE_BAD_REQUEST
             );

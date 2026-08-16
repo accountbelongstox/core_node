@@ -11,13 +11,15 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
-class CodeBrowserController
+class CodeBrowserController extends Controller
 {
     private $baseDirectory;
     private $allowedExtensions;

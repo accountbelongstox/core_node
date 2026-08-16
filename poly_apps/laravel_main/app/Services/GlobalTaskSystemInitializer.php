@@ -74,7 +74,7 @@ class GlobalTaskSystemInitializer
 
             $status = $result['status'] ?? 'error';
             return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return 'error: ' . $e->getMessage();
         }
     }
@@ -152,7 +152,7 @@ class GlobalTaskSystemInitializer
                 return 'exists';
             }
             return 'error: ' . (string) ($result['message'] ?? 'partial index creation failed');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return 'error: ' . $e->getMessage();
         }
     }
@@ -212,7 +212,7 @@ class GlobalTaskSystemInitializer
 
             $status = $result['status'] ?? 'error';
             return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return 'error: ' . $e->getMessage();
         }
     }
@@ -259,7 +259,7 @@ class GlobalTaskSystemInitializer
 
             $status = $result['status'] ?? 'error';
             return $status === 'aligned' ? 'exists' : $status; // created|updated|exists
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return 'error: ' . $e->getMessage();
         }
     }
@@ -286,7 +286,7 @@ class GlobalTaskSystemInitializer
                 $stats['workers'] = Worker::initializationStats();
             }
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $stats['error'] = $e->getMessage();
         }
 

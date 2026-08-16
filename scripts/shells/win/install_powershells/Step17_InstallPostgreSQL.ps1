@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Native Windows PostgreSQL install/configure. Mirrors the Linux canonical
-# 48_install_postgresql.sh via the shared PostgresqlManager (idempotent + :5432
+# 47_install_postgresql.sh via the shared PostgresqlManager (idempotent + :5432
 # reuse). Same data dir (map_web_path "postgresql"), password store, app DBs.
 
 # Variables (declared at the beginning of the file)

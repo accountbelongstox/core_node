@@ -13,6 +13,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
@@ -30,7 +32,7 @@ use App\Traits\ApiResponse;
  *
  * No authentication (mirrors the local media ingest / browse endpoints).
  */
-class AppQyV1MoviePosterController
+class AppQyV1MoviePosterController extends Controller
 {
     use ApiResponse;
 

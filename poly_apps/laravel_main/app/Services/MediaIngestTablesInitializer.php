@@ -70,7 +70,7 @@ class MediaIngestTablesInitializer
                     ]
                 );
                 $results[$tableName] = $result['status'] ?? 'aligned';
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 $results[$tableName] = 'error: ' . $e->getMessage();
             }
         }
@@ -85,24 +85,18 @@ class MediaIngestTablesInitializer
     {
         try {
             $stats = [
-                'subtitles' => Subtitle::tableRowCount(),
-                'books' => Book::tableRowCount(),
-                'source_sentences' => SourceSentence::tableRowCount(),
-                'segments' => MediaSegment::tableRowCount(),
+                'subtitles' => Subtitle::configuredTableRowCount(),
+                'books' => Book::configuredTableRowCount(),
+                'source_sentences' => SourceSentence::configuredTableRowCount(),
+                'segments' => MediaSegment::configuredTableRowCount(),
             ];
 
-            // Per-language sentence + chapter totals (Books v3.1).
-            $sentenceTotal = 0;
-            $chapterTotal = 0;
-            foreach (AppQyV1TableMaps::getSupportedLanguages() as $lang) {
-                $sentenceTotal += LangSentence::tableRowCount($lang);
-                $chapterTotal += LangChapter::tableRowCount($lang);
-            }
-            $stats['sentences'] = $sentenceTotal;
-            $stats['chapters'] = $chapterTotal;
+            $languages = AppQyV1TableMaps::getSupportedLanguages();
+            $stats['sentences'] = LangSentence::totalRowCount($languages);
+            $stats['chapters'] = LangChapter::totalRowCount($languages);
 
             return $stats;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return ['error' => $e->getMessage()];
         }
     }
@@ -119,7 +113,7 @@ class MediaIngestTablesInitializer
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
                 'content_id' => ['type' => 'string', 'length' => 32, 'nullable' => false, 'unique' => true, 'comment' => 'md5(normalize(strip_punctuation(text))); language-agnostic, unique here'],
-                'sentence_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'sha1(normalize(text) . | . lang) legacy compat key'],
+                'sentence_id' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'index' => true, 'comment' => 'sha1(normalize(text) . | . lang) language-specific lookup key'],
                 'corr_id' => ['type' => 'string', 'length' => 40, 'nullable' => true, 'index' => true, 'comment' => 'cross-language correspondence group id'],
                 'text' => ['type' => 'text', 'nullable' => false, 'comment' => 'original case, punctuation-stripped + normalized'],
                 'language' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'index' => true, 'comment' => 'lang code (== table suffix)'],

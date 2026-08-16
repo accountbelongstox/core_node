@@ -2,19 +2,16 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 
-class CodeMartV1TaskModel extends Model
+class CodeMartV1TaskModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_tasks';
 
     protected $fillable = [
@@ -145,11 +142,6 @@ class CodeMartV1TaskModel extends Model
             'order' => $nextOrder,
             'status' => 'pending',
         ]));
-    }
-
-    public static function findById(int $taskId): ?self
-    {
-        return static::query()->find($taskId);
     }
 
     public static function findDetailed(int $taskId): ?self

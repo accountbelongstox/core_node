@@ -152,7 +152,7 @@ class AppQyV1SentenceAudioService
             $chain = AppQyV1TtsEngineConfigModel::sentenceEngineChain();
             $this->sentenceEngineInfoCache = [
                 'profile' => AppQyV1TtsEngineConfigModel::SENTENCE_PROFILE,
-                'primary' => $chain[0] ?? AppQyV1TtsEngineConfigModel::SENTENCE_PRIMARY_DEFAULT,
+                'primary' => $chain[0],
                 'chain' => $chain,
                 'gpu_gated' => true,
             ];
@@ -273,9 +273,8 @@ class AppQyV1SentenceAudioService
 
     /**
      * TTS variant specs the pycore worker should synthesize per language.
-     * DB-driven via app_qy_v1_tts_variant_specs (seeded at sys:init); falls back
-     * to the hardcoded spec set when the table is missing/empty. Identical return
-     * shape across sentence + word audio (single read path on the model).
+     * DB-driven via app_qy_v1_tts_variant_specs and seeded at sys:init. Missing
+     * configuration fails explicitly through the authoritative model read path.
      *
      * @return array<int,array{key:string,accent:?string,gender:string}>
      */
@@ -746,10 +745,7 @@ class AppQyV1SentenceAudioService
         if (array_key_exists($lang, $cache)) {
             return $cache[$lang];
         }
-        $model = LangSentence::for($lang);
-        $exists = $model->getConnection()
-            ->getSchemaBuilder()
-            ->hasTable($model->getTable());
+        $exists = LangSentence::tableExists($lang);
         $cache[$lang] = $exists;
         return $exists;
     }

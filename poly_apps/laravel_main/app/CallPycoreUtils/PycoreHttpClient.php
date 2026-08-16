@@ -5,207 +5,106 @@ namespace App\CallPycoreUtils;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * HTTP client for pycore's rpc_v2 server.
+ *
+ * Protocol (pycore/pyutils/rpc_v2/server.py):
+ * - POST {BASE_URL}/api/{route} with a flat JSON object body; the body keys
+ *   are the handler parameters (no request envelope).
+ * - Success: HTTP 200 with the handler's return value as the JSON body
+ *   (no response envelope; 204 when the handler returns null).
+ * - Failure: HTTP 4xx/5xx with
+ *   {"success": false, "error": {"code": ..., "message": ...}, "route": ..., "request_id": ...}.
+ * - Handler-level failures return HTTP 200 with {"success": false, "error": ...}.
+ * - rpc_v2 is fully synchronous; there is no async polling equivalent.
+ */
 class PycoreHttpClient
 {
+    /**
+     * Loopback address of the pycore rpc_v2 HTTP server.
+     * Mirrors PYCORE_HTTP_PORT in pycore/pyfoundations/network_constants.py.
+     */
     private const BASE_URL = 'http://127.0.0.1:59000';
+
+    /**
+     * Route prefix exposed by the rpc_v2 server
+     * (HTTP_API_PREFIX in pycore/pyfoundations/network_constants.py).
+     */
+    private const API_PREFIX = '/api';
+
     private const DEFAULT_TIMEOUT = 60;
-    private const POLL_INTERVAL = 1;
-    private const MAX_POLL_ATTEMPTS = 120;
-    
-    public static function callDirect(
-        string $endpoint,
-        array $params = [],
-        int $timeout = self::DEFAULT_TIMEOUT
-    ): array {
-        try {
-            $response = Http::timeout($timeout)
-                ->post(self::BASE_URL . $endpoint, $params);
-            
-            if (!$response->successful()) {
-                Log::error('[PycoreHttpClient] Direct call failed', [
-                    'endpoint' => $endpoint,
-                    'status' => $response->status(),
-                    'body' => $response->body(),
-                ]);
-                
-                return [
-                    'error' => 'Direct call failed',
-                    'status' => $response->status(),
-                    'message' => $response->body(),
-                ];
-            }
-            
-            return $response->json();
-            
-        } catch (\Exception $e) {
-            Log::error('[PycoreHttpClient] Direct call exception', [
-                'endpoint' => $endpoint,
-                'error' => $e->getMessage(),
-            ]);
-            
-            return [
-                'error' => 'HTTP request failed',
-                'message' => $e->getMessage(),
-            ];
-        }
-    }
-    
+
+    /**
+     * Call an rpc_v2 route (slash-separated, e.g. 'translator/translate_single').
+     *
+     * Returns ['success' => true, 'result' => <handler payload>] on success,
+     * or ['error' => <message>, ...] on transport/protocol/handler failure.
+     */
     public static function call(
         string $route,
         array $params = [],
-        int $timeout = self::DEFAULT_TIMEOUT,
-        bool $async = false
+        int $timeout = self::DEFAULT_TIMEOUT
     ): array {
+        $path = self::API_PREFIX . '/' . ltrim($route, '/');
+
         try {
-            $response = Http::timeout($timeout + 5)
-                ->post(self::BASE_URL . '/rpc/' . $route, $params);
-            
+            $response = Http::timeout($timeout)
+                ->post(self::BASE_URL . $path, $params);
+
+            $payload = $response->json();
+
             if (!$response->successful()) {
-                Log::error('[PycoreHttpClient] RPC call failed', [
+                $message = is_array($payload)
+                    ? ($payload['error']['message'] ?? $response->body())
+                    : $response->body();
+
+                Log::error('[PycoreHttpClient] rpc_v2 call failed', [
                     'route' => $route,
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'error' => $message,
                 ]);
-                
+
                 return [
-                    'error' => 'RPC call failed',
+                    'error' => $message,
                     'status' => $response->status(),
-                    'message' => $response->body(),
+                    'details' => $payload,
                 ];
             }
-            
-            $result = $response->json();
-            
-            if (!isset($result['id'])) {
-                return [
-                    'error' => 'Invalid RPC response',
-                    'response' => $result,
-                ];
-            }
-            
-            if (isset($result['sync_response']) && $result['sync_response'] === true) {
-                if (isset($result['error']) && $result['error'] !== null) {
-                    return [
-                        'error' => $result['error'],
-                        'details' => $result,
-                    ];
-                }
-                
+
+            if (!is_array($payload)) {
                 return [
                     'success' => true,
-                    'result' => $result['result'] ?? null,
-                    'request_id' => $result['id'],
+                    'result' => $payload,
                 ];
             }
-            
-            $requestId = $result['id'];
-            
-            if ($async) {
+
+            if (($payload['success'] ?? true) === false) {
+                $error = $payload['error'] ?? 'Unknown pycore error';
+
+                Log::error('[PycoreHttpClient] rpc_v2 handler error', [
+                    'route' => $route,
+                    'error' => $error,
+                ]);
+
                 return [
-                    'success' => true,
-                    'request_id' => $requestId,
-                    'status' => $result['status'] ?? 'accepted',
+                    'error' => is_string($error) ? $error : json_encode($error),
+                    'details' => $payload,
                 ];
             }
-            
-            return self::pollResult($requestId, $route, $timeout);
-            
+
+            return [
+                'success' => true,
+                'result' => $payload,
+            ];
+
         } catch (\Exception $e) {
             Log::error('[PycoreHttpClient] Exception', [
                 'route' => $route,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
             ]);
-            
+
             return [
                 'error' => 'HTTP request failed',
-                'message' => $e->getMessage(),
-            ];
-        }
-    }
-    
-    private static function pollResult(string $requestId, string $route, int $timeout): array
-    {
-        $maxAttempts = min(self::MAX_POLL_ATTEMPTS, $timeout);
-        $startTime = time();
-        
-        for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
-            if ($attempt > 0) {
-                sleep(self::POLL_INTERVAL);
-            }
-            
-            if (time() - $startTime > $timeout) {
-                return [
-                    'error' => 'Timeout waiting for result',
-                    'request_id' => $requestId,
-                    'elapsed' => time() - $startTime,
-                ];
-            }
-            
-            try {
-                $queryResponse = Http::timeout(5)
-                    ->get(self::BASE_URL . '/rpc/query/' . $requestId);
-                
-                if (!$queryResponse->successful()) {
-                    continue;
-                }
-                
-                $queryResult = $queryResponse->json();
-                $status = $queryResult['status'] ?? 'unknown';
-                
-                if ($status === 'completed') {
-                    return [
-                        'success' => true,
-                        'result' => $queryResult['result'] ?? null,
-                        'request_id' => $requestId,
-                        'elapsed' => time() - $startTime,
-                    ];
-                } elseif ($status === 'failed') {
-                    return [
-                        'error' => 'RPC execution failed',
-                        'message' => $queryResult['error'] ?? 'Unknown error',
-                        'request_id' => $requestId,
-                        'details' => $queryResult,
-                        'elapsed' => time() - $startTime,
-                    ];
-                }
-                
-            } catch (\Exception $e) {
-                Log::warning('[PycoreHttpClient] Poll attempt failed', [
-                    'request_id' => $requestId,
-                    'attempt' => $attempt,
-                    'error' => $e->getMessage(),
-                ]);
-                continue;
-            }
-        }
-        
-        return [
-            'error' => 'Timeout: result not ready after maximum attempts',
-            'request_id' => $requestId,
-            'attempts' => $maxAttempts,
-            'elapsed' => time() - $startTime,
-        ];
-    }
-    
-    public static function queryResult(string $requestId): array
-    {
-        try {
-            $response = Http::timeout(5)
-                ->get(self::BASE_URL . '/rpc/query/' . $requestId);
-            
-            if (!$response->successful()) {
-                return [
-                    'error' => 'Query failed',
-                    'status' => $response->status(),
-                ];
-            }
-            
-            return $response->json();
-            
-        } catch (\Exception $e) {
-            return [
-                'error' => 'Query request failed',
                 'message' => $e->getMessage(),
             ];
         }

@@ -85,6 +85,22 @@ def save_assist_settings(patch: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return effective
 
 
+def set_assist_capability(capability: str, enabled: bool) -> Dict[str, Any]:
+    """Flip ONE capability switch and return the effective settings.
+
+    The single persistence point every Queue Center control flows through
+    (translation / word audio / sentence audio); callers then hand the
+    returned settings to apply_assist_runtime for the live transition.
+    """
+    current = load_assist_settings()
+    caps = dict(current.get("capabilities") or {})
+    caps[str(capability)] = bool(enabled)
+    return save_assist_settings({
+        "enabled": bool(any(caps.values())),
+        "capabilities": caps,
+    })
+
+
 def assist_callback_states(
     settings: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, bool]:

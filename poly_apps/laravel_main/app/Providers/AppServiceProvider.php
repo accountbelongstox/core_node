@@ -38,10 +38,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // User-data-area config loader (singleton: share the memoized JSON
-        // across a request). Source of truth for app feature settings, kept out
-        // of .env (which stays for bootstrap essentials only).
-        $this->app->singleton(UserConfigService::class);
+        // Octane keeps singleton instances for the lifetime of a worker. A
+        // scoped binding shares the memoized user configuration within one
+        // request and releases it before the next request lifecycle begins.
+        $this->app->scoped(UserConfigService::class);
     }
 
     /**

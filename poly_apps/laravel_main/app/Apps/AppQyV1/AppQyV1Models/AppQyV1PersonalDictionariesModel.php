@@ -11,46 +11,38 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1PersonalDictionariesModel extends Model
+class AppQyV1PersonalDictionariesModel extends AppQyV1Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table;
 
     /**
      * Constructor to set table name from database bridge
      */
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('PERSONAL_DICTIONARIES');
-    }
+    protected ?string $appTableMapKey = 'PERSONAL_DICTIONARIES';
 
     protected $fillable = [
         'uid',
         'personal_dicts',
     ];
 
-    protected $casts = [
-        'personal_dicts' => 'json',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'personal_dicts' => 'json',
+        ];
+    }
 
     public function user()
     {

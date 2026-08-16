@@ -12,8 +12,9 @@ namespace App\Apps\AppQyV1\AppQyV1DBTablesBrige;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Providers\TableMaps;
 
-class AppQyV1TableMaps
+class AppQyV1TableMaps extends TableMaps
 {
     /**
      * AppQyV1 Application Database Table Mappings
@@ -24,7 +25,7 @@ class AppQyV1TableMaps
     /**
      * Get table prefix from key center
      */
-    private static function getTablePrefix(): string
+    protected static function getTablePrefix(): string
     {
         static $prefix = null;
         if ($prefix === null) {
@@ -417,15 +418,12 @@ class AppQyV1TableMaps
     /**
      * Get table name by key
      * Automatically adds prefix from key center if not present
+     * Language-suffixed {prefix}_{lang}_DICTIONARIES keys resolve to tts_cache_{lang}.
      */
     public static function getTableName(string $tableKey): string
     {
         $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
+        $fullKey = self::resolveFullKey($tableKey);
 
         if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
@@ -436,11 +434,7 @@ class AppQyV1TableMaps
             }
         }
 
-        if (defined("self::{$fullKey}")) {
-            $tableSuffix = constant("self::{$fullKey}")['tablename'];
-            return "{$prefix}_{$tableSuffix}";
-        }
-        return '';
+        return parent::getTableName($tableKey);
     }
     
     /**
@@ -570,11 +564,7 @@ class AppQyV1TableMaps
     public static function getFieldName(string $tableKey, string $fieldKey): string
     {
         $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
+        $fullKey = self::resolveFullKey($tableKey);
 
         if (preg_match('/^' . preg_quote($prefix, '/') . '_([a-z]{2,3})_DICTIONARIES$/i', $fullKey, $matches)) {
             $langCode = strtolower($matches[1]);
@@ -583,26 +573,7 @@ class AppQyV1TableMaps
             }
         }
 
-        if (defined("self::{$fullKey}")) {
-            $tableMap = constant("self::{$fullKey}");
-            return $tableMap['fields'][$fieldKey] ?? $fieldKey;
-        }
-        return $fieldKey;
-    }
-
-    public static function getTableFields(string $tableKey): array
-    {
-        $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
-
-        if (defined("self::{$fullKey}")) {
-            return constant("self::{$fullKey}")['fields'];
-        }
-        return [];
+        return parent::getFieldName($tableKey, $fieldKey);
     }
 
     public static function getAvailableTableKeys(): array

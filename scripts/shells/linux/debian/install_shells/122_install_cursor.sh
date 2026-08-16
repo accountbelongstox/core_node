@@ -2,7 +2,7 @@
 # Cursor IDE Installation Script
 #
 # Usage:
-#   ./123_install_cursor.sh   # Interactive install (no arguments)
+#   ./122_install_cursor.sh   # Interactive install (no arguments)
 #
 # This script installs Cursor IDE using installer files stored in ~/Downloads or /home/*/Downloads
 # If no installer is found, it opens the Cursor download page and waits for the user to download manually

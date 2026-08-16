@@ -147,7 +147,7 @@ if [ "${PREFLIGHT_OK:-1}" = "0" ]; then
 fi
 
 # ── Auto-install Redis if not running (uses core_node install scripts) ──
-REDIS_INSTALL_SCRIPT="$CORE_NODE/scripts/shells/linux/debian/install_shells/49_install_redis.sh"
+REDIS_INSTALL_SCRIPT="$CORE_NODE/scripts/shells/linux/debian/install_shells/46_install_redis.sh"
 if [ -f "$REDIS_INSTALL_SCRIPT" ]; then
     REDIS_PORT="${REDIS_PORT:-6379}"
     REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
@@ -161,14 +161,14 @@ s.close()
         info "Redis not running. Attempting install..."
         chmod +x "$REDIS_INSTALL_SCRIPT"
 
-        # Set START_REDIS=true via the global variable system used by 47_install_redis.sh
+        # Set START_REDIS=true via the global variable system used by 46_install_redis.sh
         GVAR_COMMON="$CORE_NODE/scripts/shells/linux/common/gvar_common.sh"
         COMMON_FUNC="$CORE_NODE/scripts/shells/linux/common/common_functions.sh"
         if [ -f "$GVAR_COMMON" ] && [ -f "$COMMON_FUNC" ]; then
             # Source the common scripts to get set_var/get_var
             source "$GVAR_COMMON" 2>/dev/null || true
             source "$COMMON_FUNC" 2>/dev/null || true
-            # Set the global variable that 47_install_redis.sh reads
+            # Set the global variable that 46_install_redis.sh reads
             set_var "START_REDIS" "true" 2>/dev/null || true
             info "Set global var START_REDIS=true"
         fi

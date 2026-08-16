@@ -13,10 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\Realtime\OutboxCommitDispatcher;
 use Illuminate\Support\Facades\Log;
 
@@ -25,7 +21,7 @@ use Illuminate\Support\Facades\Log;
  * Reverb delivers the live private-channel frame while this table provides
  * cursor recovery after disconnects. `data` holds the JSON-encoded payload.
  */
-class AppQyV1SocialEventModel extends Model
+class AppQyV1SocialEventModel extends AppQyV1Model
 {
     private const CHANNEL_PREFIX = 'wordnew-social.';
     private const EVENT_NAMES = [
@@ -43,7 +39,6 @@ class AppQyV1SocialEventModel extends Model
         'live.chat.new',
     ];
 
-    protected $appKey = AppKeys::APPQYV1;
 
     // created_at only (append-only log); no updated_at column.
     public $timestamps = false;
@@ -59,26 +54,19 @@ class AppQyV1SocialEventModel extends Model
         'last_publish_error',
     ];
 
-    protected $casts = [
-        'id' => 'integer',
-        'user_id' => 'integer',
-        'created_at' => 'datetime',
-        'published_at' => 'datetime',
-        'publish_after' => 'datetime',
-        'publish_attempts' => 'integer',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('SOCIAL_EVENTS');
+        return [
+            'id' => 'integer',
+            'user_id' => 'integer',
+            'created_at' => 'datetime',
+            'published_at' => 'datetime',
+            'publish_after' => 'datetime',
+            'publish_attempts' => 'integer',
+        ];
     }
 
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'SOCIAL_EVENTS';
 
     /**
      * Persist one committed recipient event for bounded cursor recovery and
@@ -86,6 +74,8 @@ class AppQyV1SocialEventModel extends Model
      */
     public static function emit(int $userId, string $event, array $data): void
     {
+        $connectionName = (new static())->getConnectionName();
+
         OutboxCommitDispatcher::dispatch(static function () use ($userId, $event, $data): void {
             try {
                 static::query()->create([
@@ -102,7 +92,7 @@ class AppQyV1SocialEventModel extends Model
                     'error' => $exception->getMessage(),
                 ]);
             }
-        }, AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1));
+        }, $connectionName);
     }
 
     public static function pendingForPublish(int $limit)

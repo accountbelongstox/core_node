@@ -19,7 +19,7 @@ from pycore.pyutils.common.status_snapshot_cache import (
 )
 from pycore.pyctl.assist.assist_settings import (
     load_assist_settings,
-    save_assist_settings,
+    set_assist_capability,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 
@@ -73,14 +73,27 @@ def _warm_sentence_engine() -> None:
         ColorPrint.yellow(f"[SentenceAudioAuto] qwen3tts warm-up failed ({exc})")
 
 
+def warm_engine_after_enable() -> None:
+    """Spawn the async qwen3tts warm-up after the ON toggle."""
+    try:
+        start_bus_task(
+            _warm_sentence_engine,
+            thread_name="sentence-audio-engine-warm",
+        )
+    except Exception as exc:  # noqa: BLE001
+        ColorPrint.yellow(f"[SentenceAudioAuto] engine warm-up spawn failed ({exc})")
+
+
 def apply_auto_start(
     enabled: bool,
     concurrency: Optional[int] = None,
     speaker: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Persist toggle (+ optional concurrency override) and apply live: heartbeat
-    + assist capability. ``concurrency`` None leaves the persisted value
-    untouched; 0 means "use the per-engine recommended value"."""
+    """Persist toggle (+ optional overrides) and apply live. ``concurrency``
+    None leaves the persisted value untouched; 0 means "use the per-engine
+    recommended value". The capability transition itself flows through the
+    shared assist control plane (set_assist_capability + apply_assist_runtime),
+    which also drives the lane lifecycle."""
     updates: Dict[str, Any] = {}
     if concurrency is not None:
         updates[_CONCURRENCY_KEY] = max(0, int(concurrency))
@@ -101,24 +114,12 @@ def apply_auto_start(
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[SentenceAudioAuto] live speaker apply failed ({exc})")
 
-    settings = load_assist_settings()
-    caps = dict(settings.get("capabilities") or {})
-    caps["sentence_audio"] = bool(enabled)
-    settings = save_assist_settings({
-        "enabled": bool(any(caps.values())),
-        "capabilities": caps,
-    })
+    settings = set_assist_capability("sentence_audio", bool(enabled))
     runtime = apply_assist_runtime(settings)
     errors = list(runtime.get("errors") or [])
 
     if enabled:
-        try:
-            start_bus_task(
-                _warm_sentence_engine,
-                thread_name="sentence-audio-engine-warm",
-            )
-        except Exception as exc:  # noqa: BLE001
-            ColorPrint.yellow(f"[SentenceAudioAuto] engine warm-up spawn failed ({exc})")
+        warm_engine_after_enable()
 
     ColorPrint.blue(f"[SentenceAudioAuto] auto_start set to {bool(enabled)}")
     status = get_status()

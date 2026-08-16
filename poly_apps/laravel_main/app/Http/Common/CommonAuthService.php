@@ -13,6 +13,7 @@ namespace App\Http\Common;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\PersonalAccessToken;
 use Carbon\Carbon;
 
 /**
@@ -98,6 +99,93 @@ class CommonAuthService
             'expiration' => config('sanctum.expiration'),
             'multi_device_enabled' => $allowMultiDevice
         ];
+    }
+
+    /**
+     * Verify username/email/phone + password against the canonical users table.
+     * Keeps "user not found" and "wrong password" distinguishable for callers
+     * that surface distinct error codes.
+     *
+     * @param string $identifier Username, email, or phone
+     * @param string $password Plain-text password
+     * @return array{status:string,user:User|null} status: ok|not_found|invalid_password
+     */
+    public static function verifyCredentials($identifier, $password)
+    {
+        $user = User::findByUsernameEmailOrPhone($identifier);
+
+        if (!$user) {
+            return ['status' => 'not_found', 'user' => null];
+        }
+
+        if (!Hash::check($password, $user->password)) {
+            return ['status' => 'invalid_password', 'user' => null];
+        }
+
+        return ['status' => 'ok', 'user' => $user];
+    }
+
+    /**
+     * Issue a Sanctum login token for an already-authenticated user, ensuring the
+     * avatar/nickname defaults are populated first (single avatar pipeline).
+     *
+     * @param User $user
+     * @param string $tokenName Sanctum token name
+     * @return array{user:User,token:string,token_type:string,expiration:mixed}
+     */
+    public static function issueLoginToken(User $user, $tokenName = 'auth_token')
+    {
+        $user = CommonAvatarPublic::createAvatar($user, true);
+        $token = $user->createToken($tokenName)->plainTextToken;
+
+        return [
+            'user' => $user,
+            'token' => $token,
+            'token_type' => 'Bearer',
+            'expiration' => config('sanctum.expiration'),
+        ];
+    }
+
+    /**
+     * Resolve a Sanctum personal access token (plain-text) to its user, applying
+     * the same expiry rules as the Sanctum guard. App-neutral: usable by callers
+     * that receive the token on a non-Authorization header.
+     *
+     * @param string|null $loginToken Plain-text Sanctum token
+     * @return User|null
+     */
+    public static function getUserByLoginToken($loginToken)
+    {
+        if (!$loginToken) {
+            return null;
+        }
+
+        $accessToken = PersonalAccessToken::findToken($loginToken);
+
+        if (!$accessToken) {
+            return null;
+        }
+
+        $user = $accessToken->tokenable;
+
+        if (!$user instanceof User) {
+            return null;
+        }
+
+        $expiresAt = $accessToken->expires_at;
+
+        if ($expiresAt === null) {
+            $expirationMinutes = config('sanctum.expiration');
+            if ($expirationMinutes) {
+                $expiresAt = $accessToken->created_at->addMinutes($expirationMinutes);
+            }
+        }
+
+        if ($expiresAt !== null && $expiresAt->isPast()) {
+            return null;
+        }
+
+        return $user;
     }
 
     /**
@@ -239,11 +327,9 @@ class CommonAuthService
             return self::getUserByUserToken($userToken);
         }
 
-        // Try login_token (sanctum)
+        // Try login_token (sanctum personal access token)
         if ($loginToken) {
-            // This would be handled by sanctum middleware naturally
-            // But we can implement manual validation here if needed
-            return null; // Let sanctum handle this
+            return self::getUserByLoginToken($loginToken);
         }
 
         return null;

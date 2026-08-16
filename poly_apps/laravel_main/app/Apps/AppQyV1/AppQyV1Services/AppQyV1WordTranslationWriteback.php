@@ -460,33 +460,23 @@ class AppQyV1WordTranslationWriteback
             }
         }
 
+        $validityResults = [];
+
         // Flag words the worker could not resolve on Bing as invalid so the
         // enqueue side stops re-queuing them (getWordsNeedingTranslation /
-        // stackWords both filter is_valid). markValidity is its own UPDATE and
-        // invalidates the metrics cache.
+        // stackWords both filter is_valid).
         foreach ($invalidWords as $invalid) {
             $invalidWord = is_array($invalid) ? ($invalid['word'] ?? null) : $invalid;
             if (!is_string($invalidWord) || $invalidWord === '') {
                 continue;
             }
-            try {
-                $marked = AppQyV1LangDictionaryModel::markValidity(
-                    $langCode,
-                    md5($invalidWord),
-                    false,
-                    'bing-assist',
-                    'No Bing dictionary result'
-                );
-                if ($marked) {
-                    $invalidated++;
-                }
-            } catch (\Throwable $e) {
-                Log::warning('[AppQyV1WordTranslationWriteback] markValidity failed', [
-                    'task_id' => $taskId,
-                    'word' => $invalidWord,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+
+            $validityResults[] = [
+                'md5' => md5($invalidWord),
+                'is_valid' => false,
+                'source' => 'bing-assist',
+                'note' => 'No Bing dictionary result',
+            ];
         }
 
         // Flag words stuck on a Bing region/redirect (non-dict) page after retries
@@ -498,21 +488,22 @@ class AppQyV1WordTranslationWriteback
             if (!is_string($redirectWord) || $redirectWord === '') {
                 continue;
             }
+
+            $validityResults[] = [
+                'md5' => md5($redirectWord),
+                'is_valid' => false,
+                'source' => 'region-redirect',
+                'note' => 'Bing region/redirect — no dictionary page',
+            ];
+        }
+
+        if ($validityResults !== []) {
             try {
-                $marked = AppQyV1LangDictionaryModel::markValidity(
-                    $langCode,
-                    md5($redirectWord),
-                    false,
-                    'region-redirect',
-                    'Bing region/redirect — no dictionary page'
-                );
-                if ($marked) {
-                    $invalidated++;
-                }
+                $validityOutcome = AppQyV1LangDictionaryModel::markValidities($langCode, $validityResults);
+                $invalidated += $validityOutcome['updated'];
             } catch (\Throwable $e) {
-                Log::warning('[AppQyV1WordTranslationWriteback] region-redirect markValidity failed', [
+                Log::warning('[AppQyV1WordTranslationWriteback] validity batch update failed', [
                     'task_id' => $taskId,
-                    'word' => $redirectWord,
                     'error' => $e->getMessage(),
                 ]);
             }

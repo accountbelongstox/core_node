@@ -9,6 +9,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
+use App\Constants\LaravelConfig;
+
 return [
 
     /*
@@ -22,7 +24,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Application'),
+    'name' => LaravelConfig::APP_NAME,
 
     /*
     |--------------------------------------------------------------------------
@@ -31,11 +33,11 @@ return [
     |
     | This value determines the "environment" your application is currently
     | running in. This may determine how you prefer to configure various
-    | services the application utilizes. Set this in your ".env" file.
+    | services the application utilizes. This project fixes the value in code.
     |
     */
 
-    'env' => env('APP_ENV', 'production'),
+    'env' => LaravelConfig::APP_ENVIRONMENT,
 
     /*
     |--------------------------------------------------------------------------
@@ -48,7 +50,7 @@ return [
     |
     */
 
-    'debug' => (bool) env('APP_DEBUG', false),
+    'debug' => LaravelConfig::APP_DEBUG,
 
     /*
     |--------------------------------------------------------------------------
@@ -61,7 +63,7 @@ return [
     |
     */
 
-    'url' => env('APP_URL', 'http://localhost'),
+    'url' => LaravelConfig::APP_URL,
 
     /*
     |--------------------------------------------------------------------------
@@ -74,7 +76,7 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => LaravelConfig::APP_TIMEZONE,
 
     /*
     |--------------------------------------------------------------------------
@@ -87,11 +89,11 @@ return [
     |
     */
 
-    'locale' => env('APP_LOCALE', 'en'),
+    'locale' => LaravelConfig::APP_LOCALE,
 
-    'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
+    'fallback_locale' => LaravelConfig::APP_FALLBACK_LOCALE,
 
-    'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
+    'faker_locale' => LaravelConfig::APP_FAKER_LOCALE,
 
     /*
     |--------------------------------------------------------------------------
@@ -106,13 +108,10 @@ return [
 
     'cipher' => 'AES-256-CBC',
 
-    'key' => env('APP_KEY'),
+    // Injected by RuntimeConfigurationServiceProvider from the Shell-owned store.
+    'key' => null,
 
-    'previous_keys' => [
-        ...array_filter(
-            explode(',', env('APP_PREVIOUS_KEYS', ''))
-        ),
-    ],
+    'previous_keys' => [],
 
     /*
     |--------------------------------------------------------------------------
@@ -128,13 +127,15 @@ return [
     */
 
     'maintenance' => [
-        'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
-        'store' => env('APP_MAINTENANCE_STORE', 'database'),
+        'driver' => 'file',
+        'store' => LaravelConfig::CACHE_STORE,
     ],
 
-    'asset_url' => env('ASSET_URL'),
+    'asset_url' => null,
 
-    'server_manager_api_key' => env('SERVER_MANAGER_API_KEY'),
+    'frontend_url' => LaravelConfig::FRONTEND_URL,
+
+    'server_manager_api_key' => null,
 
     /*
     |--------------------------------------------------------------------------
@@ -142,8 +143,8 @@ return [
     |--------------------------------------------------------------------------
     */
     'server_headers' => [
-        'Server' => env('SERVER_HEADER', 'nginx'),
-        'X-Powered-By' => env('POWERED_BY_HEADER', ''),
+        'Server' => 'nginx',
+        'X-Powered-By' => '',
     ],
 
 ];

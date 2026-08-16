@@ -11,9 +11,11 @@
 
 namespace App\Http\OldApis;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 
-class WorkLookupController
+class WorkLookupController extends Controller
 {
     /**
      * Display the work lookup page.

@@ -12,7 +12,7 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1RechargeConfigModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 
@@ -21,7 +21,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
  * (provider, credentials, gateway endpoint, notify URL, packages, enabled).
  * Guarded by 'custom.authenticate' at the route layer.
  */
-class DingDuoDuoV1RechargeAdminController extends BaseController
+class DingDuoDuoV1RechargeAdminController extends Controller
 {
     /**
      * GET admin/recharge-config -> the config row (created lazily with defaults).

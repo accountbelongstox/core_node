@@ -9,14 +9,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 34_install_swoole.sh
+# Script: 33_install_swoole.sh
 # Description: Install Swoole extension for PHP 8.5 and Laravel Octane support
 # PHP Version: 8.5 (Upgraded from 8.4)
-# Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
-# Laravel Octane: v2.13.x (Requires compatibility patch for Swoole 6.x)
-# Compatibility: Automatically applies Octane/Swoole 6.x patch after installation
+# Swoole Version: latest stable (installed via PECL)
 # Author: System Administrator
-# Version: 1.1
+# Version: 1.2
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -104,7 +102,7 @@ ensure_php_symlink() {
 
     if [ ! -x "$PHP_BIN" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} binary not found at $PHP_BIN${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 34_ensure_php85_intelligent.sh first${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 32_ensure_php85_intelligent.sh first${NC}"
         return 1
     fi
 
@@ -216,144 +214,10 @@ install_swoole_dependencies() {
     fi
 }
 
-# Does a given Swoole git ref's official composer.json `php` constraint admit the running
-# PHP? Returns 0 (yes / undeterminable) or 1 (explicitly excluded). Parses the simple
-# ">=X.Y" + optional "<A.B" forms Swoole uses (e.g. ">=8.2 <8.6", ">=8.1 <8.5").
-swoole_ref_supports_php() {
-    local ref="$1" php_ver="$2"
-    local pvid; pvid="$(echo "$php_ver" | awk -F. '{printf "%d", $1*100+$2}')"
-    local constraint
-    constraint="$(curl -fsSL "https://raw.githubusercontent.com/swoole/swoole-src/${ref}/composer.json" 2>/dev/null \
-        | sed -n 's/.*"php"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
-    [ -z "$constraint" ] && return 0   # offline / unknown -> do not block
-    local lo hi
-    lo="$(printf '%s' "$constraint" | grep -oE '>=?[[:space:]]*[0-9]+\.[0-9]+' | head -n1 | grep -oE '[0-9]+\.[0-9]+')"
-    hi="$(printf '%s' "$constraint" | grep -oE '<[[:space:]]*[0-9]+\.[0-9]+'   | head -n1 | grep -oE '[0-9]+\.[0-9]+')"
-    if [ -n "$lo" ]; then
-        local loid; loid="$(echo "$lo" | awk -F. '{printf "%d", $1*100+$2}')"
-        [ "$pvid" -lt "$loid" ] && return 1
-    fi
-    if [ -n "$hi" ]; then
-        local hiid; hiid="$(echo "$hi" | awk -F. '{printf "%d", $1*100+$2}')"
-        [ "$pvid" -ge "$hiid" ] && return 1
-    fi
-    return 0
-}
-
-# Select the Swoole build ref for the running PHP -- "select an available version" rather
-# than trust a possibly-stale hardcoded tag:
-#   1. $SWOOLE_BUILD_REF if set (explicit override).
-#   2. the latest STABLE GitHub release, IF its composer.json admits this PHP.
-#   3. the provided known-good pin, IF it admits this PHP.
-#   4. master (last resort), with a warning.
-# Prints the chosen ref on stdout (diagnostics go to stderr).
-select_swoole_build_ref() {
-    local php_ver="$1" pin="$2"
-    if [ -n "${SWOOLE_BUILD_REF:-}" ]; then
-        echo "$SWOOLE_BUILD_REF"; return 0
-    fi
-    local latest
-    latest="$(curl -fsSL "https://api.github.com/repos/swoole/swoole-src/releases/latest" 2>/dev/null \
-        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
-    if printf '%s' "$latest" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' && swoole_ref_supports_php "$latest" "$php_ver"; then
-        echo "$latest"; return 0
-    fi
-    if swoole_ref_supports_php "$pin" "$php_ver"; then
-        echo "$pin"; return 0
-    fi
-    echo "[WARN] No tagged Swoole release admits PHP ${php_ver}; falling back to master" >&2
-    echo "master"
-}
-
 install_swoole_pecl() {
     echo -e "${BLUE}$SCRIPT_INDEX Installing Swoole...${NC}"
 
-    # Check PHP version
-    local php_ver=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null)
-    
-    # For PHP 8.5+, install from source (master) as PECL version is incompatible
-    # Note: Swoole 6.x requires compatibility patch for Laravel Octane v2.13.x
-    # The patch will be automatically applied by octane_swoole_compat_fixer.php
-    if [[ "$php_ver" == "8.5" ]]; then
-        # Select the Swoole version. Per Swoole's own composer.json `php` constraint
-        # (official): 6.2.x => ">=8.2 <8.6" (supports PHP 8.5); 6.1.x => ">=8.1 <8.5"
-        # (EXCLUDES 8.5); 6.0.x predates 8.5. So PHP 8.5 needs Swoole >= 6.2.0. We pick
-        # the latest stable release that admits the running PHP (auto-tracking fixes),
-        # falling back to this known-good pin offline. Override via SWOOLE_BUILD_REF.
-        local swoole_pin="v6.2.1"
-        local swoole_ref
-        swoole_ref="$(select_swoole_build_ref "$php_ver" "$swoole_pin")"
-
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 detected. Building Swoole from source (ref: $swoole_ref)...${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Note: Swoole 6.x will be patched for Octane v2.13.x compatibility${NC}"
-
-        if ! command -v git >/dev/null 2>&1; then
-            $USE_SUDO apt-get install -y git
-        fi
-
-        # Build under a WRITABLE temp dir; mktemp -d avoids PID collisions. Fall back
-        # through candidates so a stale/unwritable GLOBAL_TEMP_DIR (e.g. the legacy
-        # root-owned /usr/tmp inherited from the menu) can never block the build.
-        local build_dir="" _tbase
-        for _tbase in "${GLOBAL_TEMP_DIR%/}" "${TMPDIR%/}" /var/tmp /tmp; do
-            [ -n "$_tbase" ] || continue
-            build_dir="$(mktemp -d "${_tbase}/swoole-src-build-XXXXXX" 2>/dev/null)" && break
-            build_dir=""
-        done
-        if [ -z "$build_dir" ]; then
-            echo -e "${RED}$SCRIPT_INDEX Could not create a writable build dir (tried GLOBAL_TEMP_DIR, TMPDIR, /var/tmp, /tmp)${NC}"
-            return 1
-        fi
-
-        echo -e "${CYAN}$SCRIPT_INDEX Cloning Swoole (ref: $swoole_ref) into $build_dir...${NC}"
-        if ! git clone --depth 1 --branch "$swoole_ref" \
-            https://github.com/swoole/swoole-src.git "$build_dir"; then
-            echo -e "${YELLOW}$SCRIPT_INDEX Shallow clone of '$swoole_ref' failed; retrying a full clone...${NC}"
-            rm -rf "$build_dir"
-            if ! git clone --branch "$swoole_ref" \
-                https://github.com/swoole/swoole-src.git "$build_dir"; then
-                echo -e "${RED}$SCRIPT_INDEX Failed to clone Swoole '$swoole_ref'${NC}"
-                return 1
-            fi
-        fi
-
-        if [ ! -f "$build_dir/config.m4" ]; then
-            echo -e "${RED}$SCRIPT_INDEX Clone did not produce a Swoole source tree (no config.m4)${NC}"
-            return 1
-        fi
-
-        # Save current directory
-        local original_dir=$(pwd)
-        cd "$build_dir"
-        
-        echo -e "${CYAN}$SCRIPT_INDEX Compiling Swoole...${NC}"
-        phpize
-        ./configure --enable-openssl --enable-swoole-curl --enable-mysqlnd
-        make -j$(nproc)
-        
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}$SCRIPT_INDEX Build failed${NC}"
-            cd "$original_dir"
-            return 1
-        fi
-        
-        $USE_SUDO make install
-        local install_status=$?
-        
-        cd "$original_dir"
-        rm -rf "$build_dir"
-        
-        if [ $install_status -eq 0 ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX Swoole installed from source${NC}"
-            return 0
-        else
-            echo -e "${RED}$SCRIPT_INDEX Installation failed${NC}"
-            return 1
-        fi
-    fi
-
-    # Fallback to PECL for older versions
-    echo -e "${BLUE}$SCRIPT_INDEX Installing via PECL...${NC}"
+    # Install the latest stable release via PECL
     if ! command -v pecl >/dev/null 2>&1; then
         echo -e "${RED}$SCRIPT_INDEX PECL not found, installing php-pear...${NC}"
         $USE_SUDO apt-get install -y php-pear
@@ -422,30 +286,6 @@ verify_swoole() {
     fi
 }
 
-check_octane_compatibility() {
-    echo ""
-    echo -e "${BLUE}$SCRIPT_INDEX Checking Laravel Octane compatibility...${NC}"
-
-    # Get Laravel root using map_web_path
-    local laravel_root=$(map_web_path "core_node" "poly_apps/laravel_main")
-
-    if [ ! -d "$laravel_root" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Laravel not found at: $laravel_root, skipping compatibility check${NC}"
-        return 0
-    fi
-
-    local fixer_script="$laravel_root/app/Support/OctaneSwooleCompatFixer.php"
-
-    if [ ! -f "$fixer_script" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Compatibility fixer not found, skipping${NC}"
-        return 0
-    fi
-
-    php "$fixer_script" "$laravel_root"
-
-    return 0
-}
-
 main() {
     echo -e "${BLUE}$SCRIPT_INDEX Starting Swoole installation/configuration check...${NC}"
     echo ""
@@ -461,12 +301,9 @@ main() {
     if $swoole_installed && $config_valid; then
         echo -e "${GREEN}$SCRIPT_INDEX Swoole is fully configured and working${NC}"
 
-        # Check Swoole version and compatibility
+        # Check Swoole version
         local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null)
         echo -e "${CYAN}$SCRIPT_INDEX Swoole version: $swoole_version${NC}"
-
-        # Run compatibility check for Octane
-        check_octane_compatibility
 
         echo -e "${GREEN}$SCRIPT_INDEX Nothing to do${NC}"
         exit 0
@@ -478,7 +315,6 @@ main() {
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
-        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"
@@ -496,7 +332,6 @@ main() {
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
-        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"
@@ -513,7 +348,6 @@ main() {
         enable_swoole_extension || exit 1
         restart_php_fpm
         verify_swoole || exit 1
-        check_octane_compatibility
 
         echo ""
         echo -e "${GREEN}========================================${NC}"

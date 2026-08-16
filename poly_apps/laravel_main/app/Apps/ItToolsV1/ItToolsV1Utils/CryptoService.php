@@ -61,43 +61,6 @@ class CryptoService
     }
 
     /**
-     * Generate random token
-     *
-     * @param int $length
-     * @param string $charset
-     * @return array
-     * @throws Exception
-     */
-    public static function generateToken(int $length = 32, string $charset = 'alphanumeric'): array
-    {
-        $length = max(1, min($length, 256));
-
-        $charsets = [
-            'alphanumeric' => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
-            'numeric' => '0123456789',
-            'alphabetic' => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-            'special' => '!@#$%^&*()_+-=[]{}|;:,.<>?'
-        ];
-
-        if (!isset($charsets[$charset])) {
-            throw new Exception("Invalid charset. Must be one of: " . implode(', ', array_keys($charsets)));
-        }
-
-        $chars = $charsets[$charset];
-        $token = '';
-
-        for ($i = 0; $i < $length; $i++) {
-            $token .= $chars[random_int(0, strlen($chars) - 1)];
-        }
-
-        return [
-            'token' => $token,
-            'length' => $length,
-            'charset' => $charset
-        ];
-    }
-
-    /**
      * Generate bcrypt hash
      *
      * @param string $password

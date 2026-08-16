@@ -11,9 +11,9 @@
 namespace App\Http\System;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 
-class StatusController extends BaseController
+class StatusController extends Controller
 {
     /**
      * Get system status information

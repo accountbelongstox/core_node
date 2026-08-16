@@ -15,17 +15,24 @@ const RECORD_PAGE_SIZE = 10;
 /**
  * Article audio streams straight from Laravel: the record's audio_url rebased
  * onto the active Laravel endpoint. Queued audio (Laravel answers 202) shows
- * as "not ready" instead of a player.
+ * as "not ready" instead of a player. The src carries a cache-bust version
+ * (last rebuild/upload timestamp): Laravel serves article audio at a STABLE
+ * URL with long-lived Cache-Control, so without the version query a replaced
+ * file would keep playing the browser's stale copy for up to 24h.
  */
 const RecordAudio: React.FC<{ record: AgentHistoryArticleRecord; tk: (k: string) => string }> = ({ record, tk }) => {
   if (record.audio_status !== 'ready' || !record.audio_url) {
     return <div className="text-[11px] text-slate-400">{tk('audioQueued')}</div>;
   }
+  const audioVersion = encodeURIComponent(
+    record.audio_rebuilt_at || record.uploaded_at || record.created_at || '',
+  );
+  const audioSrc = laravelMediaUrl(record.audio_url) + (audioVersion ? `?v=${audioVersion}` : '');
   return (
     <audio
       controls
       preload="none"
-      src={laravelMediaUrl(record.audio_url)}
+      src={audioSrc}
       className="w-full h-8 mt-2"
     />
   );
@@ -165,6 +172,39 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
                   <span>{Number(r.word_count ?? 0)} {tk('words')}</span>
                   {r.openrouter_model && <span className="truncate">{r.openrouter_model}</span>}
                   {r.translation_engine && <span>{r.translation_engine}</span>}
+                  {r.tts_engine && (
+                    <span className="truncate" title={r.tts_model || r.tts_engine}>
+                      {r.tts_engine}{r.tts_model ? ` · ${r.tts_model}` : ''}
+                    </span>
+                  )}
+                  {/* Single-version pipeline provenance: the marker (not a
+                      version number) identifies HOW the audio was generated.
+                      "multi-sentence synthesized" (green) marks records built
+                      by the sentence-chunk pipeline. A record still carrying
+                      OLD audio keeps its amber "legacy audio" badge - it is
+                      removed exactly when the rebuild lands (the marker flips
+                      tts_chunked), not before; until then the badge also
+                      signals "queued for automatic rebuild". The engine that
+                      produced the audio is shown in its own field above. */}
+                  {r.tts_chunked ? (
+                    <span className="text-emerald-500" title={r.tts_engine || ''}>
+                      {tk('multiSentence')}
+                    </span>
+                  ) : r.uploaded ? (
+                    <span className="text-amber-500" title={tk('legacyAudioHint')}>
+                      {tk('legacyAudio')}
+                    </span>
+                  ) : null}
+                  {r.audio_rebuilt_at && (
+                    <span
+                      className="text-sky-500"
+                      title={`${tk('audioRebuiltHint')} ${r.audio_rebuilt_at}${
+                        r.tts_engine ? ` · ${r.tts_engine}` : ''
+                      }`}
+                    >
+                      {tk('audioRebuilt')}
+                    </span>
+                  )}
                 </div>
                 {r.audio_available && <RecordAudio record={r} tk={tk} />}
 

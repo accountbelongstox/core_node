@@ -781,6 +781,65 @@ class TaskManagerService
     }
 
     /**
+     * Voluntarily return owned, not-yet-started tasks to the pending queue.
+     *
+     * Called by the worker-task release endpoint when a Queue Center lane is
+     * stopped immediately: claimed-but-unstarted tasks go straight back to
+     * pending instead of shadowing the queue until their lease expires. A
+     * voluntary release is not a failure - retry_count is untouched. Tasks the
+     * worker already started report results normally and are skipped here.
+     *
+     * @return array{released: int, skipped: int}
+     */
+    public function releaseWorkerTasks(string $workerId, array $taskIds): array
+    {
+        $releasedTaskTypes = [];
+        $released = 0;
+        $skipped = 0;
+
+        GlobalTask::runInTransaction(function () use ($workerId, $taskIds, &$releasedTaskTypes, &$released, &$skipped) {
+            // Same lock order as pull/assign/submit: worker first, then task.
+            $worker = Worker::lockByWorkerId($workerId);
+
+            if (!$worker) {
+                $skipped = count($taskIds);
+                return;
+            }
+
+            foreach ($taskIds as $taskId) {
+                $task = GlobalTask::lockByTaskId((string) $taskId);
+
+                if (!$task
+                    || $task->assigned_to !== $workerId
+                    || !in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
+                    $skipped++;
+                    continue;
+                }
+
+                $taskType = (string) $task->task_type;
+                $task->releaseAssignment();
+                if ($worker->current_task_id === $task->task_id) {
+                    $worker->releaseTask();
+                }
+                $releasedTaskTypes[$taskType] = true;
+                $released++;
+
+                GlobalTaskEvent::record($taskId, GlobalTaskEvent::event('reclaimed'), $workerId, (int) $task->retry_count, [
+                    'worker_id' => $workerId,
+                    'execution_type' => $task->execution_type,
+                    'reason' => 'worker_stop',
+                ]);
+            }
+        }, self::TRANSACTION_ATTEMPTS);
+
+        foreach (array_keys($releasedTaskTypes) as $taskType) {
+            app(QueueSliceDiffService::class)->markChanged($taskType);
+        }
+
+        return ['released' => $released, 'skipped' => $skipped];
+    }
+
+    /**
      * Cancel a task (admin / control-plane action).
      *
      * Pending tasks cancel directly; assigned/processing tasks are revoked

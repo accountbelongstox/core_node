@@ -17,6 +17,7 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/nginx_common.sh"
 
 WWW_ROOT=$(map_web_path "wwwroot")
 NGINX_CONFIG_DIR=$(map_web_path "nginxconfig")
@@ -34,7 +35,7 @@ COLOR_CYAN="\033[36m"
 check_nginx_installed() {
     if ! command -v nginx >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Nginx is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 27_install_nginx.sh"
+        echo "Please run installation script first: 26_install_nginx.sh"
         return 1
     fi
     return 0
@@ -279,51 +280,37 @@ add_website() {
     show_header
     echo -e "${COLOR_BLUE}=== Add New Website ===${COLOR_RESET}"
     echo ""
-    
+
     read -p "Enter domain name (e.g., example.com): " domain
-    
+
     if [ -z "$domain" ]; then
         echo -e "${COLOR_RED}Domain name cannot be empty${COLOR_RESET}"
         sleep 2
         return
     fi
-    
+
     read -p "Enter document root path (default: $WWW_ROOT/$domain): " doc_root
     doc_root=${doc_root:-"$WWW_ROOT/$domain"}
-    
+
     echo ""
     echo -e "${COLOR_CYAN}Configuration Summary:${COLOR_RESET}"
     echo "Domain: $domain"
     echo "Document Root: $doc_root"
     echo ""
-    
+
     read -p "Do you want to enable SSL with Certbot? (y/n): " enable_ssl
-    
+
     $USE_SUDO mkdir -p "$doc_root"
     $USE_SUDO mkdir -p "$NGINX_SITES_AVAILABLE"
     $USE_SUDO mkdir -p "$NGINX_SITES_ENABLED"
-    
-    cat <<EOF | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
-server {
-    listen 80;
-    server_name $domain www.$domain;
-    
-    root $doc_root;
-    index index.html index.htm index.php;
-    
-    location / {
-        try_files \$uri \$uri/ =404;
-    }
-    
-    error_log /var/log/nginx/${domain}_error.log;
-    access_log /var/log/nginx/${domain}_access.log;
-}
-EOF
-    
+
+    # Bootstrap on port 80 first; upgraded to the modern HTTP/3 vhost below
+    # once a certificate exists.
+    nginx_render_http_bootstrap "$domain" "$doc_root" | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
     $USE_SUDO ln -sf "$NGINX_SITES_AVAILABLE/$domain" "$NGINX_SITES_ENABLED/$domain"
-    
+
     echo -e "${COLOR_GREEN}Website configuration created${COLOR_RESET}"
-    
+
     if [[ "$enable_ssl" =~ ^[Yy]$ ]]; then
         echo ""
         echo "Select DNS provider for DNS challenge:"
@@ -332,19 +319,19 @@ EOF
         echo "3) Manual (HTTP challenge)"
         echo ""
         read -p "Select option: " dns_choice
-        
+
         case $dns_choice in
             1)
                 read -p "Enter DNSPod API ID: " dnspod_id
                 read -p "Enter DNSPod API Token: " dnspod_token
-                
+
                 $USE_SUDO mkdir -p /etc/letsencrypt
                 cat <<EOF | $USE_SUDO tee /etc/letsencrypt/dnspod.ini > /dev/null
 dns_dnspod_api_id = $dnspod_id
 dns_dnspod_api_token = $dnspod_token
 EOF
                 $USE_SUDO chmod 600 /etc/letsencrypt/dnspod.ini
-                
+
                 echo "Requesting SSL certificate via DNSPod DNS challenge..."
                 $USE_SUDO certbot certonly --dns-dnspod \
                     --dns-dnspod-credentials /etc/letsencrypt/dnspod.ini \
@@ -352,13 +339,13 @@ EOF
                 ;;
             2)
                 read -p "Enter Cloudflare API Token: " cf_token
-                
+
                 $USE_SUDO mkdir -p /etc/letsencrypt
                 cat <<EOF | $USE_SUDO tee /etc/letsencrypt/cloudflare.ini > /dev/null
 dns_cloudflare_api_token = $cf_token
 EOF
                 $USE_SUDO chmod 600 /etc/letsencrypt/cloudflare.ini
-                
+
                 echo "Requesting SSL certificate via Cloudflare DNS challenge..."
                 $USE_SUDO certbot certonly --dns-cloudflare \
                     --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
@@ -366,17 +353,19 @@ EOF
                 ;;
             3)
                 echo "Requesting SSL certificate via HTTP challenge..."
-                $USE_SUDO certbot --nginx -d "$domain" -d "www.$domain"
+                $USE_SUDO certbot certonly --webroot -w /var/www/html \
+                    -d "$domain" -d "www.$domain"
                 ;;
         esac
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${COLOR_GREEN}SSL certificate obtained successfully${COLOR_RESET}"
+
+        if [ $? -eq 0 ] && [ -f "$(nginx_le_cert_path "$domain")" ]; then
+            echo -e "${COLOR_GREEN}SSL certificate obtained, writing HTTP/3 vhost${COLOR_RESET}"
+            nginx_render_site_vhost "$domain" "$doc_root" | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
         else
             echo -e "${COLOR_YELLOW}SSL certificate request failed or was cancelled${COLOR_RESET}"
         fi
     fi
-    
+
     echo ""
     echo "Testing configuration..."
     if $USE_SUDO nginx -t 2>&1; then
@@ -386,7 +375,7 @@ EOF
     else
         echo -e "${COLOR_RED}Configuration test failed${COLOR_RESET}"
     fi
-    
+
     echo ""
     read -p "Press Enter to continue..."
 }
@@ -395,72 +384,52 @@ add_proxy() {
     show_header
     echo -e "${COLOR_BLUE}=== Add Reverse Proxy ===${COLOR_RESET}"
     echo ""
-    
+
     read -p "Enter domain name (e.g., api.example.com): " domain
-    
+
     if [ -z "$domain" ]; then
         echo -e "${COLOR_RED}Domain name cannot be empty${COLOR_RESET}"
         sleep 2
         return
     fi
-    
+
     read -p "Enter backend URL (e.g., http://localhost:3000): " backend
-    
+
     if [ -z "$backend" ]; then
         echo -e "${COLOR_RED}Backend URL cannot be empty${COLOR_RESET}"
         sleep 2
         return
     fi
-    
+
     echo ""
     echo -e "${COLOR_CYAN}Configuration Summary:${COLOR_RESET}"
     echo "Domain: $domain"
     echo "Backend: $backend"
     echo ""
-    
+
     read -p "Do you want to enable SSL with Certbot? (y/n): " enable_ssl
-    
+
     $USE_SUDO mkdir -p "$NGINX_SITES_AVAILABLE"
     $USE_SUDO mkdir -p "$NGINX_SITES_ENABLED"
-    
-    cat <<EOF | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
-server {
-    listen 80;
-    server_name $domain;
-    
-    location / {
-        proxy_pass $backend;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_cache_bypass \$http_upgrade;
-    }
-    
-    error_log /var/log/nginx/${domain}_error.log;
-    access_log /var/log/nginx/${domain}_access.log;
-}
-EOF
-    
+
+    nginx_render_http_bootstrap "$domain" | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
     $USE_SUDO ln -sf "$NGINX_SITES_AVAILABLE/$domain" "$NGINX_SITES_ENABLED/$domain"
-    
+
     echo -e "${COLOR_GREEN}Reverse proxy configuration created${COLOR_RESET}"
-    
+
     if [[ "$enable_ssl" =~ ^[Yy]$ ]]; then
         echo ""
         echo "Requesting SSL certificate..."
-        $USE_SUDO certbot --nginx -d "$domain"
-        
-        if [ $? -eq 0 ]; then
-            echo -e "${COLOR_GREEN}SSL certificate obtained successfully${COLOR_RESET}"
+        $USE_SUDO certbot certonly --webroot -w /var/www/html -d "$domain"
+
+        if [ $? -eq 0 ] && [ -f "$(nginx_le_cert_path "$domain")" ]; then
+            echo -e "${COLOR_GREEN}SSL certificate obtained, writing HTTP/3 vhost${COLOR_RESET}"
+            nginx_render_proxy_vhost "$domain" "$backend" | $USE_SUDO tee "$NGINX_SITES_AVAILABLE/$domain" > /dev/null
         else
             echo -e "${COLOR_YELLOW}SSL certificate request failed or was cancelled${COLOR_RESET}"
         fi
     fi
-    
+
     echo ""
     echo "Testing configuration..."
     if $USE_SUDO nginx -t 2>&1; then
@@ -470,7 +439,7 @@ EOF
     else
         echo -e "${COLOR_RED}Configuration test failed${COLOR_RESET}"
     fi
-    
+
     echo ""
     read -p "Press Enter to continue..."
 }

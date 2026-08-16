@@ -16,6 +16,8 @@ use Closure;
 use App\Models\Concerns\UsesMainConnection;
 use App\Models\Concerns\HasModelOperations;
 use App\Utils\RunsModelTransactions;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -144,7 +146,7 @@ class User extends Authenticatable
     public static function idsMatchingUsername(string $search): array
     {
         return static::query()
-            ->where('username', 'like', '%' . $search . '%')
+            ->whereLike('username', '%' . $search . '%', caseSensitive: false)
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->all();
@@ -335,30 +337,29 @@ class User extends Authenticatable
         return (bool) $token->delete();
     }
 
-    public function scopeProfileSearchInsensitive($query, string $value)
+    #[Scope]
+    protected function profileSearchInsensitive(Builder $query, string $value): Builder
     {
-        $needle = '%' . strtolower($value) . '%';
+        $needle = '%' . $value . '%';
 
-        return $query->where(function ($builder) use ($needle) {
-            $builder->whereRaw('LOWER(username) LIKE ?', [$needle])
-                ->orWhereRaw('LOWER(nickname) LIKE ?', [$needle])
-                ->orWhereRaw('LOWER(name) LIKE ?', [$needle]);
+        return $query->where(function (Builder $builder) use ($needle): void {
+            $builder->whereLike('username', $needle, caseSensitive: false)
+                ->orWhereLike('nickname', $needle, caseSensitive: false)
+                ->orWhereLike('name', $needle, caseSensitive: false);
         });
     }
 
-    public function scopeNativeLanguageInsensitive($query, string $language)
+    #[Scope]
+    protected function nativeLanguageInsensitive(Builder $query, string $language): Builder
     {
-        return $query->whereRaw('LOWER(native_language) = ?', [strtolower($language)]);
+        return $query->whereLike('native_language', $language, caseSensitive: false);
     }
 
-    public function scopeLearningLanguage($query, string $language)
+    #[Scope]
+    protected function learningLanguage(Builder $query, string $language): Builder
     {
         $code = strtolower($language);
-        $like = '%"' . $code . '"%';
 
-        return $query->where(function ($builder) use ($code, $like) {
-            $builder->whereJsonContains('learning_languages', $code)
-                ->orWhereRaw('LOWER(CAST(learning_languages AS CHAR(500))) LIKE ?', [$like]);
-        });
+        return $query->whereJsonContains('learning_languages', $code);
     }
 }

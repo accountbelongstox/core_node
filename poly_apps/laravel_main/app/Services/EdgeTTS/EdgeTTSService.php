@@ -11,14 +11,11 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * EdgeTTS Service - Common TTS service using TTSCacheManager
+ * EdgeTTS Service - Common TTS service using EdgeTTSPayloadCache
  *
- * @deprecated This service is deprecated and maintained only for backward compatibility.
- * Use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService for new implementations.
- *
- * Migration Path:
- * - Old: App\Services\EdgeTTS\EdgeTTSService
- * - New: App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService
+ * Canonical TTS service. The legacy
+ * App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService was removed; all
+ * former consumers were migrated here.
  *
  * IMPORTANT: This service should ONLY be called by AppQyV1UnifiedTTSQueueService.
  * All external requests should go through the TTS queue system to ensure:
@@ -27,12 +24,13 @@ use Illuminate\Support\Facades\Cache;
  * - Dynamic interval adjustment
  * - Task deduplication
  *
- * DO NOT call this service directly from controllers or other services.
- * Use the queue API endpoints instead: POST /api/app_qy_v1/ai_tools/tts/queue/batch/query
+ * DO NOT call this service directly from controllers; HTTP traffic must use
+ * the queue API endpoints instead: POST /api/app_qy_v1/ai_tools/tts/queue/batch/query
+ * (internal batch services such as SentenceEnrichmentService may call it directly).
  *
  * Features:
  * - 82 languages support with neural network voices
- * - File-based caching with TTSCacheManager
+ * - File-based caching with EdgeTTSPayloadCache
  * - Automatic availability checking with EdgeTTSChecker
  * - Sequential execution only (no concurrent support)
  */
@@ -104,7 +102,7 @@ class EdgeTTSService
         $jsonDbDir = $this->dataDir . '/json_db';
 
         $this->initializeDirectories();
-        $this->cacheManager = new TTSCacheManager($jsonDbDir);
+        $this->cacheManager = new EdgeTTSPayloadCache($jsonDbDir);
 
         // Automatic cleanup: 5% chance to clean zero-byte files on initialization
         if (rand(1, 100) <= 5) {
@@ -193,7 +191,7 @@ class EdgeTTSService
         $rate = $options['rate'] ?? '+0%';
         $speedKey = str_replace(['+', '%', '-'], ['p', 'pct', 'm'], $rate);
 
-        // Check cache using TTSCacheManager
+        // Check cache using EdgeTTSPayloadCache
         $cacheKey = $text . '|speed:' . $rate;
         $cached = $this->cacheManager->get($langCode, $textType, $cacheKey);
         if ($cached && isset($cached['audio_path'])) {
@@ -314,8 +312,8 @@ class EdgeTTSService
 
         try {
             // Binary-assist gate (UserConfigService::useServerBinaryAssist,
-            // default OFF): delegate synthesis to pycore's tts.synthesize RPC
-            // (POST /rpc/tts.synthesize on :59000) instead of the local
+            // default OFF): delegate synthesis to pycore's tts/synthesize RPC
+            // (POST /api/tts/synthesize on :59000) instead of the local
             // edge-tts binary. ON = desktop fallback where no pycore worker is
             // available. This keeps Laravel binary-free by default.
             if (!app(UserConfigService::class)->useServerBinaryAssist()) {
@@ -419,59 +417,54 @@ class EdgeTTSService
 
     /**
      * pycore RPC path (default, binary-assist OFF). Delegates synthesis to
-     * pycore's tts.synthesize RPC and writes the returned base64 MP3 to
+     * pycore's tts/synthesize RPC and writes the returned base64 MP3 to
      * $outputPath. Laravel stays binary-free; pycore's multi-engine TTS
-     * orchestrator does the actual synthesis. Note: pycore's tts.synthesize
-     * does not accept rate/volume/pitch, so non-default rates are ignored on
-     * this path (default +0% is the common case for word/sentence/audio).
+     * orchestrator does the actual synthesis. Note: this path only forwards
+     * text/language/voice, so non-default rate/volume/pitch are ignored here
+     * (default +0% is the common case for word/sentence/audio).
      */
     private function executeViaPycoreRpc(string $text, string $voice, string $outputPath): array
     {
         $language = $this->languageFromVoice($voice);
 
-        $response = PycoreHttpClient::call('tts.synthesize', [
+        $response = PycoreHttpClient::call('tts/synthesize', [
             'text' => $text,
             'language' => $language,
             'voice' => $voice,
             'provider' => 'edge',
             'return_base64' => true,
-            'async' => false,
             'enable_cache' => true,
-        ], 35, false);
+        ], 35);
 
         if (isset($response['error']) || empty($response['success'])) {
-            $error = $response['error'] ?? ($response['message'] ?? 'pycore tts.synthesize failed');
-            Log::error('[EdgeTTS] pycore tts.synthesize failed', [
+            $error = $response['error'] ?? ($response['message'] ?? 'pycore tts/synthesize failed');
+            Log::error('[EdgeTTS] pycore tts/synthesize failed', [
                 'voice' => $voice,
                 'language' => $language,
                 'error' => $error,
             ]);
-            return ['success' => false, 'error' => 'pycore tts.synthesize failed: ' . $error];
+            return ['success' => false, 'error' => 'pycore tts/synthesize failed: ' . $error];
         }
 
-        $result = $response['result'] ?? null;
-        $audioBase64 = is_array($result) ? ($result['audio_base64'] ?? null) : null;
-        // Defensive: some envelopes expose audio_base64 at the top level.
-        if (!is_string($audioBase64) || $audioBase64 === '') {
-            $audioBase64 = $response['audio_base64'] ?? null;
-        }
+        // rpc_v2 handlers return their payload raw (no result envelope).
+        $audioBase64 = $response['audio_base64'] ?? null;
 
         if (!is_string($audioBase64) || $audioBase64 === '') {
-            Log::error('[EdgeTTS] pycore tts.synthesize returned no audio_base64', [
+            Log::error('[EdgeTTS] pycore tts/synthesize returned no audio_base64', [
                 'voice' => $voice,
                 'language' => $language,
             ]);
-            return ['success' => false, 'error' => 'pycore tts.synthesize returned no audio'];
+            return ['success' => false, 'error' => 'pycore tts/synthesize returned no audio'];
         }
 
         $binary = base64_decode($audioBase64, true);
         if ($binary === false || $binary === '' || strlen($binary) < 100) {
-            Log::error('[EdgeTTS] pycore tts.synthesize audio payload invalid', [
+            Log::error('[EdgeTTS] pycore tts/synthesize audio payload invalid', [
                 'voice' => $voice,
                 'language' => $language,
                 'bytes' => strlen((string) $binary),
             ]);
-            return ['success' => false, 'error' => 'pycore tts.synthesize returned invalid audio'];
+            return ['success' => false, 'error' => 'pycore tts/synthesize returned invalid audio'];
         }
 
         if (@file_put_contents($outputPath, $binary) === false) {
@@ -542,7 +535,7 @@ class EdgeTTSService
     }
 
     /**
-     * Get cache statistics using TTSCacheManager
+     * Get cache statistics using EdgeTTSPayloadCache
      */
     public function getCacheStats(): array
     {
@@ -550,7 +543,7 @@ class EdgeTTSService
     }
 
     /**
-     * Clear cache using TTSCacheManager
+     * Clear cache using EdgeTTSPayloadCache
      */
     public function clearCache(?string $langCode = null, ?string $textType = null): int
     {

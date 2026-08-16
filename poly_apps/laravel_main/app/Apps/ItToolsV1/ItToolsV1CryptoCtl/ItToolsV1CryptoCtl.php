@@ -3,14 +3,16 @@
 namespace App\Apps\ItToolsV1\ItToolsV1CryptoCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1CryptoCtl extends Controller
 {
+    use ApiResponse;
+
     public function hashText(Request $request)
     {
         $request->validate([
@@ -24,13 +26,13 @@ class ItToolsV1CryptoCtl extends Controller
         try {
             $hash = hash($algorithm, $text);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'algorithm' => $algorithm,
                 'hash' => $hash
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -51,10 +53,10 @@ class ItToolsV1CryptoCtl extends Controller
         try {
             $hash = Hash::make($password, ['rounds' => $rounds]);
 
-            return ResponseHelper::success(['hash' => $hash]);
+            return $this->success(['hash' => $hash]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -75,10 +77,10 @@ class ItToolsV1CryptoCtl extends Controller
         try {
             $valid = Hash::check($password, $hash);
 
-            return ResponseHelper::success(['valid' => $valid]);
+            return $this->success(['valid' => $valid]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -103,10 +105,10 @@ class ItToolsV1CryptoCtl extends Controller
                 $uuids[] = $uppercase ? strtoupper($uuid) : $uuid;
             }
 
-            return ResponseHelper::success(['uuids' => $uuids]);
+            return $this->success(['uuids' => $uuids]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -128,10 +130,10 @@ class ItToolsV1CryptoCtl extends Controller
                 $ulids[] = (string) Str::ulid();
             }
 
-            return ResponseHelper::success(['ulids' => $ulids]);
+            return $this->success(['ulids' => $ulids]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -179,10 +181,10 @@ class ItToolsV1CryptoCtl extends Controller
                 $tokens[] = $token;
             }
 
-            return ResponseHelper::success(['tokens' => $tokens]);
+            return $this->success(['tokens' => $tokens]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -202,7 +204,7 @@ class ItToolsV1CryptoCtl extends Controller
 
         $encoded = base64_encode($username . ':' . $password);
 
-        return ResponseHelper::success([
+        return $this->success([
             'header' => 'Authorization: Basic ' . $encoded,
             'value' => $encoded
         ]);
@@ -223,13 +225,13 @@ class ItToolsV1CryptoCtl extends Controller
         try {
             $hmac = hash_hmac($algorithm, $text, $secret);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'hmac' => $hmac,
                 'algorithm' => $algorithm
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -257,15 +259,15 @@ class ItToolsV1CryptoCtl extends Controller
             openssl_pkey_export($resource, $privateKey);
             $publicKey = openssl_pkey_get_details($resource)['key'];
 
-            return ResponseHelper::success([
+            return $this->success([
                 'privateKey' => $privateKey,
                 'publicKey' => $publicKey,
                 'keySize' => $keySize,
                 'format' => $format
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -308,14 +310,14 @@ class ItToolsV1CryptoCtl extends Controller
                 $mnemonics[] = implode(' ', $words);
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'mnemonics' => $mnemonics,
                 'strength' => $strength,
                 'wordCount' => ($strength / 32) * 3
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -348,7 +350,7 @@ class ItToolsV1CryptoCtl extends Controller
 
             $otp = str_pad($code, $digits, '0', STR_PAD_LEFT);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'otp' => $otp,
                 'secret' => $secret,
                 'period' => $period,
@@ -356,8 +358,8 @@ class ItToolsV1CryptoCtl extends Controller
                 'expiresIn' => $period - (time() % $period)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -395,17 +397,17 @@ class ItToolsV1CryptoCtl extends Controller
                 $expectedOtp = str_pad($code, $digits, '0', STR_PAD_LEFT);
 
                 if ($otp === $expectedOtp) {
-                    return ResponseHelper::success([
+                    return $this->success([
                         'valid' => true,
                         'timeDrift' => $i
                     ]);
                 }
             }
 
-            return ResponseHelper::success(['valid' => false]);
+            return $this->success(['valid' => false]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -441,7 +443,7 @@ class ItToolsV1CryptoCtl extends Controller
             $crackTimeSeconds = $charsetSize > 0 ? pow($charsetSize, $length) / 1000000000 : 0;
             $crackTime = $this->formatTime($crackTimeSeconds);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'length' => $length,
                 'hasLowercase' => $hasLowercase,
                 'hasUppercase' => $hasUppercase,
@@ -453,8 +455,8 @@ class ItToolsV1CryptoCtl extends Controller
                 'charsetSize' => $charsetSize
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -480,13 +482,13 @@ class ItToolsV1CryptoCtl extends Controller
             $encrypted = openssl_encrypt($text, $algorithm, $keyHash, OPENSSL_RAW_DATA, $iv);
             $result = base64_encode($iv . $encrypted);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'encrypted' => $result,
                 'algorithm' => $algorithm
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -518,13 +520,13 @@ class ItToolsV1CryptoCtl extends Controller
                 throw new \Exception('Decryption failed');
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'decrypted' => $decrypted,
                 'algorithm' => $algorithm
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

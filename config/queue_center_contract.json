@@ -68,7 +68,8 @@
     "worker_stats": "/api/worker/stats",
     "worker_task_pull": "/api/worker/tasks/{task_type}/pull",
     "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
-    "worker_task_result": "/api/worker/tasks/{task_type}/result"
+    "worker_task_result": "/api/worker/tasks/{task_type}/result",
+    "worker_task_release": "/api/worker/tasks/{task_type}/release"
   },
   "delivery_receipt": {
     "stages": {

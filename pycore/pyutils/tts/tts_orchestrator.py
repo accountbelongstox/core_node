@@ -119,6 +119,32 @@ def engine_concurrency(name: str) -> str:
     return adapter.concurrency if adapter else "serial"
 
 
+def engine_model_id(engine: str) -> str:
+    """Model/checkpoint id behind one engine run ("" when not model-tiered).
+
+    For managed server engines the server-side report wins so the label stays
+    strictly aligned with the process that synthesized the audio."""
+    name = (engine or "").strip().lower()
+    adapter = tts_engine_registry.get(name)
+    if adapter is None or not adapter.tiered:
+        return ""
+    if name == "qwen3tts":
+        return qwen_engine.active_model_id()
+    return runtime_engine_model(name)
+
+
+def engine_chunked(engine: str) -> bool:
+    """Whether one engine's run produces multi-sentence (sentence-chunked)
+    audio.
+
+    Single-version pipeline: the local Qwen3-TTS lane ALWAYS synthesizes
+    sentence-sized chunks and concatenates them (long single-shot generation
+    degrades into noise, QwenLM/Qwen3-TTS#258) - there is no version to
+    compare. Callers stamp the multi-sentence marker from this static truth;
+    records that predate the marker are the legacy audio."""
+    return (engine or "").strip().lower() == "qwen3tts"
+
+
 def _engine_disabled_reason(name: str, available: Optional[bool] = None) -> Optional[str]:
     """UI hint when an engine is off (not installed, needs config, or server down)."""
     is_available = engine_available(name) if available is None else available
@@ -333,8 +359,8 @@ def synthesize(
     """Synthesize text with one required engine or the selected fallback profile."""
     cleaned = (text or "").strip()
     if not cleaned:
-        return {"success": False, "engine": None, "accent": None,
-                "error": "empty text", "tried": []}
+        return {"success": False, "engine": None, "model": None, "chunked": False,
+                "accent": None, "error": "empty text", "tried": []}
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -364,10 +390,10 @@ def synthesize(
     # engine/format) returns the previously-synthesized file WITHOUT re-synth.
     # Word audio is intentionally not cached here (short, edge-first, cheap).
     cache_ext = (output_path.suffix.lstrip(".").lower() or "mp3")
-    cache_speaker = cache_instruct = cache_model = ""
+    cache_speaker = cache_instruct = cache_model = cache_speed = ""
     if profile == "sentence":
-        cache_speaker, cache_instruct, cache_model = _sentence_cache_identity(
-            want_accent, gender
+        cache_speaker, cache_instruct, cache_model, cache_speed = (
+            _sentence_cache_identity(want_accent, gender, rate)
         )
         if (speaker or "").strip():
             cache_speaker = str(speaker).strip()
@@ -377,7 +403,7 @@ def synthesize(
             hit = sentence_audio_cache.lookup_or_none(
                 text=cleaned, lang=language or "en", speaker=cache_speaker,
                 instruct=cache_instruct, engine=cand, fmt=cache_ext,
-                model_id=cache_model,
+                model_id=cache_model, speed=cache_speed,
             )
             if hit is None:
                 continue
@@ -392,6 +418,8 @@ def synthesize(
             return {
                 "success": True,
                 "engine": cand,
+                "model": engine_model_id(cand),
+                "chunked": engine_chunked(cand),
                 "accent": _engine_actual_accent(cand, language, want_accent),
                 "error": None,
                 "cached": True,
@@ -459,13 +487,16 @@ def synthesize(
                     sentence_audio_cache.store_result(
                         text=cleaned, lang=language or "en", speaker=cache_speaker,
                         instruct=cache_instruct, engine=name, fmt=cache_ext,
-                        model_id=cache_model, data_bytes=output_path.read_bytes(),
+                        model_id=cache_model, speed=cache_speed,
+                        data_bytes=output_path.read_bytes(),
                     )
                 except OSError as exc:
                     ColorPrint.gray(f"[tts] sentence cache store skipped ({exc})")
             return {
                 "success": True,
                 "engine": name,
+                "model": engine_model_id(name),
+                "chunked": engine_chunked(name),
                 "accent": _engine_actual_accent(name, language, want_accent),
                 "error": None,
                 "cached": False,
@@ -484,6 +515,8 @@ def synthesize(
     return {
         "success": False,
         "engine": None,
+        "model": None,
+        "chunked": False,
         "accent": None,
         "error": last_error or ("No TTS engine available" if not tried else "All TTS engines failed"),
         "tried": tried,
@@ -735,6 +768,8 @@ def tts_test(engine: Optional[str] = None, text: Optional[str] = None,
     result: Dict[str, Any] = {
         "success": bool(ok),
         "engine": name,
+        "model": engine_model_id(name) if ok else None,
+        "chunked": engine_chunked(name) if ok else False,
         "latency_ms": latency,
         "bytes": size,
         "path": str(out) if (ok and size > 0) else None,
@@ -766,6 +801,8 @@ __all__ = [
     "report_tts_engine_startup",
     "engine_available",
     "engine_concurrency",
+    "engine_model_id",
+    "engine_chunked",
     "best_engine",
     "tts_status",
     "describe_synth_command",

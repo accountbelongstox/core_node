@@ -380,7 +380,7 @@ APP_PACKAGE_LIST=(
 )
 
 # NOTE: "claude" is intentionally NOT installed here. Claude Code is installed by
-# the dedicated install_shells/133_install_claude_code.sh step (official native
+# the dedicated install_shells/130_install_claude_code.sh step (official native
 # installer), the single source of truth shared with the dd.sh AI workflow.
 AI_PACKAGE_LIST=(
     "gemini" "codex" "cursor_agent" "kimi" "cline" "arkcli" "superclaude" "opencode" "auggie" "droid"

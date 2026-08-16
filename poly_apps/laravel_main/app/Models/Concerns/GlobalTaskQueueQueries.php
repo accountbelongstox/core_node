@@ -210,7 +210,7 @@ trait GlobalTaskQueueQueries
         string $taskType,
         int $limit
     ): array {
-        $query = self::pending()
+        $query = self::query()->pending()
             ->where('task_type', $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
 
@@ -226,7 +226,7 @@ trait GlobalTaskQueueQueries
 
     public static function pendingHeadTask(string $taskType): ?GlobalTask
     {
-        $query = self::pending()->where('task_type', $taskType);
+        $query = self::query()->pending()->where('task_type', $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
 
         return $query
@@ -549,13 +549,16 @@ trait GlobalTaskQueueQueries
                 $anyTokens = array_values($rule['any'] ?? []);
                 $bucketQuery->orWhere(function ($ruleQuery) use ($allTokens, $anyTokens): void {
                     foreach ($allTokens as $token) {
-                        $ruleQuery->where('task_type', 'like', '%' . $token . '%');
+                        $ruleQuery->whereLike('task_type', '%' . $token . '%', caseSensitive: false);
                     }
                     if ($anyTokens !== []) {
                         $ruleQuery->where(function ($anyQuery) use ($anyTokens): void {
                             foreach ($anyTokens as $index => $token) {
-                                $method = $index === 0 ? 'where' : 'orWhere';
-                                $anyQuery->{$method}('task_type', 'like', '%' . $token . '%');
+                                if ($index === 0) {
+                                    $anyQuery->whereLike('task_type', '%' . $token . '%', caseSensitive: false);
+                                } else {
+                                    $anyQuery->orWhereLike('task_type', '%' . $token . '%', caseSensitive: false);
+                                }
                             }
                         });
                     }
@@ -744,8 +747,8 @@ trait GlobalTaskQueueQueries
         if ($search !== '') {
             $like = '%' . $search . '%';
             $query->where(function ($searchQuery) use ($like): void {
-                $searchQuery->where('task_id', 'like', $like)
-                    ->orWhere('assigned_to', 'like', $like)
+                $searchQuery->whereLike('task_id', $like, caseSensitive: false)
+                    ->orWhereLike('assigned_to', $like, caseSensitive: false)
                     ->orWhereRaw('CAST(payload AS TEXT) ILIKE ?', [$like]);
             });
         }
@@ -790,7 +793,7 @@ trait GlobalTaskQueueQueries
     {
         $queuePositionTaskTypes = QueueCenterContract::queuePositionOrderedTaskTypes();
 
-        return self::pending()
+        return self::query()->pending()
             ->when(
                 $queuePositionTaskTypes !== [],
                 static fn ($query) => $query->whereNotIn('task_type', $queuePositionTaskTypes)

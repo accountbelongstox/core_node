@@ -2,7 +2,7 @@
 # Antigravity Installation Script (Debian/Ubuntu)
 #
 # Usage:
-#   ./128_install_antigravity.sh   # Normal installation (no arguments)
+#   ./127_install_antigravity.sh   # Normal installation (no arguments)
 #
 # This script installs the Antigravity app from the official Google Artifact Registry
 # repo and creates desktop entries. By default, it runs with root privileges (pkexec)

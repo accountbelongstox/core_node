@@ -10,34 +10,19 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
-
 /**
- * DingDuoDuoV1 (订多多) member: identity + membership for the extension's
- * no-super-code path. `token` is the bearer the extension presents (header
- * X-DD-Token); `password` is bcrypt-hashed and never serialized.
+ * DingDuoDuoV1 (订多多) member: app-specific membership extension row linked to
+ * the canonical global users table via `user_id` (shared account/password live
+ * on users; auth issues Sanctum tokens). The legacy `username`/`password`/`token`
+ * columns are retained for pre-linkage rows only and are no longer written or
+ * read by the auth path; `password` is never serialized.
  */
-class DingDuoDuoV1MemberModel extends Model
+class DingDuoDuoV1MemberModel extends DingDuoDuoV1Model
 {
-    protected $appKey = AppKeys::DINGDUODUOV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = DingDuoDuoV1TableMaps::getTableName('MEMBERS');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'MEMBERS';
 
     protected $fillable = [
+        'user_id',
         'username',
         'password',
         'token',
@@ -55,6 +40,7 @@ class DingDuoDuoV1MemberModel extends Model
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'max_binds' => 'integer',
         'balance' => 'decimal:2',
         'permissions' => 'array',
@@ -77,33 +63,18 @@ class DingDuoDuoV1MemberModel extends Model
         return $query->paginate($perPage);
     }
 
-    public static function findById(int $memberId): ?self
-    {
-        return static::query()->find($memberId);
-    }
-
     public static function findByUsername(string $username): ?self
     {
         return static::query()->where('username', $username)->first();
     }
 
+    public static function findByUserId(int $userId): ?self
+    {
+        return static::query()->where('user_id', $userId)->first();
+    }
+
     public static function usernameExists(string $username): bool
     {
         return static::query()->where('username', $username)->exists();
-    }
-
-    public static function tokenExists(string $token): bool
-    {
-        return static::query()->where('token', $token)->exists();
-    }
-
-    public static function activeByToken(string $token): ?self
-    {
-        return static::query()->where('token', $token)->where('status', 'active')->first();
-    }
-
-    public static function byToken(string $token): ?self
-    {
-        return static::query()->where('token', $token)->first();
     }
 }

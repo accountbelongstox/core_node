@@ -2,6 +2,7 @@ import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI
 import { apiCache } from '../../../../core/integrations/laravel/transport/APICache';
 import { APIResponse } from '../../types';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
+import { APPQYV1_AI_TOOLS_ROUTES } from '../../../../core/contracts/AppQyV1AiToolsContract';
 import type { GlobalQueuePositionTaskAlias } from '../../../../core/contracts/QueueCenterContract';
 
 // ========== Vocabulary export (server-side file download) ==========
@@ -327,10 +328,6 @@ export class AppQyV1API extends BaseAPI {
     return this.get('/user');
   }
 
-  async registerWithCode(data: { registration_code: string; referral_source?: string }): Promise<APIResponse> {
-    return this.post('/register-code', data);
-  }
-
   // ========== Translation ==========
   async translate(payload: {
     text: string;
@@ -348,7 +345,7 @@ export class AppQyV1API extends BaseAPI {
     if (payload.options !== undefined) body.options = payload.options;
 
     return this.normalizeTranslateResponse(
-      await this.post('/ai_tools/translation/translate', body)
+      await this.post(APPQYV1_AI_TOOLS_ROUTES.translationTranslate, body)
     );
   }
 
@@ -380,7 +377,7 @@ export class AppQyV1API extends BaseAPI {
    */
   async detectAndTranslate(text: string, targetLang: string): Promise<APIResponse> {
     return this.normalizeTranslateResponse(
-      await this.post('/ai_tools/translation/translate', {
+      await this.post(APPQYV1_AI_TOOLS_ROUTES.translationTranslate, {
         text,
         source_language: 'auto',
         target_language: targetLang
@@ -391,7 +388,7 @@ export class AppQyV1API extends BaseAPI {
   async getTranslationLanguages(): Promise<APIResponse<TranslationLanguageOption[]>> {
     const response = await this.get<{
       languages?: TranslationLanguageCatalog | TranslationLanguageOption[];
-    }>('/ai_tools/translation/languages', undefined, true, 3600000);
+    }>(APPQYV1_AI_TOOLS_ROUTES.translationLanguages, undefined, true, 3600000);
     return {
       ...response,
       data: response.success ? normalizeTranslationLanguages(response.data) : null,
@@ -412,7 +409,7 @@ export class AppQyV1API extends BaseAPI {
   }
 
   async generateTTS(data: { text: string; language: string; type?: string; voice_type?: string; speed?: number; options?: any }): Promise<APIResponse> {
-    return this.post('/ai_tools/tts/generate', data);
+    return this.post(APPQYV1_AI_TOOLS_ROUTES.ttsGenerate, data);
   }
 
   async batchGenerateTTS(items: Array<{ text: string; language: string; type?: string; options?: any }>): Promise<APIResponse> {
@@ -421,7 +418,7 @@ export class AppQyV1API extends BaseAPI {
 
   // ========== TTS Queue Management ==========
   async getTTSQueueStats(): Promise<APIResponse> {
-    return this.get('/ai_tools/tts/queue/stats', undefined, false); // No cache, real-time data
+    return this.get(APPQYV1_AI_TOOLS_ROUTES.ttsQueueStats, undefined, false); // No cache, real-time data
   }
 
   async checkTTSQueueStatus(word: string, language: string): Promise<APIResponse> {
@@ -441,7 +438,7 @@ export class AppQyV1API extends BaseAPI {
     language: string;
     target_language?: string;
   }): Promise<APIResponse> {
-    return this.post('/ai_tools/translation/queue/batch/add', {
+    return this.post(APPQYV1_AI_TOOLS_ROUTES.translationBatchAdd, {
       target_language: 'zh',
       ...data,
     });
@@ -468,7 +465,7 @@ export class AppQyV1API extends BaseAPI {
    * Real-time, never cached.
    */
   async getSentenceAudio(params: { hash?: string; text?: string; language: string }): Promise<APIResponse<SentenceAudioResolveResponse>> {
-    return this.get<SentenceAudioResolveResponse>('/ai_tools/tts/sentence/audio', params as Record<string, any>, false);
+    return this.get<SentenceAudioResolveResponse>(APPQYV1_AI_TOOLS_ROUTES.ttsSentenceAudio, params as Record<string, any>, false);
   }
 
   /**

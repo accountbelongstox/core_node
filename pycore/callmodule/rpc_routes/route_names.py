@@ -135,6 +135,14 @@ UI_TRANSLATE_AI = "ui/translate/ai"
 UI_TRANSLATE_HISTORY = "ui/translate/history"
 UI_TRANSLATE_HISTORY_DELETE = "ui/translate/history_delete"
 UI_TRANSLATE_HISTORY_CLEAR = "ui/translate/history_clear"
+
+# Stable non-UI translator RPC surface (backed by manual_translation_service).
+TRANSLATOR_TRANSLATE_SINGLE = "translator/translate_single"
+TRANSLATOR_TRANSLATE_BATCH = "translator/translate_batch"
+TRANSLATOR_DETECT_LANGUAGE = "translator/detect_language"
+
+# Stable non-UI TTS RPC surface (backed by tts_orchestrator).
+TTS_SYNTHESIZE = "tts/synthesize"
 UI_SUBTITLE_SEARCH_STATUS = "ui/subtitle_search/status"
 UI_SUBTITLE_SEARCH_PROBE = "ui/subtitle_search/probe"
 UI_SUBTITLE_SEARCH_PROVIDERS = "ui/subtitle_search/providers"

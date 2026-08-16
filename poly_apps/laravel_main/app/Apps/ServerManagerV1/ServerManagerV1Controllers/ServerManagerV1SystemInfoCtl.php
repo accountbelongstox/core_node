@@ -33,7 +33,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 'system_status' => $this->getSystemStatus()
             ];
 
-            return $this->successResponse($systemInfo, 'System information retrieved successfully');
+            return $this->success($systemInfo, 'System information retrieved successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'system_info');
@@ -78,12 +78,12 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             $result = ServerManagerV1Utils::executeCommand('ps', ['aux']);
             
             if (!$result['success']) {
-                return $this->errorResponse('Failed to retrieve process list');
+                return $this->error('Failed to retrieve process list');
             }
             
             $processes = $this->parseProcessList($result['output']);
             
-            return $this->successResponse([
+            return $this->success([
                 'processes' => $processes,
                 'total_count' => count($processes)
             ], 'Process list retrieved successfully');
@@ -134,7 +134,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 ]
             ];
 
-            return $this->successResponse($response, 'Service status retrieved successfully');
+            return $this->success($response, 'Service status retrieved successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'services');
@@ -258,7 +258,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
         try {
             $permissions = $this->getDirectoryPermissions();
             
-            return $this->successResponse($permissions, 'Directory permissions retrieved successfully');
+            return $this->success($permissions, 'Directory permissions retrieved successfully');
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'permissions');
@@ -283,7 +283,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 'log_sizes' => $this->getLogSizes()
             ];
             
-            return $this->successResponse($storage, 'Storage analysis retrieved successfully');
+            return $this->success($storage, 'Storage analysis retrieved successfully');
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'storage');
@@ -305,7 +305,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
             $summary = $analyzer->analyze();
             $summary['disk_usage'] = $this->getDiskUsageDetailed();
 
-            return $this->successResponse($summary, 'Static resources summary retrieved successfully');
+            return $this->success($summary, 'Static resources summary retrieved successfully');
         } catch (\Exception $e) {
             return $this->handleException($e, 'static_resources');
         }
@@ -332,7 +332,7 @@ class ServerManagerV1SystemInfoCtl extends ServerManagerV1BaseCtl
                 max(10, min(500, (int) $request->input('per_page', 100)))
             );
 
-            return $this->successResponse($result, 'Static resource files retrieved successfully');
+            return $this->success($result, 'Static resource files retrieved successfully');
         } catch (\Exception $e) {
             return $this->handleException($e, 'static_resource_files');
         }

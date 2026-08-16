@@ -187,9 +187,9 @@ export const wfNewApiHttp: WfNewApi = {
 
   async changePassword(oldPassword: string, newPassword: string): Promise<void> {
     await postJSON(WfNewApiPaths.changePassword, {
-      old_password: oldPassword,
+      current_password: oldPassword,
       new_password: newPassword,
-      new_password_confirmation: newPassword,
+      confirm_password: newPassword,
     });
   },
 

@@ -11,7 +11,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,7 +22,7 @@ use Illuminate\Validation\Rules;
 use Illuminate\Validation\ValidationException;
 use App\Traits\ApiResponse;
 
-class AppQyV1AuthenticationPasswordResetController extends BaseController
+class AppQyV1AuthenticationPasswordResetController extends Controller
 {
     use ApiResponse;
 

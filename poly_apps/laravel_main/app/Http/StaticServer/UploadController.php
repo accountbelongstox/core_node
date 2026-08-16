@@ -11,13 +11,15 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
-class UploadController
+class UploadController extends Controller
 {
     private string $baseDir;
 

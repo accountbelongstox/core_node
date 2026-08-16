@@ -238,7 +238,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
         />
         {articleCfg && (
           <div className="text-[11px] font-mono text-slate-500">
-            {tk('publishedArticles')}: {Number(articleSummary?.uploaded || 0)} · {tk('recordsTitle')}: {Number(articleSummary?.total || 0)} · {tk('pendingUpload')}: {Number(articleSummary?.pending_upload || 0)}
+            {tk('publishedArticles')}: {Number(articleSummary?.uploaded || 0)} · {tk('recordsTitle')}: {Number(articleSummary?.total || 0)} · {tk('pendingUpload')}: {Number(articleSummary?.pending_upload || 0)} · {tk('rebuildPending')}: {Number(articleSummary?.rebuild_pending || 0)}
           </div>
         )}
         {msg && <p className="text-xs text-indigo-600 dark:text-indigo-300">{msg}</p>}

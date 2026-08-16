@@ -8,16 +8,30 @@ use App\Providers\PathMapper;
 
 /**
  * Certificate Management Utility for ServerManagerV1
- * 
- * Manages SSL certificates with wildcard support and subdomain expansion
+ *
+ * Manages SSL certificates with wildcard support and subdomain expansion.
+ *
+ * SYNC CONTRACT (two ends, one truth): this is the Laravel end of the
+ * certificate flow (issue/renew/ensure via certbot + DNSPod). The shell end
+ * is:
+ *   scripts/shells/linux/debian/install_shells/27_install_certbot.sh
+ *     (tooling + systemd renewal timer for automatic renewal)
+ *   scripts/shells/linux/common/domain_setup_common.sh
+ *     (domain_setup_issue_certificate -> artisan servermanager:certificate)
+ *   scripts/shells/linux/common/nginx_manager.sh (cert-ensure / cert-renew)
+ * Any change to providers, prefix expansion, or renewal behavior MUST be
+ * applied to both ends in the same change.
  */
 class ServerManagerV1CertificateManager
 {
     // Use PathMapper for database directory
     private const CERTIFICATES_FILE = 'certificates.json';
     
-    // Predefined subdomain prefixes
-    private const SUBDOMAIN_PREFIXES = ['si', 'sz', 'local', 'api'];
+    // Predefined subdomain prefixes. SYNC with the shell end: the region
+    // choices offered by domain_setup_common.sh (si/sh/sz/hk/custom) build
+    // api.<region>.<domain> sites, which are covered by the *.<region>.<domain>
+    // wildcards generated from this list.
+    private const SUBDOMAIN_PREFIXES = ['si', 'sh', 'sz', 'hk', 'local', 'api'];
     
     /**
      * Get certificates database directory

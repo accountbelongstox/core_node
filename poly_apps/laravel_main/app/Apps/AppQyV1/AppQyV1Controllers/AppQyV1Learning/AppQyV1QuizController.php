@@ -77,9 +77,14 @@ class AppQyV1QuizController extends Controller
 
         $meaningByMd5 = [];
         $wordByMd5 = [];
+        $dictionaryEntries = AppQyV1LangDictionaryModel::rowsByHashes(
+            $language,
+            $candidatePool->pluck('word_md5')->all()
+        )->keyBy('md5');
+
         foreach ($candidatePool as $progress) {
             $md5 = $progress->word_md5;
-            $entry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
+            $entry = $dictionaryEntries->get($md5);
             $meaning = $this->extractMeaning($entry, $nativeLang);
             if ($meaning !== null) {
                 $meaningByMd5[$md5] = $meaning;

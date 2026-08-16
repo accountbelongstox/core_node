@@ -11,12 +11,14 @@
 
 namespace App\Http\Clash;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel as ClashUrlsConfig;
 use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
-class ConfigController
+class ConfigController extends Controller
 {
     public function index($groupId)
     {

@@ -4,7 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\GlobalSecretReader;
+use App\Utils\SecretStore;
 
 class OpenRouterClient
 {
@@ -45,12 +45,9 @@ class OpenRouterClient
     public function __construct(?string $apiKey = null)
     {
         if ($apiKey === null) {
-            $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY_1');
+            $apiKey = SecretStore::get('OPENROUTER_API_KEY_1');
             if (!$apiKey) {
-                $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY');
-            }
-            if (!$apiKey) {
-                $apiKey = env('OPENROUTER_API_KEY_1') ?? env('OPENROUTER_API_KEY');
+                $apiKey = SecretStore::get('OPENROUTER_API_KEY');
             }
         }
         

@@ -11,7 +11,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordQurey;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
@@ -22,7 +22,7 @@ use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
-class AppQyV1WordQueryController extends BaseController
+class AppQyV1WordQueryController extends Controller
 {
     use ApiResponse;
 

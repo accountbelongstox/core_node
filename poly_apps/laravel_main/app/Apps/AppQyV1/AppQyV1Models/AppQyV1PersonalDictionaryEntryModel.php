@@ -14,14 +14,10 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1PersonalDictionaryEntryModel extends Model
+class AppQyV1PersonalDictionaryEntryModel extends AppQyV1Model
 {
     use HasFactory, SoftDeletes;
 
@@ -30,29 +26,17 @@ class AppQyV1PersonalDictionaryEntryModel extends Model
      *
      * @var string
      */
-    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table;
 
     /**
      * Constructor to set connection and table name from the table bridge.
      */
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('PERSONAL_DICTIONARY_ENTRIES');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'PERSONAL_DICTIONARY_ENTRIES';
 
     /**
      * The attributes that are mass assignable.
@@ -73,9 +57,10 @@ class AppQyV1PersonalDictionaryEntryModel extends Model
         return $this->belongsTo(User::class, 'uid');
     }
 
-    public function scopeWordContainsInsensitive($query, string $word)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function wordContainsInsensitive(\Illuminate\Database\Eloquent\Builder $query, string $word): \Illuminate\Database\Eloquent\Builder
     {
-        return $query->whereRaw('LOWER(word) LIKE ?', ['%' . strtolower($word) . '%']);
+        return $query->whereLike('word', "%{$word}%", caseSensitive: false);
     }
 
     public static function searchForUser(

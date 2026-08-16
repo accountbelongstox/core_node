@@ -1,12 +1,10 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1DeveloperProfileModel extends Model
+class CodeMartV1DeveloperProfileModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_developer_profiles';
 
     protected $fillable = [

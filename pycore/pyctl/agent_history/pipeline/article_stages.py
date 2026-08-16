@@ -8,6 +8,12 @@ from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
+from pycore.pyutils.laravel.article_contract import (
+    TITLE_MAX,
+    TITLE_PROMPT_MAX,
+    clip_on_boundary,
+    compose_title,
+)
 
 _JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _QUOTA_ERROR = "openrouter daily request limit reached"
@@ -67,6 +73,7 @@ def generate_chinese_article(
         "Rules:\n"
         "1. Preserve factual meaning from the raw fragments; do not invent unrelated topics.\n"
         "2. The Chinese article body goes in reference_cn (at least 150 characters).\n"
+        f"3. title_cn is a concise title of at most {TITLE_PROMPT_MAX} characters.\n"
         "Return ONLY JSON (no markdown) shaped exactly:\n"
         '{"title_cn": string, "reference_cn": string}\n\n'
         f"RAW:\n{raw_text}"
@@ -99,7 +106,11 @@ def generate_chinese_article(
         raise ValueError("generated Chinese article too short")
         
     data["reference_cn"] = reference_cn
-    data["title_cn"] = str(data.get("title_cn") or "").strip()
+    # Boundary normalization: the model may return any title length, the
+    # Laravel contract (title <= 255) is enforced in ONE place downstream,
+    # but the stored value is already clipped here so records, UI, and the
+    # retry lane never carry oversized titles at all.
+    data["title_cn"] = clip_on_boundary(str(data.get("title_cn") or "").strip(), TITLE_MAX)
     data["used_model"] = model
     
     return data
@@ -117,6 +128,7 @@ def translate_to_english(
         "Rules:\n"
         "1. The English article in article_en must be at least 180 words.\n"
         "2. Preserve the factual meaning; do not add unrelated content.\n"
+        f"3. title_en is a concise English title of at most {TITLE_PROMPT_MAX} characters.\n"
         "Return ONLY JSON (no markdown) shaped exactly:\n"
         '{"title_en": string, "article_en": string}\n\n'
         f"TITLE_CN: {article_cn.get('title_cn') or ''}\n"
@@ -150,11 +162,10 @@ def translate_to_english(
         raise ValueError("translated article too short")
         
     data["article_en"] = article_en
-    # Fallback must stay English — the CN title must never leak into title_en
-    # (wordnew Daily Reading renders the English version).
-    title_en = str(data.get("title_en") or "").strip()
-    if not title_en:
-        title_en = " ".join(article_en.split()[:8]).strip() or "Untitled article"
-    data["title_en"] = title_en
+    # Single title-fallback implementation (article_contract.compose_title):
+    # explicit model title clipped to the contract, else the first sentence of
+    # the article, else the pipeline fallback. The CN title must never leak
+    # into title_en (wordnew Daily Reading renders the English version).
+    data["title_en"] = compose_title(data.get("title_en"), article_en)
     
     return data, "openrouter"

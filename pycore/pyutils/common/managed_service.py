@@ -14,6 +14,13 @@ Popen, HTTP health, and process termination. Incompatible class-C engines use
 dedicated venvs.
 
 Contract enforced here:
+  - code identity (class C): every server pycore owns declares its launch
+    script set; the manager digests it into an expected code id, injects it
+    into the launch environment (SERVER_CODE_ID_ENV), and compares it with the
+    id the live server reports in /status. A listener reporting no id or a
+    different id (stale orphan from a previous worker, pre-contract process,
+    drifted staging copy) is never adopted and is reclaimed so a start always
+    loads current code. Busy services are exempt until their next lease.
   - default no memory: nothing stays loaded by default; a service runs only
     while being called, and is auto-stopped after `idle_shutdown_s` (default
     180s = 3 minutes; 0 disables) with no calls. Keys: TTS `server_idle_shutdown_s`,
@@ -42,6 +49,7 @@ Settings persist in user_data.json per category as prefixed `auto_manage`,
 import atexit
 import copy
 import gc
+import hashlib
 import os
 import subprocess
 import sys
@@ -74,6 +82,32 @@ _HEALTH_POLL_S = 1.5
 _READY_MARKER = "QWEN3TTS_READY "
 _READY_SIGNAL_PREFIX = "managed.service.ready_url."
 _SETTINGS_SIGNAL_PREFIX = "managed.service.settings."
+# Wire contract of the class-C code identity: the manager injects the expected
+# digest into the launch environment under this name and the owned api-server
+# scripts echo it back in /status (standalone scripts cannot import pycore, so
+# the name is fixed here and mirrored in tts_install_assets/*_api_server.py).
+SERVER_CODE_ID_ENV = "PYCORE_MANAGED_CODE_ID"
+
+
+def service_script_code_id(scripts: List[Path]) -> str:
+    """Stable identity of one class-C launch script set.
+
+    sha256 over the sorted (file name, bytes) pairs of the given scripts.
+    Missing files are skipped; an empty result ("") disables the code-identity
+    contract for that service (foreign-codebase servers, no probe)."""
+    entries = []
+    for path in scripts or [] :
+        script = Path(path)
+        if script.is_file():
+            entries.append((script.name, script.read_bytes()))
+    if not entries:
+        return ""
+    digest = hashlib.sha256()
+    for name, payload in sorted(entries):
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\x1f")
+        digest.update(payload)
+    return digest.hexdigest()[:16]
 
 
 class ManagedServiceUnavailable(RuntimeError):
@@ -124,6 +158,15 @@ class ServiceSpec:
     # free, False when a listener could not be stopped, and None when no foreign
     # listener was found. False aborts startup rather than attaching to old code.
     stop_foreign: Optional[Callable[[], Optional[bool]]] = None
+    # kind="server": the exact script files a start launches. The manager
+    # digests them (service_script_code_id) into the expected code id and
+    # injects it into the launch environment (SERVER_CODE_ID_ENV).
+    server_scripts: Optional[Callable[[], List[Path]]] = None
+    # kind="server": the code id the LIVE server reports in /status. Declared
+    # together with server_scripts it activates the code-identity contract: a
+    # listener whose report does not match the expected id is reclaimed instead
+    # of adopted, so adoption can never pin pre-contract or stale code.
+    reported_code_id: Optional[Callable[[], Optional[str]]] = None
     external: bool = False
     ready_without_process: Optional[Callable[[], bool]] = None
 
@@ -431,6 +474,10 @@ class ManagedServiceManager:
                 0.0,
                 float(idle_seconds) - (time.monotonic() - self._last_activity[name]),
             )
+        expected_code_id = self._expected_code_id(spec)
+        reported_code_id = ""
+        if expected_code_id and spec.reported_code_id is not None:
+            reported_code_id = str(spec.reported_code_id() or "")
         return {
             "name": name,
             "category": spec.category,
@@ -443,11 +490,38 @@ class ManagedServiceManager:
             "ready_url": THREAD_BUS.get_signal(
                 f"{_READY_SIGNAL_PREFIX}{name}", None
             ),
+            "code_id": reported_code_id,
+            "expected_code_id": expected_code_id,
+            "code_stale": bool(expected_code_id) and reported_code_id != expected_code_id,
         }
 
     def _touch(self, name: str) -> None:
         if name in self._specs:
             self._last_activity[name] = time.monotonic()
+
+    def _expected_code_id(self, spec: ServiceSpec) -> str:
+        """Digest of the script set a fresh start would launch ('' = off)."""
+        if spec.kind != "server" or spec.server_scripts is None or spec.reported_code_id is None:
+            return ""
+        return service_script_code_id(spec.server_scripts())
+
+    def _code_id_state(self, spec: ServiceSpec) -> Tuple[bool, str, str]:
+        """(current, expected, reported) of the code-identity contract.
+
+        Contract off (no script set or no probe) -> (True, '', ''). A listener
+        reporting nothing or a different id runs stale or pre-contract code and
+        must be reclaimed before use."""
+        expected = self._expected_code_id(spec)
+        if not expected:
+            return True, "", ""
+        reported = str(spec.reported_code_id() or "")
+        return reported == expected, expected, reported
+
+    def _log_stale_code(self, name: str, expected: str, reported: str, owner: str) -> None:
+        ColorPrint.yellow(
+            f"[managed] {name}: {owner} runs stale code "
+            f"(code_id={reported or 'none'}, expected={expected or 'none'}) - reclaiming"
+        )
 
     @serialized_method
     def record_use(self, name: str) -> None:
@@ -548,6 +622,12 @@ class ManagedServiceManager:
             cwd, argv, env = cmd[0], cmd[1], cmd[2]
         else:
             cwd, argv = cmd[0], cmd[1]
+        # Code identity: every owned class-C launch carries the digest of the
+        # script set it was started from so /status can prove it later.
+        expected_code_id = self._expected_code_id(spec)
+        if expected_code_id:
+            env = dict(env) if env is not None else dict(os.environ)
+            env[SERVER_CODE_ID_ENV] = expected_code_id
         # The serialized state owner makes check-and-start non-reentrant.
         if self._is_managed_process(spec.name):
             self._touch(spec.name)
@@ -682,12 +762,23 @@ class ManagedServiceManager:
             return True
         foreign_checked = False
         running = self.is_running(name)
-        if running:
-            if spec.kind == "server" and name in self._adopted_servers:
+        if running and spec.kind == "server" and name in self._adopted_servers:
+            # An adopted listener stays usable only while it still runs the
+            # code a fresh start would launch (code-identity contract). A busy
+            # service is never interrupted; it is refreshed on its next lease.
+            code_current, code_expected, code_reported = self._code_id_state(spec)
+            if self.in_flight(name) > 0 or code_current:
                 if st.get("single_active", True):
                     self._stop_others(spec.category, name)
                 self._touch(name)
                 return True
+            self._log_stale_code(name, code_expected, code_reported, "adopted server")
+            stopped = self.stop(name)
+            if not stopped.get("success"):
+                return False
+            self._invalidate_run_cache(name)
+            running = False
+        if running:
             if (
                 spec.kind == "server"
                 and not self._is_managed_process(name)
@@ -701,6 +792,13 @@ class ManagedServiceManager:
                         ColorPrint.yellow(
                             f"[managed] {name}: adoption probe failed: {e}"
                         )
+                    if compatible:
+                        code_current, code_expected, code_reported = self._code_id_state(spec)
+                        if not code_current:
+                            compatible = False
+                            self._log_stale_code(
+                                name, code_expected, code_reported, "foreign listener"
+                            )
                     if compatible:
                         self._adopted_servers.add(name)
                         self._touch(name)
@@ -735,10 +833,27 @@ class ManagedServiceManager:
                     ColorPrint.yellow(f"[managed] {name} stop_foreign failed: {e}")
                     return False
             else:
-                if st.get("single_active", True):
-                    self._stop_others(spec.category, name)
-                self._touch(name)
-                return True
+                stale_owned = (
+                    spec.kind == "server"
+                    and self._is_managed_process(name)
+                    and self.in_flight(name) == 0
+                )
+                if stale_owned:
+                    code_current, code_expected, code_reported = self._code_id_state(spec)
+                    stale_owned = not code_current
+                    if stale_owned:
+                        # Script set changed under a live owned process - restart
+                        # it so the server always runs the code a start would load.
+                        self._log_stale_code(name, code_expected, code_reported, "owned server")
+                        stopped = self.stop(name)
+                        if not stopped.get("success"):
+                            return False
+                        self._invalidate_run_cache(name)
+                if not stale_owned:
+                    if st.get("single_active", True):
+                        self._stop_others(spec.category, name)
+                    self._touch(name)
+                    return True
         if spec.kind == "server" and self._is_managed_process(name):
             if self.in_flight(name) > 0:
                 return False
@@ -978,8 +1093,10 @@ atexit.register(managed_services.shutdown_all)
 
 __all__ = [
     "CategorySettings",
+    "SERVER_CODE_ID_ENV",
     "ServiceSpec",
     "ManagedServiceUnavailable",
     "ManagedServiceManager",
     "managed_services",
+    "service_script_code_id",
 ]

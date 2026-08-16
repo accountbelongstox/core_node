@@ -2,9 +2,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Plain-text documents uploaded through POST /learning/upload, persisted so
@@ -12,7 +9,7 @@ use App\Providers\AppTablePrefixServiceProvider;
  * /vocabulary/document/{id}/extract-sentences endpoints can re-process the
  * original content later.
  */
-class AppQyV1UploadedDocumentModel extends Model
+class AppQyV1UploadedDocumentModel extends AppQyV1Model
 {
     public const BROWSE_SORT_KEYS = [
         'title',
@@ -21,15 +18,8 @@ class AppQyV1UploadedDocumentModel extends Model
         'uploaded',
     ];
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'uploaded_documents');
-    }
+    protected ?string $appTableSuffix = 'uploaded_documents';
 
     protected $fillable = [
         'user_id',
@@ -39,19 +29,23 @@ class AppQyV1UploadedDocumentModel extends Model
         'content',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'collection_id' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'collection_id' => 'integer',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     /**
      * Wave A consolidation: collection_id now stores a vocabulary_libraries
      * id (the legacy column NAME is kept for API/byte compatibility; the
      * conversion migration remapped any pre-existing collection ids).
      */
-    public function scopeBrowseOrder($query, string $sortKey, string $direction)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function browseOrder(\Illuminate\Database\Eloquent\Builder $query, string $sortKey, string $direction): \Illuminate\Database\Eloquent\Builder
     {
         $order = strtolower($direction) === 'desc' ? 'desc' : 'asc';
 
@@ -87,11 +81,6 @@ class AppQyV1UploadedDocumentModel extends Model
         return self::query()->whereKey($documentId)->delete();
     }
 
-    public static function findById(int $documentId): ?self
-    {
-        return self::query()->find($documentId);
-    }
-
     public static function browseForUser(
         int $userId,
         ?string $language,
@@ -106,7 +95,7 @@ class AppQyV1UploadedDocumentModel extends Model
             $query->where('language', $language);
         }
         if ($search !== null && $search !== '') {
-            $query->where('original_name', 'like', '%' . $search . '%');
+            $query->whereLike('original_name', '%' . $search . '%', caseSensitive: false);
         }
 
         return $query->browseOrder($sortKey, $direction)->with('library')->paginate($perPage);

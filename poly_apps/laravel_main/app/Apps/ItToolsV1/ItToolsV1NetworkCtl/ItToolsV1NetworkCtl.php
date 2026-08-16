@@ -3,12 +3,14 @@
 namespace App\Apps\ItToolsV1\ItToolsV1NetworkCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1NetworkCtl extends Controller
 {
+    use ApiResponse;
+
     public function ipv4Convert(Request $request)
     {
         $request->validate(['ip' => 'required|ip']);
@@ -21,15 +23,15 @@ class ItToolsV1NetworkCtl extends Controller
             $hexadecimal = strtoupper(dechex($decimal));
             $binary = decbin($decimal);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'dotted' => $ip,
                 'decimal' => $decimal,
                 'hexadecimal' => '0x' . $hexadecimal,
                 'binary' => str_pad($binary, 32, '0', STR_PAD_LEFT)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -70,7 +72,7 @@ class ItToolsV1NetworkCtl extends Controller
                 $ipClass = 'C';
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'networkAddress' => $networkAddress,
                 'broadcastAddress' => $broadcastAddress,
                 'subnetMask' => $subnetMask,
@@ -82,8 +84,8 @@ class ItToolsV1NetworkCtl extends Controller
                 'ipClass' => $ipClass
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -117,14 +119,14 @@ class ItToolsV1NetworkCtl extends Controller
                 $count++;
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'ips' => $ips,
                 'count' => $count,
                 'truncated' => ($endLong - $startLong + 1) > $maxIps
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -157,10 +159,10 @@ class ItToolsV1NetworkCtl extends Controller
                 $addresses[] = $uppercase ? strtoupper($address) : $address;
             }
 
-            return ResponseHelper::success(['addresses' => $addresses]);
+            return $this->success(['addresses' => $addresses]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -194,7 +196,7 @@ class ItToolsV1NetworkCtl extends Controller
             $groupDesc = $this->formatPermissions($group);
             $othersDesc = $this->formatPermissions($others);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'octal' => $mode,
                 'symbolic' => $symbolic,
                 'owner' => $owner,
@@ -203,8 +205,8 @@ class ItToolsV1NetworkCtl extends Controller
                 'description' => "Owner: {$ownerDesc}; Group: {$groupDesc}; Others: {$othersDesc}"
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -230,10 +232,10 @@ class ItToolsV1NetworkCtl extends Controller
                 $ports[] = random_int($min, $max);
             }
 
-            return ResponseHelper::success(['ports' => $ports]);
+            return $this->success(['ports' => $ports]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -271,10 +273,10 @@ class ItToolsV1NetworkCtl extends Controller
                 $addresses[] = $address;
             }
 
-            return ResponseHelper::success(['addresses' => $addresses]);
+            return $this->success(['addresses' => $addresses]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -298,7 +300,7 @@ class ItToolsV1NetworkCtl extends Controller
 
             $vendor = $ouiDatabase[$prefix] ?? null;
 
-            return ResponseHelper::success([
+            return $this->success([
                 'mac' => $mac,
                 'formatted' => implode(':', str_split($mac, 2)),
                 'vendor' => $vendor,
@@ -306,8 +308,8 @@ class ItToolsV1NetworkCtl extends Controller
                 'found' => $vendor !== null
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -356,7 +358,7 @@ class ItToolsV1NetworkCtl extends Controller
                 $device = 'Desktop';
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'userAgent' => $userAgent,
                 'browser' => $browser,
                 'browserVersion' => $browserVersion,
@@ -368,8 +370,8 @@ class ItToolsV1NetworkCtl extends Controller
                 'isBot' => $isBot
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

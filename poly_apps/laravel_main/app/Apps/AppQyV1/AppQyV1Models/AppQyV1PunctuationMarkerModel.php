@@ -13,9 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -27,19 +24,12 @@ use Illuminate\Support\Facades\Cache;
  * flow as an ordered sequence of sentence content-ids interleaved with these
  * marker codes. ASCII vs full-width glyphs are DISTINCT codes.
  */
-class AppQyV1PunctuationMarkerModel extends Model
+class AppQyV1PunctuationMarkerModel extends AppQyV1Model
 {
     private const GLYPH_CACHE_KEY = 'appqyv1:punctuation_marker_glyphs';
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'punctuation_markers');
-    }
+    protected ?string $appTableSuffix = 'punctuation_markers';
 
     protected $fillable = [
         'code',
@@ -49,13 +39,16 @@ class AppQyV1PunctuationMarkerModel extends Model
         'terminal',
     ];
 
-    protected $casts = [
-        'terminal' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'terminal' => 'boolean',
+        ];
+    }
 
     public static function cachedGlyphMap(): array
     {
-        return Cache::remember(self::GLYPH_CACHE_KEY, 3600, function () {
+        return Cache::remember(self::GLYPH_CACHE_KEY, 3600, static function (): array {
             return self::query()->pluck('char', 'code')->all();
         });
     }
@@ -98,16 +91,6 @@ class AppQyV1PunctuationMarkerModel extends Model
         }
 
         return compact('created', 'updated', 'unchanged');
-    }
-
-    public static function tableRowCount(): int
-    {
-        $model = new self();
-        if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-            return 0;
-        }
-
-        return self::query()->count();
     }
 
     protected static function booted(): void

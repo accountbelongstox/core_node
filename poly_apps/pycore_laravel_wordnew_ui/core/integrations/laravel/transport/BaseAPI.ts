@@ -1,6 +1,7 @@
 import { APIResponse, APIRequestConfig, APIModuleConfig } from './TransportTypes';
 import { apiCache } from './APICache';
 import { htmlErrorManager } from './HtmlErrorEvents';
+import { unwrapLaravelData } from './LaravelEnvelope';
 import { appendLog } from '../../../logstore/logStore';
 import { coordinateRequest } from '../../../network/RequestCoordinator';
 import { getAuthHeader, setAuthToken } from '../../../auth/AuthSession';
@@ -51,11 +52,10 @@ const sharedTransportRegistry = globalThis as typeof globalThis & Record<string,
  * e.g. octane-tasks calls timing out against the LAN IP while the switcher
  * showed localhost.
  *
- * Now the base URL lives here, shared by every BaseAPI instance via a getter.
- * `updateBaseURL()` only updates this value, so a single write re-points
- * EVERY module at once (and module auth/headers are no longer dropped by a
- * recreate). "以能使用的为准": whatever the ApiManager resolves becomes the
- * one base URL all modules use — there is no per-module snapshot to desync.
+ * Active modules resolve this shared URL through a getter, so endpoint
+ * selection re-points the application in one operation without recreating
+ * modules or dropping headers. Explicit fixed-endpoint modules are isolated
+ * from this value and support concurrent multi-node workspaces.
  */
 /** Normalize away trailing slashes so `${base}${'/path'}` never doubles `//`. */
 function normalizeBaseURL(url: string): string {
@@ -63,8 +63,8 @@ function normalizeBaseURL(url: string): string {
 }
 
 /**
- * Set the process-wide active API base URL. Called by APIService.updateBaseURL
- * (which App.tsx / ApiEndpointSwitcher drive from the resolved endpoint).
+ * Set the process-wide active API base URL. Fixed-endpoint transports ignore
+ * this selection by design.
  */
 export function setSharedBaseURL(url: string): void {
   const nextBaseURL = normalizeBaseURL(url);
@@ -149,29 +149,26 @@ function normalizeRequestError(error: any): NormalizedRequestError {
  */
 export class BaseAPI {
   /**
-   * Per-instance fallback used only until a shared base URL is set (i.e. the
-   * construction-time guess). Once APIService.updateBaseURL runs, the shared
-   * value wins for every module.
+   * Active modules follow the shared selected endpoint. Fixed modules retain
+   * their construction endpoint so one workspace can query multiple nodes.
    */
   private seedBaseURL: string;
+  private endpointMode: 'active' | 'fixed';
   protected prefix: string;
   protected headers: Record<string, string>;
   protected timeout: number;
   protected retryConfig: { count: number; delay: number };
 
-  /**
-   * Dynamically resolved base URL. Always prefers the process-wide shared
-   * value so every module follows the ApiManager-resolved endpoint in
-   * lock-step; falls back to this instance's construction-time seed only
-   * before any endpoint has been selected.
-   */
+  /** Resolve either the active application endpoint or an explicit fixed node. */
   protected get baseURL(): string {
+    if (this.endpointMode === 'fixed') return this.seedBaseURL;
     const shared = getSharedBaseURL();
     return shared !== null ? shared : this.seedBaseURL;
   }
 
   constructor(config: APIModuleConfig) {
     this.seedBaseURL = normalizeBaseURL(config.baseURL);
+    this.endpointMode = config.endpointMode || 'active';
     this.prefix = config.prefix || '';
     this.headers = config.headers || {};
     // Fail-fast default: never wait longer than DEFAULT_REQUEST_TIMEOUT_MS
@@ -348,7 +345,7 @@ export class BaseAPI {
         logRequestOutcome(config.method, url, response.status, performance.now() - startedAt);
         return {
           success: true,
-          data: data.data || data,
+          data: unwrapLaravelData(data),
           error: null,
           status: response.status,
           message: data.message

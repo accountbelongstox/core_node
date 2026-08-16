@@ -31,7 +31,10 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import SerializedValue
+from pycore.pyutils.common.model_tiers import runtime_engine_model
 from pycore.pyutils.common.python_env.isolated_venv import venv_ready as isolated_venv_ready
+from pycore.pyutils.tts.engine_policy import tts_rate_to_speed
+import pycore.pyutils.tts.qwen.weights as qwen_weights
 from pycore.pyutils.tts.qwen.client import (
     base_url,
     get_json as http_get_json,
@@ -112,6 +115,26 @@ def queue_healthy() -> bool:
     )
 
 
+def active_model_id() -> str:
+    """Canonical id of the model the managed server actually loaded.
+
+    Prefers the live server's /status report (that process synthesizes the
+    audio, so it is the strict backend truth); falls back to the same resolver
+    the managed launcher used, with the local staging weights path normalized
+    back to its verified HF repository id.
+    """
+    info = get_status()
+    resolved = str((info or {}).get("model_id") or "").strip()
+    if not resolved:
+        resolved = qwen_weights.resolve_model_id(allow_remote=False)
+    if not resolved:
+        resolved = runtime_engine_model(ENGINE_NAME)
+    repo_id = qwen_weights.sentinel_model_id()
+    if repo_id and resolved == str(qwen_weights.staging_dir() / "weights"):
+        return repo_id
+    return resolved
+
+
 def model_loaded() -> bool:
     return is_model_loaded()
 
@@ -129,26 +152,40 @@ def _fmt_for(path: Path) -> str:
 # --------------------------------------------------------------------------- #
 # Synthesis                                                                     #
 # --------------------------------------------------------------------------- #
+def effective_speed(rate: Optional[str]) -> Optional[float]:
+    """Resolve a caller rate hint into an explicit speed factor.
+
+    None (no rate given) stays None on the wire: the server then applies its
+    own default (QWEN3TTS_SPEED, shared constant 0.75) - the default is owned
+    by the server, single-sourced through pyfoundations.network_constants."""
+    raw = (rate or "").strip()
+    if not raw:
+        return None
+    return tts_rate_to_speed(raw)
+
+
 def synthesize(
     text: str,
     lang: str,
     output_mp3: Path,
-    speed: float = 1.0,
+    speed: Optional[float] = None,
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
 ) -> bool:
     """Queue one normal Pycore synthesis and write its retained audio result.
 
-    The standalone Qwen console keeps ``POST /synthesize`` as its explicit
-    interactive fast path. Pycore work uses the queue so GPU concurrency,
-    cancellation, status, and HTTP event reporting share one lifecycle.
+    ``speed`` is the playback-speed factor (None = server default; the server
+    time-stretches the generated waveform, keeping pitch). The standalone
+    Qwen console keeps ``POST /synthesize`` as its explicit interactive fast
+    path. Pycore work uses the queue so GPU concurrency, cancellation,
+    status, and HTTP event reporting share one lifecycle.
     """
-    del speed
     return synthesize_queued(
         text,
         lang,
         output_mp3,
+        speed=speed,
         client_job_id=client_job_id,
         timeout=_REQUEST_TIMEOUT_S,
         speaker=speaker,
@@ -164,6 +201,7 @@ def synthesize_queued(
     timeout: float = _REQUEST_TIMEOUT_S,
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
+    speed: Optional[float] = None,
 ) -> bool:
     """Submit through the FIFO service queue, long poll, and write audio."""
 
@@ -173,12 +211,14 @@ def synthesize_queued(
         _LAST_SYNTH_ERROR.set("empty text")
         return False
     output = Path(output_path)
+    speed_key = f"{float(speed):g}" if speed is not None else "default"
     identity = "\x1f".join((
         cleaned,
         lang or "en",
         _fmt_for(output),
         str(speaker or "").strip(),
         str(instruct or "").strip(),
+        speed_key,
     ))
     stable_id = str(client_job_id or "").strip() or (
         f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
@@ -187,6 +227,7 @@ def synthesize_queued(
         "text": cleaned,
         "language": lang or "en",
         "format": _fmt_for(output),
+        "speed": speed,
     }
     if (speaker or "").strip():
         payload["speaker"] = speaker
@@ -265,7 +306,9 @@ def synthesize_variants(
 __all__ = [
     "available",
     "disabled_reason",
+    "active_model_id",
     "base_url",
+    "effective_speed",
     "model_loaded",
     "is_model_loaded",
     "get_capabilities",

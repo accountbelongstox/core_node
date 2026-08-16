@@ -5,6 +5,7 @@ namespace App\Services\TimerTasks;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * Word Validity Auto-Scan (invalid-word detection lane).
@@ -14,7 +15,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
  * chrome web-LLM worker (word_validity / remote_validity) which classifies each
  * as a real dictionary word or nonsense. The result-trust writeback then marks
  * is_valid in bulk, so the translation enqueue
- * (AppQyV1MultiLangDictionaryModel::getWordsNeedingTranslation, is_valid=true
+ * (AppQyV1LangDictionaryModel::untranslatedRows, is_valid=true
  * filter) permanently skips the junk — no wasted translation lookups.
  *
  * Selection keys on validity_checked_at IS NULL, so a once-checked word is never
@@ -23,7 +24,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
  * pending validity batch.
  *
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider
- * (sys:init wires it in). Default OFF — flip APPQYV1_VALIDITY_SCAN=true to enable.
+ * (sys:init wires it in). Default OFF and controlled by user-data settings.
  */
 class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 {
@@ -43,7 +44,7 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 
     public function isEnabled(): bool
     {
-        return env('APPQYV1_VALIDITY_SCAN', false);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_VALIDITY_SCAN, false);
     }
 
     public function exec(): void

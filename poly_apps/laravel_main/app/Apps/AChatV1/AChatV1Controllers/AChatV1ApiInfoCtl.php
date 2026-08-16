@@ -3,7 +3,7 @@
 namespace App\Apps\AChatV1\AChatV1Controllers;
 
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller;
 use App\Apps\AChatV1\AChatV1ApiInfo;
 
 /**

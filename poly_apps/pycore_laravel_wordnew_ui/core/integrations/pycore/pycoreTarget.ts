@@ -13,8 +13,9 @@ import {
   buildPycoreHttpUrl,
   normalizePycorePath,
 } from './pycoreEndpoints';
+import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
-import { StorageKeys, StorageManager } from '../../persistence';
+import { StorageManager } from '../../persistence';
 
 export interface PycorePresetHost {
   host: string;
@@ -35,7 +36,7 @@ export interface PycoreTarget {
 }
 
 function readTarget(): PycoreTarget {
-  const target = StorageManager.get<PycoreTarget | null>(StorageKeys.PYCORE_TARGET, null);
+  const target = StorageManager.get<PycoreTarget | null>(StorageKeys.TARGET, null);
   if (target?.mode === 'remote' && typeof target.host === 'string' && target.host.trim()) {
     return { mode: 'remote', host: target.host.trim() };
   }
@@ -131,7 +132,7 @@ export function pnaBlockedReason(host: string | null): string | null {
 }
 
 export function getPycoreTargetRecent(): string[] {
-  const recent = StorageManager.get<unknown[]>(StorageKeys.PYCORE_TARGET_RECENT, []);
+  const recent = StorageManager.get<unknown[]>(StorageKeys.TARGET_RECENT, []);
   return Array.isArray(recent) ? recent.filter((value): value is string => typeof value === 'string') : [];
 }
 
@@ -147,11 +148,11 @@ export function setPycoreTarget(target: PycoreTarget): void {
   if (target.mode === 'remote' && target.host) {
     const host = normalizePycoreHost(target.host);
     if (!host) return;
-    StorageManager.set(StorageKeys.PYCORE_TARGET, { mode: 'remote', host });
+    StorageManager.set(StorageKeys.TARGET, { mode: 'remote', host });
     const recent = [host, ...getPycoreTargetRecent().filter((h) => h !== host)].slice(0, 6);
-    StorageManager.set(StorageKeys.PYCORE_TARGET_RECENT, recent);
+    StorageManager.set(StorageKeys.TARGET_RECENT, recent);
   } else {
-    StorageManager.set(StorageKeys.PYCORE_TARGET, { mode: target.mode === 'local' ? 'local' : 'origin' });
+    StorageManager.set(StorageKeys.TARGET, { mode: target.mode === 'local' ? 'local' : 'origin' });
   }
   if (typeof location !== 'undefined') location.reload();
 }

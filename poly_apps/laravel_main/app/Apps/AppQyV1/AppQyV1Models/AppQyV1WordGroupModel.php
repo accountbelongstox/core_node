@@ -11,49 +11,39 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Models\User;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1CoverImageService;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Utils\RunsModelTransactions;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
 
-class AppQyV1WordGroupModel extends Model
+class AppQyV1WordGroupModel extends AppQyV1Model
 {
     use HasFactory, RunsModelTransactions, SoftDeletes;
+
+    private const CACHE_PAYLOAD_VERSION = 'array-v1';
+    private const LOOKUP_CACHE_MINUTES = 10;
+    private const USER_PAGE_CACHE_MINUTES = 5;
+    private const USER_PAGE_VERSION_PREFIX = 'word_group:user-page-version:';
 
     /**
      * The database connection name for the model.
      *
      * @var string
      */
-    protected $appKey = AppKeys::APPQYV1;
     
     /**
      * The table associated with the model.
      *
      * @var string
      */
-    protected $table;
 
     /**
      * Constructor to set connection and table name
      */
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('WORD_GROUPS');
-    }
+    protected ?string $appTableMapKey = 'WORD_GROUPS';
     
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
-
     /**
      * The attributes that are mass assignable.
      *
@@ -76,20 +66,51 @@ class AppQyV1WordGroupModel extends Model
 
     public static function cachedForUserByGid(int $userId, string $gid): ?self
     {
-        return Cache::remember(
-            "word_group:{$userId}:{$gid}",
-            now()->addMinutes(10),
-            fn () => self::query()->where('gid', $gid)->where('uid', $userId)->first()
-        );
+        $cacheKey = self::gidCacheKey($userId, $gid);
+        $attributes = Cache::remember($cacheKey, now()->addMinutes(self::LOOKUP_CACHE_MINUTES), static function () use ($gid, $userId): ?array {
+            $group = self::findOwnedByGid($userId, $gid);
+
+            return $group?->getAttributes();
+        });
+
+        return self::fromCachedAttributes($attributes);
     }
 
     public static function cachedForUserByName(int $userId, string $name): ?self
     {
-        return Cache::remember(
-            "word_group_by_name:{$userId}:{$name}",
-            now()->addMinutes(10),
-            fn () => self::query()->where('gname', $name)->where('uid', $userId)->first()
-        );
+        $cacheKey = self::nameCacheKey($userId, $name);
+        $attributes = Cache::remember($cacheKey, now()->addMinutes(self::LOOKUP_CACHE_MINUTES), static function () use ($name, $userId): ?array {
+            $group = self::findOwnedByName($userId, $name);
+
+            return $group?->getAttributes();
+        });
+
+        return self::fromCachedAttributes($attributes);
+    }
+
+    public static function cachedUserPageWithProgress(int $userId, int $start, int $limit): Collection
+    {
+        $cacheKey = self::userPageCacheKey($userId, $start, $limit);
+        $payloads = Cache::remember($cacheKey, now()->addMinutes(self::USER_PAGE_CACHE_MINUTES), static function () use ($userId, $start, $limit): array {
+            return self::userPageWithProgress($userId, $start, $limit)
+                ->map(static function (self $group): array {
+                    $progress = $group->getRelation('wordProgress');
+
+                    return [
+                        'attributes' => $group->getAttributes(),
+                        'word_progress' => $progress?->getAttributes(),
+                    ];
+                })
+                ->all();
+        });
+        $groups = array_map(static fn (array $payload): self => self::fromCachedPagePayload($payload), $payloads);
+
+        return new Collection($groups);
+    }
+
+    public static function forgetCachedForUser(int $userId, string $gid = '', string $name = ''): void
+    {
+        self::forgetLookupCache($userId, $gid, $name);
     }
 
     public static function findOwnedByReference(int $userId, string $reference): ?self
@@ -212,11 +233,14 @@ class AppQyV1WordGroupModel extends Model
      *
      * @var array<string, string>
      */
-    protected $casts = [
-        'gwords' => 'array',
-        'words_frequency' => 'array',
-        'is_language_default' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'gwords' => 'array',
+            'words_frequency' => 'array',
+            'is_language_default' => 'boolean',
+        ];
+    }
 
     protected static function booted(): void
     {
@@ -250,15 +274,70 @@ class AppQyV1WordGroupModel extends Model
 
     private static function forgetLookupCache(int $userId, string $gid, string $name): void
     {
+        $versionKey = self::userPageVersionKey($userId);
+
         if ($userId <= 0) {
             return;
         }
         if ($gid !== '') {
-            Cache::forget("word_group:{$userId}:{$gid}");
+            Cache::forget(self::gidCacheKey($userId, $gid));
         }
         if ($name !== '') {
-            Cache::forget("word_group_by_name:{$userId}:{$name}");
+            Cache::forget(self::nameCacheKey($userId, $name));
         }
+
+        Cache::forever($versionKey, bin2hex(random_bytes(8)));
+    }
+
+    private static function fromCachedAttributes(?array $attributes): ?self
+    {
+        $model = new self();
+
+        return $attributes === null
+            ? null
+            : $model->newFromBuilder($attributes, $model->getConnectionName());
+    }
+
+    private static function fromCachedPagePayload(array $payload): self
+    {
+        $groupModel = new self();
+        $group = $groupModel->newFromBuilder($payload['attributes'], $groupModel->getConnectionName());
+        $progressAttributes = $payload['word_progress'] ?? null;
+        $progress = null;
+
+        if (is_array($progressAttributes)) {
+            $progressModel = new AppQyV1GroupWordProgressModel();
+            $progress = $progressModel->newFromBuilder($progressAttributes, $progressModel->getConnectionName());
+        }
+
+        $group->setRelation('wordProgress', $progress);
+
+        return $group;
+    }
+
+    private static function gidCacheKey(int $userId, string $gid): string
+    {
+        return "word_group:{$userId}:{$gid}:" . self::CACHE_PAYLOAD_VERSION;
+    }
+
+    private static function nameCacheKey(int $userId, string $name): string
+    {
+        return "word_group_by_name:{$userId}:{$name}:" . self::CACHE_PAYLOAD_VERSION;
+    }
+
+    private static function userPageCacheKey(int $userId, int $start, int $limit): string
+    {
+        $version = Cache::rememberForever(
+            self::userPageVersionKey($userId),
+            static fn (): string => self::CACHE_PAYLOAD_VERSION
+        );
+
+        return "user_groups:{$userId}:{$start}:{$limit}:{$version}:" . self::CACHE_PAYLOAD_VERSION;
+    }
+
+    private static function userPageVersionKey(int $userId): string
+    {
+        return self::USER_PAGE_VERSION_PREFIX . $userId;
     }
 
     /**
@@ -305,7 +384,7 @@ class AppQyV1WordGroupModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1VocabularyLibraryModel::class,
-            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
+            $this->appTable('group_libraries'),
             'group_id',
             'library_id',
             'id',
@@ -318,7 +397,8 @@ class AppQyV1WordGroupModel extends Model
     /**
      * Scope: Get groups for a specific user
      */
-    public function scopeForUser($query, int $userId)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function forUser(\Illuminate\Database\Eloquent\Builder $query, int $userId): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('uid', $userId);
     }
@@ -326,7 +406,8 @@ class AppQyV1WordGroupModel extends Model
     /**
      * Scope: Get group by gid
      */
-    public function scopeByGid($query, string $gid)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function byGid(\Illuminate\Database\Eloquent\Builder $query, string $gid): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('gid', $gid);
     }

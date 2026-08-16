@@ -350,21 +350,7 @@ class ServerManagerV1Utils
         
         return round($bytes, 2) . ' ' . $units[$pow];
     }
-    
-    /**
-     * Generate API response
-     */
-    public static function apiResponse(bool $success, $data = null, string $message = '', int $code = 200): array
-    {
-        return [
-            'success' => $success,
-            'data' => $data,
-            'message' => $message,
-            'timestamp' => now()->toISOString(),
-            'code' => $code
-        ];
-    }
-    
+
     /**
      * Log file access attempt
      */

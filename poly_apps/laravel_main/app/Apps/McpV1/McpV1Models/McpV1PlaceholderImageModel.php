@@ -2,9 +2,9 @@
 
 namespace App\Apps\McpV1\McpV1Models;
 
-use App\Models\Model;
+use App\Models\AppModel;
 
-class McpV1PlaceholderImageModel extends Model
+class McpV1PlaceholderImageModel extends AppModel
 {
     protected $table = 'placeholder_images';
 
@@ -31,11 +31,6 @@ class McpV1PlaceholderImageModel extends Model
         'updated_at' => 'datetime',
     ];
 
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
-    }
-
     public static function findByUuid(string $uuid): ?self
     {
         return static::query()->where('uuid', $uuid)->first();
@@ -57,39 +52,40 @@ class McpV1PlaceholderImageModel extends Model
         $oneDayAgo = now()->subDay();
 
         $oldImages = self::where('created_at', '<', $oneDayAgo)->get();
-        $deletedCount = 0;
+        $deletedIds = [];
 
         foreach ($oldImages as $image) {
             \App\Utils\FileSystemManager::deleteFile($image->file_path);
-            $image->delete();
-            $deletedCount++;
+            $deletedIds[] = (int) $image->id;
         }
 
-        return $deletedCount;
+        return $deletedIds === [] ? 0 : self::query()->whereKey($deletedIds)->delete();
     }
 
     public static function markAsDownloaded(string $uuid): bool
     {
-        $image = self::where('uuid', $uuid)->first();
-
-        if ($image) {
-            $image->downloaded = true;
-            $image->downloaded_at = now();
-            $image->save();
-            return true;
-        }
-
-        return false;
+        return self::where('uuid', $uuid)->update([
+            'downloaded' => true,
+            'downloaded_at' => now(),
+        ]) > 0;
     }
 
     public static function getStats(): array
     {
+        $stats = self::query()
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw('SUM(CASE WHEN downloaded = true THEN 1 ELSE 0 END) AS downloaded')
+            ->selectRaw('SUM(CASE WHEN downloaded = false THEN 1 ELSE 0 END) AS pending')
+            ->selectRaw('SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS today', [today()])
+            ->selectRaw('COALESCE(SUM(file_size), 0) AS total_size')
+            ->first();
+
         return [
-            'total' => self::count(),
-            'downloaded' => self::where('downloaded', true)->count(),
-            'pending' => self::where('downloaded', false)->count(),
-            'today' => self::whereDate('created_at', today())->count(),
-            'total_size' => self::sum('file_size'),
+            'total' => (int) ($stats->total ?? 0),
+            'downloaded' => (int) ($stats->downloaded ?? 0),
+            'pending' => (int) ($stats->pending ?? 0),
+            'today' => (int) ($stats->today ?? 0),
+            'total_size' => (int) ($stats->total_size ?? 0),
         ];
     }
 }

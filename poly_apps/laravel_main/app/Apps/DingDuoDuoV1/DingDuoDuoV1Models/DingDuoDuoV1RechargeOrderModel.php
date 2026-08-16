@@ -10,36 +10,18 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
-
 /**
  * DingDuoDuoV1 (订多多) recharge order. Idempotency key = out_trade_no (unique);
  * on a paid callback the membership is extended via DingDuoDuoV1MemberService.
  */
-class DingDuoDuoV1RechargeOrderModel extends Model
+class DingDuoDuoV1RechargeOrderModel extends DingDuoDuoV1Model
 {
     public const STATUS_PENDING = 'pending';
     public const STATUS_PAID = 'paid';
     public const STATUS_FAILED = 'failed';
     public const STATUS_REFUNDED = 'refunded';
 
-    protected $appKey = AppKeys::DINGDUODUOV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = DingDuoDuoV1TableMaps::getTableName('RECHARGE_ORDERS');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'RECHARGE_ORDERS';
 
     protected $fillable = [
         'member_id',
@@ -59,11 +41,6 @@ class DingDuoDuoV1RechargeOrderModel extends Model
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
-    }
 
     public static function findByTradeNo(string $outTradeNo): ?self
     {

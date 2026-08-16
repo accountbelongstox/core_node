@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Erp;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -21,7 +21,7 @@ use Illuminate\Http\JsonResponse;
  * valid empty envelope {success:true,data:{}} (or 404 null for GET /erp/config).
  * TODO: forward to the real duoduokai / qianniuhua upstreams.
  */
-class PddToolV1ErpController extends BaseController
+class PddToolV1ErpController extends Controller
 {
     /**
      * GET /erp/config -> 404 (null) when unset. (STUB)

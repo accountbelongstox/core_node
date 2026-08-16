@@ -3,23 +3,12 @@
 namespace App\Apps\McpV1\McpV1Models;
 
 use App\Apps\McpV1\McpV1TablesMaps\McpV1TablesMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 use Illuminate\Support\Facades\Schema;
 
-class McpV1VoiceSubtitleUserSettingsModel extends Model
+class McpV1VoiceSubtitleUserSettingsModel extends McpV1Model
 {
     protected $guarded = [];
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-
-        $this->connection = AppTablePrefixServiceProvider::getConnection(AppKeys::MCPV1);
-        $this->table = McpV1TablesMaps::VOICE_SUBTITLE_USER_SETTINGS_TABLE;
-    }
+    protected $table = McpV1TablesMaps::VOICE_SUBTITLE_USER_SETTINGS_TABLE;
 
     public static function findForUser(string $userIdentifier): ?self
     {

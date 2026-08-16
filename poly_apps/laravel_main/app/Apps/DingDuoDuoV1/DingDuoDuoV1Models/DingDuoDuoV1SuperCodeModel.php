@@ -10,35 +10,17 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
-
 /**
  * DingDuoDuoV1 (订多多) super code: an offline-verifiable VIP unlock code (see
  * DingDuoDuoV1SuperCodeService). `scope` optionally limits which member_ids /
  * pdd_user_ids the code may manage; max_binds 0 = unlimited.
  */
-class DingDuoDuoV1SuperCodeModel extends Model
+class DingDuoDuoV1SuperCodeModel extends DingDuoDuoV1Model
 {
     public const STATUS_ACTIVE = 'active';
     public const STATUS_REVOKED = 'revoked';
 
-    protected $appKey = AppKeys::DINGDUODUOV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = DingDuoDuoV1TableMaps::getTableName('SUPER_CODES');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'SUPER_CODES';
 
     protected $fillable = [
         'code',
@@ -79,8 +61,21 @@ class DingDuoDuoV1SuperCodeModel extends Model
         return static::query()->where('code', $code)->first();
     }
 
-    public static function createRecord(array $attributes): self
+    public static function insertMasterCodes(array $codes, array $attributes): int
     {
-        return static::query()->create($attributes);
+        $rows = [];
+        $timestamp = now();
+
+        foreach (array_values(array_unique($codes)) as $code) {
+            $rows[] = array_merge($attributes, [
+                'code' => $code,
+                'features' => json_encode($attributes['features'] ?? []),
+                'scope' => isset($attributes['scope']) ? json_encode($attributes['scope']) : null,
+                'created_at' => $timestamp,
+                'updated_at' => $timestamp,
+            ]);
+        }
+
+        return $rows === [] ? 0 : static::query()->insertOrIgnore($rows);
     }
 }

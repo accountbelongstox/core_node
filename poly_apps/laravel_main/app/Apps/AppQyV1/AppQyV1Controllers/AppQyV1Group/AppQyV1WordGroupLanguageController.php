@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Traits\ApiResponse;
@@ -9,7 +11,7 @@ use App\Helpers\AuthHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Validator;
 
-class AppQyV1WordGroupLanguageController
+class AppQyV1WordGroupLanguageController extends Controller
 {
     use ApiResponse;
 

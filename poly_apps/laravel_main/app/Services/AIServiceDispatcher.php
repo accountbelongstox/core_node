@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Log;
-use App\Helpers\GlobalSecretReader;
+use App\Utils\SecretStore;
 
 class AIServiceDispatcher
 {
@@ -159,7 +159,7 @@ class AIServiceDispatcher
         $apiKey = config('deepseek.api_key');
 
         if (!$apiKey) {
-            $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY');
+            $apiKey = SecretStore::get('DEEPSEEK_API_KEY');
         }
 
         if (!$apiKey) {
@@ -385,7 +385,7 @@ class AIServiceDispatcher
 
     private function checkOpenRouterAvailable(): bool
     {
-        $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY_1');
+        $apiKey = SecretStore::get('OPENROUTER_API_KEY_1');
         return !empty($apiKey);
     }
 
@@ -393,7 +393,7 @@ class AIServiceDispatcher
     {
         $apiKey = config('deepseek.api_key');
         if (!$apiKey) {
-            $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY');
+            $apiKey = SecretStore::get('DEEPSEEK_API_KEY');
         }
         return !empty($apiKey);
     }

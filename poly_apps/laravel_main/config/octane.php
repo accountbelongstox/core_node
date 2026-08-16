@@ -1,5 +1,6 @@
 <?php
 
+use App\Providers\PathMapper;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestHandled;
 use Laravel\Octane\Events\RequestReceived;
@@ -12,16 +13,16 @@ use Laravel\Octane\Events\WorkerErrorOccurred;
 use Laravel\Octane\Events\WorkerStarting;
 use Laravel\Octane\Events\WorkerStopping;
 use Laravel\Octane\Listeners\CloseMonologHandlers;
-use Laravel\Octane\Listeners\CollectGarbage;
-use Laravel\Octane\Listeners\DisconnectFromDatabases;
 use Laravel\Octane\Listeners\EnsureUploadedFilesAreValid;
 use Laravel\Octane\Listeners\EnsureUploadedFilesCanBeMoved;
 use Laravel\Octane\Listeners\FlushOnce;
 use Laravel\Octane\Listeners\FlushTemporaryContainerInstances;
-use Laravel\Octane\Listeners\FlushUploadedFiles;
 use Laravel\Octane\Listeners\ReportException;
 use Laravel\Octane\Listeners\StopWorkerIfNecessary;
 use Laravel\Octane\Octane;
+
+$octaneStateFile = PathMapper::mapWebPath('logs', 'octane-server-state.json');
+$swooleLogFile = PathMapper::mapWebPath('logs', 'swoole_http.log');
 
 return [
 
@@ -38,7 +39,7 @@ return [
     |
     */
 
-    'server' => env('OCTANE_SERVER', 'swoole'),
+    'server' => 'swoole',
 
     /*
     |--------------------------------------------------------------------------
@@ -51,7 +52,7 @@ return [
     |
     */
 
-    'https' => env('OCTANE_HTTPS', false),
+    'https' => false,
 
     /*
     |--------------------------------------------------------------------------
@@ -200,7 +201,7 @@ return [
     | - Only monitors PHP files to avoid unnecessary reloads
     | - Excludes static resources (JS, CSS, images, etc.)
     | - Excludes vendor, node_modules, storage, cache directories
-    | - Monitors critical files: composer.lock, .env
+    | - Monitors the dependency lock file
     |
     */
 
@@ -211,7 +212,6 @@ return [
         'database/**/*.php',
         'routes/**/*.php',
         'composer.lock',
-        '.env',
     ],
 
     /*
@@ -242,14 +242,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Timer Tick
+    | Octane Server State File
     |--------------------------------------------------------------------------
     |
-    | Enable Octane timer tick functionality for scheduled tasks
+    | Laravel Octane uses this file to coordinate its lifecycle commands. The
+    | project path mapper keeps the state on the same cross-platform data root
+    | as the rest of the Laravel runtime logs.
     |
     */
 
-    'tick' => env('OCTANE_TICK', true),
+    'state_file' => $octaneStateFile,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Timer Tick
+    |--------------------------------------------------------------------------
+    |
+    | Octane is the application's sole timer task driver.
+    |
+    */
+
+    'tick' => true,
 
     /*
     |--------------------------------------------------------------------------
@@ -265,10 +278,9 @@ return [
     'swoole' => [
         'options' => [
             'log_level' => defined('SWOOLE_LOG_WARNING') ? SWOOLE_LOG_WARNING : 4,
-            'log_file' => storage_path('logs/swoole_http.log'),
+            'log_file' => $swooleLogFile,
             'enable_coroutine' => true,
-            'task_enable_coroutine' => true,
-            'task_worker_num' => env('OCTANE_TASK_WORKERS', 4),
+            'task_worker_num' => 4,
             'package_max_length' => 50 * 1024 * 1024 * 1024,
             'buffer_output_size' => 100 * 1024 * 1024,
         ],

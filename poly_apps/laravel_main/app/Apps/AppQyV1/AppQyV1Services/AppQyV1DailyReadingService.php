@@ -65,6 +65,37 @@ class AppQyV1DailyReadingService
             . rawurlencode($filename);
     }
 
+    /**
+     * Replace the published audio of an existing agent-history article.
+     *
+     * The audio path is deterministic (<article_id>.mp3), so writing through
+     * storeAudio() replaces the bytes in place and the public URL stays
+     * stable; only the provenance metadata moves.
+     */
+    public function replaceAudio(AppQyV1Article $article, string $audioBase64, array $provenance = []): ?string
+    {
+        $audioUrl = $this->storeAudio($article->article_id, (string) $article->language, $audioBase64);
+        if ($audioUrl === null) {
+            return null;
+        }
+
+        $metadata = is_array($article->metadata) ? $article->metadata : [];
+        $metadata['audio_url'] = $audioUrl;
+        $metadata['audio_status'] = 'ready';
+        $metadata['audio_replaced_at'] = now()->toDateTimeString();
+        $metadata['tts_engine'] = $provenance['tts_engine'] ?? ($metadata['tts_engine'] ?? null);
+        $metadata['tts_model'] = $provenance['tts_model'] ?? ($metadata['tts_model'] ?? null);
+        $metadata['tts_chunked'] = (bool) ($provenance['tts_chunked'] ?? false);
+        if (isset($metadata['audio_files'][0]) && is_array($metadata['audio_files'][0])) {
+            $metadata['audio_files'][0]['path'] = $audioUrl;
+            $metadata['audio_files'][0]['created_at'] = now()->toDateTimeString();
+        }
+        $article->metadata = $metadata;
+        $article->save();
+
+        return $audioUrl;
+    }
+
     public function createDocument(
         AppQyV1Article $article,
         string $articleText,

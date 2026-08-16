@@ -217,12 +217,10 @@ class OctaneTaskStatusService
     /**
      * Get heartbeat status.
      *
-     * Sourced from OctaneTimerService's own cross-process heartbeat file (the
-     * `last_alive` timestamp every tick() stamps) -- NOT a separate file, and
-     * not Octane-specific: this reflects whichever process is really ticking
-     * (Octane::tick() on Linux/WSL, or `schedule:work` on Windows/fallback),
-     * readable correctly even when THIS request is answered by a different
-     * process (e.g. `artisan serve`) than the one actually driving the timer.
+     * Sourced from OctaneTimerService's cross-process heartbeat file. The
+     * `last_alive` timestamp is written by the sole Octane::tick() driver and
+     * remains readable by console inspection processes outside the Swoole
+     * worker tree.
      */
     private function getHeartbeatStatus(): array
     {

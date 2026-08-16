@@ -17,8 +17,8 @@ use Illuminate\Support\Facades\Validator;
  * Handles task dispatch and queue management for MCP bridge
  * Supports both MCP (Model Context Protocol) and web query interfaces
  *
- * Following Laravel 12.x MCP specifications
- * @see https://laravel.com/docs/12.x/mcp
+ * Following Laravel 13.x MCP specifications
+ * @see https://laravel.com/docs/13.x/mcp
  *
  * MCP Endpoints: /api/mcp/v1/task-dispatch/*
  * Web Endpoints: /api/mcp/v1/task-dispatch/* (same)

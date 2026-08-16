@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Warehouse;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -22,7 +22,7 @@ use App\Apps\PddToolV1\PddToolV1Services\PddToolV1ProfileResolver;
  * Member warehouse (receiver address) CRUD, keyed by warehouse_code. All actions
  * behind 'custom.authenticate' (Sanctum bearer token).
  */
-class PddToolV1WarehouseController extends BaseController
+class PddToolV1WarehouseController extends Controller
 {
     /**
      * GET /users/me/warehouses -> [WAREHOUSE]

@@ -10,10 +10,12 @@
 
 namespace App\Http\System;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use App\Events\TokenKeyEvent;
-class TokenSessionController
+class TokenSessionController extends Controller
 {
     public function store(Request $request)
     {

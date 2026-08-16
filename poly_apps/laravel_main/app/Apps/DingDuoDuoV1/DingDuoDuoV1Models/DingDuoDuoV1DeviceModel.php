@@ -10,31 +10,13 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
-
 /**
  * DingDuoDuoV1 (订多多) device: one row per extension install (device_id), with
  * the bound member (nullable) and the last-seen heartbeat timestamp.
  */
-class DingDuoDuoV1DeviceModel extends Model
+class DingDuoDuoV1DeviceModel extends DingDuoDuoV1Model
 {
-    protected $appKey = AppKeys::DINGDUODUOV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = DingDuoDuoV1TableMaps::getTableName('DEVICES');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'DEVICES';
 
     protected $fillable = [
         'device_id',

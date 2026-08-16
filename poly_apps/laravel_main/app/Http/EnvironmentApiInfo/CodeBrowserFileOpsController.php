@@ -11,13 +11,15 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Auth;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
-class CodeBrowserFileOpsController
+class CodeBrowserFileOpsController extends Controller
 {
     private $baseDirectory;
     private $deleteDirectory;
@@ -655,9 +657,7 @@ class CodeBrowserFileOpsController
     private function translateLine($line)
     {
         try {
-            $translatorUtil = new \App\CallPycoreUtils\PycoreTranslatorUtil();
-
-            $result = $translatorUtil->translateSingle(
+            $result = \App\CallPycoreUtils\PycoreTranslatorUtil::translateSingle(
                 $line,
                 'auto',
                 'en',

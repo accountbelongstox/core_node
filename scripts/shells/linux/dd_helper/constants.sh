@@ -35,7 +35,7 @@ SERVICE_MANAGER_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/service_ma
 INSTALL_TEST_MENU_SCRIPT_RELATIVE="scripts/shells/linux/common/install_test_menu.sh"
 SYSTEM_INFO_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/system_info_display.sh"
 UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/app_manager/linux_sh/app_manager.sh"
-ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/103_lnxrouter.sh"
+ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/common/linux-router/lnxrouter.sh"
 # 9_disable_ubuntu_auto_updates.sh was merged into the idempotent 6_system_maintenance.sh
 # (mirrors + journal cleanup + disable auto-updates); it still disables auto-updates.
 DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/6_system_maintenance.sh"

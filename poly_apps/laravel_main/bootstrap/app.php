@@ -23,11 +23,29 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
-use Illuminate\Support\Facades\Route;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Http\Request;
 
-return Application::configure(basePath: dirname(__DIR__))
+$application = null;
+$requestForgeryExclusions = [
+    'api/*',
+    'clipboard/*',
+    'api_params_cache/*',
+    'translation/*',
+    'tts/*',
+    'static-resources/*',
+    'login',
+    'register',
+    'users/me/*',
+    'batch-orders',
+    'batch-orders/*',
+    'convert-order-link',
+    'recharge/*',
+    'pay/*',
+    'erp/*',
+];
+
+$application = Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         web: __DIR__.'/../routes/web.php',
         api: __DIR__.'/../routes/api.php',
@@ -50,20 +68,11 @@ return Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../routes/channels.php',
         ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
     )
-    ->withProviders([
-        \App\Providers\AppServiceProvider::class,
-    ])
-    ->withMiddleware(function (Middleware $middleware) {
+    ->withMiddleware(function (Middleware $middleware) use ($requestForgeryExclusions) {
         // API-only app: never redirect unauthenticated guests to a web login
         // route (none exists). Returning null throws AuthenticationException,
         // which bootstrap/app.php renders as a JSON 401 envelope.
-        $middleware->redirectGuestsTo(function (Request $request) {
-            if ($request->expectsJson() || $request->is('api/*')) {
-                return null;
-            }
-
-            return null;
-        });
+        $middleware->redirectGuestsTo(fn (): ?string => null);
 
         $middleware->api(prepend: [
             GoLatency::class,
@@ -99,27 +108,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
-        $middleware->validateCsrfTokens(except: [
-            'api/*',
-            'clipboard/*',
-            'api_params_cache/*',
-            'translation/*',
-            'tts/*',
-            // SPA file-manager endpoints (web group): token-less cross-origin POSTs
-            // from the WordNew UI. The '*' glob spans '/', so this also covers the
-            // nested static-resources/chunked-upload/* sub-paths.
-            'static-resources/*',
-            // PddToolV1 ROOT-level POST/PUT/DELETE SaaS endpoints (no /api prefix).
-            'login',
-            'register',
-            'users/me/*',
-            'batch-orders',
-            'batch-orders/*',
-            'convert-order-link',
-            'recharge/*',
-            'pay/*',
-            'erp/*',
-        ]);
+        $middleware->preventRequestForgery(except: $requestForgeryExclusions);
 
         $middleware->web(append: [
             HandleAppearance::class,
@@ -129,6 +118,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
+        // Laravel 13 renders every API or explicitly JSON-preferring request as
+        // JSON while the application-specific renderers below retain their
+        // established response envelopes and status codes.
+        $exceptions->shouldRenderJsonWhen(
+            fn (Request $request): bool => $request->is('api/*') || $request->expectsJson(),
+        );
+
         // Show all errors with full stack traces in debug mode
         $exceptions->dontReport([]);
 
@@ -248,3 +244,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
         });
     })->create();
+
+// Runtime configuration is owned by LaravelConfig and RuntimeConfigurationStore.
+// Point Dotenv at a deliberately absent file so repository .env files are never loaded.
+$application->loadEnvironmentFrom('.environment-disabled');
+
+return $application;

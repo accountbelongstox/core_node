@@ -6,7 +6,7 @@
 # /usr/lib/apache2 keeps appearing. No script installs it directly - it sneaks in
 # as a TRANSITIVE dependency, chiefly libapache2-mod-php* (a Recommends of the
 # `php` meta-package), which pulls apache2-bin. The repo already removes it in
-# several places (27_install_nginx.sh, 33_ensure_php85, 64_install_upsc), but a
+# several places (26_install_nginx.sh, 32_ensure_php85_intelligent.sh, 63_install_upsc.sh), but a
 # later apt operation can drag it back in.
 #
 # THE GUARD - make it impossible to install ANYWHERE: write an apt preferences pin
@@ -15,7 +15,7 @@
 # /usr/lib/apache2 + /etc/apache2. Idempotent, safe to call on every run.
 #
 # Safe to SOURCE (use abg_* functions) or RUN directly. Introduced at key points:
-#   - scripts/shells/linux/debian/install_shells/29_install_nginx.sh (web-server install)
+#   - scripts/shells/linux/debian/install_shells/26_install_nginx.sh (web-server install)
 #   - dd.sh Linux Management submenu ("Block & Remove Apache")
 #
 # Usage:  bash apache_block_guard.sh           # pin + purge now

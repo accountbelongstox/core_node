@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
-use App\Http\Controllers\Auth\AvatarPublic;
 use App\Services\AvatarService;
 use App\Constants\AppKeys;
 use Illuminate\Support\Facades\Validator;

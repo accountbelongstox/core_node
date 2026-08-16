@@ -9,7 +9,10 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyutils.common.user_data_store import user_data_store
-from pycore.pyctl.assist.assist_settings import load_assist_settings, save_assist_settings
+from pycore.pyctl.assist.assist_settings import (
+    load_assist_settings,
+    set_assist_capability,
+)
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
 
 from pycore.pyctl.tts.laravel_audio_worker import (
@@ -49,8 +52,9 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     """Persist toggle (+ optional concurrency override) and apply live.
 
     ``concurrency`` None leaves the persisted value untouched; 0 means "use the
-    per-engine recommended value". The live value is pushed straight onto the
-    worker service instance."""
+    per-engine recommended value". The capability transition itself flows
+    through the shared assist control plane (set_assist_capability +
+    apply_assist_runtime), which also drives the lane lifecycle."""
     updates: Dict[str, Any] = {}
     if concurrency is not None:
         updates[_CONCURRENCY_KEY] = max(0, int(concurrency))
@@ -58,20 +62,13 @@ def apply_auto_start(enabled: bool, concurrency: Optional[int] = None) -> Dict[s
     if updates:
         store.update_section(_SECTION, updates)
 
-    assist = load_assist_settings()
-    caps = dict(assist.get("capabilities") or {})
-    caps["tts"] = bool(enabled)
-    settings = save_assist_settings({
-        "enabled": bool(any(caps.values())),
-        "capabilities": caps,
-    })
-
     if concurrency is not None:
         try:
             laravel_word_audio_worker.set_concurrency(max(0, int(concurrency)))
         except Exception as exc:  # noqa: BLE001
             ColorPrint.yellow(f"[WordTtsAuto] live concurrency apply failed ({exc})")
 
+    settings = set_assist_capability("tts", bool(enabled))
     runtime = apply_assist_runtime(settings)
     errors = list(runtime.get("errors") or [])
 

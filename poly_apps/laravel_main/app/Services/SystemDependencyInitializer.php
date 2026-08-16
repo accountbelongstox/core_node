@@ -2,39 +2,12 @@
 
 namespace App\Services;
 
-use App\Support\OctaneSwooleCompatFixer;
 use Illuminate\Console\Command;
 
 class SystemDependencyInitializer
 {
     public function __construct(private readonly Command $command)
     {
-    }
-
-    public function fixOctaneSwooleCompatibility(): void
-    {
-        $fixer = null;
-        $result = [];
-
-        if (!is_dir(base_path('vendor/laravel/octane'))) {
-            $this->command->line('  <fg=yellow>⏭️  Laravel Octane not installed, skipping</>');
-            return;
-        }
-
-        try {
-            $fixer = new OctaneSwooleCompatFixer(base_path());
-            $result = $fixer->run();
-
-            if (($result['status'] ?? '') === 'skipped'
-                && ($result['reason'] ?? '') === 'swoole_not_installed'
-                && PHP_OS_FAMILY !== 'Windows') {
-                $result = $this->ensureSwooleThenRefix($fixer);
-            }
-
-            $this->reportSwooleResult($result);
-        } catch (\Throwable $e) {
-            $this->command->warn('  ⚠️  Compatibility check error: ' . $e->getMessage());
-        }
     }
 
     public function installChokidar(): void
@@ -108,42 +81,5 @@ class SystemDependencyInitializer
         }
 
         $this->command->warn('  ⚠️  chokidar exists but could not be loaded');
-    }
-
-    private function ensureSwooleThenRefix(OctaneSwooleCompatFixer $fixer): array
-    {
-        $repoRoot = dirname(base_path(), 2);
-        $installScript = $repoRoot . '/scripts/shells/linux/debian/install_shells/32_install_swoole.sh';
-        $exitCode = 0;
-
-        if (!is_file($installScript)) {
-            $this->command->warn("  ⚠️  Swoole installer missing: {$installScript}");
-            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
-        }
-
-        $this->command->line('  <fg=cyan>Swoole not installed -> running installer (may take several minutes)...</>');
-        passthru('bash ' . escapeshellarg($installScript), $exitCode);
-
-        if ($exitCode !== 0) {
-            $this->command->warn("  ⚠️  Swoole installer exited with code {$exitCode}; Octane will be unavailable.");
-            return ['status' => 'skipped', 'reason' => 'swoole_not_installed'];
-        }
-
-        return $fixer->run();
-    }
-
-    private function reportSwooleResult(array $result): void
-    {
-        $status = $result['status'] ?? 'unknown';
-        $version = $result['swoole_version'] ?? 'unknown';
-        $reason = $result['reason'] ?? 'unknown reason';
-
-        match ($status) {
-            'fixed' => $this->command->line("  ✅ Compatibility patch applied (Swoole {$version})"),
-            'already_fixed' => $this->command->line("  ✓ Compatibility patch already applied (Swoole {$version})"),
-            'compatible' => $this->command->line("  ✓ Swoole {$version} is compatible"),
-            'skipped' => $this->command->line("  ⏭️  Compatibility check skipped: {$reason}"),
-            default => $this->command->warn("  ⚠️  Unexpected Swoole compatibility status: {$status}"),
-        };
     }
 }

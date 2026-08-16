@@ -6,7 +6,7 @@ use App\Contracts\AppInitializerInterface;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1MultiLangDictionaryModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -196,7 +196,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             // regardless of the skip-gated dictionary Step 2, so re-inits never
             // leave staged data unpromoted. Idempotent and additive.
             try {
-                \App\Services\UserSyncService::promoteAllStaging();
+                \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryImportService::promoteAllStaging();
             } catch (\Throwable $e) {
                 Log::error('[AppQyV1Init] promoteAllStaging error: ' . $e->getMessage());
             }
@@ -353,7 +353,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function checkDatabaseConnection(): array
     {
         try {
-            (new AppQyV1MultiLangDictionaryModel)->getConnection()->getPdo();
+            (new AppQyV1LangDictionaryModel)->getConnection()->getPdo();
             return [
                 'status' => 'success',
                 'message' => 'Database connection successful',
@@ -459,7 +459,7 @@ class AppQyV1Initializer implements AppInitializerInterface
             
             foreach ($languages as $langCode) {
                 $tableName = AppQyV1TableMaps::getDictionaryTableName($langCode);
-                $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+                $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
                 if (Schema::connection($connectionName)->hasTable($tableName)) {
                     $count++;
                 }
@@ -474,7 +474,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     private function verifyTables(): array
     {
         try {
-            $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+            $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
             $languages = AppQyV1TableMaps::getSupportedLanguages();
             
             $missingTables = [];
@@ -743,7 +743,7 @@ class AppQyV1Initializer implements AppInitializerInterface
     
     private function getDatabaseTables(): array
     {
-        $connectionName = (new AppQyV1MultiLangDictionaryModel)->getConnectionName();
+        $connectionName = (new AppQyV1LangDictionaryModel)->getConnectionName();
         $schema = Schema::connection($connectionName);
         $tables = [];
         
@@ -771,7 +771,7 @@ class AppQyV1Initializer implements AppInitializerInterface
                 $columnCount = count($columns);
                 
                 // Use Query Builder for row count
-                $model = new AppQyV1MultiLangDictionaryModel();
+                $model = new AppQyV1LangDictionaryModel();
                 $dbConnection = $model->getConnection();
                 $rowCount = $dbConnection->table($tableName)->count();
                 

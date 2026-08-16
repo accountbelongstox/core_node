@@ -1265,7 +1265,7 @@ class SafeMigrationHelper
             $isPkOrIncrements = in_array($columnDef['type'] ?? '', ['increments', 'bigIncrements', 'id'], true)
                 || $columnName === 'id';
             if ($driver === 'sqlite' && $isPkOrIncrements) {
-                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} already exists without {$columnName}. Recreate table or use migrate:fresh if needed."];
+                $actions[] = ['action' => 'skipped_column', 'column' => $columnName, 'message' => "SQLite cannot add PRIMARY KEY column to existing table. Table {$tableName} was retained unchanged; use an in-place compatible migration."];
                 continue;
             }
             $result = self::safeAddColumn($connection, $tableName, $columnName, function (Blueprint $table, string $colName) use ($columnDef) {

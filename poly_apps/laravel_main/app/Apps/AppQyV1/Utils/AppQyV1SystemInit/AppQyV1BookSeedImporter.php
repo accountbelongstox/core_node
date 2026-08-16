@@ -345,26 +345,20 @@ class AppQyV1BookSeedImporter
             $langs = AppQyV1TableMaps::getSupportedLanguages();
 
             $legacy = Book::legacyCollectionBooks(self::COLLECTION);
+            $sourceKeys = $legacy->pluck('source_key')->filter()->values()->all();
+            $bookIds = $legacy->modelKeys();
 
-            foreach ($legacy as $book) {
-                $key = $book->source_key;
-                try {
-                    SourceSentence::deleteForSource('book', $key);
+            SourceSentence::deleteForSources('book', $sourceKeys);
 
-                    foreach ($langs as $lang) {
-                        \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel::deleteForSource(
-                            $lang,
-                            'book',
-                            $key
-                        );
-                    }
-
-                    $book->deleteRecord();
-                    $removed++;
-                } catch (\Throwable $e) {
-                    Log::warning('[AppQyV1BookSeed] legacy supersede failed for ' . $key . ': ' . $e->getMessage());
-                }
+            foreach ($langs as $lang) {
+                \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangChapterModel::deleteForSources(
+                    $lang,
+                    'book',
+                    $sourceKeys
+                );
             }
+
+            $removed = Book::deleteByIds($bookIds);
         } catch (\Throwable $e) {
             Log::warning('[AppQyV1BookSeed] legacy supersede query failed: ' . $e->getMessage());
         }

@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Order;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
@@ -23,7 +23,7 @@ use App\Apps\PddToolV1\PddToolV1Services\PddToolV1ProfileResolver;
  * Batch-order submission + retrieval, and order-link conversion. All actions
  * behind 'custom.authenticate' (Sanctum bearer token).
  */
-class PddToolV1OrderController extends BaseController
+class PddToolV1OrderController extends Controller
 {
     /**
      * POST /batch-orders {purchaseOrders:[{purchase_order_no,goods_id,sku_id,quantity}]}

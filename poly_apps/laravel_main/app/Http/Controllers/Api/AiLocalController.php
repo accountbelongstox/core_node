@@ -9,8 +9,10 @@ use App\Services\AiGateway\AiImageHistory;
 use App\Services\AiGateway\AiKeyRotation;
 use App\Services\AiGateway\AiProbe;
 use App\Services\AiGateway\AiProviderRegistry;
+use App\Services\AiGateway\AiPromptCache;
 use App\Services\AiGateway\AiRateLimiter;
-use App\Services\AiGateway\AiSecretLoader;
+use App\Services\AiGateway\AiSdkChat;
+use App\Utils\SecretStore;
 use App\Services\AiGateway\AiSecretWriter;
 use App\Services\AiGateway\AiUsageLog;
 use Illuminate\Http\JsonResponse;
@@ -33,6 +35,17 @@ use Symfony\Component\HttpFoundation\Response;
  *   GET  /api/local/ai/rate-limits    ?provider=NAME | else all enforced providers
  *   POST /api/local/ai/image          { prompt, size?, model?, source? }
  *   GET  /api/local/ai/info           endpoint catalog (for the API tester)
+ *
+ * Official Laravel AI SDK surface (laravel/ai — capabilities, persistent chat,
+ * gateway prompt cache):
+ *   GET  /api/local/ai/capabilities              provider × feature matrix (no key needed)
+ *   GET  /api/local/ai/chat/conversations        newest-first chat sessions
+ *   GET  /api/local/ai/chat/conversations/{id}   full message list of one session
+ *   DELETE /api/local/ai/chat/conversations/{id} delete one session
+ *   POST /api/local/ai/chat/send                 { conversation_id?, provider?, model?, message, images?, cache? }
+ *   GET  /api/local/ai/chat/attachments/{name}   raw bytes of one chat image
+ *   GET  /api/local/ai/prompt-cache              totals / per-provider stats / recent entries
+ *   POST /api/local/ai/prompt-cache/clear        drop every cached prompt response
  */
 class AiLocalController extends Controller
 {
@@ -256,7 +269,7 @@ class AiLocalController extends Controller
 
             $slots = [];
             foreach (array_values(array_unique($slotNames)) as $name) {
-                $raw = AiSecretLoader::get($name);
+                $raw = SecretStore::get($name);
                 $set = $raw !== '';
                 $isSecret = AiProviderRegistry::isSecretName($name);
                 $slots[] = [
@@ -357,6 +370,85 @@ class AiLocalController extends Controller
         AiGateway::invalidateCaches();
     }
 
+    // --- Official Laravel AI SDK surface ---------------------------------- //
+
+    /**
+     * GET /api/local/ai/capabilities — Laravel AI SDK capability matrix: every
+     * configured provider (driver, key state, default models, features) plus
+     * the official feature → driver support table. Listed whether or not a key
+     * is configured, so the UI can show what Laravel can do out of the box.
+     */
+    public function capabilities(): JsonResponse
+    {
+        return response()->json(AiSdkChat::capabilities());
+    }
+
+    /** GET /api/local/ai/chat/conversations?limit=50 — newest-first chat sessions. */
+    public function chatConversations(Request $request): JsonResponse
+    {
+        $limit = (int) $request->query('limit', 50);
+        return response()->json(AiSdkChat::conversations($limit > 0 ? $limit : 50));
+    }
+
+    /** GET /api/local/ai/chat/conversations/{id} — full message list of one session. */
+    public function chatMessages(string $id): JsonResponse
+    {
+        return response()->json(AiSdkChat::messages($id));
+    }
+
+    /** DELETE /api/local/ai/chat/conversations/{id} — session + messages + attachments. */
+    public function chatConversationDelete(string $id): JsonResponse
+    {
+        return response()->json(AiSdkChat::deleteConversation($id));
+    }
+
+    /**
+     * POST /api/local/ai/chat/send — one SDK chat turn:
+     *   { conversation_id?, provider? ('auto' = SDK failover), model?,
+     *     message, images?: [{ name?, mime, data(base64) }], cache?, source? }
+     * Conversations persist server-side (agent_conversations tables); images
+     * are stored as local attachments and sent as vision input. With cache on,
+     * a repeated prompt is answered from the gateway prompt cache.
+     */
+    public function chatSend(Request $request): JsonResponse
+    {
+        return response()->json(AiSdkChat::send([
+            'conversation_id' => $request->input('conversation_id'),
+            'provider' => $request->input('provider', 'auto'),
+            'model' => $request->input('model'),
+            'message' => (string) $request->input('message', ''),
+            'images' => (array) $request->input('images', []),
+            'cache' => $request->input('cache', true),
+            'source' => (string) $request->input('source', 'ai-chat'),
+        ]));
+    }
+
+    /** GET /api/local/ai/chat/attachments/{name} — raw bytes of one chat image. */
+    public function chatAttachment(string $name): Response
+    {
+        $img = AiSdkChat::attachment($name);
+        if ($img === null) {
+            return response()->json(['success' => false, 'error' => 'not found'], 404);
+        }
+        return response($img[0], 200, [
+            'Content-Type' => $img[1],
+            'Content-Length' => (string) strlen($img[0]),
+            'Cache-Control' => 'private, max-age=86400',
+        ]);
+    }
+
+    /** GET /api/local/ai/prompt-cache — hit/miss totals, per-provider stats, recent entries. */
+    public function promptCache(): JsonResponse
+    {
+        return response()->json(AiPromptCache::stats());
+    }
+
+    /** POST /api/local/ai/prompt-cache/clear — drop every cached prompt response. */
+    public function promptCacheClear(): JsonResponse
+    {
+        return response()->json(AiPromptCache::clear());
+    }
+
     public function info(): JsonResponse
     {
         return response()->json([
@@ -379,6 +471,14 @@ class AiLocalController extends Controller
                 'GET  /api/local/ai/image/history/file/{id}' => 'Raw bytes of one history image.',
                 'DELETE /api/local/ai/image/history/{id}' => 'Remove one history image.',
                 'POST /api/local/ai/image/history/clear' => 'Remove all history images.',
+                'GET  /api/local/ai/capabilities' => 'Laravel AI SDK capability matrix (providers × features, key state).',
+                'GET  /api/local/ai/chat/conversations' => 'Newest-first SDK chat sessions.',
+                'GET  /api/local/ai/chat/conversations/{id}' => 'Full message list of one session.',
+                'DELETE /api/local/ai/chat/conversations/{id}' => 'Delete one session (+ messages + attachments).',
+                'POST /api/local/ai/chat/send' => '{ conversation_id?, provider?, model?, message, images?, cache? } — SDK chat turn (vision + failover + prompt cache).',
+                'GET  /api/local/ai/chat/attachments/{name}' => 'Raw bytes of one chat attachment image.',
+                'GET  /api/local/ai/prompt-cache' => 'Prompt-cache totals, per-provider stats and recent entries.',
+                'POST /api/local/ai/prompt-cache/clear' => 'Drop every cached prompt response.',
             ],
         ]);
     }

@@ -176,7 +176,7 @@ class ServerManagerV1StaticServiceManager
      * Create or refresh static app service (debug mode only)
      * Production mode doesn't need a service
      */
-    public static function createOrRefreshService(string $appname, string $sourcePath, int $port, string $user = null, bool $debugMode = false, bool $autoResolve = true): array
+    public static function createOrRefreshService(string $appname, string $sourcePath, int $port, ?string $user = null, bool $debugMode = false, bool $autoResolve = true): array
     {
         $serviceName = self::getStaticServiceName($appname);
         $result = [
@@ -265,7 +265,7 @@ class ServerManagerV1StaticServiceManager
      * Create systemd service file for debug mode
      * Runs dev server (pnpm run dev) from source directory
      */
-    public static function createServiceFile(string $appname, string $sourcePath, int $port, string $user = null): bool
+    public static function createServiceFile(string $appname, string $sourcePath, int $port, ?string $user = null): bool
     {
         if ($user === null) {
             $user = self::getDefaultServiceUser();
@@ -354,7 +354,7 @@ SERVICE;
     /**
      * Refresh existing service with new configuration
      */
-    public static function refreshService(string $appname, string $sourcePath, int $port, string $user = null): bool
+    public static function refreshService(string $appname, string $sourcePath, int $port, ?string $user = null): bool
     {
         $serviceName = self::getStaticServiceName($appname);
 

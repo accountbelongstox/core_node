@@ -12,28 +12,57 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Services;
 
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1DeviceModel;
+use App\Models\User;
+use App\Services\UnifiedAuthService;
+use App\Http\Common\CommonAuthService;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 /**
- * Member identity + membership operations: credential login (bcrypt), token
- * (re)issue, device upsert, and the recharge-driven membership extension.
+ * Member membership operations on top of the canonical global users table:
+ * credential login verifies against users (via UnifiedAuthService) and issues a
+ * Sanctum token; the members table keeps only app-specific extension fields
+ * linked by user_id. Also covers device upsert and the recharge-driven
+ * membership extension.
+ *
+ * Migration path for legacy rows (member-local username/password, user_id NULL):
+ * on a failed global login the legacy member password is checked once; on match
+ * a global user is registered with the same credentials and the member row is
+ * linked (user_id set). Legacy `token` values are no longer honored.
  */
 class DingDuoDuoV1MemberService
 {
     /**
-     * Verify credentials, (re)issue a token, upsert the calling device, and return
-     * the issued token plus the public member shape. Returns null on bad creds /
-     * disabled account.
+     * Sanctum token name issued for DingDuoDuoV1 member logins.
+     */
+    private const TOKEN_NAME = 'dingduoduo-member';
+
+    /**
+     * Verify credentials against the global users table, link (or lazily
+     * migrate) the member extension row, issue a Sanctum token, upsert the
+     * calling device, and return the token plus the public member shape.
+     * Returns null on bad creds / disabled account / unlinked identity.
      *
      * @return array{token:string,member:array}|null
      */
     public static function login(string $username, string $password, ?string $deviceId = null): ?array
     {
-        $member = DingDuoDuoV1MemberModel::findByUsername($username);
+        $user = null;
+        $member = null;
 
-        if (!$member || !Hash::check($password, (string) $member->password)) {
+        $auth = UnifiedAuthService::login($username, $password);
+
+        if ($auth['success']) {
+            $user = $auth['user'];
+            $member = self::linkableMemberForUser($user, $username);
+        } else {
+            $member = self::migrateLegacyMember($username, $password);
+            if ($member !== null) {
+                $user = User::findById((int) $member->user_id);
+            }
+        }
+
+        if (!$user || !$member) {
             return null;
         }
 
@@ -41,7 +70,7 @@ class DingDuoDuoV1MemberService
             return null;
         }
 
-        $token = self::issueToken($member);
+        $token = $user->createToken(self::TOKEN_NAME)->plainTextToken;
 
         if ($deviceId !== null && $deviceId !== '') {
             self::upsertDevice($deviceId, (int) $member->id);
@@ -56,18 +85,89 @@ class DingDuoDuoV1MemberService
     }
 
     /**
-     * Generate a fresh unique token and persist it on the member.
+     * Resolve an active member from a presented Sanctum plain-text token (the
+     * extension sends it on the X-DD-Token header / token param). This replaces
+     * the legacy members.token lookup: validation now goes through Sanctum.
      */
-    public static function issueToken(DingDuoDuoV1MemberModel $member): string
+    public static function activeMemberForToken(string $token): ?DingDuoDuoV1MemberModel
     {
-        do {
-            $token = 'ddm_' . Str::random(48);
-        } while (DingDuoDuoV1MemberModel::tokenExists($token));
+        $token = trim($token);
+        if ($token === '') {
+            return null;
+        }
 
-        $member->token = $token;
+        $user = CommonAuthService::getUserByLoginToken($token);
+        if (!$user) {
+            return null;
+        }
+
+        $member = DingDuoDuoV1MemberModel::findByUserId((int) $user->id);
+        if (!$member || $member->status !== 'active') {
+            return null;
+        }
+
+        return $member;
+    }
+
+    /**
+     * Member extension row for a global user: linked row first, otherwise an
+     * unlinked legacy row with the same username gets linked additively. Null
+     * when no member exists or the row is linked to a different user.
+     */
+    private static function linkableMemberForUser(User $user, string $username): ?DingDuoDuoV1MemberModel
+    {
+        $member = DingDuoDuoV1MemberModel::findByUserId((int) $user->id);
+        if ($member) {
+            return $member;
+        }
+
+        $member = DingDuoDuoV1MemberModel::findByUsername($username);
+        if ($member && $member->user_id === null) {
+            $member->user_id = (int) $user->id;
+            $member->saveRecord();
+            return $member;
+        }
+
+        return null;
+    }
+
+    /**
+     * Legacy migration path: the member row still holds the only copy of the
+     * credentials (user_id NULL). Verify the legacy password once, register the
+     * global user with the same credentials, and link the row. Refuses when a
+     * global identity already exists under the username (ambiguous ownership) —
+     * such rows must be linked/reset via the admin console.
+     */
+    private static function migrateLegacyMember(string $username, string $password): ?DingDuoDuoV1MemberModel
+    {
+        $member = DingDuoDuoV1MemberModel::findByUsername($username);
+
+        if (!$member || $member->user_id !== null) {
+            return null;
+        }
+
+        if (empty($member->password) || !Hash::check($password, (string) $member->password)) {
+            return null;
+        }
+
+        if (User::findByUsernameOrEmail($username)) {
+            return null;
+        }
+
+        $registered = UnifiedAuthService::register([
+            'username' => $username,
+            'email' => null,
+            'password' => $password,
+        ]);
+
+        if (!$registered['success']) {
+            return null;
+        }
+
+        $member->user_id = (int) $registered['user']->id;
         $member->saveRecord();
 
-        return $token;
+        return $member;
     }
 
     /**

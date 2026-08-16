@@ -7,6 +7,8 @@ use App\Services\QueueCenter\QueueCenterRealtimeService;
 use App\Models\Concerns\GlobalTaskQueueQueries;
 use App\Models\Concerns\UsesMainConnection;
 use App\Utils\RunsModelTransactions;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Model;
 use Illuminate\Support\Collection;
@@ -15,6 +17,8 @@ use Illuminate\Support\Facades\Cache;
 class GlobalTask extends Model
 {
     use GlobalTaskQueueQueries, HasFactory, RunsModelTransactions, UsesMainConnection;
+
+    private const CACHE_ARRAY_PAYLOAD_VERSION = ':array-v1';
 
     protected $table = 'global_tasks';
 
@@ -50,24 +54,26 @@ class GlobalTask extends Model
         'group_key',
     ];
 
-    protected $casts = [
-        'payload' => 'array',
-        'steps' => 'array',
-        'result' => 'array',
-        'progress' => 'float',
-        'assigned_at' => 'datetime',
-        'timeout_at' => 'datetime',
-        'completed_at' => 'datetime',
-        'queue_position' => 'integer',
-        'priority' => 'integer',
-        'retry_count' => 'integer',
-        'max_retries' => 'integer',
-        'timeout_seconds' => 'integer',
-        // Phase 2 / Phase 5 additions.
-        'is_fast_tier' => 'boolean',
-        'dict_row_id' => 'integer',
-        'sync_to_dict_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'payload' => 'array',
+            'steps' => 'array',
+            'result' => 'array',
+            'progress' => 'float',
+            'assigned_at' => 'datetime',
+            'timeout_at' => 'datetime',
+            'completed_at' => 'datetime',
+            'queue_position' => 'integer',
+            'priority' => 'integer',
+            'retry_count' => 'integer',
+            'max_retries' => 'integer',
+            'timeout_seconds' => 'integer',
+            'is_fast_tier' => 'boolean',
+            'dict_row_id' => 'integer',
+            'sync_to_dict_at' => 'datetime',
+        ];
+    }
 
     protected static function booted(): void
     {
@@ -146,7 +152,8 @@ class GlobalTask extends Model
         string $taskType,
         array $payloadFilters = []
     ): Collection {
-        return Cache::remember($cacheKey, $ttlSeconds, static function () use ($appName, $taskType, $payloadFilters): Collection {
+        $versionedCacheKey = $cacheKey . self::CACHE_ARRAY_PAYLOAD_VERSION;
+        $counts = Cache::remember($versionedCacheKey, $ttlSeconds, static function () use ($appName, $taskType, $payloadFilters): array {
             $query = self::query()
                 ->where('app_name', $appName)
                 ->where('task_type', $taskType);
@@ -158,8 +165,11 @@ class GlobalTask extends Model
             return $query
                 ->groupBy('status')
                 ->selectRaw('status, count(*) as total')
-                ->pluck('total', 'status');
+                ->pluck('total', 'status')
+                ->all();
         });
+
+        return collect($counts);
     }
 
     /**
@@ -235,13 +245,19 @@ class GlobalTask extends Model
     public static function initializationStats(): array
     {
         $grouped = self::query()->groupBy('status')->selectRaw('status, count(*) as aggregate')->pluck('aggregate', 'status');
+        $total = (int) $grouped->sum();
+        $pending = (int) ($grouped[self::status('pending')] ?? 0);
+        $processing = (int) ($grouped[self::status('processing')] ?? 0);
+        $completed = (int) ($grouped[self::status('completed')] ?? 0);
+        $failed = (int) ($grouped[self::status('failed')] ?? 0);
 
         return [
-            'total' => (int) $grouped->sum(),
-            'pending' => (int) ($grouped[self::status('pending')] ?? 0),
-            'processing' => (int) ($grouped[self::status('processing')] ?? 0),
-            'completed' => (int) ($grouped[self::status('completed')] ?? 0),
-            'failed' => (int) ($grouped[self::status('failed')] ?? 0),
+            'total' => $total,
+            'pending' => $pending,
+            'processing' => $processing,
+            'completed' => $completed,
+            'failed' => $failed,
+            'other' => max(0, $total - $pending - $processing - $completed - $failed),
         ];
     }
 
@@ -256,7 +272,8 @@ class GlobalTask extends Model
 
     public static function cachedCountsByTaskType(string $cacheKey, int $ttlSeconds, array $statuses): Collection
     {
-        return Cache::remember($cacheKey, $ttlSeconds, static function () use ($statuses): Collection {
+        $versionedCacheKey = $cacheKey . self::CACHE_ARRAY_PAYLOAD_VERSION;
+        $counts = Cache::remember($versionedCacheKey, $ttlSeconds, static function () use ($statuses): array {
             return self::query()
                 ->whereIn('status', $statuses)
                 ->whereNotNull('task_type')
@@ -264,8 +281,11 @@ class GlobalTask extends Model
                 ->selectRaw('task_type, count(*) as total')
                 ->orderBy('task_type')
                 ->pluck('total', 'task_type')
-                ->map(static fn ($total): int => (int) $total);
+                ->map(static fn ($total): int => (int) $total)
+                ->all();
         });
+
+        return collect($counts);
     }
 
     public static function statusCountsForTaskType(string $taskType): Collection
@@ -279,10 +299,10 @@ class GlobalTask extends Model
 
     /**
      * Whether a worker advertising $workerCapabilities is eligible to claim this
-     * task on the shared fast lane. A NULL/empty task capability means ANY worker
-     * may claim it (back-compat); otherwise the worker must advertise the tag.
-     * Matching is done in PHP (after the lockForUpdate pull) so it behaves
-     * identically on pgsql and sqlite — no JSON_CONTAINS in the WHERE clause.
+     * task on the shared fast lane. A NULL/empty task capability is unrestricted;
+     * otherwise the worker must advertise the tag.
+     * Matching is done in PHP after the lockForUpdate pull, avoiding a JSON
+     * predicate in the locked PostgreSQL query.
      *
      * @param array<int,string> $workerCapabilities
      */
@@ -297,7 +317,8 @@ class GlobalTask extends Model
     /**
      * Scope: tasks on the shared fast lane (the remote_fast execution_type).
      */
-    public function scopeFastLane($query)
+    #[Scope]
+    protected function fastLane(Builder $query): Builder
     {
         return $query->where('execution_type', self::executionType('remote_fast'));
     }
@@ -305,7 +326,8 @@ class GlobalTask extends Model
     /**
      * Scope: tasks linked to a specific canonical dictionary row (Phase 5).
      */
-    public function scopeByDictRow($query, string $language, int $rowId)
+    #[Scope]
+    protected function byDictRow(Builder $query, string $language, int $rowId): Builder
     {
         return $query->where('dict_language', $language)->where('dict_row_id', $rowId);
     }
@@ -458,7 +480,8 @@ class GlobalTask extends Model
     /**
      * Scope: Get pending tasks
      */
-    public function scopePending($query)
+    #[Scope]
+    protected function pending(Builder $query): Builder
     {
         return $query->where('status', self::status('pending'));
     }
@@ -466,7 +489,8 @@ class GlobalTask extends Model
     /**
      * Scope: Get assigned tasks
      */
-    public function scopeAssigned($query)
+    #[Scope]
+    protected function assigned(Builder $query): Builder
     {
         return $query->where('status', self::status('assigned'));
     }
@@ -479,7 +503,8 @@ class GlobalTask extends Model
      * must have its task reclaimed either way. Matching only `assigned` let
      * `processing` tasks leak forever once their worker disappeared.
      */
-    public function scopeTimedOut($query)
+    #[Scope]
+    protected function timedOut(Builder $query): Builder
     {
         return $query->whereIn('status', [self::status('assigned'), self::status('processing')])
             ->where(function ($q) {

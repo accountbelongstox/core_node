@@ -10,16 +10,16 @@ use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Driver-aware (pgsql / sqlite / mysql) database management for the dashboard:
+ * PostgreSQL database management for the dashboard:
  * connection enumeration, status, table listing + browse, export/import, and
- * backup/restore. All credentials come from config (which reads CoreNodeSecrets),
+ * backup/restore. All credentials come from config (which reads RuntimeConfigurationStore),
  * never hardcoded; all backup artifacts live under PathMapper::getBackupDir().
  *
  * Security: connection names and table names are always validated against a live
  * whitelist (the configured poly connections and that connection's actual table
  * listing) before use, and shell tools are invoked via the Process facade with
- * array args (no shell string) and the password passed through the ENVIRONMENT
- * (PGPASSWORD / MYSQL_PWD) -- never on argv.
+ * array args (no shell string) and the password passed through PGPASSWORD --
+ * never on argv.
  */
 class DatabaseManagerService
 {
@@ -98,19 +98,13 @@ class DatabaseManagerService
 
     private static function descriptor(string $key, string $name, string $conn, string $prefix, bool $isMain): array
     {
-        $driver = 'unknown';
-        try {
-            $driver = DB::connection($conn)->getDriverName();
-        } catch (\Throwable $e) {
-            // leave as unknown
-        }
         $database = config("database.connections.{$conn}.database");
 
         return [
             'key' => $key,
             'name' => $name,
             'connection' => $conn,
-            'driver' => $driver,
+            'driver' => 'pgsql',
             'database' => is_string($database) ? basename($database) : (string) $database,
             'is_main' => $isMain,
             'prefix' => $prefix,
@@ -119,20 +113,10 @@ class DatabaseManagerService
 
     /**
      * Validate a connection against the whitelist; returns its descriptor.
-     * Accepts either the descriptor key (what the dashboard sends, e.g. "main")
-     * or the Laravel connection name. Today the two coincide, but legacy
-     * callers may still send the old main-connection name "sqlite" (now a
-     * deprecated alias in config/database.php) — resolve() must keep working
-     * for both.
+     * Accepts either the descriptor key or the Laravel connection name.
      */
     public static function resolve(string $connection): array
     {
-        // Legacy alias: 'sqlite' was the historical main-connection name and
-        // still exists in config/database.php as a deprecated alias of the
-        // default connection. Normalize it before the whitelist match.
-        if ($connection === 'sqlite') {
-            $connection = (string) config('database.default');
-        }
         foreach (self::connections() as $desc) {
             if ($desc['connection'] === $connection || $desc['key'] === $connection) {
                 return $desc;
@@ -165,7 +149,7 @@ class DatabaseManagerService
             $reachable = true;
             $version = (string) $db->getPdo()->getAttribute(\PDO::ATTR_SERVER_VERSION);
             $tableCount = count(Schema::connection($connection)->getTableListing());
-            $size = self::databaseSizeBytes($connection, $driver);
+            $size = self::databaseSizeBytes($connection);
         } catch (\Throwable $e) {
             // unreachable -> defaults
         }
@@ -182,24 +166,12 @@ class DatabaseManagerService
         ];
     }
 
-    /** Driver-specific database size (bytes); null when unavailable. */
-    private static function databaseSizeBytes(string $connection, string $driver): ?int
+    /** PostgreSQL database size in bytes; null when unavailable. */
+    private static function databaseSizeBytes(string $connection): ?int
     {
         try {
-            if ($driver === 'pgsql') {
-                $row = DB::connection($connection)->selectOne('SELECT pg_database_size(current_database()) AS size');
-                return $row ? (int) $row->size : null;
-            }
-            if ($driver === 'mysql' || $driver === 'mariadb') {
-                $row = DB::connection($connection)->selectOne(
-                    'SELECT SUM(data_length + index_length) AS size FROM information_schema.tables WHERE table_schema = DATABASE()'
-                );
-                return $row && $row->size !== null ? (int) $row->size : null;
-            }
-            if ($driver === 'sqlite') {
-                $path = (string) config("database.connections.{$connection}.database");
-                return is_file($path) ? (int) filesize($path) : null;
-            }
+            $row = DB::connection($connection)->selectOne('SELECT pg_database_size(current_database()) AS size');
+            return $row ? (int) $row->size : null;
         } catch (\Throwable $e) {
             // ignore
         }
@@ -216,21 +188,19 @@ class DatabaseManagerService
         $names = Schema::connection($connection)->getTableListing();
         sort($names);
 
-        // Best-effort per-table "last activity" timestamps (pgsql only): one
+        // Best-effort per-table "last activity" timestamps: one
         // cheap pg_stat_user_tables scan. Vacuum/analyze times trail writes,
         // so GREATEST of them is a usable write-recency proxy — PostgreSQL has
-        // no exact per-table modification timestamp. Null on other drivers or
-        // for never-touched tables; the dashboard uses it for sorting only.
+        // no exact per-table modification timestamp. Null for never-touched
+        // tables; the dashboard uses it for sorting only.
         $activity = [];
         try {
-            if (DB::connection($connection)->getDriverName() === 'pgsql') {
-                $statRows = DB::connection($connection)->select(
-                    'SELECT relname, GREATEST(last_vacuum, last_autovacuum, last_analyze, last_autoanalyze) AS activity_at'
-                    . ' FROM pg_stat_user_tables'
-                );
-                foreach ($statRows as $statRow) {
-                    $activity[$statRow->relname] = $statRow->activity_at;
-                }
+            $statRows = DB::connection($connection)->select(
+                'SELECT relname, GREATEST(last_vacuum, last_autovacuum, last_analyze, last_autoanalyze) AS activity_at'
+                . ' FROM pg_stat_user_tables'
+            );
+            foreach ($statRows as $statRow) {
+                $activity[$statRow->relname] = $statRow->activity_at;
             }
         } catch (\Throwable $e) {
             // stats unavailable -> all activity_at stay null
@@ -312,8 +282,7 @@ class DatabaseManagerService
     // -------------------------------------------------------------- export/import
 
     /**
-     * Export a whole table to CSV or JSON (string). Native + driver-agnostic
-     * (chunked query builder), so it works identically on pg/sqlite/mysql.
+     * Export a whole PostgreSQL table to CSV or JSON.
      * Returns [filename, mimeType, content].
      */
     public static function export(string $connection, string $table, string $format): array
@@ -401,10 +370,7 @@ class DatabaseManagerService
     // -------------------------------------------------------------- backup/restore
 
     /**
-     * Create a backup of an entire database. Driver-differentiated:
-     *  - pgsql : pg_dump custom format (.dump)  [Process + PGPASSWORD]
-     *  - sqlite: file copy of the .sqlite file
-     *  - mysql : mysqldump (.sql)               [Process + MYSQL_PWD]
+     * Create a PostgreSQL custom-format backup with pg_dump.
      * A sidecar {id}.meta.json manifest records the metadata.
      */
     public static function backup(string $connection): array
@@ -414,37 +380,14 @@ class DatabaseManagerService
         $dir = self::backupDir();
         $id = $connection . '_' . self::timestamp();
 
-        if ($driver === 'pgsql') {
-            $file = "{$dir}/{$id}.dump";
-            $cfg = self::pgParams($connection);
-            $res = Process::timeout(3600)->env(['PGPASSWORD' => $cfg['password']])->run([
-                'pg_dump', '-h', $cfg['host'], '-p', (string) $cfg['port'], '-U', $cfg['user'],
-                '-d', $cfg['database'], '-Fc', '-f', $file,
-            ]);
-            if (!$res->successful()) {
-                throw new \RuntimeException('pg_dump failed: ' . trim($res->errorOutput() ?: $res->output()));
-            }
-        } elseif ($driver === 'mysql' || $driver === 'mariadb') {
-            $file = "{$dir}/{$id}.sql";
-            $cfg = self::pgParams($connection); // same param shape
-            $res = Process::timeout(3600)->env(['MYSQL_PWD' => $cfg['password']])->run([
-                'mysqldump', '-h', $cfg['host'], '-P', (string) $cfg['port'], '-u', $cfg['user'],
-                '--result-file=' . $file, $cfg['database'],
-            ]);
-            if (!$res->successful()) {
-                throw new \RuntimeException('mysqldump failed: ' . trim($res->errorOutput() ?: $res->output()));
-            }
-        } elseif ($driver === 'sqlite') {
-            $src = (string) config("database.connections.{$connection}.database");
-            if (!FileSystemManager::isFile($src)) {
-                throw new \RuntimeException("SQLite database file not found: {$src}");
-            }
-            $file = "{$dir}/{$id}.sqlite";
-            if (!FileSystemManager::copy($src, $file)) {
-                throw new \RuntimeException('Failed to copy SQLite database file.');
-            }
-        } else {
-            throw new \RuntimeException("Backup not supported for driver: {$driver}");
+        $file = "{$dir}/{$id}.dump";
+        $cfg = self::pgParams($connection);
+        $res = Process::timeout(3600)->env(['PGPASSWORD' => $cfg['password']])->run([
+            'pg_dump', '-h', $cfg['host'], '-p', (string) $cfg['port'], '-U', $cfg['user'],
+            '-d', $cfg['database'], '-Fc', '-f', $file,
+        ]);
+        if (!$res->successful()) {
+            throw new \RuntimeException('pg_dump failed: ' . trim($res->errorOutput() ?: $res->output()));
         }
 
         $meta = [
@@ -474,7 +417,7 @@ class DatabaseManagerService
             }
             $metaFile = $dir . DIRECTORY_SEPARATOR . $entry;
             $meta = json_decode((string) FileSystemManager::readFile($metaFile), true);
-            if (!is_array($meta)) {
+            if (!is_array($meta) || ($meta['driver'] ?? null) !== 'pgsql') {
                 continue;
             }
             if ($connection !== null && ($meta['connection'] ?? null) !== $connection) {
@@ -489,48 +432,27 @@ class DatabaseManagerService
     }
 
     /**
-     * Restore a previously created backup over its source database. Driver-aware,
-     * inverse of backup(). Destructive by nature (overwrites the live database).
+     * Restore a PostgreSQL backup over its source database.
      */
     public static function restore(string $id): array
     {
         $meta = self::requireBackup($id);
         $connection = $meta['connection'];
-        $driver = $meta['driver'];
         $dir = self::backupDir();
         $file = "{$dir}/" . $meta['file'];
         if (!FileSystemManager::isFile($file)) {
             throw new \RuntimeException('Backup artifact missing on disk.');
         }
 
-        if ($driver === 'pgsql') {
-            $cfg = self::pgParams($connection);
-            $res = Process::timeout(3600)->env(['PGPASSWORD' => $cfg['password']])->run([
-                'pg_restore', '--clean', '--if-exists', '--no-owner', '-h', $cfg['host'],
-                '-p', (string) $cfg['port'], '-U', $cfg['user'], '-d', $cfg['database'], $file,
-            ]);
-            // pg_restore returns non-zero on benign warnings; treat real failure as
-            // empty restore + stderr containing "error".
-            if (!$res->successful() && stripos($res->errorOutput(), 'error:') !== false) {
-                throw new \RuntimeException('pg_restore failed: ' . trim($res->errorOutput()));
-            }
-        } elseif ($driver === 'mysql' || $driver === 'mariadb') {
-            $cfg = self::pgParams($connection);
-            $sql = (string) FileSystemManager::readFile($file);
-            $res = Process::timeout(3600)->env(['MYSQL_PWD' => $cfg['password']])->input($sql)->run([
-                'mysql', '-h', $cfg['host'], '-P', (string) $cfg['port'], '-u', $cfg['user'], $cfg['database'],
-            ]);
-            if (!$res->successful()) {
-                throw new \RuntimeException('mysql restore failed: ' . trim($res->errorOutput()));
-            }
-        } elseif ($driver === 'sqlite') {
-            $dest = (string) config("database.connections.{$connection}.database");
-            DB::connection($connection)->disconnect();
-            if (!FileSystemManager::copy($file, $dest)) {
-                throw new \RuntimeException('Failed to restore SQLite database file.');
-            }
-        } else {
-            throw new \RuntimeException("Restore not supported for driver: {$driver}");
+        $cfg = self::pgParams($connection);
+        $res = Process::timeout(3600)->env(['PGPASSWORD' => $cfg['password']])->run([
+            'pg_restore', '--clean', '--if-exists', '--no-owner', '-h', $cfg['host'],
+            '-p', (string) $cfg['port'], '-U', $cfg['user'], '-d', $cfg['database'], $file,
+        ]);
+        // pg_restore returns non-zero on benign warnings; treat real failure as
+        // empty restore + stderr containing "error".
+        if (!$res->successful() && stripos($res->errorOutput(), 'error:') !== false) {
+            throw new \RuntimeException('pg_restore failed: ' . trim($res->errorOutput()));
         }
 
         return ['success' => true, 'message' => "Restored {$connection} from backup {$id}"];
@@ -565,7 +487,10 @@ class DatabaseManagerService
             throw new \InvalidArgumentException("Unknown backup id: {$id}");
         }
         $meta = json_decode((string) FileSystemManager::readFile($metaPath), true);
-        if (!is_array($meta) || empty($meta['file']) || empty($meta['connection']) || empty($meta['driver'])) {
+        if (!is_array($meta)
+            || empty($meta['file'])
+            || empty($meta['connection'])
+            || ($meta['driver'] ?? null) !== 'pgsql') {
             throw new \RuntimeException('Corrupt backup manifest.');
         }
         // Guard against path traversal in the recorded file name.
@@ -580,7 +505,7 @@ class DatabaseManagerService
         return rtrim($dir, '/\\');
     }
 
-    /** pgsql/mysql connection params (password resolved from config = CoreNodeSecrets). */
+    /** PostgreSQL connection parameters resolved from runtime configuration. */
     private static function pgParams(string $connection): array
     {
         return [

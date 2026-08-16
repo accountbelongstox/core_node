@@ -158,16 +158,3 @@ if (!function_exists('mb_eregi_replace')) {
         return preg_replace($pcrePattern, $replacement, $string);
     }
 }
-
-// Debug logging
-if (function_exists('error_log') && (getenv('APP_DEBUG') === 'true' || getenv('APP_DEBUG') === '1')) {
-    error_log('========================================');
-    error_log('MbstringPolyfill loaded');
-    error_log('PHP Version: ' . PHP_VERSION);
-    error_log('mb_split available: ' . (function_exists('mb_split') ? 'YES' : 'NO'));
-    error_log('mb_ereg available: ' . (function_exists('mb_ereg') ? 'YES' : 'NO'));
-    error_log('mb_eregi available: ' . (function_exists('mb_eregi') ? 'YES' : 'NO'));
-    error_log('mb_ereg_replace available: ' . (function_exists('mb_ereg_replace') ? 'YES' : 'NO'));
-    error_log('mb_eregi_replace available: ' . (function_exists('mb_eregi_replace') ? 'YES' : 'NO'));
-    error_log('========================================');
-}

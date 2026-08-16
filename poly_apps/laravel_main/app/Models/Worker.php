@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\UsesMainConnection;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Model;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -32,15 +34,18 @@ class Worker extends Model
         'last_marker',
     ];
 
-    protected $casts = [
-        'processor_types' => 'array',
-        'metadata' => 'array',
-        'capabilities' => 'array',
-        'last_heartbeat_at' => 'datetime',
-        'mcp_chrome_last_attempt_at' => 'datetime',
-        'completed_tasks' => 'integer',
-        'failed_tasks' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'processor_types' => 'array',
+            'metadata' => 'array',
+            'capabilities' => 'array',
+            'last_heartbeat_at' => 'datetime',
+            'mcp_chrome_last_attempt_at' => 'datetime',
+            'completed_tasks' => 'integer',
+            'failed_tasks' => 'integer',
+        ];
+    }
 
     // Worker status constants
     const STATUS_ONLINE = 'online';
@@ -189,14 +194,7 @@ class Worker extends Model
 
     public static function initializationStats(): array
     {
-        $grouped = self::query()->groupBy('status')->selectRaw('status, count(*) as aggregate')->pluck('aggregate', 'status');
-
-        return [
-            'total' => (int) $grouped->sum(),
-            'online' => (int) ($grouped[self::STATUS_ONLINE] ?? 0),
-            'busy' => (int) ($grouped[self::STATUS_BUSY] ?? 0),
-            'offline' => (int) ($grouped[self::STATUS_OFFLINE] ?? 0),
-        ];
+        return self::statistics(now()->subSeconds(self::HEARTBEAT_TIMEOUT));
     }
 
     /**
@@ -296,17 +294,11 @@ class Worker extends Model
     /**
      * Scope: Get online workers
      */
-    public function scopeOnline($query)
+    #[Scope]
+    protected function online(Builder $query): Builder
     {
         return $query->whereIn('status', [self::STATUS_ONLINE, self::STATUS_BUSY])
             ->where('last_heartbeat_at', '>=', now()->subSeconds(self::HEARTBEAT_TIMEOUT));
     }
 
-    /**
-     * Scope: Get workers that can process a specific execution type
-     */
-    public function scopeCanProcess($query, string $executionType)
-    {
-        return $query->whereJsonContains('processor_types', $executionType);
-    }
 }

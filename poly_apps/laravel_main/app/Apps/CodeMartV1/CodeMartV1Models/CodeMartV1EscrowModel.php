@@ -2,12 +2,10 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1EscrowModel extends Model
+class CodeMartV1EscrowModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_escrows';
 
     protected $fillable = [

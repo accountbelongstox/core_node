@@ -8,13 +8,23 @@
 // VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
+use App\Providers\PathMapper;
+
+$externalDataRoot = PathMapper::mapWebPath('app_external_data');
+$databaseRoot = PathMapper::mapWebPath('app_external_data', 'databases');
+$audioRoot = PathMapper::getLaravelStaticDir('app_qy_v1/audio');
+$imageRoot = PathMapper::getLaravelStaticDir('app_qy_v1');
+$cacheRoot = PathMapper::getLaravelCacheDir('app_qy_v1');
+$tempRoot = PathMapper::getLaravelTmpDir('app_qy_v1');
+$markersRoot = PathMapper::getLaravelDataDir('markers/app_qy_v1');
+
 return [
     /*
     |--------------------------------------------------------------------------
-    | DictV1 Application Configuration
+    | AppQyV1 Application Configuration
     |--------------------------------------------------------------------------
     |
-    | This file contains configuration options for the DictV1 dictionary
+    | This file contains configuration options for the AppQyV1 dictionary
     | application including paths, storage settings, and external dependencies.
     |
     */
@@ -24,36 +34,30 @@ return [
     | Storage Paths Configuration
     |--------------------------------------------------------------------------
     |
-    | These paths define where DictV1 stores its external data including
+    | These paths define where AppQyV1 stores its external data including
     | databases, audio files, images, and cache directories.
     |
     */
     'paths' => [
-        // External data root directory
-        'external_data_root' => env('DICT_EXTERNAL_DATA_PATH', storage_path('app/external_data')),
+        'external_data_root' => $externalDataRoot,
 
-        // Database paths
-        'main_database' => env('DICT_MAIN_DATABASE_PATH', database_path('dictv1_main.sqlite')),
-        'legacy_database' => env('DICT_LEGACY_DATABASE_PATH', storage_path('app/external_data/databases/legacy_data.db')),
-        'cache_database' => env('DICT_CACHE_DATABASE_PATH', storage_path('app/external_data/databases/cache_translate.db')),
+        'main_database' => $databaseRoot.'/dictv1_main.sqlite',
+        'legacy_database' => $databaseRoot.'/legacy_data.db',
+        'cache_database' => $databaseRoot.'/cache_translate.db',
 
-        // Audio storage paths
-        'audio_directory' => env('DICT_AUDIO_PATH', storage_path('app/external_data/audio/word_sounds')),
-        'audio_subtitles' => env('DICT_AUDIO_SUBTITLES_PATH', storage_path('app/external_data/audio/word_subtitles')),
-        'sentence_sounds' => env('DICT_SENTENCE_SOUNDS_PATH', storage_path('app/external_data/audio/sentence_sounds')),
-        'sentence_subtitles' => env('DICT_SENTENCE_SUBTITLES_PATH', storage_path('app/external_data/audio/sentence_subtitles')),
-        'audio_archive' => env('DICT_AUDIO_ARCHIVE_PATH', storage_path('app/external_data/cache/audio_archive.7z')),
+        'audio_directory' => $audioRoot.'/word_sounds',
+        'audio_subtitles' => $audioRoot.'/word_subtitles',
+        'sentence_sounds' => $audioRoot.'/sentence_sounds',
+        'sentence_subtitles' => $audioRoot.'/sentence_subtitles',
+        'audio_archive' => $cacheRoot.'/audio_archive.7z',
 
-        // Image storage paths
-        'images_directory' => env('DICT_IMAGES_PATH', storage_path('app/external_data/images/word_images')),
-        'images_archive' => env('DICT_IMAGES_ARCHIVE_PATH', storage_path('app/external_data/cache/images_archive.7z')),
+        'images_directory' => $imageRoot.'/word_images',
+        'images_archive' => $cacheRoot.'/images_archive.7z',
 
-        // Cache and temporary paths
-        'cache_directory' => env('DICT_CACHE_PATH', storage_path('app/external_data/cache')),
-        'temp_directory' => env('DICT_TEMP_PATH', storage_path('app/external_data/cache/temp')),
+        'cache_directory' => $cacheRoot,
+        'temp_directory' => $tempRoot,
 
-        // Markers and status files
-        'markers_directory' => env('DICT_MARKERS_PATH', storage_path('app/external_data/markers')),
+        'markers_directory' => $markersRoot,
     ],
 
     /*
@@ -65,10 +69,10 @@ return [
     |
     */
     'urls' => [
-        'audio_url_prefix' => env('DICT_AUDIO_URL_PREFIX', '/storage/external/audio'),
-        'images_url_prefix' => env('DICT_IMAGES_URL_PREFIX', '/storage/external/images'),
-        'cdn_audio_prefix' => env('DICT_CDN_AUDIO_PREFIX', null),
-        'cdn_images_prefix' => env('DICT_CDN_IMAGES_PREFIX', null),
+        'audio_url_prefix' => '/static/app_qy_v1/audio',
+        'images_url_prefix' => '/static/app_qy_v1/word_images',
+        'cdn_audio_prefix' => null,
+        'cdn_images_prefix' => null,
     ],
 
     /*
@@ -83,25 +87,21 @@ return [
     | still completes even when every direct LLM key is unavailable.
     |
     | Allowed values: openrouter, gemini, deepseek, google.
-    | Override via APPQYV1_AI_FALLBACK_CHAIN (comma-separated).
     |
     */
     'ai' => [
-        'fallback_chain' => array_values(array_filter(array_map('trim', explode(
-            ',',
-            env('APPQYV1_AI_FALLBACK_CHAIN', 'openrouter,gemini,deepseek,google')
-        )))),
+        'fallback_chain' => ['openrouter', 'gemini', 'deepseek', 'google'],
 
         // Per-provider model override (null = each client's own default).
         'models' => [
-            'openrouter' => env('APPQYV1_AI_MODEL_OPENROUTER', null),
-            'gemini' => env('APPQYV1_AI_MODEL_GEMINI', null),
-            'deepseek' => env('APPQYV1_AI_MODEL_DEEPSEEK', null),
+            'openrouter' => null,
+            'gemini' => null,
+            'deepseek' => null,
         ],
 
         // Status-endpoint cache TTL (seconds). Octane-friendly; keeps repeated
         // probes cheap. Matches pycore's ai_probe cache window.
-        'status_cache_ttl' => (int) env('APPQYV1_AI_STATUS_CACHE_TTL', 30),
+        'status_cache_ttl' => 30,
     ],
 
     /*
@@ -109,13 +109,13 @@ return [
     | External Dependencies
     |--------------------------------------------------------------------------
     |
-    | Configuration for external tools and dependencies required by DictV1.
+    | Configuration for external tools and dependencies required by AppQyV1.
     |
     */
     'dependencies' => [
         'python' => [
-            'command' => env('DICT_PYTHON_COMMAND', 'python3'),
-            'required_version' => env('DICT_PYTHON_MIN_VERSION', '3.7'),
+            'command' => 'python3',
+            'required_version' => '3.7',
         ],
 
         'edge_tts' => [
@@ -126,7 +126,7 @@ return [
 
         'edge_browser' => [
             'detection_command' => 'which microsoft-edge || which microsoft-edge-stable',
-            'install_script' => env('DICT_EDGE_INSTALL_SCRIPT', 'dd.sh'),
+            'install_script' => 'dd.sh',
         ],
     ],
 
@@ -139,19 +139,13 @@ return [
     |
     */
     'auth' => [
-        'debug_tokens' => [
-            'dev-token-123',
-            'test-debug-token',
-        ],
+        'debug_tokens' => [],
 
-        'resource_access_keys' => [
-            'resource-key-001',
-            'static-access-key',
-        ],
+        'resource_access_keys' => [],
 
         'modes' => [
             'debug' => [
-                'enabled' => env('APP_DEBUG', false),
+                'enabled' => false,
                 'header' => 'Auth-Debug-Token',
                 'description' => 'Development mode resource access',
             ],
@@ -172,14 +166,14 @@ return [
     |
     */
     'processing' => [
-        'batch_size' => env('DICT_PROCESSING_BATCH_SIZE', 1000),
-        'max_memory_usage' => env('DICT_MAX_MEMORY_MB', 512),
-        'max_cpu_usage' => env('DICT_MAX_CPU_PERCENT', 80),
+        'batch_size' => 1000,
+        'max_memory_usage' => 512,
+        'max_cpu_usage' => 80,
 
         'scheduled_tasks' => [
-            'audio_generation_enabled' => env('DICT_AUTO_AUDIO_GENERATION', true),
-            'schedule_time_start' => env('DICT_SCHEDULE_START', '02:00'),
-            'schedule_time_end' => env('DICT_SCHEDULE_END', '06:00'),
+            'audio_generation_enabled' => true,
+            'schedule_time_start' => '02:00',
+            'schedule_time_end' => '06:00',
         ],
     ],
 
@@ -206,8 +200,8 @@ return [
     |
     */
     'statistics' => [
-        'enabled' => env('DICT_STATISTICS_ENABLED', true),
-        'cache_duration' => env('DICT_STATS_CACHE_MINUTES', 60),
-        'detailed_logging' => env('DICT_DETAILED_STATS', false),
+        'enabled' => true,
+        'cache_duration' => 60,
+        'detailed_logging' => false,
     ],
 ];

@@ -409,7 +409,7 @@ store_chrome_info() {
 
 # Function to kill hanging Chrome processes.
 # CRITICAL: never match by full command line. This script's own path contains
-# "chrome" (37_install_chrome.sh), so `pkill -f chrome` would kill the running
+# "chrome" (36_install_chrome.sh), so `pkill -f chrome` would kill the running
 # script and its parent shell (SIGTERM -> exit 143). Match the browser executable
 # NAME only (pgrep without -f), and always exclude our own process tree.
 kill_chrome_processes() {

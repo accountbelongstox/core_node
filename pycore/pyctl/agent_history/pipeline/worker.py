@@ -21,6 +21,7 @@ from pycore.pyctl.agent_history.pipeline.article_stages import (
     translate_to_english,
 )
 from pycore.pyctl.agent_history.pipeline.audio_stage import synthesize_audio
+from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.pipeline.laravel_stage import upload_to_laravel
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
 import pycore.pyutils.agent_history.article_records as records
@@ -99,6 +100,14 @@ def tick_pipeline() -> None:
         # article must eventually reach Laravel even if the first upload
         # failed (network reset, endpoint down) — never regenerated.
         _retry_pending_upload()
+
+        # Legacy-audio rebuild lane (piggyback): audio stamped below the live
+        # sentence-concat version is regenerated and replaced on Laravel
+        # OLD-FIRST — a rebuild tick never starts new work, so the backlog
+        # drains completely before new articles. A piggyback query of 0
+        # candidates skips the lane entirely.
+        if audio_rebuild.piggyback_rebuild_tick() > 0:
+            return
 
         active_ops = [
             op for op in op_service.repo.list_nonterminal_operations(limit=10)
@@ -314,6 +323,18 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
     if item.stage == "synthesizing_audio":
         op_service.transition_item(item.id, "running", "synthesizing_audio", 0.5, message="Synthesizing audio")
         checkpoint["audio"] = synthesize_audio(checkpoint["article_en"]["article_en"])
+        audio_source = checkpoint["audio"]
+        event_service.log_event(
+            item.operation_id,
+            "info",
+            "item.audio_synthesized",
+            "Audio source: engine="
+            + str(audio_source.get("engine") or "unknown")
+            + " model=" + str(audio_source.get("model") or "-")
+            + " multi_sentence=" + str(bool(audio_source.get("chunked")))
+            + " bytes=" + str(int(audio_source.get("bytes") or 0)),
+            item.id,
+        )
         op_service.transition_item(item.id, "running", "saving_local_result", 0.7, checkpoint_json=checkpoint)
         
     # Stage 4: saving_local_result
@@ -335,6 +356,9 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
             "word_count": count_words(article_en_data.get("article_en", "")),
             "openrouter_model": article_cn_data.get("used_model"),
             "translation_engine": checkpoint.get("translation_engine"),
+            "tts_engine": audio_data.get("engine"),
+            "tts_model": audio_data.get("model"),
+            "tts_chunked": bool(audio_data.get("chunked")),
         }, audio_bytes)
         
         checkpoint["record_id"] = record["id"]

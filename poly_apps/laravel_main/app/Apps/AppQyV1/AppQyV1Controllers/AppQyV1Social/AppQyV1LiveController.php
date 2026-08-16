@@ -15,7 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AvatarService;
 use App\Traits\ApiResponse;
@@ -31,7 +31,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
  * live.chat.new -> current viewers + host (best-effort). users (default conn)
  * merged in PHP; never cross-joined with app_qy_v1_*.
  */
-class AppQyV1LiveController extends BaseController
+class AppQyV1LiveController extends Controller
 {
     use ApiResponse;
 

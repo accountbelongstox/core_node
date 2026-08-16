@@ -13,11 +13,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,19 +21,12 @@ use Illuminate\Support\Collection;
  * image_url is a root-relative '/static/app_qy_v1/post_images/{post_id}/{seq}.jpg'.
  * created_at only (no updated_at).
  */
-class AppQyV1PostImageModel extends Model
+class AppQyV1PostImageModel extends AppQyV1Model
 {
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('POST_IMAGES');
-    }
+    protected ?string $appTableMapKey = 'POST_IMAGES';
 
     protected $fillable = [
         'post_id',
@@ -47,11 +36,14 @@ class AppQyV1PostImageModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'post_id' => 'integer',
-        'sequence' => 'integer',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'post_id' => 'integer',
+            'sequence' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function post(): BelongsTo
     {

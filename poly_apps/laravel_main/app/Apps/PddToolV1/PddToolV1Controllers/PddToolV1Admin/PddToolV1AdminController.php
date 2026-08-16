@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Admin;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -26,13 +26,13 @@ use App\Apps\PddToolV1\PddToolV1Services\PddToolV1Presenter;
 use App\Apps\PddToolV1\PddToolV1Services\PddToolV1MembershipService;
 use App\Apps\PddToolV1\PddToolV1Services\PddToolV1PaymentService;
 use App\Apps\PddToolV1\PddToolV1Constants\PddToolV1Defaults;
-use App\Support\CoreNodeSecrets;
+use App\Support\RuntimeConfigurationStore;
 
 /**
  * pdd-manager admin console backend (/api/pdd/admin/*). Behind 'dashboard.auth'.
  * Implements the PDD_ADMIN_PAYMENT_SPEC admin API.
  */
-class PddToolV1AdminController extends BaseController
+class PddToolV1AdminController extends Controller
 {
     /**
      * Wrap a success payload in the standard dashboard envelope {success,data}
@@ -314,7 +314,7 @@ class PddToolV1AdminController extends BaseController
      * POST /payment-settings -> PAYMENT_SETTINGS_PUBLIC
      *
      * Persists enable toggles + non-secret identifiers. Secret values (private
-     * keys / api_v3_key) are NOT accepted here; they live in CoreNodeSecrets.
+     * keys / api_v3_key) are NOT accepted here; they live in RuntimeConfigurationStore.
      */
     public function savePaymentSettings(Request $request): JsonResponse
     {
@@ -341,13 +341,13 @@ class PddToolV1AdminController extends BaseController
 
         $settings->saveRecord();
 
-        // Persist secret credentials to CoreNodeSecrets (never the DB / .env). A blank
+        // Persist secret credentials to RuntimeConfigurationStore (never the DB / .env). A blank
         // value means "keep existing" — only write when a non-empty value was supplied.
         $putSecret = function (array $src, string $field, string $secretKey): void {
             if (array_key_exists($field, $src)) {
                 $val = trim((string) $src[$field]);
                 if ($val !== '') {
-                    CoreNodeSecrets::put($secretKey, $val);
+                    RuntimeConfigurationStore::put($secretKey, $val);
                 }
             }
         };
@@ -391,32 +391,7 @@ class PddToolV1AdminController extends BaseController
             $incoming = [];
         }
 
-        foreach ($incoming as $item) {
-            $item = (array) $item;
-            $code = (string) ($item['code'] ?? '');
-            if ($code === '') {
-                continue;
-            }
-            $package = PddToolV1PackageModel::findByCodeOrNew($code);
-            $package->code = $code;
-            $package->name = (string) ($item['name'] ?? $package->name ?? $code);
-            if (array_key_exists('price_month', $item)) {
-                $package->price_month = (float) $item['price_month'];
-            }
-            if (array_key_exists('price_year', $item)) {
-                $package->price_year = (float) $item['price_year'];
-            }
-            if (array_key_exists('max_orders', $item)) {
-                $package->max_orders = (int) $item['max_orders'];
-            }
-            if (array_key_exists('max_pdd_accounts', $item)) {
-                $package->max_pdd_accounts = (int) $item['max_pdd_accounts'];
-            }
-            if (array_key_exists('enabled', $item)) {
-                $package->enabled = filter_var($item['enabled'], FILTER_VALIDATE_BOOLEAN);
-            }
-            $package->saveRecord();
-        }
+        PddToolV1PackageModel::upsertPayloads($incoming);
 
         return $this->packages($request);
     }

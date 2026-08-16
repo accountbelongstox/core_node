@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
@@ -23,7 +25,7 @@ use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1GetGroupByNameRequest;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1GetGroupFrequencyRequest;
 use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupManagementController
+class AppQyV1WordGroupManagementController extends Controller
 {
     use ApiResponse;
 

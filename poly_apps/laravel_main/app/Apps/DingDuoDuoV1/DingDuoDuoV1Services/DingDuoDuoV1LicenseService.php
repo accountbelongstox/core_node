@@ -10,7 +10,6 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Services;
 
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1SuperCodeModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Enums\DingDuoDuoV1LicenseMode;
@@ -19,15 +18,16 @@ use Carbon\Carbon;
 /**
  * Resolves a presented token into a license payload the 订多多 extension consumes.
  *
- * Resolution order: a DB super code (or an offline-valid one) -> a member token
- * -> locked. The returned array ALWAYS carries these keys: mode, tier,
- * features (array), max_binds (int), expires_at (unix seconds or null),
- * label, token.
+ * Resolution order: a DB super code (or an offline-valid one) -> a Sanctum
+ * member token (validated via DingDuoDuoV1MemberService) -> locked. The
+ * returned array ALWAYS carries these keys: mode, tier, features (array),
+ * max_binds (int), expires_at (unix seconds or null), label, token,
+ * member_id (int or null).
  */
 class DingDuoDuoV1LicenseService
 {
     /**
-     * @return array{mode:string,tier:string,features:array,max_binds:int,expires_at:int|null,label:string|null,token:string}
+     * @return array{mode:string,tier:string,features:array,max_binds:int,expires_at:int|null,label:string|null,token:string,member_id:int|null}
      */
     public static function resolveByToken(?string $token, ?string $deviceId = null): array
     {
@@ -49,6 +49,7 @@ class DingDuoDuoV1LicenseService
                 'expires_at' => self::toUnix($superCode->expires_at),
                 'label' => $superCode->label ?: 'Super Code',
                 'token' => $token,
+                'member_id' => null,
             ];
         }
 
@@ -63,11 +64,13 @@ class DingDuoDuoV1LicenseService
                 'expires_at' => null,
                 'label' => 'Super Code',
                 'token' => $token,
+                'member_id' => null,
             ];
         }
 
-        // 3) Member token (active + not expired).
-        $member = DingDuoDuoV1MemberModel::activeByToken($token);
+        // 3) Member token: a Sanctum personal access token whose owning global
+        //    user has an active, unexpired member extension row.
+        $member = DingDuoDuoV1MemberService::activeMemberForToken($token);
 
         if ($member && !self::isExpired($member->expires_at)) {
             $features = is_array($member->permissions) ? array_values($member->permissions) : [];
@@ -79,6 +82,7 @@ class DingDuoDuoV1LicenseService
                 'expires_at' => self::toUnix($member->expires_at),
                 'label' => $member->remark ?: $member->username,
                 'token' => $token,
+                'member_id' => (int) $member->id,
             ];
         }
 
@@ -89,7 +93,7 @@ class DingDuoDuoV1LicenseService
     /**
      * The locked / no-entitlement payload.
      *
-     * @return array{mode:string,tier:string,features:array,max_binds:int,expires_at:null,label:null,token:string}
+     * @return array{mode:string,tier:string,features:array,max_binds:int,expires_at:null,label:null,token:string,member_id:null}
      */
     private static function lockedPayload(string $token): array
     {
@@ -101,6 +105,7 @@ class DingDuoDuoV1LicenseService
             'expires_at' => null,
             'label' => null,
             'token' => $token,
+            'member_id' => null,
         ];
     }
 

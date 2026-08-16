@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use Illuminate\Console\Command;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\AppInitializationManager;
 use App\Apps\AppQyV1\Services\AppQyV1UserInitializationTableService;
 use App\Apps\AppQyV1\Services\AppQyV1BookReadingProgressTableService;
@@ -13,6 +13,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 use App\Services\OctaneTaskStatusService;
 use App\Services\SystemDependencyInitializer;
 use App\Services\AI\UnifiedAIRouter;
+use App\Utils\FileSystemManager;
 
 class InitializeApps extends Command
 {
@@ -20,15 +21,11 @@ class InitializeApps extends Command
 
     protected $description = 'Initialize system databases and resources';
 
-    public function handle()
+    public function handle(): int
     {
         $dependencyInitializer = new SystemDependencyInitializer($this);
 
         $this->info('Initializing system...');
-        $this->newLine();
-
-        $this->info('Checking Octane/Swoole compatibility...');
-        $dependencyInitializer->fixOctaneSwooleCompatibility();
         $this->newLine();
 
         $this->info('Checking Octane hot-reload dependencies...');
@@ -49,16 +46,21 @@ class InitializeApps extends Command
         ];
 
         foreach ($directories as $name => $path) {
-            if (!file_exists($path)) {
-                mkdir($path, 0755, true);
-                $this->line("  ✅ Created {$name}: {$path}");
-            } else {
+            if (FileSystemManager::exists($path)) {
                 $this->line("  ✓ Exists {$name}: {$path}");
+                continue;
             }
+
+            if (!FileSystemManager::ensureDirectoryExists($path)) {
+                $this->error("  ❌ Failed to create {$name}: {$path}");
+                return Command::FAILURE;
+            }
+
+            $this->line("  ✅ Created {$name}: {$path}");
         }
         $this->newLine();
 
-        $this->info('Running migrations (safe mode - only new tables)...');
+        $this->info('Running migrations (safe mode - no table drops or rebuilds)...');
         if (!$this->runSafeMigrations()) {
             $this->error('System initialization stopped because migrations failed.');
             return Command::FAILURE;
@@ -84,11 +86,15 @@ class InitializeApps extends Command
 
         if (isset($inviteCodeResults['error'])) {
             $this->error("  ❌ Error: {$inviteCodeResults['error']}");
+            return Command::FAILURE;
         }
 
         $inviteStats = \App\Services\InviteCodeInitializer::getTableStats();
         if (!isset($inviteStats['error'])) {
             $this->line("  <fg=gray>Stats: {$inviteStats['invite_codes']['total']} codes ({$inviteStats['invite_codes']['active']} active), {$inviteStats['invite_code_usage']['total']} usages</>");
+        } else {
+            $this->error("  ❌ Invite code statistics failed: {$inviteStats['error']}");
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -99,55 +105,14 @@ class InitializeApps extends Command
         foreach ($results as $dbName => $status) {
             $icon = (in_array($status, ['created', 'exists']) || str_contains($status, 'canonical identity')) ? '✅' : '❌';
             $this->line("{$icon} {$dbName}: {$status}");
+        }
 
-            if ($this->getOutput()->isVerbose()) {
-                $connection = $dbName === 'Main' ? (string) config('database.default') : strtolower($dbName);
-
-                try {
-                    if (config("database.connections.{$connection}")) {
-                        // $connection is a connection NAME (string); resolve to a
-                        // real connection. Driver-aware table listing (sqlite_master
-                        // on sqlite, pg_tables on pgsql) via the shared helper.
-                        $conn = \Illuminate\Support\Facades\DB::connection($connection);
-                        $tables = \App\Services\UserSyncService::listTablesLike($conn, '%');
-
-                        if (!empty($tables)) {
-                            foreach ($tables as $table) {
-                                $tableName = $table->name;
-                                if (str_starts_with($tableName, 'sqlite_')) {
-                                    continue;
-                                }
-                                $count = $conn->table($tableName)->count();
-                                $structure = \App\Services\UserSyncService::getTableStructure($connection, $tableName);
-                                $indexes = \App\Services\UserSyncService::getTableIndexes($connection, $tableName);
-
-                                $colNames = !empty($structure) ? implode(', ', array_column($structure, 'name')) : '';
-                                $idxNames = !empty($indexes) ? implode(', ', array_column($indexes, 'name')) : '';
-
-                                $output = "   • <fg=cyan;options=bold>{$tableName}</>";
-                                if ($colNames) {
-                                    $output .= " | Cols: {$colNames}";
-                                }
-                                if ($idxNames) {
-                                    $output .= " | Idx: {$idxNames}";
-                                }
-                                $output .= " | {$count} rows";
-
-                                $this->line($output);
-                            }
-                        } else {
-                            $this->line("   <fg=gray>No tables</>");
-                        }
-                    }
-                } catch (\Exception $e) {
-                    $this->line("   <fg=red>Error: {$e->getMessage()}</>");
-                }
-
-                $this->newLine();
-            }
+        if (!$this->initializationStatusesSucceeded($results, ['created', 'exists'], true)) {
+            $this->error('Database initialization failed.');
+            return Command::FAILURE;
         }
         
-        $successCount = collect($results)->filter(fn($s) => in_array($s, ['created', 'exists']))->count();
+        $successCount = collect($results)->filter(fn($s) => in_array($s, ['created', 'exists']) || str_contains($s, 'canonical identity'))->count();
         $totalCount = count($results);
         $this->info("Successfully initialized {$successCount}/{$totalCount} databases.");
         $this->newLine();
@@ -166,13 +131,21 @@ class InitializeApps extends Command
         $createdCount = count(array_filter($dictResults, fn($s) => $s === 'created'));
         $existsCount = count(array_filter($dictResults, fn($s) => $s === 'exists'));
         $this->line("  ✅ Created: {$createdCount}, Exists: {$existsCount}, Total: " . count($dictResults));
+        if (!$this->initializationStatusesSucceeded($dictResults)) {
+            $this->error('TTS cache table initialization failed.');
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Creating voice subtitle user settings tables...');
-        $voiceSubtitleResults = \App\Services\UserSyncService::ensureVoiceSubtitleTablesExist();
+        $voiceSubtitleResults = \App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleV1TableService::ensureTablesExist();
         foreach ($voiceSubtitleResults as $table => $status) {
             $icon = $status === 'created' ? '✅' : ($status === 'exists' ? '✓' : '❌');
             $this->line("  {$icon} {$table}: {$status}");
+        }
+        if (!$this->initializationStatusesSucceeded($voiceSubtitleResults)) {
+            $this->error('Voice subtitle table initialization failed.');
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -182,28 +155,30 @@ class InitializeApps extends Command
         // durable state the queue still uniquely holds (completed article
         // audio, completed word audio, pending intent) fill-missing into the
         // canonical tables, reconciles has_audio/tts_files inconsistencies,
-        // then drops the table. Re-runs reconcile only.
-        $this->info('TTS coordination: decommissioning intermediate tts_queue (canonical tables are the source of truth)...');
+        // then retains the legacy table as an inert archive. Re-runs are fill-missing only.
+        $this->info('TTS coordination: synchronizing intermediate tts_queue into canonical tables...');
         try {
             $decom = \App\Services\AppQyV1TTSQueueDecommission::run();
             if ($decom['queue_table_present']) {
                 $this->line("  ✅ Salvaged: {$decom['words_salvaged']} word audio, {$decom['articles_salvaged']} article audio, {$decom['pending_migrated']} pending intents");
-                $this->line($decom['dropped'] ? '  ✅ tts_queue table dropped' : '  ⚠️  tts_queue table NOT dropped (check logs)');
+                $this->line('  ✓ tts_queue retained as an inert archive');
             } else {
-                $this->line('  ✓ tts_queue already decommissioned');
+                $this->line('  ✓ No legacy tts_queue table present');
             }
             if ($decom['flags_reconciled'] > 0) {
                 $this->line("  ✅ Reconciled {$decom['flags_reconciled']} has_audio/tts_files inconsistencies");
             }
         } catch (\Throwable $e) {
-            $this->warn('  ⚠️  TTS queue decommission failed (will retry next sys:init): ' . $e->getMessage());
+            $this->error('  ❌ TTS queue decommission failed: ' . $e->getMessage());
+            return Command::FAILURE;
         }
 
         try {
             $ttsStats = (new \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator())->statistics();
             $this->line("  <fg=gray>Stats: {$ttsStats['by_status']['pending']} pending, {$ttsStats['by_status']['processing']} processing, {$ttsStats['by_status']['completed']} completed, {$ttsStats['by_status']['failed']} failed</>");
         } catch (\Throwable $e) {
-            $this->line('  <fg=gray>Stats unavailable: ' . $e->getMessage() . '</>');
+            $this->error('  ❌ TTS statistics failed: ' . $e->getMessage());
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -213,10 +188,17 @@ class InitializeApps extends Command
         $articleExists = count(array_filter($articleLibResults, fn($s) => $s === 'exists'));
         $articleTotal = count($articleLibResults);
         $this->line("  ✅ Created: {$articleCreated}, Exists: {$articleExists}, Total: {$articleTotal}");
+        if (!$this->initializationStatusesSucceeded($articleLibResults)) {
+            $this->error('Article library table initialization failed.');
+            return Command::FAILURE;
+        }
 
         $articleStats = \App\Services\AppQyV1ArticleLibraryInitializer::getTableStats();
         if (!isset($articleStats['error'])) {
             $this->line("  <fg=gray>Articles: {$articleStats['total_articles']} total, {$articleStats['total_with_audio']} with audio, {$articleStats['total_without_audio']} without audio</>");
+        } else {
+            $this->error("  ❌ Article library statistics failed: {$articleStats['error']}");
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -228,13 +210,14 @@ class InitializeApps extends Command
         // is imported straight into the tts_cache_{lang} staging tables below.
 
         $this->info('Importing multilingual word data...');
-        $importResults = \App\Services\UserSyncService::importMultilingualWordsFromMd();
+        $importResults = \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryImportService::importMultilingualWordsFromMd();
         if (isset($importResults['skipped']) && $importResults['skipped']) {
             $this->line("  ⏭️  {$importResults['message']}");
         } elseif (!empty($importResults['errors'])) {
             foreach ($importResults['errors'] as $error) {
                 $this->line("  ❌ {$error}");
             }
+            return Command::FAILURE;
         } else {
             $this->line("  ✅ Imported {$importResults['imported']} words from {$importResults['total_files']} files");
         }
@@ -244,19 +227,12 @@ class InitializeApps extends Command
 
         $shouldRunDictInit = true;
 
-        // Fast pre-check. The skip decision MUST key on how many rows already carry
-        // a translation -- NOT on the raw row count. The vocabulary importer seeds
-        // ~200k bare words (has_translation=0) into the same tts_cache_en table, so
-        // a "rows > 0" gate would auto-skip Step 2 forever and translations would
-        // never load. Gate on translated rows instead: 0 translated => always run.
         try {
-            $dictModel = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
-            $dictConnection = $dictModel->getConnection();
-            $enDictTable = \App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps::getDictionaryTableName('en');
+            $dictionaryState = AppQyV1LangDictionaryModel::initializationLanguageState('en');
+            $existingCount = $dictionaryState['total'];
+            $translatedCount = $dictionaryState['translated'];
 
-            if (\Illuminate\Support\Facades\Schema::connection($dictConnection->getName())->hasTable($enDictTable)) {
-                $existingCount = $dictConnection->table($enDictTable)->count();
-                $translatedCount = $dictConnection->table($enDictTable)->where('has_translation', true)->count();
+            if ($dictionaryState['exists']) {
 
                 if ($translatedCount > 0) {
                     // Translations already present -> default to skip (idempotent).
@@ -306,12 +282,13 @@ class InitializeApps extends Command
                     }
                 }
             }
-        } catch (\Exception $e) {
-            $this->line("  <fg=yellow>Warning: dictionary pre-check failed: {$e->getMessage()}</>");
+        } catch (\Throwable $e) {
+            $this->error("  ❌ Dictionary pre-check failed: {$e->getMessage()}");
+            return Command::FAILURE;
         }
 
         $dictResults = $shouldRunDictInit
-            ? \App\Services\UserSyncService::initializeDictionaryStep2()
+            ? \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryImportService::initializeDictionaryStep2()
             : ['skipped' => true, 'message' => 'Dictionary Step 2 skipped by user / auto-skip'];
         
         if (isset($dictResults['step1_rename_7z'])) {
@@ -357,82 +334,14 @@ class InitializeApps extends Command
         
         if (isset($dictResults['error'])) {
             $this->error("  ❌ Dictionary initialization error: {$dictResults['error']}");
+            return Command::FAILURE;
         }
         
         $this->newLine();
         
         $this->info('AppQyV1 dictionary tables summary:');
-        try {
-            $appKey = AppKeys::APPQYV1;
-            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel();
-            $connection = $model->getConnection();
-            $prefix = AppTablePrefixServiceProvider::getPrefix($appKey);
-            // Canonical dictionary tables are {prefix}_tts_cache_{lang} (the legacy
-            // {prefix}_{lang}_dictionaries pattern matched nothing -> summary was
-            // always empty). Exclude the _staging Stage-1 tables.
-            $pattern = $prefix . '_tts_cache_%';
-            $allDictTables = \App\Services\UserSyncService::listTablesLike($connection, $pattern);
-
-            $tablesWithData = [];
-            $tablesEmpty = [];
-
-            foreach ($allDictTables as $tableObj) {
-                $tableName = $tableObj->name;
-                if (str_ends_with($tableName, '_staging')) {
-                    continue;
-                }
-                try {
-                    $count = $connection->table($tableName)->count();
-                    $langCode = str_replace($prefix . '_tts_cache_', '', $tableName);
-                    if ($count > 0) {
-                        // md5 is created UNIQUE on these formal tables, so
-                        // count(distinct md5) == count(*) is GUARANTEED by the
-                        // constraint. Verifying the UNIQUE INDEX exists (schema-only,
-                        // cheap) replaces a full distinct scan on EVERY re-run (e.g.
-                        // EN 233k rows). Only when the constraint is somehow missing
-                        // do we fall back to a real distinct count to quantify dupes.
-                        $uniqueOk = $this->hasUniqueSingleColumnIndex($connection, $tableName, 'md5');
-                        $distinctMd5 = $uniqueOk
-                            ? $count
-                            : (int) $connection->table($tableName)->distinct()->count('md5');
-                        $tablesWithData[] = [
-                            'name' => $tableName,
-                            'code' => $langCode,
-                            'count' => $count,
-                            'distinct_md5' => $distinctMd5,
-                            'unique_ok' => $uniqueOk,
-                        ];
-                    } else {
-                        $tablesEmpty[] = $tableName;
-                    }
-                } catch (\Exception $e) {
-                    continue;
-                }
-            }
-
-            if (!empty($tablesWithData)) {
-                $this->line("  <fg=green>Tables with data:</>");
-                foreach ($tablesWithData as $tableInfo) {
-                    $dup = $tableInfo['count'] - $tableInfo['distinct_md5'];
-                    if ($dup > 0) {
-                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries  <fg=red>⚠️ {$dup} DUPLICATE md5 -- UNIQUE constraint NOT enforced</>");
-                    } elseif (empty($tableInfo['unique_ok'])) {
-                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries  <fg=yellow>(no md5 UNIQUE index; 0 dupes now)</>");
-                    } else {
-                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries <fg=green>(md5 UNIQUE ✓)</>");
-                    }
-                }
-            }
-
-            $emptyCount = count($tablesEmpty);
-            if ($emptyCount > 0) {
-                $this->line("  <fg=gray>Empty tables: {$emptyCount} (ready for import)</>");
-            }
-
-            $totalDictTables = count($allDictTables);
-            $this->line("  <fg=cyan>Total dictionary tables: {$totalDictTables}</>");
-        } catch (\Exception $e) {
-            $this->line("  <fg=red>Error: {$e->getMessage()}</>");
+        if (!$this->displayDictionaryTableSummary()) {
+            return Command::FAILURE;
         }
 
         $this->newLine();
@@ -442,6 +351,10 @@ class InitializeApps extends Command
         foreach ($userInitResults as $table => $status) {
             $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
             $this->line("  {$icon} {$table}: {$status}");
+        }
+        if (!$this->initializationStatusesSucceeded($userInitResults)) {
+            $this->error('AppQyV1 user initialization table setup failed.');
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -456,6 +369,10 @@ class InitializeApps extends Command
             $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
             $this->line("  {$icon} {$table}: {$status}");
         }
+        if (!$this->initializationStatusesSucceeded($bookProgressResults)) {
+            $this->error('AppQyV1 book reading progress table setup failed.');
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Creating AppQyV1 client device settings tables...');
@@ -463,6 +380,10 @@ class InitializeApps extends Command
         foreach ($clientSettingsResults as $table => $status) {
             $icon = ($status === 'created' || $status === 'exists') ? '✅' : '❌';
             $this->line("  {$icon} {$table}: {$status}");
+        }
+        if (!$this->initializationStatusesSucceeded($clientSettingsResults)) {
+            $this->error('AppQyV1 client settings table setup failed.');
+            return Command::FAILURE;
         }
         $this->newLine();
 
@@ -504,10 +425,12 @@ class InitializeApps extends Command
         
         $this->info('Initializing Global Task System...');
         $globalTaskResults = \App\Services\GlobalTaskSystemInitializer::ensureTablesExist();
+        $globalTaskFailed = false;
 
         foreach ($globalTaskResults as $table => $status) {
             if (str_starts_with($status, 'error:')) {
                 $this->line("  ❌ {$table}: {$status}");
+                $globalTaskFailed = true;
             } elseif ($status === 'created') {
                 $this->line("  ✅ {$table}: table created");
             } elseif ($status === 'updated') {
@@ -516,9 +439,18 @@ class InitializeApps extends Command
                 $this->line("  ✓ {$table}: already configured");
             } elseif ($status === 'table_missing') {
                 $this->line("  ⚠️  {$table}: base table not found");
+                $globalTaskFailed = true;
+            } elseif (str_starts_with($status, 'skipped:')) {
+                $this->line("  ❌ {$table}: {$status}");
+                $globalTaskFailed = true;
             } else {
                 $this->line("  • {$table}: {$status}");
             }
+        }
+
+        if ($globalTaskFailed) {
+            $this->error('Global Task System initialization failed.');
+            return Command::FAILURE;
         }
 
         // Show statistics
@@ -530,6 +462,9 @@ class InitializeApps extends Command
             if (isset($taskStats['global_tasks'])) {
                 $stats = $taskStats['global_tasks'];
                 $this->line("    Tasks: {$stats['total']} total ({$stats['pending']} pending, {$stats['processing']} processing, {$stats['completed']} completed, {$stats['failed']} failed)");
+                if ($stats['other'] > 0) {
+                    $this->line("    Other task states: {$stats['other']}");
+                }
             }
 
             if (isset($taskStats['workers'])) {
@@ -537,17 +472,22 @@ class InitializeApps extends Command
                 $this->line("    Workers: {$stats['total']} total ({$stats['online']} online, {$stats['busy']} busy, {$stats['offline']} offline)");
             }
         } elseif (isset($taskStats['error'])) {
-            $this->line("  ⚠️  Could not fetch statistics: {$taskStats['error']}");
+            $this->error("  ❌ Could not fetch statistics: {$taskStats['error']}");
+            return Command::FAILURE;
         }
 
         $this->newLine();
 
         $this->info('Initializing media ingestion tables...');
-        $this->initializeMediaIngestTables();
+        if (!$this->initializeMediaIngestTables()) {
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Seeding punctuation markers (Books Sentence/Word Model v2)...');
-        $this->seedPunctuationMarkers();
+        if (!$this->seedPunctuationMarkers()) {
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Seeding TTS engine config + variant specs...');
@@ -557,12 +497,15 @@ class InitializeApps extends Command
             $this->line("  ✅ TTS engine config: {$engineSeed['seeded']} created, {$engineSeed['updated']} updated");
             $this->line("  ✅ TTS variant specs: {$variantSeed['seeded']} created, {$variantSeed['updated']} updated");
         } catch (\Throwable $e) {
-            $this->warn('  ⚠️  TTS config seeding failed (will retry next sys:init): ' . $e->getMessage());
+            $this->error('  ❌ TTS config seeding failed: ' . $e->getMessage());
+            return Command::FAILURE;
         }
         $this->newLine();
 
         $this->info('Migrating daily-sentences → article routes (idempotent)...');
-        $this->migrateDailySentencesToArticle();
+        if (!$this->migrateDailySentencesToArticle()) {
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Verifying AI providers...');
@@ -629,34 +572,75 @@ class InitializeApps extends Command
         if ($result['success']) {
             $this->info('✅ System initialized successfully!');
             return Command::SUCCESS;
-        } else {
-            $this->error('❌ System initialization failed');
-            return 1;
         }
+
+        $this->error('❌ System initialization failed');
+        return Command::FAILURE;
+    }
+
+    private function initializationStatusesSucceeded(
+        array $results,
+        array $successStatuses = ['created', 'exists'],
+        bool $allowCanonicalIdentity = false
+    ): bool {
+        foreach ($results as $status) {
+            $status = (string) $status;
+            if (in_array($status, $successStatuses, true)) {
+                continue;
+            }
+
+            if ($allowCanonicalIdentity && str_contains($status, 'canonical identity')) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
     
-    /**
-     * Cheap schema-only check: does $table have a single-column UNIQUE index on
-     * $column? Used to confirm md5 uniqueness without a full distinct scan on every
-     * sys:init re-run. Returns false (no fast-path) if introspection fails.
-     */
-    private function hasUniqueSingleColumnIndex($connection, string $table, string $column): bool
+    private function displayDictionaryTableSummary(): bool
     {
         try {
-            foreach ($connection->getSchemaBuilder()->getIndexes($table) as $idx) {
-                $cols = $idx['columns'] ?? [];
-                if (!empty($idx['unique']) && count($cols) === 1 && in_array($column, $cols, true)) {
-                    return true;
+            $summary = AppQyV1LangDictionaryModel::initializationTableSummary();
+
+            if (!empty($summary['tables_with_data'])) {
+                $this->line('  <fg=green>Tables with data:</>');
+                foreach ($summary['tables_with_data'] as $tableInfo) {
+                    $duplicates = $tableInfo['count'] - $tableInfo['distinct_md5'];
+                    if ($duplicates > 0) {
+                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries  <fg=red>⚠️ {$duplicates} duplicate md5 values</>");
+                    } elseif (!$tableInfo['unique_ok']) {
+                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries  <fg=yellow>(md5 unique index missing)</>");
+                    } else {
+                        $this->line("    • {$tableInfo['code']}: {$tableInfo['count']} entries <fg=green>(md5 unique ✓)</>");
+                    }
                 }
             }
-        } catch (\Throwable $e) {
-            // schema introspection unavailable -> treat as unknown
-        }
 
-        return false;
+            if ($summary['empty_count'] > 0) {
+                $this->line("  <fg=gray>Empty tables: {$summary['empty_count']} (ready for import)</>");
+            }
+
+            $this->line("  <fg=cyan>Total dictionary tables: {$summary['total_tables']}</>");
+
+            if (!empty($summary['errors'])) {
+                foreach ($summary['errors'] as $error) {
+                    $this->error("  ❌ {$error}");
+                }
+
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->error("  ❌ Dictionary summary failed: {$e->getMessage()}");
+
+            return false;
+        }
     }
 
-    private function displayAppResult(string $appName, array $result)
+    private function displayAppResult(string $appName, array $result): void
     {
         $this->line("<fg=cyan;options=bold>═══ {$appName} ═══</>");
         
@@ -708,8 +692,17 @@ class InitializeApps extends Command
     private function runSafeMigrations(): bool
     {
         $successful = false;
+        $safetyExitCode = Command::FAILURE;
 
         try {
+            $this->line("  <fg=cyan>Checking migrations for destructive table operations</>");
+            $safetyExitCode = $this->callSilently('migration:check-safety');
+            if ($safetyExitCode !== Command::SUCCESS) {
+                $this->call('migration:check-safety');
+                $this->error('  ❌ Migration safety check failed; no migrations were executed');
+                return false;
+            }
+
             $this->line("  <fg=cyan>Running database migrations (idempotent mode - preserves data)</>");
             $this->line("  <fg=yellow>Command: php artisan migrate --force</>");
             $exitCode = $this->call('migrate', ['--force' => true]);
@@ -733,16 +726,17 @@ class InitializeApps extends Command
      * Creates / aligns app_qy_v1_subtitles, app_qy_v1_books, app_qy_v1_source_sentences,
      * app_qy_v1_media_segments and the per-language app_qy_v1_sentences_{lang} /
      * app_qy_v1_chapters_{lang} tables via SafeMigrationHelper so re-running sys:init
-     * only ADDS missing columns/indexes and never drops data. (Books v3.1: the shared
-     * sentences/chapters tables are removed.)
+     * adjusts columns/indexes in place and never drops or rebuilds tables.
      */
-    private function initializeMediaIngestTables()
+    private function initializeMediaIngestTables(): bool
     {
         $mediaResults = \App\Services\MediaIngestTablesInitializer::ensureTablesExist();
+        $successful = true;
 
         foreach ($mediaResults as $table => $status) {
             if (str_starts_with($status, 'error:')) {
                 $this->line("  ❌ {$table}: {$status}");
+                $successful = false;
             } elseif ($status === 'created') {
                 $this->line("  ✅ {$table}: table created");
             } elseif ($status === 'updated') {
@@ -756,8 +750,11 @@ class InitializeApps extends Command
         if (!isset($mediaStats['error'])) {
             $this->line("  <fg=gray>Stats: {$mediaStats['sentences']} sentences, {$mediaStats['chapters']} chapters, {$mediaStats['subtitles']} subtitles, {$mediaStats['books']} books, {$mediaStats['source_sentences']} source_sentences, {$mediaStats['segments']} segments</>");
         } else {
-            $this->line("  ⚠️  Could not fetch media stats: {$mediaStats['error']}");
+            $this->error("  ❌ Could not fetch media stats: {$mediaStats['error']}");
+            $successful = false;
         }
+
+        return $successful;
     }
 
     /**
@@ -767,13 +764,17 @@ class InitializeApps extends Command
      * app_qy_v1_punctuation_markers, upserting by `code` (never clobbers). Safe
      * to re-run; ensures the table exists first.
      */
-    private function seedPunctuationMarkers()
+    private function seedPunctuationMarkers(): bool
     {
         try {
             $result = \App\Services\PunctuationMarkerSeeder::seed();
             $this->line("  ✅ {$result['table']}: {$result['created']} created, {$result['updated']} re-aligned, {$result['unchanged']} unchanged");
+
+            return true;
         } catch (\Throwable $e) {
             $this->error("  ❌ Punctuation marker seed failed: " . $e->getMessage());
+
+            return false;
         }
     }
 
@@ -784,27 +785,21 @@ class InitializeApps extends Command
      * 'daily_short' → 'short' if any such rows exist. Marker
      * .migrated_daily_sentences_to_article skips on re-run.
      */
-    private function migrateDailySentencesToArticle(): void
+    private function migrateDailySentencesToArticle(): bool
     {
         $markers = new \App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager();
         if ($markers->hasMigratedDailySentencesToArticle()) {
             $this->line('  ⏭️  Already migrated (marker .migrated_daily_sentences_to_article present)');
-            return;
+
+            return true;
         }
 
-        $rowsRenamed = 0;
         try {
-            $model = new \App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel();
-            $conn = $model->getConnection();
-            $table = $model->getTable();
-            if (\Illuminate\Support\Facades\Schema::connection($conn->getName())->hasTable($table)
-                && \Illuminate\Support\Facades\Schema::connection($conn->getName())->hasColumn($table, 'article_type')) {
-                $rowsRenamed = (int) $conn->table($table)
-                    ->where('article_type', 'daily_short')
-                    ->update(['article_type' => 'short']);
-            }
+            $rowsRenamed = AppQyV1ArticleModel::migrateDailyShortTypeInPlace();
         } catch (\Throwable $e) {
-            $this->warn('  ⚠️  article_type rename skipped: ' . $e->getMessage());
+            $this->error('  ❌ article_type migration failed: ' . $e->getMessage());
+
+            return false;
         }
 
         $ok = $markers->setMigratedDailySentencesToArticle([
@@ -817,9 +812,13 @@ class InitializeApps extends Command
 
         if ($ok) {
             $this->line("  ✅ Marker written (routes_aliased=true, rows_renamed={$rowsRenamed})");
-        } else {
-            $this->warn('  ⚠️  Failed to write .migrated_daily_sentences_to_article marker');
+
+            return true;
         }
+
+        $this->error('  ❌ Failed to write .migrated_daily_sentences_to_article marker');
+
+        return false;
     }
 
 }

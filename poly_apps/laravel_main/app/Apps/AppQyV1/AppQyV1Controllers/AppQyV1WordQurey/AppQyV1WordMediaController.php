@@ -16,7 +16,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AudioGateway;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\Log;
  * AppQyV1WordMediaService so the resolve endpoint, the smart image-serve route
  * and the on-query hooks share one implementation.
  */
-class AppQyV1WordMediaController extends BaseController
+class AppQyV1WordMediaController extends Controller
 {
     public function audio(Request $request, string $lang, string $word): JsonResponse
     {

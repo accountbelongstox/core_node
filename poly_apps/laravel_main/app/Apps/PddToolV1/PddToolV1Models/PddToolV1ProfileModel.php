@@ -10,14 +10,10 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
 use App\Apps\PddToolV1\PddToolV1Constants\PddToolV1Defaults;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * PddToolV1 (订多多) membership PROFILE.
@@ -31,10 +27,9 @@ use App\Providers\AppTablePrefixServiceProvider;
  * (Sanctum bearer token) and the controller resolves the User via
  * $request->user(), then loads/creates this profile via PddToolV1ProfileResolver.
  */
-class PddToolV1ProfileModel extends Model
+class PddToolV1ProfileModel extends PddToolV1Model
 {
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
+    protected ?string $appTableMapKey = 'PROFILES';
 
     /**
      * Keyed by user_id (the global users.id). Not auto-incrementing.
@@ -42,13 +37,6 @@ class PddToolV1ProfileModel extends Model
     protected $primaryKey = 'user_id';
     public $incrementing = false;
     protected $keyType = 'int';
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('PROFILES');
-    }
 
     protected $fillable = [
         'user_id',
@@ -79,15 +67,22 @@ class PddToolV1ProfileModel extends Model
 
     public static function adminStats($now): array
     {
+        $stats = static::query()
+            ->selectRaw('COUNT(*) AS users_total')
+            ->selectRaw(
+                'SUM(CASE WHEN disabled = false AND valid_until > ? THEN 1 ELSE 0 END) AS users_active',
+                [$now]
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN valid_until BETWEEN ? AND ? THEN 1 ELSE 0 END) AS expiring_7d',
+                [$now, $now->copy()->addDays(7)]
+            )
+            ->first();
+
         return [
-            'users_total' => static::query()->count(),
-            'users_active' => static::query()
-                ->where('disabled', false)
-                ->where('valid_until', '>', $now)
-                ->count(),
-            'expiring_7d' => static::query()
-                ->whereBetween('valid_until', [$now, $now->copy()->addDays(7)])
-                ->count(),
+            'users_total' => (int) ($stats->users_total ?? 0),
+            'users_active' => (int) ($stats->users_active ?? 0),
+            'expiring_7d' => (int) ($stats->expiring_7d ?? 0),
         ];
     }
 

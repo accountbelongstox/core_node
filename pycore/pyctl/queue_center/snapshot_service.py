@@ -21,11 +21,8 @@ from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.service import assist_status
 from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
 from pycore.pyctl.queue_center.control_service import get_control_intent
+from pycore.pyctl.queue_center.lane_registry import LANE_REGISTRY, lane_worker
 from pycore.pyctl.queue_center.task_center_sections import build_section_contracts
-from pycore.pyctl.tts.laravel_audio_worker import (
-    laravel_sentence_audio_worker,
-    laravel_word_audio_worker,
-)
 from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audio_status
 from pycore.pyctl.tts.status_service import status as get_tts_status
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
@@ -67,6 +64,7 @@ QUEUE_CENTER_RECONNECT_MIN_SECONDS = 1.0
 QUEUE_CENTER_RECONNECT_MAX_SECONDS = 15.0
 QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS = 10.0
 QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS = 70.0
+QUEUE_CENTER_WEBSOCKET_PONG_TIMEOUT_SECONDS = 15.0
 QUEUE_CENTER_PUSHER_PROTOCOL = 7
 QUEUE_CENTER_STOP_SIGNAL = "queue_center.snapshot.stop"
 
@@ -227,9 +225,20 @@ class _QueueCenterRealtimeThread(threading.Thread):
                 return False
             if self._service.endpoint() != endpoint:
                 return True
-            message = websocket.recv(
-                timeout=QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS
-            )
+            try:
+                message = websocket.recv(
+                    timeout=QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS
+                )
+            except TimeoutError:
+                # Reverb pings idle connections only after ping_interval (60s)
+                # on a 60s timer, so an idle recv window can expire before any
+                # server ping; send the Pusher client keepalive instead of
+                # tearing down a healthy connection. A missing pong re-raises
+                # TimeoutError and takes the normal reconnect path.
+                websocket.send(json.dumps({"event": "pusher:ping", "data": {}}))
+                message = websocket.recv(
+                    timeout=QUEUE_CENTER_WEBSOCKET_PONG_TIMEOUT_SECONDS
+                )
             frame = self._payload(message)
             event_name = str(frame.get("event") or "")
             if event_name == "pusher:connection_established":
@@ -360,13 +369,14 @@ class _QueueCenterSnapshotService:
 
     @staticmethod
     def wake_workers() -> None:
-        workers = (
-            ("translation_worker", translation_worker_service),
-            ("tts_queue_poller", laravel_word_audio_worker),
-            ("tts_sentence_worker", laravel_sentence_audio_worker),
-        )
-        for callback_name, worker in workers:
-            if shared_heartbeat_system.is_callback_enabled(callback_name):
+        for control in LANE_REGISTRY:
+            entry = LANE_REGISTRY[control]
+            if not shared_heartbeat_system.is_callback_enabled(
+                entry["heartbeat_callback"]
+            ):
+                continue
+            worker = lane_worker(control)
+            if worker is not None:
                 worker.request_pull()
 
     def stream_cursor(self) -> int:
@@ -532,11 +542,11 @@ class _QueueCenterSnapshotService:
             if not task_id:
                 continue
             queue_position = int(item.get("queue_position") or 0)
-            worker = (
-                laravel_sentence_audio_worker
-                if queue == "sentence_audio"
-                else laravel_word_audio_worker
+            worker = lane_worker(
+                "sentence_audio" if queue == "sentence_audio" else "word_audio"
             )
+            if worker is None:
+                continue
             worker.set_cached_task_head(task_id, queue_position)
             applied.append({
                 **item,

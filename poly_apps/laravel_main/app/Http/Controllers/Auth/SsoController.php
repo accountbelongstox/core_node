@@ -13,8 +13,10 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Models\User;
-use App\Http\Controllers\Auth\AvatarPublic;
+use App\Http\Common\CommonAuthService;
+use App\Http\Common\CommonAvatarPublic;
 use App\Services\FileService;
+use App\Services\Auth\WorkOsRuntimeCredentials;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -24,6 +26,13 @@ use Illuminate\Support\Str;
 class SsoController extends Controller
 {
     use ApiResponse;
+
+    private WorkOsRuntimeCredentials $credentials;
+
+    public function __construct(WorkOsRuntimeCredentials $credentials)
+    {
+        $this->credentials = $credentials;
+    }
 
     /**
      * Display SSO login page
@@ -44,9 +53,10 @@ class SsoController extends Controller
      */
     public function getAuthorizationUrl(Request $request)
     {
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
-        $redirectUri = $request->input('redirect_uri') ?? env('WORKOS_REDIRECT_URL', $request->getSchemeAndHttpHost() . '/sso/callback');
+        $workosApiKey = $this->credentials->apiKey();
+        $workosClientId = $this->credentials->clientId();
+        $redirectUri = $request->input('redirect_uri')
+            ?? $this->credentials->redirectUrl($request->getSchemeAndHttpHost() . '/sso/callback');
         $organizationId = $request->input('organization_id');
         $provider = $request->input('provider', 'authkit');
 
@@ -119,8 +129,8 @@ class SsoController extends Controller
             return response($html)->header('Content-Type', 'text/html; charset=utf-8');
         }
 
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
+        $workosApiKey = $this->credentials->apiKey();
+        $workosClientId = $this->credentials->clientId();
 
         if (!$workosApiKey || !$workosClientId) {
             $html = file_get_contents(public_path('debug-assets/debug-tools/sections/sso-section.html'));
@@ -149,8 +159,9 @@ class SsoController extends Controller
             Auth::login($user, true);
             $request->session()->regenerate();
             
-            $user = AvatarPublic::createAvatar($user, true);
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $session = CommonAuthService::issueLoginToken($user);
+            $user = $session['user'];
+            $token = $session['token'];
 
             $userData = [
                 'id' => $user->id,
@@ -201,7 +212,7 @@ class SsoController extends Controller
         if ($sessionUser) {
             if (Auth::check()) {
                 $user = Auth::user();
-                $user = AvatarPublic::createAvatar($user, true);
+                $user = CommonAvatarPublic::createAvatar($user, true);
                 
                 $token = null;
                 if ($user->currentAccessToken()) {
@@ -219,7 +230,7 @@ class SsoController extends Controller
                 if ($userId && is_numeric($userId)) {
                     $user = User::findById((int) $userId);
                     if ($user) {
-                        $user = AvatarPublic::createAvatar($user, true);
+                        $user = CommonAvatarPublic::createAvatar($user, true);
                         $userArray = $user->toArray();
                         $userArray['avatar'] = FileService::getAvatarUrl($user->avatar);
                         return $this->success([
@@ -260,11 +271,7 @@ class SsoController extends Controller
             return $this->error('Email/username and password are required', 400);
         }
 
-        $workosApiKey = env('WORKOS_API_KEY');
-        $workosClientId = env('WORKOS_CLIENT_ID');
-        $workosClientSecret = env('WORKOS_CLIENT_SECRET');
-
-        $useWorkOS = $workosApiKey && $workosClientId && $workosClientSecret;
+        $useWorkOS = $this->credentials->supportsPasswordAuthentication();
 
         if ($useWorkOS) {
             return $this->authenticateWithWorkOS($request, $identifier, $password);
@@ -283,9 +290,9 @@ class SsoController extends Controller
                 return $this->error('WorkOS PHP SDK not installed. Please run: composer require workos/workos-php', 500);
             }
 
-            $workosApiKey = env('WORKOS_API_KEY');
-            $workosClientId = env('WORKOS_CLIENT_ID');
-            $workosClientSecret = env('WORKOS_CLIENT_SECRET');
+            $workosApiKey = $this->credentials->apiKey();
+            $workosClientId = $this->credentials->clientId();
+            $workosClientSecret = $this->credentials->clientSecret();
 
             $workos = new \WorkOS\WorkOS($workosApiKey);
             
@@ -303,8 +310,9 @@ class SsoController extends Controller
             Auth::login($user, true);
             $request->session()->regenerate();
             
-            $user = AvatarPublic::createAvatar($user, true);
-            $token = $user->createToken('auth_token')->plainTextToken;
+            $session = CommonAuthService::issueLoginToken($user);
+            $user = $session['user'];
+            $token = $session['token'];
 
             $userData = [
                 'id' => $user->id,
@@ -337,7 +345,7 @@ class SsoController extends Controller
     /**
      * Authenticate using Laravel native authentication
      * Following CommonAuthService pattern: support username, email, or phone
-     * Following Laravel official documentation: https://laravel.com/docs/12.x/authentication
+     * Following Laravel official documentation: https://laravel.com/docs/13.x/authentication
      */
     private function authenticateWithLaravel(Request $request, string $identifier, string $password)
     {
@@ -370,9 +378,9 @@ class SsoController extends Controller
         
         $authenticatedUser = Auth::user();
 
-        $authenticatedUser = AvatarPublic::createAvatar($authenticatedUser, true);
-
-        $token = $authenticatedUser->createToken('auth_token')->plainTextToken;
+        $session = CommonAuthService::issueLoginToken($authenticatedUser);
+        $authenticatedUser = $session['user'];
+        $token = $session['token'];
 
         $userData = [
             'id' => $authenticatedUser->id,

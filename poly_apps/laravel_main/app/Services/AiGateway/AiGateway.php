@@ -3,6 +3,7 @@
 namespace App\Services\AiGateway;
 
 use App\Providers\PathMapper;
+use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -608,9 +609,9 @@ class AiGateway
      */
     private static function imageSpark(string $prompt, ?string $size, string $model, array &$out): void
     {
-        $appId = AiSecretLoader::getIndexed('SPARK_APP_ID');
-        $apiKey = AiSecretLoader::getIndexed('SPARK_API_KEY');
-        $apiSecret = AiSecretLoader::getIndexed('SPARK_API_SECRET');
+        $appId = SecretStore::getIndexed('SPARK_APP_ID');
+        $apiKey = SecretStore::getIndexed('SPARK_API_KEY');
+        $apiSecret = SecretStore::getIndexed('SPARK_API_SECRET');
         if ($appId === '' || $apiKey === '' || $apiSecret === '') {
             $out['error'] = 'Spark image needs SPARK_APP_ID / SPARK_API_KEY / SPARK_API_SECRET';
             return;
@@ -666,8 +667,8 @@ class AiGateway
      */
     private static function imageAzure(string $prompt, ?string $size, string $model, string $key, array &$out): void
     {
-        $endpoint = rtrim(trim(AiSecretLoader::getIndexed('AZURE_OPENAI_ENDPOINT')), '/');
-        $deployment = trim(AiSecretLoader::getIndexed('AZURE_OPENAI_IMAGE_DEPLOYMENT'));
+        $endpoint = rtrim(trim(SecretStore::getIndexed('AZURE_OPENAI_ENDPOINT')), '/');
+        $deployment = trim(SecretStore::getIndexed('AZURE_OPENAI_IMAGE_DEPLOYMENT'));
         if ($endpoint === '' || $deployment === '') {
             $out['error'] = 'Azure needs AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_IMAGE_DEPLOYMENT';
             return;
@@ -752,14 +753,14 @@ class AiGateway
             $out['error'] = 'Vertex needs VERTEX_PROJECT_ID';
             return;
         }
-        $region = AiSecretLoader::getIndexed('VERTEX_REGION');
+        $region = SecretStore::getIndexed('VERTEX_REGION');
         if ($region === '') {
             $region = 'us-central1';
         }
 
         // Auth: a raw access token (VERTEX_ACCESS_TOKEN) wins if provided; else mint
         // one from the service-account JSON (the provider key).
-        $token = AiSecretLoader::getIndexed('VERTEX_ACCESS_TOKEN');
+        $token = SecretStore::getIndexed('VERTEX_ACCESS_TOKEN');
         if ($token === '') {
             [$token, $err] = self::vertexAccessToken($key);
             if ($token === '') {
@@ -849,7 +850,7 @@ class AiGateway
             $out['error'] = 'Bedrock needs AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY';
             return;
         }
-        $region = AiSecretLoader::getIndexed('AWS_REGION');
+        $region = SecretStore::getIndexed('AWS_REGION');
         if ($region === '') {
             $region = 'us-east-1';
         }

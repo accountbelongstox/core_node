@@ -11,6 +11,8 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -19,7 +21,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use App\Utils\FileReader;
 
-class StaticFileController
+class StaticFileController extends Controller
 {
     private $basePath;
 

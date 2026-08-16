@@ -9,8 +9,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
-use Illuminate\Support\Str;
-use App\Support\CoreNodeSecrets;
+use App\Constants\LaravelConfig;
 
 // ---------------------------------------------------------------------------
 // Database topology: PostgreSQL ONLY, identical on Linux and Windows.
@@ -19,9 +18,8 @@ use App\Support\CoreNodeSecrets;
 // per app on a single localhost server (on Windows the SAME WSL PostgreSQL is
 // reached through WSL2 NAT localhost forwarding, so there is no second server
 // and no per-OS difference). The driver, host, port, username and per-app
-// database name are FIXED IN CODE here; the password is read from the
-// shell-generated global-var secret store via App\Support\CoreNodeSecrets
-// (written / rotated by start.sh / start.ps1 -> 46_install_postgresql.sh).
+// database name are fixed in code. RuntimeConfigurationServiceProvider injects
+// the Shell-owned password after configuration loading.
 //
 // NOTHING about the active database connections is read from .env -- not the
 // driver, host, port, username, database, nor the password. This is deliberate:
@@ -30,29 +28,30 @@ use App\Support\CoreNodeSecrets;
 // on Linux and Windows. Any DB_* / POLY_DB_DRIVER line in .env is ignored here by
 // design. start.sh / start.ps1 are responsible for ensuring the localhost-only
 // PostgreSQL server is up and the password is in the store before the app serves.
-$pgHost = '127.0.0.1';
-$pgPort = '5432';
-$pgUser = 'postgres';
-$pgPassword = CoreNodeSecrets::get('POSTGRES_PASSWORD', '');
+$connections = [];
 
 // Build one PostgreSQL per-app connection. Topology mirrors the former
 // one-SQLite-file-per-app isolation: each app gets its own database (and thus
 // its own migrations table). Credentials are the fixed-in-code values above.
-$polyConnection = function (string $pgDatabase) use ($pgHost, $pgPort, $pgUser, $pgPassword) {
+$polyConnection = static function (string $pgDatabase): array {
     return [
         'driver' => 'pgsql',
-        'host' => $pgHost,
-        'port' => $pgPort,
+        'host' => LaravelConfig::DATABASE_HOST,
+        'port' => LaravelConfig::DATABASE_PORT,
         'database' => $pgDatabase,
-        'username' => $pgUser,
-        'password' => $pgPassword,
+        'username' => LaravelConfig::DATABASE_USERNAME,
+        'password' => null,
         'charset' => 'utf8',
         'prefix' => '',
         'prefix_indexes' => true,
-        'search_path' => 'public',
-        'sslmode' => 'prefer',
+        'search_path' => LaravelConfig::DATABASE_SEARCH_PATH,
+        'sslmode' => LaravelConfig::DATABASE_SSL_MODE,
     ];
 };
+
+foreach (LaravelConfig::DATABASES as $connectionName => $databaseName) {
+    $connections[$connectionName] = $polyConnection($databaseName);
+}
 
 return [
 
@@ -68,11 +67,8 @@ return [
     |
     */
 
-    // Fixed in code (not from .env). 'main' is the main application database
-    // (PostgreSQL 'core_node_main'). The legacy alias 'sqlite' below points at
-    // the same database so old references keep working, but nothing should be
-    // named after a driver anymore -- this app is PostgreSQL-only.
-    'default' => 'main',
+    // Fixed in code. 'main' is the PostgreSQL main application database.
+    'default' => LaravelConfig::DATABASE_CONNECTION,
 
     /*
     |--------------------------------------------------------------------------
@@ -85,112 +81,7 @@ return [
     |
     */
 
-    'connections' => [
-
-        // Per-app PostgreSQL connections. Driver and credentials are fixed in
-        // code (above); the per-app database name is the only argument.
-        'main' => $polyConnection('core_node_main'),
-
-        // DEPRECATED alias: 'sqlite' was the historical default-connection NAME
-        // (never a driver statement since the PG migration). Kept so old
-        // migrations (`protected $connection = 'sqlite'`) and stragglers still
-        // resolve to the SAME PostgreSQL database; do not use in new code.
-        'sqlite' => $polyConnection('core_node_main'),
-
-        'appqyv1' => $polyConnection('app_qy_v1_database'),
-
-        'servermanagerv1' => $polyConnection('server_manager_v1_database'),
-
-        'achatv1' => $polyConnection('achat_v1_database'),
-
-        'codemartv1' => $polyConnection('code_mart_v1_database'),
-
-        'mcpv1' => $polyConnection('mcp_v1_database'),
-
-        'ittoolsv1' => $polyConnection('it_tools_v1_database'),
-
-        'pddtoolv1' => $polyConnection('pdd_tool_v1_database'),
-
-        'dingduoduov1' => $polyConnection('ding_duo_duo_v1_database'),
-
-        // NOTE: the mysql / mariadb / sqlsrv entries below are unused Laravel
-        // framework stubs kept only for structural completeness. This application
-        // never instantiates them (it runs exclusively on the PostgreSQL
-        // connections above). They are intentionally left as the framework
-        // defaults; the active database does not read .env.
-        'mysql' => [
-            'driver' => 'mysql',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
-        ],
-
-        'mariadb' => [
-            'driver' => 'mariadb',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', '127.0.0.1'),
-            'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'unix_socket' => env('DB_SOCKET', ''),
-            'charset' => env('DB_CHARSET', 'utf8mb4'),
-            'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'strict' => true,
-            'engine' => null,
-            'options' => extension_loaded('pdo_mysql') ? array_filter([
-                \Pdo\Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
-            ]) : [],
-        ],
-
-        // Generic single PostgreSQL connection. Same env-free policy as the
-        // per-app connections: host/port/user fixed in code, password from the
-        // secret store, pointing at the main 'core_node_main' database.
-        'pgsql' => [
-            'driver' => 'pgsql',
-            'host' => $pgHost,
-            'port' => $pgPort,
-            'database' => 'core_node_main',
-            'username' => $pgUser,
-            'password' => $pgPassword,
-            'charset' => 'utf8',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'search_path' => 'public',
-            'sslmode' => 'prefer',
-        ],
-
-        'sqlsrv' => [
-            'driver' => 'sqlsrv',
-            'url' => env('DB_URL'),
-            'host' => env('DB_HOST', 'localhost'),
-            'port' => env('DB_PORT', '1433'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
-            'charset' => env('DB_CHARSET', 'utf8'),
-            'prefix' => '',
-            'prefix_indexes' => true,
-            // 'encrypt' => env('DB_ENCRYPT', 'yes'),
-            // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
-        ],
-
-    ],
+    'connections' => $connections,
 
     /*
     |--------------------------------------------------------------------------
@@ -221,30 +112,38 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' => LaravelConfig::REDIS_CLIENT,
 
         'options' => [
-            'cluster' => env('REDIS_CLUSTER', 'redis'),
-            'prefix' => env('REDIS_PREFIX', Str::slug(env('APP_NAME', 'laravel'), '_').'_database_'),
-            'persistent' => env('REDIS_PERSISTENT', false),
+            'cluster' => 'redis',
+            'prefix' => LaravelConfig::REDIS_PREFIX,
+            'persistent' => false,
         ],
 
         'default' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_DB', '0'),
+            'url' => null,
+            'host' => LaravelConfig::REDIS_HOST,
+            'username' => null,
+            'password' => null,
+            'port' => LaravelConfig::REDIS_PORT,
+            'database' => LaravelConfig::REDIS_DATABASE,
+            'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
+            'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,
+            'backoff_base' => LaravelConfig::REDIS_BACKOFF_BASE,
+            'backoff_cap' => LaravelConfig::REDIS_BACKOFF_CAP,
         ],
 
         'cache' => [
-            'url' => env('REDIS_URL'),
-            'host' => env('REDIS_HOST', '127.0.0.1'),
-            'username' => env('REDIS_USERNAME'),
-            'password' => env('REDIS_PASSWORD'),
-            'port' => env('REDIS_PORT', '6379'),
-            'database' => env('REDIS_CACHE_DB', '1'),
+            'url' => null,
+            'host' => LaravelConfig::REDIS_HOST,
+            'username' => null,
+            'password' => null,
+            'port' => LaravelConfig::REDIS_PORT,
+            'database' => LaravelConfig::REDIS_CACHE_DATABASE,
+            'max_retries' => LaravelConfig::REDIS_MAX_RETRIES,
+            'backoff_algorithm' => LaravelConfig::REDIS_BACKOFF_ALGORITHM,
+            'backoff_base' => LaravelConfig::REDIS_BACKOFF_BASE,
+            'backoff_cap' => LaravelConfig::REDIS_BACKOFF_CAP,
         ],
 
     ],

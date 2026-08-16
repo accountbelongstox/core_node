@@ -2,6 +2,8 @@
 
 namespace App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Controllers;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Http;
@@ -12,7 +14,7 @@ use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\UserSettingsManager;
 use App\Apps\McpV1\VoiceSubtitleV1\VoiceSubtitleV1Utils\VoiceSubtitleTaskManager;
 use App\Traits\ApiResponse;
 
-class VoiceSubtitleV1MainController
+class VoiceSubtitleV1MainController extends Controller
 {
     use ApiResponse;
 

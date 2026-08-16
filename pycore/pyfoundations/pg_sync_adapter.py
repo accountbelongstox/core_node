@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from pyfoundations.system_paths import map_web_path as _map_web_path, _is_wsl as _is_wsl_util
 """
 PostgreSQL cross-environment sync adapter.
 
@@ -43,14 +42,22 @@ from typing import Optional, Tuple, List
 import re
 
 from datetime import datetime, timezone
+
+# Add the repo root so absolute `pycore.*` imports resolve when this file is
+# executed directly (no PYTHONPATH set by the caller).
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyfoundations.system_info import is_wsl
+from pycore.pyfoundations.system_paths import map_web_path
 
 
 
 # ---------------------------------------------------------------------------
 # Module-level constants
 # ---------------------------------------------------------------------------
-_PYCORE_ROOT = Path(__file__).resolve().parent.parent
 PROMPT_ATTEMPTS = 3
 SYNC_META_FILENAME = 'pg_sync_meta.json'
 DUMP_FILENAME = 'pg_win_export.sql'
@@ -60,18 +67,6 @@ PG_DATA_SUBPATH = Path('data')
 WIN_TOOL_ROOTS = ['.dev_win10', '.dev_win11']
 # Timeout (seconds) for PG to start/stop
 PG_WAIT_TIMEOUT = 30
-
-# ---------------------------------------------------------------------------
-# Optional import of canonical path utilities
-# ---------------------------------------------------------------------------
-try:
-    if str(_PYCORE_ROOT) not in sys.path:
-        sys.path.insert(0, str(_PYCORE_ROOT))
-    _HAS_MAP = True
-except Exception:
-    _HAS_MAP = False
-    _map_web_path = None
-    _is_wsl_util = None
 
 
 # ---------------------------------------------------------------------------
@@ -85,20 +80,8 @@ class PgEnv:
 
 
 # ---------------------------------------------------------------------------
-# Standalone helpers (used when system_paths is not importable)
+# Module-level helpers
 # ---------------------------------------------------------------------------
-def _is_wsl() -> bool:
-    if _HAS_MAP and _is_wsl_util is not None:
-        return _is_wsl_util()
-    if os.path.exists('/mnt/c/Windows'):
-        return True
-    try:
-        with open('/proc/version', 'r') as fh:
-            return 'microsoft' in fh.read().lower()
-    except OSError:
-        return False
-
-
 def _find_win_mount() -> Optional[Path]:
     """Return the first /mnt/{letter} path that contains a Windows www structure."""
     mnt = Path('/mnt')
@@ -223,11 +206,11 @@ class PgSyncAdapter:
             self.env = PgEnv.WINDOWS
             return self.env
 
-        if _is_wsl() or _find_win_mount() is not None:
+        if is_wsl() or _find_win_mount() is not None:
             self.win_mount = _find_win_mount()
             if self.win_mount:
                 self._init_win_paths()
-                self.env = PgEnv.WSL if _is_wsl() else PgEnv.LINUX_WIN_MOUNT
+                self.env = PgEnv.WSL if is_wsl() else PgEnv.LINUX_WIN_MOUNT
             else:
                 self.env = PgEnv.LINUX_NATIVE
         else:
@@ -256,9 +239,9 @@ class PgSyncAdapter:
         pg_mount = Path('/var/lib/postgresql/d')
         if pg_mount.is_dir():
             self.linux_data_dir = pg_mount
-        elif _HAS_MAP and _map_web_path is not None:
+        else:
             try:
-                self.linux_data_dir = _map_web_path('postgresql') / 'data'
+                self.linux_data_dir = map_web_path('postgresql') / 'data'
             except Exception:
                 self.linux_data_dir = None
         if self.linux_data_dir is None:
@@ -322,7 +305,7 @@ class PgSyncAdapter:
     def _ts_str(ts: float) -> str:
         if not ts:
             return '(unknown)'
-        return datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+        return datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
 
     def prompt_3x_confirm(self, win_ts: float, linux_ts: float) -> bool:
         """

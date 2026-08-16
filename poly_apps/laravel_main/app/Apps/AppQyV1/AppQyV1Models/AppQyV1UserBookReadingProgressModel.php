@@ -2,13 +2,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1UserBookReadingProgressModel extends Model
+class AppQyV1UserBookReadingProgressModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
 
     protected $fillable = [
         'user_id',
@@ -21,18 +17,16 @@ class AppQyV1UserBookReadingProgressModel extends Model
         'selection_mode',
     ];
 
-    protected $casts = [
-        'chapter_index' => 'integer',
-        'verse_seq' => 'integer',
-        'page' => 'integer',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_book_reading_progress');
+        return [
+            'chapter_index' => 'integer',
+            'verse_seq' => 'integer',
+            'page' => 'integer',
+        ];
     }
+
+    protected ?string $appTableSuffix = 'user_book_reading_progress';
 
     public static function findForSource(int $userId, string $sourceKey): ?self
     {

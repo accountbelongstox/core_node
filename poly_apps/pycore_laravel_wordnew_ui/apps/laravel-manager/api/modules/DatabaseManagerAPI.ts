@@ -96,12 +96,13 @@ export interface DataSyncStep {
   detail: string | null;
 }
 
-export interface DataSyncSession {
+export interface DataSyncSessionSnapshot {
   id: string;
   role: 'source' | 'receiver';
   status: DataSyncStatus;
   target_input: string | null;
   target: string | null;
+  protocol_version: number;
   options: {
     databases: boolean;
     resources: boolean;
@@ -112,6 +113,7 @@ export interface DataSyncSession {
   backup_directory: string | null;
   steps: DataSyncStep[];
   context?: {
+    source_job_id?: string;
     awaiting_target?: boolean;
     local_manifest?: {
       databases?: number;
@@ -133,6 +135,19 @@ export interface DataSyncSession {
   created_at: string;
   updated_at: string;
   completed_at: string | null;
+}
+
+export interface DataSyncCounterpart {
+  endpoint?: string;
+  session_id?: string;
+  reachable?: boolean;
+  observed_at?: string;
+  error?: string;
+  session?: DataSyncSessionSnapshot;
+}
+
+export interface DataSyncSession extends DataSyncSessionSnapshot {
+  counterpart?: DataSyncCounterpart;
 }
 
 export interface DataSyncStartRequest {
@@ -332,7 +347,9 @@ export class DatabaseManagerAPI extends BaseAPI {
 
   async getDataSyncSessions(): Promise<DataSyncSession[]> {
     const res = await this.get<{ sessions: DataSyncSession[] }>('sync');
-    if (!res.success || !res.data) return [];
+    if (!res.success || !res.data) {
+      throw new Error(res.error || res.message || '');
+    }
     return (res.data as { sessions: DataSyncSession[] }).sessions ?? [];
   }
 

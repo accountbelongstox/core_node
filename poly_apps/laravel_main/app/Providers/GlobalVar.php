@@ -17,17 +17,12 @@ use RecursiveIteratorIterator;
 
 class GlobalVar
 {
-    private static string $corenodeName = "core_node";
-
     /**
      * Get base directory path
      */
     protected static function getBaseDir(): string
     {
-        if (PHP_OS_FAMILY === 'Windows') {
-            return env('HOME', '') . DIRECTORY_SEPARATOR . static::$corenodeName;
-        }
-        return '/usr/' . static::$corenodeName;
+        return PathMapper::getCoreNodeDir() ?? PathMapper::getLaravelDataDir();
     }
 
     /**

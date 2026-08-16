@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1PersonDict;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,7 +20,7 @@ use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionaryEntryModel;
 use App\Traits\ApiResponse;
 
-class AppQyV1PersonalDictionaryCreationController
+class AppQyV1PersonalDictionaryCreationController extends Controller
 {
     use ApiResponse;
 

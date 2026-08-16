@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
@@ -25,7 +27,7 @@ use App\Traits\ApiResponse;
  * NO try-catch allowed - trust Laravel validation
  * NO ?? or || allowed - use explicit if statements
  */
-class AppQyV1WordGroupLibraryController
+class AppQyV1WordGroupLibraryController extends Controller
 {
     use ApiResponse;
 

@@ -10,26 +10,16 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
 /**
  * AI prompt request inbox row -- the passive submission point consumed by
  * AppQyV1AiPromptFanoutTask (app/Services/TimerTasks). Insert one row here to
  * request AI processing; no direct caller-to-worker coupling.
  */
-class AppQyV1AiPromptRequestModel extends Model
+class AppQyV1AiPromptRequestModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'ai_prompt_requests');
-    }
+    protected ?string $appTableSuffix = 'ai_prompt_requests';
 
     const STATUS_PENDING = 'pending';
     const STATUS_PROCESSED = 'processed';
@@ -46,10 +36,13 @@ class AppQyV1AiPromptRequestModel extends Model
         'error',
     ];
 
-    protected $casts = [
-        'prompt_keys' => 'array',
-        'processed_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'prompt_keys' => 'array',
+            'processed_at' => 'datetime',
+        ];
+    }
 
     public static function pendingBatch(int $limit)
     {

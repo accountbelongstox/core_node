@@ -2,13 +2,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\User;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Enums\AppQyV1ProficiencyLevelEnum;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Per-(user, group) word progress - ONE row per group holding the whole
@@ -47,9 +43,8 @@ use App\Providers\AppTablePrefixServiceProvider;
  * stamped first_read_at and recalculated next_review_at on progress
  * writes): normalizeEntry() applies both rules on every entry mutation.
  */
-class AppQyV1GroupWordProgressModel extends Model
+class AppQyV1GroupWordProgressModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
 
     /**
      * Single source of truth for the short-key legend
@@ -87,17 +82,7 @@ class AppQyV1GroupWordProgressModel extends Model
         'rpt' => 0,
     ];
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('GROUP_WORD_PROGRESS');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'GROUP_WORD_PROGRESS';
 
     protected $fillable = [
         'user_id',
@@ -108,15 +93,18 @@ class AppQyV1GroupWordProgressModel extends Model
         'shuffled_at',
     ];
 
-    protected $casts = [
-        'words' => 'array',
-        'user_id' => 'integer',
-        'group_id' => 'integer',
-        'total_words' => 'integer',
-        'shuffled_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'words' => 'array',
+            'user_id' => 'integer',
+            'group_id' => 'integer',
+            'total_words' => 'integer',
+            'shuffled_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public function user(): BelongsTo
     {

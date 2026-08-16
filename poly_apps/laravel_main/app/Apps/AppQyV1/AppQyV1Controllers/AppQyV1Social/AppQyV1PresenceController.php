@@ -15,7 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
@@ -27,7 +27,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
  * offline->online transition it emits friend.online to the user's friends.
  * Read collapses a heartbeat older than 60s to offline.
  */
-class AppQyV1PresenceController extends BaseController
+class AppQyV1PresenceController extends Controller
 {
     use ApiResponse;
 

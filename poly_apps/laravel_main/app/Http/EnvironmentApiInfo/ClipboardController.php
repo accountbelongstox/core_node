@@ -10,11 +10,13 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
-class ClipboardController
+class ClipboardController extends Controller
 {
     private static $sensitiveExtensions = [
         'php', 'phtml', 'php3', 'php4', 'php5', 'php7', 'phps',

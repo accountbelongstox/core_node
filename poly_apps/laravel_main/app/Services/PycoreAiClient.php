@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Support\CoreNodeSecrets;
+use App\Support\RuntimeConfigurationStore;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
  *
  * pycore binds 0.0.0.0:59000 on the Windows host while Laravel runs in WSL,
  * so the reachable address differs per environment:
- *   - explicit override: CoreNodeSecrets PYCORE_BASE_URL (global-var store);
+ *   - explicit override: RuntimeConfigurationStore PYCORE_BASE_URL (global-var store);
  *   - 127.0.0.1:59000 (same-host / port-forwarded setups);
  *   - the WSL default-gateway nameserver from /etc/resolv.conf (the Windows
  *     host as seen from inside WSL).
@@ -48,7 +48,7 @@ class PycoreAiClient
      */
     public function candidateBaseUrls(): array
     {
-        $configured = trim((string) CoreNodeSecrets::get('PYCORE_BASE_URL', ''));
+        $configured = trim((string) RuntimeConfigurationStore::get('PYCORE_BASE_URL', ''));
         if ($configured !== '') {
             return [rtrim($configured, '/')];
         }

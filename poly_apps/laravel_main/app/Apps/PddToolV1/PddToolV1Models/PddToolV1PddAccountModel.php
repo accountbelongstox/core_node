@@ -10,26 +10,14 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
 use Illuminate\Support\Collection;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * A PDD platform account bound by a member (cookie + access token + profile).
  */
-class PddToolV1PddAccountModel extends Model
+class PddToolV1PddAccountModel extends PddToolV1Model
 {
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('PDD_ACCOUNTS');
-    }
+    protected ?string $appTableMapKey = 'PDD_ACCOUNTS';
 
     protected $fillable = [
         'user_id',

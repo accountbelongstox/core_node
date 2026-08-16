@@ -12,19 +12,20 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1MemberService;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1LicenseService;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Requests\DingDuoDuoV1MemberLoginRequest;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1ErrorCodes;
 
 /**
  * Public member auth for the 订多多 extension's no-super-code path: credential
- * login (returns an issued token + member) and a token-scoped "me" lookup.
+ * login against the global users table (returns a Sanctum token + member) and a
+ * token-scoped "me" lookup. The extension presents the Sanctum token on the
+ * X-DD-Token header (or ?token=); validation goes through Sanctum.
  */
-class DingDuoDuoV1MemberAuthController extends BaseController
+class DingDuoDuoV1MemberAuthController extends Controller
 {
     /**
      * POST member/login {username, password, device_id?} -> {token, member}.
@@ -54,8 +55,8 @@ class DingDuoDuoV1MemberAuthController extends BaseController
     }
 
     /**
-     * GET member/me -> the member resolved from the X-DD-Token header (or ?token=),
-     * plus the current license payload.
+     * GET member/me -> the member resolved from the Sanctum token presented on
+     * the X-DD-Token header (or ?token=), plus the current license payload.
      */
     public function me(Request $request): JsonResponse
     {
@@ -67,7 +68,7 @@ class DingDuoDuoV1MemberAuthController extends BaseController
 
         $member = $token === ''
             ? null
-            : DingDuoDuoV1MemberModel::activeByToken($token);
+            : DingDuoDuoV1MemberService::activeMemberForToken($token);
 
         if (!$member) {
             return response()->json([

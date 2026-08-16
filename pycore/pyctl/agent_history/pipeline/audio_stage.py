@@ -4,7 +4,9 @@ import time
 import uuid
 from typing import Any, Dict
 
+from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.system_paths import get_app_cache_dir
+from pycore.pyutils.tts.engine_policy import CLOUD_TTS_ENGINES
 from pycore.pyutils.tts.tts_orchestrator import synthesize
 from pycore.pyctl.agent_history.pipeline.config import get_config
 
@@ -43,7 +45,7 @@ def synthesize_audio(text: str) -> Dict[str, Any]:
         )
         
         engine = str(result.get("engine") or "")
-        if engine in ("edge", "streamelements", "gtts_web", "azure"):
+        if engine in CLOUD_TTS_ENGINES:
             raise RuntimeError(f"TTS rejected cloud engine: {engine}")
             
         if not result.get("success") or not out.is_file():
@@ -57,9 +59,17 @@ def synthesize_audio(text: str) -> Dict[str, Any]:
             # broken audio. Fail the stage so the item retries instead.
             raise RuntimeError(f"TTS produced suspiciously small audio ({len(data)} bytes)")
         
+        model = str(result.get("model") or "")
+        chunked = bool(result.get("chunked"))
+        ColorPrint.gray(
+            f"[AgentHistoryTTS] audio source: engine={engine or 'unknown'} "
+            f"model={model or '-'} multi_sentence={chunked} bytes={len(data)}"
+        )
         return {
             "audio_base64": base64.b64encode(data).decode("ascii"),
             "engine": engine,
+            "model": model,
+            "chunked": chunked,
             "accent": result.get("accent"),
             "bytes": len(data),
         }

@@ -1,4 +1,5 @@
 import type { WfNewWordMediaOptions } from './WfNewApiTypes';
+import { APPQYV1_API_BASE, APPQYV1_AI_TOOLS_ROUTES } from '../../../core/contracts/AppQyV1AiToolsContract';
 
 /**
  * WfNewApiPaths — the /wordnew ENDPOINT LIST CENTER.
@@ -30,12 +31,12 @@ import type { WfNewWordMediaOptions } from './WfNewApiTypes';
  */
 
 /** Laravel api.php mount (`/api`) + the AppQyV1 route prefix (`app_qy_v1`). */
-export const WFNEW_API_BASE = '/api/app_qy_v1';
+export const WFNEW_API_BASE = APPQYV1_API_BASE;
 
 /** Prefix a route suffix with the AppQyV1 base. */
 const p = (suffix: string): string => `${WFNEW_API_BASE}${suffix}`;
 const sentenceAudioPath = (text: string, language: string, variantKey?: string, passive = false): string =>
-  p(`/ai_tools/tts/sentence/audio?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
+  p(`${APPQYV1_AI_TOOLS_ROUTES.ttsSentenceAudio}?text=${encodeURIComponent(text)}&language=${encodeURIComponent(language)}${
     variantKey ? `&variant_key=${encodeURIComponent(variantKey)}` : ''}${passive ? '&passive=1' : ''}`);
 
 /**
@@ -57,8 +58,11 @@ export const WfNewApiPaths = {
   /** Link / unlink a social provider to the current account (auth:sanctum). */
   socialBind: p('/user/social/bind'),
   socialUnbind: p('/user/social/unbind'),
-  /** Change password for the current account (auth:sanctum). */
-  changePassword: p('/user/change-password'),
+  /** Change password for the current account (auth:sanctum). Canonical global
+   *  route (routes/api/auth.php) — AppQyV1 has no app-scoped variant; the same
+   *  Sanctum token authorizes it. Fields: current_password / new_password /
+   *  confirm_password. */
+  changePassword: '/api/user/change-password',
 
   // ---- User profile (AppQyV1User.php — prefix app_qy_v1/user, auth:sanctum) ----
   userProfile: p('/user/profile'), // GET read / POST update
@@ -420,7 +424,7 @@ export const WfNewAdminPaths = {
   /** GET /ai_tools/tts/sentence/audio — file-first sentence audio resolve. */
   sentenceAudio: sentenceAudioPath,
 
-  ttsQueueStats: p('/ai_tools/tts/queue/stats'),
+  ttsQueueStats: p(APPQYV1_AI_TOOLS_ROUTES.ttsQueueStats),
   /** Paginated TTS queue items: ?status=&type=&start=&limit=. */
   ttsQueueItems: (opts: { status?: string; type?: string; start?: number; limit?: number } = {}): string => {
     const params = new URLSearchParams();
@@ -428,17 +432,17 @@ export const WfNewAdminPaths = {
     if (opts.type) params.set('type', opts.type);
     params.set('start', String(opts.start ?? 0));
     params.set('limit', String(opts.limit ?? 50));
-    return p(`/tts/queue/items?${params.toString()}`);
+    return p(`${APPQYV1_AI_TOOLS_ROUTES.ttsQueueItems}?${params.toString()}`);
   },
   /** Translation-queue control plane (PUBLIC — pycore monitor surface). */
-  translationQueueList: p('/ai_tools/translation/queue/list'),
+  translationQueueList: p(APPQYV1_AI_TOOLS_ROUTES.translationQueueList),
   translationPendingWords: p('/ai_tools/translation/queue/pending-words'),
   translationEnqueuePending: p('/ai_tools/translation/queue/enqueue-pending'),
   /** Re-queue specific words (POST, custom.authenticate — needs session). */
-  translationBatchAdd: p('/ai_tools/translation/queue/batch/add'),
+  translationBatchAdd: p(APPQYV1_AI_TOOLS_ROUTES.translationBatchAdd),
 
   // ---- translate / TTS tools (translate + generate are auth:sanctum) ----
-  translationLanguages: p('/ai_tools/translation/languages'),
-  translationTranslate: p('/ai_tools/translation/translate'),
-  ttsGenerate: p('/ai_tools/tts/generate'),
+  translationLanguages: p(APPQYV1_AI_TOOLS_ROUTES.translationLanguages),
+  translationTranslate: p(APPQYV1_AI_TOOLS_ROUTES.translationTranslate),
+  ttsGenerate: p(APPQYV1_AI_TOOLS_ROUTES.ttsGenerate),
 } as const;

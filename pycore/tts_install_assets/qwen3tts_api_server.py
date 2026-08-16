@@ -18,6 +18,12 @@ Env:
                                    staging/weights path when available; the HF
                                    id fallback is for standalone use only.
   QWEN3TTS_DEVICE                - cpu | cuda:0 | auto (default auto)
+  QWEN3TTS_SPEED                 - default playback-speed factor for every
+                                   generation (default: the shared constant
+                                   QWEN3TTS_DEFAULT_SPEED = 0.75; 1.0 = natural
+                                   speed). Slower speed also shrinks the
+                                   character budget per chunk (duration-bound).
+                                   A request-level "speed" overrides it per job.
   QWEN3TTS_SPEAKER               - preset speaker override
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
@@ -25,12 +31,30 @@ Env:
   QWEN3TTS_QUEUE_RESULT_TTL_S    - completed result retention (default 900)
   QWEN3TTS_QUEUE_RESULT_MAX      - maximum retained terminal jobs (default 200)
   QWEN3TTS_TASK_TIMEOUT_S        - queued batch timeout (default 900)
+  QWEN3TTS_CHUNK_MAX_CHARS       - per-chunk character budget at speed 1.0
+                                   (default 280, ~20s); sentence merging stays
+                                   within ~60% of it, and slower speeds shrink
+                                   the budget proportionally. Longer inputs are
+                                   synthesized per sentence-sized chunk and
+                                   concatenated (single-shot long text degrades
+                                   into noise, QwenLM/Qwen3-TTS#258)
+  QWEN3TTS_CHUNK_PAUSE_MS        - silence inserted between chunks (default 150)
+  PYCORE_MANAGED_CODE_ID        - injected by pycore's managed-service layer at
+                                  launch (digest of the launch script set);
+                                  echoed in /status as code_id so the manager
+                                  can reject stale-code listeners (never adopt a
+                                  server not running current scripts)
+
+  The pipeline is single-version: every synthesis is sentence-chunked and
+  concatenated (multi-sentence audio); /status reports "chunked": true so
+  pycore can tag records without any version negotiation.
 
 Endpoints:
   GET  /health              -> { ok, device, model_loaded, load_error }
   GET  /                     -> dependency-free local Web console
   GET  /status               -> runtime, GPU, synthesis, and queue summary
-  POST /synthesize           -> { text, language, speaker, instruct? } -> mp3 bytes
+                                (includes "speed": default playback speed)
+  POST /synthesize           -> { text, language, speaker, instruct?, speed? } -> mp3 bytes
   POST /synthesize_batch     -> { text, language, variants:[{key,accent,gender}] }
                                  -> { results: [{key, ok, audio_base64, error}] }
   POST /queue/submit         -> enqueue an idempotent FIFO job
@@ -132,7 +156,9 @@ def _register_pycore_namespace() -> None:
 
 
 _register_pycore_namespace()
-_load_source_module(_NETWORK_CONSTANTS_MODULE_NAME, _NETWORK_CONSTANTS_MODULE_PATH)
+_network_constants = _load_source_module(
+    _NETWORK_CONSTANTS_MODULE_NAME, _NETWORK_CONSTANTS_MODULE_PATH
+)
 http_sse = _load_source_module(_HTTP_SSE_MODULE_NAME, _HTTP_SSE_MODULE_PATH)
 http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PATH)
 http_service = http_event.HttpEventService(
@@ -398,6 +424,9 @@ class SynthRequest(BaseModel):
     speaker: Optional[str] = None
     instruct: Optional[str] = None
     format: str = "mp3"
+    # Optional playback-speed factor (0.25..3.0, <1.0 slower). Omitted/None
+    # -> the server-wide default (see _default_speed).
+    speed: Optional[float] = None
 
 
 class VariantSpec(BaseModel):
@@ -443,6 +472,21 @@ def _max_parallel_snapshot() -> int:
     )
 
 
+def _default_speed() -> float:
+    """Server-wide default playback speed for every generation: the
+    QWEN3TTS_SPEED env, else the shared QWEN3TTS_DEFAULT_SPEED constant loaded
+    from pyfoundations.network_constants (single source with the pycore side -
+    both sides read the same env, and the managed launch inherits the
+    environment, so they always agree)."""
+    raw = (os.environ.get("QWEN3TTS_SPEED") or "").strip()
+    fallback = float(getattr(_network_constants, "QWEN3TTS_DEFAULT_SPEED", 0.75))
+    try:
+        value = float(raw) if raw else fallback
+    except ValueError:
+        value = fallback
+    return min(3.0, max(0.25, value))
+
+
 def _get_synthesis() -> QwenSynthesis:
     global _SYNTHESIS
     if _SYNTHESIS is None:
@@ -458,6 +502,7 @@ def _get_synthesis() -> QwenSynthesis:
             model_id=_model_id,
             device=lambda: _device or _resolve_device(),
             logger=_log,
+            default_speed=_default_speed,
         )
     return _SYNTHESIS
 
@@ -541,6 +586,9 @@ async def status():
         "ok": True,
         "model_loaded": _model_ready(_model),
         "model_id": _model_id(),
+        "chunked": True,
+        "speed": _default_speed(),
+        "code_id": os.environ.get("PYCORE_MANAGED_CODE_ID") or "",
         "device": _device or _resolve_device(),
         "dtype": dtype,
         "load_error": _load_error,

@@ -5,7 +5,7 @@ namespace App\Services;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangSentenceModel as LangSentence;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSService;
+use App\Services\EdgeTTS\EdgeTTSService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
@@ -55,7 +55,7 @@ class SentenceEnrichmentService
         $this->openrouterClient = new OpenRouterClient();
         $this->deepseekClient = new DeepSeekClient();
         $this->geminiClient = new GeminiClient();
-        $this->ttsService = new AppQyV1TTSService();
+        $this->ttsService = new EdgeTTSService();
     }
 
     /**
@@ -264,7 +264,7 @@ class SentenceEnrichmentService
      * directory keyed by sentence_id. Returns the canonical served reference, or
      * null if audio could not be produced.
      *
-     * Reuses AppQyV1TTSService to do the actual edge-tts synthesis (and its
+     * Reuses EdgeTTSService to do the actual edge-tts synthesis (and its
      * cache), then copies the produced mp3 into
      * PathMapper::getAppQyV1SentenceSoundsDir() under
      * "<langCode>/<content_id>.mp3" (Books v3 §6) so the per-language store has a

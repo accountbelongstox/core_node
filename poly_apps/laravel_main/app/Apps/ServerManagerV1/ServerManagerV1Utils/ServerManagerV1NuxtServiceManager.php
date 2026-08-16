@@ -203,7 +203,7 @@ class ServerManagerV1NuxtServiceManager
      * @param bool $debugMode If true, runs directly from source; if false, runs from factory build
      * @return bool Success status
      */
-    public static function createServiceFile(string $appname, int $port, string $user = null, bool $debugMode = false): bool
+    public static function createServiceFile(string $appname, int $port, ?string $user = null, bool $debugMode = false): bool
     {
         if ($user === null) {
             $user = self::getDefaultServiceUser();
@@ -678,7 +678,7 @@ SERVICE;
      * @param bool $debugMode Debug mode flag
      * @return bool Success status
      */
-    public static function refreshService(string $appname, int $port, string $user = null, bool $debugMode = false): bool
+    public static function refreshService(string $appname, int $port, ?string $user = null, bool $debugMode = false): bool
     {
         $serviceName = self::getNuxtServiceName($appname);
         $currentMode = self::detectServiceMode($serviceName);
@@ -785,7 +785,7 @@ SERVICE;
      * @param bool $autoResolve Auto-resolve duplicates and refresh mode
      * @return array Status information
      */
-    public static function createOrRefreshService(string $appname, int $port, string $user = null, bool $debugMode = false, bool $autoResolve = true): array
+    public static function createOrRefreshService(string $appname, int $port, ?string $user = null, bool $debugMode = false, bool $autoResolve = true): array
     {
         $serviceName = self::getNuxtServiceName($appname);
         $result = [

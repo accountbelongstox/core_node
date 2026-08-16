@@ -403,9 +403,9 @@ def get_real_user() -> str:
 # Platform / disk / WSL detection helpers.
 #
 # These were consolidated here from system_paths (where they duplicated
-# get_real_user / get_linux_disk_info). system_paths imports them (aliased to
-# their former private names) so its internal call sites are unchanged, and
-# re-exports ``is_wsl`` as ``_is_wsl`` for pg_sync_adapter's defensive import.
+# get_real_user / get_linux_disk_info). system_paths imports them (the
+# distro-info and largest-drive helpers aliased to their former private
+# names) so its internal call sites are unchanged.
 # --------------------------------------------------------------------------- #
 def is_wsl() -> bool:
     """

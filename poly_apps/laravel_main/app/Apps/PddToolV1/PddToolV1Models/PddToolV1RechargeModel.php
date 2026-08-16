@@ -10,31 +10,19 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
 use Illuminate\Support\Collection;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * A recharge / payment record (alipay|wechat). status pending|paid|failed|refunded.
  */
-class PddToolV1RechargeModel extends Model
+class PddToolV1RechargeModel extends PddToolV1Model
 {
     public const STATUS_PENDING = 'pending';
     public const STATUS_PAID = 'paid';
     public const STATUS_FAILED = 'failed';
     public const STATUS_REFUNDED = 'refunded';
 
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('RECHARGES');
-    }
+    protected ?string $appTableMapKey = 'RECHARGES';
 
     protected $fillable = [
         'user_id',
@@ -64,12 +52,18 @@ class PddToolV1RechargeModel extends Model
 
     public static function paidRevenue($now): array
     {
+        $stats = static::query()
+            ->where('status', self::STATUS_PAID)
+            ->selectRaw('COALESCE(SUM(amount), 0) AS total')
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN paid_at >= ? THEN amount ELSE 0 END), 0) AS last_30_days',
+                [$now->copy()->subDays(30)]
+            )
+            ->first();
+
         return [
-            'total' => (float) static::query()->where('status', self::STATUS_PAID)->sum('amount'),
-            'last_30_days' => (float) static::query()
-                ->where('status', self::STATUS_PAID)
-                ->where('paid_at', '>=', $now->copy()->subDays(30))
-                ->sum('amount'),
+            'total' => (float) ($stats->total ?? 0),
+            'last_30_days' => (float) ($stats->last_30_days ?? 0),
         ];
     }
 

@@ -11,14 +11,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\ApiResponse;
 
-class AppQyV1AuthenticationSessionController extends BaseController
+class AppQyV1AuthenticationSessionController extends Controller
 {
     use ApiResponse;
 

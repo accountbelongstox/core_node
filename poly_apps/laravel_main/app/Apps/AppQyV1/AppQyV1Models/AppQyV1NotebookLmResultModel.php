@@ -10,9 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
 /**
  * NotebookLM answer record.
@@ -22,17 +19,10 @@ use App\Models\Model;
  * { answer?, notebook_url?, provider:'notebooklm' } plus the originating task's
  * payload { question|source_text, notebook_url?, title? }.
  */
-class AppQyV1NotebookLmResultModel extends Model
+class AppQyV1NotebookLmResultModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'notebooklm_results');
-    }
+    protected ?string $appTableSuffix = 'notebooklm_results';
 
     protected $fillable = [
         'task_id',
@@ -43,8 +33,4 @@ class AppQyV1NotebookLmResultModel extends Model
         'provider',
     ];
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
 }

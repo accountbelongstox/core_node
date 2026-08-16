@@ -211,15 +211,8 @@ class PddToolV1Initializer implements AppInitializerInterface
             $created = 0;
             $existing = 0;
 
-            foreach (PddToolV1Defaults::PACKAGES as $code => $def) {
-                $row = PddToolV1PackageModel::findByCode($code);
-                if ($row) {
-                    $existing++;
-                    continue;
-                }
-                PddToolV1PackageModel::createRecord($def);
-                $created++;
-            }
+            $created = PddToolV1PackageModel::insertMissing(PddToolV1Defaults::PACKAGES);
+            $existing = count(PddToolV1Defaults::PACKAGES) - $created;
 
             return [
                 'status' => 'success',

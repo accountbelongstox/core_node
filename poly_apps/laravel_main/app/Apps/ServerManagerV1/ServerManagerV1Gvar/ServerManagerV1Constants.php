@@ -186,7 +186,7 @@ class ServerManagerV1Constants
     public static function getCertbotInstallScript(): string
     {
         $coreNodeDir = PathMapper::getCoreNodeDir();
-        return $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells/26_install_certbot.sh' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/shells/linux/debian/install_shells/26_install_certbot.sh';
+        return $coreNodeDir ? $coreNodeDir . '/scripts/shells/linux/debian/install_shells/27_install_certbot.sh' : PathMapper::mapWebPath('wwwroot') . '/core_node/scripts/shells/linux/debian/install_shells/27_install_certbot.sh';
     }
     
     /** @deprecated Use getCertbotInstallScript() instead */

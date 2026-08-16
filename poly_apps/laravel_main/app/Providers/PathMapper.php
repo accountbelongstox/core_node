@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Log;
  * the logic in gvar_common.sh map_web_path() to ensure consistency
  * between shell scripts and PHP code.
  * 
- * Replaces: DatabasePathHelper, ExternalStorageHelper, WebPathHelper
+ * Canonical path mapping for application and runtime storage.
  */
 class PathMapper
 {
@@ -362,15 +362,11 @@ class PathMapper
 
     /**
      * Check whether the root (/) filesystem has more than $minGb free space.
-     * Mirrors gvar_common.sh::root_has_sufficient_free_space. The threshold can
-     * be overridden via the DEV_ROOT_MIN_FREE_GB environment variable.
+     * Mirrors gvar_common.sh::root_has_sufficient_free_space with the project
+     * threshold supplied by the caller.
      */
     private static function rootHasSufficientFreeSpace(int $minGb = 50): bool
     {
-        $envGb = getenv('DEV_ROOT_MIN_FREE_GB');
-        if ($envGb !== false && is_numeric($envGb)) {
-            $minGb = (int) $envGb;
-        }
         $free = @disk_free_space('/');
         if ($free === false) {
             return false;
@@ -382,7 +378,7 @@ class PathMapper
      * Compute the development-tooling base directory and its naming suffix.
      * Mirrors gvar_common.sh get_dev_compile_base() + the compile_dir naming.
      *
-     * Linux: '/opt' when root (/) has > DEV_ROOT_MIN_FREE_GB free (non-WSL),
+     * Linux: '/opt' when root (/) has sufficient free space (non-WSL),
      *        else the largest secondary disk (getBaseDataDirectory()).
      * Windows: 'D:' with a win{ver} suffix (mirrors deploy.ps1 / system_paths.py).
      *
@@ -698,8 +694,8 @@ class PathMapper
     /**
      * Canonical AppQyV1 word/sentence-TTS audio base directory.
      *
-     * Single source of truth for where the edge-tts pipeline (EdgeTTSService /
-     * AppQyV1TTSService) and the Bing-assist audio write-back store generated
+     * Single source of truth for where the edge-tts pipeline (EdgeTTSService)
+     * and the Bing-assist audio write-back store generated
      * audio AND where the serve route /api/app_qy_v1/ai_tools/tts/audio/{...}
      * reads it back — write target == serve base (no split-brain). Files live at
      *   <laravel_db>/static/app_qy_v1/audio/{lang}/{type}/{file}
@@ -855,12 +851,8 @@ class PathMapper
      */
     public static function getDefaultDatabasePath(string $databaseName = 'database.sqlite', ?string $subPath = ""): string
     {
-        $defaultDatabasePath = env('DB_DATABASE');
         $laravelDatabaseDir = self::getLaravelDatabaseDir();
-
-        if ($defaultDatabasePath == "" || $defaultDatabasePath == null) {
-            $defaultDatabasePath = $laravelDatabaseDir;
-        }
+        $defaultDatabasePath = $laravelDatabaseDir;
 
         if (!file_exists($defaultDatabasePath)) {
             // Race-safe (Octane workers / DrvFs): suppress + re-check so a
@@ -1307,7 +1299,7 @@ class PathMapper
     /**
      * Get the shared download cache dir (mirror of pycore system_paths.get_shared_download_cache_dir).
      *
-     * Windows: D:\www\cache ; Linux: /var/_core_node/cache ; env CORE_NODE_CACHE_DIR override.
+     * Windows: D:\www\cache ; Linux: /var/_core_node/cache.
      * This is the SAME physical location pycore resolves, so PHP + Python land on identical paths.
      *
      * @param string|null $subPath Namespaced sub-path under the cache root (e.g. "pycore/.ai_state").
@@ -1315,10 +1307,7 @@ class PathMapper
      */
     public static function getSharedDownloadCacheDir(?string $subPath = ""): string
     {
-        $envVal = env('CORE_NODE_CACHE_DIR');
-        if ($envVal !== null && $envVal !== '') {
-            $base = rtrim($envVal, '/\\');
-        } elseif (self::isWindows()) {
+        if (self::isWindows()) {
             $base = 'D:\\www\\cache';
         } else {
             $base = '/var/_core_node/cache';
@@ -1441,7 +1430,7 @@ class PathMapper
      */
     public static function getNodeInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/14_install_node_22.sh';
+        $basePath = self::getInstallShellsDir() . '/16_install_node_24.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1454,7 +1443,7 @@ class PathMapper
      */
     public static function getGoInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/53_install_golang22.sh';
+        $basePath = self::getInstallShellsDir() . '/54_install_golang22.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1467,7 +1456,7 @@ class PathMapper
      */
     public static function getFlutterInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/38_install_flutter.sh';
+        $basePath = self::getInstallShellsDir() . '/39_install_flutter.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1481,13 +1470,12 @@ class PathMapper
 
     /**
      * Get Node binary path
-     * Follows the installation script pattern from 14_install_node_22.sh
+     * Follows the installation script pattern from 16_install_node_24.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/node (created by installation script)
-     * 2. NODE_HOME environment variable + /bin/node
-     * 3. which node command
-     * 4. Fallback to symlink path
+     * 2. which node command
+     * 3. Fallback to symlink path
      *
      * @return string Path to node binary
      */
@@ -1496,11 +1484,6 @@ class PathMapper
         $symlinkPath = self::mapWebPath('node_symlink');
         if (file_exists($symlinkPath)) {
             return $symlinkPath;
-        }
-
-        $nodeHome = getenv('NODE_HOME');
-        if ($nodeHome && file_exists("$nodeHome/bin/node")) {
-            return "$nodeHome/bin/node";
         }
 
         $result = \Illuminate\Support\Facades\Process::run('which node');
@@ -1516,7 +1499,7 @@ class PathMapper
 
     /**
      * Get Go binary path
-     * Follows the installation script pattern from 53_install_golang22.sh
+     * Follows the installation script pattern from 54_install_golang22.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/go (created by installation script)
@@ -1552,7 +1535,7 @@ class PathMapper
 
     /**
      * Get Flutter binary path
-     * Follows the installation script pattern from 38_install_flutter.sh
+     * Follows the installation script pattern from 39_install_flutter.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/flutter (created by installation script)

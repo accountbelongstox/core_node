@@ -14,37 +14,29 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
-class AppQyV1UserFollowModel extends Model
+class AppQyV1UserFollowModel extends AppQyV1Model
 {
     use HasFactory;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('USER_FOLLOWS');
-    }
+    protected ?string $appTableMapKey = 'USER_FOLLOWS';
 
     protected $fillable = [
         'user_id',
         'followed_user_id',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'followed_user_id' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'followed_user_id' => 'integer',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public static function rowsForUser(int $userId): Collection
     {

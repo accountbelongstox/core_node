@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -13,7 +15,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupProgressController
+class AppQyV1WordGroupProgressController extends Controller
 {
     use ApiResponse;
 

@@ -32,5 +32,16 @@ Route::prefix('local/ai')->middleware('throttle:120,1')->group(function () {
     Route::get('image/history/file/{id}', [AiLocalController::class, 'imageHistoryFile']);
     Route::delete('image/history/{id}', [AiLocalController::class, 'imageHistoryDelete']);
     Route::post('image/history/clear', [AiLocalController::class, 'imageHistoryClear']);
+    // Official Laravel AI SDK surface — capability matrix, persistent chat
+    // conversations (text + image attachments, SDK failover) and the
+    // gateway-local prompt cache.
+    Route::get('capabilities', [AiLocalController::class, 'capabilities']);
+    Route::get('chat/conversations', [AiLocalController::class, 'chatConversations']);
+    Route::get('chat/conversations/{id}', [AiLocalController::class, 'chatMessages']);
+    Route::delete('chat/conversations/{id}', [AiLocalController::class, 'chatConversationDelete']);
+    Route::post('chat/send', [AiLocalController::class, 'chatSend']);
+    Route::get('chat/attachments/{name}', [AiLocalController::class, 'chatAttachment']);
+    Route::get('prompt-cache', [AiLocalController::class, 'promptCache']);
+    Route::post('prompt-cache/clear', [AiLocalController::class, 'promptCacheClear']);
     Route::get('info', [AiLocalController::class, 'info']);
 });

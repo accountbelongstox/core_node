@@ -45,6 +45,8 @@ from pycore.callmodule.rpc_routes.pycore_manager_ui_state_routes import (
 from pycore.callmodule.rpc_routes.qwen_http_routes import register_qwen_http_routes
 from pycore.callmodule.rpc_routes.terminal_routes import register_terminal_routes
 from pycore.callmodule.rpc_routes.thread_bus_routes import register_thread_bus_routes
+from pycore.callmodule.rpc_routes.translator_routes import register_translator_routes
+from pycore.callmodule.rpc_routes.tts_routes import register_tts_routes
 from pycore.callmodule.rpc_routes.video_extract_routes import register_video_extract_routes
 from pycore.callmodule.rpc_routes.voice_subtitle_routes import register_voice_subtitle_routes
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -63,6 +65,8 @@ HTTP_ROUTE_REGISTRARS = (
     register_voice_subtitle_routes,
     register_local_agent_history_routes,
     register_local_translate_routes,
+    register_translator_routes,
+    register_tts_routes,
     register_local_subtitle_search_routes,
     register_local_ai_image_routes,
     register_local_ai_keys_routes,

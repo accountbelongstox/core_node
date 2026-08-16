@@ -7,25 +7,17 @@ use Illuminate\Support\Facades\Cache;
 use Laravel\Octane\Facades\Octane;
 
 /**
- * OctaneTimerService - Shared timer task system, used on EVERY runtime
+ * OctaneTimerService - Swoole-shared timer task system
  *
- * Provides a common timer that runs every 1 second (configurable). Services
- * register tasks once (app/Services/TimerTasks/*) and this same class drives
- * them regardless of which process ticks it:
- *   - Under Octane-Swoole: OctaneTimerServiceProvider hooks Octane::tick(),
- *     state lives in Swoole Tables (cross-worker, shared by every HTTP worker
- *     in that one server process tree).
- *   - Everywhere else (composer dev/dev:win, node-free fallback, Windows):
- *     OctaneTimerServiceProvider hooks a Laravel Schedule ->everySecond() tick
- *     consumed by `php artisan schedule:work`, state lives in the in-process
- *     fallback array below (fast, no I/O — correct within that ONE process).
+ * OctaneTimerServiceProvider registers a one-second Octane::tick() heartbeat.
+ * Task state lives in Swoole Tables and is shared by every request and task
+ * worker in the Octane server process tree. Laravel Scheduler and queue workers
+ * are intentionally not timer drivers in this application.
  *
- * Neither of those two tiers is visible to a DIFFERENT OS process, though —
- * e.g. a Task Center status request answered by `artisan serve` under Windows
- * is a fresh process every time, never the one running `schedule:work`. A
- * third tier (a small JSON file under the Laravel tmp dir) mirrors state
- * across processes for exactly this case: any process CAN read what the
- * REAL ticking process last wrote, cross-platform, no cache driver needed.
+ * A small JSON heartbeat under the Laravel runtime directory mirrors Swoole
+ * state for console inspection commands, which run outside the Octane process
+ * tree. The in-process array remains a defensive read/write store when such a
+ * command cannot access a Swoole table; it never drives timer execution.
  *
  * Callers never need to know which backend is active — stateGet/stateSet pick
  * the right tier automatically per call.

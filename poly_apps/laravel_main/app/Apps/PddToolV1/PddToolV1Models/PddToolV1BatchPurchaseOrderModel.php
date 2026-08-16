@@ -10,26 +10,14 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
 use Illuminate\Support\Collection;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * One purchase-order line within a batch.
  */
-class PddToolV1BatchPurchaseOrderModel extends Model
+class PddToolV1BatchPurchaseOrderModel extends PddToolV1Model
 {
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('BATCH_PURCHASE_ORDERS');
-    }
+    protected ?string $appTableMapKey = 'BATCH_PURCHASE_ORDERS';
 
     protected $fillable = [
         'batch_id',

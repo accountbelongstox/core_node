@@ -14,32 +14,21 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
  * Chat conversation (SOCIAL_FEATURE_SPECIFICATION.md §1/§2). Direct (1:1) or
  * group; direct threads dedupe via the dkey (min_max user-id pair).
  */
-class AppQyV1ConversationModel extends Model
+class AppQyV1ConversationModel extends AppQyV1Model
 {
     use RunsModelTransactions;
     public const TYPE_DIRECT = 'direct';
     public const TYPE_GROUP = 'group';
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('CONVERSATIONS');
-    }
+    protected ?string $appTableMapKey = 'CONVERSATIONS';
 
     protected $fillable = [
         'type',
@@ -48,12 +37,15 @@ class AppQyV1ConversationModel extends Model
         'last_message_at',
     ];
 
-    protected $casts = [
-        'created_by' => 'integer',
-        'last_message_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'created_by' => 'integer',
+            'last_message_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public function participants(): HasMany
     {

@@ -1,17 +1,14 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Collection;
 
-class CodeMartV1AIAnalysisModel extends Model
+class CodeMartV1AIAnalysisModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_ai_analyses';
 
     protected $fillable = [
@@ -69,11 +66,6 @@ class CodeMartV1AIAnalysisModel extends Model
             ->whereKey($id)
             ->whereIn('status', $statuses)
             ->update(['status' => 'failed']);
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public static function findWithProject(int $analysisId): ?self

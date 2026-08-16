@@ -11,7 +11,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Http\JsonResponse;
@@ -28,7 +28,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageConfigService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1LanguageStudyGroupService;
 
-class AppQyV1AuthenticationRegistrationController extends BaseController
+class AppQyV1AuthenticationRegistrationController extends Controller
 {
     use ApiResponse;
 

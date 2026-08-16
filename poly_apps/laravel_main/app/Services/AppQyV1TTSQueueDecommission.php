@@ -26,10 +26,9 @@ use Illuminate\Support\Facades\Schema;
  *          attempts/error so in-flight intent survives the cutover.
  *   2. Reconcile: cheap flag-consistency fixes on the canonical tables
  *      (has_audio=true with empty tts_files → reset to false + pending).
- *   3. Drop the tts_queue table (the space win).
+ *   3. Retain the tts_queue table as an inert archive.
  *
- * Re-runs are no-ops once the table is gone; every step is fill-missing, so a
- * crash mid-way is safe to re-run.
+ * Every step is fill-missing, so a crash mid-way is safe to re-run.
  */
 class AppQyV1TTSQueueDecommission
 {
@@ -48,7 +47,7 @@ class AppQyV1TTSQueueDecommission
             'articles_salvaged' => 0,
             'pending_migrated' => 0,
             'flags_reconciled' => 0,
-            'dropped' => false,
+            'retained' => false,
         ];
 
         // ---- 2. Reconcile canonical flags (runs every init, queue or not) ----
@@ -151,11 +150,10 @@ class AppQyV1TTSQueueDecommission
                 }
             });
 
-        // ---- 3. Drop the intermediate table ----
-        $schema->drop($queueTable);
-        $result['dropped'] = true;
+        // ---- 3. Preserve the intermediate table as an inert archive ----
+        $result['retained'] = true;
 
-        Log::info('[TTSQueueDecommission] tts_queue decommissioned', $result);
+        Log::info('[TTSQueueDecommission] tts_queue synchronized and retained', $result);
 
         return $result;
     }

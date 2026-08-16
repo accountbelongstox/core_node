@@ -10,28 +10,16 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Models;
 
-use App\Models\Model;
-use App\Apps\PddToolV1\PddToolV1DBTablesBrige\PddToolV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Per-member usage event log (for admin usage stats). created_at only.
  */
-class PddToolV1UsageLogModel extends Model
+class PddToolV1UsageLogModel extends PddToolV1Model
 {
     public $timestamps = false;
 
-    protected $appKey = AppKeys::PDDTOOLV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = PddToolV1TableMaps::getTableName('USAGE_LOGS');
-    }
+    protected ?string $appTableMapKey = 'USAGE_LOGS';
 
     protected $fillable = [
         'user_id',

@@ -31,21 +31,6 @@ THREAD_REGISTRY = {
         "default_enabled": False,
         "shutdown_priority": 50,
     },
-    "speech": {
-        "description": "Speech transcription service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
-    "tts_switch": {
-        "description": "TTS provider switching service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
-    "stt_switch": {
-        "description": "STT provider switching service",
-        "default_enabled": False,
-        "shutdown_priority": 60,
-    },
     "ui": {
         "description": "UI service",
         "default_enabled": False,

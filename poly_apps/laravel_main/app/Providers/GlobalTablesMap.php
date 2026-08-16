@@ -10,7 +10,7 @@
 
 namespace App\Providers;
 
-class GlobalTablesMap
+class GlobalTablesMap extends TableMaps
 {
     public const CONNECTION = 'main';
 
@@ -20,7 +20,7 @@ class GlobalTablesMap
      * that are shared across all applications in the Laravel project
      * All database operations should reference these mappings instead of hardcoded table/field names
      */
-    
+
     // Global Users Table
     public const GLOBAL_USERS = [
         'tablename' => 'users',
@@ -106,48 +106,16 @@ class GlobalTablesMap
     ];
 
     /**
-     * Get table name by key
+     * Global tables carry no app prefix.
      */
-    public static function getTableName(string $tableKey): string
+    protected static function getTablePrefix(): string
     {
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            return constant("self::{$constantName}")['tablename'];
-        }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
+        return '';
     }
 
     public static function getConnection(): string
     {
         return self::CONNECTION;
-    }
-
-    /**
-     * Get field name by table key and field key
-     */
-    public static function getFieldName(string $tableKey, string $fieldKey): string
-    {
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            $tableMap = constant("self::{$constantName}");
-            if (isset($tableMap['fields'][$fieldKey])) {
-                return $tableMap['fields'][$fieldKey];
-            }
-            throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in table '{$tableKey}'");
-        }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
-    }
-
-    /**
-     * Get all fields for a table
-     */
-    public static function getTableFields(string $tableKey): array
-    {
-        $constantName = strtoupper($tableKey);
-        if (defined("self::{$constantName}")) {
-            return constant("self::{$constantName}")['fields'];
-        }
-        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
     }
 
     /**
@@ -163,27 +131,21 @@ class GlobalTablesMap
         ];
     }
 
-    /**
-     * Check if table key exists
-     */
-    public static function hasTableKey(string $tableKey): bool
+    protected static function missingTableName(string $tableKey): string
     {
-        $constantName = strtoupper($tableKey);
-        return defined("self::{$constantName}");
+        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
     }
 
-    /**
-     * Get all table mappings
-     */
-    public static function getAllTableMappings(): array
+    protected static function missingFieldName(string $tableKey, string $fieldKey): string
     {
-        $mappings = [];
-        foreach (self::getAvailableTableKeys() as $tableKey) {
-            $constantName = strtoupper($tableKey);
-            if (defined("self::{$constantName}")) {
-                $mappings[$tableKey] = constant("self::{$constantName}");
-            }
+        if (!static::hasTableKey($tableKey)) {
+            throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
         }
-        return $mappings;
+        throw new \InvalidArgumentException("Field key '{$fieldKey}' not found in table '{$tableKey}'");
+    }
+
+    protected static function missingTableFields(string $tableKey): array
+    {
+        throw new \InvalidArgumentException("Table key '{$tableKey}' not found in GlobalTablesMap");
     }
 }

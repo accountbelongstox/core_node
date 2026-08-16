@@ -14,12 +14,8 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -27,7 +23,7 @@ use Illuminate\Support\Collection;
  * text|images|video|live; like_count / comment_count are materialized counters
  * maintained by the controllers. Soft-deleted so an author can hide a post.
  */
-class AppQyV1PostModel extends Model
+class AppQyV1PostModel extends AppQyV1Model
 {
     use RunsModelTransactions, SoftDeletes;
 
@@ -40,15 +36,8 @@ class AppQyV1PostModel extends Model
     public const VISIBILITY_FOLLOWERS = 'followers';
     public const VISIBILITY_PRIVATE = 'private';
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('POSTS');
-    }
+    protected ?string $appTableMapKey = 'POSTS';
 
     protected $fillable = [
         'user_id',
@@ -65,15 +54,18 @@ class AppQyV1PostModel extends Model
         'updated_at',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'like_count' => 'integer',
-        'comment_count' => 'integer',
-        'metadata' => 'array',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'like_count' => 'integer',
+            'comment_count' => 'integer',
+            'metadata' => 'array',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'deleted_at' => 'datetime',
+        ];
+    }
 
     public function images(): HasMany
     {

@@ -66,16 +66,26 @@ class AppQyV1VocabularyService
         }
 
         $importer = new AppQyV1VocabularyImporter();
+        $metadataByPath = [];
+        $sources = [];
 
         foreach ($files as $filePath) {
             $filename = basename($filePath);
-            $meta = self::buildLibraryMetadata($filename);
+            $metadataByPath[$filePath] = self::buildLibraryMetadata($filename);
+            $sources[] = AppQyV1VocabularyImporter::normalizeSource($metadataByPath[$filePath]['source']);
+        }
+
+        $existingBySource = AppQyV1VocabularyLibraryModel::rowsBySources($sources);
+
+        foreach ($files as $filePath) {
+            $filename = basename($filePath);
+            $meta = $metadataByPath[$filePath];
 
             try {
                 // Normalize the lookup key to match the importer's canonical
                 // source so this skip-check and the upsert agree on identity.
                 $canonicalSource = AppQyV1VocabularyImporter::normalizeSource($meta['source']);
-                $existing = AppQyV1VocabularyLibraryModel::findBySource($canonicalSource);
+                $existing = $existingBySource->get($canonicalSource);
 
                 // Only skip when the row is ALREADY fully populated. A
                 // partially-created (empty word_ids) row falls through to

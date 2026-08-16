@@ -4,18 +4,17 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1User;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 use App\Services\AvatarService;
-use App\Http\Controllers\Auth\AvatarPublic;
 use App\Services\UnifiedAuthService;
 use App\Providers\PathMapper;
 use App\Constants\AppKeys;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
 use Carbon\Carbon;
 
-class AppQyV1ProfileController extends BaseController
+class AppQyV1ProfileController extends Controller
 {
     use ApiResponse;
 
@@ -33,7 +32,7 @@ class AppQyV1ProfileController extends BaseController
         // Idempotent read-time repair: fixes empty / missing / legacy
         // oversized (e.g. 27 MB) avatars and persists the fix. No-op when
         // the avatar is already valid, so normal reads are not slowed.
-        $user = AvatarPublic::backfillAvatar($user);
+        $user = AvatarService::backfillAvatar($user);
 
         $userProfile = [
             'id' => $user->id,
@@ -293,7 +292,7 @@ class AppQyV1ProfileController extends BaseController
             $dailyGoal = 20;
         }
 
-        $tableReady = AppQyV1UserLearningProgressModel::tableExists();
+        $tableReady = AppQyV1UserLearningProgressModel::configuredTableExists();
 
         if ($tableReady) {
             $metrics = AppQyV1UserLearningProgressModel::profileMetrics((int) $user->id);

@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Payment;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\PddToolV1\PddToolV1Models\PddToolV1RechargeModel;
@@ -26,7 +26,7 @@ use App\Apps\PddToolV1\PddToolV1Constants\PddToolV1Defaults;
  * User-facing recharge / payment flow (root-level, authed for create/status;
  * gateway notifies are unauthenticated callbacks).
  */
-class PddToolV1RechargeController extends BaseController
+class PddToolV1RechargeController extends Controller
 {
     /**
      * GET /recharge/packages -> {data:[PACKAGE]}  (public)

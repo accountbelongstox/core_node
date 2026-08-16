@@ -32,7 +32,7 @@ use Illuminate\Support\Facades\Log;
  * downgrades the whole completed batch to failed.
  *
  * Once a word is flipped is_valid=false it is permanently dropped from the
- * translation enqueue (AppQyV1MultiLangDictionaryModel::getWordsNeedingTranslation
+ * translation enqueue (AppQyV1LangDictionaryModel::untranslatedRows
  * filters is_valid=true), so the dictionary stops wasting lookups on junk.
  */
 class WordValidityTaskProcessor extends AbstractTaskProcessor

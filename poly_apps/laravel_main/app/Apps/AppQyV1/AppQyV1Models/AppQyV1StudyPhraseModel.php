@@ -10,9 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Short-phrase introduction linked to a study segment (Book Study-Content
@@ -20,17 +17,10 @@ use App\Providers\AppTablePrefixServiceProvider;
  * (source_type, source_key, segment_index) composite. Duplicates across segments
  * are allowed by design (no unique key on phrase).
  */
-class AppQyV1StudyPhraseModel extends Model
+class AppQyV1StudyPhraseModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'study_phrases');
-    }
+    protected ?string $appTableSuffix = 'study_phrases';
 
     protected $fillable = [
         'segment_id',
@@ -43,11 +33,14 @@ class AppQyV1StudyPhraseModel extends Model
         'metadata',
     ];
 
-    protected $casts = [
-        'segment_id' => 'integer',
-        'segment_index' => 'integer',
-        'metadata' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'segment_id' => 'integer',
+            'segment_index' => 'integer',
+            'metadata' => 'array',
+        ];
+    }
 
     public static function deleteForSegment(int $segmentId): int
     {
@@ -68,8 +61,4 @@ class AppQyV1StudyPhraseModel extends Model
             ->all();
     }
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
 }

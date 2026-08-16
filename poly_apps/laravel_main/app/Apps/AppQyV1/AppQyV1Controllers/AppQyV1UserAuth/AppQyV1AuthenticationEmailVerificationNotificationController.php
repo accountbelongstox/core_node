@@ -11,13 +11,13 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1UserAuth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
 
-class AppQyV1AuthenticationEmailVerificationNotificationController extends BaseController
+class AppQyV1AuthenticationEmailVerificationNotificationController extends Controller
 {
     use ApiResponse;
 

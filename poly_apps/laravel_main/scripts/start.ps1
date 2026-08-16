@@ -9,13 +9,13 @@
 
 # Fully-native Windows port of scripts/start.sh (Unix: use scripts/start.sh).
 # 1:1 lifecycle with start.sh, written natively (no WSL orchestration):
-#   ensure php/composer -> Laravel runtime dirs / .env / APP_KEY -> ensure pdo_pgsql
+#   ensure php/composer -> Laravel runtime dirs / runtime secret store -> ensure pdo_pgsql
 #   -> ensure PostgreSQL (shared PostgresqlManager: idempotent, native cluster on D:,
 #      REUSES an already-serving :5432 server e.g. a WSL one) -> route:clear ->
-#      route:list -> migrate --force -> sys:init -> detect IPs -> composer dev:win.
-# PostgreSQL parity: password lives in the CoreNodeSecrets global-var store
-#   (<DataDrive>\var\_core_node\global_var\POSTGRES_PASSWORD + laravel_db mirror),
-#   NEVER in .env; config/database.php is code-only PostgreSQL at 127.0.0.1:5432.
+#      route:list -> sys:init -> detect IPs -> composer dev:win.
+# PostgreSQL parity: the installer owns POSTGRES_PASSWORD in its global-var store
+#   and mirrors it into RuntimeConfigurationStore; config/database.php is code-only
+#   PostgreSQL at 127.0.0.1:5432.
 # Runtime: Laravel Octane's HTTP server cannot run on native Windows (octane:start
 #   needs the pcntl SIGINT constant) -> use composer dev:win (serve+queue+reverb+
 #   timer). The sub-minute timer task system (app/Services/TimerTasks/*, same code
@@ -44,8 +44,9 @@ $PolyAppsDir = Split-Path -Parent $LaravelDir
 $RepoRootDir = Split-Path -Parent $PolyAppsDir
 $VendorDir = Join-Path $LaravelDir "vendor"
 $VendorAutoload = Join-Path $VendorDir "autoload.php"
-$EnvPath = Join-Path $LaravelDir ".env"
-$EnvExamplePath = Join-Path $LaravelDir ".env.example"
+$BootstrapApp = Join-Path $LaravelDir "bootstrap\app.php"
+$Laravel13UpgradeScript = Join-Path $ScriptDir "upgrade_laravel_13.ps1"
+$RuntimeConfigDir = $null
 $Port = 9000
 $PgManagerScript = Join-Path $RepoRootDir "scripts\shells\win\win_common\PostgresqlManager.ps1"
 $PhpIniConfigScript = Join-Path $RepoRootDir "scripts\shells\win\1_phpconfig\configure_php_ini.php"
@@ -55,13 +56,8 @@ $phpCmd = $null
 $composerCmd = $null
 $adapters = $null
 $routeOut = $null
-$migrateOut = $null
-$migrateExit = 0
 $runtimeRel = $null
 $runtimeFull = $null
-$envContent = $null
-$envDriverChanged = $false
-$envDriverLines = $null
 $PdoPgsqlPresent = $false
 $PhpExeForConfig = $null
 $phpModulesOut = $null
@@ -120,6 +116,7 @@ $LaravelRuntimeDirs = @(
     "storage\app\private"
 )
 
+. $Laravel13UpgradeScript
 function Show-Usage {
     Write-Host "Usage: powershell -File `"$SelfScript`" [options]"
     Write-Host ""
@@ -207,6 +204,124 @@ function Write-InstallationAccessCode {
     [System.IO.File]::WriteAllText($FilePath, $phpSource, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Get-RuntimeConfigurationDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath
+    )
+
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; echo \App\Support\RuntimeConfigurationStore::directory();'
+    $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
+    $exitCode = $LASTEXITCODE
+    $directory = ($output | Out-String).Trim()
+
+    if (($exitCode -ne 0) -or [string]::IsNullOrWhiteSpace($directory)) {
+        throw "Runtime configuration store directory could not be resolved."
+    }
+
+    return $directory
+}
+
+function Get-RuntimeConfigurationValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath,
+        [Parameter(Mandatory = $true)][string]$Key
+    )
+
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; $key = $argv[3]; $value = null; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get($key); if ($value !== null) { echo $value; }'
+    $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath $Key
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        throw "Runtime configuration value could not be read: $Key"
+    }
+
+    return ($output | Out-String).Trim()
+}
+
+function Set-RuntimeConfigurationValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; $key = $argv[3]; $value = trim(stream_get_contents(STDIN)); require $autoload; require $bootstrap; exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);'
+    $output = $Value | & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath $Key
+    $exitCode = $LASTEXITCODE
+
+    if ($exitCode -ne 0) {
+        throw "Runtime configuration value could not be stored: $Key"
+    }
+}
+
+function New-SecureRuntimeValue {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][ValidateSet("app-key", "reverb-key", "reverb-secret")][string]$Type
+    )
+
+    $phpCode = ""
+    $output = $null
+    $exitCode = 0
+
+    switch ($Type) {
+        "app-key" { $phpCode = 'echo "base64:".base64_encode(random_bytes(32));' }
+        "reverb-key" { $phpCode = 'echo bin2hex(random_bytes(16));' }
+        "reverb-secret" { $phpCode = 'echo bin2hex(random_bytes(32));' }
+    }
+
+    $output = & $PhpExecutable -r $phpCode
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "Secure runtime value generation failed: $Type"
+    }
+
+    return ($output | Out-String).Trim()
+}
+
+function Set-RuntimeConfigurationValueWhenMissing {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath,
+        [Parameter(Mandatory = $true)][string]$Key,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $currentValue = Get-RuntimeConfigurationValue -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key $Key
+
+    if ([string]::IsNullOrWhiteSpace($currentValue)) {
+        Set-RuntimeConfigurationValue -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key $Key -Value $Value
+    }
+}
+
+function Initialize-RuntimeConfigurationStore {
+    param(
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath
+    )
+
+    $directory = Get-RuntimeConfigurationDirectory -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath
+    $generatedValue = ""
+
+    $generatedValue = New-SecureRuntimeValue -PhpExecutable $PhpExecutable -Type "app-key"
+    Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "APP_KEY" -Value $generatedValue
+    Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "REVERB_APP_ID" -Value "task-system"
+    $generatedValue = New-SecureRuntimeValue -PhpExecutable $PhpExecutable -Type "reverb-key"
+    Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "REVERB_APP_KEY" -Value $generatedValue
+    $generatedValue = New-SecureRuntimeValue -PhpExecutable $PhpExecutable -Type "reverb-secret"
+    Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "REVERB_APP_SECRET" -Value $generatedValue
+
+    return $directory
+}
+
 Write-Host "Initial directory (invocation): $($OriginalDirectory.Path)" -ForegroundColor DarkGray
 Write-Host "Working directory (Laravel root): $LaravelDir" -ForegroundColor DarkGray
 Write-Host ""
@@ -250,10 +365,8 @@ try {
         }
     }
 
-    # Ensure .env exists (mirrors composer post-root-package-install).
-    if ((-not (Test-Path -LiteralPath $EnvPath)) -and (Test-Path -LiteralPath $EnvExamplePath)) {
-        Write-Host "Creating .env from .env.example..." -ForegroundColor Yellow
-        Copy-Item -LiteralPath $EnvExamplePath -Destination $EnvPath
+    if (-not (Invoke-Laravel13Upgrade -LaravelRoot $LaravelDir -PhpExecutable $phpCmd.Source -ComposerExecutable $composerCmd.Source)) {
+        exit 1
     }
 
     # Ensure vendor dependencies before any artisan command.
@@ -267,16 +380,16 @@ try {
         Write-Host ""
     }
 
-    # Ensure APP_KEY (needs framework; after composer install).
-    if (Test-Path -LiteralPath $EnvPath) {
-        $envContent = Get-Content -LiteralPath $EnvPath -ErrorAction SilentlyContinue
-        if (-not ($envContent | Where-Object { $_ -match '^APP_KEY=base64:' })) {
-            Write-Host "Generating APP_KEY..." -ForegroundColor Yellow
-            php artisan key:generate --force --ansi
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "  Warning: key:generate failed (continuing)." -ForegroundColor Yellow
-            }
-        }
+    # Initialize the canonical runtime store before any Artisan command.
+    try {
+        $RuntimeConfigDir = Initialize-RuntimeConfigurationStore `
+            -PhpExecutable $phpCmd.Path `
+            -AutoloadPath $VendorAutoload `
+            -BootstrapPath $BootstrapApp
+        Write-Host "Runtime configuration store ready: $RuntimeConfigDir" -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: Runtime configuration store initialization failed: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
     }
 
     # --- Idempotent php.ini dependency fix (runs every startup, fast) ---
@@ -295,7 +408,7 @@ try {
         Write-Host "PHP pdo_pgsql extension present." -ForegroundColor Green
     } else {
         # Canonical auto-fix (dd.cmd chain): configure_php_ini.php enables the required
-        # extensions idempotently -- same role as 49_ensure_php_pgsql.sh on Linux.
+        # extensions idempotently -- same role as 48_ensure_php_pgsql.sh on Linux.
         if (Test-Path -LiteralPath $PhpIniConfigScript) {
             $PhpExeForConfig = (Get-Command php -ErrorAction SilentlyContinue).Source
             if ($PhpExeForConfig) {
@@ -325,8 +438,8 @@ try {
         Write-Host "  ***   4. Verify with: php -m | findstr pdo_pgsql -- then re-run start.ps1." -ForegroundColor Red
     }
 
-    # --- Credentials store: pin + EXPORT CORE_NODE_DATA_DIR so every php/artisan
-    # child reads the same CoreNodeSecrets store the manager writes to. On Windows a
+    # --- Runtime store root: pin CORE_NODE_DATA_DIR so every PHP/Artisan child
+    # resolves the same RuntimeConfigurationStore mirror. On Windows a
     # rootless '/var/...' resolves against the current drive, so pin it explicitly.
     # Anchor to the PG data drive (same as the manager + all path mappers), NOT the
     # repo drive, so a standalone Step33 run and start.ps1 always agree on the store.
@@ -346,25 +459,6 @@ try {
         Write-Host "  *** ACTION REQUIRED: PostgreSQL is NOT ready and this app is PostgreSQL-only." -ForegroundColor Red
         Write-Host "  *** There is no SQLite fallback; migrations and every request will fail." -ForegroundColor Red
         Write-Host "  *** Fix the ACTION REQUIRED items above, then re-run start.ps1." -ForegroundColor Red
-    }
-
-    # Neutralize stale DB lines in .env idempotently (same as start.sh). Active
-    # connections ignore .env by design; commenting keeps it inert and non-misleading.
-    if (Test-Path -LiteralPath $EnvPath) {
-        $envDriverChanged = $false
-        $envDriverLines = @(Get-Content -LiteralPath $EnvPath | ForEach-Object {
-            if ($_ -match '^(POLY_DB_DRIVER|DB_CONNECTION|DB_HOST|DB_PORT|DB_DATABASE|DB_USERNAME|DB_PASSWORD|DB_URL)=') {
-                $envDriverChanged = $true
-                ("# [disabled by start.ps1: database config is code-only PostgreSQL, .env is ignored] {0}" -f $_)
-            } else {
-                $_
-            }
-        })
-        if ($envDriverChanged) {
-            Write-Host "  .env DB override line(s) found -> commented out (database config is code-only)." -ForegroundColor Yellow
-            [System.IO.File]::WriteAllLines($EnvPath, [string[]]$envDriverLines)
-            php artisan config:clear 2>&1 | Out-Null
-        }
     }
 
     # --- Export Windows PG dump for Linux-native systems that cannot run .exe ---
@@ -399,6 +493,13 @@ try {
         }
     }
 
+    Write-Host "Clearing configuration cache..." -ForegroundColor Yellow
+    php artisan config:clear 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "ERROR: config:clear failed; runtime credentials may be stale." -ForegroundColor Red
+        exit 1
+    }
+
     Write-Host "Clearing route cache..." -ForegroundColor Yellow
     php artisan route:clear 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -413,18 +514,11 @@ try {
         $routeOut
     }
 
-    Write-Host "Running migrations..." -ForegroundColor Yellow
-    $migrateOut = php artisan migrate --force
-    $migrateExit = $LASTEXITCODE
-    $migrateOut
-    if ($migrateExit -ne 0) {
-        Write-Host "  Warning: migrate had errors (PostgreSQL unreachable or schema issue). Continuing." -ForegroundColor Yellow
-    }
-
     Write-Host "Initializing system (php artisan sys:init)..." -ForegroundColor Yellow
     php artisan sys:init
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "  Warning: sys:init had issues (continuing)." -ForegroundColor Yellow
+        Write-Host "ERROR: sys:init failed; Laravel runtime startup stopped." -ForegroundColor Red
+        exit 1
     }
 
     Write-Host "Detecting local IPs (excluding loopback)..." -ForegroundColor Yellow
@@ -609,14 +703,8 @@ try {
     # missing Octane(Swoole) tick and drives the SAME tasks through a Laravel
     # Schedule->everySecond() tick instead, consumed by the `timer` lane
     # (`php artisan schedule:work`) composer dev:win now starts.
-    # PHP_CLI_SERVER_WORKERS=4 in .env targets Linux (PHP's built-in-server
-    # pre-forking uses pcntl_fork, which does not exist on Windows -- same root
-    # cause as Octane/Swoole being unavailable here). Passing --no-reload would
-    # only silence ServeCommand's warning without making multi-worker actually
-    # work on Windows, so pin it to 1 here instead: one `serve` process, one
-    # port, no confusing "only creating a single server" warning. This overrides
-    # the .env value for this process tree only (Dotenv::createImmutable never
-    # overwrites an already-set OS env var) -- Linux/WSL's .env value of 4 is untouched.
+    # Native Windows lacks pcntl_fork, so the built-in server must use one worker.
+    # This process-only runtime control is independent from Laravel configuration.
     $env:PHP_CLI_SERVER_WORKERS = "1"
 
     # --- Ensure Node.js/npx (idempotent auto-install): composer dev:win runs everything

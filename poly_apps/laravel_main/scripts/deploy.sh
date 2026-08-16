@@ -43,13 +43,6 @@ GVAR_COMMON="${COMMON_SCRIPTS_DIR}/gvar_common.sh"
 COMMON_FUNCTIONS="${COMMON_SCRIPTS_DIR}/common_functions.sh"
 GET_REAL_USER_SCRIPT="${COMMON_SCRIPTS_DIR}/get_real_user.sh"
 
-# Common file names (constants)
-ENV_FILE=".env"
-ENV_EXAMPLE=".env.example"
-
-# Path-based constants (will be set after sourcing common scripts)
-FIXER_SCRIPT="${LARAVEL_DIR}/app/Support/OctaneSwooleCompatFixer.php"
-
 # ============================================================================
 # SOURCE COMMON SCRIPTS
 # ============================================================================
@@ -549,50 +542,6 @@ up_20251215_install_reverb() {
         return 1
     fi
 
-    echo -e "${BLUE}[UP] Step 6: Updating .env for Reverb...${NC}"
-    print_cmd "test -f \"$LARAVEL_DIR/$ENV_FILE\""
-    if [ -f "$LARAVEL_DIR/$ENV_FILE" ]; then
-        print_cmd "grep -q \"^BROADCAST_CONNECTION=\" \"$LARAVEL_DIR/$ENV_FILE\""
-        if ! grep -q "^BROADCAST_CONNECTION=" "$LARAVEL_DIR/$ENV_FILE"; then
-            print_cmd "echo \"BROADCAST_CONNECTION=reverb\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "BROADCAST_CONNECTION=reverb" >> "$LARAVEL_DIR/$ENV_FILE"
-            echo -e "${GREEN}[UP] OK Added BROADCAST_CONNECTION=reverb${NC}"
-        elif grep -q "^BROADCAST_CONNECTION=log" "$LARAVEL_DIR/$ENV_FILE"; then
-            print_cmd "sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' \"$LARAVEL_DIR/$ENV_FILE\""
-            sed -i 's/^BROADCAST_CONNECTION=log/BROADCAST_CONNECTION=reverb/' "$LARAVEL_DIR/$ENV_FILE"
-            echo -e "${GREEN}[UP] OK Updated BROADCAST_CONNECTION to reverb${NC}"
-        else
-            echo -e "${BLUE}[UP] BROADCAST_CONNECTION already configured${NC}"
-        fi
-
-        print_cmd "grep -q \"^REVERB_APP_ID=\" \"$LARAVEL_DIR/$ENV_FILE\""
-        if ! grep -q "^REVERB_APP_ID=" "$LARAVEL_DIR/$ENV_FILE"; then
-            print_cmd "echo \"\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_APP_ID=task-system\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_APP_ID=task-system" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_APP_KEY=reverb-key-\$(date +%s)\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_APP_KEY=reverb-key-$(date +%s)" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_APP_SECRET=reverb-secret-\$(date +%s)\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_APP_SECRET=reverb-secret-$(date +%s)" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_HOST=127.0.0.1\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_HOST=127.0.0.1" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_PORT=8080\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_PORT=8080" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_SCHEME=http\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_SCHEME=http" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_SERVER_HOST=0.0.0.0\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_SERVER_HOST=0.0.0.0" >> "$LARAVEL_DIR/$ENV_FILE"
-            print_cmd "echo \"REVERB_SERVER_PORT=8080\" >> \"$LARAVEL_DIR/$ENV_FILE\""
-            echo "REVERB_SERVER_PORT=8080" >> "$LARAVEL_DIR/$ENV_FILE"
-            echo -e "${GREEN}[UP] OK Added Reverb configuration to .env${NC}"
-        else
-            echo -e "${BLUE}[UP] Reverb env variables already configured${NC}"
-        fi
-    else
-        echo -e "${YELLOW}[UP] WARNING .env file not found${NC}"
-    fi
-
     echo -e "${GREEN}[UP] $version completed${NC}"
 
     echo -e "${GREEN}========================================${NC}"
@@ -732,17 +681,6 @@ check_initialization() {
         print_cmd "$USE_SUDO chmod -R 775 storage bootstrap/cache \"$WWW_ROOT/laravel_db\" 2>/dev/null || true"
         $USE_SUDO chmod -R 775 storage bootstrap/cache "$WWW_ROOT/laravel_db" 2>/dev/null || true
     fi
-
-    # Create .env if needed
-    if [ ! -f "$ENV_FILE" ]; then
-        print_cmd "cp \"$ENV_EXAMPLE\" \"$ENV_FILE\""
-        cp "$ENV_EXAMPLE" "$ENV_FILE"
-    fi
-    print_cmd "grep -q \"^APP_KEY=base64:\" \"$ENV_FILE\" 2>/dev/null || $USE_SUDO php artisan key:generate --force >/dev/null 2>&1"
-    grep -q "^APP_KEY=base64:" "$ENV_FILE" 2>/dev/null || {
-        print_cmd "$USE_SUDO php artisan key:generate --force >/dev/null 2>&1"
-        $USE_SUDO php artisan key:generate --force >/dev/null 2>&1
-    }
 
     # Fix permissions for Laravel root directory (../ from script location)
     echo -e "${BLUE}[INIT] Fixing Laravel root directory permissions${NC}"
@@ -888,164 +826,46 @@ fix_prerequisites() {
     echo -e "${GREEN}[PREREQUISITES] Setup complete${NC}\n"
 }
 
-# Ensures the .env file exists and is properly configured
-# Usage: ensure_env_file [project_root]
-ensure_env_file() {
-    local project_root="${1:-$(pwd)}"
-    local full_env_path="${project_root}/${ENV_FILE}"
+# Initialize Laravel through the canonical application command.
+run_artisan_sys_init() {
+    local saved_dir="$(pwd)"
 
-    echo -e "\n${BLUE}[ENV SETUP] Verifying environment configuration${NC}"
-
-    # Verify .env file existence
-    if [ ! -f "$full_env_path" ]; then
-        if [ ! -f "${project_root}/${ENV_EXAMPLE}" ]; then
-            echo -e "${RED}[ERROR] Missing ${ENV_EXAMPLE} file in ${project_root}${NC}"
-            return 1
-        fi
-
-        # Create from example
-        print_cmd "cp \"${project_root}/${ENV_EXAMPLE}\" \"$full_env_path\""
-        cp "${project_root}/${ENV_EXAMPLE}" "$full_env_path"
-        echo -e "${GREEN}[OK] Created ${ENV_FILE} from template${NC}"
-
-        # Generate application key
-        print_cmd "grep -q \"APP_KEY=\" \"$full_env_path\""
-        if grep -q "APP_KEY=" "$full_env_path"; then
-            print_cmd "command -v php"
-            if command -v php &>/dev/null; then
-                print_cmd "(cd \"$project_root\" && php artisan key:generate --quiet)"
-                (cd "$project_root" && php artisan key:generate --quiet)
-                echo -e "${GREEN}[OK] Generated application encryption key${NC}"
-            else
-                echo -e "${YELLOW}[WARNING] PHP not available - APP_KEY remains unset${NC}"
-            fi
-        fi
-    else
-        echo -e "${BLUE}[INFO] ${ENV_FILE} already exists${NC}"
-    fi
-
-    # Set secure permissions
-    if [ -f "$full_env_path" ]; then
-        print_cmd "chmod 600 \"$full_env_path\""
-        chmod 600 "$full_env_path"
-        echo -e "${GREEN}[OK] Applied secure file permissions (600)${NC}"
-    fi
-}
-
-# Ensures production environment configuration
-# Usage: ensure_production_environment [project_root]
-ensure_production_environment() {
-    local project_root="${1:-$(pwd)}"
-    local full_env_path="${project_root}/${ENV_FILE}"
-    local changes_made=false
-
-    echo -e "\n${BLUE}[ENV CONFIG] Validating production settings${NC}"
-
-    # Verify .env exists
-    if [ ! -f "$full_env_path" ]; then
-        echo -e "${RED}[ERROR] ${ENV_FILE} not found in ${project_root}${NC}"
+    if [ ! -f "$LARAVEL_DIR/artisan" ]; then
+        echo -e "${RED}[ARTISAN] artisan file not found at $LARAVEL_DIR/artisan${NC}"
         return 1
     fi
 
-    # Create backup
-    print_cmd "cp \"$full_env_path\" \"${full_env_path}.bak\""
-    cp "$full_env_path" "${full_env_path}.bak"
-    
-    # Configure APP_ENV
-    print_cmd "grep -q \"^APP_ENV=\" \"$full_env_path\""
-    if grep -q "^APP_ENV=" "$full_env_path"; then
-        print_cmd "grep -q \"^APP_ENV=production$\" \"$full_env_path\""
-        if ! grep -q "^APP_ENV=production$" "$full_env_path"; then
-            print_cmd "sed -i 's/^APP_ENV=.*/APP_ENV=production/' \"$full_env_path\""
-            sed -i 's/^APP_ENV=.*/APP_ENV=production/' "$full_env_path"
-            changes_made=true
-            echo -e "${GREEN}[OK] Set APP_ENV to production${NC}"
-        fi
-    else
-        print_cmd "echo \"APP_ENV=production\" >> \"$full_env_path\""
-        echo "APP_ENV=production" >> "$full_env_path"
-        changes_made=true
-        echo -e "${GREEN}[OK] Added APP_ENV setting${NC}"
-    fi
-
-    # Configure APP_DEBUG
-    print_cmd "grep -q \"^APP_DEBUG=\" \"$full_env_path\""
-    if grep -q "^APP_DEBUG=" "$full_env_path"; then
-        print_cmd "grep -q \"^APP_DEBUG=false$\" \"$full_env_path\""
-        if ! grep -q "^APP_DEBUG=false$" "$full_env_path"; then
-            print_cmd "sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' \"$full_env_path\""
-            sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' "$full_env_path"
-            changes_made=true
-            echo -e "${GREEN}[OK] Disabled debug mode${NC}"
-        fi
-    else
-        print_cmd "echo \"APP_DEBUG=false\" >> \"$full_env_path\""
-        echo "APP_DEBUG=false" >> "$full_env_path"
-        changes_made=true
-        echo -e "${GREEN}[OK] Added APP_DEBUG setting${NC}"
-    fi
-
-    # Cleanup if no changes were needed
-    if [ "$changes_made" = false ]; then
-        print_cmd "rm -f \"${full_env_path}.bak\""
-        rm -f "${full_env_path}.bak"
-        echo -e "${BLUE}[INFO] Production settings already configured${NC}"
-    else
-        echo -e "${GREEN}[OK] Production configuration complete${NC}"
-    fi
-}
-
-# Function to run php artisan sys:init in low privilege user context
-run_artisan_sys_init() {
-    echo -e "${BLUE}[ARTISAN] Running sys:init command${NC}"
-    
-    if [ ! -f "$LARAVEL_DIR/artisan" ]; then
-        echo -e "${YELLOW}[ARTISAN] Warning: artisan file not found, skipping sys:init${NC}"
-        return 0
-    fi
-    
-    # Check if sys:init command exists
-    local check_cmd=""
-    if [ -n "$USE_SUDO" ] && [ "$(id -u)" -eq 0 ]; then
-        # Running as root, use sudo to check as real user
-        check_cmd="$USE_SUDO -u $REAL_USER php $LARAVEL_DIR/artisan list 2>/dev/null"
-    else
-        # Not running as root, check directly
-        check_cmd="php $LARAVEL_DIR/artisan list 2>/dev/null"
-    fi
-    
-    print_cmd "eval \"$check_cmd\" | grep -q \"sys:init\""
-    if ! eval "$check_cmd" | grep -q "sys:init"; then
-        echo -e "${YELLOW}[ARTISAN] Warning: sys:init command not found, skipping${NC}"
-        return 0
-    fi
-    
-    # Run php artisan sys:init as low privilege user
-    echo -e "${BLUE}[ARTISAN] Executing: php artisan sys:init (as user: $REAL_USER)${NC}"
-    print_cmd "pwd"
-    local saved_dir="$(pwd)"
     print_cmd "cd \"$LARAVEL_DIR\""
-    cd "$LARAVEL_DIR" || return 0
-    
+    cd "$LARAVEL_DIR" || return 1
+
     if [ -n "$USE_SUDO" ] && [ "$(id -u)" -eq 0 ]; then
-        # Running as root, use sudo to run as real user
+        print_cmd "$USE_SUDO -u \"$REAL_USER\" php artisan config:clear"
+        if ! $USE_SUDO -u "$REAL_USER" php artisan config:clear; then
+            cd "$saved_dir" || true
+            return 1
+        fi
         print_cmd "$USE_SUDO -u \"$REAL_USER\" php artisan sys:init 2>&1"
-        $USE_SUDO -u "$REAL_USER" php artisan sys:init 2>&1 || {
-            echo -e "${YELLOW}[ARTISAN] Warning: sys:init command had issues, but continuing...${NC}"
-        }
+        if ! $USE_SUDO -u "$REAL_USER" php artisan sys:init; then
+            cd "$saved_dir" || true
+            return 1
+        fi
     else
-        # Not running as root, run directly
-        print_cmd "php artisan sys:init 2>&1"
-        php artisan sys:init 2>&1 || {
-            echo -e "${YELLOW}[ARTISAN] Warning: sys:init command had issues, but continuing...${NC}"
-        }
+        print_cmd "php artisan config:clear"
+        if ! php artisan config:clear; then
+            cd "$saved_dir" || true
+            return 1
+        fi
+        print_cmd "php artisan sys:init"
+        if ! php artisan sys:init; then
+            cd "$saved_dir" || true
+            return 1
+        fi
     fi
-    
-    # Restore original directory
+
     print_cmd "cd \"$saved_dir\""
     cd "$saved_dir" || true
-    
-    echo -e "${GREEN}[ARTISAN] OK sys:init completed${NC}"
+
+    echo -e "${GREEN}[ARTISAN] OK Laravel runtime initialized${NC}"
     return 0
 }
 
@@ -1110,7 +930,7 @@ print_cmd "cd \"$INITIAL_WORK_DIR\""
 cd "$INITIAL_WORK_DIR" || true
 
 # ============================================================================
-# LEGACY DEPLOYMENT FUNCTIONS (kept for reference, not executed automatically)
+# OPTIONAL FULL DEPLOYMENT FUNCTIONS
 # ============================================================================
 # To run full deployment, execute: bash deploy.sh --full-deploy
 # ============================================================================
@@ -1241,136 +1061,6 @@ ensure_vendor() {
     else
         echo "Vendor directory exists."
     fi
-
-    # Apply Octane/Swoole compatibility patch immediately after vendor is available
-    fix_octane_swoole_compatibility
-}
-
-# Function to clear Laravel cache
-clear_cache() {
-    echo "Clearing Laravel cache..."
-    print_cmd "php artisan cache:clear"
-    php artisan cache:clear
-    print_cmd "php artisan config:clear"
-    php artisan config:clear
-    print_cmd "php artisan route:clear"
-    php artisan route:clear
-    print_cmd "php artisan view:clear"
-    php artisan view:clear
-}
-# Function to handle SQLite database with intelligent migration
-handle_database() {
-    # Use gvar_common.sh map_web_path to get correct path
-    DB_DIR="$WWW_ROOT/laravel_db"
-    DB_FILE="$DB_DIR/database.sqlite"
-
-    echo -e "${BLUE}[DATABASE] Initializing SQLite database${NC}"
-    echo "Database file location: ${GREEN}$DB_FILE${NC}"
-
-    # 1. Ensure database directory exists and fix permissions
-    # Only create if doesn't exist (never delete existing directories)
-    print_cmd "test -d \"$DB_DIR\""
-    if [ ! -d "$DB_DIR" ]; then
-        print_cmd "$USE_SUDO mkdir -p \"$DB_DIR\""
-        $USE_SUDO mkdir -p "$DB_DIR"
-        echo -e "${YELLOW}Created database directory${NC}"
-    fi
-    # Always fix permissions for directory (existing and newly created)
-    # Running as root, change ownership to low privilege user
-    print_cmd "$USE_SUDO chown \"$real_user:$real_user\" \"$DB_DIR\" 2>/dev/null || true"
-    $USE_SUDO chown "$real_user:$real_user" "$DB_DIR" 2>/dev/null || true
-    print_cmd "$USE_SUDO chmod 755 \"$DB_DIR\" 2>/dev/null || true"
-    $USE_SUDO chmod 755 "$DB_DIR" 2>/dev/null || true
-
-    # 2. Handle database file creation
-    db_exists=false
-    print_cmd "test -f \"$DB_FILE\""
-    if [ ! -f "$DB_FILE" ]; then
-        read -p "Database file does not exist. Create it? (y/N) " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            print_cmd "touch \"$DB_FILE\""
-            touch "$DB_FILE"
-            echo -e "${GREEN}Created new database file${NC}"
-        else
-            echo -e "${YELLOW}Skipping database initialization${NC}"
-            return
-        fi
-    else
-        db_exists=true
-        echo -e "${GREEN}Using existing database${NC}"
-    fi
-
-    # 3. Configure .env file
-    print_cmd "test -f \"$ENV_FILE\""
-    if [ ! -f "$ENV_FILE" ]; then
-        print_cmd "cp $ENV_EXAMPLE \"$ENV_FILE\""
-        cp "$ENV_EXAMPLE" "$ENV_FILE"
-        echo -e "${YELLOW}Created .env file from example${NC}"
-    fi
-
-    # Update .env with SQLite configuration
-    print_cmd "grep -q \"^DB_CONNECTION=sqlite\" \"$ENV_FILE\""
-    if ! grep -q "^DB_CONNECTION=sqlite" "$ENV_FILE"; then
-        print_cmd "sed -i 's/DB_CONNECTION=.*/DB_CONNECTION=sqlite/' \"$ENV_FILE\""
-        sed -i 's/DB_CONNECTION=.*/DB_CONNECTION=sqlite/' "$ENV_FILE"
-    fi
-    print_cmd "sed -i \"s|^DB_DATABASE=.*|DB_DATABASE=$DB_FILE|\" \"$ENV_FILE\""
-    sed -i "s|^DB_DATABASE=.*|DB_DATABASE=$DB_FILE|" "$ENV_FILE"
-
-    # 4. Run appropriate migrations based on database state
-    if [ "$db_exists" = true ]; then
-        echo -e "${BLUE}[DATABASE] Running schema updates on existing database${NC}"
-        print_cmd "php artisan migrate --force"
-        php artisan migrate --force
-    else
-        echo -e "${BLUE}[DATABASE] Initializing new database with migrations${NC}"
-        print_cmd "php artisan migrate:fresh --force --seed"
-        php artisan migrate:fresh --force --seed
-    fi
-
-    # 5. Optional configuration (if needed)
-    print_cmd "test -f \"artisan\" && php artisan | grep -q \"database:config\""
-    if [ -f "artisan" ] && php artisan | grep -q "database:config"; then
-        print_cmd "php artisan database:config"
-        php artisan database:config
-    fi
-
-    # Always fix proper permissions using real user (running as root, change to low privilege user)
-    print_cmd "$USE_SUDO chown \"$REAL_USER:$REAL_USER\" \"$DB_DIR\" 2>/dev/null || true"
-    $USE_SUDO chown "$REAL_USER:$REAL_USER" "$DB_DIR" 2>/dev/null || true
-    if [ -f "$DB_FILE" ]; then
-        print_cmd "$USE_SUDO chown \"$REAL_USER:$REAL_USER\" \"$DB_FILE\" 2>/dev/null || true"
-        $USE_SUDO chown "$REAL_USER:$REAL_USER" "$DB_FILE" 2>/dev/null || true
-    fi
-    print_cmd "$USE_SUDO chmod 755 \"$DB_DIR\" 2>/dev/null || true"
-    $USE_SUDO chmod 755 "$DB_DIR" 2>/dev/null || true
-    if [ -f "$DB_FILE" ]; then
-        print_cmd "$USE_SUDO chmod 644 \"$DB_FILE\" 2>/dev/null || true"
-        $USE_SUDO chmod 644 "$DB_FILE" 2>/dev/null || true
-    fi
-    echo -e "${GREEN}Database setup complete${NC}"
-}
-# Function to fix Octane/Swoole compatibility
-# PHP Version: 8.5 (Upgraded from 8.4)
-# Swoole Version: 6.x (Compiled from master for PHP 8.5 compatibility)
-#
-# Swoole 6.x compatibility patch for Laravel Octane v2.13.x
-# Issue: Swoole 6.x changed task event signature (breaking change)
-# - Swoole 5.x: task(Server $server, int $taskId, int $fromWorkerId, $data)
-# - Swoole 6.x: task(Server $server, Server\Task $task)
-#
-# This function calls OctaneSwooleCompatFixer.php to apply the patch
-# The patch is idempotent (safe to run multiple times)
-fix_octane_swoole_compatibility() {
-    # Always try to apply patch, silently skip if conditions not met
-    print_cmd "test -f \"$FIXER_SCRIPT\" && test -d \"$LARAVEL_DIR/vendor/laravel/octane\""
-    if [ -f "$FIXER_SCRIPT" ] && [ -d "$LARAVEL_DIR/vendor/laravel/octane" ]; then
-        print_cmd "php \"$FIXER_SCRIPT\" \"$LARAVEL_DIR\" >/dev/null 2>&1 || true"
-        php "$FIXER_SCRIPT" "$LARAVEL_DIR" >/dev/null 2>&1 || true
-    fi
-
-    return 0
 }
 
 # Function to configure open_basedir in project's .user.ini
@@ -1413,16 +1103,11 @@ if [ -f /etc/debian_version ]; then
     # Fix prerequisites and common issues first
     fix_prerequisites
     
-    ensure_env_file
-    ensure_production_environment
     setup_permissions
     verify_php
     ensure_php_extensions
     verify_composer
     ensure_vendor
-    fix_octane_swoole_compatibility
-    clear_cache
-    handle_database
     configure_project_open_basedir
     # Create initialization marker
     print_cmd "touch .laravel_initialized"

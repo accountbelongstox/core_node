@@ -38,6 +38,7 @@ export interface APIRequestConfig {
 
 export interface APIModuleConfig {
   baseURL: string;
+  endpointMode?: 'active' | 'fixed';
   prefix?: string;
   headers?: Record<string, string>;
   timeout?: number;

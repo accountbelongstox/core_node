@@ -123,13 +123,13 @@ install_ssh_server() {
 
     # Per policy: do NOT auto-install the SSH SERVER. Only install when explicitly opted in
     # via SSH_AUTO_INSTALL_SERVER (1/true/yes/on); otherwise skip WITHOUT installing it.
-    # Git (GitHub/Gitee) SSH KEYS are a SEPARATE concern -- see 22_install_git_ssh.sh.
+    # Git (GitHub/Gitee) SSH KEYS are a SEPARATE concern -- see 21_install_git_ssh.sh.
     case "${SSH_AUTO_INSTALL_SERVER:-0}" in
         1|true|yes|on|TRUE|YES|ON) : ;;
         *)
             print_warning_from_common_functions "openssh-server is not installed; not auto-installing it (policy)."
-            print_info_from_common_functions "To install the SSH server explicitly: SSH_AUTO_INSTALL_SERVER=1 bash 20_setup_ssh_remote.sh"
-            print_info_from_common_functions "For Git GitHub/Gitee SSH keys, use 22_install_git_ssh.sh instead."
+            print_info_from_common_functions "To install the SSH server explicitly: SSH_AUTO_INSTALL_SERVER=1 bash 19_setup_ssh_remote.sh"
+            print_info_from_common_functions "For Git GitHub/Gitee SSH keys, use 21_install_git_ssh.sh instead."
             return 2
             ;;
     esac

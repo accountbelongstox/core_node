@@ -13,12 +13,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -26,21 +22,14 @@ use Illuminate\Support\Collection;
  * via parent_comment_id. Soft-deleted so removing a comment never breaks ids.
  * created_at only for inserts (no updated_at column); SoftDeletes adds deleted_at.
  */
-class AppQyV1PostCommentModel extends Model
+class AppQyV1PostCommentModel extends AppQyV1Model
 {
     use SoftDeletes;
 
     public const UPDATED_AT = null;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('POST_COMMENTS');
-    }
+    protected ?string $appTableMapKey = 'POST_COMMENTS';
 
     protected $fillable = [
         'post_id',
@@ -50,13 +39,16 @@ class AppQyV1PostCommentModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'post_id' => 'integer',
-        'user_id' => 'integer',
-        'parent_comment_id' => 'integer',
-        'created_at' => 'datetime',
-        'deleted_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'post_id' => 'integer',
+            'user_id' => 'integer',
+            'parent_comment_id' => 'integer',
+            'created_at' => 'datetime',
+            'deleted_at' => 'datetime',
+        ];
+    }
 
     public function post(): BelongsTo
     {

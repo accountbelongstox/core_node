@@ -13,29 +13,18 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * One like per (post_id, user_id) (Social Center expansion §POSTS like/unlike).
  * UNIQUE on the pair so a like is idempotent. created_at only.
  */
-class AppQyV1PostLikeModel extends Model
+class AppQyV1PostLikeModel extends AppQyV1Model
 {
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('POST_LIKES');
-    }
+    protected ?string $appTableMapKey = 'POST_LIKES';
 
     protected $fillable = [
         'post_id',
@@ -43,11 +32,14 @@ class AppQyV1PostLikeModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'post_id' => 'integer',
-        'user_id' => 'integer',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'post_id' => 'integer',
+            'user_id' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function post(): BelongsTo
     {

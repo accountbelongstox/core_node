@@ -203,7 +203,7 @@ class AppQyV1AIStatusController extends Controller
         return response()->json([
             'success' => true,
             'task' => [
-                'enabled' => (bool) env('APPQYV1_COVER_GENERATION_ENABLED', true),
+                'enabled' => app(AppQyV1CoverGenerationTask::class)->isEnabled(),
                 'batch_size' => AppQyV1CoverGenerationTask::BATCH_SIZE,
                 'retry_delay_minutes' => AppQyV1CoverGenerationTask::RETRY_DELAY_MINUTES,
             ],

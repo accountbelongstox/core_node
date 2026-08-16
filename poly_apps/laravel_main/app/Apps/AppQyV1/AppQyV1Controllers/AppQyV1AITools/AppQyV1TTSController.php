@@ -4,13 +4,13 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Services\EdgeTTS\EdgeTTSService;
-use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TTSQueueService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TtsUrl;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1UnifiedTTSQueueService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1TTSCheckBatchRequest;
 use App\Traits\ApiResponse;
+use App\Traits\ServesTTSAudio;
 use App\Helpers\AuthHelper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -34,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 class AppQyV1TTSController extends Controller
 {
     use ApiResponse;
+    use ServesTTSAudio;
 
     /**
      * NO try-catch allowed - trust Laravel validation
@@ -41,13 +42,11 @@ class AppQyV1TTSController extends Controller
      */
 
     private $ttsService;
-    private $queueService;
     private $unifiedQueueService;
 
     public function __construct()
     {
         $this->ttsService = new EdgeTTSService();
-        $this->queueService = new AppQyV1TTSQueueService();
         $this->unifiedQueueService = new AppQyV1UnifiedTTSQueueService();
     }
     
@@ -184,35 +183,27 @@ class AppQyV1TTSController extends Controller
     
     public function serveAudio(string $language, string $type, string $filename)
     {
-        $relativePath = "{$language}/{$type}/{$filename}";
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        
-        if (!$fullPath) {
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$filename}");
+
+        if (!$response) {
             return response()->json([
                 'success' => false,
                 'error' => 'Audio file not found',
             ], 404);
         }
-        
-        return response()->file($fullPath, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-        ]);
+
+        return $response;
     }
-    
+
     public function serveAudioWithSpeed(string $language, string $type, string $speed, string $filename)
     {
-        $relativePath = "{$language}/{$type}/{$speed}/{$filename}";
-        $fullPath = $this->ttsService->getAudioPath($relativePath);
-        
-        if (!$fullPath) {
+        $response = $this->serveTTSAudioFile($this->ttsService, "{$language}/{$type}/{$speed}/{$filename}");
+
+        if (!$response) {
             return $this->notFound('Audio file not found');
         }
-        
-        return response()->file($fullPath, [
-            'Content-Type' => 'audio/mpeg',
-            'Cache-Control' => 'public, max-age=31536000',
-        ]);
+
+        return $response;
     }
     
     public function getLanguages(Request $request): JsonResponse
@@ -290,7 +281,7 @@ class AppQyV1TTSController extends Controller
             if (!$language) {
                 $language = 'en'; // Default to English if not provided
             }
-            $result = $this->queueService->requestAudio($word, $language);
+            $result = $this->unifiedQueueService->requestAudio($word, $language);
 
             if ($result === null) {
                 $queued[] = [
@@ -323,7 +314,7 @@ class AppQyV1TTSController extends Controller
      */
     public function getQueueStats(Request $request): JsonResponse
     {
-        $stats = $this->queueService->getQueueStats();
+        $stats = $this->unifiedQueueService->getQueueStats();
 
         return $this->success($stats, 'Queue statistics retrieved');
     }
@@ -340,7 +331,7 @@ class AppQyV1TTSController extends Controller
             'language' => 'required|string',
         ]);
 
-        $status = $this->queueService->getQueueStatus(
+        $status = $this->unifiedQueueService->getQueueStatus(
             $validated['word'],
             $validated['language']
         );
@@ -385,13 +376,20 @@ class AppQyV1TTSController extends Controller
             'failed' => 0,
             'not_found' => 0,
         ];
+        $hashesByLanguage = [];
+
+        foreach ($request->input('words') as $item) {
+            $hashesByLanguage[strtolower($item['language'])][] = md5($item['word']);
+        }
+
+        $entriesByLanguage = AppQyV1LangDictionaryModel::rowsByLanguageHashes($hashesByLanguage);
 
         foreach ($request->input('words') as $item) {
             $word = $item['word'];
             $language = strtolower($item['language']);
             $md5 = md5($word);
 
-            $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
+            $dictEntry = $entriesByLanguage[$language]->get($md5);
 
             if ($dictEntry && $dictEntry->tts_status !== null) {
                 $audioPath = null;

@@ -10,12 +10,13 @@
 
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1PersonalDictionariesModel;
 use App\Utils\ArrTool;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Traits\ApiResponse;
-class AppQyV1PersonalDictionaryProcessPublicController
+class AppQyV1PersonalDictionaryProcessPublicController extends Controller
 {
     use ApiResponse;
 

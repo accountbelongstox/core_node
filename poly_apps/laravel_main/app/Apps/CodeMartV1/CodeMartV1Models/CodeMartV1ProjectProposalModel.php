@@ -1,12 +1,10 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1ProjectProposalModel extends Model
+class CodeMartV1ProjectProposalModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_project_proposals';
 
     protected $fillable = [

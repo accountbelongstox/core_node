@@ -8,7 +8,7 @@
 // VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
-
 return [
-    'api_key' => env('DEEPSEEK_API_KEY', 'eda1ce7c900d85512e49d9914513d5b979188411acc423b01aef832fbddbf788'),
+    // Injected from the external secret store during application bootstrap.
+    'api_key' => null,
 ];

@@ -2,14 +2,11 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class CodeMartV1WalletModel extends Model
+class CodeMartV1WalletModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_wallets';
 
     protected $fillable = [

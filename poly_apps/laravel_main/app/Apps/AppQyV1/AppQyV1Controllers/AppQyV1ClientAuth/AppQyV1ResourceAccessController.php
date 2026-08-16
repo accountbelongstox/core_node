@@ -10,12 +10,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1ClientAuth;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Config;
 use App\Traits\ApiResponse;
 
-class AppQyV1ResourceAccessController
+class AppQyV1ResourceAccessController extends Controller
 {
     use ApiResponse;
 
@@ -29,7 +31,7 @@ class AppQyV1ResourceAccessController
      */
     public function validateAccess(Request $request): JsonResponse
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         if ($isDebugMode) {
             return $this->validateDebugToken($request);
@@ -91,7 +93,7 @@ class AppQyV1ResourceAccessController
      */
     public function getAccessInfo(Request $request): JsonResponse
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         return response()->json([
             'mode' => $isDebugMode ? 'debug' : 'production',

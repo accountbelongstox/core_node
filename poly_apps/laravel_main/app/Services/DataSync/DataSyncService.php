@@ -5,15 +5,10 @@ namespace App\Services\DataSync;
 use App\Services\Dashboard\DatabaseManagerService;
 use App\Utils\FileSystemManager;
 use App\Utils\SystemArchiveManager;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Context;
 
 final class DataSyncService
 {
-    public const PROTOCOL_VERSION = 2;
-    private const START_LOCK_SECONDS = 15;
-    private const REQUEST_TIMEOUT_SECONDS = 60;
     private int $sourceCursor = 0;
 
     public function __construct(
@@ -22,23 +17,27 @@ final class DataSyncService
         private readonly ResourceSyncService $resources,
         private readonly DataSyncSessionLock $sessionLock,
         private readonly DataSyncTransferPlanStore $plans,
-        private readonly DataSyncReceiptStore $receipts
+        private readonly DataSyncReceiptStore $receipts,
+        private readonly DataSyncPeerClient $peer,
+        private readonly DataSyncTopologyGuard $topology
     ) {}
 
     public function start(string $target, bool $syncDatabases, bool $syncResources, bool $compression): array
     {
         $targetInput = trim($target);
-        $normalizedTarget = $targetInput !== '' ? $this->normalizeAddress($targetInput) : null;
-        $lock = Cache::store('file')->lock('data-sync:start', self::START_LOCK_SECONDS);
+        $normalizedTarget = $targetInput !== '' ? $this->peer->normalizeAddress($targetInput) : null;
 
         if (!$syncDatabases && !$syncResources) {
             throw new \InvalidArgumentException('At least one synchronization scope must be enabled.');
         }
-        if (!$lock->get()) {
-            throw new \RuntimeException('Another synchronization start request is already being processed.');
-        }
 
-        try {
+        return $this->topology->run(function () use (
+            $targetInput,
+            $normalizedTarget,
+            $syncDatabases,
+            $syncResources,
+            $compression
+        ): array {
             $activeReceiver = $this->store->active('receiver');
             if ($activeReceiver !== null) {
                 throw new \RuntimeException('An incoming synchronization session is active on this node.');
@@ -57,24 +56,19 @@ final class DataSyncService
                     'prepare_token' => bin2hex(random_bytes(32)),
                 ],
             ]);
+
             return $this->publicJob($job);
-        } finally {
-            $lock->release();
-        }
+        });
     }
 
     public function setTarget(string $id, string $target): array
     {
         $targetInput = trim($target);
-        $normalizedTarget = $this->normalizeAddress($targetInput);
-        $lock = Cache::store('file')->lock('data-sync:start', self::START_LOCK_SECONDS);
+        $normalizedTarget = $this->peer->normalizeAddress($targetInput);
 
-        if (!$lock->get()) {
-            throw new \RuntimeException('Another synchronization target request is already being processed.');
-        }
-
-        try {
-            return $this->withSessionLock($id, function () use ($id, $targetInput, $normalizedTarget): array {
+        return $this->topology->run(fn (): array => $this->withSessionLock(
+            $id,
+            function () use ($id, $targetInput, $normalizedTarget): array {
                 $job = $this->requireJob($id, 'source');
                 if (in_array($job['status'], ['completed', 'failed'], true)) {
                     throw new \RuntimeException('A finished synchronization session cannot accept a target.');
@@ -87,11 +81,10 @@ final class DataSyncService
                 $job['target_input'] = $targetInput;
                 $job['target'] = $normalizedTarget;
                 $job['context']['awaiting_target'] = false;
+
                 return $this->publicJob($this->store->save($job));
-            });
-        } finally {
-            $lock->release();
-        }
+            }
+        ));
     }
 
     public function list(): array
@@ -147,9 +140,9 @@ final class DataSyncService
     {
         return [
             'service' => 'laravel-main-data-sync',
-            'protocol_version' => self::PROTOCOL_VERSION,
+            'protocol_version' => DataSyncProtocol::VERSION,
             'compression_available' => SystemArchiveManager::available(),
-            'default_port' => 9000,
+            'default_port' => DataSyncProtocol::DEFAULT_PORT,
         ];
     }
 
@@ -160,13 +153,12 @@ final class DataSyncService
         ?string $sourceAddress = null
     ): array
     {
-        $lock = Cache::store('file')->lock('data-sync:start', self::START_LOCK_SECONDS);
-
-        if (!$lock->get()) {
-            throw new \RuntimeException('Another receiver preparation request is already being processed.');
-        }
-
-        try {
+        return $this->topology->run(function () use (
+            $sourceJobId,
+            $prepareToken,
+            $options,
+            $sourceAddress
+        ): array {
             $active = $this->store->active('receiver');
             $token = bin2hex(random_bytes(32));
 
@@ -211,9 +203,7 @@ final class DataSyncService
             ]);
 
             return $this->receiverHandshake($job);
-        } finally {
-            $lock->release();
-        }
+        });
     }
 
     public function receiverStatus(string $id, string $token): array
@@ -402,20 +392,23 @@ final class DataSyncService
 
     private function advanceReceiverWithLock(string $id): void
     {
-        $result = $this->sessionLock->run($id, function () use ($id): void {
-            $receiver = $this->store->get($id);
-            if ($receiver === null || $receiver['status'] === 'paused') {
-                return;
-            }
-            try {
-                $this->advanceReceiver($receiver);
-            } catch (\Throwable $exception) {
-                $receiver = $this->store->get($id) ?? $receiver;
-                $receiver['status'] = 'failed';
-                $receiver['error'] = $exception->getMessage();
-                $this->store->markCurrentStep($receiver, 'failed', $exception->getMessage());
-            }
-        });
+        $result = Context::scope(
+            fn (): array => $this->sessionLock->run($id, function () use ($id): void {
+                $receiver = $this->store->get($id);
+                if ($receiver === null || $receiver['status'] === 'paused') {
+                    return;
+                }
+                try {
+                    $this->advanceReceiver($receiver);
+                } catch (\Throwable $exception) {
+                    $receiver = $this->store->get($id) ?? $receiver;
+                    $receiver['status'] = 'failed';
+                    $receiver['error'] = $exception->getMessage();
+                    $this->store->markCurrentStep($receiver, 'failed', $exception->getMessage());
+                }
+            }),
+            data: ['data_sync_session_id' => $id, 'data_sync_role' => 'receiver']
+        );
 
         if (!$result['acquired']) {
             return;
@@ -424,13 +417,16 @@ final class DataSyncService
 
     private function advanceSourceWithLock(string $id): void
     {
-        $result = $this->sessionLock->run($id, function () use ($id): void {
-            $source = $this->store->get($id);
-            if ($source === null || $source['status'] === 'paused') {
-                return;
-            }
-            $this->advanceSource($source);
-        });
+        $result = Context::scope(
+            fn (): array => $this->sessionLock->run($id, function () use ($id): void {
+                $source = $this->store->get($id);
+                if ($source === null || $source['status'] === 'paused') {
+                    return;
+                }
+                $this->advanceSource($source);
+            }),
+            data: ['data_sync_session_id' => $id, 'data_sync_role' => 'source']
+        );
 
         if (!$result['acquired']) {
             return;
@@ -439,6 +435,10 @@ final class DataSyncService
 
     private function advanceReceiver(array $job): void
     {
+        if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+            throw new \RuntimeException('The receiver session protocol version is incompatible.');
+        }
+
         while (
             isset($job['steps'][$job['current_step']])
             && in_array($job['steps'][$job['current_step']]['status'], ['completed', 'skipped'], true)
@@ -508,6 +508,7 @@ final class DataSyncService
         $job = $this->store->markCurrentStep($job, 'running');
 
         try {
+            $job = $this->refreshCounterpart($job);
             $result = $this->executeSourceStep($job, $key);
             $job = $result['job'];
             if (!$result['done']) {
@@ -526,19 +527,40 @@ final class DataSyncService
         }
     }
 
+    private function refreshCounterpart(array $job): array
+    {
+        if (empty($job['context']['peer_session_id']) || empty($job['context']['peer_token'])) {
+            return $job;
+        }
+
+        $response = $this->peer->status($job);
+        $job['context']['counterpart_observed_at'] = now()->toIso8601String();
+
+        if (isset($response['__waiting'])) {
+            $job['context']['counterpart_reachable'] = false;
+            $job['context']['counterpart_error'] = (string) $response['__waiting'];
+            return $this->store->save($job);
+        }
+
+        $job['context']['counterpart_reachable'] = true;
+        $job['context']['counterpart_error'] = null;
+        $job['context']['receiver'] = $response;
+
+        return $this->store->save($job);
+    }
+
     private function executeSourceStep(array $job, string $key): array
     {
         return match ($key) {
-            'validate_request' => $this->completed($job),
+            'validate_request' => $this->validateSourceProtocol($job),
             'normalize_peer_address' => $this->normalizeTarget($job),
-            'acquire_source_lock', 'create_persistent_session' => $this->completed($job),
             'probe_peer_health' => $this->probePeer($job),
             'negotiate_protocol' => $this->negotiateProtocol($job),
             'create_receiver_session' => $this->createPeerSession($job),
             'wait_receiver_lock', 'wait_receiver_backup' => $this->waitForReceiver($job),
             'discover_source_databases' => $this->discoverSourceDatabases($job),
             'discover_receiver_databases' => $this->discoverReceiverDatabases($job),
-            'validate_database_compatibility', 'validate_table_structures' => $this->validateInventories($job),
+            'validate_database_compatibility' => $this->validateInventories($job),
             'record_receiver_backup_directory' => $this->recordBackupDirectory($job),
             'initialize_database_checkpoints' => $this->initializeDatabaseCheckpoints($job),
             'transfer_database_chunks' => $this->transferDatabaseChunk($job),
@@ -562,6 +584,15 @@ final class DataSyncService
         };
     }
 
+    private function validateSourceProtocol(array $job): array
+    {
+        if ((int) ($job['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+            throw new \RuntimeException('The source session protocol version is incompatible.');
+        }
+
+        return $this->completed($job);
+    }
+
     private function normalizeTarget(array $job): array
     {
         $input = trim((string) $job['target_input']);
@@ -573,50 +604,14 @@ final class DataSyncService
             );
         }
 
-        $job['target'] = $this->normalizeAddress($input);
+        $job['target'] = $this->peer->normalizeAddress($input);
         $job['context']['awaiting_target'] = false;
         return $this->completed($this->store->save($job), $job['target']);
     }
 
-    private function normalizeAddress(string $input): string
-    {
-        $trimmedInput = trim($input);
-        $rawIpv6 = !str_contains($trimmedInput, '://')
-            && filter_var($trimmedInput, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-        $candidate = $rawIpv6
-            ? 'http://[' . $trimmedInput . ']'
-            : (str_contains($trimmedInput, '://') ? $trimmedInput : 'http://' . $trimmedInput);
-        $parts = parse_url($candidate);
-        if (!is_array($parts)) {
-            throw new \InvalidArgumentException('The peer address is not a valid IP address or host with an optional port.');
-        }
-        $scheme = strtolower((string) ($parts['scheme'] ?? 'http'));
-        $host = trim((string) ($parts['host'] ?? ''), '[]');
-        $port = (int) ($parts['port'] ?? 9000);
-        $path = (string) ($parts['path'] ?? '');
-
-        if (
-            !in_array($scheme, ['http', 'https'], true)
-            || $host === ''
-            || $port < 1
-            || $port > 65535
-            || !in_array($path, ['', '/'], true)
-            || isset($parts['user'])
-            || isset($parts['pass'])
-            || isset($parts['query'])
-            || isset($parts['fragment'])
-        ) {
-            throw new \InvalidArgumentException('The peer address is not a valid IP address or host with an optional port.');
-        }
-
-        $normalizedHost = strtolower($host);
-        $displayHost = str_contains($normalizedHost, ':') ? "[{$normalizedHost}]" : $normalizedHost;
-        return "{$scheme}://{$displayHost}:{$port}";
-    }
-
     private function probePeer(array $job): array
     {
-        $response = $this->peerCall($job, 'GET', '/health');
+        $response = $this->peer->call($job, 'GET', '/health', [], false);
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -627,7 +622,7 @@ final class DataSyncService
     private function negotiateProtocol(array $job): array
     {
         $peerVersion = (int) ($job['context']['peer_health']['protocol_version'] ?? 0);
-        if ($peerVersion !== self::PROTOCOL_VERSION) {
+        if ($peerVersion !== DataSyncProtocol::VERSION) {
             throw new \RuntimeException('The peer data synchronization protocol version is incompatible.');
         }
         if (!empty($job['options']['compression']) && empty($job['context']['peer_health']['compression_available'])) {
@@ -647,13 +642,16 @@ final class DataSyncService
             $job['context']['prepare_token'] = $prepareToken;
             $job = $this->store->save($job);
         }
-        $response = $this->peerCall($job, 'POST', '/prepare', [
+        $response = $this->peer->call($job, 'POST', '/prepare', [
             'source_job_id' => $job['id'],
             'prepare_token' => $prepareToken,
             'options' => $job['options'],
         ], false);
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
+        }
+        if ((int) ($response['protocol_version'] ?? 0) !== DataSyncProtocol::VERSION) {
+            throw new \RuntimeException('The prepared receiver protocol version is incompatible.');
         }
         $job['context']['peer_session_id'] = $response['id'];
         $job['context']['peer_token'] = $response['token'];
@@ -663,7 +661,7 @@ final class DataSyncService
 
     private function waitForReceiver(array $job): array
     {
-        $response = $this->peerStatus($job);
+        $response = $this->peer->status($job);
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -724,7 +722,7 @@ final class DataSyncService
             $job['context']['database_inventory_snapshot_ready'] = true;
             $job = $this->store->save($job);
         }
-        $response = $this->peerCall($job, 'GET', '/database-inventory');
+        $response = $this->peer->call($job, 'GET', '/database-inventory');
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -822,7 +820,7 @@ final class DataSyncService
             (string) $checkpoint['table'],
             (int) $checkpoint['offset']
         );
-        $response = $this->peerCall($job, 'POST', '/database-chunks', [
+        $response = $this->peer->call($job, 'POST', '/database-chunks', [
             'connection' => $checkpoint['connection'],
             'table' => $checkpoint['table'],
             'rows' => $chunk['rows'],
@@ -836,7 +834,7 @@ final class DataSyncService
         }
         $job['context']['database_checkpoints'][$index]['offset'] = $chunk['next_offset'];
         if ($chunk['done']) {
-            $sequenceResponse = $this->peerCall($job, 'POST', '/database-sequences', [
+            $sequenceResponse = $this->peer->call($job, 'POST', '/database-sequences', [
                 'connection' => $checkpoint['connection'],
                 'table' => $checkpoint['table'],
             ]);
@@ -858,7 +856,7 @@ final class DataSyncService
         if (empty($job['options']['databases'])) {
             return $this->completed($job, 'Database synchronization disabled.');
         }
-        $response = $this->peerCall($job, 'GET', '/database-inventory');
+        $response = $this->peer->call($job, 'GET', '/database-inventory');
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -882,7 +880,7 @@ final class DataSyncService
 
     private function completePeerDatabaseTransfer(array $job): array
     {
-        $response = $this->peerCall($job, 'POST', '/database-complete');
+        $response = $this->peer->call($job, 'POST', '/database-complete');
         return isset($response['__waiting'])
             ? $this->waiting($job, $response['__waiting'])
             : $this->completed($job);
@@ -943,7 +941,7 @@ final class DataSyncService
             $job = $this->store->save($job);
         }
         foreach ($job['context']['resource_roots'] ?? [] as $key) {
-            $response = $this->peerCall($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
+            $response = $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
             if (isset($response['__waiting'])) {
                 return $this->waiting($job, $response['__waiting']);
             }
@@ -1061,7 +1059,7 @@ final class DataSyncService
         if ($item['mode'] === 'file') {
             $payload['relative_path'] = $item['relative_path'];
         }
-        $response = $this->peerCall($job, 'POST', $path, $payload);
+        $response = $this->peer->call($job, 'POST', $path, $payload);
         if (isset($response['__waiting'])) {
             return $this->waiting($job, $response['__waiting']);
         }
@@ -1099,7 +1097,7 @@ final class DataSyncService
         }
 
         foreach ($expectedByRoot as $key => $expectedFiles) {
-            $response = $this->peerCall($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
+            $response = $this->peer->call($job, 'GET', '/resources/' . rawurlencode($key) . '/manifest');
             if (isset($response['__waiting'])) {
                 return $this->waiting($job, $response['__waiting']);
             }
@@ -1115,65 +1113,10 @@ final class DataSyncService
 
     private function finalizePeer(array $job): array
     {
-        $response = $this->peerCall($job, 'POST', '/finalize');
+        $response = $this->peer->call($job, 'POST', '/finalize');
         return isset($response['__waiting'])
             ? $this->waiting($job, $response['__waiting'])
             : $this->completed($job);
-    }
-
-    private function peerStatus(array $job): array
-    {
-        return $this->peerCall($job, 'GET', '/sessions/' . rawurlencode((string) $job['context']['peer_session_id']));
-    }
-
-    private function peerCall(
-        array $job,
-        string $method,
-        string $path,
-        array $payload = [],
-        bool $authenticated = true
-    ): array {
-        if ($authenticated && !str_starts_with($path, '/sessions/')) {
-            $path = '/sessions/' . rawurlencode((string) $job['context']['peer_session_id']) . $path;
-        }
-        $url = rtrim((string) $job['target'], '/') . '/api/dashboard/db-manager/sync-peer' . $path;
-        $request = Http::acceptJson()->connectTimeout(5)->timeout(self::REQUEST_TIMEOUT_SECONDS)->retry([250, 500], throw: false);
-
-        if ($authenticated) {
-            $request = $request->withHeaders(['X-Data-Sync-Token' => (string) ($job['context']['peer_token'] ?? '')]);
-        }
-
-        try {
-            $response = $method === 'GET'
-                ? $request->get($url, $payload)
-                : $request->send($method, $url, ['json' => $payload]);
-        } catch (ConnectionException $exception) {
-            return ['__waiting' => $exception->getMessage()];
-        }
-
-        if (in_array($response->status(), [502, 503, 504], true)) {
-            return ['__waiting' => "Peer HTTP {$response->status()}; retrying idempotently."];
-        }
-        if ($response->serverError()) {
-            $isStatusRequest = preg_match('#^/sessions/[^/]+$#', $path) === 1;
-            if ($authenticated && !$isStatusRequest) {
-                $receiver = $this->peerStatus($job);
-                if (!isset($receiver['__waiting']) && ($receiver['status'] ?? null) === 'failed') {
-                    throw new \RuntimeException((string) ($receiver['error'] ?? 'Receiver synchronization failed.'));
-                }
-            }
-            throw new \RuntimeException(
-                (string) ($response->json('message') ?? "Peer HTTP {$response->status()}")
-            );
-        }
-        if ($response->status() === 429) {
-            return ['__waiting' => "Peer HTTP {$response->status()}; retrying idempotently."];
-        }
-        if (!$response->successful()) {
-            throw new \RuntimeException((string) ($response->json('message') ?? "Peer HTTP {$response->status()}"));
-        }
-
-        return (array) ($response->json('data') ?? $response->json());
     }
 
     private function inventoryMap(array $inventory): array
@@ -1290,6 +1233,7 @@ final class DataSyncService
     {
         return [
             'id' => $job['id'],
+            'protocol_version' => (int) ($job['protocol_version'] ?? 0),
             'token' => $job['context']['token'],
             'status' => $job['status'],
             'backup_directory' => $job['backup_directory'],

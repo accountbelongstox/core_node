@@ -24,6 +24,10 @@ HTTP_EXPECTED_DISCONNECT_WINERRORS = frozenset({64, 10038, 10053, 10054})
 PYCORE_HTTP_PORT = 59000
 QWEN3TTS_HTTP_PORT = 57210
 QWEN3TTS_HTTP_TIMEOUT_SECONDS = 900.0
+# Default playback-speed factor for every Qwen3-TTS generation (1.0 = natural).
+# Single source shared by pycore (qwen.config.default_speed) and the isolated
+# api server (loaded from source); overridable via the QWEN3TTS_SPEED env.
+QWEN3TTS_DEFAULT_SPEED = 0.75
 
 SSE_CONTENT_TYPE = "text/event-stream"
 SSE_RESPONSE_HEADERS = (
@@ -61,6 +65,7 @@ __all__ = [
     "HTTP_ROUTES_PATH",
     "HTTP_STATUS_PATH",
     "PYCORE_HTTP_PORT",
+    "QWEN3TTS_DEFAULT_SPEED",
     "QWEN3TTS_HTTP_PORT",
     "QWEN3TTS_HTTP_TIMEOUT_SECONDS",
     "SSE_CONTENT_TYPE",

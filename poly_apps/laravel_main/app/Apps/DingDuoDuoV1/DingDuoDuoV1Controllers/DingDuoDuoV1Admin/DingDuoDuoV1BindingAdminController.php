@@ -12,7 +12,7 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Database\QueryException;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1PddBindingModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1ErrorCodes;
@@ -22,7 +22,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1ErrorCodes;
  * super-code is allowed to manage. Guarded by 'custom.authenticate' at the route
  * layer.
  */
-class DingDuoDuoV1BindingAdminController extends BaseController
+class DingDuoDuoV1BindingAdminController extends Controller
 {
     /**
      * GET admin/bindings -> bindings, optionally scoped to ?owner_type=&owner_id=.

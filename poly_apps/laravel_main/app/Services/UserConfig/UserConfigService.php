@@ -7,8 +7,7 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * User-data-area configuration loader - the single source of truth for
- * application feature settings, kept OUT of Laravel's .env (which stays for
- * bootstrap essentials only: DB / APP_KEY / APP_URL).
+ * application feature settings, kept in the shell-aligned user-data area.
  *
  * Storage: a JSON file in the user-data area
  * (<laravel_data_dir>/config/settings.json), resolved via PathMapper so it
@@ -17,9 +16,8 @@ use Illuminate\Support\Facades\Log;
  * BASE_DATA_DIR). Both the task-center UI toggle and backend services read +
  * write through here.
  *
- * Resolution priority for get(): user-data JSON > OS env (legacy .env values
- * still work as a fallback during migration) > caller default. So "if the user
- * data area has a config, it wins" (the required behavior).
+ * Resolution priority for get(): user-data JSON > caller default. Runtime
+ * environment variables are intentionally not a configuration source.
  *
  * Concurrency: set() does a locked read-modify-write (flock) so concurrent
  * Octane workers / HTTP requests never corrupt the file. The decoded JSON is
@@ -27,6 +25,18 @@ use Illuminate\Support\Facades\Log;
  */
 class UserConfigService
 {
+    public const APPQYV1_ASSIST_ENABLED = 'appqyv1_assist_enabled';
+    public const APPQYV1_COVER_GENERATION_ENABLED = 'appqyv1_cover_generation_enabled';
+    public const APPQYV1_COVER_MAINTENANCE_ENABLED = 'appqyv1_cover_maintenance_enabled';
+    public const APPQYV1_MEDIA_SCAN = 'appqyv1_media_scan';
+    public const APPQYV1_POSTER_COLLECTION_ENABLED = 'appqyv1_poster_collection_enabled';
+    public const APPQYV1_STUDY_GEN_ENABLED = 'appqyv1_study_gen_enabled';
+    public const APPQYV1_VALIDITY_SCAN = 'appqyv1_validity_scan';
+    public const APPQYV1_WORD_TRANSLATION_FILLER_ENABLED = 'appqyv1_word_translation_filler_enabled';
+    public const CODEMARTV1_AI_ANALYSIS_ENABLED = 'codemartv1_ai_analysis_enabled';
+    public const QUEUE_CENTER_AUDIO_SCAN = 'queue_center_audio_scan';
+    public const USE_SERVER_BINARY_ASSIST = 'use_server_binary_assist';
+
     /** Relative path under the Laravel data dir for the settings file. */
     private const SETTINGS_REL_PATH = 'config/settings.json';
 
@@ -45,8 +55,8 @@ class UserConfigService
     }
 
     /**
-     * Read a setting. Priority: user-data JSON > env (legacy .env fallback) >
-     * $default. Scalar cast follows $default's type (bool/int/string).
+     * Read a setting. User-data JSON overrides the hardcoded caller default.
+     * Scalar cast follows $default's type (bool/int/string).
      *
      * @param string $key   Dotted setting key (e.g. "use_server_binary_assist").
      * @param mixed  $default
@@ -57,13 +67,6 @@ class UserConfigService
         $json = $this->load();
         if (is_array($json) && array_key_exists($key, $json)) {
             return $this->cast($json[$key], $default);
-        }
-
-        // Legacy .env fallback: use_server_binary_assist -> USE_SERVER_BINARY_ASSIST.
-        $envKey = strtoupper(str_replace(['-', '.'], '_', $key));
-        $envVal = getenv($envKey);
-        if (is_string($envVal) && $envVal !== '') {
-            return $this->cast($envVal, $default);
         }
 
         return $default;
@@ -144,7 +147,7 @@ class UserConfigService
      */
     public function useServerBinaryAssist(): bool
     {
-        return (bool) $this->get('use_server_binary_assist', false);
+        return (bool) $this->get(self::USE_SERVER_BINARY_ASSIST, false);
     }
 
     /**

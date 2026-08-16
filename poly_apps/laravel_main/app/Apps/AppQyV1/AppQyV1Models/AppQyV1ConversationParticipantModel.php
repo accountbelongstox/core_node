@@ -13,11 +13,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,19 +21,12 @@ use Illuminate\Support\Collection;
  * row in this table is the authorization check for every message endpoint;
  * last_read_message_id drives unread counts. No updated_at (joined_at only).
  */
-class AppQyV1ConversationParticipantModel extends Model
+class AppQyV1ConversationParticipantModel extends AppQyV1Model
 {
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('CONVERSATION_PARTICIPANTS');
-    }
+    protected ?string $appTableMapKey = 'CONVERSATION_PARTICIPANTS';
 
     protected $fillable = [
         'conversation_id',
@@ -46,12 +35,15 @@ class AppQyV1ConversationParticipantModel extends Model
         'joined_at',
     ];
 
-    protected $casts = [
-        'conversation_id' => 'integer',
-        'user_id' => 'integer',
-        'last_read_message_id' => 'integer',
-        'joined_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'conversation_id' => 'integer',
+            'user_id' => 'integer',
+            'last_read_message_id' => 'integer',
+            'joined_at' => 'datetime',
+        ];
+    }
 
     public function conversation(): BelongsTo
     {

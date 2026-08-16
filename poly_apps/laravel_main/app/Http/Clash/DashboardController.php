@@ -11,10 +11,12 @@
 
 namespace App\Http\Clash;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 
-class DashboardController
+class DashboardController extends Controller
 {
     public function __construct()
     {

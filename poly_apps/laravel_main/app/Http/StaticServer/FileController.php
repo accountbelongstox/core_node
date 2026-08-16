@@ -11,11 +11,13 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
-class FileController
+class FileController extends Controller
 {
     public function getContent(Request $request)
     {

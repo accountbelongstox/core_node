@@ -12,7 +12,7 @@ final class ResourceSyncService
 
     public function roots(): array
     {
-        return [
+        $candidates = [
             'static' => PathMapper::getLaravelStaticDir(),
             'avatars' => PathMapper::getLaravelAvatarsDir(),
             'uploads' => PathMapper::getLaravelUploadsDir(),
@@ -22,6 +22,32 @@ final class ResourceSyncService
             'app_qy_v1_sentence_audio' => PathMapper::getAppQyV1SentenceSoundsDir(),
             'app_qy_v1_word_images' => PathMapper::getAppQyV1WordImagesDir(),
         ];
+        $roots = [];
+        $coveredPaths = [];
+
+        foreach ($candidates as $key => $path) {
+            $normalizedPath = $this->normalizedPath($path);
+            $covered = false;
+            foreach ($coveredPaths as $coveredPath) {
+                if ($normalizedPath === $coveredPath || str_starts_with($normalizedPath, $coveredPath . '/')) {
+                    $covered = true;
+                    break;
+                }
+            }
+            if ($covered) {
+                continue;
+            }
+            $roots[$key] = $path;
+            $coveredPaths[] = $normalizedPath;
+        }
+
+        return $roots;
+    }
+
+    private function normalizedPath(string $path): string
+    {
+        $normalized = rtrim(str_replace('\\', '/', $path), '/');
+        return PHP_OS_FAMILY === 'Windows' ? strtolower($normalized) : $normalized;
     }
 
     public function manifest(string $key): array
@@ -96,9 +122,10 @@ final class ResourceSyncService
 
     private function incomingArchivePath(string $jobId, string $key): string
     {
-        $safeJobId = preg_replace('/[^A-Za-z0-9_-]/', '', $jobId);
-        $safeKey = preg_replace('/[^A-Za-z0-9_-]/', '', $key);
-        return PathMapper::getBackupDir("data-sync/incoming/{$safeJobId}/{$safeKey}.7z.part");
+        $safeJobId = DataSyncSessionId::require($jobId);
+        $this->root($key);
+
+        return PathMapper::getBackupDir("data-sync/incoming/{$safeJobId}/{$key}.7z.part");
     }
 
     public function sourceFilePath(string $key, string $relativePath): string
@@ -118,7 +145,8 @@ final class ResourceSyncService
         bool $final
     ): array {
         $relativePath = SystemArchiveManager::sanitizeRelativePath($relativePath);
-        $safeJobId = preg_replace('/[^A-Za-z0-9_-]/', '', $jobId);
+        $safeJobId = DataSyncSessionId::require($jobId);
+        $this->root($key);
         $partPath = PathMapper::getBackupDir("data-sync/incoming/{$safeJobId}/files/{$key}/{$relativePath}.part");
         $destinationPath = $this->sourceFilePath($key, $relativePath);
         $destinationHash = FileSystemManager::hashFile($destinationPath);

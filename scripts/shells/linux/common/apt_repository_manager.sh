@@ -59,9 +59,11 @@ sanitize_all_apt_sources_from_apt_repository_manager() {
     fi
 }
 
-# Source required files (trust-based programming)
-source "$APT_REPO_MANAGER_DIR/common_functions.sh"
-source "$APT_REPO_MANAGER_DIR/gvar_common.sh"
+# Load-time side effect free: do NOT source gvar_common.sh/common_functions.sh
+# here (their top-level disk scans and /etc/environment writes can hang on a
+# sudo prompt in app-start contexts). Callers that need the full stack source
+# those files themselves BEFORE this library; the guarded fallbacks below keep
+# this library functional when they are absent.
 
 # Ensure USE_SUDO is set
 if [ -z "${USE_SUDO:-}" ]; then
@@ -70,6 +72,21 @@ if [ -z "${USE_SUDO:-}" ]; then
     else
         USE_SUDO="sudo"
     fi
+fi
+
+# Fallback global-var reader (one file per key) used only when gvar_common.sh
+# is not loaded; identical store format, no load-time side effects.
+if ! declare -F get_global_var >/dev/null 2>&1; then
+    get_global_var() {
+        local key="$1"
+        local default_value="${2:-}"
+        local file="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}/$key"
+        if [ -f "$file" ]; then
+            cat "$file" 2>/dev/null || echo "$default_value"
+        else
+            echo "$default_value"
+        fi
+    }
 fi
 
 # Get real login user (not root)
@@ -1193,7 +1210,7 @@ remove_apt_repository_from_apt_repository_manager() {
     return 0
 }
 
-# Manage repositories based on control variables (for 12_update.sh)
+# Manage repositories based on control variables (for 2_setting_base.sh)
 # This function manages repositories without automatic restore (permanent addition)
 manage_repositories_from_apt_repository_manager() {
     echo "Managing repositories based on control variables..."

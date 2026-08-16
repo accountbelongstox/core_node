@@ -37,7 +37,7 @@ class ServerManagerV1ApiInfoCtl extends ServerManagerV1BaseCtl
             'system_info' => $this->getSystemInfo()
         ];
 
-        return $this->successResponse($apiInfo, 'API information retrieved successfully');
+        return $this->success($apiInfo, 'API information retrieved successfully');
     }
     
     

@@ -2,28 +2,26 @@
 
 namespace App\Services\Dashboard;
 
-use App\Support\CoreNodeSecrets;
+use App\Support\RuntimeConfigurationStore;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Database superuser/root credential management for the dashboard (driver-aware).
+ * PostgreSQL role credential management for the dashboard.
  *
  * Changing the password does TWO things atomically from the operator's view:
  *  1. ALTER the role/user password on the live (already-authenticated) connection.
  *  2. SYNC the new password back into the credential store that config/database.php
- *     reads (CoreNodeSecrets / global-var, e.g. POSTGRES_PASSWORD) -- NEVER .env --
+ *     reads (RuntimeConfigurationStore / global-var, e.g. POSTGRES_PASSWORD) -- NEVER .env --
  *     and into the running process's runtime config, then reconnect. So Laravel and
  *     the .sh toolchain keep connecting with the new password, with no downtime.
  *
- * pgsql -> ALTER USER ... WITH PASSWORD ; sync POSTGRES_PASSWORD.
- * mysql -> ALTER USER ...@'localhost' IDENTIFIED BY ... ; sync MYSQL_PASSWORD.
- * sqlite -> not applicable (file-based, no password).
+ * Password changes use ALTER USER and synchronize POSTGRES_PASSWORD.
  */
 class DatabaseCredentialService
 {
     /**
      * Describe the credential surface for a connection. Includes the CURRENT
-     * working password (from runtime config, which mirrors the CoreNodeSecrets
+     * working password (from runtime config, which mirrors the RuntimeConfigurationStore
      * store) and the database account list — this endpoint sits behind the
      * `dashboard.auth` admin gate, the same trust level that can already
      * change/reset the password.
@@ -32,59 +30,40 @@ class DatabaseCredentialService
     {
         $desc = DatabaseManagerService::resolve($connection);
         $driver = $desc['driver'];
-        $supports = in_array($driver, ['pgsql', 'mysql', 'mariadb'], true);
 
         return [
             'connection' => $connection,
             'driver' => $driver,
-            'supports_password' => $supports,
-            'superuser' => $supports ? self::superuser($connection, $driver) : null,
-            'password' => $supports
-                ? (string) config("database.connections.{$connection}.password", '')
-                : null,
-            'users' => $supports ? self::listUsers($connection, $driver) : [],
-            'secret_key' => self::secretKey($driver),
-            'note' => $supports
-                ? 'Changing this password re-syncs it into Laravel\'s own credential store.'
-                : 'SQLite databases are file-based and have no password or accounts.',
+            'supports_password' => true,
+            'superuser' => self::superuser($connection),
+            'password' => (string) config("database.connections.{$connection}.password", ''),
+            'users' => self::listUsers($connection),
+            'secret_key' => self::secretKey(),
+            'note' => 'Changing this password re-syncs it into Laravel\'s own credential store.',
         ];
     }
 
     /**
-     * List database accounts (driver-aware). pgsql: pg_roles (system pg_*
-     * roles hidden); mysql/mariadb: mysql.user; sqlite: none.
+     * List PostgreSQL roles, excluding internal pg_* roles.
      *
      * @return array<int, array{name: string, super: bool, can_login: bool, host: string|null}>
      */
-    public static function listUsers(string $connection, ?string $driver = null): array
+    public static function listUsers(string $connection): array
     {
-        $driver = $driver ?? DatabaseManagerService::resolve($connection)['driver'];
         $conn = DB::connection($connection);
         $users = [];
 
         try {
-            if ($driver === 'pgsql') {
-                $rows = $conn->select(
-                    "SELECT rolname, rolsuper, rolcanlogin FROM pg_roles WHERE rolname NOT LIKE 'pg\\_%' ORDER BY rolname"
-                );
-                foreach ($rows as $r) {
-                    $users[] = [
-                        'name' => (string) $r->rolname,
-                        'super' => (bool) $r->rolsuper,
-                        'can_login' => (bool) $r->rolcanlogin,
-                        'host' => null,
-                    ];
-                }
-            } elseif ($driver === 'mysql' || $driver === 'mariadb') {
-                $rows = $conn->select('SELECT user, host, Super_priv FROM mysql.user ORDER BY user, host');
-                foreach ($rows as $r) {
-                    $users[] = [
-                        'name' => (string) $r->user,
-                        'super' => (($r->Super_priv ?? 'N') === 'Y'),
-                        'can_login' => true,
-                        'host' => (string) $r->host,
-                    ];
-                }
+            $rows = $conn->select(
+                "SELECT rolname, rolsuper, rolcanlogin FROM pg_roles WHERE rolname NOT LIKE 'pg\\_%' ORDER BY rolname"
+            );
+            foreach ($rows as $r) {
+                $users[] = [
+                    'name' => (string) $r->rolname,
+                    'super' => (bool) $r->rolsuper,
+                    'can_login' => (bool) $r->rolcanlogin,
+                    'host' => null,
+                ];
             }
         } catch (\Throwable $e) {
             // listing is best-effort (e.g. missing catalog privilege) -> empty
@@ -95,7 +74,7 @@ class DatabaseCredentialService
 
     /**
      * Change a database account's password. Defaults to the configured
-     * superuser. The CoreNodeSecrets store + runtime config are re-synced
+     * superuser. The RuntimeConfigurationStore store + runtime config are re-synced
      * ONLY when the changed account IS the configured superuser (other
      * accounts are not what Laravel connects as).
      */
@@ -104,14 +83,11 @@ class DatabaseCredentialService
         $desc = DatabaseManagerService::resolve($connection);
         $driver = $desc['driver'];
 
-        if (!in_array($driver, ['pgsql', 'mysql', 'mariadb'], true)) {
-            throw new \RuntimeException('SQLite databases are file-based and have no password.');
-        }
         if ($newPassword === '') {
             throw new \InvalidArgumentException('Password cannot be empty.');
         }
 
-        $superuser = self::superuser($connection, $driver);
+        $superuser = self::superuser($connection);
         $user = $user !== null && $user !== '' ? $user : $superuser;
         self::assertAccountName($user);
         $isConfiguredAccount = $user === $superuser;
@@ -120,17 +96,12 @@ class DatabaseCredentialService
         $literal = $conn->getPdo()->quote($newPassword); // driver-safe string literal
 
         // 1) ALTER on the live connection (authenticated as the superuser already).
-        if ($driver === 'pgsql') {
-            $conn->statement('ALTER USER ' . self::quoteIdentPg($user) . ' WITH PASSWORD ' . $literal);
-        } else {
-            $conn->statement('ALTER USER ' . self::quoteIdentMy($user) . "@'localhost' IDENTIFIED BY " . $literal);
-            $conn->statement('FLUSH PRIVILEGES');
-        }
+        $conn->statement('ALTER USER ' . self::quoteIdentPg($user) . ' WITH PASSWORD ' . $literal);
 
         // 2+3) Store sync + runtime reconnect apply only to the account Laravel
         // itself connects as; other accounts never touch the credential store.
-        $key = $isConfiguredAccount ? self::secretKey($driver) : null;
-        $synced = $key !== null ? CoreNodeSecrets::put($key, $newPassword) : false;
+        $key = $isConfiguredAccount ? self::secretKey() : null;
+        $synced = $key !== null ? RuntimeConfigurationStore::put($key, $newPassword) : false;
         if ($isConfiguredAccount) {
             config(["database.connections.{$connection}.password" => $newPassword]);
             DB::purge($connection);
@@ -147,19 +118,15 @@ class DatabaseCredentialService
     }
 
     /**
-     * Create a database account (driver-aware). Empty password -> a strong one
-     * is generated and returned ONCE. pgsql: LOGIN role + CONNECT/ALL on the
-     * connection's database (database-level privileges; table grants are up to
-     * the operator). mysql: user@'localhost' + ALL on the connection's schema.
+     * Create a PostgreSQL LOGIN role. Empty password generates a strong value
+     * returned once. Database-level privileges are granted; table grants remain
+     * an explicit operator decision.
      */
     public static function createUser(string $connection, string $username, ?string $password = null): array
     {
         $desc = DatabaseManagerService::resolve($connection);
         $driver = $desc['driver'];
 
-        if (!in_array($driver, ['pgsql', 'mysql', 'mariadb'], true)) {
-            throw new \RuntimeException('SQLite databases are file-based and have no accounts.');
-        }
         self::assertAccountName($username);
 
         $generated = $password === null || $password === '';
@@ -169,14 +136,8 @@ class DatabaseCredentialService
         $literal = $conn->getPdo()->quote($password);
         $database = (string) config("database.connections.{$connection}.database");
 
-        if ($driver === 'pgsql') {
-            $conn->statement('CREATE ROLE ' . self::quoteIdentPg($username) . ' WITH LOGIN PASSWORD ' . $literal);
-            $conn->statement('GRANT ALL PRIVILEGES ON DATABASE ' . self::quoteIdentPg($database) . ' TO ' . self::quoteIdentPg($username));
-        } else {
-            $conn->statement('CREATE USER ' . self::quoteIdentMy($username) . "@'localhost' IDENTIFIED BY " . $literal);
-            $conn->statement('GRANT ALL PRIVILEGES ON ' . self::quoteIdentMy($database) . '.* TO ' . self::quoteIdentMy($username) . "@'localhost'");
-            $conn->statement('FLUSH PRIVILEGES');
-        }
+        $conn->statement('CREATE ROLE ' . self::quoteIdentPg($username) . ' WITH LOGIN PASSWORD ' . $literal);
+        $conn->statement('GRANT ALL PRIVILEGES ON DATABASE ' . self::quoteIdentPg($database) . ' TO ' . self::quoteIdentPg($username));
 
         return [
             'connection' => $connection,
@@ -193,27 +154,17 @@ class DatabaseCredentialService
         $desc = DatabaseManagerService::resolve($connection);
         $driver = $desc['driver'];
 
-        if (!in_array($driver, ['pgsql', 'mysql', 'mariadb'], true)) {
-            throw new \RuntimeException('SQLite databases are file-based and have no accounts.');
-        }
         self::assertAccountName($username);
-        if ($username === self::superuser($connection, $driver)) {
+        if ($username === self::superuser($connection)) {
             throw new \RuntimeException('Refusing to drop the account Laravel itself connects as.');
         }
 
         $conn = DB::connection($connection);
         $database = (string) config("database.connections.{$connection}.database");
-        if ($driver === 'pgsql') {
-            // The createUser() database-level GRANT is a dependency that blocks
-            // DROP ROLE ("dependent objects still exist") — revoke it first.
-            // Objects the role OWNS still block the drop on purpose (the
-            // operator must reassign/drop them consciously).
-            $conn->statement('REVOKE ALL PRIVILEGES ON DATABASE ' . self::quoteIdentPg($database) . ' FROM ' . self::quoteIdentPg($username));
-            $conn->statement('DROP ROLE ' . self::quoteIdentPg($username));
-        } else {
-            $conn->statement('DROP USER ' . self::quoteIdentMy($username) . "@'localhost'");
-            $conn->statement('FLUSH PRIVILEGES');
-        }
+        // The createUser() database-level GRANT is a dependency that blocks
+        // DROP ROLE. Objects owned by the role still block the drop intentionally.
+        $conn->statement('REVOKE ALL PRIVILEGES ON DATABASE ' . self::quoteIdentPg($database) . ' FROM ' . self::quoteIdentPg($username));
+        $conn->statement('DROP ROLE ' . self::quoteIdentPg($username));
 
         return ['connection' => $connection, 'driver' => $driver, 'username' => $username];
     }
@@ -230,23 +181,14 @@ class DatabaseCredentialService
 
     // ---- helpers -----------------------------------------------------------
 
-    private static function superuser(string $connection, string $driver): string
+    private static function superuser(string $connection): string
     {
-        $default = $driver === 'pgsql' ? 'postgres' : 'root';
-
-        return (string) config("database.connections.{$connection}.username", $default);
+        return (string) config("database.connections.{$connection}.username", 'postgres');
     }
 
-    private static function secretKey(string $driver): ?string
+    private static function secretKey(): string
     {
-        if ($driver === 'pgsql') {
-            return 'POSTGRES_PASSWORD';
-        }
-        if ($driver === 'mysql' || $driver === 'mariadb') {
-            return 'MYSQL_PASSWORD';
-        }
-
-        return null;
+        return 'POSTGRES_PASSWORD';
     }
 
     /**
@@ -265,11 +207,6 @@ class DatabaseCredentialService
     private static function quoteIdentPg(string $ident): string
     {
         return '"' . str_replace('"', '""', $ident) . '"';
-    }
-
-    private static function quoteIdentMy(string $ident): string
-    {
-        return '`' . str_replace('`', '``', $ident) . '`';
     }
 
     private static function generatePassword(int $bytes = 24): string

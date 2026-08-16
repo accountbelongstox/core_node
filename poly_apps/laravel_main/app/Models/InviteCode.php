@@ -23,10 +23,13 @@ class InviteCode extends Model
         'description',
     ];
 
-    protected $casts = [
-        'expires_at' => 'datetime',
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'expires_at' => 'datetime',
+            'is_active' => 'boolean',
+        ];
+    }
 
     public static function publicCodes(int $limit): EloquentCollection
     {

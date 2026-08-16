@@ -13,9 +13,9 @@ use App\Utils\FileSystemManager;
  * Stores queue data in external storage to prevent git commits
  *
  * Supports both MCP (Model Context Protocol) and web query interfaces
- * Following Laravel 12.x MCP specifications
+ * Following Laravel 13.x MCP specifications
  *
- * @see https://laravel.com/docs/12.x/mcp
+ * @see https://laravel.com/docs/13.x/mcp
  */
 class TaskQueueService
 {

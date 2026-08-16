@@ -13,9 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Services\Realtime\OutboxCommitDispatcher;
 use Illuminate\Support\Facades\Log;
 
@@ -24,9 +21,8 @@ use Illuminate\Support\Facades\Log;
  * Relevant events broadcast through Reverb immediately; rows remain available
  * for bounded cursor replay after a client reconnects.
  */
-class AppQyV1TranslationEventModel extends Model
+class AppQyV1TranslationEventModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
 
     // created_at only (append-only log); no updated_at column.
     public $timestamps = false;
@@ -41,25 +37,18 @@ class AppQyV1TranslationEventModel extends Model
         'last_publish_error',
     ];
 
-    protected $casts = [
-        'id' => 'integer',
-        'created_at' => 'datetime',
-        'published_at' => 'datetime',
-        'publish_after' => 'datetime',
-        'publish_attempts' => 'integer',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'translation_events');
+        return [
+            'id' => 'integer',
+            'created_at' => 'datetime',
+            'published_at' => 'datetime',
+            'publish_after' => 'datetime',
+            'publish_attempts' => 'integer',
+        ];
     }
 
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableSuffix = 'translation_events';
 
     /**
      * Append one committed event to the outbox. Reverb publication is owned by
@@ -67,6 +56,8 @@ class AppQyV1TranslationEventModel extends Model
      */
     public static function emit(string $event, array $data): void
     {
+        $connectionName = (new static())->getConnectionName();
+
         OutboxCommitDispatcher::dispatch(static function () use ($event, $data): void {
             try {
                 static::query()->create([
@@ -81,7 +72,7 @@ class AppQyV1TranslationEventModel extends Model
                     'error' => $exception->getMessage(),
                 ]);
             }
-        }, AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1));
+        }, $connectionName);
     }
 
     public static function pendingForPublish(int $limit)

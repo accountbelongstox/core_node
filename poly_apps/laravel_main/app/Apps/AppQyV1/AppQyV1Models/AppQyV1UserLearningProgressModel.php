@@ -3,26 +3,14 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1UserLearningProgressModel extends Model
+class AppQyV1UserLearningProgressModel extends AppQyV1Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('USER_LEARNING_PROGRESS');
-    }
+    protected ?string $appTableMapKey = 'USER_LEARNING_PROGRESS';
 
     protected $fillable = [
         'user_id',
@@ -39,19 +27,22 @@ class AppQyV1UserLearningProgressModel extends Model
         'review_history',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'review_count' => 'integer',
-        'correct_count' => 'integer',
-        'wrong_count' => 'integer',
-        'familiarity_level' => 'integer',
-        'review_history' => 'json',
-        'last_reviewed_at' => 'datetime',
-        'next_review_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'review_count' => 'integer',
+            'correct_count' => 'integer',
+            'wrong_count' => 'integer',
+            'familiarity_level' => 'integer',
+            'review_history' => 'json',
+            'last_reviewed_at' => 'datetime',
+            'next_review_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'deleted_at' => 'datetime',
+        ];
+    }
 
     public static function getWordsForLearning(int $userId, string $langCode, int $limit = 100)
     {
@@ -70,7 +61,8 @@ class AppQyV1UserLearningProgressModel extends Model
             ->get();
     }
 
-    public function scopeDueFirst($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function dueFirst(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->orderByRaw('next_review_at IS NULL, next_review_at ASC');
     }
@@ -146,13 +138,6 @@ class AppQyV1UserLearningProgressModel extends Model
             ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) as mastered_words")
             ->selectRaw('SUM(correct_count) as correct_answers')
             ->first();
-    }
-
-    public static function tableExists(): bool
-    {
-        $model = new self();
-
-        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
     }
 
     public static function createOrUpdateProgress(int $userId, string $langCode, string $wordContent, array $data = [])
@@ -324,7 +309,7 @@ class AppQyV1UserLearningProgressModel extends Model
         $this->review_history = $history;
     }
 
-    public static function getUserStats(int $userId, string $langCode = null)
+    public static function getUserStats(int $userId, ?string $langCode = null)
     {
         $query = self::where('user_id', $userId);
 
@@ -332,13 +317,23 @@ class AppQyV1UserLearningProgressModel extends Model
             $query->where('lang_code', $langCode);
         }
 
+        $stats = $query
+            ->selectRaw('COUNT(*) AS total_words')
+            ->selectRaw("SUM(CASE WHEN learning_status = 'new' THEN 1 ELSE 0 END) AS new_words")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'learning' THEN 1 ELSE 0 END) AS learning_words")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) AS mastered_words")
+            ->selectRaw(
+                "SUM(CASE WHEN learning_status IN ('learning', 'reviewing') AND next_review_at <= ? THEN 1 ELSE 0 END) AS needs_review",
+                [now()]
+            )
+            ->first();
+
         return [
-            'total_words' => $query->count(),
-            'new_words' => (clone $query)->where('learning_status', 'new')->count(),
-            'learning_words' => (clone $query)->where('learning_status', 'learning')->count(),
-            'mastered_words' => (clone $query)->where('learning_status', 'mastered')->count(),
-            'needs_review' => (clone $query)->whereIn('learning_status', ['learning', 'reviewing'])
-                ->where('next_review_at', '<=', now())->count(),
+            'total_words' => (int) ($stats->total_words ?? 0),
+            'new_words' => (int) ($stats->new_words ?? 0),
+            'learning_words' => (int) ($stats->learning_words ?? 0),
+            'mastered_words' => (int) ($stats->mastered_words ?? 0),
+            'needs_review' => (int) ($stats->needs_review ?? 0),
         ];
     }
 
@@ -365,11 +360,6 @@ class AppQyV1UserLearningProgressModel extends Model
         }
 
         return self::insertOrIgnore($items);
-    }
-
-    public static function findById(int $progressId): ?self
-    {
-        return static::query()->find($progressId);
     }
 
     public static function dailyQueue(int $userId, string $language): array
@@ -420,42 +410,61 @@ class AppQyV1UserLearningProgressModel extends Model
 
     public static function retentionCounts(int $userId, ?string $language): array
     {
-        $base = static function () use ($userId, $language) {
-            $query = static::query()->where('user_id', $userId);
-            if ($language !== null && $language !== '') {
-                $query->where('lang_code', $language);
-            }
-            return $query;
-        };
+        $query = static::query()->where('user_id', $userId);
+        if ($language !== null && $language !== '') {
+            $query->where('lang_code', $language);
+        }
+
+        $stats = $query
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) AS mastered")
+            ->selectRaw(
+                "SUM(CASE WHEN learning_status IN ('learning', 'reviewing') AND next_review_at <= ? THEN 1 ELSE 0 END) AS critical",
+                [now()]
+            )
+            ->selectRaw(
+                "SUM(CASE WHEN learning_status IN ('learning', 'reviewing') AND (next_review_at > ? OR next_review_at IS NULL) THEN 1 ELSE 0 END) AS review",
+                [now()]
+            )
+            ->selectRaw("SUM(CASE WHEN learning_status = 'new' THEN 1 ELSE 0 END) AS learning")
+            ->first();
 
         return [
-            'total' => $base()->count(),
-            'mastered' => $base()->where('learning_status', 'mastered')->count(),
-            'critical' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
-                ->where('next_review_at', '<=', now())->count(),
-            'review' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
-                ->where(function ($query): void {
-                    $query->where('next_review_at', '>', now())->orWhereNull('next_review_at');
-                })->count(),
-            'learning' => $base()->where('learning_status', 'new')->count(),
+            'total' => (int) ($stats->total ?? 0),
+            'mastered' => (int) ($stats->mastered ?? 0),
+            'critical' => (int) ($stats->critical ?? 0),
+            'review' => (int) ($stats->review ?? 0),
+            'learning' => (int) ($stats->learning ?? 0),
         ];
     }
 
     public static function profileMetrics(int $userId): array
     {
-        $base = static fn () => static::query()->where('user_id', $userId);
+        $query = static::query()->where('user_id', $userId);
+        $stats = (clone $query)
+            ->selectRaw('COUNT(*) AS total')
+            ->selectRaw("SUM(CASE WHEN learning_status = 'new' THEN 1 ELSE 0 END) AS new_count")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'learning' THEN 1 ELSE 0 END) AS learning")
+            ->selectRaw("SUM(CASE WHEN learning_status = 'mastered' THEN 1 ELSE 0 END) AS mastered")
+            ->selectRaw(
+                "SUM(CASE WHEN learning_status IN ('learning', 'reviewing') AND next_review_at <= ? THEN 1 ELSE 0 END) AS needs_review",
+                [now()]
+            )
+            ->selectRaw('SUM(CASE WHEN wrong_count > correct_count THEN 1 ELSE 0 END) AS weak')
+            ->selectRaw('COALESCE(SUM(correct_count), 0) AS correct_sum')
+            ->selectRaw('COALESCE(SUM(wrong_count), 0) AS wrong_sum')
+            ->first();
 
         return [
-            'total' => $base()->count(),
-            'new' => $base()->where('learning_status', 'new')->count(),
-            'learning' => $base()->where('learning_status', 'learning')->count(),
-            'mastered' => $base()->where('learning_status', 'mastered')->count(),
-            'needs_review' => $base()->whereIn('learning_status', ['learning', 'reviewing'])
-                ->where('next_review_at', '<=', now())->count(),
-            'weak' => $base()->whereColumn('wrong_count', '>', 'correct_count')->count(),
-            'correct_sum' => (int) $base()->sum('correct_count'),
-            'wrong_sum' => (int) $base()->sum('wrong_count'),
-            'timestamps' => $base()->get(['last_reviewed_at', 'updated_at', 'created_at']),
+            'total' => (int) ($stats->total ?? 0),
+            'new' => (int) ($stats->new_count ?? 0),
+            'learning' => (int) ($stats->learning ?? 0),
+            'mastered' => (int) ($stats->mastered ?? 0),
+            'needs_review' => (int) ($stats->needs_review ?? 0),
+            'weak' => (int) ($stats->weak ?? 0),
+            'correct_sum' => (int) ($stats->correct_sum ?? 0),
+            'wrong_sum' => (int) ($stats->wrong_sum ?? 0),
+            'timestamps' => $query->get(['last_reviewed_at', 'updated_at', 'created_at']),
         ];
     }
 }

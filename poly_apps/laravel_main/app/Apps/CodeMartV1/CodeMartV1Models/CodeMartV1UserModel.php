@@ -10,12 +10,12 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
+use App\Models\AppModel;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
-class CodeMartV1UserModel extends Model
+class CodeMartV1UserModel extends AppModel
 {
     use RunsModelTransactions;
 
@@ -94,11 +94,6 @@ class CodeMartV1UserModel extends Model
             ->where('role_status', 'active')
             ->pluck('role_type')
             ->toArray();
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public static function findByEmail(string $email): ?self

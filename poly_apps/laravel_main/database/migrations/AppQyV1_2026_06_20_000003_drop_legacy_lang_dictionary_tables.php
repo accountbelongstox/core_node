@@ -1,10 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\Schema;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 
 /**
  * Drop the legacy per-language dictionary tables {prefix}_{lang}_dictionaries
@@ -15,9 +13,8 @@ use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
  * unreferenced at runtime and its create migration is a no-op; this migration
  * removes any orphan tables a pre-supersession install may still carry.
  *
- * KEEP the AppQyV1MultiLangDictionaryModel SHIM (it now resolves to tts_cache).
- * The loop mirrors AppQyV1TableMaps::getSupportedLanguages() so it covers every
- * supported language.
+ * The compatibility model has been removed; AppQyV1LangDictionaryModel is the
+ * only dictionary model entry point. Existing legacy tables remain untouched.
  */
 return new class extends Migration
 {

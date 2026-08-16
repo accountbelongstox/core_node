@@ -12,18 +12,19 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige;
 
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Providers\TableMaps;
 
 /**
  * DingDuoDuoV1 (订多多) database table mappings. Centralizes table-name resolution
  * for the sub-app; all DB operations reference these instead of hardcoded names.
  * Mirrors the PddToolV1TableMaps / AppQyV1TableMaps convention exactly.
  */
-class DingDuoDuoV1TableMaps
+class DingDuoDuoV1TableMaps extends TableMaps
 {
     /**
      * Get the table prefix from the central app registry (config/app_registry.php).
      */
-    private static function getTablePrefix(): string
+    protected static function getTablePrefix(): string
     {
         static $prefix = null;
         if ($prefix === null) {
@@ -37,6 +38,7 @@ class DingDuoDuoV1TableMaps
         'tablename' => 'members',
         'fields' => [
             'id' => 'id',
+            'user_id' => 'user_id',
             'username' => 'username',
             'password' => 'password',
             'token' => 'token',
@@ -128,56 +130,6 @@ class DingDuoDuoV1TableMaps
             'updated_at' => 'updated_at',
         ],
     ];
-
-    /**
-     * Get the full table name by key. Automatically adds the app prefix when absent.
-     */
-    public static function getTableName(string $tableKey): string
-    {
-        $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
-
-        if (defined("self::{$fullKey}")) {
-            $tableSuffix = constant("self::{$fullKey}")['tablename'];
-            return "{$prefix}_{$tableSuffix}";
-        }
-        return '';
-    }
-
-    public static function getFieldName(string $tableKey, string $fieldKey): string
-    {
-        $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
-
-        if (defined("self::{$fullKey}")) {
-            $tableMap = constant("self::{$fullKey}");
-            return $tableMap['fields'][$fieldKey] ?? $fieldKey;
-        }
-        return $fieldKey;
-    }
-
-    public static function getTableFields(string $tableKey): array
-    {
-        $prefix = self::getTablePrefix();
-        $fullKey = $tableKey;
-        $prefixLower = strtolower($prefix);
-        if (!str_starts_with(strtolower($tableKey), $prefixLower . '_')) {
-            $fullKey = $prefix . '_' . $tableKey;
-        }
-
-        if (defined("self::{$fullKey}")) {
-            return constant("self::{$fullKey}")['fields'];
-        }
-        return [];
-    }
 
     public static function getAvailableTableKeys(): array
     {

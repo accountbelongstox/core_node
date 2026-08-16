@@ -2,6 +2,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -15,7 +17,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController as DGroupAPublic;
 use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupWordController
+class AppQyV1WordGroupWordController extends Controller
 {
     use ApiResponse;
 

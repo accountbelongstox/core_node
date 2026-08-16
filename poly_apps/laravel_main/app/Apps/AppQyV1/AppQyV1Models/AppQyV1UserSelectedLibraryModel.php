@@ -5,25 +5,14 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 use App\Utils\RunsModelTransactions;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1UserSelectedLibraryModel extends Model
+class AppQyV1UserSelectedLibraryModel extends AppQyV1Model
 {
     use RunsModelTransactions;
     use HasFactory;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('USER_SELECTED_LIBRARIES');
-    }
+    protected ?string $appTableMapKey = 'USER_SELECTED_LIBRARIES';
 
     protected $fillable = [
         'user_id',
@@ -33,14 +22,17 @@ class AppQyV1UserSelectedLibraryModel extends Model
         'selected_at',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'collection_id' => 'integer',
-        'is_active' => 'boolean',
-        'selected_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'collection_id' => 'integer',
+            'is_active' => 'boolean',
+            'selected_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     /**
      * Selected library. The column name collection_id is historical: it

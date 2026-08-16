@@ -172,7 +172,7 @@ class ServiceLauncher:
         Use this to access service-specific APIs.
 
         Args:
-            name: Service name ('rpc_v2', 'heartbeat', 'speech', etc.)
+            name: Service name ('rpc_v2', 'heartbeat', 'ui', etc.)
 
         Returns:
             Service instance or None

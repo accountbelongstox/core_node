@@ -1,8 +1,8 @@
 #!/bin/bash
-# Script: 36_install_composer.sh
-# Description: Dedicated Composer installation with PHP 8.5 and strong auto-correction
+# Script: 35_install_composer.sh
+# Description: Dedicated Composer installation with fine-grained PHP 8.5 dependency repair
 # Author: System Administrator
-# Version: 2.0
+# Version: 3.0
 
 # Color definitions
 RED='\033[0;31m'
@@ -12,12 +12,14 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[36_COMPOSER]"
+SCRIPT_INDEX="[35_COMPOSER]"
 
 # Source dependencies
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+LINUX_PATH_FUNCTION="$PARENT_DIR_LEVEL_2/common/linux_path_function.sh"
+LARAVEL_INSTALLER_PACKAGE="laravel/installer"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -27,6 +29,7 @@ source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
 # Configuration - using variables from php_common_vars.sh
 PHP_BINARY="$TARGET_LINK_PATH"
+COMPOSER_PATH_DIR="$(dirname "$COMPOSER_TARGET_PATH")"
 
 # Version requirements
 MIN_COMPOSER_VERSION_MAJOR=2
@@ -48,34 +51,9 @@ else
     export COMPOSER_NO_INTERACTION=1
 fi
 
-# Check if original Composer binary exists and is working
-is_original_composer_working() {
-    if [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
-        # Test original composer binary directly
-        if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version >/dev/null 2>&1; then
-            return 0
-        fi
-    fi
-    return 1
-}
-
-# Check if wrapper exists and is working
-is_composer_wrapper_working() {
-    if [ -f "$COMPOSER_TARGET_PATH" ] && [ -x "$COMPOSER_TARGET_PATH" ]; then
-        # Check if it's a wrapper (contains "#!/bin/bash" and "composer.original")
-        if head -n 1 "$COMPOSER_TARGET_PATH" | grep -q "#!/bin/bash" && grep -q "composer.original" "$COMPOSER_TARGET_PATH"; then
-            # Test wrapper functionality
-            if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" --version >/dev/null 2>&1; then
-                return 0
-            fi
-        fi
-    fi
-    return 1
-}
-
 # Get Composer version from original binary
 get_composer_version() {
-    if is_original_composer_working; then
+    if [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
         COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown"
     else
         echo "not_installed"
@@ -129,15 +107,6 @@ get_current_php_version() {
     fi
 }
 
-# Get stored PHP version
-get_stored_php_version() {
-    if [ -f "$PHP_VERSION_TRACK_FILE" ]; then
-        cat "$PHP_VERSION_TRACK_FILE" 2>/dev/null || echo "unknown"
-    else
-        echo "not_stored"
-    fi
-}
-
 # Store current PHP version
 store_php_version() {
     local php_version=$(get_current_php_version)
@@ -148,87 +117,126 @@ store_php_version() {
     fi
 }
 
-# Check if PHP version changed
-is_php_version_changed() {
-    local current_version=$(get_current_php_version)
-    local stored_version=$(get_stored_php_version)
+write_composer_safe_wrapper() {
+    echo -e "${CYAN}$SCRIPT_INDEX Repairing composer-safe wrapper...${NC}"
+    $USE_SUDO tee "$COMPOSER_SAFE_PATH" > /dev/null << 'EOF'
+#!/bin/bash
+# Global Composer wrapper that handles root warnings and open_basedir restrictions
+# Usage: composer-safe [composer-arguments]
 
-    if [ "$stored_version" = "not_stored" ]; then
-        return 0
-    fi
+export COMPOSER_ALLOW_SUPERUSER=1
+export COMPOSER_NO_INTERACTION=1
 
-    if [ "$current_version" != "$stored_version" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX PHP version changed: $stored_version -> $current_version${NC}"
-        return 0
-    fi
-
-    return 1
+exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
+EOF
+    $USE_SUDO chmod +x "$COMPOSER_SAFE_PATH"
 }
 
-# Strong correction check - determines if reinstall is needed
-needs_correction() {
-    local reason=""
+write_composer_main_wrapper() {
+    echo -e "${CYAN}$SCRIPT_INDEX Repairing Composer wrapper...${NC}"
+    $USE_SUDO tee "$COMPOSER_TARGET_PATH" > /dev/null << 'EOF'
+#!/bin/bash
+# Composer wrapper with automatic environment handling
 
-    # Check 1: Composer binary location
-    if [ ! -f "$COMPOSER_TARGET_PATH" ]; then
-        reason="Composer binary missing at $COMPOSER_TARGET_PATH"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
+if [ "$EUID" -eq 0 ]; then
+    export COMPOSER_ALLOW_SUPERUSER=1
+    export COMPOSER_NO_INTERACTION=1
+fi
 
-    # Check 2: Original binary location
-    if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
-        reason="Original Composer binary missing"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    # Check 3: Installation completeness
-    if ! is_composer_installation_complete; then
-        reason="Incomplete installation (wrapper or original binary not working)"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    # Check 4: Version compatibility
-    local current_version=$(get_composer_version)
-    if ! version_compare "$current_version" "$MIN_COMPOSER_VERSION"; then
-        reason="Composer version $current_version is too old (requires >= $MIN_COMPOSER_VERSION for PHP 8.5)"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    # Check 5: Deprecation warnings
-    if ! check_composer_errors; then
-        reason="Composer showing deprecation warnings (old version incompatible with PHP 8.5)"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    # Check 6: PHP version changed
-    if is_php_version_changed; then
-        reason="PHP version changed, Composer needs reinstallation"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    # Check 7: Wrapper script integrity
-    if [ ! -f "$COMPOSER_SAFE_PATH" ]; then
-        reason="composer-safe wrapper missing"
-        echo -e "${YELLOW}$SCRIPT_INDEX [CORRECTION NEEDED] $reason${NC}"
-        return 0
-    fi
-
-    return 1
+exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
+EOF
+    $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
 }
 
-# Check if Composer installation is complete and working
-is_composer_installation_complete() {
-    # Both original binary and wrapper must exist and work
-    if is_original_composer_working && is_composer_wrapper_working; then
-        return 0
+repair_composer_wrappers() {
+    local repair_failed=false
+
+    if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
+        write_composer_main_wrapper
+        if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Composer wrapper is unavailable after repair${NC}"
+            repair_failed=true
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX Composer wrapper is already ready${NC}"
     fi
-    return 1
+
+    if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ]; then
+        write_composer_safe_wrapper
+        if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ]; then
+            echo -e "${RED}$SCRIPT_INDEX composer-safe wrapper is unavailable after repair${NC}"
+            repair_failed=true
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX composer-safe wrapper is already ready${NC}"
+    fi
+
+    if [ "$repair_failed" = true ]; then
+        return 1
+    fi
+    return 0
+}
+
+repair_composer_path() {
+    echo -e "${CYAN}$SCRIPT_INDEX Ensuring Composer is in PATH...${NC}"
+    if ! bash "$LINUX_PATH_FUNCTION" addpath "$COMPOSER_PATH_DIR"; then
+        echo -e "${RED}$SCRIPT_INDEX Failed to repair Composer PATH${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}$SCRIPT_INDEX Composer PATH repair completed: $COMPOSER_PATH_DIR${NC}"
+    return 0
+}
+
+install_laravel_installer() {
+    local composer_bin_dir=""
+    local composer_home="${COMPOSER_HOME:-}"
+    local laravel_binary=""
+    local update_stamp=""
+    local current_week=""
+
+    composer_bin_dir="$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global config bin-dir --absolute --no-ansi 2>/dev/null | awk '/^\// { path=$0 } END { print path }')"
+    if [ -z "$composer_bin_dir" ]; then
+        if [ -z "$composer_home" ]; then
+            composer_home="$HOME/.config/composer"
+        fi
+        composer_bin_dir="$composer_home/vendor/bin"
+    fi
+    laravel_binary="$composer_bin_dir/laravel"
+
+    if [ ! -x "$laravel_binary" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Installing Laravel Installer (latest, Laravel 13 capable)...${NC}"
+        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global require "$LARAVEL_INSTALLER_PACKAGE" --no-interaction || true
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer is already installed${NC}"
+    fi
+
+    # Idempotent weekly refresh: keeps the global installer on the latest
+    # release (the one that scaffolds Laravel 13). The stamp file makes the
+    # update run at most once per week instead of hitting the network on every
+    # invocation.
+    update_stamp="/usr/local/etc/.laravel_installer_update_stamp"
+    current_week="$(date +%G-W%V)"
+    if [ -x "$laravel_binary" ] && [ "$(cat "$update_stamp" 2>/dev/null)" != "$current_week" ]; then
+        echo -e "${CYAN}$SCRIPT_INDEX Refreshing Laravel Installer (weekly, idempotent)...${NC}"
+        if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global update "$LARAVEL_INSTALLER_PACKAGE" --no-interaction; then
+            echo "$current_week" | $USE_SUDO tee "$update_stamp" > /dev/null
+        else
+            echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer update failed; keeping the installed version${NC}"
+        fi
+    fi
+
+    if [ ! -x "$laravel_binary" ]; then
+        echo -e "${RED}$SCRIPT_INDEX Laravel Installer binary is unavailable after installation${NC}"
+        return 1
+    fi
+
+    echo -e "${CYAN}$SCRIPT_INDEX Ensuring Laravel Installer is in PATH...${NC}"
+    if ! bash "$LINUX_PATH_FUNCTION" addpath "$composer_bin_dir"; then
+        echo -e "${RED}$SCRIPT_INDEX Failed to repair Laravel Installer PATH${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer PATH repair completed: $composer_bin_dir${NC}"
+    return 0
 }
 
 # Check command line arguments
@@ -239,26 +247,25 @@ if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
 elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX Composer Installation Script for PHP 8.5 (Server Edition)${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX Version: 2.0 - With Strong Auto-Correction${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Version: 3.0 - Fine-Grained Repair${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}Usage: $0 [options]${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Options:${NC}"
-    echo -e "${CYAN}  --force, -f    Force reinstall and recreate all wrappers${NC}"
+    echo -e "${CYAN}  --force, -f    Force reinstall the Composer core binary${NC}"
     echo -e "${CYAN}  --help, -h     Show this help message${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}This script will:${NC}"
-    echo -e "${CYAN}  1. Install/update Composer >= $MIN_COMPOSER_VERSION for PHP 8.5${NC}"
-    echo -e "${CYAN}  2. Create wrapper scripts to handle root warnings and open_basedir${NC}"
-    echo -e "${CYAN}  3. Verify all components are working correctly${NC}"
-    echo -e "${CYAN}  4. Track PHP version for automatic correction${NC}"
+    echo -e "${CYAN}  1. Install the Composer core binary only when missing or forced${NC}"
+    echo -e "${CYAN}  2. Repair each missing Composer wrapper independently${NC}"
+    echo -e "${CYAN}  3. Repair Composer and Laravel PATH entries independently${NC}"
+    echo -e "${CYAN}  4. Install Laravel Installer when missing and refresh it weekly (Laravel 13 capable)${NC}"
     echo -e "${CYAN}${NC}"
-    echo -e "${CYAN}Auto-Correction Features:${NC}"
-    echo -e "${CYAN}  �?Detects old/incompatible Composer versions${NC}"
-    echo -e "${CYAN}  �?Reinstalls if PHP version changes${NC}"
-    echo -e "${CYAN}  �?Fixes missing/broken wrapper scripts${NC}"
-    echo -e "${CYAN}  �?Checks for deprecation warnings${NC}"
-    echo -e "${CYAN}  �?Validates installation completeness${NC}"
+    echo -e "${CYAN}Fine-Grained Repair Features:${NC}"
+    echo -e "${CYAN}  - Composer core binary existence check${NC}"
+    echo -e "${CYAN}  - Independent main and safe wrapper repair${NC}"
+    echo -e "${CYAN}  - Independent Composer PATH repair${NC}"
+    echo -e "${CYAN}  - Independent Laravel binary and PATH repair${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Created files:${NC}"
     echo -e "${CYAN}  /usr/local/bin/composer            (main wrapper)${NC}"
@@ -279,13 +286,13 @@ fi
 main() {
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX Composer Installation for PHP 8.5 (Server Edition)${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX Version: 2.0 - With Strong Auto-Correction${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX Version: 3.0 - Fine-Grained Repair${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 
     # Check PHP 8.5 availability
     if [ ! -x "$PHP_BINARY" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 34_ensure_php85_intelligent.sh first${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 32_ensure_php85_intelligent.sh first${NC}"
         exit 1
     fi
 
@@ -297,26 +304,23 @@ main() {
     local php_version=$(get_current_php_version)
     echo -e "${GREEN}$SCRIPT_INDEX PHP $php_version confirmed at $PHP_BINARY${NC}"
 
-    # Strong correction check
+    # Independent Composer core-binary check
     local current_version=$(get_composer_version)
     local auto_fix_needed=false
 
     if [ "$FORCE_REINSTALL" = true ]; then
         echo -e "${YELLOW}$SCRIPT_INDEX [FORCE MODE] Force reinstall requested${NC}"
         auto_fix_needed=true
-    elif needs_correction; then
-        echo -e "${YELLOW}$SCRIPT_INDEX [AUTO-CORRECTION] Issues detected, automatic reinstall triggered${NC}"
-        auto_fix_needed=true
-    elif [ "$current_version" != "not_installed" ] && is_composer_installation_complete; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?Composer $current_version is properly installed and working${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Location: $COMPOSER_TARGET_PATH (wrapper)${NC}"
+    elif [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Composer core binary is already present (version: $current_version)${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?PHP version tracking: $php_version${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX All checks passed - no corrections needed${NC}"
+        repair_composer_wrappers || echo -e "${YELLOW}$SCRIPT_INDEX Composer wrapper repair completed with warnings${NC}"
+        repair_composer_path || echo -e "${YELLOW}$SCRIPT_INDEX Composer PATH repair completed with warnings${NC}"
+        install_laravel_installer || echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer setup completed with warnings${NC}"
         exit 0
     else
-        echo -e "${YELLOW}$SCRIPT_INDEX Composer not found or incomplete, proceeding with installation${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Composer core binary is missing or broken, proceeding with installation${NC}"
         auto_fix_needed=true
     fi
 
@@ -332,22 +336,7 @@ main() {
         echo -e "${CYAN}$SCRIPT_INDEX Non-interactive mode enabled: COMPOSER_NO_INTERACTION=1${NC}"
     fi
 
-    # Strong cleanup - remove all composer-related files to ensure clean state
-    echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX [CLEANUP] Removing all existing Composer installations...${NC}"
-    echo -e "${CYAN}============================================================================${NC}"
-
-    $USE_SUDO rm -f "$COMPOSER_TARGET_PATH" 2>/dev/null || true
-    $USE_SUDO rm -f "${COMPOSER_TARGET_PATH}.original" 2>/dev/null || true
-    $USE_SUDO rm -f "$COMPOSER_SAFE_PATH" 2>/dev/null || true
-    $USE_SUDO rm -f "/usr/local/bin/composer-php85" 2>/dev/null || true
-    $USE_SUDO rm -f "/usr/local/bin/composer-php84" 2>/dev/null || true  # Remove old version reference
-    $USE_SUDO rm -f "/usr/bin/composer" 2>/dev/null || true
-    $USE_SUDO rm -f "/usr/local/bin/composer.phar" 2>/dev/null || true
-
-    echo -e "${GREEN}$SCRIPT_INDEX �?Cleanup completed${NC}"
-
-    # Download and install Composer
+    # Download and install the Composer core binary only
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX [INSTALLATION] Downloading latest Composer (>= $MIN_COMPOSER_VERSION)${NC}"
     echo -e "${CYAN}============================================================================${NC}"
@@ -404,14 +393,14 @@ main() {
     # Install with open_basedir disabled and environment variables set
     echo -e "${CYAN}$SCRIPT_INDEX Installing Composer with PHP 8.5 compatibility...${NC}"
     local install_output
-    install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir=/usr/local/bin --filename=composer 2>&1)
+    install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir="$COMPOSER_PATH_DIR" --filename=composer.original 2>&1)
     local install_status=$?
 
     if [ $install_status -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Composer installed successfully${NC}"
 
         # Show installed version
-        local installed_version=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 "$PHP_BINARY" -d "open_basedir=none" /usr/local/bin/composer --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        local installed_version=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 "$PHP_BINARY" -d "open_basedir=none" "${COMPOSER_TARGET_PATH}.original" --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
         echo -e "${GREEN}$SCRIPT_INDEX �?Installed version: $installed_version${NC}"
 
         if ! version_compare "$installed_version" "$MIN_COMPOSER_VERSION"; then
@@ -428,58 +417,13 @@ main() {
     fi
 
     # Make executable
-    $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
+    $USE_SUDO chmod +x "${COMPOSER_TARGET_PATH}.original"
 
     # Clean up temp directory
     cd "$original_dir"
     rm -rf "$temp_dir"
 
-    # Ensure we have the original composer binary
-    echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${CYAN}$SCRIPT_INDEX [WRAPPER CREATION] Setting up wrapper scripts...${NC}"
-    echo -e "${CYAN}============================================================================${NC}"
-
-    if [ ! -f "${COMPOSER_TARGET_PATH}.original" ]; then
-        echo -e "${CYAN}$SCRIPT_INDEX Moving Composer to original location...${NC}"
-        $USE_SUDO mv "$COMPOSER_TARGET_PATH" "${COMPOSER_TARGET_PATH}.original"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Original binary saved${NC}"
-    fi
-
-    # Create global wrapper to handle root warnings and open_basedir
-    echo -e "${CYAN}$SCRIPT_INDEX Creating composer-safe wrapper...${NC}"
-    $USE_SUDO tee "$COMPOSER_SAFE_PATH" > /dev/null << 'EOF'
-#!/bin/bash
-# Global Composer wrapper that handles root warnings and open_basedir restrictions
-# Usage: composer-safe [composer-arguments]
-
-# Auto-handle root user warnings
-export COMPOSER_ALLOW_SUPERUSER=1
-export COMPOSER_NO_INTERACTION=1
-
-# Execute original composer with open_basedir disabled for maximum compatibility
-# This wrapper directly calls the original composer binary, not the wrapper
-# open_basedir is set to none to allow access to all system directories
-exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
-EOF
-    $USE_SUDO chmod +x "$COMPOSER_SAFE_PATH"
-
-    # Create main composer wrapper
-    echo -e "${CYAN}$SCRIPT_INDEX Creating composer wrapper for better compatibility...${NC}"
-    $USE_SUDO tee "$COMPOSER_TARGET_PATH" > /dev/null << 'EOF'
-#!/bin/bash
-# Composer wrapper with automatic environment handling
-
-# Auto-handle root user warnings
-if [ "$EUID" -eq 0 ]; then
-    export COMPOSER_ALLOW_SUPERUSER=1
-    export COMPOSER_NO_INTERACTION=1
-fi
-
-# Execute original composer with open_basedir disabled for maximum compatibility
-# open_basedir is set to none to allow access to all system directories
-exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
-EOF
-    $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
+    repair_composer_wrappers || echo -e "${YELLOW}$SCRIPT_INDEX Composer wrapper repair completed with warnings${NC}"
 
     # Verify all wrappers are working correctly
     echo -e "${CYAN}============================================================================${NC}"
@@ -528,8 +472,11 @@ EOF
         exit 1
     fi
 
-    # Store PHP version for future correction checks
+    # Store PHP version metadata
     store_php_version
+
+    repair_composer_path || echo -e "${YELLOW}$SCRIPT_INDEX Composer PATH repair completed with warnings${NC}"
+    install_laravel_installer || echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer setup completed with warnings${NC}"
 
     # Final verification with environment variables
     local final_version=$(get_composer_version)
@@ -550,8 +497,7 @@ EOF
     echo -e "${YELLOW}$SCRIPT_INDEX Features:${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX   �?Automatic root warning suppression${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX   �?open_basedir=none for maximum compatibility${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   �?PHP version tracking for auto-correction${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   �?Automatic reinstall on version/error detection${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   - Fine-grained binary and PATH repair${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 }
 

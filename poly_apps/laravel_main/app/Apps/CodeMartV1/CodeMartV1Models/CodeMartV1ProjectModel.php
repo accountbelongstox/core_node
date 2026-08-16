@@ -1,19 +1,16 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Collection;
 
-class CodeMartV1ProjectModel extends Model
+class CodeMartV1ProjectModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_projects';
 
     protected $fillable = [
@@ -141,16 +138,6 @@ class CodeMartV1ProjectModel extends Model
             'total' => (clone $query)->count(),
             'projects' => $query->orderByDesc('created_at')->forPage($page, $pageSize)->get(),
         ];
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
-    }
-
-    public static function findById(int $projectId): ?self
-    {
-        return static::query()->find($projectId);
     }
 
     public static function findDetailed(int $projectId): ?self

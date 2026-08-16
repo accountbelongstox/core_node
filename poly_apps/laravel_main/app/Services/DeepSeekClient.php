@@ -4,7 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\GlobalSecretReader;
+use App\Utils\SecretStore;
 
 class DeepSeekClient
 {
@@ -25,15 +25,12 @@ class DeepSeekClient
             // fallback because the deployed secret store currently holds the
             // DeepSeek key (an sk-... DeepSeek key, not an sk-or-... OpenRouter
             // key) under that name.
-            $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY_1');
+            $apiKey = SecretStore::get('DEEPSEEK_API_KEY_1');
             if (!$apiKey) {
-                $apiKey = GlobalSecretReader::getSecretContent('DEEPSEEK_API_KEY');
+                $apiKey = SecretStore::get('DEEPSEEK_API_KEY');
             }
             if (!$apiKey) {
-                $apiKey = GlobalSecretReader::getSecretContent('OPENROUTER_API_KEY_2');
-            }
-            if (!$apiKey) {
-                $apiKey = env('DEEPSEEK_API_KEY_1') ?? env('DEEPSEEK_API_KEY') ?? env('OPENROUTER_API_KEY_2');
+                $apiKey = SecretStore::get('OPENROUTER_API_KEY_2');
             }
         }
 

@@ -54,7 +54,16 @@ export const TRANSLATIONS = {
     },
     dbSync: {
       title: "Machine Data Synchronization",
-      description: "Leave the receiver blank to collect the local manifest first, then bind an address. One UI can manage concurrent sessions to multiple Laravel Main receivers; each receiver backs up selected databases before accepting differences.",
+      description: "Manage multiple Laravel Main nodes from one workspace. Every source session mirrors source and receiver progress together, and each receiver backs up selected databases before accepting differences.",
+      managedNodes: "Managed Laravel nodes",
+      sourceNode: "Source Laravel node",
+      sourceEndpoint: "Source endpoint",
+      receiverEndpoint: "Receiver endpoint",
+      source: "Source",
+      receiver: "Receiver",
+      allSessions: "All node sessions",
+      counterpartPending: "The receiver session has not been created yet.",
+      counterpartOffline: "The receiver status is temporarily unavailable; backend checkpoints continue to persist.",
       target: "Receiver IP or host",
       targetPlaceholder: "192.168.1.20 or 192.168.1.20:9001",
       targetPending: "Receiver not bound",
@@ -97,6 +106,8 @@ export const TRANSLATIONS = {
         credentials: "Credentials"
       },
       errors: {
+        nodes: "Some managed Laravel nodes could not be loaded",
+        protocol: "The current machine synchronization protocol is required",
         load: "Synchronization sessions could not be loaded.",
         start: "Synchronization could not be started.",
         target: "The receiver address could not be bound.",
@@ -1357,7 +1368,16 @@ export const TRANSLATIONS = {
     },
     dbSync: {
       title: "机器数据同步",
-      description: "接收端可留空，先收集本机同步清单，再绑定地址。同一个 UI 可同时管理到多个 Laravel Main 接收端的会话；每个接收端都会先备份选定数据库。",
+      description: "在一个工作区中管理多个 Laravel Main 节点。每个源端会话会同时镜像源端与接收端进度；接收端在应用差异前会先备份选定数据库。",
+      managedNodes: "管理的 Laravel 节点",
+      sourceNode: "源 Laravel 节点",
+      sourceEndpoint: "源端点",
+      receiverEndpoint: "接收端点",
+      source: "源端",
+      receiver: "接收端",
+      allSessions: "全部节点会话",
+      counterpartPending: "接收端会话尚未创建。",
+      counterpartOffline: "暂时无法获取接收端状态；后端检查点仍会持续保存。",
       target: "接收端 IP 或主机",
       targetPlaceholder: "192.168.1.20 或 192.168.1.20:9001",
       targetPending: "尚未绑定接收端",
@@ -1400,6 +1420,8 @@ export const TRANSLATIONS = {
         credentials: "凭据"
       },
       errors: {
+        nodes: "部分受管 Laravel 节点无法加载",
+        protocol: "需要使用当前机器同步协议",
         load: "无法加载同步会话。",
         start: "无法启动同步。",
         target: "无法绑定接收端地址。",

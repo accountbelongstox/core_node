@@ -1,13 +1,10 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1UserRoleModel extends Model
+class CodeMartV1UserRoleModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_user_roles';
 
     protected $fillable = [
@@ -62,10 +59,5 @@ class CodeMartV1UserRoleModel extends Model
     public static function forUserAndStatus(int $userId, string $status): ?self
     {
         return static::query()->where('user_id', $userId)->where('role_status', $status)->first();
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 }

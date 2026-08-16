@@ -26,6 +26,9 @@ SCRIPT_INDEX="135"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
+# Source the shared domain setup library (file-backed state store, secrets)
+source "$PARENT_DIR_LEVEL_2/common/domain_setup_common.sh"
+
 # Variable declarations
 laravel_dir=""
 SELECTED_PREFIXES=""
@@ -34,26 +37,24 @@ PHP_VERSION="8.4"
 success_count=0
 total_count=0
 website_count=0
-SETUP_STATE_DIR="$HOME/.domain_setup_state"
+SETUP_STATE_DIR="$GLOBAL_VAR_DIR/domain_setup"
 LOCAL_DOMAINS_FILE="$SETUP_STATE_DIR/local_html_domains.txt"
 HOSTS_MANAGER_SCRIPT="$PARENT_DIR_LEVEL_1/debian_com/hosts_manager.sh"
 
 echo "[$SCRIPT_INDEX] Domain Setup - HTML Domains Configuration"
 
-# Function to load state
+# Function to load state from the file-backed global-var store
 load_state() {
     local key="$1"
 
-    if [ -f "$SETUP_STATE_DIR/$key" ]; then
-        cat "$SETUP_STATE_DIR/$key"
-    fi
+    domain_state_get "$key"
 }
 
 # Function to check if state exists
 check_state() {
-    if [ ! -d "$SETUP_STATE_DIR" ]; then
-        echo "[$SCRIPT_INDEX] ERROR: Setup state not found"
-        echo "[$SCRIPT_INDEX] Please run 133_prepare_domain_setup.sh first"
+    if [ -z "$(domain_state_get "DOMAINS_LISTS_CONTENT")" ]; then
+        echo "[$SCRIPT_INDEX] ERROR: Setup state not found in the global-var store"
+        echo "[$SCRIPT_INDEX] Please run 132_laravel_main_start.sh --domains-only first"
         return 1
     fi
 
@@ -92,6 +93,7 @@ collect_local_html_domains() {
     local prefixes="$2"
     
     # Clear previous local domains list
+    mkdir -p "$SETUP_STATE_DIR"
     > "$LOCAL_DOMAINS_FILE"
     
     # Parse prefixes
@@ -100,7 +102,7 @@ collect_local_html_domains() {
     # Process each domain
     while read -r domain; do
         if [ -n "$domain" ]; then
-            # Process each prefix (skip 'api' as it's handled by 135_setup_api_domains.sh)
+            # Process each prefix (skip 'api' as it's handled by 134_setup_api_domains.sh)
             for prefix in "${PREFIX_ARRAY[@]}"; do
                 if [ "$prefix" != "api" ]; then
                     # prefix.domain.com -> local.prefix.domain.com
@@ -300,12 +302,12 @@ setup_html_domains() {
     local domain_success=true
     local websites_added=0
 
-    # Process each prefix (skip 'api' as it's handled by 135_setup_api_domains.sh)
+    # Process each prefix (skip 'api' as it's handled by 134_setup_api_domains.sh)
     for prefix in "${PREFIX_ARRAY[@]}"; do
         if [ "$prefix" = "api" ]; then
-            # Skip api prefix - it's handled by 135_setup_api_domains.sh
+            # Skip api prefix - it's handled by 134_setup_api_domains.sh
             echo "[$SCRIPT_INDEX]"
-            echo "[$SCRIPT_INDEX] [SKIP] api.$domain (handled by 135_setup_api_domains.sh)"
+            echo "[$SCRIPT_INDEX] [SKIP] api.$domain (handled by 134_setup_api_domains.sh)"
             continue
         fi
 
@@ -348,13 +350,13 @@ PHP_VERSION=$(load_state "PHP_VERSION")
 
 if [ -z "$SELECTED_PREFIXES" ]; then
     echo "[$SCRIPT_INDEX] ERROR: SELECTED_PREFIXES not found in state"
-    echo "[$SCRIPT_INDEX] Please run 133_prepare_domain_setup.sh first"
+    echo "[$SCRIPT_INDEX] Please run 132_laravel_main_start.sh --domains-only first"
     exit 1
 fi
 
 if [ -z "$DOMAINS_LISTS_CONTENT" ]; then
     echo "[$SCRIPT_INDEX] ERROR: DOMAINS_LISTS_CONTENT not found in state"
-    echo "[$SCRIPT_INDEX] Please run 133_prepare_domain_setup.sh first"
+    echo "[$SCRIPT_INDEX] Please run 132_laravel_main_start.sh --domains-only first"
     exit 1
 fi
 

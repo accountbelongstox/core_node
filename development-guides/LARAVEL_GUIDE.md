@@ -4,7 +4,8 @@
 Core rules for `laravel_main`. Follow the existing code style; English only; reuse before adding.
 
 ## 1. Framework & boot
-- Laravel 12, pure headless API on port **9000**. `routes/web.php` is the immutable debug entry (`/`, `/api_info`) — never modify it, `app/Console`, or `app/Events`.
+- Laravel 13 on PHP 8.4+, pure headless API on port **9000**. `routes/web.php` is the immutable debug entry (`/`, `/api_info`) — never modify it, `app/Console`, or `app/Events`.
+- Follow the Laravel 13 upgrade contract: use `PreventRequestForgery`, keep cache unserialization disabled unless classes are explicitly allow-listed, provide non-empty `uniqueBy` values to `upsert`, and never instantiate a model from its own boot cycle.
 - **All of Laravel's pre-logic is owned by SHELL scripts and runs under root**: `dd.sh`/`dd.cmd` (installer) → `scripts/shells/.../install_shells` provision PHP/Swoole/Node/PostgreSQL → `poly_apps/laravel_main/scripts/start.sh` boots Octane (Swoole) as systemd unit `ncore-laravel-main`; `pyservice.sh` runs pycore. Migrations/init happen ONLY via `php artisan sys:init` — never `Artisan::call('migrate')`.
 
 ## 2. System paths & filesystem (MANDATORY)

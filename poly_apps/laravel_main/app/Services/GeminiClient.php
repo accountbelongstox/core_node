@@ -4,8 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use App\Helpers\GlobalSecretReader;
 use App\Services\AI\UnifiedRateLimiter;
+use App\Utils\SecretStore;
 
 class GeminiClient
 {
@@ -643,8 +643,8 @@ class GeminiClient
 
         $sources = [
             $apiKeyOverride,
-            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_1'),
-            GlobalSecretReader::getSecretContent('GOOGLE_API_KEY_2'),
+            SecretStore::get('GOOGLE_API_KEY_1'),
+            SecretStore::get('GOOGLE_API_KEY_2'),
         ];
 
         foreach ($sources as $candidate) {

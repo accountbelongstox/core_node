@@ -1,13 +1,10 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1PhoneVerificationModel extends Model
+class CodeMartV1PhoneVerificationModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_phone_verifications';
 
     protected $fillable = [

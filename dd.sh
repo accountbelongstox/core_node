@@ -1011,11 +1011,15 @@ main() {
         sync_linuxenvs_to_bin
     fi
 
-    # Step 5-4: Initialize and show interactive menu
+    # Step 5-4: Show the Linux Management menu directly (no wrapper menu layer)
     echo ""
     detect_system_version
-    initialize_menu_items
-    show_interactive_menu
+    if declare -F show_linux_management_submenu >/dev/null 2>&1; then
+        show_linux_management_submenu
+    else
+        initialize_menu_items
+        show_interactive_menu
+    fi
 }
 
 # print_color, handle_arguments, show_cli_help moved to main_execution.sh

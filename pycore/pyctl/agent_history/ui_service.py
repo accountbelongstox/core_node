@@ -18,6 +18,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
     list_articles,
     save_config,
 )
+from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.tick_service import agent_history_tick_service
 from pycore.pyctl.ai.ai_rate_limits import rate_status
 from pycore.pyctl.ai.ai_usage_log import usage_log, usage_revision
@@ -272,11 +273,13 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
         include_items=False,
         include_results=False,
     )
+    summary = article_record_store.summarize_records()
+    summary["rebuild_pending"] = audio_rebuild.pending_rebuild_count()
     return {
         "success": True,
         "data": {
             "article_config": config,
-            "article_summary": article_record_store.summarize_records(),
+            "article_summary": summary,
             "operation_snapshot": operation,
             "ai_dashboard": _agent_history_ai_dashboard(config),
         },

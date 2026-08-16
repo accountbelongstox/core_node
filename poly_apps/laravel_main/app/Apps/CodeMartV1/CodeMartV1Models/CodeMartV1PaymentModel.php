@@ -2,18 +2,15 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class CodeMartV1PaymentModel extends Model
+class CodeMartV1PaymentModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_payments';
 
     protected $fillable = [
@@ -74,16 +71,6 @@ class CodeMartV1PaymentModel extends Model
     public function isPending(): bool
     {
         return $this->status === 'pending';
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
-    }
-
-    public static function findById(int $paymentId): ?self
-    {
-        return static::query()->find($paymentId);
     }
 
     public static function findDetailed(int $paymentId): ?self

@@ -15,7 +15,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordImageQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 
 /**
  * Word-image queue intake (P3 of the word-media pipeline).
@@ -31,7 +31,7 @@ use Illuminate\Routing\Controller as BaseController;
  *
  * Body: { words: [ { word, language } ], priority?: 'front'|'normal' }
  */
-class AppQyV1WordImageQueueController extends BaseController
+class AppQyV1WordImageQueueController extends Controller
 {
     public function add(Request $request): JsonResponse
     {

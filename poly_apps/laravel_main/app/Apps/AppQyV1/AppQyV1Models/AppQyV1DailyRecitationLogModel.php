@@ -11,13 +11,9 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
-class AppQyV1DailyRecitationLogModel extends Model
+class AppQyV1DailyRecitationLogModel extends AppQyV1Model
 {
     use HasFactory;
 
@@ -33,20 +29,8 @@ class AppQyV1DailyRecitationLogModel extends Model
         self::ACTION_REVIEW_WRONG,
     ];
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('DAILY_RECITATION_LOGS');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'DAILY_RECITATION_LOGS';
 
     protected $fillable = [
         'user_id',
@@ -58,11 +42,14 @@ class AppQyV1DailyRecitationLogModel extends Model
         'batch_id',
     ];
 
-    protected $casts = [
-        'user_id' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'user_id' => 'integer',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public static function recitedWordsForDate(int $userId, string $date): array
     {

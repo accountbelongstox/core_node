@@ -2,12 +2,14 @@
 
 namespace App\Http\EnvironmentApiInfo;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
-class StaticResourceController
+class StaticResourceController extends Controller
 {
     private $baseDirectory;
 

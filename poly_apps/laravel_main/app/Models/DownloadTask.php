@@ -29,11 +29,14 @@ class DownloadTask extends Model
         'error_message'
     ];
 
-    protected $casts = [
-        'total_size' => 'integer',
-        'downloaded_size' => 'integer',
-        'progress' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'total_size' => 'integer',
+            'downloaded_size' => 'integer',
+            'progress' => 'integer',
+        ];
+    }
 
     public function getProgressPercentageAttribute()
     {

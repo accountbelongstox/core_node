@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
@@ -19,8 +19,8 @@
 # (the pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:
-#   - install.sh flow:  16_install_faster_whisper.sh           (no args; resolves python)
-#   - pyservice flow:   16_install_faster_whisper.sh --python <py> [--model <m>] [--force]
+#   - install.sh flow:  15_install_faster_whisper.sh           (no args; resolves python)
+#   - pyservice flow:   15_install_faster_whisper.sh --python <py> [--model <m>] [--force]
 set -uo pipefail
 
 # Declare all variables at the beginning

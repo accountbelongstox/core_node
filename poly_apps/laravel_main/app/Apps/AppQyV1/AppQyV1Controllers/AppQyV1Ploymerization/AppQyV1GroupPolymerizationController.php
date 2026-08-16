@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Ploymerization;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
@@ -22,7 +24,7 @@ use Illuminate\Support\Str;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Utils\ParameterTool;
 use App\Traits\ApiResponse;
-class AppQyV1GroupPolymerizationController
+class AppQyV1GroupPolymerizationController extends Controller
 {
     use ApiResponse;
 

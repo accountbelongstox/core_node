@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Utils\StrTool;
 use App\Utils\ArrTool;
@@ -18,7 +20,7 @@ use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
 use App\Traits\ApiResponse;
-class AppQyV1WordReviewStatusController
+class AppQyV1WordReviewStatusController extends Controller
 {
     use ApiResponse;
 

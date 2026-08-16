@@ -1,8 +1,8 @@
 import { BaseAPI, getSharedBaseURL } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
-import type { AiChatMessage, AiUsageProviderStat } from '../../../../core/contracts/ai';
+import type { AiChatAttachmentRef, AiChatMessage, AiChatUsageTokens, AiUsageProviderStat } from '../../../../core/contracts/ai';
 
-export type { AiChatMessage, AiChatRole, AiUsageKindStat, AiUsageProviderStat } from '../../../../core/contracts/ai';
+export type { AiChatAttachmentRef, AiChatMessage, AiChatRole, AiChatUsageTokens, AiUsageKindStat, AiUsageProviderStat } from '../../../../core/contracts/ai';
 
 /**
  * AiManagementAPI — laravel_main's unified AI gateway, surfaced on the
@@ -279,6 +279,135 @@ export interface AiKeyDeleteResponse {
   error?: string | null;
 }
 
+// --- Official Laravel AI SDK surface (capabilities / chat / prompt cache) --- //
+
+/** One SDK provider row from GET /capabilities. */
+export interface AiSdkCapabilityProvider {
+  name: string;
+  driver: string;
+  /** True when a SecretStore key is currently configured. */
+  configured: boolean;
+  key_masked: string | null;
+  /** Default model per kind, e.g. { text: 'gemini-3.6-flash', image: ... }. */
+  models: Record<string, string>;
+  /** Feature keys: text / images / audio / transcription / embeddings / reranking / files. */
+  capabilities: string[];
+  /** True when the chat endpoint accepts image attachments. */
+  accepts_images: boolean;
+  /** configured + text capability → usable in the chat interface. */
+  chat_enabled: boolean;
+}
+
+/** One feature row of the official SDK support matrix. */
+export interface AiSdkFeature {
+  key: string;
+  label: string;
+  /** Drivers supporting the feature (official provider-support table). */
+  drivers: string[];
+}
+
+/** Payload of GET /capabilities. */
+export interface AiCapabilitiesResponse {
+  success: boolean;
+  sdk: string;
+  defaults: Record<string, string>;
+  features: AiSdkFeature[];
+  providers: AiSdkCapabilityProvider[];
+}
+
+/** One server-persisted chat conversation (sidebar row). */
+export interface AiConversationSummary {
+  id: string;
+  title: string;
+  message_count: number;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Payload of GET /chat/conversations. */
+export interface AiConversationListResponse {
+  success: boolean;
+  conversations: AiConversationSummary[];
+}
+
+/** One persisted chat message (user / assistant turns). */
+export interface AiConversationMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  attachments: AiChatAttachmentRef[];
+  usage: AiChatUsageTokens | null;
+  meta: { provider?: string | null; model?: string | null; cached?: boolean };
+  created_at: string | null;
+}
+
+/** Payload of GET /chat/conversations/{id}. */
+export interface AiConversationMessagesResponse {
+  success: boolean;
+  conversation_id?: string;
+  messages: AiConversationMessage[];
+  error?: string | null;
+}
+
+/** One outbound image for POST /chat/send. */
+export interface AiChatImagePayload {
+  name?: string;
+  mime: string;
+  /** Base64 payload (no data: prefix). */
+  data: string;
+}
+
+/** Body for POST /chat/send. */
+export interface AiSdkChatSendRequest {
+  conversation_id?: string;
+  provider?: string;
+  model?: string;
+  message: string;
+  images?: AiChatImagePayload[];
+  cache?: boolean;
+  source?: string;
+}
+
+/** Inner result of POST /chat/send (the unwrapped `data`). */
+export interface AiSdkChatResult {
+  success: boolean;
+  conversation_id: string | null;
+  conversation_created: boolean;
+  provider: string;
+  model: string;
+  text: string;
+  usage: AiChatUsageTokens | null;
+  /** True when answered from the gateway prompt cache (no provider call). */
+  cached: boolean;
+  latency_ms: number | null;
+  error: string | null;
+}
+
+/** One prompt-cache entry row (excerpt only — the body never leaves the server). */
+export interface AiPromptCacheEntry {
+  key: string;
+  provider: string;
+  resolved_provider: string;
+  model: string;
+  prompt: string;
+  usage: AiChatUsageTokens | null;
+  ts: number;
+  expires_at: number;
+  hits: number;
+}
+
+/** Payload of GET /prompt-cache. */
+export interface AiPromptCacheStats {
+  success: boolean;
+  ttl_s: number;
+  entries: number;
+  hits: number;
+  misses: number;
+  hit_rate: number | null;
+  per_provider: Record<string, { hits?: number; misses?: number; entries?: number }>;
+  recent: AiPromptCacheEntry[];
+}
+
 /**
  * AiManagementAPI module. Prefix is configured in core/api/index.ts as
  * `/api/local/ai`, so method paths are relative to that.
@@ -414,5 +543,61 @@ export class AiManagementAPI extends BaseAPI {
   /** Delete one AI provider key file. POST /keys/delete { key_name }. */
   async deleteKey(keyName: string): Promise<APIResponse<AiKeyDeleteResponse>> {
     return this.post<AiKeyDeleteResponse>('/keys/delete', { key_name: keyName });
+  }
+
+  // --- Official Laravel AI SDK surface ------------------------------------ #
+
+  /**
+   * Laravel AI SDK capability matrix — every SDK provider (driver, key state,
+   * default models, features) plus the official feature support table. Works
+   * without any configured key. GET /capabilities.
+   */
+  async getCapabilities(): Promise<APIResponse<AiCapabilitiesResponse>> {
+    return this.get<AiCapabilitiesResponse>('/capabilities', undefined, false, 0, false);
+  }
+
+  /** Newest-first SDK chat conversations. GET /chat/conversations?limit=N. */
+  async listConversations(limit: number = 50): Promise<APIResponse<AiConversationListResponse>> {
+    return this.get<AiConversationListResponse>('/chat/conversations', { limit }, false, 0, false);
+  }
+
+  /** Full message list of one conversation. GET /chat/conversations/{id}. */
+  async getConversationMessages(id: string): Promise<APIResponse<AiConversationMessagesResponse>> {
+    return this.get<AiConversationMessagesResponse>(`/chat/conversations/${encodeURIComponent(id)}`, undefined, false, 0, false);
+  }
+
+  /** Delete one conversation (+ messages + attachments). DELETE /chat/conversations/{id}. */
+  async deleteConversation(id: string): Promise<APIResponse<{ success: boolean; error?: string | null }>> {
+    return this.delete<{ success: boolean; error?: string | null }>(`/chat/conversations/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * Send one SDK chat turn (multi-turn, vision attachments, failover, prompt
+   * cache). POST /chat/send. Probes aside, this is the chat interface's only
+   * write path — provider keys are resolved server-side from SecretStore.
+   */
+  async sendChatMessage(body: AiSdkChatSendRequest): Promise<APIResponse<AiSdkChatResult>> {
+    return this.post<AiSdkChatResult>('/chat/send', body);
+  }
+
+  /**
+   * Absolute URL of one stored chat attachment image, suitable for an
+   * `<img src>` (GET /chat/attachments/{name}). Same shared base URL + prefix
+   * resolution as imageHistoryFileUrl, so it follows endpoint failover.
+   */
+  chatAttachmentUrl(name: string): string {
+    const base = (getSharedBaseURL() ?? this.baseURL).replace(/\/+$/, '');
+    const prefix = this.prefix ? (this.prefix.endsWith('/') ? this.prefix.slice(0, -1) : this.prefix) : '';
+    return `${base}${prefix}/chat/attachments/${encodeURIComponent(name)}`;
+  }
+
+  /** Prompt-cache totals / per-provider stats / recent entries. GET /prompt-cache. */
+  async getPromptCache(): Promise<APIResponse<AiPromptCacheStats>> {
+    return this.get<AiPromptCacheStats>('/prompt-cache', undefined, false, 0, false);
+  }
+
+  /** Drop every cached prompt response. POST /prompt-cache/clear. */
+  async clearPromptCache(): Promise<APIResponse<{ success: boolean }>> {
+    return this.post<{ success: boolean }>('/prompt-cache/clear', {});
   }
 }

@@ -375,6 +375,36 @@ class WorkerController extends Controller
     }
 
     /**
+     * Release claimed-but-unstarted tasks back to the pending queue
+     *
+     * POST /api/worker/tasks/{taskType}/release
+     *
+     * Called when a Queue Center lane is stopped immediately: the worker lists
+     * the task ids it claimed but never started, and the backend returns them
+     * to pending without consuming a retry. Tasks already being processed keep
+     * their lease and finish through the normal result route.
+     */
+    public function releaseTasks(Request $request, string $taskType): JsonResponse
+    {
+        if ($invalid = $this->invalidTaskType($taskType)) {
+            return $invalid;
+        }
+        $releaseLimit = QueueCenterContract::taskLimit('worker_pull');
+        $validated = $request->validate([
+            'worker_id' => 'required|string',
+            'task_ids' => "required|array|min:1|max:{$releaseLimit}",
+            'task_ids.*' => 'string',
+        ]);
+
+        $outcome = $this->taskManager->releaseWorkerTasks(
+            $validated['worker_id'],
+            array_values($validated['task_ids'])
+        );
+
+        return $this->success($outcome, 'Tasks released');
+    }
+
+    /**
      * List all workers
      *
      * GET /api/worker/list

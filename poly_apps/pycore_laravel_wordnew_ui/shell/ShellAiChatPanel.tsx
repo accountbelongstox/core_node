@@ -7,10 +7,11 @@ import React from 'react';
 import { X, Bot } from 'lucide-react';
 import type { AiChatAdapter } from '../core/contracts/ai';
 import { pycoreChatAdapter } from '../core/integrations/pycore/PycoreChatAdapter';
+import { laravelSdkChatAdapter } from '../apps/laravel-manager/integrations/LaravelSdkChatAdapter';
 import { AiChatKit } from '../shared/AiChatKit/AiChatKit';
 import { useShell } from './ShellContext';
 
-const CHAT_ADAPTERS: AiChatAdapter[] = [pycoreChatAdapter];
+const CHAT_ADAPTERS: AiChatAdapter[] = [laravelSdkChatAdapter, pycoreChatAdapter];
 
 function getChatAdapter(id: string): AiChatAdapter {
   return CHAT_ADAPTERS.find((adapter) => adapter.id === id) ?? CHAT_ADAPTERS[0];

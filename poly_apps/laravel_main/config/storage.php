@@ -10,8 +10,14 @@
 
 use App\Providers\PathMapper;
 
-$wwwRoot = PathMapper::mapWebPath('wwwroot');
-$laravelPublicPath = PathMapper::getLaravelPublicPath();
+$wwwRoot = PathMapper::getWwwRoot();
+$uploadsPath = PathMapper::getLaravelUploadsDir();
+$staticPath = PathMapper::getLaravelStaticDir();
+$backupPath = PathMapper::getLaravelDataDir('backups');
+$cachePath = PathMapper::getLaravelCacheDir();
+$updatesPath = PathMapper::getLaravelDataDir('updates');
+$logsPath = PathMapper::getLaravelLogsDir();
+$tempPath = PathMapper::getLaravelTmpDir();
 
 return [
 
@@ -55,8 +61,8 @@ return [
         */
 
         'upload' => [
-            'windows' => $laravelPublicPath . '\uploads',
-            'linux' => $laravelPublicPath . '/uploads',
+            'windows' => $uploadsPath,
+            'linux' => $uploadsPath,
         ],
 
         /*
@@ -70,8 +76,8 @@ return [
         */
 
         'static' => [
-            'windows' => $laravelPublicPath . '\static',
-            'linux' => $laravelPublicPath . '/static',
+            'windows' => $staticPath,
+            'linux' => $staticPath,
         ],
 
         /*
@@ -84,8 +90,8 @@ return [
         */
 
         'backup' => [
-            'windows' => $laravelPublicPath . '\backups',
-            'linux' => $laravelPublicPath . '/backups',
+            'windows' => $backupPath,
+            'linux' => $backupPath,
         ],
 
         /*
@@ -98,8 +104,8 @@ return [
         */
 
         'cache' => [
-            'windows' => $laravelPublicPath . '\cache',
-            'linux' => $laravelPublicPath . '/cache',
+            'windows' => $cachePath,
+            'linux' => $cachePath,
         ],
 
         /*
@@ -112,8 +118,8 @@ return [
         */
 
         'updates' => [
-            'windows' => $laravelPublicPath . '\updates',
-            'linux' => $laravelPublicPath . '/updates',
+            'windows' => $updatesPath,
+            'linux' => $updatesPath,
         ],
 
         /*
@@ -126,8 +132,8 @@ return [
         */
 
         'logs' => [
-            'windows' => $laravelPublicPath . '\logs',
-            'linux' => $laravelPublicPath . '/logs',
+            'windows' => $logsPath,
+            'linux' => $logsPath,
         ],
 
         /*
@@ -140,8 +146,8 @@ return [
         */
 
         'temp' => [
-            'windows' => $laravelPublicPath . '\temp',
-            'linux' => $laravelPublicPath . '/temp',
+            'windows' => $tempPath,
+            'linux' => $tempPath,
         ],
 
     ],
@@ -155,7 +161,7 @@ return [
     |
     */
 
-    'auto_create' => env('EXTERNAL_STORAGE_AUTO_CREATE', true),
+    'auto_create' => true,
 
     /*
     |--------------------------------------------------------------------------

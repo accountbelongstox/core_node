@@ -66,7 +66,22 @@ export const LARAVEL_API_ROUTE = {
 export function createLaravelModuleConfig(prefix: string): APIModuleConfig {
   return {
     baseURL: getDefaultBaseURL(),
+    endpointMode: 'active',
     prefix,
     timeout: DEFAULT_API_TIMEOUT,
+  };
+}
+
+export function createFixedLaravelModuleConfig(
+  prefix: string,
+  baseURL: string,
+  timeout: number = DEFAULT_API_TIMEOUT,
+): APIModuleConfig {
+  return {
+    baseURL,
+    endpointMode: 'fixed',
+    prefix,
+    timeout,
+    retry: { count: 0, delay: 0 },
   };
 }

@@ -719,6 +719,83 @@ class AppQyV1UnifiedTTSQueueService
     }
 
     /**
+     * Request audio for a word (legacy word-level surface, moved from the
+     * deleted AppQyV1TTSQueueService).
+     * Returns audio info if available, null after queueing for generation
+     * (marking the canonical dictionary row tts_status='pending').
+     */
+    public function requestAudio(string $word, string $language): ?array
+    {
+        $result = (new AppQyV1AudioGateway())->requestWord($word, $language, null, true, true);
+        if (($result['audio_url'] ?? null) === null) {
+            return null;
+        }
+
+        return [
+            'available' => true,
+            'audio_path' => null,
+            'audio_url' => $result['audio_url'],
+        ];
+    }
+
+    /**
+     * Get queue statistics (legacy flat shape, moved from the deleted
+     * AppQyV1TTSQueueService).
+     */
+    public function getQueueStats(): array
+    {
+        $stats = $this->coordinator->statistics();
+
+        return [
+            'pending' => $stats['by_status']['pending'],
+            'processing' => $stats['by_status']['processing'],
+            'completed' => $stats['by_status']['completed'],
+            'failed' => $stats['by_status']['failed'],
+            'total' => $stats['total'],
+        ];
+    }
+
+    /**
+     * Get queue status for a specific word from its canonical row (moved from
+     * the deleted AppQyV1TTSQueueService).
+     * Returns null when the word was never queued (no row, or no TTS
+     * tracking state) — callers treat null as "not in queue".
+     */
+    public function getQueueStatus(string $word, string $language): ?array
+    {
+        $language = strtolower($language);
+        $md5 = md5($word);
+
+        $dictEntry = AppQyV1LangDictionaryModel::findByMd5($language, $md5);
+
+        if (!$dictEntry || $dictEntry->tts_status === null) {
+            return null;
+        }
+
+        $audioPath = null;
+        if (is_array($dictEntry->tts_files)) {
+            foreach ($dictEntry->tts_files as $ttsFile) {
+                if (isset($ttsFile['path'])) {
+                    $audioPath = $ttsFile['path'];
+                    break;
+                }
+            }
+        }
+
+        return [
+            'word' => $dictEntry->content,
+            'language' => $language,
+            'status' => AppQyV1DictionaryTTSCoordinator::statusOf($dictEntry),
+            'retry_count' => (int) ($dictEntry->tts_attempts ?? 0),
+            'error_message' => $dictEntry->tts_error,
+            'audio_path' => $audioPath,
+            'requested_at' => $dictEntry->tts_requested_at,
+            'started_at' => $dictEntry->tts_locked_at,
+            'completed_at' => $dictEntry->tts_completed_at,
+        ];
+    }
+
+    /**
      * Get performance metrics for intelligent processing
      */
     public function getPerformanceMetrics(): array
@@ -1312,14 +1389,20 @@ class AppQyV1UnifiedTTSQueueService
         // (which runs the same API chain, then its TTS fallback) and the claim is
         // released. Laravel drives the task; pycore generates.
         $claimed = $this->coordinator->claimWords(self::PROCESSOR_ID, null, $batchSize);
+        $hashesByLanguage = [];
+
+        foreach ($claimed as $task) {
+            $hashesByLanguage[$task['language']][] = $task['md5'];
+        }
+
+        $entriesByLanguage = AppQyV1LangDictionaryModel::rowsByLanguageHashes($hashesByLanguage);
 
         foreach ($claimed as $task) {
             $lang = $task['language'];
             $startTime = microtime(true);
 
             try {
-                // Re-fetch the canonical row (the claim returned raw fields only).
-                $entry = AppQyV1LangDictionaryModel::findByMd5($lang, $task['md5']);
+                $entry = $entriesByLanguage[$lang]->get($task['md5']);
                 if (!$entry) {
                     Log::warning('[UnifiedTTSQueue] Claimed word row vanished', [
                         'language' => $lang,

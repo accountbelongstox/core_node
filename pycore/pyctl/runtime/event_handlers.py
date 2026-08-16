@@ -34,10 +34,9 @@ from pycore.pyctl.assist.assist_settings import (
     load_assist_settings,
 )
 from pycore.pyctl.assist.capability_sync import apply_assist_runtime
-from pycore.pyctl.translation.worker.worker import translation_worker_service
-from pycore.pyctl.tts.laravel_audio_worker import (
-    laravel_sentence_audio_worker,
-    laravel_word_audio_worker,
+from pycore.pyctl.queue_center.lane_registry import (
+    LANE_REGISTRY,
+    lane_worker,
 )
 from pycore.pyctl.tts.sentence_audio_auto import (
     restore_persisted_auto_start as restore_sentence_audio_settings,
@@ -70,10 +69,18 @@ _QUEUE_DIFF_INTERVAL_SECONDS = max(
     1,
     int(QUEUE_CENTER_DIFF_DELIVERY.get("poll_interval_ms") or 1000) // 1000,
 )
-_QUEUE_WORKER_CALLBACKS = (
-    ("translation_worker", translation_worker_service.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
-    ("tts_queue_poller", laravel_word_audio_worker.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
-    ("tts_sentence_worker", laravel_sentence_audio_worker.poll_diff_once, _QUEUE_DIFF_INTERVAL_SECONDS),
+# The canonical lane registry owns the control -> callback -> worker mapping;
+# registration order follows the registry (translation, word, sentence).
+_QUEUE_WORKER_CALLBACKS = tuple(
+    (
+        LANE_REGISTRY[control]["heartbeat_callback"],
+        worker.poll_diff_once,
+        _QUEUE_DIFF_INTERVAL_SECONDS,
+    )
+    for control, worker in (
+        (control, lane_worker(control)) for control in LANE_REGISTRY
+    )
+    if worker is not None
 )
 
 

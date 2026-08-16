@@ -341,7 +341,7 @@ export const QueueCenterHubProvider: React.FC<{ children: React.ReactNode }> = (
       const response = await pycoreApi.setQueueCenterControl(name, enabled, {
         requested_by: 'user',
         reason: 'ui_toggle',
-        graceful_stop: !enabled,
+        graceful_stop: false,
         laravel_endpoint: enabled ? laravelEndpoint : null,
         timeoutMs: 20_000,
       });

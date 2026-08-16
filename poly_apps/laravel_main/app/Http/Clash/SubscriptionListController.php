@@ -11,6 +11,8 @@
 
 namespace App\Http\Clash;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\ClashV1\ClashV1Models\ClashV1ConfigModel as ClashUrlsConfig;
 use App\Services\ContentFetchers\UrlContentFetcher;
 use App\Services\ContentFetchers\WebContentFetcher;
@@ -21,7 +23,7 @@ use Illuminate\Support\Facades\Log;
 use App\Helpers\ClashDefaultConfigProcessor;
 use Illuminate\Support\Facades\File;
 
-class SubscriptionListController
+class SubscriptionListController extends Controller
 {
     private $urlFetcher;
     private $webFetcher;

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Support\QueueCenterContract;
 use App\Models\Concerns\UsesMainConnection;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Models\Model;
 
@@ -40,11 +42,14 @@ class GlobalTaskEvent extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'detail' => 'array',
-        'attempt' => 'integer',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'detail' => 'array',
+            'attempt' => 'integer',
+            'created_at' => 'datetime',
+        ];
+    }
 
     /** Resolve the event wire value from config/queue_center_contract.json. */
     public static function event(string $role): string
@@ -92,7 +97,8 @@ class GlobalTaskEvent extends Model
     /**
      * Scope: events for one task, oldest first (chronological replay).
      */
-    public function scopeForTask($query, string $taskId)
+    #[Scope]
+    protected function forTask(Builder $query, string $taskId): Builder
     {
         return $query->where('task_id', $taskId)->orderBy('id', 'asc');
     }

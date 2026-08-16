@@ -32,7 +32,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
         if ($realPath === null) {
             ServerManagerV1Utils::logFileAccess('browse', $requestedPath ?? '', false, 'No allowed directory exists');
-            return $this->errorResponse(
+            return $this->error(
                 'No allowed directory exists on this host.',
                 ServerManagerV1Constants::RESPONSE_NOT_FOUND,
                 ['allowed_paths' => $allowedPaths]
@@ -41,7 +41,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
         if (!ServerManagerV1Utils::isPathAllowed($realPath)) {
             ServerManagerV1Utils::logFileAccess('browse', $realPath, false, 'Path not in whitelist');
-            return $this->errorResponse(
+            return $this->error(
                 'Access denied. Path not in allowed whitelist.',
                 ServerManagerV1Constants::RESPONSE_FORBIDDEN,
                 [
@@ -53,7 +53,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
         if (!is_dir($realPath)) {
             ServerManagerV1Utils::logFileAccess('browse', $realPath, false, 'Path is not a directory');
-            return $this->errorResponse(
+            return $this->error(
                 'Path is not a directory.',
                 ServerManagerV1Constants::RESPONSE_NOT_FOUND,
                 ['path' => $realPath]
@@ -65,7 +65,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         // Log successful access
         ServerManagerV1Utils::logFileAccess('browse', $realPath, true);
 
-        return $this->successResponse([
+        return $this->success([
             'path' => $realPath,
             'items' => $items,
             'total_items' => count($items),
@@ -97,7 +97,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Security check: validate path is allowed
             if (!ServerManagerV1Utils::isPathAllowed($filePath)) {
                 ServerManagerV1Utils::logFileAccess('download', $filePath, false, 'Path not in whitelist');
-                return $this->errorResponse(
+                return $this->error(
                     'Access denied. File path not in allowed whitelist.',
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
@@ -105,7 +105,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             
             if (!file_exists($filePath)) {
                 ServerManagerV1Utils::logFileAccess('download', $filePath, false, 'File does not exist');
-                return $this->errorResponse(
+                return $this->error(
                     'File does not exist.',
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -113,7 +113,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             
             if (!is_file($filePath)) {
                 ServerManagerV1Utils::logFileAccess('download', $filePath, false, 'Path is not a file');
-                return $this->errorResponse(
+                return $this->error(
                     'Path is not a file.',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -124,7 +124,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Check file size limit
             if ($fileSize > ServerManagerV1Constants::MAX_FILE_DOWNLOAD_SIZE) {
                 ServerManagerV1Utils::logFileAccess('download', $filePath, false, 'File too large');
-                return $this->errorResponse(
+                return $this->error(
                     'File too large. Maximum size: ' . ServerManagerV1Utils::formatFileSize(ServerManagerV1Constants::MAX_FILE_DOWNLOAD_SIZE),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -150,7 +150,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
             
-            return $this->errorResponse(
+            return $this->error(
                 'File download failed.',
                 ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
             );
@@ -179,7 +179,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Security check: validate path is allowed
             if (!ServerManagerV1Utils::isPathAllowed($filePath)) {
                 ServerManagerV1Utils::logFileAccess('info', $filePath, false, 'Path not in whitelist');
-                return $this->errorResponse(
+                return $this->error(
                     'Access denied. File path not in allowed whitelist.',
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
@@ -187,7 +187,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             
             if (!file_exists($filePath)) {
                 ServerManagerV1Utils::logFileAccess('info', $filePath, false, 'File does not exist');
-                return $this->errorResponse(
+                return $this->error(
                     'File does not exist.',
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -217,7 +217,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Log successful access
             ServerManagerV1Utils::logFileAccess('info', $filePath, true);
             
-            return $this->successResponse($fileInfo, 'File information retrieved successfully');
+            return $this->success($fileInfo, 'File information retrieved successfully');
             
         } catch (\Exception $e) {
             return $this->handleException($e, 'file_info');
@@ -254,7 +254,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Security check: validate path is allowed
             if (!ServerManagerV1Utils::isPathAllowed($filePath)) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'Path not in whitelist');
-                return $this->errorResponse(
+                return $this->error(
                     'Access denied. File path not in allowed whitelist.',
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
@@ -262,7 +262,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             
             if (!file_exists($filePath)) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'File does not exist');
-                return $this->errorResponse(
+                return $this->error(
                     'File does not exist.',
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -270,7 +270,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             
             if (!is_file($filePath)) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'Path is not a file');
-                return $this->errorResponse(
+                return $this->error(
                     'Path is not a file.',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -281,7 +281,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Check file size for preview (smaller limit than download)
             if ($fileSize > $maxPreviewSize) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'File too large for preview');
-                return $this->errorResponse(
+                return $this->error(
                     'File too large for preview. Maximum size: ' . ServerManagerV1Utils::formatFileSize($maxPreviewSize),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -291,7 +291,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             $content = file_get_contents($filePath);
             if ($content === false) {
                 ServerManagerV1Utils::logFileAccess('preview', $filePath, false, 'Failed to read file');
-                return $this->errorResponse(
+                return $this->error(
                     'Failed to read file content.',
                     ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
@@ -314,7 +314,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             // Log successful access
             ServerManagerV1Utils::logFileAccess('preview', $filePath, true);
             
-            return $this->successResponse([
+            return $this->success([
                 'file_path' => $filePath,
                 'file_name' => basename($filePath),
                 'file_size' => $fileSize,
@@ -350,7 +350,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         }
 
         if (!$request->has('content') || !is_string($request->input('content'))) {
-            return $this->errorResponse(
+            return $this->error(
                 'Missing required parameter: content',
                 ServerManagerV1Constants::RESPONSE_BAD_REQUEST
             );
@@ -364,7 +364,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             if ($encoding === 'base64') {
                 $decoded = base64_decode($content, true);
                 if ($decoded === false) {
-                    return $this->errorResponse(
+                    return $this->error(
                         'Invalid base64 content.',
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                     );
@@ -375,7 +375,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             $contentBytes = strlen($content);
 
             if ($contentBytes > ServerManagerV1Constants::MAX_FILE_WRITE_SIZE) {
-                return $this->errorResponse(
+                return $this->error(
                     'File content too large. Maximum size: ' . ServerManagerV1Utils::formatFileSize(ServerManagerV1Constants::MAX_FILE_WRITE_SIZE),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -389,7 +389,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             if ($existingReal !== false) {
                 if (!ServerManagerV1Utils::isPathAllowed($existingReal)) {
                     ServerManagerV1Utils::logFileAccess('write', $existingReal, false, 'Path not in whitelist');
-                    return $this->errorResponse(
+                    return $this->error(
                         'Access denied. File path not in allowed whitelist.',
                         ServerManagerV1Constants::RESPONSE_FORBIDDEN
                     );
@@ -399,14 +399,14 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
                 $targetPath = $parentReal . DIRECTORY_SEPARATOR . basename($filePath);
             } else {
                 ServerManagerV1Utils::logFileAccess('write', $filePath, false, 'Path not in whitelist');
-                return $this->errorResponse(
+                return $this->error(
                     'Access denied. File path not in allowed whitelist.',
                     ServerManagerV1Constants::RESPONSE_FORBIDDEN
                 );
             }
 
             if (file_exists($targetPath) && is_dir($targetPath)) {
-                return $this->errorResponse(
+                return $this->error(
                     'Target path is a directory.',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -419,7 +419,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             if ($needsElevation) {
                 if (!$elevatedToken || !ServerManagerV1ElevatedAccess::validateToken($elevatedToken, $clientIp)) {
                     ServerManagerV1Utils::logFileAccess('write', $targetPath, false, 'Elevated access required');
-                    return $this->errorResponse(
+                    return $this->error(
                         'Elevated access required to write this file.',
                         ServerManagerV1Constants::RESPONSE_FORBIDDEN,
                         ['needs_elevation' => true]
@@ -438,7 +438,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
             if (!$writeResult['success']) {
                 ServerManagerV1Utils::logFileAccess('write', $targetPath, false, $writeResult['error'] ?? 'Write failed');
-                return $this->errorResponse(
+                return $this->error(
                     $writeResult['error'] ?? 'Failed to write file.',
                     $writeResult['code'] ?? ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR,
                     ['needs_elevation' => $writeResult['needs_elevation'] ?? false]
@@ -448,7 +448,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
             clearstatcache(true, $targetPath);
             ServerManagerV1Utils::logFileAccess('write', $targetPath, true);
 
-            return $this->successResponse([
+            return $this->success([
                 'file_path' => $targetPath,
                 'file_name' => basename($targetPath),
                 'size' => filesize($targetPath),
@@ -473,7 +473,7 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         }
 
         if (!$request->has('password') || !is_string($request->input('password'))) {
-            return $this->errorResponse(
+            return $this->error(
                 'Missing required parameter: password',
                 ServerManagerV1Constants::RESPONSE_BAD_REQUEST
             );
@@ -485,13 +485,13 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
         );
 
         if (!$result['success']) {
-            return $this->errorResponse(
+            return $this->error(
                 $result['error'] ?? 'Authentication failed.',
                 $result['code'] ?? ServerManagerV1Constants::RESPONSE_FORBIDDEN
             );
         }
 
-        return $this->successResponse([
+        return $this->success([
             'token' => $result['token'],
             'expires_in' => $result['expires_in'],
             'header' => ServerManagerV1Constants::ELEVATED_TOKEN_HEADER,
@@ -513,6 +513,6 @@ class ServerManagerV1FileManagerCtl extends ServerManagerV1BaseCtl
 
         ServerManagerV1ElevatedAccess::revokeToken(is_string($token) ? $token : null);
 
-        return $this->successResponse(null, 'Elevated access revoked');
+        return $this->success(null, 'Elevated access revoked');
     }
 }

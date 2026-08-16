@@ -14,6 +14,10 @@
 # Port is passed via PORT env var; multiple projects get 9000, 9001, ... automatically.
 # start.sh = dev mode (composer dev, hot reload)
 # start_service.sh = production mode (Octane, systemd)
+#
+# SYNC CONTRACT: this is the per-app instance; the canonical common-area copy is
+#   scripts/shells/linux/debian/debian_com/laravel_start_service.sh
+# (used by install_shells/132_laravel_main_start.sh). Change both together.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -22,6 +26,83 @@ PORT="${PORT:-9000}"
 WORKERS="${WORKERS:-4}"
 OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
 RUNTIME_SCRIPT="${SCRIPT_DIR}/run_runtime.sh"
+PHP_BIN="${PHP_BIN:-$(command -v php)}"
+VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
+BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
+RUNTIME_CONFIG_DIR=""
+
+runtime_config_directory() {
+    "$PHP_BIN" -r '
+        $autoload = $argv[1];
+        $bootstrap = $argv[2];
+        require $autoload;
+        require $bootstrap;
+        echo \App\Support\RuntimeConfigurationStore::directory();
+    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP"
+}
+
+runtime_config_get() {
+    local key="$1"
+
+    "$PHP_BIN" -r '
+        $autoload = $argv[1];
+        $bootstrap = $argv[2];
+        $key = $argv[3];
+        $value = null;
+        require $autoload;
+        require $bootstrap;
+        $value = \App\Support\RuntimeConfigurationStore::get($key);
+        if ($value !== null) {
+            echo $value;
+        }
+    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
+}
+
+runtime_config_put() {
+    local key="$1"
+    local value="$2"
+
+    printf '%s' "$value" | "$PHP_BIN" -r '
+        $autoload = $argv[1];
+        $bootstrap = $argv[2];
+        $key = $argv[3];
+        $value = trim(stream_get_contents(STDIN));
+        require $autoload;
+        require $bootstrap;
+        exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);
+    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
+}
+
+ensure_runtime_config_value() {
+    local key="$1"
+    local value="$2"
+    local current=""
+
+    current="$(runtime_config_get "$key")"
+    if [ -z "$current" ]; then
+        runtime_config_put "$key" "$value"
+    fi
+}
+
+initialize_runtime_configuration_store() {
+    local generated_value=""
+
+    RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
+    if [ -z "$RUNTIME_CONFIG_DIR" ]; then
+        echo "ERROR: Runtime configuration store directory could not be resolved."
+        return 1
+    fi
+
+    generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
+    ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
+    ensure_runtime_config_value "REVERB_APP_ID" "task-system" || return 1
+    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(16));')"
+    ensure_runtime_config_value "REVERB_APP_KEY" "$generated_value" || return 1
+    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(32));')"
+    ensure_runtime_config_value "REVERB_APP_SECRET" "$generated_value" || return 1
+
+    echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
+}
 
 echo "=== Laravel Production Service ==="
 echo "Project: $APP_NAME"
@@ -44,27 +125,36 @@ if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
     echo ""
 fi
 
+# Initialize the canonical runtime store before any Artisan command.
+if ! initialize_runtime_configuration_store; then
+    echo "ERROR: Runtime configuration store initialization failed."
+    exit 1
+fi
+
 if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
     echo "node_modules not found. Running pnpm install..."
     pnpm install 2>/dev/null || npm install 2>/dev/null || true
     echo ""
 fi
 
-# ── Phase 2: Database ────────────────────────────────────────────────────────
-echo "Running migrations..."
-php artisan migrate --force 2>&1 || echo "WARNING: migration failed (may be first run without DB)"
-
-# Queue jobs table is created by migration 0001_01_01_000001_create_queue_tables.php
-# The migrate --force above handles it; no separate check needed
-
-# ── Phase 3: Cache & Init ────────────────────────────────────────────────────
-echo "Clearing caches..."
-php artisan config:cache 2>&1 || true
-php artisan route:cache 2>&1 || true
-php artisan view:cache 2>&1 || true
+# ── Phase 2: Configuration & System Initialization ──────────────────────────
+echo "Clearing configuration cache..."
+if ! "$PHP_BIN" artisan config:clear; then
+    echo "ERROR: config:clear failed; runtime credentials may be stale."
+    exit 1
+fi
 
 echo "Initializing system..."
-php artisan sys:init 2>&1 || true
+if ! "$PHP_BIN" artisan sys:init; then
+    echo "ERROR: sys:init failed; production startup stopped."
+    exit 1
+fi
+
+# ── Phase 3: Safe Deployment Caches ─────────────────────────────────────────
+echo "Warming route, event, and view caches..."
+"$PHP_BIN" artisan route:cache 2>&1 || echo "WARNING: route cache could not be created"
+"$PHP_BIN" artisan event:cache 2>&1 || echo "WARNING: event cache could not be created"
+"$PHP_BIN" artisan view:cache 2>&1 || echo "WARNING: view cache could not be created"
 
 # ── Phase 4: Clean up legacy services ────────────────────────────────────────
 # Stop old octane-poly-* services if they exist (replaced by app-manager-* naming)

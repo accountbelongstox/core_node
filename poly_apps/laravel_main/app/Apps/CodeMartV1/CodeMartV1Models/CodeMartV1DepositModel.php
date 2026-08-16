@@ -1,15 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 
-class CodeMartV1DepositModel extends Model
+class CodeMartV1DepositModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_deposits';
 
     protected $fillable = [
@@ -36,11 +33,6 @@ class CodeMartV1DepositModel extends Model
         }
 
         return (float) $query->sum('amount');
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public static function findOwned(int $depositId, int $userId, ?string $status = null): ?self

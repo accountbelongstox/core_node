@@ -11,12 +11,14 @@
 
 namespace App\Http\Clash;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
-class GroupController
+class GroupController extends Controller
 {
     public function index()
     {

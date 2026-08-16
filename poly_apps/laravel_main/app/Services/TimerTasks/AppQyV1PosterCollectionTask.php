@@ -6,6 +6,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AssistService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SubtitleModel as Subtitle;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * AppQyV1 Poster Collection / Maintenance Timer Task (pull-only architecture).
@@ -48,11 +49,14 @@ class AppQyV1PosterCollectionTask extends OctaneTimerTaskAbstract
     }
 
     /**
-     * Gated by APPQYV1_POSTER_COLLECTION_ENABLED (default true).
+     * Gated by the user-data poster collection setting (default true).
      */
     public function isEnabled(): bool
     {
-        return (bool) env('APPQYV1_POSTER_COLLECTION_ENABLED', true);
+        return (bool) app(UserConfigService::class)->get(
+            UserConfigService::APPQYV1_POSTER_COLLECTION_ENABLED,
+            true
+        );
     }
 
     public function exec(): void

@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Dashboard;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\DataSync\PrepareDataSyncReceiverRequest;
+use App\Http\Requests\DataSync\SetDataSyncTargetRequest;
+use App\Http\Requests\DataSync\StartDataSyncRequest;
+use App\Services\DataSync\DataSyncProtocol;
 use App\Services\DataSync\DataSyncService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -27,14 +31,9 @@ final class DataSyncController extends Controller
             : $this->success(['session' => $job]);
     }
 
-    public function start(Request $request): JsonResponse
+    public function start(StartDataSyncRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'target' => 'nullable|string|max:512',
-            'databases' => 'required|boolean',
-            'resources' => 'required|boolean',
-            'compression' => 'required|boolean',
-        ]);
+        $validated = $request->validated();
         $job = $this->service->start(
             (string) ($validated['target'] ?? ''),
             (bool) $validated['databases'],
@@ -45,11 +44,9 @@ final class DataSyncController extends Controller
         return $this->created(['session' => $job], 'Data synchronization session created.');
     }
 
-    public function setTarget(Request $request, string $id): JsonResponse
+    public function setTarget(SetDataSyncTargetRequest $request, string $id): JsonResponse
     {
-        $validated = $request->validate([
-            'target' => 'required|string|max:512',
-        ]);
+        $validated = $request->validated();
 
         return $this->success(
             ['session' => $this->service->setTarget($id, (string) $validated['target'])],
@@ -72,16 +69,9 @@ final class DataSyncController extends Controller
         return $this->success($this->service->health());
     }
 
-    public function peerPrepare(Request $request): JsonResponse
+    public function peerPrepare(PrepareDataSyncReceiverRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'source_job_id' => 'required|string|size:32|regex:/^[a-f0-9]{32}$/',
-            'prepare_token' => 'required|string|size:64|regex:/^[a-f0-9]{64}$/',
-            'options' => 'required|array',
-            'options.databases' => 'required|boolean',
-            'options.resources' => 'required|boolean',
-            'options.compression' => 'required|boolean',
-        ]);
+        $validated = $request->validated();
 
         return $this->created(
             $this->service->prepareReceiver(
@@ -200,7 +190,7 @@ final class DataSyncController extends Controller
 
     private function token(Request $request): string
     {
-        return (string) $request->header('X-Data-Sync-Token', '');
+        return (string) $request->header(DataSyncProtocol::TOKEN_HEADER, '');
     }
 
     private function decodeContent(string $content): string

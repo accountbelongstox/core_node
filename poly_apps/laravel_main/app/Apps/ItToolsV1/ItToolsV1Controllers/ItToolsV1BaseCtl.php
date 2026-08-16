@@ -10,67 +10,32 @@
 
 namespace App\Apps\ItToolsV1\ItToolsV1Controllers;
 
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 
-abstract class ItToolsV1BaseCtl
+abstract class ItToolsV1BaseCtl extends Controller
 {
-    protected function success($data, string $message = 'Success', int $code = 200): JsonResponse
-    {
-        return response()->json([
-            'success' => true,
-            'message' => $message,
-            'data' => $data,
-            'timestamp' => time()
-        ], $code);
-    }
-    
-    protected function error(string $message, $errors = null, int $code = 400): JsonResponse
-    {
-        $response = [
-            'success' => false,
-            'message' => $message,
-            'timestamp' => time()
-        ];
-        
-        if ($errors !== null) {
-            $response['errors'] = $errors;
-        }
-        
-        return response()->json($response, $code);
-    }
-    
+    use ApiResponse;
+
     protected function validateRequired(array $data, array $requiredFields): ?JsonResponse
     {
         $missingFields = [];
-        
+
         foreach ($requiredFields as $field) {
             if (!isset($data[$field]) || $data[$field] === '' || $data[$field] === null) {
                 $missingFields[] = $field;
             }
         }
-        
+
         if (!empty($missingFields)) {
             return $this->error(
                 'Missing required fields',
-                ['missing_fields' => $missingFields],
-                422
+                422,
+                ['missing_fields' => $missingFields]
             );
         }
-        
+
         return null;
-    }
-    
-    protected function safeExecute(callable $callback): JsonResponse
-    {
-        try {
-            $result = $callback();
-            return is_array($result) ? $this->success($result) : $result;
-        } catch (\Exception $e) {
-            return $this->error(
-                'Operation failed: ' . $e->getMessage(),
-                ['exception' => get_class($e)],
-                500
-            );
-        }
     }
 }

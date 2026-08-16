@@ -12,12 +12,12 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Dictionaries;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationTaskService;
 use App\Traits\ApiResponse;
 
-class AppQyV1DictionaryTaskController extends BaseController
+class AppQyV1DictionaryTaskController extends Controller
 {
     use ApiResponse;
 

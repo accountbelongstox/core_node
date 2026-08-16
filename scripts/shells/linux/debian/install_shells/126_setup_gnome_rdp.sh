@@ -3,7 +3,7 @@
 # Opens GNOME Remote Desktop settings UI (no system changes)
 #
 # Usage:
-#   ./127_setup_gnome_rdp.sh   # Prompt to open settings UI (desktop only)
+#   ./126_setup_gnome_rdp.sh   # Prompt to open settings UI (desktop only)
 
 # Script paths
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

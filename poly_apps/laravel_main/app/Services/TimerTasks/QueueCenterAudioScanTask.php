@@ -2,6 +2,8 @@
 
 namespace App\Services\TimerTasks;
 
+use App\Services\UserConfig\UserConfigService;
+
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
@@ -63,7 +65,7 @@ class QueueCenterAudioScanTask extends DiffQueueFeederTaskAbstract
 
     public function isEnabled(): bool
     {
-        return env('QUEUE_CENTER_AUDIO_SCAN', true);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::QUEUE_CENTER_AUDIO_SCAN, true);
     }
 
     public function exec(): void

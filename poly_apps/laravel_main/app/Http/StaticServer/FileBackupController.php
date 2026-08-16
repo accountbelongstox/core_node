@@ -11,13 +11,16 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use App\Services\BackupService;
+use App\Providers\PathMapper;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
-class FileBackupController
+class FileBackupController extends Controller
 {
     private BackupService $backupService;
     private string $baseDir;
@@ -27,9 +30,7 @@ class FileBackupController
     {
         $this->backupService = $backupService;
 
-        $this->staticFilesDir = PHP_OS === 'WINNT'  
-            ? env('STATIC_FILES_PATH_WINDOWS') 
-            : env('STATIC_FILES_PATH_LINUX');
+        $this->staticFilesDir = PathMapper::getStaticPath();
 
         $this->baseDir = $this->staticFilesDir . DIRECTORY_SEPARATOR . '.tmp';
     }

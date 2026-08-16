@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
@@ -24,7 +26,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicCont
 use App\Traits\ApiResponse;
 use App\Helpers\AuthHelper;
 
-class AppQyV1WordGroupQueryController
+class AppQyV1WordGroupQueryController extends Controller
 {
     use ApiResponse;
 

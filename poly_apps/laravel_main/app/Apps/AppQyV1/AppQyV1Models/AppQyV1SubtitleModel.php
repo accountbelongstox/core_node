@@ -14,28 +14,17 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1MediaSourceQueries;
-use App\Models\Concerns\QueriesPosterMedia;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
 /**
  * Subtitle (movie) source. Has audio+video clip segments (media_segments).
  */
-class AppQyV1SubtitleModel extends Model
+class AppQyV1SubtitleModel extends AppQyV1Model
 {
-    use AppQyV1MediaSourceQueries, QueriesPosterMedia;
+    use AppQyV1MediaSourceQueries;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'subtitles');
-    }
+    protected ?string $appTableSuffix = 'subtitles';
 
     protected $fillable = [
         'source_key',
@@ -65,20 +54,23 @@ class AppQyV1SubtitleModel extends Model
         'assist_claimed_by',
     ];
 
-    protected $casts = [
-        'duration_sec' => 'float',
-        'selected_languages' => 'array',
-        'files' => 'array',
-        'subtitle_count' => 'integer',
-        'segment_count' => 'integer',
-        'sentence_count' => 'integer',
-        'synced_at' => 'datetime',
-        'metadata' => 'array',
-        'poster_meta' => 'array',
-        'poster_fetched_at' => 'datetime',
-        'poster_mcp_submitted_at' => 'datetime',
-        'assist_claimed_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'duration_sec' => 'float',
+            'selected_languages' => 'array',
+            'files' => 'array',
+            'subtitle_count' => 'integer',
+            'segment_count' => 'integer',
+            'sentence_count' => 'integer',
+            'synced_at' => 'datetime',
+            'metadata' => 'array',
+            'poster_meta' => 'array',
+            'poster_fetched_at' => 'datetime',
+            'poster_mcp_submitted_at' => 'datetime',
+            'assist_claimed_at' => 'datetime',
+        ];
+    }
 
     public function segments(): HasMany
     {

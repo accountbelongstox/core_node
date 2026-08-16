@@ -26,9 +26,12 @@ class InviteCodeUsage extends Model
         return self::query()->count();
     }
 
-    protected $casts = [
-        'used_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'used_at' => 'datetime',
+        ];
+    }
 
     public function inviteCode(): BelongsTo
     {

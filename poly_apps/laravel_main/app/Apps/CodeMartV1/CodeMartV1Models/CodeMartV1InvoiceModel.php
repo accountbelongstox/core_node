@@ -2,13 +2,10 @@
 
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CodeMartV1InvoiceModel extends Model
+class CodeMartV1InvoiceModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_invoices';
 
     protected $fillable = [
@@ -44,11 +41,6 @@ class CodeMartV1InvoiceModel extends Model
     public function issuer(): BelongsTo
     {
         return $this->belongsTo(CodeMartV1UserModel::class, 'issued_by');
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public function markAsPaid(): void

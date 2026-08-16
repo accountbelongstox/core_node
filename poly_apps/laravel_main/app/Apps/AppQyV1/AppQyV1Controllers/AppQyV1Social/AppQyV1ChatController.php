@@ -15,7 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\AvatarService;
 use App\Traits\ApiResponse;
@@ -32,7 +32,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
  * users (default conn) and app_qy_v1_* (appqyv1 conn) are queried separately and
  * merged in PHP — never cross-joined.
  */
-class AppQyV1ChatController extends BaseController
+class AppQyV1ChatController extends Controller
 {
     use ApiResponse;
 

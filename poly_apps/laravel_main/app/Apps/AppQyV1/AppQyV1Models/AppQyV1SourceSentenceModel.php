@@ -15,9 +15,6 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use App\Utils\RunsModelTransactions;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
@@ -41,18 +38,11 @@ use Illuminate\Support\Collection;
  * table is kept. The legacy `sentence_id` column was REMOVED (Books v3.1 §3.3):
  * the per-language link is carried entirely by lang_content_ids (content_id refs).
  */
-class AppQyV1SourceSentenceModel extends Model
+class AppQyV1SourceSentenceModel extends AppQyV1Model
 {
     use RunsModelTransactions;
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'source_sentences');
-    }
+    protected ?string $appTableSuffix = 'source_sentences';
 
     protected $fillable = [
         'source_type',
@@ -71,16 +61,19 @@ class AppQyV1SourceSentenceModel extends Model
         'lang_content_ids',
     ];
 
-    protected $casts = [
-        'seq' => 'integer',
-        'seg_index' => 'integer',
-        'sub_idx' => 'integer',
-        'start_sec' => 'float',
-        'end_sec' => 'float',
-        'metadata' => 'array',
-        'chapter_index' => 'integer',
-        'lang_content_ids' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'seq' => 'integer',
+            'seg_index' => 'integer',
+            'sub_idx' => 'integer',
+            'start_sec' => 'float',
+            'end_sec' => 'float',
+            'metadata' => 'array',
+            'chapter_index' => 'integer',
+            'lang_content_ids' => 'array',
+        ];
+    }
 
     /**
      * Resolve the per-language sentence row for this slot from the per-language
@@ -150,6 +143,14 @@ class AppQyV1SourceSentenceModel extends Model
         return self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey)->delete();
     }
 
+    public static function deleteForSources(string $sourceType, array $sourceKeys): int
+    {
+        return self::query()
+            ->where('source_type', $sourceType)
+            ->whereIn('source_key', array_values(array_unique($sourceKeys)))
+            ->delete();
+    }
+
     public static function sourceGrainPage(
         string $sourceType,
         string $sourceKey,
@@ -157,13 +158,14 @@ class AppQyV1SourceSentenceModel extends Model
         int $limit
     ): array {
         $base = self::query()->where('source_type', $sourceType)->where('source_key', $sourceKey);
-        $grain = 'sentence';
-        $total = (clone $base)->where('grain', $grain)->count();
-
-        if ($total === 0) {
-            $grain = 'cue';
-            $total = (clone $base)->where('grain', $grain)->count();
-        }
+        $counts = (clone $base)
+            ->whereIn('grain', ['sentence', 'cue'])
+            ->groupBy('grain')
+            ->selectRaw('grain, COUNT(*) AS total')
+            ->pluck('total', 'grain');
+        $sentenceTotal = (int) ($counts->get('sentence') ?? 0);
+        $grain = $sentenceTotal > 0 ? 'sentence' : 'cue';
+        $total = $sentenceTotal > 0 ? $sentenceTotal : (int) ($counts->get('cue') ?? 0);
 
         $rows = (clone $base)
             ->where('grain', $grain)
@@ -256,16 +258,6 @@ class AppQyV1SourceSentenceModel extends Model
             ->where('grain', $grain)
             ->where('chapter_index', $chapterIndex)
             ->count();
-    }
-
-    public static function tableRowCount(): int
-    {
-        $model = new self();
-        if (!$model->getConnection()->getSchemaBuilder()->hasTable($model->getTable())) {
-            return 0;
-        }
-
-        return self::query()->count();
     }
 
     public static function createLink(array $attributes): self

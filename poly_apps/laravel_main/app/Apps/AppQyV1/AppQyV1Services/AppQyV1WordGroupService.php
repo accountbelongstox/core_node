@@ -7,7 +7,6 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1GroupWordProgressModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
-use Illuminate\Support\Facades\Cache;
 
 class AppQyV1WordGroupService
 {
@@ -225,25 +224,16 @@ class AppQyV1WordGroupService
 
     public function getGroupWithCache(string $gid, int $userId): ?AppQyV1WordGroupModel
     {
-        $cacheKey = "word_group:{$userId}:{$gid}";
-
-        return Cache::remember($cacheKey, now()->addMinutes(10), function () use ($gid, $userId) {
-            return AppQyV1WordGroupModel::findOwnedByGid($userId, $gid);
-        });
+        return AppQyV1WordGroupModel::cachedForUserByGid($userId, $gid);
     }
 
     public function clearGroupCache(string $gid, int $userId): void
     {
-        Cache::forget("word_group:{$userId}:{$gid}");
-        Cache::forget("user_groups:{$userId}");
+        AppQyV1WordGroupModel::forgetCachedForUser($userId, $gid);
     }
 
     public function getUserGroupsWithCache(int $userId, int $start = 0, int $limit = 1000)
     {
-        $cacheKey = "user_groups:{$userId}:{$start}:{$limit}";
-
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($userId, $start, $limit) {
-            return AppQyV1WordGroupModel::userPageWithProgress($userId, $start, $limit);
-        });
+        return AppQyV1WordGroupModel::cachedUserPageWithProgress($userId, $start, $limit);
     }
 }

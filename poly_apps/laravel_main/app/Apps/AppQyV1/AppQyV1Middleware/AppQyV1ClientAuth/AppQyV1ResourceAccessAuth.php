@@ -41,7 +41,7 @@ class AppQyV1ResourceAccessAuth
      */
     private function isStaticResourceAccessValid(Request $request): bool
     {
-        $isDebugMode = env('APP_DEBUG', false);
+        $isDebugMode = (bool) config('app.debug');
 
         if ($isDebugMode) {
             return $this->isDebugToken($request);
@@ -55,7 +55,7 @@ class AppQyV1ResourceAccessAuth
      */
     public static function isDebugToken(Request $request): bool
     {
-        $isLaravelDebugMode = env('APP_DEBUG');
+        $isLaravelDebugMode = (bool) config('app.debug');
         if (!$isLaravelDebugMode) {
             return false;
         }

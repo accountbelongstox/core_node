@@ -2,6 +2,8 @@
 
 namespace App\Services\TimerTasks;
 
+use App\Services\UserConfig\UserConfigService;
+
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
@@ -46,7 +48,7 @@ class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
 
     public function isEnabled(): bool
     {
-        return env('APPQYV1_MEDIA_SCAN', true);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_MEDIA_SCAN, true);
     }
 
     public function exec(): void

@@ -2,6 +2,8 @@
 
 namespace App\Apps\McpV1\McpV1Controllers;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\McpV1\McpV1Utils\ScreenshotService;
@@ -11,11 +13,11 @@ use App\Utils\FileSystemManager;
  * MCP Screenshot Controller (McpV1)
  *
  * Provides MCP and Web API endpoints for screenshot management
- * Following Laravel 12.x MCP specifications
+ * Following Laravel 13.x MCP specifications
  *
- * @see https://laravel.com/docs/12.x/mcp
+ * @see https://laravel.com/docs/13.x/mcp
  */
-class McpV1ScreenshotCtl
+class McpV1ScreenshotCtl extends Controller
 {
     private $screenshotService;
 

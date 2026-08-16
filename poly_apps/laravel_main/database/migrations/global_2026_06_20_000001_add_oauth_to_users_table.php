@@ -33,7 +33,7 @@ use App\Services\SafeMigrationHelper;
  * google_id / github_id are the authoritative provider keys for login matching.
  *
  * KEYS: the OAuth CLIENT SECRETS (GOOGLE_CLIENT_SECRET / GITHUB_CLIENT_SECRET)
- * are NOT stored in this table — they live in the backend env / CoreNodeSecrets
+ * are NOT stored in this table — they live in the backend env / RuntimeConfigurationStore
  * and are used only by the social-auth controller to exchange the code. The
  * public client IDs live in the frontend (see CapSocialAuth KEY notes).
  */

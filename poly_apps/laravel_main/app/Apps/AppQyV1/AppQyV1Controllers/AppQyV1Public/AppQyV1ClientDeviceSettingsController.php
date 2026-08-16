@@ -4,12 +4,12 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ClientDeviceSettingsService;
 
-class AppQyV1ClientDeviceSettingsController extends BaseController
+class AppQyV1ClientDeviceSettingsController extends Controller
 {
     use ApiResponse;
 

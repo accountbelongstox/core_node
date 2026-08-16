@@ -49,12 +49,8 @@ final class DataSyncTransferPlanStore
 
     private function resourcePlanPath(string $jobId): string
     {
-        $safeJobId = preg_replace('/[^A-Za-z0-9_-]/', '', $jobId);
+        $safeJobId = DataSyncSessionId::require($jobId);
         $directory = PathMapper::getBackupDir('data-sync/plans');
-
-        if ($safeJobId === '' || $safeJobId !== $jobId) {
-            throw new \InvalidArgumentException('Synchronization job ID is invalid.');
-        }
 
         FileSystemManager::ensureDirectoryExists($directory);
         return rtrim($directory, '/\\') . DIRECTORY_SEPARATOR . $safeJobId . '.resources.json';

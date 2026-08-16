@@ -3,12 +3,14 @@
 namespace App\Apps\ItToolsV1\ItToolsV1WebCtl;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use App\Apps\ItToolsV1\ItToolsV1Utils\ResponseHelper;
-use App\Apps\ItToolsV1\ItToolsV1Gvar\Constants;
+use App\Http\Controllers\Controller;
+use App\Traits\ApiResponse;
+use App\Apps\ItToolsV1\ItToolsV1Gvar\ItToolsV1Constants;
 
 class ItToolsV1WebCtl extends Controller
 {
+    use ApiResponse;
+
     public function jsonPrettify(Request $request)
     {
         $request->validate([
@@ -28,10 +30,10 @@ class ItToolsV1WebCtl extends Controller
 
             $prettified = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-            return ResponseHelper::success(['prettified' => $prettified]);
+            return $this->success(['prettified' => $prettified]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -54,10 +56,10 @@ class ItToolsV1WebCtl extends Controller
 
             $minified = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-            return ResponseHelper::success(['minified' => $minified]);
+            return $this->success(['minified' => $minified]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -82,14 +84,14 @@ class ItToolsV1WebCtl extends Controller
             $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
             $signature = $parts[2];
 
-            return ResponseHelper::success([
+            return $this->success([
                 'header' => $header,
                 'payload' => $payload,
                 'signature' => $signature
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -104,7 +106,7 @@ class ItToolsV1WebCtl extends Controller
         $html = $request->input('html');
         $encoded = htmlentities($html, ENT_QUOTES, 'UTF-8');
 
-        return ResponseHelper::success(['encoded' => $encoded]);
+        return $this->success(['encoded' => $encoded]);
     }
 
     public function htmlDecode(Request $request)
@@ -114,7 +116,7 @@ class ItToolsV1WebCtl extends Controller
         $encoded = $request->input('encoded');
         $decoded = html_entity_decode($encoded, ENT_QUOTES, 'UTF-8');
 
-        return ResponseHelper::success(['decoded' => $decoded]);
+        return $this->success(['decoded' => $decoded]);
     }
 
     public function jsonDiff(Request $request)
@@ -134,13 +136,13 @@ class ItToolsV1WebCtl extends Controller
 
             $differences = $this->findDifferences($data1, $data2);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'differences' => $differences,
                 'hasDifferences' => !empty($differences)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -166,10 +168,10 @@ class ItToolsV1WebCtl extends Controller
             $html = preg_replace('/\n\n/', '</p><p>', $html);
             $html = '<p>' . $html . '</p>';
 
-            return ResponseHelper::success(['html' => $html]);
+            return $this->success(['html' => $html]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -200,10 +202,10 @@ class ItToolsV1WebCtl extends Controller
             $formatted = str_replace(',', ",\n  ", $sql);
             $formatted = preg_replace('/\b(SELECT|FROM|WHERE|JOIN|GROUP BY|ORDER BY)\b/', "\n$1\n  ", $formatted);
 
-            return ResponseHelper::success(['formatted' => trim($formatted)]);
+            return $this->success(['formatted' => trim($formatted)]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -226,15 +228,15 @@ class ItToolsV1WebCtl extends Controller
         try {
             $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' . $size . 'x' . $size . '&data=' . urlencode($text) . '&ecc=' . $errorCorrection;
 
-            return ResponseHelper::success([
+            return $this->success([
                 'qrCodeUrl' => $qrCodeUrl,
                 'size' => $size,
                 'errorCorrection' => $errorCorrection,
                 'text' => $text
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -263,10 +265,10 @@ class ItToolsV1WebCtl extends Controller
                 $formatted .= str_repeat($spaces, $level) . $trimmed . "\n";
             }
 
-            return ResponseHelper::success(['formatted' => trim($formatted)]);
+            return $this->success(['formatted' => trim($formatted)]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -292,10 +294,10 @@ class ItToolsV1WebCtl extends Controller
 
             $formatted = $dom->saveXML();
 
-            return ResponseHelper::success(['formatted' => $formatted]);
+            return $this->success(['formatted' => $formatted]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -332,14 +334,14 @@ class ItToolsV1WebCtl extends Controller
             $message = $statusCodes[$code] ?? 'Unknown Status';
             $category = $this->getStatusCategory($code);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'code' => $code,
                 'message' => $message,
                 'category' => $category
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -373,13 +375,13 @@ class ItToolsV1WebCtl extends Controller
                 $filtered = $mimeTypes;
             }
 
-            return ResponseHelper::success([
+            return $this->success([
                 'mimeTypes' => array_values($filtered),
                 'count' => count($filtered)
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -432,13 +434,13 @@ class ItToolsV1WebCtl extends Controller
 
             $allTags = implode("\n", array_merge($tags['basic'], $tags['og'], $tags['twitter']));
 
-            return ResponseHelper::success([
+            return $this->success([
                 'tags' => $tags,
                 'allTags' => $allTags
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -465,15 +467,15 @@ class ItToolsV1WebCtl extends Controller
             $optimizedSize = strlen($optimized);
             $savings = round((1 - $optimizedSize / $originalSize) * 100, 2);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'optimized' => $optimized,
                 'originalSize' => $originalSize,
                 'optimizedSize' => $optimizedSize,
                 'savings' => $savings . '%'
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500
@@ -509,7 +511,7 @@ class ItToolsV1WebCtl extends Controller
 
             $qrCodeUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' . $size . 'x' . $size . '&data=' . urlencode($wifiString);
 
-            return ResponseHelper::success([
+            return $this->success([
                 'qrCodeUrl' => $qrCodeUrl,
                 'wifiString' => $wifiString,
                 'ssid' => $ssid,
@@ -518,8 +520,8 @@ class ItToolsV1WebCtl extends Controller
                 'size' => $size
             ]);
         } catch (\Exception $e) {
-            return ResponseHelper::error(
-                Constants::ERR_PROCESSING_ERROR,
+            return $this->codedError(
+                ItToolsV1Constants::ERR_PROCESSING_ERROR,
                 $e->getMessage(),
                 null,
                 500

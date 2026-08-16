@@ -11,7 +11,7 @@
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants;
 
 /**
- * Unified DingDuoDuoV1 error codes. Mirrors AppQyV1ErrorCodes: stable string
+ * Unified DingDuoDuoV1 error codes. Mirrors App\Constants\ErrorCodes: stable string
  * codes, English + Chinese messages, and an HTTP status mapping.
  */
 class DingDuoDuoV1ErrorCodes

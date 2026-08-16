@@ -98,7 +98,7 @@ class ItToolsV1PdfUtil
         return $results;
     }
     
-    public static function mergePdfs(array $pdfPaths, string $outputPath = null): array
+    public static function mergePdfs(array $pdfPaths, ?string $outputPath = null): array
     {
         foreach ($pdfPaths as $path) {
             if (!file_exists($path)) {
@@ -175,7 +175,7 @@ class ItToolsV1PdfUtil
         ];
     }
     
-    public static function rotatePdf(string $pdfPath, int $rotation, array $pages = null): array
+    public static function rotatePdf(string $pdfPath, int $rotation, ?array $pages = null): array
     {
         if (!file_exists($pdfPath)) {
             throw new \InvalidArgumentException("PDF file not found: $pdfPath");
@@ -222,7 +222,7 @@ class ItToolsV1PdfUtil
         ];
     }
     
-    public static function addPasswordToPdf(string $pdfPath, string $userPassword, string $ownerPassword = null): array
+    public static function addPasswordToPdf(string $pdfPath, string $userPassword, ?string $ownerPassword = null): array
     {
         if (!file_exists($pdfPath)) {
             throw new \InvalidArgumentException("PDF file not found: $pdfPath");

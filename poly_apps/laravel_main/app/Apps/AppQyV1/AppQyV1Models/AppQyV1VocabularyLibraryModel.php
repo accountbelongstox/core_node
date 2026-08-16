@@ -3,11 +3,7 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
 use Illuminate\Support\Collection;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Utils\RunsModelTransactions;
 
 /**
@@ -18,7 +14,7 @@ use App\Utils\RunsModelTransactions;
  *    dictionary table is derived from the `language` column.
  *  - cover_*: absorbed from the dropped vocabulary_covers table.
  */
-class AppQyV1VocabularyLibraryModel extends Model
+class AppQyV1VocabularyLibraryModel extends AppQyV1Model
 {
     use HasFactory, RunsModelTransactions;
 
@@ -59,19 +55,8 @@ class AppQyV1VocabularyLibraryModel extends Model
         'chinese' => 'zh',
     ];
 
-    protected $appKey = AppKeys::APPQYV1;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'vocabulary_libraries');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableSuffix = 'vocabulary_libraries';
 
     protected $fillable = [
         'name',
@@ -107,25 +92,28 @@ class AppQyV1VocabularyLibraryModel extends Model
         'assist_claimed_by',
     ];
 
-    protected $casts = [
-        'is_public' => 'boolean',
-        'is_recommended' => 'boolean',
-        'tags' => 'array',
-        'word_ids' => 'array',
-        'cover_priority' => 'integer',
-        'cover_attempts' => 'integer',
-        'cover_width' => 'integer',
-        'cover_height' => 'integer',
-        'cover_last_requested_at' => 'datetime',
-        'cover_last_generated_at' => 'datetime',
-        'cover_started_at' => 'datetime',
-        'cover_finished_at' => 'datetime',
-        'cover_latency_ms' => 'integer',
-        'cover_mcp_submitted_at' => 'datetime',
-        'assist_claimed_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_public' => 'boolean',
+            'is_recommended' => 'boolean',
+            'tags' => 'array',
+            'word_ids' => 'array',
+            'cover_priority' => 'integer',
+            'cover_attempts' => 'integer',
+            'cover_width' => 'integer',
+            'cover_height' => 'integer',
+            'cover_last_requested_at' => 'datetime',
+            'cover_last_generated_at' => 'datetime',
+            'cover_started_at' => 'datetime',
+            'cover_finished_at' => 'datetime',
+            'cover_latency_ms' => 'integer',
+            'cover_mcp_submitted_at' => 'datetime',
+            'assist_claimed_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     /** Map a full language name ('english') to its 2-letter code ('en'). */
     public static function languageNameToCode(string $language): ?string
@@ -270,12 +258,14 @@ class AppQyV1VocabularyLibraryModel extends Model
         return $ordered;
     }
 
-    public function scopePublic($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function public(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('is_public', true);
     }
 
-    public function scopeForLanguage($query, ?string $language)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function forLanguage(\Illuminate\Database\Eloquent\Builder $query, ?string $language): \Illuminate\Database\Eloquent\Builder
     {
         if ($language) {
             $query->where('language', $language);
@@ -284,13 +274,12 @@ class AppQyV1VocabularyLibraryModel extends Model
         return $query;
     }
 
-    public function scopeSearchTextInsensitive($query, string $search)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function searchTextInsensitive(\Illuminate\Database\Eloquent\Builder $query, string $search): \Illuminate\Database\Eloquent\Builder
     {
-        $needle = '%' . strtolower($search) . '%';
-
-        return $query->where(function ($builder) use ($needle) {
-            $builder->whereRaw('LOWER(name) LIKE ?', [$needle])
-                ->orWhereRaw('LOWER(description) LIKE ?', [$needle]);
+        return $query->where(function (\Illuminate\Database\Eloquent\Builder $builder) use ($search): void {
+            $builder->whereLike('name', "%{$search}%", caseSensitive: false)
+                ->orWhereLike('description', "%{$search}%", caseSensitive: false);
         });
     }
 
@@ -337,7 +326,7 @@ class AppQyV1VocabularyLibraryModel extends Model
     {
         return $this->belongsToMany(
             AppQyV1WordGroupModel::class,
-            AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_libraries'),
+            $this->appTable('group_libraries'),
             'library_id',
             'group_id',
             'id',
@@ -351,14 +340,17 @@ class AppQyV1VocabularyLibraryModel extends Model
         return self::query()->findOrFail($libraryId);
     }
 
-    public static function findById(int $libraryId): ?self
-    {
-        return self::query()->find($libraryId);
-    }
-
     public static function findBySource(string $source): ?self
     {
         return self::query()->where('source', $source)->first();
+    }
+
+    public static function rowsBySources(array $sources)
+    {
+        return self::query()
+            ->whereIn('source', array_values(array_unique($sources)))
+            ->get()
+            ->keyBy('source');
     }
 
     public static function findLegacyWithoutSource(string $language, string $name): ?self
@@ -476,7 +468,7 @@ class AppQyV1VocabularyLibraryModel extends Model
             $query->where('cover_status', 'failed');
         }
         if ($search !== '') {
-            $query->where('name', 'like', '%' . $search . '%');
+            $query->whereLike('name', '%' . $search . '%', caseSensitive: false);
         }
 
         return [
@@ -551,6 +543,8 @@ class AppQyV1VocabularyLibraryModel extends Model
             $leaseMinutes,
             $mcpMarkerSupported
         ) {
+            $claimedAt = now();
+            $claimedBy = mb_substr($claimer, 0, 64);
             $rows = self::query()
                 ->whereNotNull('cover_filename')
                 ->where(function ($status) use ($retryDelayMinutes, $mcpMarkerSupported): void {
@@ -573,10 +567,15 @@ class AppQyV1VocabularyLibraryModel extends Model
                 ->lockForUpdate()
                 ->get();
 
-            foreach ($rows as $row) {
-                $row->assist_claimed_at = now();
-                $row->assist_claimed_by = mb_substr($claimer, 0, 64);
-                $row->save();
+            if ($rows->isNotEmpty()) {
+                self::query()->whereKey($rows->modelKeys())->update([
+                    'assist_claimed_at' => $claimedAt,
+                    'assist_claimed_by' => $claimedBy,
+                ]);
+                foreach ($rows as $row) {
+                    $row->assist_claimed_at = $claimedAt;
+                    $row->assist_claimed_by = $claimedBy;
+                }
             }
 
             return $rows;
@@ -586,16 +585,18 @@ class AppQyV1VocabularyLibraryModel extends Model
     public static function releaseCoverClaims(array $ids, string $error): int
     {
         $query = self::query()->whereIn('id', $ids)->whereNotNull('assist_claimed_at');
-        $released = (clone $query)->count();
 
-        (clone $query)->where('cover_status', '!=', 'ready')->update([
+        $released = (clone $query)->where('cover_status', '!=', 'ready')->update([
             'cover_status' => 'retry',
             'cover_error_message' => mb_substr($error, 0, 2000),
             'cover_finished_at' => now(),
             'assist_claimed_at' => null,
             'assist_claimed_by' => null,
         ]);
-        $query->update(['assist_claimed_at' => null, 'assist_claimed_by' => null]);
+        $released += $query->where('cover_status', 'ready')->update([
+            'assist_claimed_at' => null,
+            'assist_claimed_by' => null,
+        ]);
 
         return $released;
     }

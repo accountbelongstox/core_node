@@ -168,9 +168,7 @@ class DatabaseManagerController extends Controller
     // ---- helpers -----------------------------------------------------------
 
     /**
-     * Resolve the request's connection to a Laravel connection name. The
-     * dashboard sends descriptor KEYS (e.g. "main"); legacy callers may still
-     * send the old main-connection alias "sqlite" — normalize via the whitelist.
+     * Resolve the dashboard descriptor key to a Laravel connection name.
      */
     private function conn(Request $request): string
     {

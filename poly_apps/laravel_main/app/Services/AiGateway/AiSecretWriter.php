@@ -5,13 +5,12 @@ namespace App\Services\AiGateway;
 use App\Providers\PathMapper;
 
 /**
- * AiSecretWriter — the WRITER half of the AI key store that GlobalSecretReader /
- * AiSecretLoader only READ. It manages the raw secret files under
+ * AiSecretWriter manages the writable side of the AI secret store under
  * <core_node>/.secret_keys/.secret_ignore/<KEY>, the exact same files pycore
  * reads, so a key set here works in BOTH runtimes immediately.
  *
  * Scope is deliberately narrow:
- *   - It NEVER touches the global_var store (CoreNodeSecrets::put) — that is a
+ *   - It NEVER touches the global_var store (RuntimeConfigurationStore::put) — that is a
  *     DIFFERENT store with different semantics.
  *   - It only allows writing key names that match a KNOWN provider key base /
  *     extra-secret / image / base-url pattern (isAllowedKeyName), so an arbitrary
@@ -20,11 +19,11 @@ use App\Providers\PathMapper;
  *     created 0700 when missing.
  *
  * Values are SECRETS: this class only writes/deletes — masking + read-back for
- * the UI go through AiProviderRegistry::maskKey / AiSecretLoader.
+ * the UI go through AiProviderRegistry::maskKey / SecretStore.
  */
 class AiSecretWriter
 {
-    /** Numbered-variant range — MUST match AiSecretLoader's scan (BASE_1 .. BASE_5);
+    /** Numbered-variant range — MUST match SecretStore's scan (BASE_1 .. BASE_5);
      *  a key written above this range would be silently never read. */
     private const MAX_INDEX = 5;
 
@@ -103,7 +102,7 @@ class AiSecretWriter
      *   <BASE>_BASE_URL   <BASE>_BASE_URL_<1-5>
      * plus any declared aux secret name (optionally numbered _1.._5). The name
      * must also match ^[A-Z0-9_]+$. Anything else is rejected so the UI can never
-     * write to an arbitrary path. Index range is pinned to AiSecretLoader's scan.
+     * write to an arbitrary path. Index range is pinned to SecretStore's scan.
      */
     public static function isAllowedKeyName(string $name): bool
     {

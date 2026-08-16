@@ -3,7 +3,7 @@
 namespace App\Services\Dashboard;
 
 use App\Models\User;
-use App\Support\CoreNodeSecrets;
+use App\Support\RuntimeConfigurationStore;
 use Illuminate\Http\Request;
 
 /**
@@ -48,7 +48,7 @@ class DebugAuthService
      */
     public static function debugEnabled(): bool
     {
-        $flag = strtolower((string) CoreNodeSecrets::get('DASHBOARD_LOCAL_DEBUG', 'true'));
+        $flag = strtolower((string) RuntimeConfigurationStore::get('DASHBOARD_LOCAL_DEBUG', 'true'));
 
         return !in_array($flag, ['false', '0', 'off', 'no', ''], true);
     }

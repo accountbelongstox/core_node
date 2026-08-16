@@ -5,6 +5,7 @@ namespace App\Apps\ItToolsV1\ItToolsV1Controllers;
 use App\Http\Controllers\Controller;
 use App\Apps\ItToolsV1\ItToolsV1Utils\CryptoService;
 use App\Apps\ItToolsV1\ItToolsV1Utils\ConverterService;
+use App\Apps\ItToolsV1\ItToolsV1Utils\ItToolsV1CommonUtil;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 
@@ -158,7 +159,12 @@ class ItToolsMainCtl extends Controller
             $length = (int)$request->input('length', 32);
             $charset = $request->input('charset', 'alphanumeric');
 
-            $result = CryptoService::generateToken($length, $charset);
+            $length = max(1, min($length, 256));
+            $result = [
+                'token' => ItToolsV1CommonUtil::generateToken($length, $charset),
+                'length' => $length,
+                'charset' => $charset
+            ];
 
             return response()->json([
                 'success' => true,

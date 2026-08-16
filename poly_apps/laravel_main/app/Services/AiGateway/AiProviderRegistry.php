@@ -2,6 +2,8 @@
 
 namespace App\Services\AiGateway;
 
+use App\Utils\SecretStore;
+
 /**
  * Shared AI provider registry — the PHP port of pycore's pyctl.ai.ai_keys.
  *
@@ -9,7 +11,7 @@ namespace App\Services\AiGateway;
  * AiChat / AiGateway and the AI Management UI all read THIS class only.
  *
  * Per provider:
- *   key_base      : secret base name (indexed _1.._5 then bare, via AiSecretLoader)
+ *   key_base      : secret base name (indexed _1.._5 then bare, via SecretStore)
  *   default_model : fallback when caller passes no model
  *   free_models   : known free-tier model ids (catalog + probe/chat fallback)
  *   limits        : human-readable free-tier limits (from provider docs)
@@ -560,7 +562,7 @@ class AiProviderRegistry
     public static function firstSecret(string $provider): string
     {
         $base = self::meta($provider)['key_base'] ?? '';
-        return $base ? AiSecretLoader::getIndexed($base) : '';
+        return $base ? SecretStore::getIndexed($base, 5) : '';
     }
 
     /**
@@ -573,7 +575,7 @@ class AiProviderRegistry
     public static function allSecrets(string $provider): array
     {
         $base = self::meta($provider)['key_base'] ?? '';
-        return $base ? AiSecretLoader::getAllIndexed($base) : [];
+        return $base ? SecretStore::getAllIndexed($base, 5) : [];
     }
 
     /**
@@ -587,7 +589,7 @@ class AiProviderRegistry
     {
         $base = self::meta($provider)['key_base'] ?? '';
         if ($base) {
-            $img = AiSecretLoader::getIndexed($base . '_IMAGE');
+            $img = SecretStore::getIndexed($base . '_IMAGE', 5);
             if ($img !== '') {
                 return $img;
             }
@@ -609,8 +611,8 @@ class AiProviderRegistry
             return [];
         }
         $keys = array_merge(
-            AiSecretLoader::getAllIndexed($base . '_IMAGE'),
-            AiSecretLoader::getAllIndexed($base)
+            SecretStore::getAllIndexed($base . '_IMAGE', 5),
+            SecretStore::getAllIndexed($base, 5)
         );
         // Dedupe while preserving order (image keys first).
         return array_values(array_unique($keys));
@@ -632,7 +634,7 @@ class AiProviderRegistry
     public static function extraSecret(string $provider): string
     {
         $name = self::meta($provider)['extra_secret'] ?? '';
-        return $name ? AiSecretLoader::getIndexed($name) : '';
+        return $name ? SecretStore::getIndexed($name, 5) : '';
     }
 
     /** Registry secret base NAME for a provider (e.g. GOOGLE_API_KEY); '' if none. */
@@ -709,7 +711,7 @@ class AiProviderRegistry
         $meta = self::meta($provider);
         $urlKey = $meta['base_url_key'] ?? '';
         if ($urlKey) {
-            $override = AiSecretLoader::getIndexed($urlKey);
+            $override = SecretStore::getIndexed($urlKey, 5);
             if ($override !== '') {
                 return rtrim(trim($override), '/');
             }
@@ -728,7 +730,7 @@ class AiProviderRegistry
         // so token-only setups (no SA JSON) still count as configured.
         if ($provider === 'vertex') {
             $hasAuth = self::firstSecret('vertex') !== ''
-                || AiSecretLoader::getIndexed('VERTEX_ACCESS_TOKEN') !== '';
+                || SecretStore::getIndexed('VERTEX_ACCESS_TOKEN', 5) !== '';
             return $hasAuth && self::extraSecret('vertex') !== '';
         }
         if (self::firstSecret($provider) === '') {
@@ -743,7 +745,7 @@ class AiProviderRegistry
         }
         // azure is image-only and needs an endpoint alongside the key (the image
         // deployment is optional — defaults to dall-e-3, matching pycore).
-        if ($provider === 'azure' && AiSecretLoader::getIndexed('AZURE_OPENAI_ENDPOINT') === '') {
+        if ($provider === 'azure' && SecretStore::getIndexed('AZURE_OPENAI_ENDPOINT', 5) === '') {
             return false;
         }
         return true;

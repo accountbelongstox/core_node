@@ -7,6 +7,7 @@ use App\Services\TaskManagerService;
 use App\Services\WorkerManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\Utils\AppQyV1AITools\AppQyV1TranslationService;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * Word Translation AI Self-Filler
@@ -64,12 +65,15 @@ class AppQyV1WordTranslationFillerTask extends OctaneTimerTaskAbstract
      * 429 "Rate limit exceeded" errors. With it disabled, word_translation tasks
      * stay in the queue for pycore (the Google/remote worker) to claim via the
      * assist protocol, or are processed only when explicitly triggered from the
-     * UI. Flip APPQYV1_WORD_TRANSLATION_FILLER_ENABLED=true ONLY where Laravel is
-     * intentionally allowed to spend AI quota with no pycore worker present.
+     * UI. Enable the user-data setting only where Laravel is intentionally
+     * allowed to spend AI quota with no pycore worker present.
      */
     public function isEnabled(): bool
     {
-        return (bool) env('APPQYV1_WORD_TRANSLATION_FILLER_ENABLED', false);
+        return (bool) app(UserConfigService::class)->get(
+            UserConfigService::APPQYV1_WORD_TRANSLATION_FILLER_ENABLED,
+            false
+        );
     }
 
     public function exec(): void

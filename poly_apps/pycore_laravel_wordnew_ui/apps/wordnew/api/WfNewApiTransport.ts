@@ -13,6 +13,7 @@ import {
 import type { WfNewAuthResult, WfNewAuthUser } from './WfNewApiTypes';
 import { WordNewStorageKeys as StorageKeys } from '../persistence/WordNewStorageKeys';
 import { coordinateRequest } from '../../../core/network/RequestCoordinator';
+import { unwrapLaravelData } from '../../../core/integrations/laravel/transport/LaravelEnvelope';
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
 
@@ -112,10 +113,7 @@ export function handleMaybe401(status: number, expectedToken?: string | null): b
  * bodies pass through untouched.
  */
 export function unwrapEnvelope(body: any): any {
-  if (body && typeof body === 'object' && !Array.isArray(body) && 'data' in body) {
-    return body.data;
-  }
-  return body;
+  return unwrapLaravelData(body);
 }
 
 // --- transport ------------------------------------------------------------- #

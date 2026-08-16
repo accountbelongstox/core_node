@@ -128,16 +128,26 @@ class FileSystemManager
         return $result;
     }
 
-    public static function readFile(string $path): string|false
+    public static function writePrivateFile(string $path, string $content): bool
     {
-        // Map path to writable storage if needed
-        $mappedPath = self::mapExternalPath($path);
+        $result = self::writeFile($path, $content);
+
+        if ($result) {
+            @chmod($path, 0600);
+        }
+
+        return $result;
+    }
+
+    public static function readFile(string $path, bool $fixPermissions = true): string|false
+    {
+        $mappedPath = file_exists($path) ? $path : self::mapExternalPath($path);
 
         if (!file_exists($mappedPath)) {
             return false;
         }
 
-        if (self::$autoFixPermissions) {
+        if ($fixPermissions && self::$autoFixPermissions) {
             self::fixPermissions($mappedPath);
         }
 
@@ -220,6 +230,30 @@ class FileSystemManager
 
         self::fixPermissions($mappedPath);
         return ['success' => true, 'offset' => $currentSize + $written];
+    }
+
+    public static function runWithExclusiveFileLock(string $path, callable $callback, bool $blocking = false): array
+    {
+        $mappedPath = self::mapExternalPath($path);
+        $handle = null;
+        $operation = LOCK_EX | ($blocking ? 0 : LOCK_NB);
+
+        self::ensureDirectoryExists(dirname($mappedPath));
+        $handle = fopen($mappedPath, 'c+b');
+        if ($handle === false) {
+            throw new \RuntimeException('Unable to open the exclusive file lock.');
+        }
+        if (!flock($handle, $operation)) {
+            fclose($handle);
+            return ['acquired' => false, 'result' => null];
+        }
+
+        try {
+            return ['acquired' => true, 'result' => $callback()];
+        } finally {
+            flock($handle, LOCK_UN);
+            fclose($handle);
+        }
     }
 
     public static function hashFile(string $path, string $algorithm = 'sha256'): string|false

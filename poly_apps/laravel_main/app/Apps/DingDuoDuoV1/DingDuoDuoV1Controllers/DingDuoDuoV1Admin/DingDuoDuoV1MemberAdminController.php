@@ -12,8 +12,11 @@ namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Controllers\DingDuoDuoV1Admin;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use App\Models\User;
+use App\Services\UnifiedAuthService;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Services\DingDuoDuoV1MemberService;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Models\DingDuoDuoV1MemberModel;
 use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1Constants;
@@ -23,7 +26,7 @@ use App\Apps\DingDuoDuoV1\DingDuoDuoV1Constants\DingDuoDuoV1ErrorCodes;
  * Admin member management (CRUD) + expiry / permissions / tier control. Guarded by
  * 'custom.authenticate' at the route layer.
  */
-class DingDuoDuoV1MemberAdminController extends BaseController
+class DingDuoDuoV1MemberAdminController extends Controller
 {
     /**
      * GET admin/members -> paginated member list (optional ?q= username filter).
@@ -57,7 +60,10 @@ class DingDuoDuoV1MemberAdminController extends BaseController
     }
 
     /**
-     * POST admin/members -> create a member (password is bcrypt-hashed).
+     * POST admin/members -> create a member. Credentials are stored on the
+     * canonical global users table (created via UnifiedAuthService, or reused +
+     * password-reset when the username already exists); the member row keeps
+     * only app-specific extension fields linked by user_id.
      */
     public function store(Request $request): JsonResponse
     {
@@ -81,9 +87,33 @@ class DingDuoDuoV1MemberAdminController extends BaseController
             ], 400);
         }
 
+        $user = User::findByUsernameOrEmail($data['username']);
+        if ($user) {
+            UnifiedAuthService::resetPassword($user->username, $data['password']);
+        } else {
+            $registered = UnifiedAuthService::register([
+                'username' => $data['username'],
+                'email' => null,
+                'password' => $data['password'],
+            ]);
+
+            if (!$registered['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => DingDuoDuoV1ErrorCodes::getMessage(DingDuoDuoV1ErrorCodes::INTERNAL_ERROR),
+                    'code' => DingDuoDuoV1ErrorCodes::INTERNAL_ERROR,
+                ], 500);
+            }
+
+            $user = $registered['user'];
+        }
+
         $member = new DingDuoDuoV1MemberModel();
+        $member->user_id = (int) $user->id;
         $member->username = $data['username'];
-        $member->password = Hash::make($data['password']);
+        // Legacy NOT NULL column retained for pre-linkage rows; auth never reads
+        // it for linked members, so store an unusable random placeholder.
+        $member->password = Hash::make(Str::random(64));
         $member->tier = $data['tier'] ?? DingDuoDuoV1Constants::DEFAULT_TIER;
         $member->max_binds = (int) ($data['max_binds'] ?? DingDuoDuoV1Constants::DEFAULT_MAX_BINDS);
         $member->balance = (float) ($data['balance'] ?? 0);
@@ -100,7 +130,10 @@ class DingDuoDuoV1MemberAdminController extends BaseController
     }
 
     /**
-     * PUT admin/members/{id} -> update mutable fields (password re-hashed if given).
+     * PUT admin/members/{id} -> update mutable fields. A given password is
+     * applied to the linked global user (users table is authoritative); only
+     * unlinked legacy rows still get the member-row hash updated so the
+     * login-time migration path can carry it over.
      */
     public function update(Request $request, int $id): JsonResponse
     {
@@ -121,7 +154,22 @@ class DingDuoDuoV1MemberAdminController extends BaseController
         ]);
 
         if (array_key_exists('password', $data) && $data['password'] !== null && $data['password'] !== '') {
-            $member->password = Hash::make($data['password']);
+            $user = null;
+            if ($member->user_id !== null) {
+                $user = User::findById((int) $member->user_id);
+            }
+            if (!$user) {
+                $user = User::findByUsernameOrEmail($member->username);
+            }
+
+            if ($user) {
+                UnifiedAuthService::resetPassword($user->username, $data['password']);
+                if ($member->user_id === null) {
+                    $member->user_id = (int) $user->id;
+                }
+            } else {
+                $member->password = Hash::make($data['password']);
+            }
         }
         if (array_key_exists('tier', $data) && $data['tier'] !== null) {
             $member->tier = $data['tier'];

@@ -103,7 +103,7 @@ class PunctuationMarkerSeeder
     public static function getTableStats(): array
     {
         try {
-            return ['markers' => AppQyV1PunctuationMarkerModel::tableRowCount()];
+            return ['markers' => AppQyV1PunctuationMarkerModel::configuredTableRowCount()];
         } catch (\Exception $e) {
             return ['error' => $e->getMessage()];
         }

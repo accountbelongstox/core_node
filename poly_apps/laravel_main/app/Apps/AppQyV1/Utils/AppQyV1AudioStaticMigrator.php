@@ -47,7 +47,7 @@ class AppQyV1AudioStaticMigrator
     private static function legacyRoots(): array
     {
         return [
-            // EdgeTTSService / AppQyV1TTSService legacy base.
+            // EdgeTTSService legacy base.
             rtrim(PathMapper::getLaravelDataDir(), '/\\') . DIRECTORY_SEPARATOR . 'tts_data' . DIRECTORY_SEPARATOR . 'audio',
             // Alternate legacy root some hosts wrote under.
             rtrim(PathMapper::getLaravelDataDir(), '/\\') . DIRECTORY_SEPARATOR . 'external_data' . DIRECTORY_SEPARATOR . 'audio',

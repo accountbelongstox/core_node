@@ -11,11 +11,13 @@
 
 namespace App\Http\StaticServer;
 
+use App\Http\Controllers\Controller;
+
 use App\Services\DownloadManager;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class DownloadController
+class DownloadController extends Controller
 {
     private $downloadManager;
 

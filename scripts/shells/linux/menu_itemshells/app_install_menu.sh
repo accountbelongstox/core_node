@@ -25,50 +25,50 @@ _resolve_app_install_paths() {
     LINUX_DIR="$(dirname "$SCRIPT_DIR")"
     COMMON_DIR="$LINUX_DIR/common"
     INSTALL_SHELLS_DIR="$LINUX_DIR/debian/install_shells"
-    STEP120_SCRIPT="$INSTALL_SHELLS_DIR/122_install_desktop_applications.sh"
+    STEP120_SCRIPT="$INSTALL_SHELLS_DIR/121_install_desktop_applications.sh"
 }
 
 _resolve_app_install_paths
 
 # Script-based installs: "script:filename|Display Name"
-# Infra/DB: 45 Redis, 46 PostgreSQL, 47 Docker, 50 MySQL
-# Desktop/App: 35 Chrome, 121 Cursor, 122 VSCode, 126 Antigravity, 127 WeChat, 30 Edge
-# Runtime/Toolchain: 13 Python, 14 faster-whisper, 15 Node 24, 19 UV, 42 Rust, 53 Go, 54 Java, 34 Composer, 38 Flutter, 41 Ruby, 37 .NET
-# Server/Service: 25 Nginx, 26 Certbot, 52 Tailscale, 85 Code Server, 123 Gitea, 124 RustDesk Client, 128 RustDesk Server
-# AI: 95 DeepSeek, 96 DeepSeek OCR (Cline/Ark/Kimi/Cursor Agent via linux_applications_list AI group)
-# Setup: 125 GNOME RDP
+# Infra/DB: 46 Redis, 47 PostgreSQL, 48 Docker, 51 MySQL
+# Desktop/App: 36 Chrome, 122 Cursor, 123 VSCode, 127 Antigravity, 128 WeChat, 31 Edge
+# Runtime/Toolchain: 13 Python, 15 faster-whisper, 16 Node 24, 20 UV, 43 Rust, 54 Go, 55 Java, 35 Composer, 39 Flutter, 42 Ruby, 38 .NET
+# Server/Service: 26 Nginx, 27 Certbot, 53 Tailscale, 86 Code Server, 124 Gitea, 125 RustDesk Client, 129 RustDesk Server
+# AI: 96 DeepSeek, 97 DeepSeek OCR (Cline/Ark/Kimi/Cursor Agent via linux_applications_list AI group)
+# Setup: 126 GNOME RDP
 SCRIPT_INSTALL_ENTRIES=(
-    "script:49_install_docker.sh|Docker"
-    "script:52_install_mysql.sh|MySQL"
-    "script:47_install_redis.sh|Redis"
-    "script:48_install_postgresql.sh|PostgreSQL"
-    "script:123_install_cursor.sh|Cursor"
-    "script:124_install_vscode.sh|VSCode"
-    "script:128_install_antigravity.sh|Antigravity"
-    "script:129_install_wechat.sh|WeChat"
-    "script:37_install_chrome.sh|Chrome (script)"
-    "script:32_install_edge.sh|Edge"
-    "script:17_install_node_24.sh|Node.js 24"
-    "script:56_install_java.sh|Java"
-    "script:55_install_golang22.sh|Go 1.22"
-    "script:44_install_rust.sh|Rust"
-    "script:21_install_uv.sh|UV"
+    "script:48_install_docker.sh|Docker"
+    "script:51_install_mysql.sh|MySQL"
+    "script:46_install_redis.sh|Redis"
+    "script:47_install_postgresql.sh|PostgreSQL"
+    "script:122_install_cursor.sh|Cursor"
+    "script:123_install_vscode.sh|VSCode"
+    "script:127_install_antigravity.sh|Antigravity"
+    "script:128_install_wechat.sh|WeChat"
+    "script:36_install_chrome.sh|Chrome (script)"
+    "script:31_install_edge.sh|Edge"
+    "script:16_install_node_24.sh|Node.js 24"
+    "script:55_install_java.sh|Java"
+    "script:54_install_golang22.sh|Go 1.22"
+    "script:43_install_rust.sh|Rust"
+    "script:20_install_uv.sh|UV"
     "script:13_ensure_python.sh|Python (ensure)"
-    "script:16_install_faster_whisper.sh|faster-whisper (STT)"
-    "script:36_install_composer.sh|Composer"
-    "script:40_install_flutter.sh|Flutter"
-    "script:43_install_ruby.sh|Ruby"
-    "script:39_install_dotnet.sh|.NET"
-    "script:27_install_nginx.sh|Nginx"
-    "script:28_install_certbot.sh|Certbot"
-    "script:54_install_tailscale.sh|Tailscale (VPN)"
-    "script:87_install_code_server.sh|Code Server"
-    "script:125_install_gitea.sh|Gitea"
-    "script:126_install_rustdesk_client_1.4.4.sh|RustDesk Client"
-    "script:130_install_rustdesk_server_1.1.14.sh|RustDesk Server"
-    "script:97_install_deepseek.sh|DeepSeek"
-    "script:98_install_deepseek_ocr.sh|DeepSeek OCR"
-    "script:127_setup_gnome_rdp.sh|GNOME RDP (setup)"
+    "script:15_install_faster_whisper.sh|faster-whisper (STT)"
+    "script:35_install_composer.sh|Composer"
+    "script:39_install_flutter.sh|Flutter"
+    "script:42_install_ruby.sh|Ruby"
+    "script:38_install_dotnet.sh|.NET"
+    "script:26_install_nginx.sh|Nginx"
+    "script:27_install_certbot.sh|Certbot"
+    "script:53_install_tailscale.sh|Tailscale (VPN)"
+    "script:86_install_code_server.sh|Code Server"
+    "script:124_install_gitea.sh|Gitea"
+    "script:125_install_rustdesk_client_1.4.4.sh|RustDesk Client"
+    "script:129_install_rustdesk_server_1.1.14.sh|RustDesk Server"
+    "script:96_install_deepseek.sh|DeepSeek"
+    "script:97_install_deepseek_ocr.sh|DeepSeek OCR"
+    "script:126_setup_gnome_rdp.sh|GNOME RDP (setup)"
 )
 
 if [ ! -s "$COMMON_DIR/linux_applications_list.sh" ]; then

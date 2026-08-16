@@ -3,28 +3,14 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 
-class AppQyV1UserInitializationModel extends Model
+class AppQyV1UserInitializationModel extends AppQyV1Model
 {
     use HasFactory;
 
-    protected $appKey = AppKeys::APPQYV1;
     
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'user_initializations');
-    }
+    protected ?string $appTableSuffix = 'user_initializations';
     
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
-
     protected $fillable = [
         'user_id',
         'occupation',
@@ -35,13 +21,16 @@ class AppQyV1UserInitializationModel extends Model
         'initialization_completed_at',
     ];
 
-    protected $casts = [
-        'preferences' => 'array',
-        'is_initialized' => 'boolean',
-        'initialization_completed_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'preferences' => 'array',
+            'is_initialized' => 'boolean',
+            'initialization_completed_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public static function forUser(int $userId): ?self
     {

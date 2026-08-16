@@ -420,7 +420,9 @@ interface ContractDocument {
     id_page_limit: number;
     id_limit: number;
     data_segment_limit: number;
+    poll_interval_ms: number;
     head_reserve: number;
+    head_notification_interval_seconds: number;
     producer_batch_limits: Record<string, number>;
     consumer_batch_limits: Record<string, number>;
     consumer_task_timeout_seconds: Record<string, number>;

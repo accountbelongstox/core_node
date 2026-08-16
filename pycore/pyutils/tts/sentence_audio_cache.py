@@ -7,7 +7,7 @@ the already-synthesized file instead of paying for another (often GPU-heavy) syn
 The cache is keyed by a sha256 of the STABLE tuple of everything that changes the
 produced audio:
 
-    key = sha256( text | lang | speaker | instruct | engine | format | model_id )
+    key = sha256( text | lang | speaker | instruct | engine | format | model_id | speed )
 
 Cache directory (CENTRAL path map — never hardcode a disk path):
 
@@ -65,6 +65,7 @@ def make_key(
     engine: Optional[str],
     fmt: Optional[str],
     model_id: Optional[str],
+    speed: Optional[str] = None,
 ) -> str:
     """sha256 hex of the stable synthesis-input tuple. Any field that changes the
     produced audio is part of the key, so distinct requests never collide and
@@ -77,6 +78,7 @@ def make_key(
         (engine or "").strip().lower(),
         _norm_ext(fmt),
         (model_id or "").strip(),
+        (speed or "").strip(),
     )
     raw = _KEY_SEP.join(parts)
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
@@ -130,10 +132,11 @@ def lookup_or_none(
     engine: Optional[str] = None,
     fmt: Optional[str] = None,
     model_id: Optional[str] = None,
+    speed: Optional[str] = None,
 ) -> Optional[Path]:
     """Convenience: build the key from the synthesis params and return the cached
     file (or None on miss). No synthesis is performed here."""
-    key = make_key(text, lang, speaker, instruct, engine, fmt, model_id)
+    key = make_key(text, lang, speaker, instruct, engine, fmt, model_id, speed)
     return cached_path(key, fmt or "mp3")
 
 
@@ -146,9 +149,10 @@ def store_result(
     fmt: Optional[str],
     model_id: Optional[str],
     data_bytes: bytes,
+    speed: Optional[str] = None,
 ) -> Path:
     """Convenience: build the key from the synthesis params and store the bytes."""
-    key = make_key(text, lang, speaker, instruct, engine, fmt, model_id)
+    key = make_key(text, lang, speaker, instruct, engine, fmt, model_id, speed)
     return store(key, fmt or "mp3", data_bytes)
 
 

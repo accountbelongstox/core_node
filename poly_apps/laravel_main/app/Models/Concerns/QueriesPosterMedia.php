@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\Log;
 
 trait QueriesPosterMedia
 {
+    public static function posterColumnAvailable(string $column): bool
+    {
+        $model = new static();
+
+        return $model->getConnection()->getSchemaBuilder()->hasColumn($model->getTable(), $column);
+    }
+
     public static function posterStatusCounts(): array
     {
         $base = ['pending' => 0, 'ready' => 0, 'failed' => 0, 'none' => 0, 'total' => 0];
@@ -62,8 +69,8 @@ trait QueriesPosterMedia
         if ($search !== '') {
             $like = '%' . $search . '%';
             $query->where(function ($searchQuery) use ($like): void {
-                $searchQuery->where('title', 'like', $like)
-                    ->orWhere('original_name', 'like', $like);
+                $searchQuery->whereLike('title', $like, caseSensitive: false)
+                    ->orWhereLike('original_name', $like, caseSensitive: false);
             });
         }
 

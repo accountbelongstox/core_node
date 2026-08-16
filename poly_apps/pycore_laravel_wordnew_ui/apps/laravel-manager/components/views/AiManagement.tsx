@@ -8,28 +8,37 @@
  *   - Rate meters    : minute / day / month usage vs limits with reset
  *                      countdowns; polled every 5s (the backend tick resets the
  *                      windows, we just reflect them — no quota spend).
+ *   - Capabilities   : the official Laravel AI SDK feature matrix (providers ×
+ *                      text / vision / images / TTS / STT / embeddings / rerank
+ *                      / files) — listed with or without a configured key.
  *   - Gateway        : per-provider call counters / cooldown + the recent call
  *                      record list (which provider/model handled each task).
- *   - Chat test      : a compact box to send one message through the gateway
- *                      (Auto smart-dispatch or a specific provider).
+ *   - Prompt cache   : gateway-local prompt → response memoization stats.
+ *   - AI Chat        : the shared AiChatKit over the official SDK chat surface
+ *                      (server-side conversations, image attachments, provider
+ *                      failover, prompt-cache toggle).
  *
  * A failing section never blanks the others — the last good snapshot is kept.
  * BaseAPI auto-logs every request; notable user actions also append to the
  * global log store.
  */
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   BrainCircuit, RefreshCcw, CheckCircle2, AlertTriangle, MinusCircle, Timer, KeyRound,
-  Snowflake, Activity, Gauge, Eye, ImageIcon, Send, Radio, Server, Clock,
+  Snowflake, Activity, Gauge, Eye, ImageIcon, MessagesSquare, Radio, Server, Clock,
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import { useToast } from '../admin';
 import { appendLog } from '@/core/logstore/logStore';
 import type {
-  AiProvider, AiRateStatus, AiGatewayProvider, AiGatewayRecord, AiChatResult,
+  AiProvider, AiRateStatus, AiGatewayProvider, AiGatewayRecord,
 } from '@/apps/laravel-manager/api';
 import AiUsagePanel from '@/shared/ai-usage/AiUsagePanel';
+import { AiChatKit } from '@/shared/AiChatKit/AiChatKit';
+import { laravelSdkChatAdapter } from '../../integrations/LaravelSdkChatAdapter';
 import AiKeysPanel from '../ai-tools/AiKeysPanel';
+import AiCapabilitiesPanel from '../ai-tools/AiCapabilitiesPanel';
+import AiPromptCachePanel from '../ai-tools/AiPromptCachePanel';
 
 const TIER_CLS: Record<string, string> = {
   free: 'bg-emerald-500/15 text-emerald-500',
@@ -158,12 +167,9 @@ const AiManagement: React.FC = () => {
 
   const [gateway, setGateway] = useState<{ providers: AiGatewayProvider[]; records: AiGatewayRecord[] } | null>(null);
 
-  // Chat test box state.
-  const [chatProvider, setChatProvider] = useState('auto');
-  const [chatInput, setChatInput] = useState('');
-  const [chatSending, setChatSending] = useState(false);
-  const [chatReply, setChatReply] = useState<AiChatResult | null>(null);
-  const [chatError, setChatError] = useState<string | null>(null);
+  // Bumped after every SDK chat turn so the prompt-cache panel + gateway
+  // activity reflect the call without waiting for the 5s poll.
+  const [chatActivityKey, setChatActivityKey] = useState(0);
 
   // --- catalog (instant grid, no probe) ----------------------------------- #
   const loadCatalog = useCallback(async (refresh: boolean) => {
@@ -297,39 +303,11 @@ const AiManagement: React.FC = () => {
     void loadGateway();
   }, [loadCatalog, refreshRates, loadGateway]);
 
-  // --- chat test ----------------------------------------------------------- #
-  const sendChat = useCallback(async () => {
-    const message = chatInput.trim();
-    if (!message || chatSending) return;
-    setChatSending(true);
-    setChatError(null);
-    setChatReply(null);
-    appendLog('info', 'ai', `Chat test → ${chatProvider} : ${message.slice(0, 80)}`);
-    try {
-      const res = await api.aiManagement.chat({
-        provider: chatProvider,
-        message,
-        source: 'ai-management',
-      });
-      if (res.success && res.data && res.data.success) {
-        setChatReply(res.data);
-        appendLog('success', 'ai',
-          `Chat reply via ${res.data.provider}/${res.data.model} (${Math.round(res.data.latency_ms ?? 0)}ms)`);
-      } else {
-        const msg = res.data?.error || res.error || 'Chat request failed';
-        const retry = res.data?.retry_after_s;
-        setChatError(retry != null ? `${msg} (retry in ${retry}s)` : msg);
-        toast.error(msg, 'Chat test');
-        appendLog('error', 'ai', `Chat test failed: ${msg}`);
-      }
-    } catch (e: any) {
-      const msg = e?.message || 'Chat request failed';
-      setChatError(msg);
-      toast.error(msg, 'Chat test');
-    } finally {
-      setChatSending(false);
-    }
-  }, [chatInput, chatProvider, chatSending, toast]);
+  // A completed SDK chat turn hits the gateway + prompt cache — refresh both.
+  const onChatActivity = useCallback(() => {
+    setChatActivityKey((k) => k + 1);
+    void loadGateway();
+  }, [loadGateway]);
 
   // --- lifecycle ----------------------------------------------------------- #
   useEffect(() => {
@@ -349,10 +327,6 @@ const AiManagement: React.FC = () => {
   }, [refreshRates, loadGateway]);
 
   const list = providers ?? [];
-  const configuredProviders = useMemo(
-    () => list.filter((p) => p.configured).map((p) => p.name),
-    [list],
-  );
 
   return (
     <div className="p-6 md:p-8 space-y-5 min-w-0 max-w-full">
@@ -363,7 +337,7 @@ const AiManagement: React.FC = () => {
             <BrainCircuit className="w-5 h-5 text-indigo-500" /> AI Management
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            laravel_main unified AI gateway — providers, live rate budgets, gateway activity and a chat test.
+            laravel_main unified AI gateway — providers, SDK capabilities, live rate budgets, gateway activity, prompt cache and chat.
           </p>
         </div>
         <div className="flex shrink-0 gap-2 self-end sm:self-auto">
@@ -495,6 +469,11 @@ const AiManagement: React.FC = () => {
         )}
       </section>
 
+      {/* ===================== Laravel AI capabilities ===================== */}
+      <section className={`${CARD} p-2 sm:p-3`}>
+        <AiCapabilitiesPanel />
+      </section>
+
       {/* ===================== Provider API keys ===================== */}
       <section className={`${CARD} p-2 sm:p-3`}>
         <AiKeysPanel />
@@ -593,6 +572,11 @@ const AiManagement: React.FC = () => {
         )}
       </section>
 
+      {/* ===================== Prompt cache ===================== */}
+      <section className={`${CARD} p-2 sm:p-3`}>
+        <AiPromptCachePanel refreshKey={chatActivityKey} />
+      </section>
+
       {/* ===================== AI Usage (shared) ===================== */}
       <section className={`${CARD} p-2 sm:p-3`}>
         <AiUsagePanel
@@ -601,67 +585,18 @@ const AiManagement: React.FC = () => {
         />
       </section>
 
-      {/* ===================== Chat test ===================== */}
+      {/* ===================== AI Chat (official Laravel AI SDK) ===================== */}
       <section className={`${CARD} p-5`}>
         <h2 className="text-sm font-bold flex items-center gap-2 text-slate-700 dark:text-slate-200 mb-1">
-          <Send className="w-4 h-4 text-indigo-500" /> Chat test
+          <MessagesSquare className="w-4 h-4 text-indigo-500" /> AI Chat
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-          Send one message through the gateway. Auto uses smart free→balance→paid dispatch; pick a provider to force it.
+          Multi-turn chat through the official Laravel AI SDK — server-side conversations, image attachments
+          (vision), provider failover (Auto) and the gateway prompt cache (the ⚡ toggle).
         </p>
-
-        <div className="flex flex-col sm:flex-row gap-2">
-          <select
-            value={chatProvider}
-            onChange={(e) => setChatProvider(e.target.value)}
-            disabled={chatSending}
-            className="shrink-0 px-3 py-2 rounded-xl text-xs font-medium border bg-white/60 dark:bg-white/5 border-slate-300/40 dark:border-white/10 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50">
-            <option value="auto">Auto (smart dispatch)</option>
-            {configuredProviders.map((name) => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendChat(); } }}
-            placeholder="Type a test prompt…"
-            disabled={chatSending}
-            className="flex-1 min-w-0 px-3 py-2 rounded-xl text-xs border bg-white/60 dark:bg-white/5 border-slate-300/40 dark:border-white/10 text-slate-700 dark:text-slate-200 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:opacity-50"
-          />
-          <button
-            onClick={() => void sendChat()}
-            disabled={chatSending || !chatInput.trim()}
-            className="shrink-0 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl flex items-center gap-1 transition disabled:opacity-50">
-            {chatSending ? <RefreshCcw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-            {chatSending ? 'Sending…' : 'Send'}
-          </button>
+        <div className="rounded-2xl border border-slate-300/35 dark:border-white/5 bg-white/40 dark:bg-white/5 overflow-hidden h-[560px]">
+          <AiChatKit adapter={laravelSdkChatAdapter} onAfterSend={onChatActivity} />
         </div>
-
-        {chatError && (
-          <div className="mt-3 flex items-start gap-2 text-xs rounded-xl p-3 border bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <span className="break-words">{chatError}</span>
-          </div>
-        )}
-
-        {chatReply && (
-          <div className="mt-3 rounded-xl p-3 border bg-white/40 dark:bg-white/5 border-slate-300/35 dark:border-white/5">
-            <div className="flex items-center justify-between gap-2 mb-1.5">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                {chatReply.nickname || chatReply.provider}
-                <span className="text-slate-400 font-normal font-mono"> · {chatReply.provider}/{chatReply.model}</span>
-              </span>
-              {chatReply.latency_ms != null && (
-                <span className="text-[10px] font-mono text-slate-400 shrink-0">{Math.round(chatReply.latency_ms)} ms</span>
-              )}
-            </div>
-            <p className="text-xs text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">
-              {chatReply.text}
-            </p>
-          </div>
-        )}
       </section>
     </div>
   );

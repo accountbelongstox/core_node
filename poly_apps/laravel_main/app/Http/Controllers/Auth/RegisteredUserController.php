@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rules;
 use Illuminate\Http\JsonResponse;
-use App\Http\Controllers\Auth\AvatarPublic;
+use App\Http\Common\CommonAuthService;
 use App\Traits\ApiResponse;
 
 /**
@@ -142,14 +142,14 @@ class RegisteredUserController extends Controller
             ]);
         }
 
-        $user = AvatarPublic::createAvatar($user);
+        $session = CommonAuthService::issueLoginToken($user);
+        $user = $session['user'];
         event(new Registered($user));
 
-        $token = $user->createToken('auth_token')->plainTextToken;
         return $this->success([
-            'token' => $token,
-            'token_type' => 'Bearer',
-            'expiration' => config('sanctum.expiration'),
+            'token' => $session['token'],
+            'token_type' => $session['token_type'],
+            'expiration' => $session['expiration'],
             'uid' => $user->id,
             'user' => $user,
         ], 'User registered successfully');

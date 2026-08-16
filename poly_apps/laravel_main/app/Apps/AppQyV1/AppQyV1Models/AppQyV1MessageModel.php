@@ -13,18 +13,14 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
  * Chat message (SOCIAL_FEATURE_SPECIFICATION.md §1/§2). Append-only;
  * created_at only (no updated_at). Paginated by the (conversation_id, id) cursor.
  */
-class AppQyV1MessageModel extends Model
+class AppQyV1MessageModel extends AppQyV1Model
 {
     public const TYPE_TEXT = 'text';
     public const TYPE_IMAGE = 'image';
@@ -33,15 +29,8 @@ class AppQyV1MessageModel extends Model
     // created_at only (append-only); no updated_at column.
     public $timestamps = false;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('MESSAGES');
-    }
+    protected ?string $appTableMapKey = 'MESSAGES';
 
     protected $fillable = [
         'conversation_id',
@@ -52,12 +41,15 @@ class AppQyV1MessageModel extends Model
         'created_at',
     ];
 
-    protected $casts = [
-        'conversation_id' => 'integer',
-        'sender_id' => 'integer',
-        'metadata' => 'array',
-        'created_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'conversation_id' => 'integer',
+            'sender_id' => 'integer',
+            'metadata' => 'array',
+            'created_at' => 'datetime',
+        ];
+    }
 
     public function conversation(): BelongsTo
     {

@@ -10,31 +10,13 @@
 
 namespace App\Apps\DingDuoDuoV1\DingDuoDuoV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Apps\DingDuoDuoV1\DingDuoDuoV1DBTablesBrige\DingDuoDuoV1TableMaps;
-
 /**
  * DingDuoDuoV1 (订多多) recharge-API settings (single config row): provider
  * credentials, gateway endpoint / notify URL and the offered package list.
  */
-class DingDuoDuoV1RechargeConfigModel extends Model
+class DingDuoDuoV1RechargeConfigModel extends DingDuoDuoV1Model
 {
-    protected $appKey = AppKeys::DINGDUODUOV1;
-    protected $table;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = DingDuoDuoV1TableMaps::getTableName('RECHARGE_CONFIGS');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableMapKey = 'RECHARGE_CONFIGS';
 
     protected $fillable = [
         'provider',
@@ -65,11 +47,6 @@ class DingDuoDuoV1RechargeConfigModel extends Model
     public static function current(): ?self
     {
         return static::query()->orderBy('id')->first();
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public static function anyExists(): bool

@@ -11,11 +11,13 @@
 
 namespace App\Http\Clash;
 
+use App\Http\Controllers\Controller;
+
 use App\Apps\ClashV1\ClashV1Models\ClashV1GroupModel as Group;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class GroupViewController
+class GroupViewController extends Controller
 {
     public function index()
     {

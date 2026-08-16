@@ -38,11 +38,9 @@ class ClashV1GroupModel extends Model
 
     protected $hidden = ['deleted_at'];
 
-    protected static function boot()
+    protected static function booted(): void
     {
-        parent::boot();
-
-        static::creating(function ($group) {
+        static::creating(static function (self $group): void {
             // Generate unique identifier: group name/MD5/creation date
             $group->identifier = sprintf(
                 '%s/%s/%s',

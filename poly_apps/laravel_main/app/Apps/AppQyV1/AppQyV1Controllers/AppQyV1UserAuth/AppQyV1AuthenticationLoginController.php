@@ -22,12 +22,13 @@ use Laravolt\Avatar\Avatar;
 use App\Http\Common\CommonAvatarPublic;
 use App\Http\Common\CommonAuthService;
 use App\Models\User;
-use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
+use App\Http\Common\CommonGvar as Gvar;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1WordGroupPublicController;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserLearningProgressModel;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
-class AppQyV1AuthenticationLoginController extends BaseController
+use App\Support\RuntimeConfigurationStore;
+class AppQyV1AuthenticationLoginController extends Controller
 {
     use ApiResponse;
 
@@ -259,7 +260,7 @@ class AppQyV1AuthenticationLoginController extends BaseController
         $state = $request->input('state', Str::random(32));
 
         $authUrl = 'https://open.weixin.qq.com/connect/oauth2/authorize?' . http_build_query([
-            'appid' => env('WECHAT_APP_ID', 'mock_app_id'),
+            'appid' => RuntimeConfigurationStore::get('WECHAT_APP_ID', 'mock_app_id'),
             'redirect_uri' => $redirectUri,
             'response_type' => 'code',
             'scope' => 'snsapi_userinfo',

@@ -8,12 +8,7 @@
 // VIOLATION IS PROHIBITED.
 // ### AI SPECIAL ATTENTION RULES END ###
 
-
 return [
-
-
-    'debug_tokens' => [
-        env('DEBUG_TOKEN_DEFAULT', 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'),
-    ],
-
+    // Injected from the external secret store during application bootstrap.
+    'debug_tokens' => [],
 ];

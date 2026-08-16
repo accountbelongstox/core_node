@@ -3,13 +3,13 @@
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UserPresenceModel;
 
-class AppQyV1NearbyController extends BaseController
+class AppQyV1NearbyController extends Controller
 {
     use ApiResponse;
 

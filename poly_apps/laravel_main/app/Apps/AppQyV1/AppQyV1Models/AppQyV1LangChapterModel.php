@@ -13,12 +13,9 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\BindsAppQyV1LanguageTable;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Per-language chapter store (Books v3.1 unified model — see
@@ -31,9 +28,9 @@ use Illuminate\Support\Facades\Schema;
  * by (source_type, source_key, chapter_index); the same chapter_index across the
  * per-language tables is the same chapter.
  */
-class AppQyV1LangChapterModel extends Model
+class AppQyV1LangChapterModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
+    use BindsAppQyV1LanguageTable;
 
     protected $fillable = [
         'source_type',
@@ -46,40 +43,18 @@ class AppQyV1LangChapterModel extends Model
         'metadata',
     ];
 
-    protected $casts = [
-        'chapter_index' => 'integer',
-        'sentence_count' => 'integer',
-        'metadata' => 'array',
-    ];
-
-    public function __construct(array $attributes = [])
+    protected function casts(): array
     {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
+        return [
+            'chapter_index' => 'integer',
+            'sentence_count' => 'integer',
+            'metadata' => 'array',
+        ];
     }
 
-    /**
-     * Bind this instance to the per-language chapter table for $lang.
-     * Returns $this for fluent chaining.
-     */
-    public function bindLanguage(string $lang): self
+    protected static function resolveLanguageTable(string $language): string
     {
-        $this->setTable(AppQyV1TableMaps::getChapterTableName(AppQyV1TableMaps::normalizeLangCode($lang)));
-        return $this;
-    }
-
-    /** A fresh model instance bound to the per-language chapter table for $lang. */
-    public static function for(string $lang): self
-    {
-        $model = new self();
-        $model->bindLanguage($lang);
-        return $model;
-    }
-
-    /** A query builder against the per-language chapter table for $lang. */
-    public static function onLang(string $lang)
-    {
-        return self::for($lang)->newQuery();
+        return AppQyV1TableMaps::getChapterTableName(AppQyV1TableMaps::normalizeLangCode($language));
     }
 
     public static function rowsForSource(string $lang, string $sourceType, string $sourceKey): Collection
@@ -91,18 +66,6 @@ class AppQyV1LangChapterModel extends Model
             ->get();
     }
 
-    public static function tableExists(string $lang): bool
-    {
-        $model = self::for($lang);
-
-        return Schema::connection($model->getConnectionName())->hasTable($model->getTable());
-    }
-
-    public static function tableRowCount(string $lang): int
-    {
-        return self::tableExists($lang) ? self::onLang($lang)->count() : 0;
-    }
-
     public static function deleteForSource(string $lang, string $sourceType, string $sourceKey): int
     {
         if (!self::tableExists($lang)) {
@@ -112,6 +75,18 @@ class AppQyV1LangChapterModel extends Model
         return self::onLang($lang)
             ->where('source_type', $sourceType)
             ->where('source_key', $sourceKey)
+            ->delete();
+    }
+
+    public static function deleteForSources(string $lang, string $sourceType, array $sourceKeys): int
+    {
+        if (!self::tableExists($lang)) {
+            return 0;
+        }
+
+        return self::onLang($lang)
+            ->where('source_type', $sourceType)
+            ->whereIn('source_key', array_values(array_unique($sourceKeys)))
             ->delete();
     }
 

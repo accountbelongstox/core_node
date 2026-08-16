@@ -5,6 +5,9 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxInfo;
+use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -14,76 +17,41 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
     /**
      * Hint shown when nginx is not installed on the host
      */
-    private const NGINX_INSTALL_HINT = 'nginx is not installed. Run: bash scripts/shells/linux/debian/install_shells/25_install_nginx.sh (idempotent installer)';
+    private const NGINX_INSTALL_HINT = 'nginx is not installed. Run: bash scripts/shells/linux/debian/install_shells/26_install_nginx.sh (idempotent installer)';
+
+    // SYNC CONTRACT (two ends, one truth): this controller is the Laravel end
+    // of nginx lifecycle management (install / repair / service / sites /
+    // backups / metrics). The shell end is:
+    //   scripts/shells/linux/common/nginx_manager.sh (CLI primitives)
+    //   scripts/shells/linux/common/nginx_common.sh (repair + renderers)
+    //   scripts/shells/linux/debian/install_shells/26_install_nginx.sh (dd.sh step)
+    // Any change to repair semantics, upgrade policy, or service control MUST
+    // be applied to both ends in the same change. The UI
+    // (http://127.0.0.1:13054/laravel-manager#/server) talks ONLY to this API;
+    // initial provisioning runs through the shell end.
 
     /**
-     * Cached nginx binary detection result
-     */
-    private static bool $nginxBinaryResolved = false;
-    private static ?string $nginxBinary = null;
-
-    /**
-     * Detect the full path of the nginx binary.
-     * Checks well-known locations first, then falls back to `which nginx`.
-     * Only POSITIVE results are cached in the static property, so a worker
-     * that booted before nginx was installed picks up a fresh install on
-     * its next request without requiring an octane:reload.
+     * Detect the full path of the nginx binary (shared probe).
      */
     private function detectNginxBinary(): ?string
     {
-        if (self::$nginxBinaryResolved) {
-            return self::$nginxBinary;
-        }
-
-        $candidates = [
-            '/usr/sbin/nginx',
-            '/usr/local/sbin/nginx',
-            '/usr/bin/nginx',
-            '/usr/local/bin/nginx',
-        ];
-
-        foreach ($candidates as $candidate) {
-            if (is_file($candidate) && is_executable($candidate)) {
-                self::$nginxBinary = $candidate;
-                self::$nginxBinaryResolved = true;
-                return self::$nginxBinary;
-            }
-        }
-
-        $which = ServerManagerV1Utils::executeCommand('which', ['nginx']);
-        if ($which['success']) {
-            $path = trim($which['output']);
-            if ($path !== '' && is_file($path) && is_executable($path)) {
-                self::$nginxBinary = $path;
-                self::$nginxBinaryResolved = true;
-                return self::$nginxBinary;
-            }
-        }
-
-        // Not found: do NOT cache the negative result
-        return null;
+        return ServerManagerV1NginxInfo::getBinary();
     }
 
     /**
-     * Reset the static nginx binary cache (used after a fresh install)
+     * Reset the nginx binary cache (used after a fresh install)
      */
     private static function resetNginxBinaryCache(): void
     {
-        self::$nginxBinaryResolved = false;
-        self::$nginxBinary = null;
+        ServerManagerV1NginxInfo::resetCache();
     }
 
     /**
-     * Get the nginx version string ("1.24.0") from `nginx -v` (prints to STDERR)
+     * Get the nginx version string ("1.31.3")
      */
     private function getNginxVersion(string $binary): ?string
     {
-        $versionResult = ServerManagerV1Utils::executeCommand($binary, ['-v']);
-        $versionText = trim(($versionResult['output'] ?? '') . "\n" . ($versionResult['error'] ?? ''));
-        if (preg_match('#nginx/([0-9][^\s]*)#', $versionText, $matches)) {
-            return $matches[1];
-        }
-        return null;
+        return ServerManagerV1NginxInfo::getVersion();
     }
 
     /**
@@ -268,7 +236,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 return strcmp($a['name'], $b['name']);
             });
             
-            return $this->successResponse([
+            return $this->success([
                 'sites' => $sites,
                 'total_sites' => count($sites),
                 'enabled_sites' => count(array_filter($sites, fn($s) => $s['enabled'])),
@@ -302,7 +270,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Validate required parameters
             if (empty($siteName) || empty($domain)) {
-                return $this->errorResponse('site_name and domain are required');
+                return $this->error('site_name and domain are required');
             }
 
             $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
@@ -310,7 +278,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Check if site already exists
             if (file_exists($configFile)) {
-                return $this->errorResponse("Site already exists: $siteName", ServerManagerV1Constants::RESPONSE_CONFLICT);
+                return $this->error("Site already exists: $siteName", ServerManagerV1Constants::RESPONSE_CONFLICT);
             }
 
             // SSL: issue/reuse the cert FIRST so its files exist before the nginx
@@ -359,12 +327,12 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Write configuration file
             if (file_put_contents($configFile, $nginxConfig) === false) {
-                return $this->errorResponse("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
+                return $this->error("Failed to create site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -372,7 +340,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!$testResult['success']) {
                 // Remove the invalid configuration file
                 unlink($configFile);
-                return $this->errorResponse('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $responseData = [
@@ -402,7 +370,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse($responseData, 'Site created successfully');
+            return $this->success($responseData, 'Site created successfully');
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_create_site');
@@ -430,7 +398,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $configFile = $nginxPaths['config_path'] . '/' . $siteName;
             
             if (!file_exists($configFile)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Site configuration not found: $siteName",
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -438,7 +406,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             
             $content = file_get_contents($configFile);
             if ($content === false) {
-                return $this->errorResponse(
+                return $this->error(
                     "Failed to read site configuration: $siteName",
                     ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
@@ -447,7 +415,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $configInfo = $this->parseNginxConfig($configFile);
             $isEnabled = is_link($nginxPaths['enabled_path'] . '/' . $siteName);
             
-            return $this->successResponse([
+            return $this->success([
                 'site_name' => $siteName,
                 'enabled' => $isEnabled,
                 'config_file' => $configFile,
@@ -493,7 +461,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             }
 
             if (empty($siteConfig)) {
-                return $this->errorResponse('site_config (or a structured {domain, site_type, config} body) is required');
+                return $this->error('site_config (or a structured {domain, site_type, config} body) is required');
             }
 
             $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
@@ -501,23 +469,23 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Check if site exists
             if (!file_exists($configFile)) {
-                return $this->errorResponse("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+                return $this->error("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
             }
 
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Backup current configuration
             $backupFile = $nginxPaths['backup_path'] . '/' . $siteName . '_' . date('Y-m-d_H-i-s') . '.backup';
             if (!copy($configFile, $backupFile)) {
-                return $this->errorResponse("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
+                return $this->error("Failed to backup current configuration", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Write new configuration
             if (file_put_contents($configFile, $siteConfig) === false) {
-                return $this->errorResponse("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
+                return $this->error("Failed to update site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Test nginx configuration
@@ -525,7 +493,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (!$testResult['success']) {
                 // Restore backup if test fails
                 copy($backupFile, $configFile);
-                return $this->errorResponse('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Invalid nginx configuration: ' . $testResult['error'], ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             Log::info('ServerManagerV1: Nginx site updated', [
@@ -534,7 +502,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'site_name' => $siteName,
                 'config_file' => $configFile,
                 'backup_file' => $backupFile,
@@ -564,7 +532,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Check if site exists
             if (!file_exists($configFile)) {
-                return $this->errorResponse("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+                return $this->error("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
             }
 
             // Disable site first if it's enabled
@@ -580,7 +548,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Delete configuration file
             if (!unlink($configFile)) {
-                return $this->errorResponse("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
+                return $this->error("Failed to delete site configuration: $siteName", ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR);
             }
 
             // Idempotent reset: ensure runtime dirs + validate + reload so the
@@ -601,7 +569,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'site_name' => $siteName,
                 'deleted' => true,
                 'backup_file' => $backupFile,
@@ -634,22 +602,22 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $password = (string) $request->input('password', '');
 
             if ($confirm !== 'delete') {
-                return $this->errorResponse('Confirmation mismatch: type "delete" to confirm file deletion.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Confirmation mismatch: type "delete" to confirm file deletion.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
             if ($password === '') {
-                return $this->errorResponse('Root password is required to delete site files.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Root password is required to delete site files.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Verify the root password (rate-limited) before any deletion.
             $auth = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1ElevatedAccess::authenticate($password, $request->ip());
             if (empty($auth['success'])) {
-                return $this->errorResponse('Authentication failed: ' . ($auth['error'] ?? 'invalid password'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Authentication failed: ' . ($auth['error'] ?? 'invalid password'), ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $nginxPaths = ServerManagerV1SSLConfigReader::getNginxPaths();
             $configFile = $nginxPaths['config_path'] . '/' . $siteName;
             if (!file_exists($configFile)) {
-                return $this->errorResponse("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+                return $this->error("Site not found: $siteName", ServerManagerV1Constants::RESPONSE_NOT_FOUND);
             }
 
             // Resolve the web root from the nginx config (root directive), falling
@@ -668,7 +636,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if ($webRoot === '' || $webReal === '' || $webReal === '/' ||
                 strpos($webReal, $coreReal) === 0 ||
                 strpos($webReal, $wwwrootReal) !== 0) {
-                return $this->errorResponse('Refused: site web root is empty, outside wwwroot, or inside the protected core_node directory.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error('Refused: site web root is empty, outside wwwroot, or inside the protected core_node directory.', ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Disable + back up the nginx config (same as deleteSite), then purge
@@ -687,14 +655,14 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 Log::warning('ServerManagerV1: Site file purge partial failure', [
                     'site_name' => $siteName, 'web_root' => $webRoot, 'error' => $deleteResult['error'] ?? '',
                 ]);
-                return $this->errorResponse('Site config removed, but file deletion failed: ' . ($deleteResult['error'] ?? 'unknown'), ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR, ['web_root' => $webRoot]);
+                return $this->error('Site config removed, but file deletion failed: ' . ($deleteResult['error'] ?? 'unknown'), ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR, ['web_root' => $webRoot]);
             }
 
             Log::warning('ServerManagerV1: Site files purged', [
                 'site_name' => $siteName, 'web_root' => $webRoot, 'ip' => $request->ip(),
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'site_name' => $siteName,
                 'deleted' => true,
                 'web_root' => $webRoot,
@@ -726,7 +694,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $op = $this->performEnableSite($siteName);
 
             if (!$op['success']) {
-                return $this->errorResponse($op['message'], $op['code']);
+                return $this->error($op['message'], $op['code']);
             }
 
             if (empty($op['data']['already_enabled'])) {
@@ -736,7 +704,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 ]);
             }
 
-            return $this->successResponse($op['data'], $op['message']);
+            return $this->success($op['data'], $op['message']);
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_enable_site');
@@ -851,7 +819,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $op = $this->performDisableSite($siteName);
 
             if (!$op['success']) {
-                return $this->errorResponse($op['message'], $op['code']);
+                return $this->error($op['message'], $op['code']);
             }
 
             if (empty($op['data']['already_disabled'])) {
@@ -861,7 +829,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 ]);
             }
 
-            return $this->successResponse($op['data'], $op['message']);
+            return $this->success($op['data'], $op['message']);
 
         } catch (\Exception $e) {
             return $this->handleException($e, 'nginx_disable_site');
@@ -924,12 +892,12 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $result = $this->runConfigTest($binary);
 
-            return $this->successResponse([
+            return $this->success([
                 'valid' => $result['success'],
                 'output' => $result['output'],
                 'error' => $result['error'],
@@ -954,13 +922,13 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Test configuration first
             $testResult = $this->runConfigTest($binary);
             if (!$testResult['success']) {
-                return $this->errorResponse(
+                return $this->error(
                     'Cannot reload nginx: configuration test failed - ' . $testResult['error'],
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -976,7 +944,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'reloaded' => $reloadResult['success'],
                 'output' => $reloadResult['output'],
                 'error' => $reloadResult['error'],
@@ -1050,7 +1018,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $enabledSites = $this->countSiteFiles($enabledPath);
             $disabledSites = max(0, $totalSites - $enabledSites);
 
-            return $this->successResponse([
+            return $this->success([
                 'installed' => $installed,
                 'binary' => $binary,
                 'version' => $version,
@@ -1091,7 +1059,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $allowedActions = ['start', 'stop', 'restart', 'reload', 'status'];
 
             if (!in_array($action, $allowedActions, true)) {
-                return $this->errorResponse(
+                return $this->error(
                     'Invalid action. Allowed actions: ' . implode(', ', $allowedActions),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1099,7 +1067,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             // Reload requires a valid configuration first
@@ -1107,7 +1075,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 $testResult = $this->runConfigTest($binary);
                 if (!$testResult['success']) {
                     $testOutput = trim(($testResult['output'] ?? '') . "\n" . ($testResult['error'] ?? ''));
-                    return $this->errorResponse(
+                    return $this->error(
                         'Cannot reload nginx: configuration test failed - ' . $testOutput,
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                     );
@@ -1127,7 +1095,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'action' => $action,
                 'executed_via' => $serviceRun['executed_via'],
                 'success' => $result['success'],
@@ -1159,7 +1127,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $binary = $this->detectNginxBinary();
             if ($binary === null) {
-                return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
             }
 
             $report = [
@@ -1211,7 +1179,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             Log::info('ServerManagerV1: Nginx config repair', $report);
 
-            return $this->successResponse($report, $report['valid']
+            return $this->success($report, $report['valid']
                 ? 'Nginx config repaired' . ($report['reloaded'] ? ' and reloaded' : '')
                 : 'Nginx config still invalid after repair');
 
@@ -1233,7 +1201,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $type = $request->input('type', 'error');
             if (!in_array($type, ['access', 'error'], true)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Invalid log type. Allowed types: access, error",
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1244,7 +1212,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             $filter = (string) $request->input('filter', '');
             if (strlen($filter) > 200) {
-                return $this->errorResponse(
+                return $this->error(
                     'filter must be at most 200 characters',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1253,7 +1221,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $file = "/var/log/nginx/$type.log";
 
             if (!is_file($file)) {
-                return $this->successResponse([
+                return $this->success([
                     'type' => $type,
                     'file' => $file,
                     'exists' => false,
@@ -1281,7 +1249,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 $scannedCount = count($logLines);
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'type' => $type,
                 'file' => $file,
                 'exists' => true,
@@ -1310,7 +1278,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $binary = $this->detectNginxBinary();
             if ($binary !== null) {
-                return $this->successResponse([
+                return $this->success([
                     'installed' => true,
                     'already_installed' => true,
                     'version' => $this->getNginxVersion($binary),
@@ -1320,10 +1288,10 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Repo root: laravel_main lives at <repo>/poly_apps/laravel_main
             $repoRoot = dirname(dirname(base_path()));
-            $script = $repoRoot . '/scripts/shells/linux/debian/install_shells/25_install_nginx.sh';
+            $script = $repoRoot . '/scripts/shells/linux/debian/install_shells/26_install_nginx.sh';
 
             if (!is_file($script)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Installer script not found: $script",
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -1363,7 +1331,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $combined = ($result['output'] ?? '') . "\n" . ($result['error'] ?? '');
 
             if (!$isRoot && !$result['success'] && stripos($combined, 'password is required') !== false) {
-                return $this->errorResponse(
+                return $this->error(
                     'sudo requires a password on this host, the installer cannot run non-interactively. '
                         . "Run it manually: sudo bash $script",
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
@@ -1381,7 +1349,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'installed' => $installed,
                 'already_installed' => false,
                 'version' => $installed ? $this->getNginxVersion($binary) : null,
@@ -1444,7 +1412,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             }
             unset($backup);
 
-            return $this->successResponse([
+            return $this->success([
                 'backups' => $backups,
                 'total' => count($backups),
                 'backup_path' => $backupPath,
@@ -1476,14 +1444,14 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // SECURITY: basename only - no traversal, no separators
             if (strpos($file, '/') !== false || strpos($file, '\\') !== false || strpos($file, '..') !== false) {
-                return $this->errorResponse(
+                return $this->error(
                     'Invalid backup file name (must be a plain file name)',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
 
             if (substr($file, -7) !== '.backup') {
-                return $this->errorResponse(
+                return $this->error(
                     'Invalid backup file name (must end with .backup)',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1494,7 +1462,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $backupFile = $backupPath . '/' . $file;
 
             if ($backupPath === '' || !is_file($backupFile)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Backup file not found: $file",
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -1504,7 +1472,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             $site = $parsed['site'];
 
             if ($site === '') {
-                return $this->errorResponse(
+                return $this->error(
                     "Cannot derive site name from backup file: $file",
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1512,7 +1480,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             $configPath = $nginxPaths['config_path'];
             if (!is_dir($configPath)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Nginx sites-available directory not found: $configPath",
                     ServerManagerV1Constants::RESPONSE_NOT_FOUND
                 );
@@ -1525,7 +1493,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             if (file_exists($configFile)) {
                 $previousBackup = $backupPath . '/' . $site . '_' . date('Y-m-d_H-i-s') . '.backup';
                 if (!copy($configFile, $previousBackup)) {
-                    return $this->errorResponse(
+                    return $this->error(
                         'Failed to back up current configuration before restore',
                         ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                     );
@@ -1534,7 +1502,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Restore
             if (!copy($backupFile, $configFile)) {
-                return $this->errorResponse(
+                return $this->error(
                     "Failed to restore backup to: $configFile",
                     ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
                 );
@@ -1558,7 +1526,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                         unlink($configFile);
                     }
 
-                    return $this->errorResponse(
+                    return $this->error(
                         'Restore rolled back: nginx configuration test failed - ' . $configTest['output'],
                         ServerManagerV1Constants::RESPONSE_BAD_REQUEST,
                         [
@@ -1577,7 +1545,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'restored' => true,
                 'site' => $site,
                 'config_file' => $configFile,
@@ -1647,7 +1615,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 $includes = array_values(array_map('trim', $matches[1]));
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'file' => $file,
                 'exists' => $exists,
                 'content' => $content,
@@ -1678,7 +1646,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
         try {
             $port = (int) $request->query('port', 80);
             if ($port < 1 || $port > 65535) {
-                return $this->errorResponse(
+                return $this->error(
                     'port must be between 1 and 65535',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1740,7 +1708,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 }
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'port' => $port,
                 'in_use' => $inUse,
                 'holder' => $holder,
@@ -1824,7 +1792,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 }
             }
 
-            return $this->successResponse([
+            return $this->success([
                 'available' => $available,
                 'stub_status' => $stubStatus,
                 'hint' => $hint,
@@ -1856,21 +1824,21 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             $allowedActions = ['enable', 'disable', 'test'];
             if (!in_array($action, $allowedActions, true)) {
-                return $this->errorResponse(
+                return $this->error(
                     'Invalid action. Allowed actions: ' . implode(', ', $allowedActions),
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
 
             if (!is_array($sites) || count($sites) === 0) {
-                return $this->errorResponse(
+                return $this->error(
                     'sites must be a non-empty array of site names',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
             }
 
             if (count($sites) > 100) {
-                return $this->errorResponse(
+                return $this->error(
                     'Too many sites (max 100 per batch)',
                     ServerManagerV1Constants::RESPONSE_BAD_REQUEST
                 );
@@ -1882,7 +1850,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 // One global config test, reported per site
                 $binary = $this->detectNginxBinary();
                 if ($binary === null) {
-                    return $this->errorResponse(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+                    return $this->error(self::NGINX_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
                 }
 
                 $testResult = $this->runConfigTest($binary);
@@ -1931,7 +1899,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'ip' => $request->ip()
             ]);
 
-            return $this->successResponse([
+            return $this->success([
                 'action' => $action,
                 'results' => $results,
                 'succeeded' => $succeeded,
@@ -2176,180 +2144,20 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
     }
 
     /**
-     * Generate nginx configuration based on site type. When $sslEnabled is true
-     * (a Let's Encrypt cert is already present for the domain), 443-ssl listeners
-     * + ssl_certificate paths are injected so the block serves HTTPS too.
+     * Generate nginx configuration based on site type. Delegates to the
+     * shared ServerManagerV1NginxConfigBuilder (modern HTTP/3 + TLS 1.3
+     * early-data stanza). When $sslEnabled is true the builder emits the
+     * 443 listeners with Let's Encrypt certificate paths.
      */
     private function generateNginxConfig(string $domain, string $siteType, array $config, bool $sslEnabled = false): string
     {
-        // Use PathMapper for environment-aware path (no hardcoded paths)
-        $wwwroot = \App\Providers\PathMapper::mapWebPath('wwwroot');
-        $wwwDir = $config['www_dir'] ?? "$wwwroot/$domain";
-        $phpVersion = $config['php_version'] ?? '8.2';
-        $proxyTarget = $config['proxy_target'] ?? null;
-
-        switch ($siteType) {
-            case 'laravel':
-                $nginxConfig = $this->generateLaravelConfig($domain, $wwwDir . '/public', $phpVersion);
-                break;
-
-            case 'static':
-                $nginxConfig = $this->generateStaticConfig($domain, $wwwDir);
-                break;
-
-            case 'proxy':
-                if (!$proxyTarget) {
-                    throw new \InvalidArgumentException('proxy_target is required for proxy site type');
-                }
-                $nginxConfig = $this->generateProxyConfig($domain, $proxyTarget);
-                break;
-
-            case 'php':
-                $nginxConfig = $this->generatePhpConfig($domain, $wwwDir, $phpVersion);
-                break;
-
-            default:
-                throw new \InvalidArgumentException("Unsupported site type: $siteType");
-        }
-
         if ($sslEnabled) {
-            $nginxConfig = $this->injectSslDirectives($nginxConfig, $domain);
+            $config['cert_paths'] = [
+                'cert' => ServerManagerV1PathConfig::getLetsEncryptCertPath($domain),
+                'key' => ServerManagerV1PathConfig::getLetsEncryptKeyPath($domain),
+            ];
         }
 
-        return $nginxConfig;
-    }
-
-    /**
-     * Inject 443-ssl listeners + ssl_certificate paths into the first server
-     * block (right after the server_name line) so the same block serves HTTP and
-     * HTTPS. The cert files MUST already exist on disk (nginx -t verifies), so
-     * this is only called when a Let's Encrypt cert is present for the domain.
-     * DNS challenge is used for issue/renew, so no webroot ACME location is
-     * needed on port 80.
-     */
-    private function injectSslDirectives(string $config, string $domain): string
-    {
-        $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
-        $keyPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptKeyPath($domain);
-
-        $sslLines = "    listen 443 ssl;\n"
-            . "    listen [::]:443 ssl;\n"
-            . "    ssl_certificate {$certPath};\n"
-            . "    ssl_certificate_key {$keyPath};\n"
-            . "    ssl_protocols TLSv1.2 TLSv1.3;\n";
-
-        return preg_replace('/(    server_name [^;]+;)\n/', '\\1' . "\n" . $sslLines, $config, 1);
-    }
-
-    /**
-     * Generate Laravel nginx configuration
-     */
-    private function generateLaravelConfig(string $domain, string $wwwDir, string $phpVersion): string
-    {
-        return "server {
-    listen 80;
-    listen [::]:80;
-    server_name $domain;
-    root $wwwDir;
-
-    add_header X-Frame-Options \"SAMEORIGIN\";
-    add_header X-Content-Type-Options \"nosniff\";
-
-    index index.php;
-
-    charset utf-8;
-
-    location / {
-        try_files \$uri \$uri/ /index.php?\$query_string;
-    }
-
-    location = /favicon.ico { access_log off; log_not_found off; }
-    location = /robots.txt  { access_log off; log_not_found off; }
-
-    error_page 404 /index.php;
-
-    location ~ \\.php\$ {
-        fastcgi_pass unix:/var/run/php/php$phpVersion-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME \$realpath_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\\.(?!well-known).* {
-        deny all;
-    }
-}";
-    }
-
-    /**
-     * Generate static site nginx configuration
-     */
-    private function generateStaticConfig(string $domain, string $wwwDir): string
-    {
-        return "server {
-    listen 80;
-    listen [::]:80;
-    server_name $domain;
-    root $wwwDir;
-
-    index index.html index.htm;
-
-    location / {
-        try_files \$uri \$uri/ =404;
-    }
-
-    location ~* \\.(css|js|png|jpg|jpeg|gif|ico|svg)\$ {
-        expires 1y;
-        add_header Cache-Control \"public, immutable\";
-    }
-}";
-    }
-
-    /**
-     * Generate proxy nginx configuration
-     */
-    private function generateProxyConfig(string $domain, string $proxyTarget): string
-    {
-        return "server {
-    listen 80;
-    listen [::]:80;
-    server_name $domain;
-
-    location / {
-        proxy_pass $proxyTarget;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-}";
-    }
-
-    /**
-     * Generate PHP nginx configuration
-     */
-    private function generatePhpConfig(string $domain, string $wwwDir, string $phpVersion): string
-    {
-        return "server {
-    listen 80;
-    listen [::]:80;
-    server_name $domain;
-    root $wwwDir;
-
-    index index.php index.html index.htm;
-
-    location / {
-        try_files \$uri \$uri/ =404;
-    }
-
-    location ~ \\.php\$ {
-        fastcgi_pass unix:/var/run/php/php$phpVersion-fpm.sock;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        include fastcgi_params;
-    }
-
-    location ~ /\\.ht {
-        deny all;
-    }
-}";
+        return ServerManagerV1NginxConfigBuilder::build($domain, $siteType, $config, $sslEnabled);
     }
 }

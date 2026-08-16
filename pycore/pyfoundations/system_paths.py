@@ -27,13 +27,12 @@ from pathlib import Path
 from typing import Optional, Tuple, List, Any, Dict
 
 # Platform / disk / WSL detection helpers live in system_info now (consolidated
-# from here to dedupe get_real_user / get_linux_disk_info). Imported under their
-# former private names so internal call sites (_get_dev_compile_base,
-# _get_base_data_directory, map_web_path) are unchanged. `_is_wsl` is also kept
-# as a re-export for pg_sync_adapter's defensive
-# `from pyfoundations.system_paths import _is_wsl` import.
+# from here to dedupe get_real_user / get_linux_disk_info). The distro-info and
+# largest-drive helpers are imported under their former private names so
+# internal call sites (_get_dev_compile_base, _get_base_data_directory,
+# map_web_path) are unchanged.
 from pycore.pyfoundations.system_info import (
-    is_wsl as _is_wsl,
+    is_wsl,
     get_linux_distro_info as _get_linux_distro_info,
     get_largest_mnt_drive as _get_largest_mounted_drive,
 )
@@ -52,7 +51,7 @@ def _get_dev_compile_base(secondary_base: 'Path', suffix: str) -> 'Path':
       3. Else the largest secondary disk (secondary_base).
     WSL keeps its secondary-disk design.
     """
-    if _is_wsl():
+    if is_wsl():
         return secondary_base
     if (Path('/opt') / f'_{suffix}').is_dir():
         return Path('/opt')
@@ -489,7 +488,7 @@ def _get_base_data_directory() -> Path:
     Priority: WSL -> run-anchor adopt (disk the checkout lives on) -> persisted base
     (the shell source of truth) -> full disk detection here -> largest mounted drive -> '/'.
     """
-    if _is_wsl():
+    if is_wsl():
         return Path('/mnt/d')
     # The disk where THIS checkout physically lives wins (matches sh P1.5).
     run_base = get_core_node_root().parent.parent  # <base>/programing/core_node -> <base>

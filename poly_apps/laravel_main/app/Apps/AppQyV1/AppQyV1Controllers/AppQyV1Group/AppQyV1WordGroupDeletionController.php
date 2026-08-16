@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Group;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
@@ -20,7 +22,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
 use App\Traits\ApiResponse;
 
-class AppQyV1WordGroupDeletionController
+class AppQyV1WordGroupDeletionController extends Controller
 {
     use ApiResponse;
 

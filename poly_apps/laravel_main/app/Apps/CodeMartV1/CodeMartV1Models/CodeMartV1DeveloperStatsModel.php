@@ -1,12 +1,8 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
-use App\Models\Model;
-
-class CodeMartV1DeveloperStatsModel extends Model
+class CodeMartV1DeveloperStatsModel extends CodeMartV1Model
 {
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_developer_stats';
 
     protected $fillable = [

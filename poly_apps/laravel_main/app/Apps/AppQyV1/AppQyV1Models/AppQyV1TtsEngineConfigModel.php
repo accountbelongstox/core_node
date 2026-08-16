@@ -2,34 +2,15 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Support\Facades\Log;
-
 /**
  * DB-driven TTS engine priority config (app_qy_v1_tts_engine_config).
  *
  * Canonical engine priority order for the TTS orchestrator + the Queue Center
- * drawer. Seeded idempotently at sys:init. Reads fall back gracefully when the
- * table is missing (pre-migration) so the priority proxy + variant resolution
- * stay usable before the first migration runs.
+ * drawer. Seeded idempotently at sys:init and required by the runtime.
  */
-class AppQyV1TtsEngineConfigModel extends Model
+class AppQyV1TtsEngineConfigModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'tts_engine_config');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableSuffix = 'tts_engine_config';
 
     protected $fillable = [
         'engine',
@@ -37,10 +18,13 @@ class AppQyV1TtsEngineConfigModel extends Model
         'enabled',
     ];
 
-    protected $casts = [
-        'priority_order' => 'integer',
-        'enabled' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'priority_order' => 'integer',
+            'enabled' => 'boolean',
+        ];
+    }
 
     /**
      * Canonical default engine priority (lower priority_order = sooner).
@@ -80,43 +64,43 @@ class AppQyV1TtsEngineConfigModel extends Model
     {
         $seeded = 0;
         $updated = 0;
-        try {
-            foreach (self::DEFAULT_ENGINES as $def) {
-                $row = self::updateOrCreate(
-                    ['engine' => $def['engine']],
-                    ['priority_order' => $def['priority_order']]
-                );
-                if ($row->wasRecentlyCreated) {
-                    $seeded++;
-                } elseif ($row->wasChanged('priority_order')) {
-                    $updated++;
-                }
+        $engines = array_column(self::DEFAULT_ENGINES, 'engine');
+        $existing = self::query()
+            ->whereIn('engine', $engines)
+            ->get(['engine', 'priority_order'])
+            ->keyBy('engine');
+
+        foreach (self::DEFAULT_ENGINES as $definition) {
+            $row = $existing->get($definition['engine']);
+            if ($row === null) {
+                $seeded++;
+            } elseif ((int) $row->priority_order !== $definition['priority_order']) {
+                $updated++;
             }
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1TtsEngineConfig] seedDefaults failed: ' . $e->getMessage());
         }
+
+        self::query()->upsert(
+            self::DEFAULT_ENGINES,
+            ['engine'],
+            ['priority_order']
+        );
+
         return ['seeded' => $seeded, 'updated' => $updated];
     }
 
     /**
-     * Enabled engines ordered by priority_order ASC. Returns [] when the table
-     * is missing/unreadable (caller falls back to pycore's live order).
+     * Enabled engines ordered by priority_order ASC.
      *
      * @return array<int,string>
      */
     public static function orderedPriority(): array
     {
-        try {
-            $rows = self::query()
-                ->where('enabled', true)
-                ->orderBy('priority_order')
-                ->orderBy('engine')
-                ->pluck('engine');
-            $list = is_array($rows) ? $rows : $rows->all();
-            return $list;
-        } catch (\Throwable $e) {
-            return [];
-        }
+        return self::query()
+            ->where('enabled', true)
+            ->orderBy('priority_order')
+            ->orderBy('engine')
+            ->pluck('engine')
+            ->all();
     }
 
     // ------------------------------------------------------------------
@@ -135,19 +119,9 @@ class AppQyV1TtsEngineConfigModel extends Model
     public const SENTENCE_PRIMARY_DEFAULT = 'qwen3tts';
 
     /**
-     * Fallback sentence chain used when the engine-config table is missing/empty
-     * (pre-migration). qwen3tts-first, cloud (azure) last — mirrors the
-     * "sentence" priority_profile pycore's tts_orchestrator resolves.
-     *
-     * @var array<int,string>
-     */
-    public const SENTENCE_FALLBACK_CHAIN = ['qwen3tts', 'melotts', 'sherpa', 'edge', 'azure'];
-
-    /**
      * Sentence-profile engine chain: the enabled engines ordered by priority with
      * the sentence primary (qwen3tts) hoisted to the front (sentence audio is
-     * qwen3tts-first per SENTENCE_AUDIO_GENERATION_PIPELINE.md). Returns the
-     * hardcoded SENTENCE_FALLBACK_CHAIN when the table is missing/empty.
+     * qwen3tts-first per SENTENCE_AUDIO_GENERATION_PIPELINE.md).
      *
      * PREFERENCE ONLY — pycore makes the final, GPU-gated choice and falls back
      * when the primary is unavailable. qwen3tts is hoisted only when it is an
@@ -159,7 +133,7 @@ class AppQyV1TtsEngineConfigModel extends Model
     {
         $ordered = self::orderedPriority();
         if ($ordered === []) {
-            return self::SENTENCE_FALLBACK_CHAIN;
+            throw new \RuntimeException('No enabled TTS engines are configured.');
         }
         if (in_array(self::SENTENCE_PRIMARY_DEFAULT, $ordered, true)) {
             $ordered = array_values(array_filter(
@@ -168,17 +142,17 @@ class AppQyV1TtsEngineConfigModel extends Model
             ));
             array_unshift($ordered, self::SENTENCE_PRIMARY_DEFAULT);
         }
+
         return $ordered;
     }
 
     /**
      * Preferred sentence primary engine — the first entry of sentenceEngineChain()
-     * (qwen3tts when enabled, else the first enabled engine, else the default).
+     * (qwen3tts when enabled, else the first enabled engine).
      * A PREFERENCE only: pycore GPU-gates and falls back when it is unavailable.
      */
     public static function sentencePrimaryEngine(): string
     {
-        $chain = self::sentenceEngineChain();
-        return $chain[0] ?? self::SENTENCE_PRIMARY_DEFAULT;
+        return self::sentenceEngineChain()[0];
     }
 }

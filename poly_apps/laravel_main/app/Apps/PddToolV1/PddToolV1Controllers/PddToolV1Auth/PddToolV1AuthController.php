@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Controllers\PddToolV1Auth;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -31,7 +31,7 @@ use App\Apps\PddToolV1\PddToolV1Constants\PddToolV1Defaults;
  *
  * All errors use the FastAPI {"detail":"..."} shape the Chrome extension reads.
  */
-class PddToolV1AuthController extends BaseController
+class PddToolV1AuthController extends Controller
 {
     /**
      * Sanctum token name used for all PddToolV1 logins.

@@ -16,7 +16,7 @@ class TTSCacheManager
         PathMapper::ensureDirectory($this->cacheDir);
 
         // Table should be created by sys:init command via UserSyncService::ensureTTSCacheTablesExist()
-        if (!AppQyV1TtsCacheModel::tableExists()) {
+        if (!AppQyV1TtsCacheModel::configuredTableExists()) {
             Log::warning('[TTSCacheManager] TTS cache table does not exist. Run php artisan sys:init to create it.');
         }
     }

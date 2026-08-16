@@ -10,10 +10,10 @@
 
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
-use Illuminate\Routing\Controller as BaseController;
-use App\Apps\AppQyV1\AppQyV1Gvar\AppQyV1Gvar as Gvar;
+use App\Http\Controllers\Controller;
+use App\Http\Common\CommonGvar as Gvar;
 use App\Traits\ApiResponse;
-class AppQyV1ApiDocumentationController extends BaseController
+class AppQyV1ApiDocumentationController extends Controller
 {
     use ApiResponse;
 

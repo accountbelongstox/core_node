@@ -3,6 +3,8 @@
 namespace App\Services\DataSync;
 
 use App\Services\Dashboard\DatabaseManagerService;
+use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -88,62 +90,82 @@ final class DatabaseSyncService
         $allowed = array_flip($columns);
         $identity = $this->identityColumns($connection, $table);
         $database = DB::connection($connection);
+        $decodedRows = [];
         $inserted = 0;
         $updated = 0;
         $unchanged = 0;
         $verified = 0;
 
+        foreach ($rows as $encodedRow) {
+            $row = array_intersect_key($this->decodeRow((array) $encodedRow), $allowed);
+            if ($row !== []) {
+                $decodedRows[] = $row;
+            }
+        }
+
         $database->transaction(function () use (
             $database,
             $table,
-            $rows,
-            $allowed,
+            $decodedRows,
             $identity,
             $columnTypes,
             &$inserted,
             &$updated,
             &$unchanged
         ): void {
-            foreach ($rows as $encodedRow) {
-                $row = array_intersect_key($this->decodeRow((array) $encodedRow), $allowed);
-                if ($row === []) {
-                    continue;
-                }
+            $identityRows = [];
+            $rowsWithoutIdentity = [];
 
-                $identityValues = $this->identityValues($row, $identity);
-                if ($identityValues === []) {
-                    if ($database->table($table)->where($row)->exists()) {
+            foreach ($decodedRows as $row) {
+                if ($this->identityValues($row, $identity) === []) {
+                    $rowsWithoutIdentity[] = $row;
+                } else {
+                    $identityRows[] = $row;
+                }
+            }
+
+            if ($identityRows !== []) {
+                $existingRows = $this->rowsByIdentity($database, $table, $identityRows, $identity);
+                $changedRows = [];
+
+                foreach ($identityRows as $row) {
+                    $identityKey = $this->identityKey($this->identityValues($row, $identity));
+                    $existing = $existingRows[$identityKey] ?? null;
+                    if ($existing === null) {
+                        $inserted++;
+                        $changedRows[] = $row;
+                        continue;
+                    }
+                    if ($this->rowHash($existing, $columnTypes) === $this->rowHash($row, $columnTypes)) {
                         $unchanged++;
                         continue;
                     }
-                    $database->table($table)->insert($row);
-                    $inserted++;
-                    continue;
+                    $updated++;
+                    $changedRows[] = $row;
                 }
 
-                $existing = $database->table($table)->where($identityValues)->first();
-                if ($existing === null) {
-                    $database->table($table)->insert($row);
-                    $inserted++;
-                    continue;
+                if ($changedRows !== []) {
+                    $updateColumns = array_values(array_diff(array_keys($changedRows[0]), $identity));
+                    if ($updateColumns === []) {
+                        $database->table($table)->insertOrIgnore($changedRows);
+                    } else {
+                        $database->table($table)->upsert($changedRows, $identity, $updateColumns);
+                    }
                 }
+            }
 
-                if ($this->rowHash((array) $existing, $columnTypes) === $this->rowHash($row, $columnTypes)) {
+            foreach ($rowsWithoutIdentity as $row) {
+                if ($database->table($table)->where($row)->exists()) {
                     $unchanged++;
                     continue;
                 }
-
-                $database->table($table)->where($identityValues)->update($row);
-                $updated++;
+                $database->table($table)->insert($row);
+                $inserted++;
             }
         });
 
-        foreach ($rows as $encodedRow) {
-            $row = array_intersect_key($this->decodeRow((array) $encodedRow), $allowed);
-            if ($row === []) {
-                continue;
-            }
-
+        $appliedIdentityRows = $this->rowsByIdentity($database, $table, $decodedRows, $identity);
+        foreach ($decodedRows as $row) {
             $identityValues = $this->identityValues($row, $identity);
             if ($identityValues === []) {
                 if (!$database->table($table)->where($row)->exists()) {
@@ -153,11 +175,8 @@ final class DatabaseSyncService
                 continue;
             }
 
-            $applied = $database->table($table)->where($identityValues)->first();
-            if (
-                $applied === null
-                || $this->rowHash((array) $applied, $columnTypes) !== $this->rowHash($row, $columnTypes)
-            ) {
+            $applied = $appliedIdentityRows[$this->identityKey($identityValues)] ?? null;
+            if ($applied === null || $this->rowHash($applied, $columnTypes) !== $this->rowHash($row, $columnTypes)) {
                 throw new \RuntimeException("Receiver row verification failed: {$connectionKey}.{$table}");
             }
             $verified++;
@@ -170,6 +189,55 @@ final class DatabaseSyncService
             'verified' => $verified,
             'received' => count($rows),
         ];
+    }
+
+    private function rowsByIdentity(
+        Connection $database,
+        string $table,
+        array $rows,
+        array $identity
+    ): array {
+        $identityRows = array_values(array_filter(
+            $rows,
+            fn (array $row): bool => $this->identityValues($row, $identity) !== []
+        ));
+        $mapped = [];
+
+        if ($identityRows === []) {
+            return $mapped;
+        }
+
+        $records = $database->table($table)
+            ->where(function (Builder $query) use ($identityRows, $identity): void {
+                foreach ($identityRows as $row) {
+                    $identityValues = $this->identityValues($row, $identity);
+                    $query->orWhere(function (Builder $identityQuery) use ($identityValues): void {
+                        foreach ($identityValues as $column => $value) {
+                            $identityQuery->where($column, $value);
+                        }
+                    });
+                }
+            })
+            ->get();
+
+        foreach ($records as $record) {
+            $recordRow = (array) $record;
+            $identityValues = $this->identityValues($recordRow, $identity);
+            if ($identityValues !== []) {
+                $mapped[$this->identityKey($identityValues)] = $recordRow;
+            }
+        }
+
+        return $mapped;
+    }
+
+    private function identityKey(array $identityValues): string
+    {
+        ksort($identityValues);
+        return hash('sha256', (string) json_encode(
+            $this->encodeRow($identityValues),
+            JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+        ));
     }
 
     public function advanceSequence(string $connectionKey, string $table): void

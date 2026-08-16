@@ -77,29 +77,33 @@ ensure_linuxenvs_dir() {
 add_dir_to_path() {
     local dir_path="$1"
     local bashrc_file="$HOME/.bashrc"
+    local path_line=""
 
     if [ ! -d "$dir_path" ]; then
         log_error "Directory does not exist: $dir_path"
         return 1
     fi
 
-    # Check if already in PATH
-    if echo "$PATH" | grep -q "$dir_path"; then
-        log_info "Directory already in PATH: $dir_path"
-        return 0
-    fi
+    path_line="export PATH=\"$dir_path:\$PATH\""
 
-    # Add to ~/.bashrc
-    if ! grep -q "export PATH=.*$dir_path" "$bashrc_file" 2>/dev/null; then
+    if ! grep -Fqx "$path_line" "$bashrc_file" 2>/dev/null; then
         echo "" >> "$bashrc_file"
         echo "# Added by linux_path_function.sh" >> "$bashrc_file"
-        echo "export PATH=\"$dir_path:\$PATH\"" >> "$bashrc_file"
+        echo "$path_line" >> "$bashrc_file"
         log_success "Added to ~/.bashrc: $dir_path"
+    else
+        log_info "Directory already persisted in ~/.bashrc: $dir_path"
     fi
 
-    # Add to current session
-    export PATH="$dir_path:$PATH"
-    log_success "Added to current PATH: $dir_path"
+    case ":$PATH:" in
+        *":$dir_path:"*)
+            log_info "Directory already in current PATH: $dir_path"
+            ;;
+        *)
+            export PATH="$dir_path:$PATH"
+            log_success "Added to current PATH: $dir_path"
+            ;;
+    esac
 
     return 0
 }

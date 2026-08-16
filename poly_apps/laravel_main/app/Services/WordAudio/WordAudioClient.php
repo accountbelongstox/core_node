@@ -2,7 +2,7 @@
 
 namespace App\Services\WordAudio;
 
-use App\Services\AiGateway\AiSecretLoader;
+use App\Utils\SecretStore;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -168,7 +168,7 @@ class WordAudioClient
             return null;
         }
 
-        $apiKey = trim(AiSecretLoader::getIndexed('FORVO_API_KEY'));
+        $apiKey = trim(SecretStore::getIndexed('FORVO_API_KEY'));
         if ($apiKey === '') {
             return null;
         }

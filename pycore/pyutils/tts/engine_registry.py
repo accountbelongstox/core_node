@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Tuple
 
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyutils.common.engine_registry import EngineAdapter, EngineRegistry
@@ -141,6 +141,26 @@ class TTSEngineAdapter(EngineAdapter):
     def healthy(self) -> bool:
         return bool(self.health_probe and self.health_probe())
 
+    def status_report(self) -> Optional[Dict[str, Any]]:
+        """Live server /status payload (None when the engine exposes no probe)."""
+        getter = getattr(self.module, "get_status", None)
+        if not callable(getter):
+            return None
+        info = getter()
+        return info if isinstance(info, dict) else None
+
+    def reported_code_id(self) -> Optional[str]:
+        """Code identity the live server reports in /status (None = no report).
+
+        Pairs with the managed layer's expected digest of the launch script set
+        (managed_service code-identity contract); an engine without a
+        get_status probe simply stays off that contract."""
+        info = self.status_report()
+        if info is None:
+            return None
+        raw = info.get("code_id")
+        return str(raw) if raw else None
+
     def model_path(self) -> Optional[Path]:
         return self._model_dir() if self._model_dir is not None else None
 
@@ -170,11 +190,14 @@ class SpeedTTSEngineAdapter(TTSEngineAdapter):
 
 class QwenTTSEngineAdapter(SpeedTTSEngineAdapter):
     def synthesize(self, request: TTSSynthesisRequest) -> bool:
+        # Speed policy lives with the engine: an explicit rate hint resolves to
+        # a speed factor; no hint forwards None so the SERVER applies its own
+        # default (QWEN3TTS_SPEED / QWEN3TTS_DEFAULT_SPEED = 0.75).
         return bool(self.module.synthesize(
             request.text,
             request.language,
             request.output_path,
-            speed=request.speed,
+            speed=self.module.effective_speed(request.rate),
             speaker=request.speaker,
             instruct=request.instruct,
             client_job_id=request.client_job_id,

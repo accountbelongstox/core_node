@@ -11,6 +11,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1WordOparate;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Utils\StrTool;
@@ -20,7 +22,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDPPublic;
 use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1UpdateLearnedStatusRequest;
 use App\Traits\ApiResponse;
-class AppQyV1WordLearningStatusController
+class AppQyV1WordLearningStatusController extends Controller
 {
     use ApiResponse;
 

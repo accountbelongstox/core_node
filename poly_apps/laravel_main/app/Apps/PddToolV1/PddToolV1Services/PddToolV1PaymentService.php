@@ -10,7 +10,7 @@
 
 namespace App\Apps\PddToolV1\PddToolV1Services;
 
-use App\Support\CoreNodeSecrets;
+use App\Support\RuntimeConfigurationStore;
 use App\Apps\PddToolV1\PddToolV1Models\PddToolV1RechargeModel;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
@@ -18,12 +18,12 @@ use Illuminate\Support\Facades\Log;
 /**
  * Payment gateway integration for PddToolV1 recharges.
  *
- * Reads merchant credentials from CoreNodeSecrets (never .env / hardcode). When
+ * Reads merchant credentials from RuntimeConfigurationStore (never .env / hardcode). When
  * credentials are absent, a `sandbox` mode is used: create() returns a fake
  * pay_url and the recharge is marked sandbox so the polling status endpoint can
  * immediately settle it (for end-to-end testing without real certs).
  *
- * Secret keys (CoreNodeSecrets, gvar store):
+ * Secret keys (RuntimeConfigurationStore, gvar store):
  *   PDD_TOOL_V1_ALIPAY_APP_ID, PDD_TOOL_V1_ALIPAY_PRIVATE_KEY,
  *   PDD_TOOL_V1_ALIPAY_PUBLIC_KEY,
  *   PDD_TOOL_V1_WECHAT_MCH_ID, PDD_TOOL_V1_WECHAT_APP_ID,
@@ -51,8 +51,8 @@ class PddToolV1PaymentService
      */
     public static function alipayConfigured(): bool
     {
-        return CoreNodeSecrets::get('PDD_TOOL_V1_ALIPAY_APP_ID') !== null
-            && CoreNodeSecrets::get('PDD_TOOL_V1_ALIPAY_PRIVATE_KEY') !== null;
+        return RuntimeConfigurationStore::get('PDD_TOOL_V1_ALIPAY_APP_ID') !== null
+            && RuntimeConfigurationStore::get('PDD_TOOL_V1_ALIPAY_PRIVATE_KEY') !== null;
     }
 
     /**
@@ -60,9 +60,9 @@ class PddToolV1PaymentService
      */
     public static function wechatConfigured(): bool
     {
-        return CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_MCH_ID') !== null
-            && CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_API_V3_KEY') !== null
-            && CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_PRIVATE_KEY') !== null;
+        return RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_MCH_ID') !== null
+            && RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_API_V3_KEY') !== null
+            && RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_PRIVATE_KEY') !== null;
     }
 
     /**
@@ -97,8 +97,8 @@ class PddToolV1PaymentService
      */
     private function createAlipay(PddToolV1RechargeModel $recharge): array
     {
-        $appId = CoreNodeSecrets::get('PDD_TOOL_V1_ALIPAY_APP_ID');
-        $privateKey = CoreNodeSecrets::get('PDD_TOOL_V1_ALIPAY_PRIVATE_KEY');
+        $appId = RuntimeConfigurationStore::get('PDD_TOOL_V1_ALIPAY_APP_ID');
+        $privateKey = RuntimeConfigurationStore::get('PDD_TOOL_V1_ALIPAY_PRIVATE_KEY');
 
         $bizContent = [
             'out_trade_no' => $recharge->out_trade_no,
@@ -138,10 +138,10 @@ class PddToolV1PaymentService
      */
     private function createWechat(PddToolV1RechargeModel $recharge): array
     {
-        $mchId = CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_MCH_ID');
-        $appId = CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_APP_ID');
-        $serial = CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_CERT_SERIAL');
-        $privateKey = CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_PRIVATE_KEY');
+        $mchId = RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_MCH_ID');
+        $appId = RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_APP_ID');
+        $serial = RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_CERT_SERIAL');
+        $privateKey = RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_PRIVATE_KEY');
 
         $body = [
             'appid' => $appId,
@@ -172,7 +172,7 @@ class PddToolV1PaymentService
      */
     public function verifyAlipayNotify(array $payload): bool
     {
-        $publicKey = CoreNodeSecrets::get('PDD_TOOL_V1_ALIPAY_PUBLIC_KEY');
+        $publicKey = RuntimeConfigurationStore::get('PDD_TOOL_V1_ALIPAY_PUBLIC_KEY');
         if (!$publicKey) {
             Log::warning('[PddToolV1Payment] alipay notify but no public key configured');
             return false;
@@ -197,7 +197,7 @@ class PddToolV1PaymentService
      */
     public function verifyWechatNotify(array $payload, array $headers = []): ?array
     {
-        $apiV3Key = CoreNodeSecrets::get('PDD_TOOL_V1_WECHAT_API_V3_KEY');
+        $apiV3Key = RuntimeConfigurationStore::get('PDD_TOOL_V1_WECHAT_API_V3_KEY');
         if (!$apiV3Key) {
             Log::warning('[PddToolV1Payment] wechat notify but no api v3 key configured');
             return null;

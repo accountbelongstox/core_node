@@ -9,7 +9,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 33_ensure_php85_intelligent.sh
+# Script: 32_ensure_php85_intelligent.sh
 # Description: Intelligent PHP 8.5 installation with multi-dimensional state detection
 # Author: System Administrator
 # Version: 1.0
@@ -30,12 +30,14 @@ SCRIPT_INDEX="[33_PHP85_INTELLIGENT]"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
+LINUX_PATH_FUNCTION="$PARENT_DIR_LEVEL_2/common/linux_path_function.sh"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
 # Source PHP common variables and functions
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
+PHP_PATH_DIR="$(dirname "$TARGET_LINK_PATH")"
 
 # Network connectivity check - now using PHP common function
 check_network_connectivity() {
@@ -94,7 +96,7 @@ check_composer_binary_state() {
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX ${BINARY_STATES["COMPOSER_MISSING"]}${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 36_install_composer.sh${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 35_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -322,8 +324,9 @@ check_symbolic_link() {
 fix_php_symbolic_link() {
     echo -e "${BLUE}$SCRIPT_INDEX [FIX] Fixing PHP symbolic link and cleaning up old versions...${NC}"
 
-    local target_link="/usr/local/bin/php"
-    local expected_binary="/usr/bin/php8.5"
+    local target_link="$TARGET_LINK_PATH"
+    local expected_binary="$PHP_BIN"
+    local current_target=""
 
     # Check if PHP 8.5 binary exists and is executable
     if [ ! -f "$expected_binary" ]; then
@@ -341,6 +344,14 @@ fix_php_symbolic_link() {
     if ! timeout 10 "$expected_binary" --version >/dev/null 2>&1; then
         echo -e "${RED}$SCRIPT_INDEX PHP 8.5 binary is not functional: $expected_binary${NC}"
         return 1
+    fi
+
+    if [ -L "$target_link" ]; then
+        current_target="$(readlink -f "$target_link" 2>/dev/null || true)"
+        if [ "$current_target" = "$expected_binary" ] && [ -x "$target_link" ]; then
+            echo -e "${GREEN}$SCRIPT_INDEX PHP symbolic link is already correct: $target_link -> $expected_binary${NC}"
+            return 0
+        fi
     fi
 
     # Remove old PHP versions from alternatives if they exist
@@ -385,10 +396,6 @@ fix_php_symbolic_link() {
                 local version_output=$("$target_link" --version 2>/dev/null | head -n 1)
                 echo -e "${GREEN}$SCRIPT_INDEX Link test successful: $version_output${NC}"
 
-                # Update current session PATH to ensure immediate availability
-                export PATH="/usr/local/bin:$PATH"
-                hash -r  # Clear bash command hash table
-
                 return 0
             else
                 echo -e "${RED}$SCRIPT_INDEX Link test failed - PHP command not working${NC}"
@@ -402,6 +409,16 @@ fix_php_symbolic_link() {
         echo -e "${RED}$SCRIPT_INDEX Failed to create symbolic link${NC}"
         return 1
     fi
+}
+
+repair_php_path() {
+    echo -e "${CYAN}$SCRIPT_INDEX Ensuring PHP is in PATH...${NC}"
+    if ! bash "$LINUX_PATH_FUNCTION" addpath "$PHP_PATH_DIR"; then
+        echo -e "${RED}$SCRIPT_INDEX Failed to repair PHP PATH${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}$SCRIPT_INDEX PHP PATH repair completed: $PHP_PATH_DIR${NC}"
+    return 0
 }
 
 # 1.7 Remove old PHP versions from system PATH and disable services
@@ -701,7 +718,7 @@ analyze_composer_state() {
         return 0
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Composer: Not available${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 36_install_composer.sh${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 35_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -1063,7 +1080,7 @@ install_php_core() {
     echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 core installation completed${NC}"
 }
 
-# Composer installation is now handled by separate script 34_install_composer.sh
+# Composer installation is now handled by separate script 35_install_composer.sh
 
 # 4.3 FPM is NOT installed - Using Swoole instead
 # PHP-FPM removed because Laravel Octane with Swoole is used for better performance
@@ -1271,6 +1288,10 @@ main() {
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Fixing PHP symbolic link...${NC}"
     fix_php_symbolic_link || {
         echo -e "${YELLOW}$SCRIPT_INDEX Symbolic link fix completed with warnings${NC}"
+    }
+
+    repair_php_path || {
+        echo -e "${YELLOW}$SCRIPT_INDEX PHP PATH repair completed with warnings${NC}"
     }
 
     # STEP 4: ALWAYS verify symbolic link fix (精细化修复第4�?

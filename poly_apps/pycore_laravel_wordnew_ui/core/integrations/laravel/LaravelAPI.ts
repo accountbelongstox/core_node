@@ -8,6 +8,8 @@
 import { BaseAPI, getSharedBaseURL, setSharedBaseURL } from './transport/BaseAPI';
 import { MediaQueryAPI } from './transport/MediaQueryAPI';
 import { createLaravelModuleConfig, LARAVEL_API_PREFIX } from './transport/ApiContract';
+import { unwrapLaravelData } from './transport/LaravelEnvelope';
+import { APPQYV1_API_BASE, APPQYV1_AI_TOOLS_ROUTES } from '../../contracts/AppQyV1AiToolsContract';
 import type { BackendApiEndpoint } from '@/core/integrations/laravel/LaravelEndpoints';
 import {
   addCustomEndpoint,
@@ -89,17 +91,17 @@ function toEndpointRow(endpoint: BackendApiEndpoint): LaravelApiEndpoint {
 }
 
 const ROUTES = {
-  translationLanguages: '/api/app_qy_v1/ai_tools/translation/languages',
-  translationTranslate: '/api/app_qy_v1/ai_tools/translation/translate',
-  translationBatchAdd: '/api/app_qy_v1/ai_tools/translation/queue/batch/add',
-  translationQueueList: '/api/app_qy_v1/ai_tools/translation/queue/list',
+  translationLanguages: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.translationLanguages,
+  translationTranslate: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.translationTranslate,
+  translationBatchAdd: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.translationBatchAdd,
+  translationQueueList: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.translationQueueList,
   translationQueuePriority: '/api/app_qy_v1/ai_tools/translation/queue/priority',
   translationQueueStack: '/api/app_qy_v1/ai_tools/translation/queue/stack',
-  ttsGenerate: '/api/app_qy_v1/ai_tools/tts/generate',
+  ttsGenerate: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.ttsGenerate,
   ttsQueueBatchQuery: '/api/app_qy_v1/ai_tools/tts/queue/batch/query',
-  ttsSentenceAudio: '/api/app_qy_v1/ai_tools/tts/sentence/audio',
-  ttsQueueStats: '/api/app_qy_v1/ai_tools/tts/queue/stats',
-  ttsQueueItems: '/api/app_qy_v1/tts/queue/items',
+  ttsSentenceAudio: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.ttsSentenceAudio,
+  ttsQueueStats: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.ttsQueueStats,
+  ttsQueueItems: APPQYV1_API_BASE + APPQYV1_AI_TOOLS_ROUTES.ttsQueueItems,
   sentenceMissing: '/api/app_qy_v1/ai_tools/tts/sentence/missing',
   queueCenterOverview: queueCenterEndpoint('queue_center_overview'),
   queueCenterEvents: queueCenterEndpoint('queue_center_events'),
@@ -183,7 +185,7 @@ async function requestLaravel<T>(
 }
 
 function unwrapData<T>(payload: any): T {
-  return (payload && typeof payload.data === 'object' ? payload.data : payload) as T;
+  return unwrapLaravelData<T>(payload);
 }
 
 function completedTaskTitle(record: Record<string, any>): string {

@@ -39,7 +39,7 @@ NODE_DOWNLOAD_URLS=(
     "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
 )
 # Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "17_install_node_24")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "16_install_node_24")
 TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
 EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX"
 NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"

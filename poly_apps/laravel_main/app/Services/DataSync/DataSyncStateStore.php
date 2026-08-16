@@ -14,6 +14,7 @@ final class DataSyncStateStore
         $now = now()->toIso8601String();
         $job = array_merge([
             'id' => str_replace('-', '', (string) str()->uuid()),
+            'protocol_version' => DataSyncProtocol::VERSION,
             'role' => $role,
             'status' => 'queued',
             'current_step' => 0,
@@ -33,7 +34,7 @@ final class DataSyncStateStore
 
     public function get(string $id): ?array
     {
-        if (preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) !== 1) {
+        if (!DataSyncSessionId::valid($id)) {
             return null;
         }
         $path = $this->jobPath($id);
@@ -110,7 +111,13 @@ final class DataSyncStateStore
     public function summary(array $job): array
     {
         $context = $job['context'] ?? [];
+        $existingCounterpart = isset($job['counterpart']) && is_array($job['counterpart'])
+            ? $job['counterpart']
+            : [];
+        $job['protocol_version'] = (int) ($job['protocol_version'] ?? 0);
+        $job['counterpart'] = array_replace($existingCounterpart, $this->counterpart($job, $context));
         $job['context'] = array_filter([
+            'source_job_id' => $context['source_job_id'] ?? null,
             'awaiting_target' => $context['awaiting_target'] ?? null,
             'local_manifest' => $context['local_manifest'] ?? null,
             'database_results' => $context['database_results'] ?? null,
@@ -127,6 +134,36 @@ final class DataSyncStateStore
         ], static fn ($value): bool => $value !== null);
 
         return $job;
+    }
+
+    private function counterpart(array $job, array $context): array
+    {
+        $receiver = isset($context['receiver']) && is_array($context['receiver'])
+            ? $context['receiver']
+            : null;
+
+        if ($receiver !== null) {
+            unset($receiver['counterpart']);
+        }
+
+        return array_filter([
+            'endpoint' => ($job['role'] ?? null) === 'source'
+                ? ($job['target'] ?? null)
+                : ($job['target_input'] ?? null),
+            'session_id' => ($job['role'] ?? null) === 'source'
+                ? ($context['peer_session_id'] ?? null)
+                : ($context['source_job_id'] ?? null),
+            'reachable' => ($job['role'] ?? null) === 'source'
+                ? ($context['counterpart_reachable'] ?? null)
+                : null,
+            'observed_at' => ($job['role'] ?? null) === 'source'
+                ? ($context['counterpart_observed_at'] ?? null)
+                : null,
+            'error' => ($job['role'] ?? null) === 'source'
+                ? ($context['counterpart_error'] ?? null)
+                : null,
+            'session' => ($job['role'] ?? null) === 'source' ? $receiver : null,
+        ], static fn ($value): bool => $value !== null);
     }
 
     public function active(string $role): ?array
@@ -257,10 +294,6 @@ final class DataSyncStateStore
 
     private function safeId(string $id): string
     {
-        if (preg_match('/^[A-Za-z0-9_-]{1,64}$/', $id) !== 1) {
-            throw new \InvalidArgumentException('Synchronization session ID is invalid.');
-        }
-
-        return $id;
+        return DataSyncSessionId::require($id);
     }
 }

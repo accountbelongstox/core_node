@@ -10,6 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
+use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleManagementService;
 use App\Helpers\AuthHelper;
 use App\Traits\ApiResponse;
@@ -17,7 +18,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
-class AppQyV1ArticleManagementCtl
+class AppQyV1ArticleManagementCtl extends Controller
 {
     use ApiResponse;
 

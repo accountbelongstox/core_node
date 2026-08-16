@@ -13,6 +13,8 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
 
+use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1BookModel as Book;
@@ -34,7 +36,7 @@ use App\Traits\ApiResponse;
  * NO try-catch allowed - trust Laravel validation
  * NO ?? or || allowed - use explicit if statements
  */
-class AppQyV1MediaContentPublicController
+class AppQyV1MediaContentPublicController extends Controller
 {
     use ApiResponse;
 

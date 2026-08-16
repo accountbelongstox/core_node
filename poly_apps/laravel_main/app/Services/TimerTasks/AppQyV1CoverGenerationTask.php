@@ -5,6 +5,7 @@ namespace App\Services\TimerTasks;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1VocabularyLibraryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryTTSCoordinator;
 use App\Apps\AppQyV1\Services\AppQyV1VocabularyCoverService;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * AppQyV1 Cover Maintenance Timer Task (pull-only architecture).
@@ -140,8 +141,9 @@ class AppQyV1CoverGenerationTask extends OctaneTimerTaskAbstract
      */
     public function isEnabled(): bool
     {
-        $maintenance = env('APPQYV1_COVER_MAINTENANCE_ENABLED', true);
-        $legacy = env('APPQYV1_COVER_GENERATION_ENABLED', true);
+        $settings = app(UserConfigService::class);
+        $maintenance = $settings->get(UserConfigService::APPQYV1_COVER_MAINTENANCE_ENABLED, true);
+        $legacy = $settings->get(UserConfigService::APPQYV1_COVER_GENERATION_ENABLED, true);
 
         return (bool) $maintenance && (bool) $legacy;
     }

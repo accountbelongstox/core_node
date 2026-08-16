@@ -10,10 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
@@ -30,19 +27,12 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * Status vocab: pending|claimed|processing|completed|failed. Claims carry a
  * 60-minute lease (claimed_at + claimed_by), mirroring the assist pool.
  */
-class AppQyV1AssistRequestModel extends Model
+class AppQyV1AssistRequestModel extends AppQyV1Model
 {
     use RunsModelTransactions;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'assist_requests');
-    }
+    protected ?string $appTableSuffix = 'assist_requests';
 
     protected $fillable = [
         'record_type',
@@ -58,12 +48,15 @@ class AppQyV1AssistRequestModel extends Model
         'error',
     ];
 
-    protected $casts = [
-        'payload' => 'array',
-        'result' => 'array',
-        'claimed_at' => 'datetime',
-        'priority' => 'integer',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'payload' => 'array',
+            'result' => 'array',
+            'claimed_at' => 'datetime',
+            'priority' => 'integer',
+        ];
+    }
 
     // Status constants
     public const STATUS_PENDING = 'pending';
@@ -76,7 +69,8 @@ class AppQyV1AssistRequestModel extends Model
     public const LEASE_MINUTES = 60;
 
     /** Scope: claimable pending rows (no live lease). */
-    public function scopePending($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function pending(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where('status', self::STATUS_PENDING)
             ->where(function ($q) {
@@ -200,8 +194,20 @@ class AppQyV1AssistRequestModel extends Model
                 ->lockForUpdate()
                 ->get();
 
-            foreach ($rows as $row) {
-                $row->claim($claimer);
+            if ($rows->isNotEmpty()) {
+                $claimedAt = now();
+                $claimedBy = mb_substr($claimer, 0, 64);
+
+                self::query()->whereKey($rows->modelKeys())->update([
+                    'status' => self::STATUS_CLAIMED,
+                    'claimed_by' => $claimedBy,
+                    'claimed_at' => $claimedAt,
+                ]);
+                foreach ($rows as $row) {
+                    $row->status = self::STATUS_CLAIMED;
+                    $row->claimed_by = $claimedBy;
+                    $row->claimed_at = $claimedAt;
+                }
             }
 
             return $rows->all();
@@ -299,9 +305,9 @@ class AppQyV1AssistRequestModel extends Model
         if ($search !== '') {
             $like = '%' . $search . '%';
             $query->where(function ($builder) use ($like): void {
-                $builder->where('record_id', 'like', $like)
-                    ->orWhere('language', 'like', $like)
-                    ->orWhere('claimed_by', 'like', $like);
+                $builder->whereLike('record_id', $like, caseSensitive: false)
+                    ->orWhereLike('language', $like, caseSensitive: false)
+                    ->orWhereLike('claimed_by', $like, caseSensitive: false);
             });
         }
 

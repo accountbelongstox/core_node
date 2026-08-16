@@ -30,7 +30,7 @@ COLOR_CYAN="\033[36m"
 check_docker_installed() {
     if ! command -v docker >/dev/null 2>&1; then
         echo -e "${COLOR_RED}Docker is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 49_install_docker.sh"
+        echo "Please run installation script first: 48_install_docker.sh"
         return 1
     fi
     return 0

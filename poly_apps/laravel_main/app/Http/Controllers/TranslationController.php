@@ -9,11 +9,10 @@ use Illuminate\Http\JsonResponse;
 use App\Traits\ApiResponse;
 
 /**
- * @deprecated This controller is deprecated. Use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationController instead.
- * All translation APIs have been moved to AppQyV1 with database-backed caching.
+ * Main-layer translation endpoints (/translation/*).
  *
- * Old endpoints: /translation/*
- * New endpoints: /app_qy_v1/ai_tools/translation/*
+ * Backed by the canonical App\Services\TranslationService and the file-based
+ * TranslationTaskManager for the learning-mode task flow.
  *
  * Uses standardized ApiResponse trait
  * NO try-catch blocks - trust Laravel validation and database operations

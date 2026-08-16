@@ -10,7 +10,7 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Learning;
 
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Carbon;
@@ -23,7 +23,7 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQ
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryProcessPublicController as PDProcessPublic;
 use App\Traits\ApiResponse;
 
-class AppQyV1DailyRecitationController extends BaseController
+class AppQyV1DailyRecitationController extends Controller
 {
     use ApiResponse;
 

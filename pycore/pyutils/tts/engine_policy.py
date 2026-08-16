@@ -19,6 +19,7 @@ from pycore.pyutils.common.engine_registry import (
     parse_engine_priority,
 )
 from pycore.pyutils.tts.edge.command import build_edge_tts_command
+from pycore.pyutils.tts.qwen.config import default_speed as qwen_default_speed
 
 _USER_FRONT_ORDER = (
     "gptsovits", "streamelements", "sherpa", "melotts", "edge", "gtts_web", "azure",
@@ -42,10 +43,17 @@ _DEFAULT_WORD_PRIORITY = _WORD_FRONT_ORDER + tuple(
     if engine not in _WORD_FRONT_ORDER and engine not in _WORD_EXCLUDED
 )
 # Agent History articles: local engines only — never edge / cloud TTS.
-_CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
-_DEFAULT_AGENT_HISTORY_TTS = tuple(
-    engine for engine in _DEFAULT_PRIORITY if engine not in _CLOUD_TTS_ENGINES
-)
+CLOUD_TTS_ENGINES = frozenset({"edge", "streamelements", "gtts_web", "azure"})
+# Agent-history article audio is PINNED to the local Qwen3-TTS multi-sentence
+# pipeline. Long single-shot synthesis degrades on every autoregressive TTS
+# (QwenLM/Qwen3-TTS#258 - second-half noise; 2noise/ChatTTS#113 - one
+# generation <=30s, best <=25s; SWivid/F5-TTS - 30s per generation), and only
+# the Qwen server implements the sentence-chunk pipeline. A single-engine
+# order means NO fallback: a failed synthesis retries the pipeline item
+# instead of silently publishing degraded single-shot audio from the next
+# engine in the chain (the pre-pin fallback era produced ChattTS-sourced
+# articles with degraded audio).
+_AGENT_HISTORY_PINNED_TTS = ("qwen3tts",)
 _LEGACY_SAVED_ORDERS: Tuple[Tuple[str, ...], ...] = (
     ("edge", "sherpa", "melotts", "gptsovits", "azure"),
     ("edge", "sherpa", "melotts", "gptsovits", "gtts_web", "azure"),
@@ -243,9 +251,8 @@ def configured_tts_priority(profile: str = "default") -> tuple[str, ...]:
     if profile == "word":
         return tuple(engine for engine in word if engine not in _WORD_EXCLUDED)
     if profile == "agent_history":
-        # Prefer the configured default chain, then strip every cloud engine.
-        local = tuple(engine for engine in default if engine not in _CLOUD_TTS_ENGINES)
-        return local or _DEFAULT_AGENT_HISTORY_TTS
+        # Pinned single-engine contract - see _AGENT_HISTORY_PINNED_TTS.
+        return _AGENT_HISTORY_PINNED_TTS
     return default
 
 
@@ -376,13 +383,23 @@ def tts_rate_to_speed(rate: Optional[str]) -> float:
 def sentence_tts_cache_identity(
     accent: Optional[str],
     gender: Optional[str],
-) -> Tuple[str, str, str]:
+    rate: Optional[str] = None,
+) -> Tuple[str, str, str, str]:
     speaker = (os.environ.get("QWEN3TTS_SPEAKER") or "").strip()
     voice = f"{accent or 'any'}:{gender or 'female'}"
     speaker_field = f"{speaker}|{voice}" if speaker else voice
     instruct = (os.environ.get("QWEN3TTS_INSTRUCT") or "").strip()
     model = (os.environ.get("QWEN3TTS_MODEL") or "").strip()
-    return speaker_field, instruct, model
+    # Speed changes the produced audio (qwen time-stretches by default), so it
+    # is part of the cache key: explicit rate -> its factor, no rate -> the
+    # qwen server default (QWEN3TTS_SPEED), mirroring the wire contract.
+    explicit_rate = (rate or "").strip()
+    speed = (
+        f"{tts_rate_to_speed(explicit_rate):g}"
+        if explicit_rate
+        else f"{qwen_default_speed():g}"
+    )
+    return speaker_field, instruct, model, speed
 
 
 def tts_variant_result(

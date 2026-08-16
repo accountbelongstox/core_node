@@ -11,6 +11,7 @@
 namespace App\Http\EnvironmentApiInfo;
 
 use App\Http\Common\CommonGvar;
+use App\Services\DataSync\DataSyncProtocol;
 
 /**
  * CommonApiInfo Class
@@ -173,7 +174,7 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
-                'feature' => 'auth_required:dashboard.auth/GET|List persistent local machine data synchronization sessions|DataSyncController|response:sessions(array,Source and receiver synchronization sessions)|tags:system,database,sync'
+                'feature' => 'auth_required:dashboard.auth/GET|List persistent machine synchronization sessions with paired endpoint state|DataSyncController|response:sessions(array,Source and receiver sessions with counterpart endpoint/session snapshots)|tags:system,database,sync'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync',
@@ -181,7 +182,7 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync/{id}',
-                'feature' => 'auth_required:dashboard.auth/GET|Get synchronization progress and steps|DataSyncController|params:id(string,required,session-id)|response:session(object,Persistent synchronization session)|tags:system,database,sync'
+                'feature' => 'auth_required:dashboard.auth/GET|Get synchronized source and receiver progress and steps|DataSyncController|params:id(string,required,session-id)|response:session(object,Persistent session with counterpart snapshot)|tags:system,database,sync'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync/{id}/target',
@@ -197,11 +198,11 @@ class CommonApiInfo
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/health',
-                'feature' => 'no_auth_required/GET|Probe machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version),compression_available(boolean,System 7-Zip availability)|tags:system,sync,peer'
+                'feature' => 'no_auth_required/GET|Probe Laravel 13 machine synchronization capability|DataSyncController|response:protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),compression_available(boolean,System 7-Zip availability),default_port(int,Default peer port)|tags:system,sync,peer'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/prepare',
-                'feature' => 'no_auth_required/POST|Create automatic receiver session and start pre-transfer backups|DataSyncController|params:source_job_id(string,required,source-session-id),prepare_token(string,required,64-character-retry-secret),options(object,required,{"databases":true,"resources":true,"compression":false})|response:id(string,Receiver session ID),token(string,Session token),backup_directory(string,Mapped backup directory)|tags:system,sync,peer'
+                'feature' => 'no_auth_required/POST|Create automatic receiver session and start pre-transfer backups|DataSyncController|params:source_job_id(string,required,source-session-id),prepare_token(string,required,64-character-retry-secret),options(object,required,{"databases":true,"resources":true,"compression":false})|response:id(string,Receiver session ID),protocol_version(int,Protocol version ' . DataSyncProtocol::VERSION . '),token(string,Session token),backup_directory(string,Mapped backup directory)|tags:system,sync,peer'
             ],
             [
                 'path' => $baseUrl . '/dashboard/db-manager/sync-peer/sessions/{id}',

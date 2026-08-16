@@ -31,10 +31,7 @@ export class AppQyV1Model extends BaseModel {
       this.execute(api.appQyV1.logout()),
 
     getCurrentUser: () =>
-      this.execute(api.appQyV1.getCurrentUser()),
-
-    registerWithCode: (code: string, referralSource?: string) =>
-      this.execute(api.appQyV1.registerWithCode({ registration_code: code, referral_source: referralSource }))
+      this.execute(api.appQyV1.getCurrentUser())
   };
 
   // ========== AI Tools namespace ==========

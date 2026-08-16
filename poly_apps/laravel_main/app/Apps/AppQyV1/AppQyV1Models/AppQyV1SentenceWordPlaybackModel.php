@@ -2,26 +2,13 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 use Illuminate\Support\Collection;
 
-class AppQyV1SentenceWordPlaybackModel extends Model
+class AppQyV1SentenceWordPlaybackModel extends AppQyV1Model
 {
     protected $guarded = [];
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-
-        $this->connection = AppTablePrefixServiceProvider::getConnection(AppKeys::APPQYV1);
-        $this->table = AppTablePrefixServiceProvider::buildTableName(
-            AppKeys::APPQYV1,
-            'sentence_word_playbacks'
-        );
-    }
+    protected ?string $appTableSuffix = 'sentence_word_playbacks';
 
     public static function playCounts(
         string $clientKey,

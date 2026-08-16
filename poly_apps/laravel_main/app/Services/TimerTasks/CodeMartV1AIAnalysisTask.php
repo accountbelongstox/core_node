@@ -3,6 +3,7 @@
 namespace App\Services\TimerTasks;
 
 use App\Apps\CodeMartV1\CodeMartV1Models\CodeMartV1AIAnalysisModel;
+use App\Services\UserConfig\UserConfigService;
 
 /**
  * CodeMartV1 AI Analysis Timer Task
@@ -33,7 +34,10 @@ class CodeMartV1AIAnalysisTask extends OctaneTimerTaskAbstract
 
     public function isEnabled(): bool
     {
-        return (bool) env('CODEMARTV1_AI_ANALYSIS_ENABLED', true);
+        return (bool) app(UserConfigService::class)->get(
+            UserConfigService::CODEMARTV1_AI_ANALYSIS_ENABLED,
+            true
+        );
     }
 
     public function exec(): void

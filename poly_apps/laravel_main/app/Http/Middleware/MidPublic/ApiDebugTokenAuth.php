@@ -26,7 +26,7 @@ class ApiDebugTokenAuth
      */
     public static function isDebugToken(Request $request)
     {
-        $isLaravelDebugMode = env('APP_DEBUG');
+        $isLaravelDebugMode = (bool) config('app.debug');
         if(!$isLaravelDebugMode){
             return false;
         }

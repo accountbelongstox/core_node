@@ -9,6 +9,7 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public;
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1WordGroupModel;
 use App\Utils\StrTool;
@@ -16,7 +17,7 @@ use App\Utils\ArrTool;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 use App\Traits\ApiResponse;
-class AppQyV1WordGroupToolPublicController
+class AppQyV1WordGroupToolPublicController extends Controller
 {
     use ApiResponse;
 

@@ -1,15 +1,12 @@
 <?php
 namespace App\Apps\CodeMartV1\CodeMartV1Models;
 
-use App\Constants\AppKeys;
 use App\Utils\RunsModelTransactions;
-use App\Models\Model;
 
-class CodeMartV1ReviewerApplicationModel extends Model
+class CodeMartV1ReviewerApplicationModel extends CodeMartV1Model
 {
     use RunsModelTransactions;
 
-    protected $connection = AppKeys::CODEMARTV1;
     protected $table = 'codemart_v1_reviewer_applications';
 
     protected $fillable = [
@@ -32,11 +29,6 @@ class CodeMartV1ReviewerApplicationModel extends Model
             ->where('user_id', $userId)
             ->where('created_at', '>', now()->subDays($days))
             ->first();
-    }
-
-    public static function createRecord(array $attributes): self
-    {
-        return static::query()->create($attributes);
     }
 
     public static function findOwnedInProgress(int $applicationId, int $userId): ?self

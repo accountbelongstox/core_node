@@ -118,6 +118,9 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
     Route::prefix('article')->group(function () {
         Route::get('/task/{taskId}', [AppQyV1ArticleController::class, 'getTaskStatus']);
         Route::post('/worker/submit', [AppQyV1ArticleController::class, 'workerSubmit']);
+        // In-place audio replacement for the pycore legacy-audio rebuild lane
+        // (same NO-AUTH worker trust level as /worker/submit).
+        Route::post('/worker/replace-audio', [AppQyV1ArticleController::class, 'workerReplaceAudio']);
         Route::get('/worker/recent', [AppQyV1ArticleController::class, 'workerRecent']);
         // Short/daily-sentences aliases (type=short | article_type=short).
         // Replaces /api/app_qy_v1/daily-sentences/*; old routes remain as wrappers.

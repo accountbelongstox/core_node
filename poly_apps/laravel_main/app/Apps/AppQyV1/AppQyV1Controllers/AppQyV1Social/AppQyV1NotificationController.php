@@ -15,7 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Routing\Controller as BaseController;
+use App\Http\Controllers\Controller;
 use App\Traits\ApiResponse;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
 
@@ -23,7 +23,7 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1NotificationModel;
  * Notification inbox (SOCIAL_FEATURE_SPECIFICATION.md §3). Always scoped to the
  * authenticated user — every query is keyed on $request->user()->id.
  */
-class AppQyV1NotificationController extends BaseController
+class AppQyV1NotificationController extends Controller
 {
     use ApiResponse;
 

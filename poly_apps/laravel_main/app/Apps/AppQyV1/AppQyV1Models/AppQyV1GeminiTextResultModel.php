@@ -10,9 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use App\Models\Model;
 
 /**
  * Gemini text-completion answer record.
@@ -22,17 +19,10 @@ use App\Models\Model;
  * { answer?, provider:'gemini' } plus the originating task's payload
  * { question, title? }.
  */
-class AppQyV1GeminiTextResultModel extends Model
+class AppQyV1GeminiTextResultModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'gemini_text_results');
-    }
+    protected ?string $appTableSuffix = 'gemini_text_results';
 
     protected $fillable = [
         'task_id',
@@ -42,8 +32,4 @@ class AppQyV1GeminiTextResultModel extends Model
         'provider',
     ];
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
 }

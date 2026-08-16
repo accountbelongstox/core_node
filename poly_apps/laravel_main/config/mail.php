@@ -9,6 +9,8 @@
 // ### AI SPECIAL ATTENTION RULES END ###
 
 
+use App\Constants\LaravelConfig;
+
 return [
 
     /*
@@ -23,7 +25,7 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'log'),
+    'default' => 'log',
 
     /*
     |--------------------------------------------------------------------------
@@ -48,40 +50,19 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
-            'url' => env('MAIL_URL'),
-            'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 2525),
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
+            'scheme' => null,
+            'url' => null,
+            'host' => '127.0.0.1',
+            'port' => 2525,
+            'username' => null,
+            'password' => null,
             'timeout' => null,
-            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
-        ],
-
-        'ses' => [
-            'transport' => 'ses',
-        ],
-
-        'postmark' => [
-            'transport' => 'postmark',
-            // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
-            // 'client' => [
-            //     'timeout' => 5,
-            // ],
-        ],
-
-        'resend' => [
-            'transport' => 'resend',
-        ],
-
-        'sendmail' => [
-            'transport' => 'sendmail',
-            'path' => env('MAIL_SENDMAIL_PATH', '/usr/sbin/sendmail -bs -i'),
+            'local_domain' => parse_url(LaravelConfig::APP_URL, PHP_URL_HOST),
         ],
 
         'log' => [
             'transport' => 'log',
-            'channel' => env('MAIL_LOG_CHANNEL'),
+            'channel' => null,
         ],
 
         'array' => [
@@ -93,14 +74,6 @@ return [
             'mailers' => [
                 'smtp',
                 'log',
-            ],
-        ],
-
-        'roundrobin' => [
-            'transport' => 'roundrobin',
-            'mailers' => [
-                'ses',
-                'postmark',
             ],
         ],
 
@@ -118,8 +91,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', 'Example'),
+        'address' => 'noreply@localhost',
+        'name' => LaravelConfig::APP_NAME,
     ],
 
 ];

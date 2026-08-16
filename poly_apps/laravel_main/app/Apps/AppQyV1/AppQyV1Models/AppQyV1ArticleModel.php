@@ -12,31 +12,24 @@
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
 use Closure;
+use App\Apps\AppQyV1\AppQyV1Models\Concerns\AppQyV1StudySourceQueries;
 use App\Models\Concerns\QueriesDiffIdPages;
 use App\Utils\RunsModelTransactions;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\Schema;
 
-class AppQyV1ArticleModel extends Model
+class AppQyV1ArticleModel extends AppQyV1Model
 {
-    use QueriesDiffIdPages, RunsModelTransactions;
+    use AppQyV1StudySourceQueries, QueriesDiffIdPages, RunsModelTransactions;
 
     public const TYPE_DAILY = 'daily';
     public const SOURCE_AGENT_HISTORY = 'agent_history';
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
+    protected const STUDY_SOURCE_KEY_COLUMN = 'article_id';
+    protected const STUDY_SOURCE_COLUMNS = ['id', 'article_id', 'title', 'language', 'sentence_count'];
+
     
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'articles');
-    }
+    protected ?string $appTableSuffix = 'articles';
 
     protected $fillable = [
         'article_id',
@@ -57,12 +50,15 @@ class AppQyV1ArticleModel extends Model
         'metadata',
     ];
 
-    protected $casts = [
-        'is_daily_reading' => 'boolean',
-        'tts_generated' => 'boolean',
-        'reading_date' => 'date',
-        'metadata' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_daily_reading' => 'boolean',
+            'tts_generated' => 'boolean',
+            'reading_date' => 'date',
+            'metadata' => 'array',
+        ];
+    }
 
     public function isAgentHistoryDaily(): bool
     {
@@ -70,53 +66,19 @@ class AppQyV1ArticleModel extends Model
             && $this->article_type === self::TYPE_DAILY;
     }
 
-    public static function studyMarkerColumnsReady(): bool
+    public static function migrateDailyShortTypeInPlace(): int
     {
         $model = new static();
+        $schema = Schema::connection($model->getConnectionName());
 
-        return Schema::connection($model->getConnectionName())
-            ->hasColumn($model->getTable(), 'study_gen_status');
-    }
-
-    public static function studySourceCount(?string $search): int
-    {
-        $query = self::query();
-        if ($search !== null && $search !== '') {
-            $query->where('title', 'like', '%' . $search . '%');
+        if (!$schema->hasTable($model->getTable())
+            || !$schema->hasColumn($model->getTable(), 'article_type')) {
+            return 0;
         }
 
-        return $query->count();
-    }
-
-    public static function studySourceRows(?string $search, int $offset, int $limit): EloquentCollection
-    {
-        $columns = ['id', 'article_id', 'title', 'language', 'sentence_count'];
-        if (self::studyMarkerColumnsReady()) {
-            $columns[] = 'study_gen_status';
-            $columns[] = 'study_gen_progress';
-        }
-
-        $query = self::query();
-        if ($search !== null && $search !== '') {
-            $query->where('title', 'like', '%' . $search . '%');
-        }
-
-        return $query->select($columns)->orderBy('id')->skip($offset)->take($limit)->get();
-    }
-
-    public static function sourceMetadata(string $articleId): mixed
-    {
-        return self::query()->where('article_id', $articleId)->value('metadata');
-    }
-
-    public static function sourceLanguage(string $articleId): string
-    {
-        return (string) (self::query()->where('article_id', $articleId)->value('language') ?? '');
-    }
-
-    public static function updateStudyMarker(string $articleId, array $attributes): int
-    {
-        return self::query()->where('article_id', $articleId)->update($attributes);
+        return static::query()
+            ->where('article_type', 'daily_short')
+            ->update(['article_type' => 'short']);
     }
 
     public static function managementPage(?string $category, int $offset, int $limit): array
@@ -160,11 +122,6 @@ class AppQyV1ArticleModel extends Model
         return self::query()->where('task_id', $taskId)->first();
     }
 
-    public static function createRecord(array $attributes): self
-    {
-        return self::query()->create($attributes);
-    }
-
     public static function chunkForLibraryBackfill(?string $articleId, Closure $callback): void
     {
         $query = self::query();
@@ -176,7 +133,8 @@ class AppQyV1ArticleModel extends Model
         $query->orderBy('id')->chunkById(200, $callback);
     }
 
-    public function scopeSentenceAudioQueueEligible($query)
+    #[\Illuminate\Database\Eloquent\Attributes\Scope]
+    protected function sentenceAudioQueueEligible(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
     {
         return $query->where(function ($eligibleQuery): void {
             $eligibleQuery

@@ -13,10 +13,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Support\Collection;
 
 /**
@@ -24,22 +20,15 @@ use Illuminate\Support\Collection;
  * the one-way user_follows. status pending|accepted|rejected|blocked, unique per
  * (requester_id, addressee_id).
  */
-class AppQyV1FriendRequestModel extends Model
+class AppQyV1FriendRequestModel extends AppQyV1Model
 {
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACCEPTED = 'accepted';
     public const STATUS_REJECTED = 'rejected';
     public const STATUS_BLOCKED = 'blocked';
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppQyV1TableMaps::getTableName('FRIEND_REQUESTS');
-    }
+    protected ?string $appTableMapKey = 'FRIEND_REQUESTS';
 
     protected $fillable = [
         'requester_id',
@@ -47,12 +36,15 @@ class AppQyV1FriendRequestModel extends Model
         'status',
     ];
 
-    protected $casts = [
-        'requester_id' => 'integer',
-        'addressee_id' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'requester_id' => 'integer',
+            'addressee_id' => 'integer',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public static function sendOrReset(int $requesterId, int $addresseeId): self
     {

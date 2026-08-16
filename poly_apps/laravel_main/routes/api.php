@@ -219,9 +219,6 @@ require_once __DIR__ . '/DingDuoDuoV1Router/DingDuoDuoV1Admin.php';
 // PddToolV1 (订多多) admin console routes (/api/pdd/admin/*)
 require_once __DIR__ . '/PddToolV1Router/PddToolV1Admin.php';
 
-// McpV1 routes - MCP application
-require_once __DIR__ . '/McpV1Router/api.php';
-
 // Global Task System Routes
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\WorkerController;
@@ -252,6 +249,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         Route::get('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
         Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
         Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
+        Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);
         Route::get('list', [WorkerController::class, 'list']);
         Route::get('stats', [WorkerController::class, 'stats']);
     });

@@ -174,6 +174,8 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
     worker = payload["worker"]
     processed = succeeded = failed = 0
     while True:
+        if worker._lane_halt_requested():
+            break
         task = worker._queue.pop()
         if task is None:
             break
@@ -1367,7 +1369,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         """
         if not isinstance(task, dict) or task.get("task_id") in (None, ""):
             return {"success": False, "error": "task with task_id is required"}
-        if not self._is_enabled():
+        if not self._is_enabled() or self._lane_halt_requested():
             return {"success": False, "error": f"{self.LANE} audio lane is disabled"}
         try:
             endpoint = (base_url or "").strip() or self.api_url
@@ -1456,6 +1458,17 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             return False
         return bool(results and results[0])
 
+    def _drop_queued_tasks(self) -> List[Dict[str, Any]]:
+        """Pop every queued-but-unstarted heap task for an immediate stop."""
+        dropped: List[Dict[str, Any]] = []
+        while True:
+            task = self._queue.pop()
+            if task is None:
+                break
+            self._queue.complete(task)
+            dropped.append(task)
+        return dropped
+
     def _drain_cycle(self) -> None:
         """One ordered drain cycle over the local dispatch heap. Runs on a
         background bus thread and is fully exception-safe."""
@@ -1481,6 +1494,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                     failed += int(result.get("failed") or 0)
             else:
                 while True:
+                    if self._lane_halt_requested():
+                        break
                     task = self._queue.pop()
                     if task is None:
                         break
@@ -1517,11 +1532,11 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             ColorPrint.red(f"{self._log_prefix} Cycle error: {e}")
         finally:
             THREAD_BUS.signal(self._cycle_signal, False)
-            if len(self._queue) > 0:
-                # Tasks dispatched mid-cycle remain queued — run ONE follow-up
+            if len(self._queue) > 0 and not self._lane_halt_requested():
+                # Tasks dispatched mid-cycle remain queued - run ONE follow-up
                 # drain so they are not stuck behind the next RPC dispatch.
                 self._start_drain()
-            elif self._is_enabled() and self._pull_capacity() > 0:
+            elif self._is_enabled() and not self._lane_halt_requested() and self._pull_capacity() > 0:
                 self.request_pull()
 
     # -------------------- introspection --------------------

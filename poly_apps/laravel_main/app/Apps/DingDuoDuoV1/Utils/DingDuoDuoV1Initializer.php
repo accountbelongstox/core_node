@@ -247,15 +247,9 @@ class DingDuoDuoV1Initializer implements AppInitializerInterface
             $created = 0;
             $existing = 0;
 
-            foreach (DingDuoDuoV1SuperCodeService::MASTER_CODES as $code) {
-                $row = DingDuoDuoV1SuperCodeModel::findByCode($code);
-                if ($row) {
-                    $existing++;
-                    continue;
-                }
-
-                DingDuoDuoV1SuperCodeModel::createRecord([
-                    'code' => $code,
+            $created = DingDuoDuoV1SuperCodeModel::insertMasterCodes(
+                DingDuoDuoV1SuperCodeService::MASTER_CODES,
+                [
                     'label' => 'Master Code',
                     'tier' => DingDuoDuoV1Constants::TIER_UNLIMITED,
                     'max_binds' => 0,
@@ -264,9 +258,9 @@ class DingDuoDuoV1Initializer implements AppInitializerInterface
                     'expires_at' => null,
                     'status' => DingDuoDuoV1SuperCodeModel::STATUS_ACTIVE,
                     'created_by' => 'system',
-                ]);
-                $created++;
-            }
+                ]
+            );
+            $existing = count(DingDuoDuoV1SuperCodeService::MASTER_CODES) - $created;
 
             return [
                 'status' => 'success',

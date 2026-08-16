@@ -13,30 +13,16 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * Link row between a word group and a synced media source (book|subtitle).
  * Removing the link never removes words already merged into the group.
  */
-class AppQyV1GroupMediaSourceModel extends Model
+class AppQyV1GroupMediaSourceModel extends AppQyV1Model
 {
-    protected $appKey = AppKeys::APPQYV1;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'group_media_sources');
-    }
-
-    public function getConnectionName()
-    {
-        return AppTablePrefixServiceProvider::getConnection($this->appKey);
-    }
+    protected ?string $appTableSuffix = 'group_media_sources';
 
     protected $fillable = [
         'group_id',
@@ -48,12 +34,15 @@ class AppQyV1GroupMediaSourceModel extends Model
         'added_at',
     ];
 
-    protected $casts = [
-        'words_added' => 'integer',
-        'added_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'words_added' => 'integer',
+            'added_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
 
     public function group(): BelongsTo
     {

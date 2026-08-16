@@ -10,9 +10,6 @@
 
 namespace App\Apps\AppQyV1\AppQyV1Models;
 
-use App\Models\Model;
-use App\Constants\AppKeys;
-use App\Providers\AppTablePrefixServiceProvider;
 use App\Utils\RunsModelTransactions;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
@@ -25,19 +22,12 @@ use Illuminate\Support\Collection;
  * THE anchor everything generated hangs off of, and the 60-minute claim lease
  * (claimed_at/claimed_by). Unique on (source_type, source_key, segment_index).
  */
-class AppQyV1StudySegmentModel extends Model
+class AppQyV1StudySegmentModel extends AppQyV1Model
 {
     use RunsModelTransactions;
 
-    protected $appKey = AppKeys::APPQYV1;
-    protected $table;
 
-    public function __construct(array $attributes = [])
-    {
-        parent::__construct($attributes);
-        $this->connection = AppTablePrefixServiceProvider::getConnection($this->appKey);
-        $this->table = AppTablePrefixServiceProvider::buildTableName($this->appKey, 'study_segments');
-    }
+    protected ?string $appTableSuffix = 'study_segments';
 
     protected $fillable = [
         'source_type',
@@ -60,18 +50,21 @@ class AppQyV1StudySegmentModel extends Model
         'metadata',
     ];
 
-    protected $casts = [
-        'segment_index' => 'integer',
-        'seq_start' => 'integer',
-        'seq_end' => 'integer',
-        'chapter_index' => 'integer',
-        'char_count' => 'integer',
-        'attempts' => 'integer',
-        'claimed_at' => 'datetime',
-        'languages_done' => 'array',
-        'generated_at' => 'datetime',
-        'metadata' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'segment_index' => 'integer',
+            'seq_start' => 'integer',
+            'seq_end' => 'integer',
+            'chapter_index' => 'integer',
+            'char_count' => 'integer',
+            'attempts' => 'integer',
+            'claimed_at' => 'datetime',
+            'languages_done' => 'array',
+            'generated_at' => 'datetime',
+            'metadata' => 'array',
+        ];
+    }
 
     public static function countForSource(string $sourceType, string $sourceKey): int
     {
@@ -146,19 +139,18 @@ class AppQyV1StudySegmentModel extends Model
             }
 
             $rows = $query->orderBy('segment_index')->limit($limit)->lockForUpdate()->get();
-            $ids = [];
+            $ids = $rows->modelKeys();
 
-            foreach ($rows as $row) {
-                $row->status = 'generating';
-                $row->claimed_at = now();
-                $row->claimed_by = $claimerId;
-                $row->attempts = (int) $row->attempts + 1;
-                $row->error = null;
-                $row->save();
-                $ids[] = (int) $row->id;
+            if ($ids !== []) {
+                self::query()->whereKey($ids)->increment('attempts', 1, [
+                    'status' => 'generating',
+                    'claimed_at' => now(),
+                    'claimed_by' => $claimerId,
+                    'error' => null,
+                ]);
             }
 
-            return $ids;
+            return array_map('intval', $ids);
         });
     }
 
@@ -188,7 +180,6 @@ class AppQyV1StudySegmentModel extends Model
             ->whereIn('segment_index', $segmentIndexes)
             ->whereNotNull('claimed_at')
             ->where('status', '!=', 'done');
-        $count = (clone $query)->count();
         $attributes = [
             'status' => $error !== null && $error !== '' ? 'failed' : 'pending',
             'claimed_at' => null,
@@ -199,9 +190,7 @@ class AppQyV1StudySegmentModel extends Model
             $attributes['error'] = mb_substr($error, 0, 2000);
         }
 
-        $query->update($attributes);
-
-        return $count;
+        return $query->update($attributes);
     }
 
     public static function orderedForSource(string $sourceType, string $sourceKey): EloquentCollection
