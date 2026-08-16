@@ -28,7 +28,8 @@ CLI:
   python tts_model_tiers.py engine-model <engine> [--gpu|--cpu]
 
 Keys for resolve: whisper_model, faster_whisper_model, kokoro_url,
-  gptsovits_hf_allow, cosyvoice_model_dir, voxcpm2_model, fishspeech_checkpoint
+  gptsovits_hf_allow, cosyvoice_model_dir, voxcpm2_model, fishspeech_checkpoint,
+  bark_model, bark_hf_allow
 """
 
 from __future__ import annotations
@@ -121,6 +122,28 @@ OFFICIAL_ENV: dict[str, str] = {
 _GPTSOVITS_CPU = (
     "chinese-hubert-base/*,chinese-roberta-wwm-ext-large/*,gsv-v2final-pretrained/*"
 )
+
+# HF pre-download allow-lists (single source of truth). The install-time
+# downloader (Install-HfRepoFlat / install_hf_repo_flat) fetches exactly this
+# set and the readiness verifiers (Test-NeuralTtsLocalWeightsReady /
+# neural_tts_local_weights_ready / hf_local_weights.local_weights_ready) check
+# exactly this set, so foreign weight files under weights/ (e.g. the legacy
+# original-Bark coarse/fine/text .pt components that the transformers Bark
+# integration does not use) can never deadlock readiness.
+HF_ALLOW: dict[str, str] = {
+    "bark": (
+        "pytorch_model.bin,config.json,generation_config.json,tokenizer.json,"
+        "tokenizer_config.json,special_tokens_map.json,vocab.txt,"
+        "speaker_embeddings_path.json,speaker_embeddings/*.npy,"
+        "speaker_embeddings/v2/*.npy"
+    ),
+}
+
+
+def hf_allow_patterns(engine: str) -> tuple[str, ...]:
+    """Comma-separated HF allow-list for one engine as a pattern tuple ('' -> ())."""
+    raw = HF_ALLOW.get((engine or "").strip().lower().replace("-", "_"), "")
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 # GPU / CPU max tiers (single source for install scripts + runtime).
 TIER_TABLE: dict[str, dict[str, str]] = {
@@ -221,6 +244,11 @@ def bark_model(gpu: bool) -> str:
     return "suno/bark" if gpu else "suno/bark-small"
 
 
+def bark_hf_allow(gpu: bool) -> str:
+    del gpu
+    return HF_ALLOW["bark"]
+
+
 def parler_model(gpu: bool) -> str:
     return "parler-tts/parler-tts-large-v1" if gpu else "parler-tts/parler-tts-mini-v1"
 
@@ -297,6 +325,7 @@ _RESOLVERS = {
     "voxcpm2_model": voxcpm2_model,
     "fishspeech_checkpoint": fishspeech_checkpoint,
     "bark_model": bark_model,
+    "bark_hf_allow": bark_hf_allow,
     "parler_model": parler_model,
     "qwen3tts_model": qwen3tts_model,
 }

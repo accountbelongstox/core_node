@@ -207,19 +207,19 @@ function Install-NLLB200ModelWeights {
     if (Test-Path $modelSentinel) {
         $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
         if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
-        if ($sentinelModel -and ($sentinelModel -eq $MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+        if ($sentinelModel -and ($sentinelModel -eq $MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH -AllowPatterns $weightAllow)) {
             Write-Host "$SCRIPT_INDEX [idempotent] skipping: model weights verified ($MODEL_PATH)" -ForegroundColor Green
             $modelReady = $true
         } elseif ($sentinelModel -and ($sentinelModel -ne $MODEL_PATH)) {
             Write-Host ("$SCRIPT_INDEX [..] model changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $MODEL_PATH) -ForegroundColor Yellow
-        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH -AllowPatterns $weightAllow)) {
             Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
         }
     }
     if (-not $modelReady) {
         Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $MODEL_PATH) -ForegroundColor Yellow
         $dlOk = Install-HfRepoFlat -RepoId $MODEL_PATH -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $MODEL_PATH
-        if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH)) {
+        if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $MODEL_PATH -AllowPatterns $weightAllow)) {
             Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $MODEL_PATH, $weightsDir) -ForegroundColor Green
         } else {
             Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $weightsDir) -ForegroundColor DarkYellow

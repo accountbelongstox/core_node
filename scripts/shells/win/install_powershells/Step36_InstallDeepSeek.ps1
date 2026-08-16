@@ -234,19 +234,19 @@ function Install-DeepSeekVLModelWeights {
     if (Test-Path $vlModelSentinel) {
         $vlSentinelModel = (Get-Content -LiteralPath $vlModelSentinel -Raw -ErrorAction SilentlyContinue)
         if ($vlSentinelModel) { $vlSentinelModel = $vlSentinelModel.Trim().Trim([char]0xFEFF) }
-        if ($vlSentinelModel -and ($vlSentinelModel -eq $VL_MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+        if ($vlSentinelModel -and ($vlSentinelModel -eq $VL_MODEL_PATH) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH -AllowPatterns $vlWeightAllow)) {
             Write-Host "$SCRIPT_INDEX [idempotent] skipping: model weights verified ($VL_MODEL_PATH)" -ForegroundColor Green
             $vlModelReady = $true
         } elseif ($vlSentinelModel -and ($vlSentinelModel -ne $VL_MODEL_PATH)) {
             Write-Host ("$SCRIPT_INDEX [..] model changed ({0} -> {1}); refreshing weights." -f $vlSentinelModel, $VL_MODEL_PATH) -ForegroundColor Yellow
-        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+        } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH -AllowPatterns $vlWeightAllow)) {
             Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
         }
     }
     if (-not $vlModelReady) {
         Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $VL_MODEL_PATH) -ForegroundColor Yellow
         $vlDlOk = Install-HfRepoFlat -RepoId $VL_MODEL_PATH -DestDir $vlWeightsDir -SentinelPath $vlModelSentinel -AllowPatterns $vlWeightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $VL_MODEL_PATH
-        if ($vlDlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH)) {
+        if ($vlDlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $vlWeightsDir -RepoId $VL_MODEL_PATH -AllowPatterns $vlWeightAllow)) {
             Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $VL_MODEL_PATH, $vlWeightsDir) -ForegroundColor Green
         } else {
             Write-Host ("$SCRIPT_INDEX [!] model download not finished; partial files kept at {0}; will RESUME next run." -f $vlWeightsDir) -ForegroundColor DarkYellow

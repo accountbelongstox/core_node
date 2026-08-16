@@ -28,7 +28,7 @@ from pycore.pyfoundations.third_party.api import (
     get_third_package_torch,
     get_third_package_transformers,
 )
-from pycore.pyutils.common.model_tiers import runtime_engine_model
+from pycore.pyutils.common.model_tiers import hf_allow_patterns, runtime_engine_model
 from pycore.pyutils.common.hf_local_weights import resolve_model_id
 from pycore.pyutils.tts.serialized_model_engine import SerializedModelEngine
 
@@ -65,6 +65,7 @@ def _model_id() -> str:
         "bark",
         tier,
         static_sizes=_STATIC_MODEL_MIN_BYTES.get(tier),
+        allow_patterns=hf_allow_patterns("bark"),
     )
 
 

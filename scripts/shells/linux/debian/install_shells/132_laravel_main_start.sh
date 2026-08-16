@@ -15,6 +15,9 @@
 # 132_prepare_domain_setup.sh / 133_setup_domain_ssl.sh pair (both deleted -
 # no thin wrappers; the menu runs this file directly):
 #   - full toolchain ensure (php / composer / node / swoole / p7zip / postgres)
+#   - vendor/ integrity ensure driven by the shared composer-lock contract
+#     (common/composer_vendor_common.sh): install / repair / rebuild from
+#     composer.lock, verified by a clean autoloader load
 #   - SSH server ensure (via 19_setup_ssh_remote.sh, itself idempotent)
 #   - nginx ensure driven by the shared management architecture
 #     (common/nginx_manager.sh): install / in-place upgrade / idempotent
@@ -67,6 +70,7 @@ SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/19_setup_ssh_remote.sh"
 NGINX_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/26_install_nginx.sh"
 CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/27_install_certbot.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
+COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 SECRETS_DIR="${REPO_ROOT}/.secret_keys/.secret_ignore"
 
@@ -146,6 +150,7 @@ INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
+. "$COMPOSER_VENDOR_COMMON"
 
 cleanup_runtime() {
     cd "$ORIGINAL_DIR" || true
@@ -785,15 +790,12 @@ if ! upgrade_laravel_to_13; then
     exit 1
 fi
 
-# Ensure vendor dependencies are installed before running any artisan command
-if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
-    echo "vendor/ not found. Running composer install..."
-    $COMPOSER_CMD install
-    if [ $? -ne 0 ]; then
-        echo "ERROR: composer install failed"
-        exit 1
-    fi
-    echo ""
+# Ensure vendor/ matches composer.lock AND the autoloader actually loads before
+# any artisan command (file existence alone does not prove vendor integrity).
+ensure_composer_vendor "$LARAVEL_DIR"
+if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
+    echo "ERROR: composer vendor setup failed"
+    exit 1
 fi
 
 # Initialize the canonical runtime store before any Artisan command.

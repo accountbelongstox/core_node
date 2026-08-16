@@ -40,6 +40,7 @@ fishspeech_checkpoint = _tiers.fishspeech_checkpoint
 bark_model = _tiers.bark_model
 parler_model = _tiers.parler_model
 qwen3tts_model = _tiers.qwen3tts_model
+hf_allow_patterns = _tiers.hf_allow_patterns
 
 _STT_SECTION = "stt"
 
@@ -146,6 +147,7 @@ __all__ = [
     "bark_model",
     "parler_model",
     "qwen3tts_model",
+    "hf_allow_patterns",
     "gpu_present",
     "persist_stt_models",
     "runtime_whisper_model",

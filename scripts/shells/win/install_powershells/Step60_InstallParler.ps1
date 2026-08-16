@@ -112,19 +112,19 @@ $modelReady = $false
 if ((Test-Path $modelSentinel) -and -not $Force) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
     if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
-    if ($sentinelModel -and ($sentinelModel -eq $parlerModel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel)) {
+    if ($sentinelModel -and ($sentinelModel -eq $parlerModel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel -AllowPatterns $weightAllow)) {
         Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason "model weights verified ($parlerModel)" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
         $modelReady = $true
     } elseif ($sentinelModel -and ($sentinelModel -ne $parlerModel)) {
         Write-Host ("$SCRIPT_INDEX [..] model tier changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $parlerModel) -ForegroundColor Yellow
-    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel)) {
+    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel -AllowPatterns $weightAllow)) {
         Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
     }
 }
 if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $parlerModel) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $parlerModel -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $parlerModel
-    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel)) {
+    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel -AllowPatterns $weightAllow)) {
         $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $parlerModel, $weightsDir) -ForegroundColor Green
     } else {
@@ -138,7 +138,7 @@ if (-not $depsReady -or -not $modelReady) {
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Parler ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green
-if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel)) {
+if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $parlerModel -AllowPatterns $weightAllow)) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan
 }
 Write-Host "$SCRIPT_INDEX  Set PARLER_MODEL / PARLER_DESCRIPTION to override." -ForegroundColor DarkGray

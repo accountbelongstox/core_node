@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Bark TTS prerequisite (Linux) — Suno via Hugging Face transformers.
 # Category 1 / Bucket A: Python 3.x native, in-process local model that SHARES the
 # main interpreter's single pinned transformers with deepseek/qwen25/nllb.
@@ -26,7 +26,7 @@ TARGET_DIR="${BARK_DIR:-$CACHE_ROOT/pycore/bark}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 WEIGHTS_DIR="$TARGET_DIR/weights"
 MODEL_SENTINEL="$TARGET_DIR/.model_installed"
-WEIGHT_ALLOW="pytorch_model.bin,config.json,generation_config.json,tokenizer.json,tokenizer_config.json,special_tokens_map.json,vocab.txt,speaker_embeddings_path.json,speaker_embeddings/*.npy,speaker_embeddings/v2/*.npy"
+WEIGHT_ALLOW=""
 # Shared Bucket-A transformers pin is loaded by common_functions.sh.
 LLM_TRANSFORMERS_SPEC="${LLM_TRANSFORMERS_SPEC:-${AI_SHARED_TRANSFORMERS_SPEC:-transformers}}"
 
@@ -81,6 +81,12 @@ mkdir -p "$TARGET_DIR"
 _gpu_flag="--cpu"
 if gpu_present; then _gpu_flag="--gpu"; fi
 _bark_model="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" bark_model "$_gpu_flag")"
+# Download/readiness contract (single source: tts_model_tiers.HF_ALLOW['bark']).
+WEIGHT_ALLOW="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" bark_hf_allow "$_gpu_flag")"
+if [[ -z "$WEIGHT_ALLOW" ]]; then
+    echo "[install_bark] [!] could not resolve bark_hf_allow from tts_model_tiers.py; aborting." >&2
+    fail_prereq_step "$PYTHON" "[install_bark] " transformers
+fi
 tts_official_env_line "$PYTHON" "$SCRIPT_DIR" bark | while read -r _line; do
     echo "[install_bark]  official env (bark): $_line"
 done
@@ -118,19 +124,19 @@ fi
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
-    if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_bark_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON"; then
+    if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_bark_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_bark_model)"
         _model_ready=1
     elif [[ -n "$_sentinel_model" && "$_sentinel_model" != "$_bark_model" ]]; then
         echo "[install_bark] [..] model tier changed ($_sentinel_model -> $_bark_model); refreshing weights."
-    elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON"; then
+    elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         echo "[install_bark] [..] local weights incomplete or corrupt; repairing download."
     fi
 fi
 if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_bark] [..] downloading/repairing model '$_bark_model' (curl, resumable) ..."
     if install_hf_repo_flat "$_bark_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_bark] " "$WEIGHT_ALLOW" "" "$_bark_model" \
-       && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON"; then
+       && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         _model_ready=1
         echo "[install_bark] [OK] model '$_bark_model' ready at $WEIGHTS_DIR."
     else
@@ -144,7 +150,7 @@ if [[ "$_model_ready" -ne 1 ]]; then
 fi
 
 echo "[install_bark] [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local."
-if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON"; then
+if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_bark_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
     echo "[install_bark]  local weights auto-detected: $WEIGHTS_DIR"
 fi
 echo "[install_bark]  export BARK_MODEL/ BARK_VOICE_PRESET to override."

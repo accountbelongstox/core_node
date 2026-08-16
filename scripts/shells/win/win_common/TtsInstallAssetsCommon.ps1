@@ -261,6 +261,20 @@ function Test-HfGlobMatch {
     return ($FileName -match $regex)
 }
 
+function Test-HfAllowMatch {
+    # HF allow-list contract shared by the downloader and the readiness verifiers:
+    # empty pattern list matches everything, otherwise any glob hit qualifies.
+    param(
+        [Parameter(Mandatory = $true)][string]$FileName,
+        [string[]]$Patterns = @('*')
+    )
+    if (-not $Patterns -or $Patterns.Count -eq 0) { return $true }
+    foreach ($pattern in $Patterns) {
+        if (Test-HfGlobMatch -FileName $FileName -Pattern $pattern) { return $true }
+    }
+    return $false
+}
+
 function Get-HfRepoTreeCatalog {
     param(
         [Parameter(Mandatory = $true)][string]$RepoId,
@@ -455,7 +469,7 @@ function Install-HfRepoFlat {
     if (
         -not $ReconcileCatalog -and
         (Test-Path -LiteralPath $SentinelPath) -and
-        (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId)
+        (Test-NeuralTtsLocalWeightsReady -WeightsDir $DestDir -RepoId $RepoId -AllowPatterns $AllowPatterns)
     ) {
         $localWeightFiles = @(Get-ChildItem -Path $DestDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
         $localWeightBytes = [long](($localWeightFiles | Measure-Object -Property Length -Sum).Sum)
@@ -505,10 +519,15 @@ function Install-HfRepoFlat {
 }
 
 function Test-NeuralTtsLocalWeightsReady {
+    # Readiness == the installer's download contract: only allow-listed files are
+    # verified. Foreign weight files under weights/ (legacy layouts, other engines)
+    # are ignored; when the HF catalog is reachable, every allow-listed catalog
+    # weight file must also be present locally at full size.
     param(
         [Parameter(Mandatory = $true)][string]$WeightsDir,
         [string]$RepoId = '',
-        [string]$RequiredFileManifest = ''
+        [string]$RequiredFileManifest = '',
+        [string[]]$AllowPatterns = @('*')
     )
     $catalog = @{}
     $cfg = $null
@@ -521,13 +540,14 @@ function Test-NeuralTtsLocalWeightsReady {
     $requiredPath = ''
     $resolvedRequiredPath = ''
     $requiredPaths = @()
+    $catalogEntry = ''
+    $catalogLocalPath = ''
+    $catalogSuffix = ''
 
     if (-not (Test-Path -LiteralPath $WeightsDir)) { return $false }
     $cfg = Get-ChildItem -Path $WeightsDir -Recurse -Filter 'config.json' -File -ErrorAction SilentlyContinue | Select-Object -First 1
     if (-not $cfg) { return $false }
 
-    $weightFiles = @(Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue)
-    if (-not $weightFiles -or $weightFiles.Count -eq 0) { return $false }
     $resolvedWeightsDir = (Resolve-Path -LiteralPath $WeightsDir).Path.TrimEnd('\')
     if ($RepoId) {
         $catalog = Get-HfRepoFileCatalog -RepoId $RepoId
@@ -551,6 +571,29 @@ function Test-NeuralTtsLocalWeightsReady {
             }
         }
     }
+
+    if ($catalog.Count -gt 0) {
+        foreach ($catalogEntry in $catalog.Keys) {
+            $catalogSuffix = [System.IO.Path]::GetExtension($catalogEntry).ToLowerInvariant()
+            if ($catalogSuffix -notin '.safetensors', '.bin', '.pt') { continue }
+            if (-not (Test-HfAllowMatch -FileName $catalogEntry -Patterns $AllowPatterns)) { continue }
+            $catalogLocalPath = Join-Path $WeightsDir ($catalogEntry -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $catalogLocalPath -PathType Leaf)) { return $false }
+            $expectedBytes = [long]$catalog[$catalogEntry]
+            if ((Get-Item -LiteralPath $catalogLocalPath).Length -le 0) { return $false }
+            if ($expectedBytes -gt 0 -and (Get-Item -LiteralPath $catalogLocalPath).Length -lt $expectedBytes) {
+                return $false
+            }
+        }
+    }
+
+    $weightFiles = @(
+        Get-ChildItem -Path $WeightsDir -Recurse -Include '*.safetensors', '*.bin', '*.pt' -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                Test-HfAllowMatch -FileName ($_.FullName.Substring($resolvedWeightsDir.Length + 1).Replace('\', '/')) -Patterns $AllowPatterns
+            }
+    )
+    if (-not $weightFiles -or $weightFiles.Count -eq 0) { return $false }
 
     foreach ($file in $weightFiles) {
         if ($file.Length -le 0) { return $false }

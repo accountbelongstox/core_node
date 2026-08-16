@@ -426,19 +426,19 @@ download_vl_model_weights() {
     local _model_ready=0 _sentinel_model=""
     if [[ -f "$VL_MODEL_SENTINEL" ]]; then
         _sentinel_model="$(cat "$VL_MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
-        if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$VL_MODEL_PATH" ]] && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+        if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$VL_MODEL_PATH" ]] && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd" "" "$VL_WEIGHT_ALLOW"; then
             print_success "model weights verified ($VL_MODEL_PATH) - skipping"
             _model_ready=1
         elif [[ -n "$_sentinel_model" && "$_sentinel_model" != "$VL_MODEL_PATH" ]]; then
             print_warning "model changed ($_sentinel_model -> $VL_MODEL_PATH); refreshing weights."
-        elif ! neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+        elif ! neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd" "" "$VL_WEIGHT_ALLOW"; then
             print_warning "local weights incomplete or corrupt; repairing download."
         fi
     fi
     if [[ "$_model_ready" -eq 0 ]]; then
         print_info "downloading/repairing model '$VL_MODEL_PATH' (curl, resumable) ..."
         if install_hf_repo_flat "$VL_MODEL_PATH" "$VL_WEIGHTS_DIR" "$VL_MODEL_SENTINEL" "$SCRIPT_NAME " "$VL_WEIGHT_ALLOW" "" "$VL_MODEL_PATH" "$python_cmd" \
-           && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd"; then
+           && neural_tts_local_weights_ready "$VL_WEIGHTS_DIR" "$VL_MODEL_PATH" "$python_cmd" "" "$VL_WEIGHT_ALLOW"; then
             _model_ready=1
             print_success "model '$VL_MODEL_PATH' ready at $VL_WEIGHTS_DIR"
         else

@@ -105,19 +105,19 @@ fi
 _model_ready=0
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(cat "$MODEL_SENTINEL" 2>/dev/null | tr -d '\r\n')"
-    if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_vox_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON"; then
+    if [[ -n "$_sentinel_model" && "$_sentinel_model" == "$_vox_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_vox_model)"
         _model_ready=1
     elif [[ -n "$_sentinel_model" && "$_sentinel_model" != "$_vox_model" ]]; then
         echo "[install_voxcpm2] [..] model tier changed ($_sentinel_model -> $_vox_model); refreshing weights."
-    elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON"; then
+    elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         echo "[install_voxcpm2] [..] local weights incomplete or corrupt; repairing download."
     fi
 fi
 if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_voxcpm2] [..] downloading/repairing model '$_vox_model' (curl, resumable) ..."
     if install_hf_repo_flat "$_vox_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_voxcpm2] " "$WEIGHT_ALLOW" "" "$_vox_model" \
-       && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON"; then
+       && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
         _model_ready=1
         echo "[install_voxcpm2] [OK] model '$_vox_model' ready at $WEIGHTS_DIR."
     else
@@ -131,7 +131,7 @@ if [[ "$_model_ready" -ne 1 ]]; then
 fi
 
 echo "[install_voxcpm2] [OK] VoxCPM2 ready. Weights pre-downloaded (idempotent); engine auto-detects local."
-if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON"; then
+if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_vox_model" "$PYTHON" "" "$WEIGHT_ALLOW"; then
     echo "[install_voxcpm2]  local weights auto-detected: $WEIGHTS_DIR"
 fi
 echo "[install_voxcpm2]  Optional: export VOXCPM2_MODEL=${_vox_model}"

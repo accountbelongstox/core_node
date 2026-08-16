@@ -24,6 +24,9 @@ use Illuminate\Support\Facades\DB;
  * 3. EXISTING TABLES (WITH DATA) ARE ADJUSTED IN PLACE to the new
  *    structure, idempotently:
  *      - add missing columns / indexes / foreign keys (probe-first);
+ *      - reconcile an index whose name matches but whose uniqueness or
+ *        columns drifted (drop + re-add in place — a name-only probe would
+ *        silently keep a non-unique index that ON CONFLICT upserts need);
  *      - WIDEN column lengths (never shrink — a shrink fails on longer
  *        values and silent truncation is data loss);
  *      - RELAX nullability (never enforce NOT NULL on existing rows);
@@ -255,22 +258,25 @@ class SafeMigrationHelper
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
-        // Check if index exists
-        if (self::indexExists($connection, $tableName, $indexName)) {
-            return [
-                'status' => 'exists',
-                'message' => "Unique index {$indexName} on {$tableName} already exists"
-            ];
-        }
-        
-        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
-            if (is_array($columns)) {
-                $table->unique($columns, $indexName);
-            } else {
-                $table->unique($columns, $indexName);
+        // Check if index exists — a name-only match is NOT enough: the existing
+        // index must also match in uniqueness and columns. A drifted index
+        // (e.g. created non-unique under the same name) is reconciled in place
+        // (drop + re-add below) so ON CONFLICT inference keeps working.
+        $existingIndex = self::getIndexInfo($connection, $tableName, $indexName);
+        if ($existingIndex !== null) {
+            if (self::indexMatches($existingIndex, $columns, true)) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Unique index {$indexName} on {$tableName} already exists"
+                ];
             }
+            self::dropIndexInPlace($connection, $tableName, $indexName, (bool) ($existingIndex['unique'] ?? false));
+        }
+
+        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
+            $table->unique($columns, $indexName);
         });
-        
+
         return [
             'status' => 'added',
             'message' => "Unique index {$indexName} on {$tableName} added successfully"
@@ -306,20 +312,22 @@ class SafeMigrationHelper
             $indexName = self::generateIndexName($tableName, $columns);
         }
         
-        // Check whether the index already exists
-        if (self::indexExists($connection, $tableName, $indexName)) {
-            return [
-                'status' => 'exists',
-                'message' => "Index {$indexName} on {$tableName} already exists"
-            ];
-        }
-        
-        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
-            if (is_array($columns)) {
-                $table->index($columns, $indexName);
-            } else {
-                $table->index($columns, $indexName);
+        // Check whether the index already exists — with the expected columns.
+        // A UNIQUE index satisfies a plain-index requirement (it is stronger),
+        // but a column-set drift is reconciled in place (drop + re-add below).
+        $existingIndex = self::getIndexInfo($connection, $tableName, $indexName);
+        if ($existingIndex !== null) {
+            if (self::indexMatches($existingIndex, $columns, false)) {
+                return [
+                    'status' => 'exists',
+                    'message' => "Index {$indexName} on {$tableName} already exists"
+                ];
             }
+            self::dropIndexInPlace($connection, $tableName, $indexName, (bool) ($existingIndex['unique'] ?? false));
+        }
+
+        $schema->table($tableName, function (Blueprint $table) use ($columns, $indexName) {
+            $table->index($columns, $indexName);
         });
         
         return [
@@ -592,6 +600,73 @@ class SafeMigrationHelper
         }
 
         return false;
+    }
+
+    /**
+     * Fetch one index's metadata (name / columns / unique / primary) by name.
+     * Native, driver-agnostic via getIndexes(); matched case-insensitively
+     * because pgsql lower-cases identifiers. null when absent.
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
+     * @return array|null
+     */
+    private static function getIndexInfo(string $connection, string $tableName, string $indexName): ?array
+    {
+        foreach (Schema::connection($connection)->getIndexes($tableName) as $index) {
+            if (strcasecmp((string) ($index['name'] ?? ''), $indexName) === 0) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether an existing index satisfies the requirement: same column set
+     * (order- and case-insensitive) and, when uniqueness is required, actually
+     * UNIQUE. A UNIQUE index also satisfies a plain-index requirement (it is
+     * strictly stronger); the reverse is never true — ON CONFLICT upserts and
+     * FK inference require the real constraint.
+     *
+     * @param array        $index         Index metadata from getIndexInfo()
+     * @param string|array $columns       Required columns
+     * @param bool         $requireUnique Whether a UNIQUE index is required
+     * @return bool
+     */
+    private static function indexMatches(array $index, $columns, bool $requireUnique): bool
+    {
+        $expectedColumns = array_map('strtolower', array_map('strval', is_array($columns) ? $columns : [$columns]));
+        $actualColumns = array_map('strtolower', array_map('strval', $index['columns'] ?? []));
+        sort($expectedColumns);
+        sort($actualColumns);
+        if ($expectedColumns !== $actualColumns) {
+            return false;
+        }
+
+        return $requireUnique ? (bool) ($index['unique'] ?? false) : true;
+    }
+
+    /**
+     * Drop an index in place during reconciliation. Blueprint-created unique
+     * indexes are constraint-backed, so they go through dropUnique (DROP
+     * CONSTRAINT on pgsql); plain indexes go through dropIndex.
+     *
+     * @param string $connection Connection name
+     * @param string $tableName Table name
+     * @param string $indexName Index name
+     * @param bool   $wasUnique Whether the existing index is UNIQUE
+     */
+    private static function dropIndexInPlace(string $connection, string $tableName, string $indexName, bool $wasUnique): void
+    {
+        Schema::connection($connection)->table($tableName, function (Blueprint $table) use ($indexName, $wasUnique) {
+            if ($wasUnique) {
+                $table->dropUnique($indexName);
+            } else {
+                $table->dropIndex($indexName);
+            }
+        });
     }
 
     /**
@@ -1225,8 +1300,10 @@ class SafeMigrationHelper
                     continue;
                 }
 
-                if (is_array($columns)) {
-                    $table->index($columns, $name);
+                // Honor the declared uniqueness: a unique spec must produce a
+                // UNIQUE index (ON CONFLICT upserts infer from it), not a plain one.
+                if ($isUnique) {
+                    $table->unique($columns, $name);
                 } else {
                     $table->index($columns, $name);
                 }

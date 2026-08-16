@@ -269,6 +269,19 @@ _hf_glob_match() {
     return 1
 }
 
+_hf_allow_match() {
+    # HF allow-list contract shared by the downloader and the readiness verifiers:
+    # an empty pattern list matches everything, otherwise any glob hit qualifies.
+    local name="$1" pat=""
+    shift || true
+    [[ "$#" -eq 0 ]] && return 0
+    for pat in "$@"; do
+        pat="$(echo "$pat" | xargs)"
+        if _hf_glob_match "$name" "$pat"; then return 0; fi
+    done
+    return 1
+}
+
 _hf_repo_catalog() {
     local repo="$1" mirror
     mirror="$(_hf_mirror_base)"
@@ -298,15 +311,16 @@ def walk(base):
             name=entry.get("path") or ""
             if not name:
                 continue
-            full=name if not sub else f"{sub}/{name}"
+            # The HF tree API always returns repo-root-relative paths, also for
+            # subdirectory queries — never re-prefix them with the subpath.
             if entry.get("type") == "directory":
-                pending.append(full)
+                pending.append(name)
                 continue
             size=int(entry.get("size") or 0)
             lfs=entry.get("lfs") or {}
             if size <= 0 and lfs:
                 size=int(lfs.get("size") or 0)
-            out[full]=size
+            out[name]=size
     return out
 
 selected={}
@@ -415,7 +429,7 @@ install_hf_repo_flat() {
     local name all_ok=1 count=0 total=0 catalog_bytes=0 local_bytes=0
     IFS=',' read -r -a allow <<< "$allow_raw"
     mkdir -p "$dest"
-    if [[ "$reconcile" -ne 1 && -f "$sentinel" ]] && neural_tts_local_weights_ready "$dest" "$repo" "$py"; then
+    if [[ "$reconcile" -ne 1 && -f "$sentinel" ]] && neural_tts_local_weights_ready "$dest" "$repo" "$py" "" "$allow_raw"; then
         local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
         printf '%s\n' "$sentinel_value" > "$sentinel"
         echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
@@ -451,13 +465,19 @@ install_hf_repo_flat() {
 }
 
 neural_tts_local_weights_ready() {
-    local dir="$1" repo="${2:-}" py="${3:-python3}" required_manifest="${4:-}"
+    # Readiness == the installer's download contract: only allow-listed files are
+    # verified. Foreign weight files under the weights dir (legacy layouts, other
+    # engines) are ignored; when the HF catalog is reachable, every allow-listed
+    # catalog weight file must also be present locally at full size.
+    local dir="$1" repo="${2:-}" py="${3:-python3}" required_manifest="${4:-}" allow_raw="${5:-*}"
     local catalog="" expected=0 f="" file_size=0 rel="" total_bytes=0 weight_count=0
-    local required_path=""
+    local required_path="" entry="" entry_size=0 entry_path=""
+    local -a allow=()
+    IFS=',' read -r -a allow <<< "$allow_raw"
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
     if [[ -n "$repo" ]]; then
-        catalog="$(_hf_repo_catalog "$repo" || true)"
+        catalog="$(_hf_repo_catalog "$repo" 2>/dev/null | tr -d '\r' || true)"
     fi
     if [[ -n "$required_manifest" ]]; then
         while IFS= read -r required_path; do
@@ -465,11 +485,27 @@ neural_tts_local_weights_ready() {
             [[ -s "${dir%/}/$required_path" ]] || return 1
         done < "$required_manifest"
     fi
+    if [[ -n "$catalog" ]]; then
+        while IFS=$'\t' read -r entry entry_size; do
+            [[ -n "$entry" ]] || continue
+            case "$entry" in
+                *.safetensors|*.bin|*.pt) ;;
+                *) continue ;;
+            esac
+            _hf_allow_match "$entry" "${allow[@]}" || continue
+            entry_path="${dir%/}/$entry"
+            [[ -f "$entry_path" ]] || return 1
+            file_size="$(wc -c < "$entry_path" 2>/dev/null | tr -d ' ')"
+            [[ "${file_size:-0}" -gt 0 ]] || return 1
+            [[ "${entry_size:-0}" -le 0 || "${file_size:-0}" -ge "${entry_size:-0}" ]] || return 1
+        done <<< "$catalog"
+    fi
     while IFS= read -r -d '' f; do
+        rel="${f#"${dir%/}/"}"
+        _hf_allow_match "$rel" "${allow[@]}" || continue
         weight_count=$((weight_count + 1))
         [[ -s "$f" ]] || return 1
         file_size="$(wc -c < "$f" 2>/dev/null | tr -d ' ')"
-        rel="${f#"${dir%/}/"}"
         expected="$(printf '%s\n' "$catalog" | awk -F '\t' -v key="$rel" '$1 == key { print $2; exit }')"
         expected="${expected:-0}"
         [[ "$expected" -le 0 || "${file_size:-0}" -ge "$expected" ]] || return 1

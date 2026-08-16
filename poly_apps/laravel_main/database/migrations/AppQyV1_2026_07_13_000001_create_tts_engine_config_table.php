@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsEngineConfigModel;
 
 /**
  * DB-driven TTS engine priority config (app_qy_v1_tts_engine_config).
@@ -30,24 +31,12 @@ return new class extends Migration
 
     public function up(): void
     {
-        $tableStructure = [
-            'columns' => [
-                'id' => ['type' => 'bigIncrements'],
-                'engine' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'comment' => 'TTS engine id (chattts|cosyvoice|fishspeech|qwen3tts|bark|parler|voxcpm2|kokoro|gptsovits|f5tts|melotts|sherpa|edge|streamelements|gtts_web|azure)'],
-                'priority_order' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'lower = sooner in the orchestrator chain'],
-                'enabled' => ['type' => 'boolean', 'nullable' => false, 'default' => true, 'comment' => 'operator can disable an engine without deleting it'],
-                'created_at' => ['type' => 'timestamp', 'nullable' => true],
-                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
-            ],
-            'indexes' => [
-                ['columns' => ['engine'], 'unique' => true, 'name' => 'uniq_tts_engine_config_engine'],
-            ],
-        ];
-
+        // Structure lives in the model (single source of truth, shared with the
+        // per-sys:init alignment in seedDefaults()).
         SafeMigrationHelper::alignTableStructureFromArray(
             $this->connection,
             $this->tableName,
-            $tableStructure,
+            AppQyV1TtsEngineConfigModel::tableStructure(),
             [
                 'shrink_columns' => false,
                 'modify_columns' => true,

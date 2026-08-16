@@ -30,6 +30,10 @@ PHP_BIN="${PHP_BIN:-$(command -v php)}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
+CORE_NODE_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+COMPOSER_VENDOR_COMMON="${CORE_NODE_ROOT}/scripts/shells/linux/common/composer_vendor_common.sh"
+
+. "$COMPOSER_VENDOR_COMMON"
 
 runtime_config_directory() {
     "$PHP_BIN" -r '
@@ -114,15 +118,11 @@ echo ""
 
 cd "$LARAVEL_DIR" || exit 1
 
-# ── Phase 1: Dependencies ────────────────────────────────────────────────────
-if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
-    echo "vendor/ not found. Running composer install..."
-    composer install --no-dev --optimize-autoloader
-    if [ $? -ne 0 ]; then
-        echo "ERROR: composer install failed"
-        exit 1
-    fi
-    echo ""
+# ── Phase 1: Dependencies (vendor/ must match composer.lock AND load cleanly) ──
+ensure_composer_vendor "$LARAVEL_DIR" --no-dev --optimize-autoloader
+if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
+    echo "ERROR: composer vendor setup failed"
+    exit 1
 fi
 
 # Initialize the canonical runtime store before any Artisan command.

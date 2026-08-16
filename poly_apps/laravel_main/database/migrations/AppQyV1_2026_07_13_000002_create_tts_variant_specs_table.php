@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Schema;
 use App\Services\SafeMigrationHelper;
 use App\Constants\AppKeys;
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TtsVariantSpecModel;
 
 /**
  * DB-driven TTS variant specs per language (app_qy_v1_tts_variant_specs).
@@ -32,27 +33,12 @@ return new class extends Migration
 
     public function up(): void
     {
-        $tableStructure = [
-            'columns' => [
-                'id' => ['type' => 'bigIncrements'],
-                'lang' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'comment' => 'normalized language code (en|zh|ja|...)'],
-                'variant_key' => ['type' => 'string', 'length' => 32, 'nullable' => false, 'default' => '', 'comment' => 'primary="" -> {lang}/{content_id}.mp3; else {lang}/{content_id}_{key}.mp3'],
-                'accent' => ['type' => 'string', 'length' => 16, 'nullable' => true, 'comment' => 'us|uk|... or null'],
-                'gender' => ['type' => 'string', 'length' => 16, 'nullable' => true, 'comment' => 'female|male or null'],
-                'is_primary' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'comment' => 'primary variant for the language'],
-                'created_at' => ['type' => 'timestamp', 'nullable' => true],
-                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
-            ],
-            'indexes' => [
-                ['columns' => ['lang', 'variant_key'], 'unique' => true, 'name' => 'uniq_tts_variant_spec_lang_key'],
-                ['columns' => ['lang'], 'name' => 'idx_tts_variant_spec_lang'],
-            ],
-        ];
-
+        // Structure lives in the model (single source of truth, shared with the
+        // per-sys:init alignment in seedDefaults()).
         SafeMigrationHelper::alignTableStructureFromArray(
             $this->connection,
             $this->tableName,
-            $tableStructure,
+            AppQyV1TtsVariantSpecModel::tableStructure(),
             [
                 'shrink_columns' => false,
                 'modify_columns' => true,

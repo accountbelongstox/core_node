@@ -109,19 +109,19 @@ $modelReady = $false
 if ((Test-Path $modelSentinel) -and -not $Force) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
     if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
-    if ($sentinelModel -and ($sentinelModel -eq $voxcpm2Model) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
+    if ($sentinelModel -and ($sentinelModel -eq $voxcpm2Model) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {
         Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason "model weights verified ($voxcpm2Model)" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
         $modelReady = $true
     } elseif ($sentinelModel -and ($sentinelModel -ne $voxcpm2Model)) {
         Write-Host ("$SCRIPT_INDEX [..] model tier changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $voxcpm2Model) -ForegroundColor Yellow
-    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
+    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {
         Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
     }
 }
 if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $voxcpm2Model) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $voxcpm2Model -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $voxcpm2Model
-    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
+    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {
         $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $voxcpm2Model, $weightsDir) -ForegroundColor Green
     } else {
@@ -135,7 +135,7 @@ if ((Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'voxcpm2' -Pat
     Write-Host "$SCRIPT_INDEX [!] VoxCPM2 is not ready; incomplete components will retry next run." -ForegroundColor DarkYellow
     return
 }
-if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model)) {
+if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $voxcpm2Model -AllowPatterns $weightAllow)) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan
 }
 Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('voxcpm')

@@ -27,6 +27,30 @@ class AppQyV1TtsEngineConfigModel extends AppQyV1Model
     }
 
     /**
+     * Canonical table structure — the single source of truth shared by the
+     * create migration (AppQyV1_2026_07_13_000001) and the per-sys:init
+     * alignment in seedDefaults(). The UNIQUE index on `engine` is REQUIRED:
+     * seedDefaults() upserts ON CONFLICT (engine), which PostgreSQL rejects
+     * (42P10) without a matching unique/exclusion constraint.
+     */
+    public static function tableStructure(): array
+    {
+        return [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'engine' => ['type' => 'string', 'length' => 64, 'nullable' => false, 'comment' => 'TTS engine id (chattts|cosyvoice|fishspeech|qwen3tts|bark|parler|voxcpm2|kokoro|gptsovits|f5tts|melotts|sherpa|edge|streamelements|gtts_web|azure)'],
+                'priority_order' => ['type' => 'integer', 'nullable' => false, 'default' => 0, 'comment' => 'lower = sooner in the orchestrator chain'],
+                'enabled' => ['type' => 'boolean', 'nullable' => false, 'default' => true, 'comment' => 'operator can disable an engine without deleting it'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['engine'], 'unique' => true, 'name' => 'uniq_tts_engine_config_engine'],
+            ],
+        ];
+    }
+
+    /**
      * Canonical default engine priority (lower priority_order = sooner).
      * 16-engine local-AI-first chain mirroring pycore tts_orchestrator
      * _DEFAULT_PRIORITY (chattts-first, azure-last). All seeded enabled=true.
@@ -51,7 +75,8 @@ class AppQyV1TtsEngineConfigModel extends AppQyV1Model
     ];
 
     /**
-     * Idempotent upsert of the canonical default engine rows via updateOrCreate.
+     * Idempotent upsert of the canonical default engine rows (ON CONFLICT
+     * (engine), backed by the uniq_tts_engine_config_engine UNIQUE index).
      * Safe to re-run; never deletes operator-added engines, only inserts/updates
      * the defaults. priority_order is reconciled on every re-seed (so an existing
      * 7-row seed upgrades to the 16-engine order on next sys:init); enabled is
@@ -62,6 +87,12 @@ class AppQyV1TtsEngineConfigModel extends AppQyV1Model
      */
     public static function seedDefaults(): array
     {
+        // Align the table first: the upsert below infers ON CONFLICT (engine)
+        // from the UNIQUE index, so the structure must be guaranteed here. The
+        // create migration runs only once; this idempotent alignment re-runs at
+        // every sys:init and reconciles any drifted (e.g. non-unique) index.
+        static::ensureTableAligned(static::tableStructure());
+
         $seeded = 0;
         $updated = 0;
         $engines = array_column(self::DEFAULT_ENGINES, 'engine');

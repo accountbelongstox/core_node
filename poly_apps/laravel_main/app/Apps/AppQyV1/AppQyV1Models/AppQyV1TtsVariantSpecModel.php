@@ -35,6 +35,33 @@ class AppQyV1TtsVariantSpecModel extends AppQyV1Model
     }
 
     /**
+     * Canonical table structure — the single source of truth shared by the
+     * create migration (AppQyV1_2026_07_13_000002) and the per-sys:init
+     * alignment in seedDefaults(). The UNIQUE (lang, variant_key) index is
+     * REQUIRED: seedDefaults() upserts ON CONFLICT (lang, variant_key), which
+     * PostgreSQL rejects (42P10) without a matching unique/exclusion constraint.
+     */
+    public static function tableStructure(): array
+    {
+        return [
+            'columns' => [
+                'id' => ['type' => 'bigIncrements'],
+                'lang' => ['type' => 'string', 'length' => 20, 'nullable' => false, 'comment' => 'normalized language code (en|zh|ja|...)'],
+                'variant_key' => ['type' => 'string', 'length' => 32, 'nullable' => false, 'default' => '', 'comment' => 'primary="" -> {lang}/{content_id}.mp3; else {lang}/{content_id}_{key}.mp3'],
+                'accent' => ['type' => 'string', 'length' => 16, 'nullable' => true, 'comment' => 'us|uk|... or null'],
+                'gender' => ['type' => 'string', 'length' => 16, 'nullable' => true, 'comment' => 'female|male or null'],
+                'is_primary' => ['type' => 'boolean', 'nullable' => false, 'default' => false, 'comment' => 'primary variant for the language'],
+                'created_at' => ['type' => 'timestamp', 'nullable' => true],
+                'updated_at' => ['type' => 'timestamp', 'nullable' => true],
+            ],
+            'indexes' => [
+                ['columns' => ['lang', 'variant_key'], 'unique' => true, 'name' => 'uniq_tts_variant_spec_lang_key'],
+                ['columns' => ['lang'], 'name' => 'idx_tts_variant_spec_lang'],
+            ],
+        ];
+    }
+
+    /**
      * Canonical default seed rows. 3 voices per language (the "each sentence
      * generates 3 voices" default): en is accent-specific (us_f/uk_f/us_m);
      * zh/ja/ko are gender-varied (accent null - those engines have no us/uk
@@ -66,6 +93,12 @@ class AppQyV1TtsVariantSpecModel extends AppQyV1Model
      */
     public static function seedDefaults(): array
     {
+        // Align the table first: the upsert below infers ON CONFLICT
+        // (lang, variant_key) from the UNIQUE index, so the structure must be
+        // guaranteed here. The create migration runs only once; this idempotent
+        // alignment re-runs at every sys:init and reconciles drifted indexes.
+        static::ensureTableAligned(static::tableStructure());
+
         $seeded = 0;
         $updated = 0;
         $languages = array_values(array_unique(array_column(self::DEFAULT_SPECS, 'lang')));

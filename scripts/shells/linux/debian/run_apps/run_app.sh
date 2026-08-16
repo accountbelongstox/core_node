@@ -21,6 +21,9 @@ SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 DD_SH_DIR="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
 APPS_DIR="$DD_SH_DIR/apps"
 POLY_APPS_DIR="$DD_SH_DIR/poly_apps"
+COMPOSER_VENDOR_COMMON="$(cd "${SCRIPT_DIR}/../../common" && pwd)/composer_vendor_common.sh"
+
+. "$COMPOSER_VENDOR_COMMON"
 
 # Colors for output
 RED='\033[0;31m'
@@ -491,23 +494,13 @@ run_laravel_app() {
         return 1
     }
     
-    # Check if vendor exists
-    if [ ! -d "vendor" ]; then
-        log_warning "vendor directory not found. Installing dependencies with composer..."
-        
-        # Check if composer is available
-        if command -v composer >/dev/null 2>&1; then
-            composer install || {
-                log_error "Failed to install dependencies with composer"
-                return 1
-            }
-        else
-            log_error "composer not found. Please install composer first."
-            return 1
-        fi
-        
-        log_success "Dependencies installed successfully"
+    # Ensure vendor/ matches composer.lock and the autoloader actually loads
+    ensure_composer_vendor "$app_dir"
+    if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
+        log_error "Failed to install dependencies with composer"
+        return 1
     fi
+    log_success "Dependencies ready"
     
     # Check if .env file exists
     if [ ! -f ".env" ] && [ -f ".env.example" ]; then

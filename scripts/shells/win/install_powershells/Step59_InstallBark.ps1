@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Bark TTS prerequisite (Suno via Hugging Face transformers).
 
@@ -32,7 +32,7 @@ $targetDir      = $null
 $depsSentinel   = $null
 $weightsDir     = $null
 $modelSentinel  = $null
-$weightAllow    = @('pytorch_model.bin', 'config.json', 'generation_config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json', 'vocab.txt', 'speaker_embeddings_path.json', 'speaker_embeddings/*.npy', 'speaker_embeddings/v2/*.npy')
+$weightAllow    = @()
 $resolvedPython = $null
 $hasCuda        = $false
 $doFull         = ($Full -or $env:BARK_INSTALL -eq '1' -or $env:NEURAL_TTS_INSTALL -eq '1')
@@ -78,6 +78,16 @@ if (-not $doFull -and -not $Force) {
 
 $hasCuda = (Get-CudaRuntimePolicy).Enabled
 $barkModel = Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_model -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)
+# Download/readiness contract (single source: tts_model_tiers.HF_ALLOW['bark']).
+$weightAllow = @(
+    (Resolve-TtsModelTier -PythonExe $resolvedPython -Key bark_hf_allow -InstallScriptRoot $PSScriptRoot -Gpu:($hasCuda)) -split ',' |
+        ForEach-Object { $_.Trim() } | Where-Object { $_ }
+)
+if ($weightAllow.Count -eq 0) {
+    Write-Host "$SCRIPT_INDEX [!] could not resolve bark_hf_allow from tts_model_tiers.py; aborting." -ForegroundColor DarkYellow
+    Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @('transformers')
+    return
+}
 Write-TtsOfficialEnv -PythonExe $resolvedPython -Engine bark -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
 Write-Host ("$SCRIPT_INDEX  staging : {0}" -f $targetDir) -ForegroundColor DarkGray
 Write-Host ("$SCRIPT_INDEX  weights : {0}" -f $weightsDir) -ForegroundColor DarkGray
@@ -115,19 +125,19 @@ $modelReady = $false
 if ((Test-Path $modelSentinel) -and -not $Force) {
     $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
     if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
-    if ($sentinelModel -and ($sentinelModel -eq $barkModel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel)) {
+    if ($sentinelModel -and ($sentinelModel -eq $barkModel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel -AllowPatterns $weightAllow)) {
         Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason "model weights verified ($barkModel)" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
         $modelReady = $true
     } elseif ($sentinelModel -and ($sentinelModel -ne $barkModel)) {
         Write-Host ("$SCRIPT_INDEX [..] model tier changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $barkModel) -ForegroundColor Yellow
-    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel)) {
+    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel -AllowPatterns $weightAllow)) {
         Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
     }
 }
 if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $barkModel) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $barkModel -DestDir $weightsDir -SentinelPath $modelSentinel -AllowPatterns $weightAllow -Prefix "$SCRIPT_INDEX " -SentinelValue $barkModel
-    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel)) {
+    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel -AllowPatterns $weightAllow)) {
         $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $barkModel, $weightsDir) -ForegroundColor Green
     } else {
@@ -141,7 +151,7 @@ if (-not (Test-TtsDependenciesReady -PythonExe $resolvedPython -Engine 'bark' -P
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Bark ready. Weights pre-downloaded (idempotent); engine auto-detects local." -ForegroundColor Green
-if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel)) {
+if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $barkModel -AllowPatterns $weightAllow)) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan
 }
 Write-Host "$SCRIPT_INDEX  Set BARK_MODEL / BARK_VOICE_PRESET to override." -ForegroundColor DarkGray

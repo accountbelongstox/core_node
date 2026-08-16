@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Providers\AppTablePrefixServiceProvider;
+use App\Services\SafeMigrationHelper;
 use Illuminate\Support\Facades\Schema;
 
 abstract class AppModel extends Model
@@ -66,5 +67,29 @@ abstract class AppModel extends Model
     public static function configuredTableRowCount(): int
     {
         return static::configuredTableExists() ? static::query()->count() : 0;
+    }
+
+    /**
+     * Align this model's table to the given structure via the canonical
+     * SafeMigrationHelper engine (add-only, idempotent; reconciles drifted
+     * indexes in place). Single plumbing shared by every per-sys:init
+     * structure ensure: connection and table resolve from the model itself.
+     *
+     * @return array SafeMigrationHelper::alignTableStructureFromArray() result
+     */
+    public static function ensureTableAligned(array $tableStructure): array
+    {
+        $model = new static();
+
+        return SafeMigrationHelper::alignTableStructureFromArray(
+            $model->getConnectionName(),
+            $model->getTable(),
+            $tableStructure,
+            [
+                'shrink_columns' => false,
+                'modify_columns' => true,
+                'add_indexes' => true,
+            ]
+        );
     }
 }
