@@ -593,19 +593,32 @@ add_to_global_path_from_common_functions() {
             fi
         fi
 
-        # Create symlink to /usr/local/bin
-        if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+        # Self-link guard: when the input already IS the /usr/local/bin link
+        # (e.g. a caller passed `command -v <bin>`), linking it onto itself
+        # would create a symlink loop (ELOOP) that breaks resolvers (pipx
+        # post-install resolve, systemd, shells). Also repair a pre-existing
+        # self-loop here (file detection: readlink equals the link itself).
+        if [ -L "$link_path" ] && [ "$(readlink "$link_path" 2>/dev/null)" = "$link_path" ]; then
+            print_step_from_common_functions "Removing self-referential symlink loop: $link_path"
             sudo rm -f "$link_path"
         fi
+        if [ "$bin_path" = "$link_path" ]; then
+            print_info_from_common_functions "Binary already at canonical link location: $link_path (no link needed)"
+        else
+            # Create symlink to /usr/local/bin
+            if [ -L "$link_path" ] || [ -f "$link_path" ]; then
+                sudo rm -f "$link_path"
+            fi
 
-        sudo ln -sf "$bin_path" "$link_path"
-        # SECURITY: Do NOT chmod symlinks - this can affect the target file
-        # Only set execute permission if it's a regular file, not a symlink
-        if [ ! -L "$link_path" ] && [ -f "$link_path" ]; then
-            sudo chmod 755 "$link_path"
+            sudo ln -sf "$bin_path" "$link_path"
+            # SECURITY: Do NOT chmod symlinks - this can affect the target file
+            # Only set execute permission if it's a regular file, not a symlink
+            if [ ! -L "$link_path" ] && [ -f "$link_path" ]; then
+                sudo chmod 755 "$link_path"
+            fi
+
+            print_success_from_common_functions "Created symlink: $link_path -> $bin_path"
         fi
-
-        print_success_from_common_functions "Created symlink: $link_path -> $bin_path"
         
     elif [ -d "$input_path" ]; then
         # It's a directory - only add to environment variables, NO automatic symlink creation
@@ -654,32 +667,7 @@ add_to_global_path_from_common_functions() {
 
 # Write stdin to <target> only when the content changed. When <backup_dir> is
 # given, the previous version is copied there once with a timestamp suffix.
-# Single shared implementation used by the nginx/certbot/domain installers.
-# Usage: write_file_if_changed <target> [backup_dir] <<EOF ... EOF
-write_file_if_changed() {
-    local target="$1"
-    local backup_dir="${2:-}"
-    local tmp_content
-    tmp_content=$(mktemp)
-    cat > "$tmp_content"
-
-    if [ -f "$target" ] && cmp -s "$tmp_content" "$target"; then
-        rm -f "$tmp_content"
-        echo "[${SCRIPT_INDEX:-common}] [SKIP] $target already up to date"
-        return 0
-    fi
-
-    if [ -n "$backup_dir" ] && [ -f "$target" ]; then
-        $USE_SUDO mkdir -p "$backup_dir"
-        $USE_SUDO cp -a "$target" "$backup_dir/$(basename "$target").$(date +%Y%m%d%H%M%S).bak"
-    fi
-    $USE_SUDO mkdir -p "$(dirname "$target")"
-    $USE_SUDO cp "$tmp_content" "$target"
-    rm -f "$tmp_content"
-    # House policy: files written by the idempotent replace path are set to
-    # mode 777 (shared NTFS data disks ignore chmod; native fs keeps them
-    # writable for every management end).
-    $USE_SUDO chmod 777 "$target" 2>/dev/null || true
-    echo "[${SCRIPT_INDEX:-common}] [OK] $target written"
-    return 0
-}
+# Single shared implementation (file_ops_common.sh) used by the
+# nginx/certbot/domain installers and every start-script context.
+# shellcheck source=/dev/null
+. "$COMMON_FUNCS_DIR/file_ops_common.sh"

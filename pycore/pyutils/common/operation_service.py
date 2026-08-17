@@ -182,7 +182,7 @@ class OperationService:
     ) -> Operation:
         """
         Create a new pending operation or return an existing non-terminal one
-        with the same scope (and optionally idempotency_key).
+        with the same kind and scope (and optionally idempotency_key).
         """
         route = f"operation.create.{kind}"
         owner = client_id or scope
@@ -194,7 +194,11 @@ class OperationService:
                     return existing
 
         existing = self.repo.get_latest_operation_by_scope(scope)
-        if existing and existing.status not in ("completed", "failed", "cancelled"):
+        if (
+            existing
+            and existing.kind == kind
+            and existing.status not in ("completed", "failed", "cancelled")
+        ):
             return existing
 
         op_id = f"op_{uuid.uuid4().hex}"
@@ -740,6 +744,9 @@ class OperationService:
                 "status": status,
                 "stage": stage,
                 "progress": progress,
+                # Full failure context travels with the event itself so log
+                # surfaces can show every detail without extra fetches.
+                **({"error": error_json} if error_json else {}),
             },
             level="error" if status == "failed" else "info",
         )

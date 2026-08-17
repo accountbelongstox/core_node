@@ -24,7 +24,11 @@ Env:
                                    speed). Slower speed also shrinks the
                                    character budget per chunk (duration-bound).
                                    A request-level "speed" overrides it per job.
-  QWEN3TTS_SPEAKER               - preset speaker override
+  QWEN3TTS_SPEAKER               - explicit speaker pin. When unset, every
+                                   TASK (job) gets ONE uniform-random voice
+                                   from the language's native speaker pool
+                                   (official model card); all sentence chunks
+                                   of the task reuse that voice.
   QWEN3TTS_INSTRUCT              - optional style/emotion instruction
   QWEN3TTS_MAX_PARALLEL          - override auto GPU-tuned batch size
   QWEN3TTS_QUEUE_MAX             - active queued/running jobs (default 200)
@@ -47,7 +51,12 @@ Env:
 
   The pipeline is single-version: every synthesis is sentence-chunked and
   concatenated (multi-sentence audio); /status reports "chunked": true so
-  pycore can tag records without any version negotiation.
+  pycore can tag records without any version negotiation. Default voice:
+  one uniform-random native speaker per task (see QWEN3TTS_SPEAKER above);
+  the chosen speaker is reported in every synthesis result. Sentence chunks
+  of one task are generated through the model's native batch API in
+  GPU-bounded PARALLEL groups and concatenated in original order (see
+  QwenSynthesis._generate_chunked).
 
 Endpoints:
   GET  /health              -> { ok, device, model_loaded, load_error }
@@ -74,8 +83,8 @@ from __future__ import annotations
 import asyncio
 import importlib.util
 import io
-import json
 import os
+import random
 import sys
 import threading
 import time
@@ -200,14 +209,78 @@ _LANG_MAP = {
     "es": "Spanish", "it": "Italian",
 }
 _SPEAKER_BY_LANG = {"en": "Ryan", "zh": "Vivian", "ja": "Ono_Anna", "ko": "Sohee"}
-# Preference order only — every name must exist in the loaded model capability set.
-_SPEAKER_PRESETS = {
-    "en": {"female": ["Serena", "Vivian"], "male": ["Ryan", "Aiden"]},
-    "zh": {"female": ["Vivian", "Serena"], "male": ["Uncle_Fu", "Dylan"]},
-    "ja": {"female": ["Ono_Anna"], "male": ["Ono_Anna"]},
-    "ko": {"female": ["Sohee"], "male": ["Sohee"]},
+# Speaker capability model - DYNAMIC-FIRST: the loaded model library is the
+# single source of truth for WHICH speakers exist (model.get_supported_speakers(),
+# mirrored into _refresh_capabilities); future model cards may ship more than
+# the official 9 timbres. The two tables below are official MODEL-CARD
+# METADATA (Qwen3-TTS-12Hz-1.7B/0.6B-CustomVoice card) used ONLY as a quality
+# preference - "we recommend using each speaker's native language for the
+# best quality" - never as a hard limit: any speaker can speak any
+# model-supported language, and speakers the metadata does not know (a
+# richer model) are language-agnostic, joining EVERY language's native pool,
+# so a new model card needs no code change here.
+#   speaker -> native language (dialect voices stay zh-native)
+#   speaker -> gender, for variant-preview ordering only
+_SPEAKER_NATIVE_LANGUAGE = {
+    "Ryan": "en", "Aiden": "en",
+    "Vivian": "zh", "Serena": "zh", "Uncle_Fu": "zh",
+    "Dylan": "zh", "Eric": "zh",
+    "Ono_Anna": "ja", "Sohee": "ko",
+}
+_SPEAKER_GENDER = {
+    "female": ("Serena", "Vivian", "Ono_Anna", "Sohee"),
+    "male": ("Ryan", "Aiden", "Uncle_Fu", "Dylan", "Eric"),
 }
 _CAPABILITY_CACHE: Optional[Dict[str, Any]] = None
+
+
+def _native_pool(code: str, caps: Dict[str, Any]) -> List[str]:
+    """Native speaker pool for one language code, DERIVED AT RUNTIME from the
+    model's dynamic speaker set: speakers whose metadata native language
+    matches, plus every speaker the metadata does not know
+    (language-agnostic), falling back to the full model speaker set when the
+    language has no native voice at all (e.g. German/French on the official
+    card). The DEFAULT voice is a uniform random pick from this pool - one
+    random voice per TASK (job), resolved once so every sentence chunk of
+    the job reuses it, while distinct tasks vary the voice."""
+    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
+    canonical = list(speaker_map.values())
+    known_native = [
+        speaker
+        for speaker in canonical
+        if _SPEAKER_NATIVE_LANGUAGE.get(speaker) == code
+    ]
+    unknown = [
+        speaker for speaker in canonical
+        if speaker not in _SPEAKER_NATIVE_LANGUAGE
+    ]
+    return (known_native + unknown) or canonical
+
+
+def _variant_candidates(code: str, gender: str, caps: Dict[str, Any]) -> List[str]:
+    """Ordered VARIANT-preview candidates (accent/gender/index picks a
+    distinct voice per variant so the options differ). The gender is the
+    user's explicit parameter, so it outranks the native-language quality
+    preference: native-pool voices of the requested gender first, then
+    gender-matching voices from the rest of the model set (any speaker can
+    speak any model-supported language), then gender-unknown speakers of
+    future models; degrades to the whole native pool when the preference
+    yields nothing. Every name comes from the loaded model capability set."""
+    pool = _native_pool(code, caps)
+    speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
+    canonical = list(speaker_map.values())
+    gender_group = set(_SPEAKER_GENDER.get(gender, ()))
+    known_genders = set(_SPEAKER_GENDER.get("female", ())) | set(
+        _SPEAKER_GENDER.get("male", ())
+    )
+    preferred = [speaker for speaker in pool if speaker in gender_group]
+    gender_cross = [
+        speaker
+        for speaker in canonical
+        if speaker in gender_group and speaker not in pool
+    ]
+    flexible = [speaker for speaker in pool if speaker not in known_genders]
+    return (preferred + gender_cross + flexible) or (pool or canonical)
 
 
 def _resolve_device() -> str:
@@ -262,12 +335,7 @@ def _get_model():
 
 
 def _default_capability_snapshot() -> Dict[str, Any]:
-    speakers = sorted({
-        speaker
-        for presets in _SPEAKER_PRESETS.values()
-        for group in presets.values()
-        for speaker in group
-    } | set(_SPEAKER_BY_LANG.values()))
+    speakers = sorted(set(_SPEAKER_NATIVE_LANGUAGE) | set(_SPEAKER_BY_LANG.values()))
     return {
         "model_id": _model_id(),
         "model_kind": "custom_voice",
@@ -324,8 +392,16 @@ def _resolve_speaker(
     accent: str = "",
     gender: str = "female",
     index: int = 0,
+    random_default: bool = False,
 ) -> Dict[str, Any]:
-    """Resolve a model speaker id; preferences may apply fallback within capability."""
+    """Resolve a model speaker id.
+
+    Priority: explicit request (or the QWEN3TTS_SPEAKER env pin) > default.
+    The default is either an ordered preset pick (variant previews: distinct
+    voice per variant index) or - with ``random_default`` - a uniform random
+    pick from the language's NATIVE speaker pool (official model card), one
+    random voice per TASK: callers resolve once per job so every sentence
+    chunk of that job reuses the same voice, while distinct tasks vary it."""
     caps = _get_capabilities()
     speaker_map: Dict[str, str] = dict(caps.get("speaker_map") or {})
     supported = list(caps.get("speakers") or [])
@@ -349,16 +425,30 @@ def _resolve_speaker(
         }
 
     code = (lang or "en").strip().lower()[:2]
+    if random_default:
+        pool = _native_pool(code, caps)
+        if not pool:
+            return {
+                "ok": False,
+                "code": "no_speakers",
+                "message": "model reported no supported speakers",
+                "retryable": False,
+                "supported_speakers": [],
+            }
+        picked = random.choice(pool)
+        return {
+            "ok": True,
+            "requested_speaker": picked,
+            "resolved_speaker": picked,
+            "random_applied": True,
+            "fallback_applied": _SPEAKER_NATIVE_LANGUAGE.get(picked) != code,
+        }
     gender_key = (gender or "female").strip().lower()
     if gender_key not in ("female", "male"):
         gender_key = "female"
-    accent_key = (accent or "").strip().lower()
-    presets = _SPEAKER_PRESETS.get(code) or _SPEAKER_PRESETS["en"]
-    candidates = list(presets.get(gender_key) or presets.get("female") or [])
-    if code == "en" and accent_key in ("us", "uk"):
-        candidates = list(candidates)
+    candidates = _variant_candidates(code, gender_key, caps)
     if not candidates:
-        candidates = [str(caps.get("speakers") or ["Ryan"])[0]]
+        candidates = list(supported)[:1] or ["Ryan"]
     preferred = candidates[index % len(candidates)]
     canonical = speaker_map.get(preferred.lower())
     if canonical:
@@ -397,13 +487,6 @@ def _resolve_speaker(
 def _qwen_language(lang: str) -> str:
     code = (lang or "en").strip().lower()[:2]
     return _LANG_MAP.get(code, "Auto")
-
-
-def _speaker(lang: str) -> str:
-    resolved = _resolve_speaker(lang)
-    if not resolved.get("ok"):
-        raise ValueError(str(resolved.get("message") or "speaker resolution failed"))
-    return str(resolved["resolved_speaker"])
 
 
 def _speaker_for_variant(lang: str, variant: Dict[str, Any], index: int) -> Dict[str, Any]:
@@ -543,6 +626,10 @@ def capabilities():
         "languages": caps.get("languages"),
         "speakers": caps.get("speakers"),
         "default_speakers": _SPEAKER_BY_LANG,
+        # Runtime-derived per-language native pools (model speakers +
+        # model-card metadata preference) - the dynamic source the random
+        # default actually picks from.
+        "native_pools": {code: _native_pool(code, caps) for code in _LANG_MAP},
         "loaded_at": caps.get("loaded_at"),
         "revision": caps.get("revision"),
     }

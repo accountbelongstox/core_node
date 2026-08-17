@@ -281,15 +281,6 @@ export async function searchBookCoverUrls(
   };
 }
 
-/** @deprecated Use searchBookCoverUrls */
-export async function searchBookCoverUrl(
-  title: string,
-  author: string,
-  options: { waitForVerification?: boolean; preferEngine?: WebSearchEngine } = {},
-): Promise<BookCoverSearchResult> {
-  return searchBookCoverUrls(title, author, options);
-}
-
 async function loadCachedCoverUrls(title: string, author: string): Promise<string[] | null> {
   const query = bookCoverQuery(title, author);
   const engines: WebSearchEngine[] = ['google', 'bing'];

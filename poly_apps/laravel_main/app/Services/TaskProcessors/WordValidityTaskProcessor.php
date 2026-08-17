@@ -6,6 +6,7 @@ use App\Models\GlobalTask;
 use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
+use App\Support\QueueCenterContract;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -174,7 +175,7 @@ class WordValidityTaskProcessor extends AbstractTaskProcessor
                 }
                 $md5 = md5($word);
             }
-            if (AppQyV1LangDictionaryModel::markValidity($langCode, $md5, $isValid, 'word-validity')) {
+            if (AppQyV1LangDictionaryModel::markValidity($langCode, $md5, $isValid, QueueCenterContract::wordValiditySourceMarker())) {
                 $n++;
             }
         }

@@ -67,6 +67,14 @@ $chromeMcpConfig = $null
 $chromeMcpProperty = $null
 $mcpJson = $null
 $utf8Encoding = $null
+$kimiSecretDirPath = $null
+$kimiApiKeySecretPath = $null
+$kimiBaseUrlSecretPath = $null
+$kimiApiKey = ""
+$kimiBaseUrl = ""
+$kimiConfigTomlPath = $null
+$kimiConfigApiKey = $null
+$kimiConfigTomlLine = $null
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -99,6 +107,56 @@ $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 $mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
+
+$kimiSecretDirPath = Join-Path $coreNodePath ".secret_keys"
+$kimiSecretDirPath = Join-Path $kimiSecretDirPath ".secret_ignore"
+$kimiApiKeySecretPath = Join-Path $kimiSecretDirPath "KIMI_API_KEY_1"
+$kimiBaseUrlSecretPath = Join-Path $kimiSecretDirPath "KIMI_BASE_URL_1"
+
+function Read-KimiyoloSecretFile {
+    param([string]$FilePath)
+    $value = ""
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        return $value
+    }
+    try {
+        $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+            $bytes = $bytes[3..($bytes.Length - 1)]
+        }
+        $content = [System.Text.Encoding]::UTF8.GetString($bytes)
+        foreach ($line in ($content -split "`r?`n")) {
+            $trimmedLine = $line.Trim()
+            if ($trimmedLine) {
+                $value = $trimmedLine
+                break
+            }
+        }
+    } catch {
+        $value = ""
+    }
+    return $value
+}
+
+function Get-KimiyoloMaskedKey {
+    param([string]$Value)
+    if ([string]::IsNullOrEmpty($Value)) {
+        return "[empty]"
+    }
+    $len = $Value.Length
+    $keep = 4
+    if ($len -le 8) {
+        $keep = 1
+    }
+    $middleLen = $len - (2 * $keep)
+    if ($middleLen -lt 1) {
+        $middleLen = 1
+    }
+    return ($Value.Substring(0, $keep) + ("*" * $middleLen) + $Value.Substring($len - $keep))
+}
+
+$kimiApiKey = Read-KimiyoloSecretFile -FilePath $kimiApiKeySecretPath
+$kimiBaseUrl = Read-KimiyoloSecretFile -FilePath $kimiBaseUrlSecretPath
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
@@ -199,6 +257,28 @@ if (-not (Test-Path -LiteralPath $kimiCodeHomeCandidatePath)) {
 }
 $kimiCodeHomePath = (Resolve-Path -LiteralPath $kimiCodeHomeCandidatePath).Path
 $kimiMcpConfigPath = Join-Path $kimiCodeHomePath "mcp.json"
+
+$kimiConfigTomlPath = Join-Path $kimiCodeHomePath "config.toml"
+$kimiConfigApiKey = $null
+if (Test-Path -LiteralPath $kimiConfigTomlPath) {
+    foreach ($kimiConfigTomlLine in (Get-Content -LiteralPath $kimiConfigTomlPath)) {
+        if ($kimiConfigTomlLine -match '^\s*api_key\s*=\s*"(.+)"\s*$') {
+            $kimiConfigApiKey = $Matches[1]
+            break
+        }
+    }
+}
+
+Write-Host "[INFO] KIMI_BASE_URL_1: $(if ([string]::IsNullOrWhiteSpace($kimiBaseUrl)) { "[empty]" } else { $kimiBaseUrl })" -ForegroundColor White
+if ((-not [string]::IsNullOrWhiteSpace($kimiApiKey)) -and ($kimiConfigApiKey -eq $kimiApiKey)) {
+    Write-Host "[INFO] KIMI_API_KEY_1 already configured in $kimiConfigTomlPath" -ForegroundColor White
+    Write-Host "[INFO] KIMI_API_KEY_1 (masked): $(Get-KimiyoloMaskedKey -Value $kimiApiKey)" -ForegroundColor White
+    Write-Host "[INFO] Get the full key: Get-Content -Raw $kimiApiKeySecretPath" -ForegroundColor White
+} else {
+    Write-Host "[INFO] KIMI_API_KEY_1: $(if ([string]::IsNullOrWhiteSpace($kimiApiKey)) { "[empty]" } else { $kimiApiKey })" -ForegroundColor White
+    Write-Host "[INFO] First-time setup: run kimi, open /provider, select Known third-party ->" -ForegroundColor White
+    Write-Host "[INFO]   Kimi code plan, and paste the key above into it." -ForegroundColor White
+}
 
 if (Test-Path -LiteralPath $kimiMcpConfigPath) {
     $mcpConfig = Get-Content -Raw -LiteralPath $kimiMcpConfigPath | ConvertFrom-Json

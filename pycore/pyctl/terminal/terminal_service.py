@@ -21,6 +21,9 @@ SYSTEM_NAME = platform.system()
 CLIPBOARD_RESTORE_DELAY_SECONDS = 0.12
 SCROLL_CAPTURE_DELAY_SECONDS = 0.28
 HISTORY_DIRECTIONS = {"up", "down"}
+# Empty submissions still press Enter in the target terminal: pasting a single
+# space is the safest cross-backend equivalent of an empty command line.
+EMPTY_INPUT_TEXT = " "
 
 if SYSTEM_NAME == "Windows":
     from pycore.pyutils.window.windows_terminal_backend import windows_terminal_backend as terminal_backend
@@ -182,19 +185,18 @@ class TerminalService:
             return self._failure("terminal_window_id_required")
         if terminal_number <= 0:
             return self._failure("terminal_number_required")
-        if not text:
-            return self._failure("terminal_text_required")
+        content = text if text else EMPTY_INPUT_TEXT
 
         pending_log = self._state_repository.begin_submission(
             terminal_number,
-            text,
+            content,
         )
         if pending_log is None:
             return self._failure("terminal_state_not_found")
         log_id = str(pending_log.get("id") or "")
         clipboard_backup = clipboard_manager.get_text()
         backup_text = clipboard_backup if clipboard_backup is not None else ""
-        if not clipboard_manager.set_text(text):
+        if not clipboard_manager.set_text(content):
             return self._complete_input(
                 terminal_number,
                 log_id,
@@ -227,6 +229,47 @@ class TerminalService:
                 "error_code": error_code,
                 "clipboard_restored": clipboard_restored,
             },
+        )
+
+    def submit_scheduled(
+        self,
+        terminal_number: int,
+        window_id: str,
+        text: str,
+    ) -> Dict[str, Any]:
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+        content = text if text else EMPTY_INPUT_TEXT
+        if self._backend is None:
+            return self._log_rejected_input(
+                terminal_number,
+                content,
+                "unsupported_platform",
+            )
+        if not window_id:
+            return self._log_rejected_input(
+                terminal_number,
+                content,
+                "terminal_window_offline",
+            )
+        return self.input_text(window_id, terminal_number, content)
+
+    def _log_rejected_input(
+        self,
+        terminal_number: int,
+        text: str,
+        error_code: str,
+    ) -> Dict[str, Any]:
+        pending_log = self._state_repository.begin_submission(
+            terminal_number,
+            text,
+        )
+        if pending_log is None:
+            return self._failure("terminal_state_not_found")
+        return self._complete_input(
+            terminal_number,
+            str(pending_log.get("id") or ""),
+            self._failure(error_code),
         )
 
     def _complete_input(

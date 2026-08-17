@@ -414,8 +414,8 @@ class ServerManagerV1UnifiedManagerCtl extends ServerManagerV1BaseCtl
             'proxy_target' => null
         ];
 
-        $sitesAvailable = '/etc/nginx/sites-available';
-        $sitesEnabled = '/etc/nginx/sites-enabled';
+        $sitesAvailable = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getNginxSitesAvailable();
+        $sitesEnabled = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getNginxSitesEnabled();
 
         // Check if nginx directories exist
         if (!is_dir($sitesAvailable)) {

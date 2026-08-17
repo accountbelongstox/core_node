@@ -231,6 +231,90 @@ def queue_cancel(
     return bool(ok and isinstance(response, dict) and response.get("cancelled"))
 
 
+def _wait_timeout_error(
+    timeout: float,
+    job_id: str,
+    client_job_id: str,
+    last_poll_error: Optional[str],
+    *,
+    service_base_url: Optional[str] = None,
+) -> str:
+    """Full-detail wait-timeout diagnostics instead of a bare "timed out".
+
+    Carries the job's live state, the queue snapshot, the last poll error,
+    and an explicit actionable hint when the service is unreachable or its
+    worker is stalled (e.g. paused in a debugger): the operator fixes the
+    cause, and the idempotent resubmit on retry simply continues the same
+    queued job. Nothing is swallowed - a failed status probe is reported
+    as the unreachable-service cause itself.
+    """
+    base = f"qwen3tts queue wait timed out after {timeout:g}s"
+    if last_poll_error:
+        base += f" (last poll error: {last_poll_error})"
+    status = queue_status(
+        timeout=_QUEUE_RECOVERY_STATUS_TIMEOUT_S,
+        service_base_url=service_base_url,
+    )
+    if not status.get("ok") and "error" in status:
+        return (
+            f"{base}: qwen3tts service unreachable - stopped or paused for "
+            f"DEBUG? restart/resume it; this item auto-retries and the "
+            f"idempotent job resumes where it left off"
+        )
+    counts = status.get("counts") if isinstance(status.get("counts"), dict) else {}
+    jobs = status.get("jobs") if isinstance(status.get("jobs"), list) else []
+    job = next(
+        (
+            j for j in jobs
+            if isinstance(j, dict) and (
+                str(j.get("job_id") or "") == job_id
+                or str(j.get("client_job_id") or "") == client_job_id
+            )
+        ),
+        None,
+    )
+    queue_summary = (
+        f"pending={int(counts.get('pending') or 0)} "
+        f"running={int(counts.get('running') or 0)} "
+        f"consumer_running={bool(status.get('consumer_running'))} "
+        f"stalled={bool(status.get('stalled'))}"
+    )
+    if job is None:
+        return (
+            f"{base} [{queue_summary}] job not in queue snapshot anymore "
+            f"(job_id={job_id or '-'} client_job_id={client_job_id}) - "
+            f"finished while its event was missed; the retry resubmits "
+            f"idempotently"
+        )
+    job_status = str(job.get("status") or "unknown")
+    parts = [f"job_id={job_id or '-'}", f"status={job_status}"]
+    if job_status == "pending":
+        submitted = str(job.get("submitted_at") or "")
+        ahead = sum(
+            1
+            for j in jobs
+            if isinstance(j, dict)
+            and str(j.get("status")) == "pending"
+            and str(j.get("submitted_at") or "") < submitted
+        )
+        parts.append(f"queue_position={ahead + 1}")
+    if job_status == "running" and job.get("running_elapsed_ms") is not None:
+        parts.append(f"running_ms={int(job['running_elapsed_ms'])}")
+    detail = f"{base} [{queue_summary}; {' '.join(parts)}]"
+    if bool(status.get("stalled")) or not bool(status.get("consumer_running")):
+        return (
+            f"{detail} - qwen3tts worker STALLED (paused in a debugger?): "
+            f"resume/continue the service; the queued job completes on its "
+            f"own and this item auto-retries"
+        )
+    if job_status == "running":
+        return (
+            f"{detail} - synthesis is still in progress server-side; the "
+            f"retry resubmits idempotently and picks up the finished audio"
+        )
+    return f"{detail}"
+
+
 def queue_submit_and_wait(
     payload: Dict[str, Any],
     client_job_id: str,
@@ -254,7 +338,13 @@ def queue_submit_and_wait(
     if job.get("status") == "done":
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return False, b"", f"qwen3tts queue wait timed out after {timeout:g}s"
+            return False, b"", _wait_timeout_error(
+                timeout,
+                job_id,
+                stable_id,
+                None,
+                service_base_url=service_base_url,
+            )
         return fetch_queue_result(
             job_id,
             remaining,
@@ -266,11 +356,18 @@ def queue_submit_and_wait(
     poll_client_id = f"pycore-qwen-wait-{stable_id}"
     cursor = 0
     instance_id = str(job.get("event_instance_id") or "")
+    last_poll_error: Optional[str] = None
     recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return False, b"", f"qwen3tts queue wait timed out after {timeout:g}s"
+            return False, b"", _wait_timeout_error(
+                timeout,
+                job_id,
+                stable_id,
+                last_poll_error,
+                service_base_url=service_base_url,
+            )
         response = queue_events(
             poll_client_id,
             cursor,
@@ -280,6 +377,7 @@ def queue_submit_and_wait(
         )
         if not response.get("success"):
             poll_error = str(response.get("error") or "queue event poll failed")
+            last_poll_error = poll_error
             reconciled = _find_job(
                 job_id,
                 stable_id,
@@ -403,7 +501,11 @@ def fetch_queue_result(
     while True:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            return False, b"", f"qwen3tts result fetch timed out after {timeout:g}s"
+            return False, b"", (
+                f"qwen3tts result fetch timed out after {timeout:g}s "
+                f"(job_id={job_id}) - synthesis already finished; the retry "
+                f"resubmits idempotently and refetches the retained result"
+            )
         status, _headers, body, transport_error = request(
             "GET",
             result_path,

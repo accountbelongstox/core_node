@@ -376,6 +376,8 @@ export function queueCenterEndpoint(
 }
 export const QUEUE_CENTER_REALTIME_EVENTS = QUEUE_CENTER_CONTRACT.realtime.events;
 export const DIFF_DELIVERY = QUEUE_CENTER_CONTRACT.diff_delivery;
+/** Word-validity verification defaults (batch size, languages, source marker, idle cadence). */
+export const WORD_VALIDITY_CONFIG = contractDocument.word_validity;
 export const DELIVERY_RECEIPT = QUEUE_CENTER_CONTRACT.delivery_receipt;
 export const QUEUE_CENTER_CONTROL_NAMES = QUEUE_CENTER_CONTRACT.control_names;
 export const TASK_STATUS_BY_ROLE = QUEUE_CENTER_CONTRACT.task_contract.statuses.values;

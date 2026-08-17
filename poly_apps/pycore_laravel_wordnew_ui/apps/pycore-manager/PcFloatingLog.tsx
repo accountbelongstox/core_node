@@ -48,7 +48,7 @@ export const PcFloatingLog: React.FC = () => {
   }, [logs, open]);
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center px-3 pb-3">
+    <div className="fixed inset-x-0 bottom-0 z-[60] pointer-events-none flex justify-center px-2 pb-2 md:px-3 md:pb-3">
       <div
         className="pointer-events-auto w-full max-w-5xl flex flex-col overflow-hidden rounded-2xl pc-glass shadow-2xl shadow-black/20 dark:shadow-black/50 transition-[height] duration-300 ease-out"
         style={{ height: open ? 'clamp(220px, 38vh, 60vh)' : '44px' }}

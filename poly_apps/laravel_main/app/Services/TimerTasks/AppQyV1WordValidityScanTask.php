@@ -6,30 +6,32 @@ use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Services\UserConfig\UserConfigService;
+use App\Support\QueueCenterContract;
 
 /**
  * Word Validity Auto-Scan (invalid-word detection lane).
  *
- * Background enqueuer that pulls a batch of UNTRANSLATED + NOT-YET-CHECKED words
- * (has_translation=false AND validity_checked_at IS NULL) and hands them to a
- * chrome web-LLM worker (word_validity / remote_validity) which classifies each
- * as a real dictionary word or nonsense. The result-trust writeback then marks
- * is_valid in bulk, so the translation enqueue
+ * Background enqueuer that pulls a batch of NOT-YET-CHECKED words
+ * (validity_checked_at IS NULL — every unchecked word is verified once,
+ * translated or not) and hands them to a chrome web-LLM worker
+ * (word_validity / remote_validity) which classifies each as a real dictionary
+ * word or nonsense AND translates the valid ones in the same pass. The
+ * result-trust writeback then marks is_valid in bulk (validity_source
+ * 'ai_ensure'), so the translation enqueue
  * (AppQyV1LangDictionaryModel::untranslatedRows, is_valid=true
  * filter) permanently skips the junk — no wasted translation lookups.
  *
  * Selection keys on validity_checked_at IS NULL, so a once-checked word is never
  * re-pulled (no re-classification storm). query_count DESC prioritises the words
  * users actually hit. The pile-up guard skips a language that already has a
- * pending validity batch.
+ * pending validity batch. With no unchecked backlog the pass is a no-op (idle).
  *
  * Registered automatically by the auto-discovering OctaneTimerServiceProvider
- * (sys:init wires it in). Default OFF and controlled by user-data settings.
+ * (sys:init wires it in). Default ON; user-data settings can still disable it.
  */
 class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 {
     private const PRIORITY_LOW = 0;
-    private const WORDS_PER_TASK = 200;
     private const MAX_RETRIES = 3;
 
     public function getName(): string
@@ -44,7 +46,7 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 
     public function isEnabled(): bool
     {
-        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_VALIDITY_SCAN, false);
+        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_VALIDITY_SCAN, true);
     }
 
     public function exec(): void
@@ -64,14 +66,18 @@ class AppQyV1WordValidityScanTask extends DiffQueueFeederTaskAbstract
 
             $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
             $scope = 'word_validity:' . $langCode . ':' . $model->getTable();
+            $batchSize = QueueCenterContract::wordValidityBatchSize();
             $page = $this->rowsForPendingPage(
                 $scope,
                 $model,
-                self::WORDS_PER_TASK,
+                $batchSize,
                 static fn (array $ids): array => AppQyV1LangDictionaryModel::pendingValidityScanRows(
                     $langCode,
                     $ids
-                )
+                ),
+                // The validity batch size is contract-owned; the generic
+                // data-segment clamp must not shrink it.
+                $batchSize
             );
             if ($page['rows'] === [] && ($page['page'] ?? 0) === 0) {
                 continue;

@@ -9,6 +9,7 @@ import type { AgentHistoryArticleRecord, AgentHistoryArticleRecordMetadata } fro
 import { agentHistoryPageTableStore } from '@/apps/pycore-manager/persistence/AgentHistoryPageTableStore';
 import { StorageManager } from '../../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../../persistence/PycoreManagerStorageKeys';
+import PcPager from './PcPager';
 
 const RECORD_PAGE_SIZE = 10;
 
@@ -227,27 +228,7 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
               </li>
             ))}
           </ul>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((n) => Math.max(1, n - 1))}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-              >
-                {tk('prev')}
-              </button>
-              <span className="text-xs text-slate-500">{page} / {totalPages}</span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((n) => Math.min(totalPages, n + 1))}
-                className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-              >
-                {tk('next')}
-              </button>
-            </div>
-          )}
+          <PcPager page={page} totalPages={totalPages} onChange={setPage} tk={tk} />
         </>
       )}
     </section>

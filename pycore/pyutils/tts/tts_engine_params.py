@@ -121,7 +121,7 @@ TTS_ENGINE_TEST_PARAMS: Dict[str, Dict[str, Any]] = {
         "language_options": _COMMON_LANGS,
         "language_default": "en",
         "speaker_placeholder": "Ryan",
-        "speaker_hint": "Ryan (en) / Vivian (zh) / Ono_Anna (ja) / Sohee (ko)",
+        "speaker_hint": "Any model-reported speaker (engine capabilities endpoint); empty = one random native voice per task",
         "instruct_placeholder": "cheerful and energetic",
         "instruct_hint": "Voice style / emotion instruction (env QWEN3TTS_INSTRUCT)",
         "model_managed": True,

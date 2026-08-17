@@ -102,7 +102,7 @@ const PcAiPage: React.FC = () => {
   );
 
   return (
-    <div className="p-6 md:p-8 space-y-5 min-w-0 max-w-full">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5 min-w-0 max-w-full">
       {/* Sticky page chrome — title + sub-tabs + actions pinned below PcTopBar. */}
       <div
         className="sticky top-0 z-20 -mx-6 md:-mx-8 px-6 md:px-8 py-3 -mt-6 md:-mt-8 mb-1 flex flex-col gap-3 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl"

@@ -63,9 +63,12 @@ VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
 export npm_config_confirm_modules_purge=false
 DIST_DIR="${APP_ROOT}/dist"
 DIST_INDEX="${APP_ROOT}/dist/index.html"
-# Fixed dashboard dev port (no env files). Matches config/constants.ts
-# DEFAULT_FRONTEND_PORT and vite.config.ts; overridable only via the PORT env var.
-DEV_PORT="${PORT:-13054}"
+# Fixed dashboard dev port (no env files). Single source:
+# config/service_contract.json via the shell adapter; overridable only via
+# the PORT env var. BIND_HOST is the contract's 0.0.0.0 (bind-all) address.
+source "${SCRIPT_DIR}/../../../scripts/shells/linux/common/service_contract_common.sh"
+DEV_PORT="${PORT:-$(sc_get ports.nexus_dash_frontend)}"
+BIND_HOST="$(sc_get hosts.any)"
 DEV_URL="http://localhost:${DEV_PORT}"
 ACTION="orchestrate"
 APK_APP=""
@@ -293,6 +296,14 @@ print_urls() {
 
 # Foreground server (dev vite or built-dist preview). Frees the port first.
 serve_dashboard() {
+    # Fail loud on an unreadable service contract: an empty port/host would
+    # silently drop vite to its defaults (5173) while nginx keeps proxying to
+    # the contract port -> 502 storm.
+    if [ -z "$DEV_PORT" ] || [ -z "$BIND_HOST" ]; then
+        err "Service contract unreadable (DEV_PORT='${DEV_PORT}' BIND_HOST='${BIND_HOST}'); refusing to start vite on default values."
+        err "Check config/service_contract.json and scripts/shells/linux/common/service_contract_common.sh."
+        exit 1
+    fi
     if ! free_dev_port "$DEV_PORT"; then
         err "Port ${DEV_PORT} is still in use. Stop the holder, or start on another port: PORT=<other> bash $SELF"
         exit 1
@@ -300,11 +311,11 @@ serve_dashboard() {
     print_urls
     cd "$APP_ROOT" || exit 1
     if [ "$RUN_MODE" = "dist" ]; then
-        log "Serving production dist (pnpm exec vite preview --port ${DEV_PORT} --strictPort --host 0.0.0.0)"
-        pnpm exec vite preview --port "$DEV_PORT" --strictPort --host 0.0.0.0
+        log "Serving production dist (pnpm exec vite preview --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        pnpm exec vite preview --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     else
-        log "Starting dev server (pnpm exec vite --port ${DEV_PORT} --strictPort --host 0.0.0.0)"
-        pnpm exec vite --port "$DEV_PORT" --strictPort --host 0.0.0.0
+        log "Starting dev server (pnpm exec vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
+        pnpm exec vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     fi
 }
 

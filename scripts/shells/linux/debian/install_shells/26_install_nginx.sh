@@ -15,9 +15,9 @@
 # architecture (scripts/shells/linux/common/nginx_manager.sh, built on
 # nginx_common.sh + domain_setup_common.sh). No implementation is duplicated
 # here - each step_run wraps exactly one manager primitive so every sub-step
-# (repo, package, layout, main config, default vhost, symlinks, bin link,
-# site repair, HTTP/3 migration, service, state, verify) is independently
-# idempotent and re-runnable.
+# (conflicts, edge-port guard, repo, package, layout, main config, default
+# vhost, symlinks, bin link, site repair, HTTP/3 migration, service, state,
+# verify) is independently idempotent and re-runnable.
 #
 # SYNC CONTRACT: vhost/TLS templates and repair semantics are shared with the
 # Laravel end (ServerManagerV1NginxManagerCtl + ServerManagerV1NginxConfigBuilder);
@@ -48,6 +48,13 @@ echo "[$SCRIPT_INDEX] NGINX INSTALLATION (idempotent, step-granular)"
 # own prerequisites (binary existence, config test) and no-ops when unmet.
 step_run "$NGINX_STEP_NAMESPACE" "conflicts-cleared" "v2-caddy-apache" nm_conflicts_clear
 
+# STEP 1b: edge-port guard (80/TCP, 443/TCP, 443/UDP for QUIC). Always runs
+# (NOT step-fingerprinted): the scan itself is the idempotency check - no-op
+# when free, otherwise foreign occupiers (e.g. hysteria on UDP/443, docker
+# publishers) are stopped and offered for uninstall (y/N, default No) so the
+# nginx master can always bind. nginx's own sockets are never touched.
+nm_edge_ports_ensure
+
 # STEP 2: official nginx.org mainline repository
 step_run "$NGINX_STEP_NAMESPACE" "official-repo" "mainline-v1" nginx_ensure_official_repo || {
     echo "[$SCRIPT_INDEX] [WARN] Official repository setup failed; falling back to distro package"
@@ -75,8 +82,8 @@ fi
 # STEP 5: optional source build for full QUIC 0-RTT early data
 nginx_offer_source_build "false"
 
-# STEP 6: directory layout
-step_run "$NGINX_STEP_NAMESPACE" "directory-layout" "v2" nm_layout_ensure
+# STEP 6: directory layout (v3: symlink-aware ensure via nginx_ensure_directory)
+step_run "$NGINX_STEP_NAMESPACE" "directory-layout" "v3" nm_layout_ensure
 
 # STEP 7: canonical nginx.conf (content-hash idempotent)
 nm_main_config
@@ -90,10 +97,13 @@ nm_default_page
 # STEP 10: config view symlinks into mapped nginxconfig
 step_run "$NGINX_STEP_NAMESPACE" "config-symlinks" "v2" nm_symlinks_ensure
 
-# STEP 11: unify all nginx binaries/symlinks to one canonical install
+# STEP 11: unify all nginx binaries/symlinks to one canonical install.
+# Always runs (NOT step-fingerprinted): every alias/link check inside is
+# self-detecting and no-ops when correct, so link drift (loops, dangling,
+# stale targets) is repaired on every run.
 nginx_binary_for_step=$(nginx_get_binary)
 if [ -n "$nginx_binary_for_step" ]; then
-    step_run "$NGINX_STEP_NAMESPACE" "bin-unify" "$nginx_binary_for_step" nginx_unify_binaries
+    nginx_unify_binaries || echo "[$SCRIPT_INDEX] [WARN] binary unify reported issues"
 else
     echo "[$SCRIPT_INDEX] [WARN] No nginx binary for unify step"
 fi

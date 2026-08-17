@@ -3,11 +3,13 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use App\Traits\ApiResponse;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
 class ServerManagerV1BaseCtl extends Controller
@@ -31,6 +33,17 @@ class ServerManagerV1BaseCtl extends Controller
                 'ip' => $request->ip()
             ]);
             return true;
+        }
+
+        // Platform-canonical auth: a Sanctum bearer token belonging to an
+        // admin user (the session every management UI holds after login) is
+        // accepted directly; the static API key below remains for
+        // machine-to-machine callers.
+        if ($request->bearerToken()) {
+            $sanctumUser = Auth::guard('sanctum')->user();
+            if ($sanctumUser instanceof User && $sanctumUser->isAdmin()) {
+                return true;
+            }
         }
 
         // Production authentication

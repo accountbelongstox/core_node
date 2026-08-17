@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/apps/laravel-manager/api';
 import { logError, logInfo } from '@/core/logstore/logStore';
+import { VocabularyWordsModel } from './words/VocabularyWordsModel';
 
 const nf = (n: number | undefined | null) => (typeof n === 'number' ? n.toLocaleString() : '0');
 const pct = (part: number, total: number): string =>
@@ -51,7 +52,7 @@ export interface LibraryWordRow {
   has_translation?: boolean;
   has_audio?: boolean;
   has_image?: boolean;
-  is_valid?: boolean;
+  is_valid?: boolean | string;
   validity_note?: string;
 }
 
@@ -119,7 +120,7 @@ const WordRow: React.FC<RowComponentProps<RowProps>> = ({
   const rowKey = keyOf(w, index);
   const expanded = expandedKey === rowKey;
   const absIndex = (typeof w.index === 'number' ? w.index : pageBase + index + 1);
-  const invalid = w.is_valid === false;
+  const invalid = !VocabularyWordsModel.isWordValid(w);
   const canPlay = !!w.audio_available && !!w.audio_url && !invalid;
   const tr = shortTranslation(w.translations);
 

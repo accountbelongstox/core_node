@@ -93,19 +93,22 @@ class ClickHandler:
         y: int,
         button: str = 'left',
         duration: float = 0.3,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:
         """
         Click at specified position (screen coordinates).
 
+        Records the cursor position before the operation and restores it after
+        the click completes (also on failure).
+
         Args:
             x: Target X coordinate (screen).
             y: Target Y coordinate (screen).
             button: Mouse button ('left' or 'right').
             duration: Movement duration in seconds (ignored if direct_click=True).
-            return_to_original: If True, move mouse back to position before click after clicking.
+            return_to_original: If True (default), move mouse back to the position recorded before the click.
             direct_click: If True, move to (x,y) with duration=0 (no visible trajectory), then click.
             pause_after_move: Seconds to sleep after move before click (default 0.05 if direct_click else 0.1).
                              Use a smaller value (e.g. 0.02) from config for faster click.
@@ -120,16 +123,17 @@ class ClickHandler:
         try:
             move_duration = 0.0 if direct_click else duration
             pause = pause_after_move if pause_after_move is not None else (0.05 if direct_click else 0.1)
-            original_pos = pyautogui.position() if return_to_original else None
+            original_pos = self._mouse.save_mouse_position() if return_to_original else None
 
-            pyautogui.moveTo(x, y, duration=move_duration)
-            if pause > 0:
-                time.sleep(pause)
-            pyautogui.click(x, y, button=button)
-
-            if return_to_original and original_pos is not None:
-                pyautogui.moveTo(original_pos[0], original_pos[1], duration=0.0)
-            return True
+            try:
+                pyautogui.moveTo(x, y, duration=move_duration)
+                if pause > 0:
+                    time.sleep(pause)
+                pyautogui.click(x, y, button=button)
+                return True
+            finally:
+                if return_to_original and original_pos is not None:
+                    self._mouse.restore_mouse_position(original_pos)
         except Exception as e:
             ColorPrint.red(f"Error clicking at ({x}, {y}) with {button} button: {e}")
             return False
@@ -139,7 +143,7 @@ class ClickHandler:
         x: int,
         y: int,
         duration: float = 0.3,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:
@@ -155,7 +159,7 @@ class ClickHandler:
         x: int,
         y: int,
         duration: float = 0.3,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:
@@ -171,7 +175,7 @@ class ClickHandler:
         game_x: int,
         game_y: int,
         window_offset: Tuple[int, int],
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = True,
         button: str = 'left',
         duration: float = 0.3,
@@ -185,7 +189,7 @@ class ClickHandler:
             game_x: X relative to game window client area.
             game_y: Y relative to game window client area.
             window_offset: (offset_x, offset_y) of window client area on screen (from current screenshot).
-            return_to_original: If True, move mouse back after click.
+            return_to_original: If True (default), move mouse back after click.
             direct_click: If True, no movement trajectory (instant move then click).
             button: Mouse button.
             duration: Movement duration when direct_click=False.
@@ -302,16 +306,20 @@ class ClickHandler:
     # Generic element-click fallback chain (lives on the facade)
     # ------------------------------------------------------------------ #
     def _click_with_pyautogui(self, x: int, y: int) -> bool:
-        """Click using PyAutoGUI"""
+        """Click using PyAutoGUI (records cursor position and restores it after)"""
+        original_pos = self._mouse.save_mouse_position()
         try:
             pyautogui.click(x, y)
             return True
         except Exception as e:
             ColorPrint.yellow(f"⚠️  PyAutoGUI click failed: {e}")
             return False
+        finally:
+            self._mouse.restore_mouse_position(original_pos)
 
     def _click_with_foreground_activation(self, window, x: int, y: int) -> bool:
-        """Click with foreground window activation"""
+        """Click with foreground window activation (records cursor position and restores it after)"""
+        original_pos = self._mouse.save_mouse_position()
         try:
             # Activate the window first
             window.activate()
@@ -323,6 +331,8 @@ class ClickHandler:
         except Exception as e:
             ColorPrint.yellow(f"⚠️  Foreground activation click failed: {e}")
             return False
+        finally:
+            self._mouse.restore_mouse_position(original_pos)
 
     def _click_with_uiautomation(self, control_info: Dict) -> bool:
         """Click using UI Automation"""

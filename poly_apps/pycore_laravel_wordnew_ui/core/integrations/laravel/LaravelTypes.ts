@@ -59,7 +59,8 @@ export interface VocabDictionaryWordRow {
   language?: string;
   has_translation?: boolean;
   has_audio?: boolean;
-  is_valid?: boolean;
+  /** Validity flag; AI-verified rows may carry a string marker (validity source). */
+  is_valid?: boolean | string;
   translations?: string[];
   phonetic?: string;
   us_phonetic?: string;
@@ -99,7 +100,8 @@ export interface VocabLibraryWordRow {
   has_translation?: boolean;
   has_audio?: boolean;
   has_image?: boolean;
-  is_valid?: boolean;
+  /** Validity flag; AI-verified rows may carry a string marker (validity source). */
+  is_valid?: boolean | string;
   validity_note?: string;
   [k: string]: unknown;
 }

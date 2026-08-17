@@ -22,11 +22,11 @@ LARAVEL_RUNTIME_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_RUNTIME_REPO_ROOT="$(cd "$LARAVEL_RUNTIME_COMMON_DIR/../../../../.." && pwd)"
 LARAVEL_DIR="${LARAVEL_DIR:-${CORE_NODE_DIR:-$LARAVEL_RUNTIME_REPO_ROOT}/poly_apps/laravel_main}"
 PHP_BIN="${PHP_BIN:-$(command -v php)}"
-PORT="${PORT:-9000}"
+PORT="${PORT:-}"
 WORKERS="${WORKERS:-4}"
 TASK_WORKERS="${TASK_WORKERS:-4}"
 OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
-OCTANE_HOST="${OCTANE_HOST:-0.0.0.0}"
+OCTANE_HOST="${OCTANE_HOST:-}"
 OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 REVERB_HOST="${REVERB_SERVER_HOST:-0.0.0.0}"
@@ -34,6 +34,16 @@ REVERB_PORT="${REVERB_SERVER_PORT:-8080}"
 REVERB_PID=""
 OCTANE_PID=""
 RUNTIME_STATUS=0
+
+# Central service contract (config/service_contract.json) via the shell
+# adapter: default bind port = ports.laravel_api_backend, default bind host =
+# hosts.any (0.0.0.0, so the backend is reachable directly AND via the nginx
+# loopback proxy). PORT/OCTANE_HOST env vars still win.
+# shellcheck source=/dev/null
+. "$LARAVEL_RUNTIME_COMMON_DIR/../../common/service_contract_common.sh"
+PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
+OCTANE_HOST="${OCTANE_HOST:-$(sc_get hosts.any)}"
+
 OCTANE_ARGS=(
     artisan octane:start
     "--server=${OCTANE_SERVER}"

@@ -1,0 +1,19 @@
+{
+    "hosts": {
+        "loopback": "127.0.0.1",
+        "any": "0.0.0.0"
+    },
+    "ports": {
+        "laravel_api_backend": 9000,
+        "nexus_dash_frontend": 13054
+    },
+    "paths": {
+        "core_node_data_dir_posix": "/var/_core_node",
+        "core_node_data_dir_windows_subpath": "var/_core_node",
+        "global_var_dir_name": "global_var"
+    },
+    "files": {
+        "ui_allowed_hosts": "UI_ALLOWED_HOSTS",
+        "ui_domain_config": "ui_domain_config.json"
+    }
+}

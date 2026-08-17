@@ -6,8 +6,10 @@ use Illuminate\Console\Command;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1PHPConfigFixer;
+use App\Support\ServiceContract;
 use App\Providers\PathMapper;
 
 abstract class ServerManagerV1BaseCommand extends Command
@@ -136,7 +138,7 @@ abstract class ServerManagerV1BaseCommand extends Command
             'static' => ServerManagerV1NginxConfigBuilder::buildStatic($domain, $wwwDir),
             'proxy' => ServerManagerV1NginxConfigBuilder::buildProxy(
                 $domain,
-                '127.0.0.1:' . ($portNumber ?? '80')
+                '127.0.0.1:' . ($portNumber ?? self::defaultProxyPort($domain))
             ),
             default => null,
         };
@@ -158,6 +160,21 @@ abstract class ServerManagerV1BaseCommand extends Command
         return true;
     }
     
+    /**
+     * Canonical backend port for proxy sites rendered without an explicit
+     * PORT_NUMBER: api.* domains always reach the laravel_main API on 9000
+     * (never :80, which would loop back into nginx itself). The api/apex
+     * rule itself lives once in the builder (isApiDomain); mirrors
+     * DOMAIN_API_BACKEND_URL in domain_setup_common.sh (SYNC CONTRACT,
+     * see common/nginx_manager.sh).
+     */
+    private static function defaultProxyPort(string $domain): string
+    {
+        return ServerManagerV1NginxConfigBuilder::isApiDomain($domain)
+            ? (string) ServiceContract::port('laravel_api_backend')
+            : '80';
+    }
+
     /**
      * Enable nginx site
      */
@@ -549,87 +566,17 @@ abstract class ServerManagerV1BaseCommand extends Command
      */
     protected function generateDNSPodCertificate(string $domain): bool
     {
-        try {
-            // Get DNSPod credentials from secret storage (same as getDNSCredentials)
-            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
-            $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
-
-            if (!$email || !$apiToken) {
-                $this->error("Failed to get DNSPod credentials from secret storage");
-                return false;
-            }
-
-            // Parse DNSPod API token format: "id,token"
-            $tokenParts = explode(',', $apiToken, 2);
-            if (count($tokenParts) !== 2) {
-                $this->error("Invalid DNSPod API token format. Expected: 'id,token'");
-                return false;
-            }
-
-            $apiId = trim($tokenParts[0]);
-            $apiTokenValue = trim($tokenParts[1]);
-
-            // Create DNSPod credentials file
-            // Standard dns-dnspod plugin requires email and api-token (full "id,token" format)
-            // certbot automatically prefixes with "dns_dnspod_" for the credentials file
-            // Use quotes to prevent configobj from parsing comma-separated value as a list
-            $credentialsPath = PathMapper::getLaravelTmpDir() . '/dnspod-credentials.ini';
-            $apiToken = $apiId . ',' . $apiTokenValue;
-            $credentialsContent = "dns_dnspod_email = {$email}\n";
-            $credentialsContent .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
-
-            if (file_put_contents($credentialsPath, $credentialsContent) === false) {
-                $this->error("Failed to create DNSPod credentials file");
-                return false;
-            }
-
-            chmod($credentialsPath, 0600);
-
-            // Get custom certificate directory
-            $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
-            $configDir = $letsEncryptDir;
-            $workDir = $letsEncryptDir . '/work';
-            $logsDir = $letsEncryptDir . '/logs';
-
-            // Ensure directories exist
-            if (!is_dir($configDir)) {
-                mkdir($configDir, 0755, true);
-            }
-            if (!is_dir($workDir)) {
-                mkdir($workDir, 0755, true);
-            }
-            if (!is_dir($logsDir)) {
-                mkdir($logsDir, 0755, true);
-            }
-
-            $args = [
-                'certonly',
-                '--config-dir', $configDir,
-                '--work-dir', $workDir,
-                '--logs-dir', $logsDir,
-                '--authenticator', 'dns-dnspod',
-                '--dns-dnspod-credentials', $credentialsPath,
-                '-d', $domain,
-                '--email', ServerManagerV1SSLConfigReader::getDefaultEmail(),
-                '--agree-tos',
-                '--non-interactive'
-            ];
-
-            if (ServerManagerV1SSLConfigReader::isStagingMode()) {
-                $args[] = '--staging';
-            }
-
-            $result = $this->executeCommand('certbot', $args);
-
-            // Clean up credentials file
-            unlink($credentialsPath);
-
-            return $result['success'];
-
-        } catch (\Exception $e) {
-            $this->error("DNSPod certificate generation failed: " . $e->getMessage());
+        // Single canonical path (CertificateManager): working certbot-dnspod
+        // authenticator, persistent credentials file, propagation wait. The
+        // legacy inline implementation (dead dns-dnspod plugin, temporary
+        // credentials file) is removed — it broke every later renewal.
+        $extraArgs = ServerManagerV1SSLConfigReader::isStagingMode() ? ['--staging'] : [];
+        $result = ServerManagerV1CertificateManager::runDNSPodCertbot([$domain], $extraArgs);
+        if (!$result['success']) {
+            $this->error("DNSPod certificate generation failed: " . ($result['error'] ?? 'unknown'));
             return false;
         }
+        return true;
     }
 
     /**

@@ -20,19 +20,15 @@ use App\Providers\PathMapper;
  *     (domain_setup_issue_certificate -> artisan servermanager:certificate)
  *   scripts/shells/linux/common/nginx_manager.sh (cert-ensure / cert-renew)
  * Any change to providers, prefix expansion, or renewal behavior MUST be
- * applied to both ends in the same change.
+ * applied to both ends in the same change. SAN expansion itself lives in
+ * ServerManagerV1DomainExpander (single implementation; the shell end
+ * funnels into it through `artisan servermanager:certificate`).
  */
 class ServerManagerV1CertificateManager
 {
     // Use PathMapper for database directory
     private const CERTIFICATES_FILE = 'certificates.json';
-    
-    // Predefined subdomain prefixes. SYNC with the shell end: the region
-    // choices offered by domain_setup_common.sh (si/sh/sz/hk/custom) build
-    // api.<region>.<domain> sites, which are covered by the *.<region>.<domain>
-    // wildcards generated from this list.
-    private const SUBDOMAIN_PREFIXES = ['si', 'sh', 'sz', 'hk', 'local', 'api'];
-    
+
     /**
      * Get certificates database directory
      */
@@ -40,7 +36,160 @@ class ServerManagerV1CertificateManager
     {
         return PathMapper::mapWebPath('laravel_data_dir') . '/servermanager/certificates';
     }
-    
+
+    /**
+     * Resolve the DNSPod API credentials from the secret store — the single
+     * resolver shared by the CLI command (issuance / reconcile) and the API
+     * controller (DNS provider status). Canonical secret file names on disk
+     * are DNSPOD_EMAILS / DNS_DNSPOD_API_TOKENS; the legacy DNS_-prefixed
+     * variants are accepted as fallback (SecretStore::get returns '' for a
+     * missing file).
+     *
+     * @return array{email:string, api_id:string, api_token:string}|null
+     */
+    public static function getDNSPodCredentials(): ?array
+    {
+        $email = \App\Utils\SecretStore::get('DNSPOD_EMAILS');
+        if ($email === '') {
+            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
+        }
+        $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
+        if ($apiToken === '') {
+            $apiToken = \App\Utils\SecretStore::get('DNSPOD_API_TOKENS');
+        }
+
+        if ($email === '' || $apiToken === '') {
+            return null;
+        }
+
+        // Parse DNSPod API token format: "id,token"
+        $tokenParts = explode(',', $apiToken, 2);
+        if (count($tokenParts) !== 2) {
+            return null;
+        }
+
+        return [
+            'email' => $email,
+            'api_id' => trim($tokenParts[0]),
+            'api_token' => trim($tokenParts[1]),
+        ];
+    }
+
+    // DNS-01 propagation wait passed to the certbot-dnspod plugin. The plugin
+    // inherits certbot's dns_common default of 10 seconds, which is too short
+    // for DNSPod authoritative sync: the CA then validates before the TXT
+    // record is visible and every challenge fails even though the record was
+    // created (credentials are NOT the problem in that failure mode).
+    private const DNSPOD_PROPAGATION_SECONDS = 60;
+
+    /**
+     * Ensure the persistent certbot-dnspod credentials file (official plugin
+     * format: certbot_dnspod_token_id / certbot_dnspod_token). Certbot records
+     * this path in <config-dir>/renewal/<name>.conf and re-reads it at EVERY
+     * renewal, so the file MUST persist — temporary credentials files break
+     * `certbot renew`. Content-hash idempotent. Directory 0700, file 0600.
+     *
+     * @param array{api_id:string, api_token:string} $credentials
+     */
+    public static function ensureDNSPodCredentialsFile(array $credentials): ?string
+    {
+        $credentialsDir = ServerManagerV1PathConfig::getSslCredentialsDir();
+        if (!is_dir($credentialsDir)) {
+            mkdir($credentialsDir, 0700, true);
+        } else {
+            chmod($credentialsDir, 0700);
+        }
+
+        $content = "certbot_dnspod_token_id = {$credentials['api_id']}\n";
+        $content .= "certbot_dnspod_token = {$credentials['api_token']}\n";
+
+        $credentialsPath = $credentialsDir . '/certbot-dnspod.ini';
+
+        if (is_file($credentialsPath) && file_get_contents($credentialsPath) === $content) {
+            return $credentialsPath;
+        }
+
+        if (file_put_contents($credentialsPath, $content) === false) {
+            return null;
+        }
+
+        chmod($credentialsPath, 0600);
+        return $credentialsPath;
+    }
+
+    /**
+     * Build the canonical DNSPod certbot argument vector (working
+     * certbot-dnspod authenticator, persistent credentials file, propagation
+     * wait, canonical config/work/log dirs). Single builder shared by the CLI
+     * command, the website SSL flow and the API controller — no second
+     * implementation may build DNSPod certbot arguments.
+     *
+     * @return array|null full argument vector (starting with 'certonly'), or
+     *                    null when credentials/credentials-file are unavailable
+     */
+    public static function buildDNSPodCertbotCommand(array $domains, array $extraArgs = []): ?array
+    {
+        $credentials = self::getDNSPodCredentials();
+        if ($credentials === null) {
+            return null;
+        }
+
+        $credentialsPath = self::ensureDNSPodCredentialsFile($credentials);
+        if ($credentialsPath === null) {
+            return null;
+        }
+
+        $letsEncryptDir = ServerManagerV1PathConfig::getLetsEncryptDir();
+        foreach ([$letsEncryptDir, $letsEncryptDir . '/work', $letsEncryptDir . '/logs'] as $dir) {
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+        }
+
+        $command = [
+            'certonly',
+            '--config-dir', $letsEncryptDir,
+            '--work-dir', $letsEncryptDir . '/work',
+            '--logs-dir', $letsEncryptDir . '/logs',
+            '--authenticator', 'certbot-dnspod',
+            '--certbot-dnspod-credentials', $credentialsPath,
+            '--certbot-dnspod-propagation-seconds', (string) self::DNSPOD_PROPAGATION_SECONDS,
+            '--email', $credentials['email'],
+            '--agree-tos', '--non-interactive',
+        ];
+        foreach ($extraArgs as $arg) {
+            $command[] = $arg;
+        }
+        foreach ($domains as $domain) {
+            $command[] = '-d';
+            $command[] = $domain;
+        }
+
+        return $command;
+    }
+
+    /**
+     * Run certbot for DNSPod domains via the canonical builder. $sudo prefixes
+     * the call with sudo (web/API context where the PHP process is not root).
+     */
+    public static function runDNSPodCertbot(array $domains, array $extraArgs = [], ?int $timeout = null, bool $sudo = false): array
+    {
+        $command = self::buildDNSPodCertbotCommand($domains, $extraArgs);
+        if ($command === null) {
+            return [
+                'success' => false,
+                'output' => '',
+                'error' => 'DNSPod credentials unavailable or credentials file not writable',
+                'exit_code' => 1,
+            ];
+        }
+
+        if ($sudo) {
+            return ServerManagerV1Utils::executeCommand('sudo', array_merge(['certbot'], $command), $timeout);
+        }
+        return ServerManagerV1Utils::executeCommand('certbot', $command, $timeout);
+    }
+
     /**
      * Get certificates database file path
      */
@@ -117,24 +266,12 @@ class ServerManagerV1CertificateManager
     }
     
     /**
-     * Generate expanded domain list for a base domain
+     * Generate expanded domain list for a base domain (single implementation:
+     * ServerManagerV1DomainExpander).
      */
     public static function generateExpandedDomains(string $baseDomain): array
     {
-        $domains = [
-            $baseDomain,           // 12gm.com
-            "*.$baseDomain"        // *.12gm.com (covers api.12gm.com, si.12gm.com, etc.)
-        ];
-
-        // Add wildcard subdomains for each prefix
-        // This covers *.si.12gm.com, *.sz.12gm.com, etc.
-        // Note: We don't add specific subdomains like api.12gm.com because *.12gm.com already covers them
-        foreach (self::SUBDOMAIN_PREFIXES as $prefix) {
-            $subDomain = "$prefix.$baseDomain";
-            $domains[] = "*.$subDomain";  // Only add wildcard, not the subdomain itself
-        }
-
-        return array_unique($domains);
+        return ServerManagerV1DomainExpander::expand($baseDomain);
     }
     
     /**
@@ -145,34 +282,12 @@ class ServerManagerV1CertificateManager
         $certificates = self::loadCertificates();
         
         foreach ($certificates as $certId => $cert) {
-            if (self::domainCoveredByCertificate($domain, $cert['domains'])) {
+            if (ServerManagerV1DomainExpander::covers($domain, $cert['domains'])) {
                 return $cert;
             }
         }
         
         return null;
-    }
-    
-    /**
-     * Check if a domain is covered by certificate domains
-     */
-    private static function domainCoveredByCertificate(string $domain, array $certDomains): bool
-    {
-        // Direct match
-        if (in_array($domain, $certDomains)) {
-            return true;
-        }
-        
-        // Wildcard match
-        $domainParts = explode('.', $domain);
-        if (count($domainParts) > 1) {
-            $wildcardDomain = '*.' . implode('.', array_slice($domainParts, 1));
-            if (in_array($wildcardDomain, $certDomains)) {
-                return true;
-            }
-        }
-        
-        return false;
     }
     
     /**
@@ -257,7 +372,7 @@ class ServerManagerV1CertificateManager
             $certId = "cert_" . str_replace('.', '_', $baseDomain);
             if (isset($certificates[$certId])) {
                 $cert = $certificates[$certId];
-                if (!self::domainCoveredByCertificate($newDomain, $cert['domains'])) {
+                if (!ServerManagerV1DomainExpander::covers($newDomain, $cert['domains'])) {
                     // Need to expand certificate
                     return [
                         'certificate' => $cert,
@@ -335,6 +450,16 @@ class ServerManagerV1CertificateManager
 
         foreach ($certificates as $cert) {
             $expiresAt = $cert['expires_at'] ? strtotime($cert['expires_at']) : null;
+            $expiresAtDisplay = $cert['expires_at'];
+            if ($expiresAt === null) {
+                // The store snapshot may predate expiry tracking; the live
+                // certificate on disk is the authority.
+                $liveExpiry = self::liveCertExpiryTimestamp((string) $cert['base_domain']);
+                if ($liveExpiry !== null) {
+                    $expiresAt = $liveExpiry;
+                    $expiresAtDisplay = date('Y-m-d H:i:s', $liveExpiry);
+                }
+            }
 
             if ($cert['status'] === 'active') {
                 $summary['active_certificates']++;
@@ -352,8 +477,9 @@ class ServerManagerV1CertificateManager
                 'id' => $cert['id'],
                 'base_domain' => $cert['base_domain'],
                 'status' => $cert['status'],
-                'expires_at' => $cert['expires_at'],
+                'expires_at' => $expiresAtDisplay,
                 'domain_count' => count($cert['domains']),
+                'domains' => array_values($cert['domains']),
                 'auto_renew' => $cert['auto_renew']
             ];
         }
@@ -428,6 +554,31 @@ class ServerManagerV1CertificateManager
     }
 
     /**
+     * Expiry timestamp of the live certificate on disk (the same source
+     * certbot itself consults). The ServerManager store's expires_at is only
+     * a snapshot and may be missing for certificates issued before it was
+     * tracked; the PEM on disk is the authority.
+     */
+    private static function liveCertExpiryTimestamp(string $baseDomain): ?int
+    {
+        $liveDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptLiveDir($baseDomain);
+        $pemFile = $liveDir . '/fullchain.pem';
+        if (!is_file($pemFile)) {
+            return null;
+        }
+
+        $pem = @file_get_contents($pemFile);
+        if ($pem === false) {
+            return null;
+        }
+
+        $parsed = openssl_x509_parse($pem);
+        $validTo = $parsed['validTo_time_t'] ?? null;
+
+        return is_int($validTo) ? $validTo : null;
+    }
+
+    /**
      * Check all certificates and get list of domains needing renewal
      *
      * @param int $daysThreshold Days before expiry to consider renewal (default: 30)
@@ -448,12 +599,15 @@ class ServerManagerV1CertificateManager
             }
 
             $expiresAt = $cert['expires_at'] ? strtotime($cert['expires_at']) : null;
+            if ($expiresAt === null) {
+                $expiresAt = self::liveCertExpiryTimestamp((string) $cert['base_domain']);
+            }
 
             if ($expiresAt && $expiresAt <= $renewThreshold) {
                 $daysLeft = (int)(($expiresAt - $now) / (24 * 60 * 60));
                 $needingRenewal[] = [
                     'base_domain' => $cert['base_domain'],
-                    'expires_at' => $cert['expires_at'],
+                    'expires_at' => $cert['expires_at'] ?: date('Y-m-d H:i:s', $expiresAt),
                     'days_until_expiry' => $daysLeft,
                     'is_expired' => $expiresAt < $now,
                     'domains' => $cert['domains']

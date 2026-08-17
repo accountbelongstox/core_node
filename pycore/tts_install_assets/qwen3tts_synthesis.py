@@ -21,6 +21,10 @@ from pydub import AudioSegment
 # QwenLM/Qwen3-TTS#258). This is the ONLY pipeline - there is no version
 # split: every synthesis result is multi-sentence audio by construction, and
 # /status reports "chunked": true so clients can tag it as such.
+# The chunks of one task are generated through the model library's NATIVE
+# BATCH API (generate_custom_voice accepts parallel text/speaker/language
+# lists and returns wavs in input order) in GPU-bounded parallel groups -
+# large paragraphs no longer synthesize their sentences one by one.
 
 # Long-text guard: one long single-shot generation derails the 12Hz talker
 # halfway through (audible as noise in the second half - upstream issue
@@ -201,7 +205,9 @@ class QwenSynthesis:
         speed = self._resolve_speed(params)
         model = self._get_model()
         resolved = self._resolve_speaker(
-            language, requested=str(params.get("speaker") or "").strip()
+            language,
+            requested=str(params.get("speaker") or "").strip(),
+            random_default=True,
         )
         if not resolved.get("ok"):
             raise ValueError(str(resolved.get("message") or resolved))
@@ -226,7 +232,7 @@ class QwenSynthesis:
                         f"[api] sentence text -> {len(chunks)} chunks "
                         f"({len(text)} chars, merge_cap="
                         f"{max(60, round(hard_cap * _SENTENCE_MERGE_RATIO))}, "
-                        f"speed={speed:g})"
+                        f"speed={speed:g}, speaker={speaker})"
                     )
                     wav, sample_rate = self._generate_chunked(model, gen_kwargs, chunks)
                 else:
@@ -244,6 +250,7 @@ class QwenSynthesis:
                 "format": fmt,
                 "sample_rate": int(sample_rate),
                 "speaker": speaker,
+                "speaker_random": bool(resolved.get("random_applied")),
                 "chunked": True,
                 "speed": speed,
                 "elapsed_ms": elapsed_ms,
@@ -256,21 +263,91 @@ class QwenSynthesis:
     def _generate_chunked(
         self, model: Any, gen_kwargs: Dict[str, Any], chunks: List[str]
     ) -> "tuple[Any, int]":
-        """Generate one chunk at a time (same speaker/language) and concatenate,
-        inserting a short pause at chunk boundaries."""
+        """Generate the sentence chunks of ONE task and concatenate them in
+        ORIGINAL order, inserting a short pause at chunk boundaries.
+
+        Chunks are produced in parallel groups through the model library's
+        native batch API, bounded by the GPU-tuned max parallelism (same
+        estimator as the queue). A failing group degrades to per-chunk
+        sequential generation for THAT GROUP ONLY - one bad chunk never
+        loses the whole task, and one group's fallback never affects the
+        next group."""
         pause_ms = _chunk_pause_ms()
-        sample_rate = 0
-        parts: List[Any] = []
-        for chunk in chunks:
-            wavs, sample_rate = model.generate_custom_voice(
-                **{**gen_kwargs, "text": chunk}
+        group_limit = self._chunk_parallel_limit()
+        if len(chunks) > group_limit:
+            self._logger(
+                f"[api] parallel chunk groups: {len(chunks)} chunks / "
+                f"batch <= {group_limit} (GPU-tuned)"
             )
+        sample_rate = 0
+        ordered: List[Any] = [None] * len(chunks)
+        for start in range(0, len(chunks), group_limit):
+            group = chunks[start:start + group_limit]
+            batch_done = False
+            if len(group) > 1:
+                try:
+                    wavs, sample_rate = self._generate_chunk_group(
+                        model, gen_kwargs, group
+                    )
+                    if len(wavs) != len(group):
+                        raise RuntimeError(
+                            f"chunk batch returned {len(wavs)}/{len(group)} wavs"
+                        )
+                    for offset, wav in enumerate(wavs):
+                        ordered[start + offset] = np.asarray(wav, dtype=np.float32)
+                    batch_done = True
+                except Exception as batch_error:  # noqa: BLE001 - group-local fallback
+                    self._logger(
+                        f"[api] chunk batch of {len(group)} failed "
+                        f"({batch_error}) -> sequential fallback for this group"
+                    )
+            if not batch_done:
+                for offset, chunk in enumerate(group):
+                    wavs, sample_rate = model.generate_custom_voice(
+                        **{**gen_kwargs, "text": chunk}
+                    )
+                    ordered[start + offset] = np.asarray(wavs[0], dtype=np.float32)
+        parts: List[Any] = []
+        for index, wav in enumerate(ordered):
+            if wav is None:
+                raise RuntimeError(f"chunk {index} produced no audio")
             if parts and pause_ms > 0:
                 parts.append(
                     np.zeros(int(sample_rate * pause_ms / 1000), dtype=np.float32)
                 )
-            parts.append(np.asarray(wavs[0], dtype=np.float32))
+            parts.append(wav)
         return np.concatenate(parts), int(sample_rate)
+
+    def _generate_chunk_group(
+        self, model: Any, gen_kwargs: Dict[str, Any], group: List[str]
+    ) -> "tuple[Any, int]":
+        """One native batch call for a group of sentence chunks: same speaker
+        and language for every chunk of the task, wavs returned in input
+        order by the model library (qwen_tts.generate_custom_voice)."""
+        count = len(group)
+        batch_kwargs: Dict[str, Any] = {
+            **gen_kwargs,
+            "text": list(group),
+            "language": [gen_kwargs["language"]] * count,
+            "speaker": [gen_kwargs["speaker"]] * count,
+            "non_streaming_mode": True,
+        }
+        if batch_kwargs.get("instruct"):
+            batch_kwargs["instruct"] = [batch_kwargs["instruct"]] * count
+        else:
+            batch_kwargs.pop("instruct", None)
+        return model.generate_custom_voice(**batch_kwargs)
+
+    def _chunk_parallel_limit(self) -> int:
+        """GPU-tuned bound for one parallel chunk group (same estimator as
+        the queue's batch size, QWEN3TTS_MAX_PARALLEL overridable)."""
+        snapshot = self._query_gpu_snapshot(self._gpu_index())
+        return max(1, self._estimate_max_parallel(
+            self._detect_model_variant(self._model_id()),
+            snapshot.get("mem_total_mb") or 0,
+            snapshot.get("mem_used_mb") or 0,
+            snapshot.get("util_percent"),
+        ))
 
     def generate_queue_batch(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not jobs:
@@ -281,9 +358,12 @@ class QwenSynthesis:
             {"ok": False, "error": "speaker resolution failed"} for _job in jobs
         ]
         for index, job in enumerate(jobs):
+            # random_default: one random native voice per JOB (task) - resolved
+            # once here, so every sentence chunk of the job reuses it.
             resolved = self._resolve_speaker(
                 str(job.get("language") or "en"),
                 requested=str(job.get("speaker") or ""),
+                random_default=True,
             )
             if not resolved.get("ok"):
                 results[index] = {
@@ -291,9 +371,12 @@ class QwenSynthesis:
                     "error": resolved.get("message") or resolved,
                 }
                 continue
-            valid.append(
-                {"index": index, "job": job, "speaker": resolved["resolved_speaker"]}
-            )
+            valid.append({
+                "index": index,
+                "job": job,
+                "speaker": resolved["resolved_speaker"],
+                "speaker_random": bool(resolved.get("random_applied")),
+            })
         if not valid:
             return results
         # Long jobs (articles) leave the stable single-shot context; route them
@@ -356,6 +439,7 @@ class QwenSynthesis:
                     "audio": audio,
                     "media_type": media_type,
                     "speaker": row["speaker"],
+                    "speaker_random": bool(row.get("speaker_random")),
                     "chunked": True,
                     "speed": speed,
                 }

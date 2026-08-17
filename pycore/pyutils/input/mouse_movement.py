@@ -56,6 +56,34 @@ class MouseMovement:
         """
         return pyautogui.position()
 
+    def save_mouse_position(self) -> Tuple[int, int]:
+        """
+        Record current mouse position before a mouse operation
+
+        Returns:
+            Tuple of (x, y) coordinates to pass to restore_mouse_position()
+        """
+        return pyautogui.position()
+
+    def restore_mouse_position(self, position: Tuple[int, int]) -> bool:
+        """
+        Restore mouse to a position recorded by save_mouse_position() (instant move)
+
+        Args:
+            position: (x, y) tuple recorded before the operation; None is ignored
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not position:
+            return False
+        try:
+            pyautogui.moveTo(position[0], position[1], duration=0)
+            return True
+        except Exception as e:
+            ColorPrint.red(f"[MouseMovement] Error restoring mouse position to {position}: {e}")
+            return False
+
     def move_mouse_visible(self, x: int, y: int, duration: float = 0.5) -> bool:
         """
         Move mouse to specified position with visible trajectory

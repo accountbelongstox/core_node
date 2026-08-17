@@ -43,15 +43,16 @@ CERTBOT_STEP_NAMESPACE="27_install_certbot"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/step_state.sh"
+# Shared edge-port guard (80/443 tcp+udp occupier stop + y/N uninstall).
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/port_guard_common.sh"
 
 SSL_CONFIG_DIR=$(map_web_path "shared-data" "ssl")
 SSL_CONFIG_FILE="$SSL_CONFIG_DIR/ssl_config.json"
 LEGACY_SSL_CONFIG_DIR="$CORE_NODE_DIR/.secret_keys/.secret_ignore"
 LEGACY_SSL_CONFIG_FILE="$LEGACY_SSL_CONFIG_DIR/SSL_CONFIG_JSON"
-RENEWAL_SCRIPT="/usr/local/bin/certbot-renewal.sh"
 RENEWAL_TIMER_NAME="certbot-renewal"
-RENEWAL_SERVICE_FILE="/etc/systemd/system/certbot-renewal.service"
-RENEWAL_TIMER_FILE="/etc/systemd/system/certbot-renewal.timer"
+CERT_SELFHEAL_COMMON="$PARENT_DIR_LEVEL_2/common/cert_selfheal_common.sh"
 CERTBOT_BIN_LINK="/usr/local/bin/certbot"
 CERTBOT_UPDATE_STAMP="/usr/local/etc/.certbot_pipx_update_stamp"
 PIPX_ENSURE_SCRIPT="$SCRIPT_CURRENT_DIR/17_enable_pipx.sh"
@@ -61,7 +62,11 @@ PIPX_HOME_DIR="$COMPILE_DIR/pipx_home"
 PIPX_BIN_DIR="/usr/local/bin"
 CERTBOT_PIPX_VENV="$PIPX_HOME_DIR/venvs/certbot"
 CERTBOT_VENV_BIN="$CERTBOT_PIPX_VENV/bin/certbot"
-CERTBOT_PLUGINS="certbot-nginx certbot-dns-dnspod certbot-dns-cloudflare certbot-dns-route53"
+# certbot-dnspod (third-party, maintained): the WORKING DNSPod authenticator
+# (certbot-dnspod, options certbot_dnspod_token_id/token). The zope-era
+# certbot-dns-dnspod package fails to load on modern certbot ("No module
+# named zope") and is intentionally NOT installed.
+CERTBOT_PLUGINS="certbot-nginx certbot-dnspod certbot-dns-cloudflare certbot-dns-route53"
 LEGACY_APT_PACKAGES="certbot python3-certbot python3-certbot-nginx python3-certbot-dns-cloudflare python3-certbot-dns-route53"
 
 echo "[$SCRIPT_INDEX] Certbot Installation Script (pipx-isolated, idempotent, step-granular)"
@@ -73,6 +78,13 @@ if [ ! -x /usr/local/bin/nginx ] && ! command -v nginx >/dev/null 2>&1; then
 fi
 
 check_and_install_sudo
+
+# STEP 0: edge-port guard (80/TCP, 443/TCP, 443/UDP). certbot HTTP-01 needs
+# nginx answering on 80/443; foreign occupiers are stopped (interactive y/N
+# uninstall offered, default No) before any certbot/nginx work. The scan is
+# the idempotency check: no-op when free; nginx's own sockets are never
+# touched.
+pg_ports_ensure_free 80 443
 
 # Run pipx with the canonical isolated home/bin layout (root-safe).
 pipx_run() {
@@ -327,50 +339,14 @@ EOF
     $USE_SUDO ln -sfn "$SSL_CONFIG_FILE" "$LEGACY_SSL_CONFIG_FILE"
 }
 
-# Renewal via systemd timer (replaces the legacy root cron entry). The renewal
-# script calls the pipx-isolated certbot through the /usr/local/bin link and
-# reloads nginx on change.
+# Renewal self-heal via the shared layer (cert_selfheal_common.sh): deploy
+# hooks (nginx reload only after an actual renewal) + renewal wrapper +
+# twice-daily systemd timer registered through debian_service_manager's
+# oneshot/timer primitives. Replaces the legacy hand-rolled units and cron.
 ensure_renewal_timer() {
-    write_file_if_changed "$RENEWAL_SCRIPT" <<'EOF'
-#!/bin/bash
-# Certbot renewal hook: renew certificates and reload nginx on change.
-/usr/local/bin/certbot renew --quiet
-if [ $? -eq 0 ]; then
-    /usr/local/bin/certbot renew --quiet --deploy-hook 'systemctl reload nginx' 2>/dev/null || systemctl reload nginx
-fi
-EOF
-
-    write_file_if_changed "$RENEWAL_SERVICE_FILE" <<EOF
-[Unit]
-Description=Certbot renewal run
-
-[Service]
-Type=oneshot
-ExecStart=$RENEWAL_SCRIPT
-EOF
-
-    write_file_if_changed "$RENEWAL_TIMER_FILE" <<EOF
-[Unit]
-Description=Run certbot renewal twice daily
-
-[Timer]
-OnCalendar=*-*-* 06:17:00
-OnCalendar=*-*-* 18:17:00
-RandomizedDelaySec=1h
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-    $USE_SUDO systemctl daemon-reload
-    $USE_SUDO systemctl enable --now "$RENEWAL_TIMER_NAME.timer"
-
-    # Remove the legacy cron entry superseded by the timer.
-    if $USE_SUDO crontab -l 2>/dev/null | grep -q "certbot-renewal"; then
-        $USE_SUDO crontab -l 2>/dev/null | grep -v "certbot-renewal" | $USE_SUDO crontab - 2>/dev/null || true
-        echo "[$SCRIPT_INDEX] Removed legacy cron renewal entry"
-    fi
+    # shellcheck source=/dev/null
+    source "$CERT_SELFHEAL_COMMON"
+    cert_selfheal_run_once
 }
 
 # Persist facts for downstream consumers (strict regex version parse - never
@@ -382,7 +358,9 @@ store_certbot_info() {
     fi
 
     set_global_var "CERTBOT_BIN" "$CERTBOT_BIN_LINK"
-    set_global_var "CERTBOT_VERSION" "$certbot_version"
+    if [ -n "$certbot_version" ]; then
+        set_global_var "CERTBOT_VERSION" "$certbot_version"
+    fi
     set_global_var "CERTBOT_MANAGED_BY" "laravel_servermanager"
     set_global_var "CERTBOT_INSTALL_MODE" "pipx"
     set_global_var "CERTBOT_PIPX_VENV" "$CERTBOT_PIPX_VENV"
@@ -407,10 +385,10 @@ verify_certbot() {
     fi
 
     if [ -n "$plugins_output" ]; then
-        if echo "$plugins_output" | grep -q "dns-dnspod"; then
-            echo "[$SCRIPT_INDEX] [OK] dns-dnspod plugin present"
+        if echo "$plugins_output" | grep -q "certbot-dnspod"; then
+            echo "[$SCRIPT_INDEX] [OK] certbot-dnspod plugin present"
         else
-            echo "[$SCRIPT_INDEX] [FAIL] dns-dnspod plugin missing from the isolated venv"
+            echo "[$SCRIPT_INDEX] [FAIL] certbot-dnspod plugin missing from the isolated venv"
             failures=$((failures + 1))
         fi
         if echo "$plugins_output" | grep -q "\* nginx"; then
@@ -463,8 +441,55 @@ pipx_install_certbot
 # STEP 7: plugin injection (per-plugin idempotent; self-detecting)
 pipx_inject_plugins
 
-# STEP 8: /usr/local/bin/certbot link + mode 777
-step_run "$CERTBOT_STEP_NAMESPACE" "bin-link" "$CERTBOT_PIPX_VENV" ensure_certbot_link
+# STEP 7b: remove the zope-era dns-dnspod plugin from the venv (cannot load on
+# modern certbot: "No module named zope"; superseded by certbot-dnspod).
+# Self-detecting: no-ops when absent.
+purge_venv_legacy_plugin() {
+    if [ ! -x "$PIPX_BIN" ]; then
+        return 0
+    fi
+    if pipx_run list 2>/dev/null | grep -q "certbot-dns-dnspod"; then
+        echo "[$SCRIPT_INDEX] Removing legacy zope-era plugin from venv: certbot-dns-dnspod"
+        pipx_run runpip certbot uninstall -y certbot-dns-dnspod || echo "[$SCRIPT_INDEX] [WARN] legacy plugin removal reported issues"
+    fi
+    return 0
+}
+purge_venv_legacy_plugin
+
+# STEP 7c: venv functional probe + dependency repair. The pipx venv can rot
+# into an inconsistent dependency set (josepy 1.x references
+# OpenSSL.crypto.X509Req, removed in pyOpenSSL 25): every certbot invocation
+# then dies at import time. Probe: `certbot --version` must exit 0. Repair:
+# upgrade certbot itself, then let pip eagerly re-resolve the whole
+# dependency tree (josepy / pyOpenSSL / cryptography) to mutually compatible
+# versions. Self-detecting: no-ops on a healthy venv.
+certbot_venv_health_ensure() {
+    if [ ! -x "$CERTBOT_VENV_BIN" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] certbot venv absent; skipping health probe"
+        return 0
+    fi
+    if $USE_SUDO "$CERTBOT_VENV_BIN" --version >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] certbot venv functional"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] [WARN] certbot venv broken (import-time failure); re-resolving dependencies..."
+    pipx_run upgrade certbot || echo "[$SCRIPT_INDEX] [WARN] certbot upgrade reported issues"
+    pipx_run runpip certbot install --upgrade --upgrade-strategy eager certbot || \
+        echo "[$SCRIPT_INDEX] [WARN] dependency re-resolve reported issues"
+    if $USE_SUDO "$CERTBOT_VENV_BIN" --version >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [OK] certbot venv repaired: $($USE_SUDO "$CERTBOT_VENV_BIN" --version 2>&1 | head -1)"
+    else
+        echo "[$SCRIPT_INDEX] [WARN] certbot venv still broken; manual repair: PIPX_HOME=$PIPX_HOME_DIR $PIPX_BIN reinstall certbot, then re-run this script"
+    fi
+    return 0
+}
+certbot_venv_health_ensure
+
+# STEP 8: /usr/local/bin/certbot link + mode 777. Always runs (self-detecting:
+# no-ops when the link already points at the venv binary, repairs dangling or
+# stale links), so a failed install on a previous run never leaves the link
+# broken behind a satisfied step fingerprint.
+ensure_certbot_link
 
 # STEP 9: Laravel ServerManager directory layout
 step_run "$CERTBOT_STEP_NAMESPACE" "servermanager-dirs" "v2" ensure_servermanager_dirs
@@ -472,8 +497,8 @@ step_run "$CERTBOT_STEP_NAMESPACE" "servermanager-dirs" "v2" ensure_servermanage
 # STEP 10: SSL config bootstrap
 step_run "$CERTBOT_STEP_NAMESPACE" "ssl-config" "v2" ensure_ssl_config
 
-# STEP 11: systemd renewal timer (replaces cron)
-step_run "$CERTBOT_STEP_NAMESPACE" "renewal-timer" "systemd-v3-pipx" ensure_renewal_timer
+# STEP 11: certificate self-heal (deploy hooks + wrapper + renewal timer)
+step_run "$CERTBOT_STEP_NAMESPACE" "renewal-timer" "selfheal-v4" ensure_renewal_timer
 
 # STEP 12: persist state
 store_certbot_info

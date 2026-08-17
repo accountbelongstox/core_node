@@ -56,7 +56,7 @@ const PcWindowAutomationPage: React.FC = () => {
   };
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-6">
       <div>
         <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
           <AppWindow className="w-5 h-5 text-indigo-500" /> Window Automation

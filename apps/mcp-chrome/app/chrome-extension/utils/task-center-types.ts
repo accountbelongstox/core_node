@@ -121,6 +121,8 @@ export interface BackendHealth {
 export interface ValidityStatus {
   running: boolean;
   done: boolean;
+  /** True while the backlog is drained and the runner is idle-polling for new unchecked words. */
+  idle: boolean;
   rounds: number;
   totalValid: number;
   totalInvalid: number;

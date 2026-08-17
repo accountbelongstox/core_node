@@ -279,7 +279,7 @@ const PcSettingsPage: React.FC = () => {
   );
 
   return (
-    <div className="p-6 md:p-8 space-y-5">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">

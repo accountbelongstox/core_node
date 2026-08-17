@@ -20,6 +20,7 @@ import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_BACKDROP, OVERLAY_Z } from '@/shared/styles/overlay';
 import { useToast } from '../admin';
 import { logError, logInfo, logSuccess } from '@/core/logstore/logStore';
+import { VocabularyWordsModel } from './words/VocabularyWordsModel';
 
 interface Props {
   open: boolean;
@@ -77,7 +78,7 @@ const WordDetailModal: React.FC<Props> = ({ open, onClose, language, word, onSav
     setTranslations(tr.join('\n'));
     setUsPhonetic(word?.us_phonetic ?? '');
     setUkPhonetic(word?.uk_phonetic ?? '');
-    setIsValid(word?.is_valid ?? true);
+    setIsValid(word ? VocabularyWordsModel.isWordValid(word) : true);
     setValidityNote(word?.validity_note ?? '');
     setWordDetails(word?.word_details ? JSON.stringify(word.word_details, null, 2) : '');
     setSentences(null);

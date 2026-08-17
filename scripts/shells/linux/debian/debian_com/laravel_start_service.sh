@@ -22,7 +22,7 @@ LARAVEL_SERVICE_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_SERVICE_REPO_ROOT="$(cd "$LARAVEL_SERVICE_COMMON_DIR/../../../../.." && pwd)"
 LARAVEL_DIR="${LARAVEL_DIR:-${CORE_NODE_DIR:-$LARAVEL_SERVICE_REPO_ROOT}/poly_apps/laravel_main}"
 APP_NAME="$(basename "$LARAVEL_DIR")"
-PORT="${PORT:-9000}"
+PORT="${PORT:-}"
 WORKERS="${WORKERS:-4}"
 OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
 RUNTIME_SCRIPT="${RUNTIME_SCRIPT:-$LARAVEL_SERVICE_COMMON_DIR/laravel_run_runtime.sh}"
@@ -33,6 +33,11 @@ RUNTIME_CONFIG_DIR=""
 COMPOSER_VENDOR_COMMON="${LARAVEL_SERVICE_COMMON_DIR}/../../common/composer_vendor_common.sh"
 
 . "$COMPOSER_VENDOR_COMMON"
+# Central service contract (config/service_contract.json) via the shell
+# adapter: the default bind port is ports.laravel_api_backend; PORT env wins.
+# shellcheck source=/dev/null
+. "$LARAVEL_SERVICE_COMMON_DIR/../../common/service_contract_common.sh"
+PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
 
 runtime_config_directory() {
     "$PHP_BIN" -r '

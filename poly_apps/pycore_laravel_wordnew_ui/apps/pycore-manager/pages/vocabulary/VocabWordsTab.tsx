@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { laravelApi } from '@/apps/pycore-manager/api';
 import type { VocabDictionaryWordRow } from '@/apps/pycore-manager/api';
+import { isWordRowValid } from '@/core/integrations/laravel/wordValidity';
 import { VL, VocabBanner, VocabLoading, PresenceBadge, humanInt, vp, toArray } from './vocabShared';
 
 const FILTERS: Array<{ value: string; label: string }> = [
@@ -182,7 +183,7 @@ export default function VocabWordsTab() {
       content: row.content || row.word || '',
       translations: (row.translations || []).join('\n'),
       phonetic: row.phonetic || row.us_phonetic || '',
-      is_valid: row.is_valid !== false,
+      is_valid: isWordRowValid(row),
       validity_note: row.validity_note || '',
     });
   };
@@ -301,7 +302,7 @@ export default function VocabWordsTab() {
                     <td className="px-2 py-2 text-slate-400">{row.phonetic || row.us_phonetic || '—'}</td>
                     <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_translation} yesLabel="T" noLabel="—" /></td>
                     <td className="px-2 py-2 text-center"><PresenceBadge ok={!!row.has_audio} yesLabel="A" noLabel="—" /></td>
-                    <td className="px-2 py-2 text-center"><PresenceBadge ok={row.is_valid !== false} yesLabel="V" noLabel="—" /></td>
+                    <td className="px-2 py-2 text-center"><PresenceBadge ok={isWordRowValid(row)} yesLabel="V" noLabel="—" /></td>
                     <td className="px-2 py-2 text-right text-slate-400">{humanInt(row.query_count)}</td>
                     <td className="px-2 py-2">
                       <div className="flex items-center justify-end gap-1">

@@ -12,6 +12,7 @@ import {
   getCurrentOriginEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { clampRecheckInterval } from '../../health/OfflineRecheckScheduler';
+import { loadDomainConfig } from '../../contracts/DomainConfig';
 import { setSharedBaseURL } from './transport/BaseAPI';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
@@ -241,6 +242,10 @@ class ApiManager {
 
     this.recheckPromise = (async () => {
       try {
+        // Refresh the shell-written domain config FIRST: current-url endpoint
+        // resolution (api.<prefix>.<host> for HTTPS origins) must see the
+        // latest region prefix before any persisted id resolves.
+        await loadDomainConfig();
         const persistedEndpointId =
           this.getUserModifiedEndpoint() ??
           this.getStoredCurrentEndpoint() ??

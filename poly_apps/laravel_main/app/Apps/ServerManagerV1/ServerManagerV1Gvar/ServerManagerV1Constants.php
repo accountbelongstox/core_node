@@ -136,6 +136,13 @@ class ServerManagerV1Constants
     // Authentication
     public const AUTH_HEADER = 'X-Server-Manager-Key';
     public const SESSION_TIMEOUT = 3600; // 1 hour
+
+    /**
+     * Canonical flock serializing every certbot invocation across the shell
+     * self-heal layer (cert_selfheal_common.sh) and this PHP end — identical
+     * value on both ends (SYNC CONTRACT), Ubuntu/Debian/Kali alike.
+     */
+    public const CERTBOT_FLOCK_LOCK = '/run/lock/core_node_certbot.lock';
     
     // Rate Limiting
     public const RATE_LIMIT_REQUESTS = 100;

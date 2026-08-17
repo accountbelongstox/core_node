@@ -4,14 +4,16 @@
  * A background singleton that DRAINS the backend's unchecked-word backlog on its
  * own, without the global-task lane. Unlike WordValidityWebWorkerService (which
  * pulls `word_validity` tasks off the remote_validity lane), this runner talks
- * directly to the vocabulary validity endpoints and loops until the backlog is
- * empty:
+ * directly to the vocabulary validity endpoints. Every unchecked word is
+ * verified exactly once:
  *
  *   loop:
- *     GET  /api/app_qy_v1/vocabulary/validity/pending?language&limit=<data segment>
- *     -> if zero words: DONE (stop).
- *     runWordValidityClassification(words, deepseek)
- *     POST /api/app_qy_v1/vocabulary/validity/report  (valid + invalid together)
+ *     GET  /api/app_qy_v1/vocabulary/validity/pending?language&limit=<batch_size>
+ *     -> if zero words everywhere: IDLE — keep running, re-poll every
+ *        word_validity.idle_poll_seconds without touching the web-AI tab.
+ *     runWordValidityClassification(words, deepseek)  (verdict + translation)
+ *     POST /api/app_qy_v1/vocabulary/validity/report  (valid + invalid together,
+ *                                                      source = ai_ensure)
  *
  * Convergence guard (critical): a batch that classifies ZERO of the requested
  * words (parse miss / empty answer) must NOT loop forever. After 2 consecutive
@@ -30,12 +32,14 @@ import { logger } from '@/utils/logger';
 import { DEFAULT_TARGET_LANG, type ValidityStatus } from '@/utils/task-center-types';
 import { VALIDITY_PATHS } from '@/utils/api-paths';
 import { submitOutbox } from '../outbox/submit-outbox';
-import { DIFF_DELIVERY } from '@/utils/queue-center-contract';
+import { WORD_VALIDITY_CONFIG } from '@/utils/queue-center-contract';
 
 const LOG = 'Word-Validity Runner';
 
-// Safety caps. Each batch fits one shared Queue Center data segment.
-const DEFAULT_LIMIT = DIFF_DELIVERY.data_segment_limit;
+// Safety caps. Batch size and idle cadence come from the shared Queue Center
+// contract (config/queue_center_contract.json `word_validity`).
+const DEFAULT_LIMIT = WORD_VALIDITY_CONFIG.batch_size;
+const IDLE_POLL_MS = Math.max(5, WORD_VALIDITY_CONFIG.idle_poll_seconds) * 1000;
 const MAX_ROUNDS = 500;
 const MAX_CONSECUTIVE_EMPTY = 2;
 
@@ -52,7 +56,7 @@ export interface ValidityRunnerConfig {
   provider?: AiWebProvider;
   /** Target language for valid-word translations (default DEFAULT_TARGET_LANG). */
   targetLanguage?: string;
-  /** Words per round (clamped to one Queue Center data segment). */
+  /** Words per round (clamped to the contract word_validity batch size). */
   limit?: number;
 }
 
@@ -110,6 +114,7 @@ class WordValidityRunnerService {
   private status: ValidityRunnerStatus = {
     running: false,
     done: false,
+    idle: false,
     rounds: 0,
     totalValid: 0,
     totalInvalid: 0,
@@ -154,6 +159,7 @@ class WordValidityRunnerService {
     this.status = {
       running: true,
       done: false,
+      idle: false,
       rounds: 0,
       totalValid: 0,
       totalInvalid: 0,
@@ -182,6 +188,7 @@ class WordValidityRunnerService {
     this.stopRequested = true;
     this.running = false;
     this.status.running = false;
+    this.status.idle = false;
     if (wasRunning) logger.info(LOG, 'Stop requested');
   }
 
@@ -205,11 +212,21 @@ class WordValidityRunnerService {
         // whose backlog is not drained yet (round-robin across the selection).
         const language = languages.find((lang) => !drained.has(lang));
         if (!language) {
+          // Backend fully verified: IDLE. Keep the run alive and re-poll on the
+          // contract cadence — new unchecked words (imports, uploads) are picked
+          // up without a watchdog restart, and the web-AI tab is never touched
+          // while the backlog is empty.
           this.status.done = true;
-          logger.info(LOG, `Backlog drained after ${this.status.rounds} round(s)`);
-          break;
+          this.status.idle = true;
+          logger.info(LOG, `Backlog drained after ${this.status.rounds} round(s); idle-polling every ${IDLE_POLL_MS / 1000}s`);
+          await this.idleWait(runEpoch);
+          if (!this.isRunActive(runEpoch)) break;
+          drained.clear();
+          this.status.idle = false;
+          continue;
         }
-        this.status.rounds++;
+        this.status.done = false;
+        this.status.idle = false;
         this.status.language = language;
 
         const pending = await client.fetchPending(language, limit);
@@ -220,6 +237,9 @@ class WordValidityRunnerService {
           logger.info(LOG, `${language}: backlog drained`);
           continue;
         }
+        // Only classification rounds count against MAX_ROUNDS — idle re-pulls
+        // of an already-drained backlog must not trip the safety cap.
+        this.status.rounds++;
 
         // 2. Classify via the configured web-AI tab (DeepSeek by default).
         let classification;
@@ -256,9 +276,9 @@ class WordValidityRunnerService {
         }
         consecutiveEmpty = 0;
 
-        // 4. Report valid + invalid together, md5-keyed.
+        // 4. Report valid + invalid together, md5-keyed, marked as AI-verified.
         const results = this.buildResults(valid, invalid);
-        const reportBody = { language, target_language: targetLanguage, source: `${provider}-web`, results };
+        const reportBody = { language, target_language: targetLanguage, source: WORD_VALIDITY_CONFIG.source_marker, results };
         if (!this.isRunActive(runEpoch)) break;
         try {
           await client.report(reportBody);
@@ -310,6 +330,14 @@ class WordValidityRunnerService {
 
   private isRunActive(runEpoch: number): boolean {
     return this.running && !this.stopRequested && runEpoch === this.runEpoch;
+  }
+
+  /** Sleep one idle-poll cadence, waking early when the run is superseded. */
+  private async idleWait(runEpoch: number): Promise<void> {
+    const deadline = Date.now() + IDLE_POLL_MS;
+    while (this.isRunActive(runEpoch) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
 
   /** Tolerantly pull the words array out of the {success,data:{items}} envelope. */

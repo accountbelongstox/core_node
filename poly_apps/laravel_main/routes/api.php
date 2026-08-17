@@ -173,6 +173,7 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('generate', [ServerManagerV1CertificateManagerCtl::class, 'generateCertificate']);
         Route::post('renew', [ServerManagerV1CertificateManagerCtl::class, 'renewCertificates']);
         Route::get('status', [ServerManagerV1CertificateManagerCtl::class, 'getCertificateStatus']);
+        Route::get('dns-provider', [ServerManagerV1CertificateManagerCtl::class, 'dnsProviderStatus']);
         Route::post('install-certbot', [ServerManagerV1CertificateManagerCtl::class, 'installCertbot']);
         Route::get('detect-certbot', [ServerManagerV1CertificateManagerCtl::class, 'detectCertbot']);
         // Idempotent: generate if missing, renew if present (5m cooldown). Runs certbot async; poll progress/{id} for output.

@@ -45,7 +45,7 @@ param(
     [Parameter(Mandatory = $false)]
     [switch]$Dist,
     [Parameter(Mandatory = $false)]
-    [int]$Port = 13054
+    [int]$Port = 0
 )
 
 $OriginalDir = (Get-Location).Path
@@ -53,9 +53,19 @@ $ScriptDir = $PSScriptRoot
 $AppRoot = Split-Path -Parent $ScriptDir
 $PolyAppsDir = Split-Path -Parent $AppRoot
 $RepoRoot = Split-Path -Parent $PolyAppsDir
+$ServiceContractPath = Join-Path $RepoRoot "config\service_contract.json"
+# Ports and bind host resolve from the central service contract (single
+# source of truth; the PS side mirrors the shell/TS/PHP adapters).
+$ServiceContract = Get-Content -Raw -LiteralPath $ServiceContractPath | ConvertFrom-Json
+if ($Port -le 0) {
+    $Port = [int]$ServiceContract.ports.nexus_dash_frontend
+}
+$BindHost = [string]$ServiceContract.hosts.any
 $LaravelScriptsDir = Join-Path (Join-Path $PolyAppsDir "laravel_main") "scripts"
 $LaravelStart = Join-Path $LaravelScriptsDir "start.ps1"
 $NodeModulesPath = Join-Path $AppRoot "node_modules"
+$ServiceContract = $null
+$BindHost = $null
 $PackageJsonPath = Join-Path $AppRoot "package.json"
 $BuildApkScript = Join-Path $ScriptDir "flavor\build_apk.py"
 $PwshExe = (Get-Command powershell.exe -ErrorAction SilentlyContinue)
@@ -412,9 +422,9 @@ $ExitCode = 0
 Push-Location -LiteralPath $AppRoot
 try {
     if ($Dist) {
-        pnpm exec vite preview --port $DevPort --strictPort --host 0.0.0.0
+        pnpm exec vite preview --port $DevPort --strictPort --host $BindHost
     } else {
-        pnpm exec vite --port $DevPort --strictPort --host 0.0.0.0
+        pnpm exec vite --port $DevPort --strictPort --host $BindHost
     }
     $ExitCode = $LASTEXITCODE
 } finally {

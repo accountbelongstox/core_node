@@ -221,9 +221,22 @@ class ServerManagerV1SSLConfigReader
             $deploymentConfig = self::getDeploymentConfig();
 
             if (isset($deploymentConfig['nginx_config_path']) && isset($deploymentConfig['nginx_enabled_path'])) {
+                $configPath = $deploymentConfig['nginx_config_path'];
+                $enabledPath = $deploymentConfig['nginx_enabled_path'];
+
+                // Stale-config self-heal: a bootstrap-era ssl_config.json may
+                // still point at /etc/nginx while the canonical layout is the
+                // mapped nginxconfig tree (written once, never overwritten).
+                // Trust the path that actually exists on disk.
+                $mappedNginxConfigDir = \App\Providers\PathMapper::mapWebPath('nginxconfig');
+                if (!is_dir($configPath) && is_dir($mappedNginxConfigDir . '/sites-available')) {
+                    $configPath = $mappedNginxConfigDir . '/sites-available';
+                    $enabledPath = $mappedNginxConfigDir . '/sites-enabled';
+                }
+
                 return [
-                    'config_path' => $deploymentConfig['nginx_config_path'],
-                    'enabled_path' => $deploymentConfig['nginx_enabled_path'],
+                    'config_path' => $configPath,
+                    'enabled_path' => $enabledPath,
                     'backup_path' => $deploymentConfig['backup_path'] ?? \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getNginxBackupDir()
                 ];
             }
@@ -342,23 +355,12 @@ class ServerManagerV1SSLConfigReader
                 if ($providerConfig['challenge_type'] === 'dns-01') {
                     // Check DNS provider specific requirements
                     if ($name === 'dnspod') {
-                        // Check if DNSPod credentials are available from secret storage
+                        // Single canonical resolver (CertificateManager):
+                        // canonical secret file names with legacy fallback,
+                        // "id,token" token format validation included.
                         try {
-                            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
-                            $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
-
-                            if (empty($email)) {
-                                $errors[] = "DNSPod provider missing email in secret storage";
-                            }
-
-                            if (empty($apiToken)) {
-                                $errors[] = "DNSPod provider missing api_token in secret storage";
-                            } else {
-                                // Validate token format: "id,token"
-                                $tokenParts = explode(',', $apiToken, 2);
-                                if (count($tokenParts) !== 2) {
-                                    $errors[] = "DNSPod api_token format invalid. Expected: 'id,token'";
-                                }
+                            if (ServerManagerV1CertificateManager::getDNSPodCredentials() === null) {
+                                $errors[] = "DNSPod provider credentials missing or invalid in secret storage (need DNSPOD_EMAILS and DNS_DNSPOD_API_TOKENS in 'id,token' format)";
                             }
                         } catch (\Exception $e) {
                             $errors[] = "Failed to read DNSPod credentials from secret storage: " . $e->getMessage();

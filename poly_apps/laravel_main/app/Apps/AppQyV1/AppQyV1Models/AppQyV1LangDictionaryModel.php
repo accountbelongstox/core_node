@@ -1603,7 +1603,6 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
         return self::forLanguage($langCode)
             ->newQuery()
             ->whereIn('id', $ids)
-            ->where('has_translation', false)
             ->whereNull('validity_checked_at')
             ->orderByDesc('query_count')
             ->get(['id', 'content', 'md5'])
@@ -1699,15 +1698,12 @@ class AppQyV1LangDictionaryModel extends AppQyV1Model
 
     private static function pendingValidityQuery(string $langCode, string $search): Builder
     {
+        // Unchecked words only: every unchecked word is verified once by the
+        // AI client; untranslated-but-checked words belong to the translation
+        // lane, not to validity verification.
         $query = self::forLanguage($langCode)
             ->newQuery()
-            ->where(function (Builder $builder): void {
-                $builder->whereNull('validity_checked_at')
-                    ->orWhere(function (Builder $untranslated): void {
-                        $untranslated->where('has_translation', false)
-                            ->where('is_valid', true);
-                    });
-            });
+            ->whereNull('validity_checked_at');
 
         if ($search !== '') {
             $query->whereLike('content', '%' . $search . '%', caseSensitive: false);

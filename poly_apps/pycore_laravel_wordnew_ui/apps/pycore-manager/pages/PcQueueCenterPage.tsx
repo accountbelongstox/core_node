@@ -233,7 +233,7 @@ const QueueCenterBody: React.FC = () => {
   }, []);
 
   return (
-    <div className="p-6 md:p-8 space-y-6">
+    <div className="p-3 sm:p-6 md:p-8 space-y-6">
       <PcQueueBumpToasts />
       {pycoreUp === false && (
         <section className="pc-glass p-3 text-xs text-rose-500 flex items-start gap-2">

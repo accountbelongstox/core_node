@@ -14,22 +14,28 @@ import {
   ChevronsDown,
   ChevronsUp,
   Clock3,
+  CornerDownLeft,
   Crosshair,
   Loader2,
   Maximize2,
   MousePointer2,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   RefreshCw,
   Send,
   Terminal,
+  Timer,
+  TimerOff,
   X,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { pycoreApi } from '@/apps/pycore-manager/api';
+import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import type {
   TerminalActionResult,
+  TerminalScheduleEntry,
   TerminalSnapshot,
   TerminalWindowScreenshot,
   TerminalWindowInfo,
@@ -39,6 +45,8 @@ import type {
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
+/** Height reserved above the mobile terminal pager (top bar + page header). */
+const MOBILE_PAGER_OFFSET_REM = 15.5;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -72,6 +80,12 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_right_click_failed: 'terminal.errors.rightClick',
   terminal_enter_failed: 'terminal.errors.enter',
   terminal_input_failed: 'terminal.errors.input',
+  terminal_window_offline: 'terminal.errors.windowOffline',
+  terminal_schedule_mode_invalid: 'terminal.errors.scheduleMode',
+  terminal_schedule_time_invalid: 'terminal.errors.scheduleTime',
+  terminal_schedule_interval_invalid: 'terminal.errors.scheduleInterval',
+  terminal_schedule_entry_invalid: 'terminal.errors.scheduleEntry',
+  terminal_schedule_entry_not_found: 'terminal.errors.scheduleEntry',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
@@ -111,6 +125,142 @@ function terminalName(windowInfo: TerminalWindowInfo, fallback: string): string 
 
 function terminalDraftKey(terminalNumber: number): string {
   return String(terminalNumber);
+}
+
+type TerminalScheduleEditorMode = 'once' | 'interval';
+
+interface TerminalScheduleBackupEntry {
+  backend_id: string;
+  mode: TerminalScheduleEditorMode;
+  run_at: number;
+  interval_seconds: number;
+  message: string;
+}
+
+const SCHEDULE_BACKUP_STORAGE_KEY = 'pc.terminal.scheduleBackup.v2';
+
+function readScheduleBackups(): Record<string, TerminalScheduleBackupEntry[]> {
+  try {
+    const raw = window.localStorage.getItem(SCHEDULE_BACKUP_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return {};
+    const backups: Record<string, TerminalScheduleBackupEntry[]> = {};
+    Object.entries(parsed).forEach(([key, entries]) => {
+      if (Array.isArray(entries)) backups[key] = entries;
+    });
+    return backups;
+  } catch {
+    return {};
+  }
+}
+
+function updateScheduleBackup(
+  terminalNumber: number,
+  updater: (
+    entries: TerminalScheduleBackupEntry[],
+  ) => TerminalScheduleBackupEntry[],
+): void {
+  try {
+    const backups = readScheduleBackups();
+    const key = String(terminalNumber);
+    const nextEntries = updater(backups[key] || []);
+    if (nextEntries.length) {
+      backups[key] = nextEntries;
+    } else {
+      delete backups[key];
+    }
+    window.localStorage.setItem(SCHEDULE_BACKUP_STORAGE_KEY, JSON.stringify(backups));
+  } catch {
+    // localStorage unavailable; pycore still persists the queue on disk.
+  }
+}
+
+function formatScheduleTime(value: number | null | undefined): string {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+}
+
+function toDatetimeLocalValue(value: number): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+const DEFAULT_SCHEDULE_INTERVAL_TEXT = '60';
+const SCHEDULE_EDITOR_STORAGE_KEY = 'pc.terminal.scheduleEditor.v1';
+
+interface ScheduleEditorState {
+  mode: TerminalScheduleEditorMode;
+  timeText: string;
+  intervalText: string;
+}
+
+// The schedule editor values (mode / time / interval) are global and shared by
+// every terminal: the last selection is remembered in localStorage and each
+// terminal's editor inherits it. A stale past "once" time falls back to the
+// default offset so it never fires unexpectedly after a reload.
+function readScheduleEditorState(): ScheduleEditorState {
+  const fallback: ScheduleEditorState = {
+    mode: 'interval',
+    timeText: toDatetimeLocalValue(Date.now() + 5 * 60 * 1000),
+    intervalText: DEFAULT_SCHEDULE_INTERVAL_TEXT,
+  };
+  try {
+    const raw = window.localStorage.getItem(SCHEDULE_EDITOR_STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return fallback;
+    const timeText = String(parsed.timeText || '');
+    const storedRunAt = new Date(timeText).getTime();
+    const intervalText = String(parsed.intervalText || '');
+    return {
+      mode: parsed.mode === 'once' ? 'once' : 'interval',
+      intervalText: /^\d+$/.test(intervalText) ? intervalText : fallback.intervalText,
+      timeText: timeText && Number.isFinite(storedRunAt) && storedRunAt > Date.now()
+        ? timeText
+        : fallback.timeText,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+let scheduleEditorBootstrap: ScheduleEditorState | null = null;
+
+function bootstrapScheduleEditorState(): ScheduleEditorState {
+  if (!scheduleEditorBootstrap) {
+    scheduleEditorBootstrap = readScheduleEditorState();
+  }
+  return scheduleEditorBootstrap;
+}
+
+const QUICK_SCHEDULE_DELAYS: Array<{ label: string; seconds: number }> = [
+  { label: '10M', seconds: 10 * 60 },
+  { label: '30M', seconds: 30 * 60 },
+  { label: '1H', seconds: 1 * 60 * 60 },
+  { label: '2H', seconds: 2 * 60 * 60 },
+  { label: '3H', seconds: 3 * 60 * 60 },
+  { label: '4H', seconds: 4 * 60 * 60 },
+  { label: '5H', seconds: 5 * 60 * 60 },
+  { label: '6H', seconds: 6 * 60 * 60 },
+  { label: '7H', seconds: 7 * 60 * 60 },
+  { label: '8H', seconds: 8 * 60 * 60 },
+  { label: '9H', seconds: 9 * 60 * 60 },
+  { label: '10H', seconds: 10 * 60 * 60 },
+];
+
+function formatScheduleCountdown(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return hours > 0
+    ? `${hours}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(minutes)}:${pad(seconds)}`;
 }
 
 function replaceTerminalScreenshot(
@@ -205,6 +355,7 @@ function calculateCanvasLayout(
 
 const PcTerminalPage: React.FC = () => {
   const { t } = useTranslation('pc');
+  const isMobile = useIsMobile();
   const [snapshot, setSnapshot] = useState<TerminalSnapshot | null>(null);
   const [selectedTerminalNumber, setSelectedTerminalNumber] = useState<number | null>(null);
   const [previewTerminalNumber, setPreviewTerminalNumber] = useState<number | null>(null);
@@ -218,6 +369,20 @@ const PcTerminalPage: React.FC = () => {
   const [actionWindowId, setActionWindowId] = useState('');
   const [actionNotice, setActionNotice] = useState<ActionNotice | null>(null);
   const [canvasSize, setCanvasSize] = useState<CanvasSize>({ width: 0, height: 0 });
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [scheduleMode, setScheduleMode] = useState<TerminalScheduleEditorMode>(
+    () => bootstrapScheduleEditorState().mode,
+  );
+  const [scheduleTimeText, setScheduleTimeText] = useState(
+    () => bootstrapScheduleEditorState().timeText,
+  );
+  const [scheduleIntervalText, setScheduleIntervalText] = useState(
+    () => bootstrapScheduleEditorState().intervalText,
+  );
+  const [editingSchedule, setEditingSchedule] = useState<{
+    terminalNumber: number;
+    entryId: string;
+  } | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const mountedRef = useRef(true);
   const refreshInFlightRef = useRef(false);
@@ -225,6 +390,7 @@ const PcTerminalPage: React.FC = () => {
   const dirtyDraftsRef = useRef<Set<number>>(new Set());
   const draftTimersRef = useRef<Record<string, number>>({});
   const loadedDraftsRef = useRef<Set<number>>(new Set());
+  const scheduleResyncAttemptsRef = useRef<Set<number>>(new Set());
 
   const errorTranslationKey = useCallback((errorCode?: string | null) => (
     ERROR_TRANSLATION_KEYS[String(errorCode || '')] || 'terminal.errors.unknown'
@@ -272,6 +438,58 @@ const PcTerminalPage: React.FC = () => {
     void persistDraft(terminalNumber, draftsRef.current[key] || '');
   }, [persistDraft]);
 
+  // Re-adds one terminal's backed-up entries sequentially so the queue order
+  // matches the backup; the backup is rewritten with the new backend ids.
+  const resyncTerminalScheduleBackup = useCallback(async (
+    terminalNumber: number,
+    entries: TerminalScheduleBackupEntry[],
+  ) => {
+    const nextEntries: TerminalScheduleBackupEntry[] = [];
+    for (const entry of entries) {
+      const result = await pycoreApi.addTerminalScheduleEntry(terminalNumber, {
+        mode: entry.mode,
+        runAt: entry.mode === 'once' ? entry.run_at : 0,
+        intervalSeconds: entry.mode === 'interval' ? entry.interval_seconds : 0,
+        message: entry.message,
+      }).catch(() => null);
+      if (!result?.success) {
+        scheduleResyncAttemptsRef.current.delete(terminalNumber);
+        return;
+      }
+      nextEntries.push({
+        ...entry,
+        backend_id: String(result.entry?.id || ''),
+      });
+    }
+    updateScheduleBackup(terminalNumber, () => nextEntries);
+  }, []);
+
+  // Restore queued schedules from the page-side backup when pycore restarted
+  // and lost its own persisted state; expired one-shot backups are dropped
+  // instead of firing late.
+  const resyncScheduleBackups = useCallback((windows: TerminalWindowInfo[]) => {
+    const backups = readScheduleBackups();
+    windows.forEach((windowInfo) => {
+      const terminalNumber = windowInfo.terminal_number;
+      const entries = backups[String(terminalNumber)];
+      if (!entries?.length) return;
+      const validEntries = entries.filter(
+        (entry) => entry.mode === 'interval' || entry.run_at > Date.now(),
+      );
+      if (validEntries.length !== entries.length) {
+        updateScheduleBackup(terminalNumber, () => validEntries);
+      }
+      if (!validEntries.length) return;
+      if ((windowInfo.schedule_queue || []).length) {
+        scheduleResyncAttemptsRef.current.delete(terminalNumber);
+        return;
+      }
+      if (scheduleResyncAttemptsRef.current.has(terminalNumber)) return;
+      scheduleResyncAttemptsRef.current.add(terminalNumber);
+      void resyncTerminalScheduleBackup(terminalNumber, validEntries);
+    });
+  }, [resyncTerminalScheduleBackup]);
+
   const refresh = useCallback(async (showLoading = false) => {
     if (refreshInFlightRef.current) return;
     refreshInFlightRef.current = true;
@@ -280,6 +498,7 @@ const PcTerminalPage: React.FC = () => {
       const nextSnapshot = await pycoreApi.getTerminalWindows();
       if (!mountedRef.current) return;
       setSnapshot(nextSnapshot);
+      resyncScheduleBackups(nextSnapshot.windows);
       setSelectedTerminalNumber((current) => (
         nextSnapshot.windows.some(
           (windowInfo) => windowInfo.terminal_number === current,
@@ -309,14 +528,16 @@ const PcTerminalPage: React.FC = () => {
       refreshInFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, []);
+  }, [resyncScheduleBackups]);
 
   useEffect(() => {
     mountedRef.current = true;
     void refresh(true);
     const pollTimer = window.setInterval(() => void refresh(false), POLL_INTERVAL_MS);
     return () => {
-      Object.values(draftTimersRef.current).forEach((timer) => window.clearTimeout(timer));
+      Object.values(draftTimersRef.current).forEach((timer) => {
+        window.clearTimeout(timer as number);
+      });
       dirtyDraftsRef.current.forEach((terminalNumber) => {
         const key = terminalDraftKey(terminalNumber);
         void pycoreApi.saveTerminalDraft(terminalNumber, draftsRef.current[key] || '');
@@ -325,6 +546,11 @@ const PcTerminalPage: React.FC = () => {
       window.clearInterval(pollTimer);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(clockTimer);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -357,6 +583,14 @@ const PcTerminalPage: React.FC = () => {
       (windowInfo) => windowInfo.terminal_number === previewTerminalNumber,
     ) || null
   ), [previewTerminalNumber, snapshot]);
+  const previewNextRunAt = (previewWindow?.schedule_queue || []).reduce<number | null>(
+    (earliest, entry) => (
+      entry.next_run_at && (earliest === null || entry.next_run_at < earliest)
+        ? entry.next_run_at
+        : earliest
+    ),
+    null,
+  );
   const previewExpandedKey = previewWindow
     ? terminalDraftKey(previewWindow.terminal_number)
     : '';
@@ -380,6 +614,15 @@ const PcTerminalPage: React.FC = () => {
   const selectedLog = selectedWindow?.logs.find(
     (logEntry) => logEntry.id === selectedLogId,
   ) || null;
+  const selectedScheduleQueue: TerminalScheduleEntry[] = selectedWindow?.schedule_queue || [];
+  const nextQueueRunAt = selectedScheduleQueue.reduce<number | null>(
+    (earliest, entry) => (
+      entry.next_run_at && (earliest === null || entry.next_run_at < earliest)
+        ? entry.next_run_at
+        : earliest
+    ),
+    null,
+  );
   const desktopBounds = useMemo(
     () => calculateDesktopBounds(snapshot?.windows || []),
     [snapshot?.windows],
@@ -425,6 +668,32 @@ const PcTerminalPage: React.FC = () => {
         : logs[0]?.id || ''
     ));
   }, [selectedWindow]);
+
+  // The schedule editor (mode / time / interval) is global and shared by every
+  // terminal; persist the last selection so all terminals inherit it.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SCHEDULE_EDITOR_STORAGE_KEY, JSON.stringify({
+        mode: scheduleMode,
+        timeText: scheduleTimeText,
+        intervalText: scheduleIntervalText,
+      }));
+    } catch {
+      // localStorage unavailable; in-memory sharing still applies.
+    }
+  }, [scheduleIntervalText, scheduleMode, scheduleTimeText]);
+
+  // Editing targets one terminal's queued entry; leave edit mode when the
+  // selected terminal changes.
+  useEffect(() => {
+    if (
+      editingSchedule
+      && selectedWindow
+      && editingSchedule.terminalNumber !== selectedWindow.terminal_number
+    ) {
+      setEditingSchedule(null);
+    }
+  }, [editingSchedule, selectedWindow]);
 
   useEffect(() => {
     let cancelled = false;
@@ -581,8 +850,11 @@ const PcTerminalPage: React.FC = () => {
     scheduleDraftSave(terminalNumber, text);
   }, [scheduleDraftSave, selectedWindow]);
 
-  const sendInput = useCallback(async () => {
-    if (!selectedWindow || !selectedWindow.online || !selectedDraft) return;
+  // Sends the current draft (or an explicit override such as '' for an
+  // Enter-only submission); empty text is valid and presses Enter remotely.
+  const sendInput = useCallback(async (textOverride?: string) => {
+    if (!selectedWindow || !selectedWindow.online) return;
+    const payload = textOverride === undefined ? selectedDraft : textOverride;
     const terminalNumber = selectedWindow.terminal_number;
     const key = terminalDraftKey(terminalNumber);
     const activeTimer = draftTimersRef.current[key];
@@ -595,7 +867,7 @@ const PcTerminalPage: React.FC = () => {
       () => pycoreApi.inputTerminalText(
         selectedWindow.id,
         terminalNumber,
-        selectedDraft,
+        payload,
       ),
       'terminal.sent',
     );
@@ -604,7 +876,7 @@ const PcTerminalPage: React.FC = () => {
       dirtyDraftsRef.current.delete(terminalNumber);
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     } else if (!result?.success) {
-      void persistDraft(terminalNumber, selectedDraft);
+      void persistDraft(terminalNumber, payload);
     }
     if (result?.success) {
       draftsRef.current = { ...draftsRef.current, [key]: '' };
@@ -612,6 +884,130 @@ const PcTerminalPage: React.FC = () => {
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
   }, [persistDraft, runAction, selectedDraft, selectedWindow]);
+
+  const addScheduleEntry = useCallback(async () => {
+    if (!selectedWindow) return;
+    const terminalNumber = selectedWindow.terminal_number;
+    const intervalSeconds = Math.floor(Number(scheduleIntervalText));
+    const runAt = scheduleMode === 'once' ? new Date(scheduleTimeText).getTime() : 0;
+    if (scheduleMode === 'once' && (!Number.isFinite(runAt) || runAt <= 0)) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.errors.scheduleTime' });
+      return;
+    }
+    if (
+      scheduleMode === 'interval'
+      && (!Number.isFinite(intervalSeconds) || intervalSeconds < 1)
+    ) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.errors.scheduleInterval' });
+      return;
+    }
+    const editingEntryId = editingSchedule && editingSchedule.terminalNumber === terminalNumber
+      ? editingSchedule.entryId
+      : '';
+    const isUpdate = Boolean(editingEntryId);
+    const message = selectedDraft;
+    const entryPayload = {
+      mode: scheduleMode,
+      run_at: scheduleMode === 'once' ? runAt : 0,
+      interval_seconds: scheduleMode === 'interval' ? intervalSeconds : 0,
+      message,
+    };
+    const result = await runAction(
+      selectedWindow.id,
+      () => (
+        isUpdate
+          ? pycoreApi.updateTerminalScheduleEntry(terminalNumber, editingEntryId, {
+            mode: entryPayload.mode,
+            runAt: entryPayload.run_at,
+            intervalSeconds: entryPayload.interval_seconds,
+            message,
+          })
+          : pycoreApi.addTerminalScheduleEntry(terminalNumber, {
+            mode: entryPayload.mode,
+            runAt: entryPayload.run_at,
+            intervalSeconds: entryPayload.interval_seconds,
+            message,
+          })
+      ),
+      isUpdate ? 'terminal.scheduleEntryUpdated' : 'terminal.scheduleEntryAdded',
+    );
+    if (result?.success) {
+      if (isUpdate) {
+        updateScheduleBackup(terminalNumber, (entries) => entries.map((entry) => (
+          entry.backend_id === editingEntryId
+            ? { ...entry, ...entryPayload }
+            : entry
+        )));
+      } else {
+        const backendId = String(result.entry?.id || '');
+        updateScheduleBackup(terminalNumber, (entries) => [
+          ...entries,
+          { backend_id: backendId, ...entryPayload },
+        ]);
+      }
+      setEditingSchedule(null);
+    }
+  }, [
+    editingSchedule,
+    runAction,
+    scheduleIntervalText,
+    scheduleMode,
+    scheduleTimeText,
+    selectedDraft,
+    selectedWindow,
+  ]);
+
+  const removeScheduleEntry = useCallback(async (entryId: string) => {
+    if (!selectedWindow) return;
+    const terminalNumber = selectedWindow.terminal_number;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.removeTerminalScheduleEntry(terminalNumber, entryId),
+      'terminal.scheduleEntryRemoved',
+    );
+    if (result?.success) {
+      updateScheduleBackup(terminalNumber, (entries) => entries.filter(
+        (entry) => entry.backend_id !== entryId,
+      ));
+    }
+  }, [runAction, selectedWindow]);
+
+  const applyQuickScheduleDelay = useCallback((seconds: number) => {
+    if (scheduleMode === 'once') {
+      setScheduleTimeText(toDatetimeLocalValue(Date.now() + seconds * 1000));
+      return;
+    }
+    setScheduleIntervalText(String(seconds));
+  }, [scheduleMode]);
+
+  // Load a queued entry (mode / time / interval / message) into the shared
+  // editor so it can be edited and saved back over the original entry.
+  const editScheduleEntry = useCallback((entry: TerminalScheduleEntry) => {
+    if (!selectedWindow || actionWindowId) return;
+    const terminalNumber = selectedWindow.terminal_number;
+    setEditingSchedule({ terminalNumber, entryId: entry.id });
+    setScheduleMode(entry.mode);
+    if (entry.mode === 'once') {
+      setScheduleTimeText(
+        toDatetimeLocalValue(entry.next_run_at || Date.now() + 5 * 60 * 1000),
+      );
+    } else {
+      setScheduleIntervalText(String(Math.max(1, entry.interval_seconds)));
+    }
+    if (!entry.has_message) {
+      updateSelectedDraft('');
+      return;
+    }
+    void pycoreApi.getTerminalContent(terminalNumber, 'schedule', '', entry.id)
+      .then((content) => {
+        if (mountedRef.current) updateSelectedDraft(content);
+      })
+      .catch(() => {
+        if (mountedRef.current) {
+          setActionNotice({ kind: 'error', translationKey: 'terminal.errors.request' });
+        }
+      });
+  }, [actionWindowId, selectedWindow, updateSelectedDraft]);
 
   const renderOperationPanel = (overlay: boolean) => (
     <div className={`space-y-4 ${overlay ? 'h-full overflow-y-auto p-4' : 'p-5'}`}>
@@ -745,22 +1141,227 @@ const PcTerminalPage: React.FC = () => {
           {t('terminal.scrollBottom')}
         </button>
       </div>
-      <button
-        type="button"
-        onClick={() => void sendInput()}
-        disabled={
-          !selectedWindow?.online
-          || !selectedDraft
-          || Boolean(actionWindowId)
-          || !snapshot?.supported
-        }
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
-      >
-        {actionWindowId === selectedWindow?.id
-          ? <Loader2 className="h-4 w-4 animate-spin" />
-          : <Send className="h-4 w-4" />}
-        {t('terminal.send')}
-      </button>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => void sendInput('')}
+          disabled={
+            !selectedWindow?.online
+            || Boolean(actionWindowId)
+            || !snapshot?.supported
+          }
+          title={t('terminal.sendEnterHint')}
+          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-600 px-4 py-3 text-xs font-bold text-white hover:bg-slate-500 disabled:opacity-50"
+        >
+          {actionWindowId === selectedWindow?.id
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <CornerDownLeft className="h-4 w-4" />}
+          {t('terminal.sendEnter')}
+        </button>
+        <button
+          type="button"
+          onClick={() => void sendInput()}
+          disabled={
+            !selectedWindow?.online
+            || Boolean(actionWindowId)
+            || !snapshot?.supported
+          }
+          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-xs font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+        >
+          {actionWindowId === selectedWindow?.id
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Send className="h-4 w-4" />}
+          {t('terminal.send')}
+        </button>
+      </div>
+      {selectedWindow && (
+        <div className="space-y-2.5 rounded-xl border border-slate-500/15 bg-white/40 p-3 dark:bg-slate-950/20">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <Timer className="h-3.5 w-3.5 text-indigo-500" />
+              {t('terminal.scheduleTitle')}
+            </h3>
+            {selectedScheduleQueue.length > 0 && (
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] font-semibold text-emerald-500">
+                {t('terminal.scheduleQueueCount', { count: selectedScheduleQueue.length })}
+              </span>
+            )}
+          </div>
+          <div className="space-y-1 text-[10px] text-slate-500 dark:text-slate-400">
+            <p>{t('terminal.scheduleNow')}: {new Date(nowMs).toLocaleString()}</p>
+            <p className={nextQueueRunAt ? 'font-semibold text-indigo-500' : ''}>
+              {t('terminal.scheduleNextRun')}: {
+                nextQueueRunAt
+                  ? `${formatScheduleTime(nextQueueRunAt)} · ${t('terminal.scheduleCountdown')} ${formatScheduleCountdown(nextQueueRunAt - nowMs)}`
+                  : t('terminal.scheduleNone')
+              }
+            </p>
+          </div>
+          <div className="flex items-center gap-4 text-[11px] text-slate-600 dark:text-slate-300">
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={scheduleMode === 'once'}
+                onChange={() => setScheduleMode('once')}
+                className="accent-indigo-500"
+              />
+              {t('terminal.scheduleModeOnce')}
+            </label>
+            <label className="inline-flex items-center gap-1.5">
+              <input
+                type="radio"
+                checked={scheduleMode === 'interval'}
+                onChange={() => setScheduleMode('interval')}
+                className="accent-indigo-500"
+              />
+              {t('terminal.scheduleModeInterval')}
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] text-slate-500">
+              {t('terminal.scheduleQuick')}:
+            </span>
+            {QUICK_SCHEDULE_DELAYS.map((delay) => (
+              <button
+                key={delay.label}
+                type="button"
+                onClick={() => applyQuickScheduleDelay(delay.seconds)}
+                className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2 py-1 text-[9px] font-semibold text-indigo-500 hover:bg-indigo-500/20"
+              >
+                {delay.label}
+              </button>
+            ))}
+          </div>
+          {scheduleMode === 'once' ? (
+            <input
+              type="datetime-local"
+              value={scheduleTimeText}
+              onChange={(event) => setScheduleTimeText(event.target.value)}
+              aria-label={t('terminal.scheduleTimeLabel')}
+              className="w-full rounded-lg border border-slate-500/20 bg-white/60 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
+            />
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                value={scheduleIntervalText}
+                onChange={(event) => setScheduleIntervalText(event.target.value)}
+                aria-label={t('terminal.scheduleIntervalLabel')}
+                className="w-24 rounded-lg border border-slate-500/20 bg-white/60 px-2.5 py-1.5 text-[11px] text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:bg-slate-950/40 dark:text-slate-100"
+              />
+              <span className="text-[10px] text-slate-500">
+                {t('terminal.scheduleIntervalLabel')}
+              </span>
+            </div>
+          )}
+          {editingSchedule
+            && editingSchedule.terminalNumber === selectedWindow.terminal_number && (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+              <span className="min-w-0 truncate">
+                {t('terminal.scheduleEditingHint')}
+              </span>
+              <button
+                type="button"
+                onClick={() => setEditingSchedule(null)}
+                disabled={Boolean(actionWindowId)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-amber-500/15 px-2 py-1 hover:bg-amber-500/25 disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+                {t('terminal.scheduleEditCancel')}
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => void addScheduleEntry()}
+            disabled={Boolean(actionWindowId)}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-bold text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            <Timer className="h-3.5 w-3.5" />
+            {editingSchedule
+              && editingSchedule.terminalNumber === selectedWindow.terminal_number
+              ? t('terminal.scheduleUpdate')
+              : t('terminal.scheduleAdd')}
+          </button>
+          {selectedScheduleQueue.length > 0 && (
+            <div className={`${overlay ? 'max-h-32' : 'max-h-40'} space-y-1.5 overflow-y-auto pr-0.5`}>
+              {selectedScheduleQueue.map((entry) => (
+                <div
+                  key={entry.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => editScheduleEntry(entry)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      editScheduleEntry(entry);
+                    }
+                  }}
+                  aria-label={t('terminal.scheduleEdit')}
+                  className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors hover:border-indigo-400/40 dark:hover:border-indigo-400/40 ${
+                    editingSchedule?.entryId === entry.id
+                      ? 'border-amber-500/60 bg-amber-500/10'
+                      : 'border-slate-500/15 bg-white/50 dark:bg-slate-950/30'
+                  }`}
+                >
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-bold ${
+                    entry.mode === 'interval'
+                      ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
+                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {t(
+                      entry.mode === 'interval'
+                        ? 'terminal.scheduleModeInterval'
+                        : 'terminal.scheduleModeOnce',
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1 truncate text-[10px] font-semibold text-slate-700 dark:text-slate-200">
+                      <span className="min-w-0 truncate">
+                        {entry.preview || t('terminal.scheduleEmptyMessage')}
+                      </span>
+                      <Pencil className="h-2.5 w-2.5 shrink-0 text-slate-400" />
+                    </p>
+                    <p className="text-[9px] text-slate-500">
+                      {entry.next_run_at
+                        ? `${formatScheduleCountdown(entry.next_run_at - nowMs)} · ${formatScheduleTime(entry.next_run_at)}`
+                        : t('terminal.scheduleNone')}
+                      {entry.mode === 'interval' && (
+                        <>
+                          {' · '}
+                          {t('terminal.scheduleEvery', { seconds: entry.interval_seconds })}
+                        </>
+                      )}
+                      {entry.fire_count > 0 && (
+                        <>
+                          {' · '}
+                          {t('terminal.scheduleFires', { count: entry.fire_count })}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void removeScheduleEntry(entry.id);
+                    }}
+                    disabled={Boolean(actionWindowId)}
+                    aria-label={t('terminal.scheduleRemove')}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-rose-500 hover:bg-rose-500/10 disabled:opacity-50"
+                  >
+                    <TimerOff className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
+            {t('terminal.scheduleHint')}
+          </p>
+        </div>
+      )}
       <p className="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">
         {t('terminal.inputSequence')}
       </p>
@@ -842,7 +1443,7 @@ const PcTerminalPage: React.FC = () => {
   const live = Boolean(snapshot?.success && snapshot?.supported);
 
   return (
-    <div className="p-6 md:p-8 space-y-5">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -872,11 +1473,11 @@ const PcTerminalPage: React.FC = () => {
             stored: snapshot?.stored_count || 0,
           })}
         </span>
-        <span className="text-slate-500">
-          {t('terminal.platform')}: {snapshot?.platform || '—'}
+        <span className="hidden text-slate-500 sm:inline">
+          {t('terminal.platform')}: {snapshot?.platform || '-'}
         </span>
-        <span className="text-slate-500">
-          {t('terminal.session')}: {snapshot?.session || '—'}
+        <span className="hidden text-slate-500 sm:inline">
+          {t('terminal.session')}: {snapshot?.session || '-'}
         </span>
         <span className={`inline-flex items-center gap-1 ${live ? 'text-emerald-500' : 'text-amber-500'}`}>
           <span className={`w-2 h-2 rounded-full ${live ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
@@ -910,8 +1511,104 @@ const PcTerminalPage: React.FC = () => {
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">
               {t('terminal.windowsTitle')}
             </h2>
-            <p className="text-[11px] text-slate-500 mt-0.5">{t('terminal.windowsHint')}</p>
+            <p className="mt-0.5 hidden text-[11px] text-slate-500 sm:block">{t('terminal.windowsHint')}</p>
           </div>
+          {isMobile ? (
+            <div
+              className="grid snap-y snap-mandatory grid-cols-1 content-start gap-4 overflow-y-auto overscroll-contain p-3"
+              style={{ height: `calc(100dvh - ${MOBILE_PAGER_OFFSET_REM}rem)` }}
+            >
+              {!snapshot?.windows.length ? (
+                <div className="flex h-full snap-start items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
+                  {loading ? t('common.loading') : t('terminal.empty')}
+                </div>
+              ) : (
+                snapshot.windows.map((windowInfo) => {
+                  const selected = windowInfo.terminal_number === selectedTerminalNumber;
+                  const busy = actionWindowId === windowInfo.id;
+                  return (
+                    <article
+                      key={windowInfo.terminal_number}
+                      className={`flex h-full snap-start flex-col overflow-hidden rounded-2xl border shadow-sm transition-all ${
+                        selected
+                          ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/20'
+                          : windowInfo.active
+                            ? 'border-emerald-500/70 bg-emerald-500/10'
+                            : 'border-slate-500/40 bg-white/80 dark:bg-slate-900/80'
+                      } ${windowInfo.online ? '' : 'border-dashed'}`}
+                    >
+                        <div className="flex shrink-0 items-center gap-2 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
+                          <button
+                            type="button"
+                            onClick={() => selectTerminal(windowInfo.terminal_number)}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
+                            aria-label={t('terminal.selectWindow', {
+                              number: windowInfo.terminal_number,
+                            })}
+                          >
+                            <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 px-1.5 font-mono text-xs font-bold text-indigo-200">
+                              #{windowInfo.terminal_number}
+                            </span>
+                            <span className="truncate text-sm font-semibold">
+                              {terminalName(windowInfo, t('terminal.untitled'))}
+                            </span>
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${
+                              windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
+                            }`} />
+                          </button>
+                          {windowInfo.online && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                selectTerminal(windowInfo.terminal_number);
+                                void activate(windowInfo.id);
+                              }}
+                              disabled={busy || !snapshot.supported}
+                              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                              aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
+                            >
+                              {busy
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <MousePointer2 className="h-4 w-4" />}
+                              <span>{t('terminal.activate')}</span>
+                            </button>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            selectTerminal(windowInfo.terminal_number);
+                            if (windowInfo.screenshot?.content_base64) {
+                              setPreviewTerminalNumber(windowInfo.terminal_number);
+                            }
+                          }}
+                          className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/80 text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+                          aria-label={t('terminal.previewScreenshot', {
+                            number: windowInfo.terminal_number,
+                          })}
+                        >
+                          {windowInfo.screenshot?.content_base64 ? (
+                            <>
+                              <img
+                                src={`data:${windowInfo.screenshot.mime};base64,${windowInfo.screenshot.content_base64}`}
+                                alt={terminalName(windowInfo, t('terminal.untitled'))}
+                                decoding="async"
+                                className="h-full w-full object-contain"
+                              />
+                              <Maximize2 className="absolute bottom-2 right-2 h-5 w-5 rounded bg-slate-950/70 p-0.5 text-white" />
+                            </>
+                          ) : (
+                            <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs">
+                              {t(windowInfo.online ? 'terminal.previewUnavailable' : 'terminal.offline')}
+                            </span>
+                          )}
+                        </button>
+                      </article>
+                    );
+                  })
+              )}
+            </div>
+          ) : (
           <div
             ref={canvasRef}
             className="relative h-[52vh] min-h-[22rem] max-h-[38rem] overflow-hidden bg-slate-950/[0.03] dark:bg-slate-950/40"
@@ -1038,6 +1735,7 @@ const PcTerminalPage: React.FC = () => {
               );
             })}
           </div>
+          )}
         </section>
 
         <section className="pc-glass h-fit">
@@ -1047,7 +1745,7 @@ const PcTerminalPage: React.FC = () => {
 
       {previewWindow?.screenshot?.content_base64 && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 p-0 backdrop-blur-sm md:p-4"
           role="dialog"
           aria-modal="true"
           aria-label={t('terminal.previewDialog', {
@@ -1056,15 +1754,21 @@ const PcTerminalPage: React.FC = () => {
           onClick={() => setPreviewTerminalNumber(null)}
         >
           <div
-            className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-white/15 bg-slate-950 shadow-2xl"
+            className="flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-none border-white/15 bg-slate-950 shadow-2xl md:h-[94vh] md:rounded-2xl md:border"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 text-white">
               <p className="min-w-0 truncate text-sm font-semibold">
                 #{previewWindow.terminal_number} · {terminalName(previewWindow, t('terminal.untitled'))}
               </p>
+              {previewNextRunAt && (
+                <p className="flex shrink-0 items-center gap-1.5 text-[10px] font-semibold text-amber-300">
+                  <Timer className="h-3.5 w-3.5" />
+                  {t('terminal.scheduleCountdown')} {formatScheduleCountdown(previewNextRunAt - nowMs)}
+                </p>
+              )}
               {previewWindow.online && (
-                <p className="flex shrink-0 items-center gap-1.5 text-[10px] text-slate-300">
+                <p className="hidden shrink-0 items-center gap-1.5 text-[10px] text-slate-300 lg:flex">
                   <Crosshair className="h-3.5 w-3.5" />
                   {t('terminal.directClickHint')}
                 </p>
@@ -1079,16 +1783,11 @@ const PcTerminalPage: React.FC = () => {
                   previewWindow.online ? 'cursor-crosshair' : 'cursor-default'
                 }`}
               />
-              {previewExpanded && (
-                <aside className="dark absolute inset-y-0 right-0 z-20 w-1/2 overflow-hidden border-l border-white/15 bg-slate-950/60 shadow-2xl backdrop-blur-md">
-                  {renderOperationPanel(true)}
-                </aside>
-              )}
               <div className="absolute bottom-3 right-3 z-40 flex items-center gap-2">
                 <button
                   type="button"
                   onClick={togglePreviewExpanded}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/15 bg-slate-950/65 px-3 text-[10px] font-semibold text-white shadow-lg backdrop-blur hover:bg-slate-900/80"
+                  className="inline-flex h-11 items-center gap-1.5 rounded-xl border border-white/15 bg-slate-950/65 px-4 text-xs font-semibold text-white shadow-lg backdrop-blur hover:bg-slate-900/80 md:h-9 md:px-3 md:text-[10px]"
                   aria-label={t(
                     previewExpanded
                       ? 'terminal.collapsePreviewOperations'
@@ -1096,8 +1795,8 @@ const PcTerminalPage: React.FC = () => {
                   )}
                 >
                   {previewExpanded
-                    ? <PanelRightClose className="h-4 w-4" />
-                    : <PanelRightOpen className="h-4 w-4" />}
+                    ? <PanelRightClose className="h-5 w-5 md:h-4 md:w-4" />
+                    : <PanelRightOpen className="h-5 w-5 md:h-4 md:w-4" />}
                   {t(
                     previewExpanded
                       ? 'terminal.collapseOperations'
@@ -1107,13 +1806,18 @@ const PcTerminalPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setPreviewTerminalNumber(null)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-slate-950/65 text-slate-200 shadow-lg backdrop-blur hover:bg-slate-900/80 hover:text-white"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-slate-950/65 text-slate-200 shadow-lg backdrop-blur hover:bg-slate-900/80 hover:text-white md:h-9 md:w-9"
                   aria-label={t('common.close')}
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
               </div>
             </div>
+            {previewExpanded && (
+              <aside className="dark h-[46%] max-h-[30rem] shrink-0 overflow-hidden border-t border-white/15 bg-slate-950/95 shadow-2xl">
+                {renderOperationPanel(true)}
+              </aside>
+            )}
           </div>
         </div>
       )}

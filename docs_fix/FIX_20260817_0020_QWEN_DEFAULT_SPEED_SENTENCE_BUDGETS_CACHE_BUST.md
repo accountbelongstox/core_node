@@ -165,6 +165,38 @@ Implementation:
 - Laravel main: unchanged - it was already a pure validator (no truncation on
   its side to remove).
 
+## Follow-up 2026-08-17 (2): random native voice per task (qwen3tts)
+
+Requirement: every generated article defaults to a RANDOM voice character;
+within one task (a long text split into sentence chunks) ALL chunks share the
+SAME voice - one random pick per task.
+
+Implementation (official model card, Qwen3-TTS-12Hz-1.7B/0.6B-CustomVoice,
+9 premium timbres with native languages - "use each speaker's native language
+for best quality"):
+
+- `qwen3tts_api_server.py`: new `_SPEAKER_NATIVE_POOL` per language
+  (en: Ryan, Aiden | zh: Vivian, Serena, Uncle_Fu, Dylan, Eric | ja: Ono_Anna
+  | ko: Sohee). `_resolve_speaker(..., random_default=True)` picks uniformly
+  at random from the native pool INTERSECTED with the model's runtime
+  capability set (`get_supported_speakers()`); languages without native
+  speakers fall back to the full supported set (flagged). Explicit request or
+  the `QWEN3TTS_SPEAKER` env pin still wins (no randomness). The ordered
+  `_SPEAKER_PRESETS` path stays for VARIANT previews (distinct voice per
+  variant index). Deleted the dead `_speaker()` wrapper.
+- `qwen3tts_synthesis.py`: `generate_one` and `generate_queue_batch` resolve
+  the speaker ONCE per job with `random_default=True` - one random voice per
+  task; `_generate_chunked` reuses that speaker for every sentence chunk of
+  the job. Every synthesis result reports `"speaker"` and
+  `"speaker_random"`; the chunk log line includes the speaker.
+- pycore sentence-audio cache: unchanged semantics - identical text hits the
+  cached audio (the voice chosen for that first task is pinned with it);
+  distinct tasks roll a fresh random voice at synthesis time.
+
+Verified: resolution logic unit-exercised standalone (en/zh pool coverage,
+  non-native fallback, explicit/env pin precedence, unknown-speaker rejection,
+  restricted capability set, ordered variant path unchanged).
+
 ## Operational notes
 
 - The api server scripts are covered by the managed code-identity digest

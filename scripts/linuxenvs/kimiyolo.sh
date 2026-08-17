@@ -17,6 +17,7 @@ current_version_output=""
 latest_version_output=""
 version_gap_large="0"
 script_dir_path=""
+script_source_path=""
 scripts_dir_path=""
 core_node_path=""
 mcp_chrome_path=""
@@ -36,11 +37,22 @@ mcp_chrome_port="12306"
 mcp_chrome_port_ready=0
 mcp_chrome_port_wait_count=0
 mcp_chrome_needs_build=0
+mcp_chrome_enabled=0
 kimi_code_home_path=""
 kimi_mcp_config_path=""
+kimi_install_script_path=""
+kimi_secret_dir_path=""
+kimi_api_key=""
+kimi_base_url=""
+kimi_config_toml_path=""
+kimi_config_api_key=""
 kimi_args=()
 
-script_dir_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_source_path="${BASH_SOURCE[0]}"
+if [ -L "$script_source_path" ]; then
+    script_source_path="$(readlink -f "$script_source_path" 2>/dev/null || echo "$script_source_path")"
+fi
+script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
 mcp_chrome_path="$core_node_path/apps/mcp-chrome"
@@ -54,9 +66,75 @@ mcp_chrome_dev_log_path="/tmp/mcp-chrome-kimiyolo.log"
 mcp_chrome_linux_common_dir="$core_node_path/scripts/shells/linux/common"
 mcp_chrome_gvar_common_path="$mcp_chrome_linux_common_dir/gvar_common.sh"
 mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_common.sh"
+kimi_install_script_path="$core_node_path/scripts/shells/linux/debian/install_shells/121_install_desktop_applications.sh"
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_venv_python_common_path"
 mcp_chrome_python_path="$VENV_PYTHON3"
+if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+    mcp_chrome_enabled=1
+fi
+
+kimi_read_secret_file() {
+    local file_path="$1"
+    local value=""
+    local first_bytes=""
+    local trimmed_line=""
+    if [ ! -f "$file_path" ]; then
+        return 0
+    fi
+    first_bytes="$(head -c 3 "$file_path" 2>/dev/null | od -An -tx1 2>/dev/null | tr -d ' \n' 2>/dev/null || echo "")"
+    if [ "$first_bytes" = "efbbbf" ]; then
+        while IFS= read -r trimmed_line || [ -n "$trimmed_line" ]; do
+            trimmed_line="$(echo "$trimmed_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < <(dd if="$file_path" bs=1 skip=3 2>/dev/null)
+    else
+        while IFS= read -r trimmed_line || [ -n "$trimmed_line" ]; do
+            trimmed_line="$(echo "$trimmed_line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+            if [ -n "$trimmed_line" ]; then
+                value="$trimmed_line"
+                break
+            fi
+        done < "$file_path"
+    fi
+    echo "$value"
+}
+
+kimi_mask_key() {
+    local value="$1"
+    local len=0
+    local keep=0
+    local middle=0
+    if [ -z "$value" ]; then
+        echo "[empty]"
+        return
+    fi
+    len="${#value}"
+    if [ "$len" -le 8 ]; then
+        keep=1
+    else
+        keep=4
+    fi
+    middle=$((len - 2 * keep))
+    if [ "$middle" -lt 1 ]; then
+        middle=1
+    fi
+    printf '%s' "${value:0:$keep}"
+    printf '%*s' "$middle" '' | tr ' ' '*'
+    printf '%s' "${value: -$keep}"
+}
+
+kimi_secret_dir_path="$core_node_path/.secret_keys/.secret_ignore"
+kimi_api_key="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_API_KEY_1")"
+kimi_base_url="$(kimi_read_secret_file "$kimi_secret_dir_path/KIMI_BASE_URL_1")"
+kimi_config_toml_path="$kimi_code_home_path/config.toml"
+kimi_config_api_key=""
+if [ -f "$kimi_config_toml_path" ]; then
+    kimi_config_api_key="$(grep -E '^[[:space:]]*api_key[[:space:]]*=' "$kimi_config_toml_path" 2>/dev/null | head -1 | sed -E 's/^[^=]*=//; s/^[[:space:]]*//; s/^"//; s/"[[:space:]]*$//')"
+fi
 kimi_code_home_path="${KIMI_CODE_HOME:-$HOME/.kimi-code}"
 kimi_mcp_config_path="$kimi_code_home_path/mcp.json"
 kimi_args=(
@@ -69,8 +147,34 @@ echo "kimiyolo.sh"
 echo "============================================================"
 
 if ! command -v kimi >/dev/null 2>&1; then
-    echo "[ERROR] kimi is not available on PATH."
-    exit 1
+    echo "[INFO] kimi is not available on PATH; installing via script library..."
+    if [ -f "$kimi_install_script_path" ]; then
+        bash "$kimi_install_script_path" --exact-app kimi
+        hash -r
+    elif command -v curl >/dev/null 2>&1; then
+        echo "[WARN] Install script not found at: $kimi_install_script_path"
+        echo "[INFO] Falling back to the official native installer..."
+        curl -fsSL "$kimi_installer_url" | bash
+        hash -r
+    else
+        echo "[ERROR] kimi is not available on PATH and no installer is reachable."
+        exit 1
+    fi
+    if ! command -v kimi >/dev/null 2>&1; then
+        echo "[ERROR] kimi installation did not succeed; kimi is still not available on PATH."
+        exit 1
+    fi
+fi
+
+echo "[INFO] KIMI_BASE_URL_1: ${kimi_base_url:-[empty]}"
+if [ -n "$kimi_api_key" ] && [ "$kimi_config_api_key" = "$kimi_api_key" ]; then
+    echo "[INFO] KIMI_API_KEY_1 already configured in $kimi_config_toml_path"
+    echo "[INFO] KIMI_API_KEY_1 (masked): $(kimi_mask_key "$kimi_api_key")"
+    echo "[INFO] Get the full key: cat $kimi_secret_dir_path/KIMI_API_KEY_1"
+else
+    echo "[INFO] KIMI_API_KEY_1: ${kimi_api_key:-[empty]}"
+    echo "[INFO] First-time setup: run kimi, open /provider, select Known third-party ->"
+    echo "[INFO]   Kimi code plan, and paste the key above into it."
 fi
 if command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
     current_version_output="$(kimi --version 2>/dev/null || true)"
@@ -114,6 +218,7 @@ elif [ "$version_gap_large" = "1" ]; then
     echo "[INFO] Kimi Code CLI upgrade skipped."
 fi
 
+if [ "$mcp_chrome_enabled" -eq 1 ]; then
 if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
     [ ! -f "$mcp_chrome_native_artifact_path" ] ||
     [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
@@ -185,6 +290,9 @@ if [ "$mcp_chrome_port_ready" -eq 1 ]; then
     echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
 else
     echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
+fi
+else
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
 fi
 
 echo "[INFO] YOLO: ON; built-in web search: configuration preserved"

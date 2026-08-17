@@ -51,13 +51,13 @@ const TABS: TabDef[] = [
 ];
 
 // Each sub-view's own outer chrome: Books and Video-Extract render
-// their own `p-6 md:p-8` padding; Add-Document does not, so it gets a padded
+// their own `p-3 sm:p-6 md:p-8` padding; Add-Document does not, so it gets a padded
 // wrapper here. (CoreBook now lives inside Books as an advanced section.)
 const renderSubView = (key: ContentTab): React.ReactNode => {
   switch (key) {
     case 'subtitles': return <PcVideoExtractPage />;
     case 'books': return <PcBooksPage />;
-    case 'document': return <div className="p-6 md:p-8"><PcAddDocumentView /></div>;
+    case 'document': return <div className="p-3 sm:p-6 md:p-8"><PcAddDocumentView /></div>;
   }
 };
 

@@ -8,11 +8,15 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_CONTENT,
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_INPUT,
+    UI_TERMINAL_SCHEDULE_QUEUE_ADD,
+    UI_TERMINAL_SCHEDULE_QUEUE_REMOVE,
+    UI_TERMINAL_SCHEDULE_QUEUE_UPDATE,
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_VIEW,
     UI_TERMINAL_WINDOWS,
 )
 from pycore.pyfoundations.third_party.api import get_third_package_fastapi
+from pycore.pyctl.terminal.terminal_scheduler import terminal_scheduler
 from pycore.pyctl.terminal.terminal_service import terminal_service
 
 
@@ -84,14 +88,51 @@ def register_terminal_routes(server) -> None:
             expanded,
         )
 
+    def schedule_queue_add_handler(params, _request_id, _context):
+        terminal_number = _integer_param(params, "terminal_number")
+        mode = str(params.get("mode") or "").strip().lower()
+        run_at_ms = _integer_param(params, "run_at")
+        interval_seconds = _integer_param(params, "interval_seconds")
+        message = str(params.get("text") or "")
+        return terminal_scheduler.add_entry(
+            terminal_number,
+            mode,
+            run_at_ms,
+            interval_seconds,
+            message,
+        )
+
+    def schedule_queue_remove_handler(params, _request_id, _context):
+        terminal_number = _integer_param(params, "terminal_number")
+        entry_id = str(params.get("entry_id") or "")
+        return terminal_scheduler.remove_entry(terminal_number, entry_id)
+
+    def schedule_queue_update_handler(params, _request_id, _context):
+        terminal_number = _integer_param(params, "terminal_number")
+        entry_id = str(params.get("entry_id") or "")
+        mode = str(params.get("mode") or "").strip().lower()
+        run_at_ms = _integer_param(params, "run_at")
+        interval_seconds = _integer_param(params, "interval_seconds")
+        message = str(params.get("text") or "")
+        return terminal_scheduler.update_entry(
+            terminal_number,
+            entry_id,
+            mode,
+            run_at_ms,
+            interval_seconds,
+            message,
+        )
+
     def content_handler(params, _request_id, _context):
         terminal_number = _integer_param(params, "terminal_number")
         content_kind = str(params.get("kind") or "")
-        log_id = str(params.get("log_id") or "")
+        item_id = str(params.get("log_id") or "") or str(
+            params.get("entry_id") or ""
+        )
         content = terminal_service.read_text(
             terminal_number,
             content_kind,
-            log_id,
+            item_id,
         )
         return Response(
             content=content or "",
@@ -110,4 +151,16 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
+    server.post(
+        path=UI_TERMINAL_SCHEDULE_QUEUE_ADD,
+        handler=schedule_queue_add_handler,
+    )
+    server.post(
+        path=UI_TERMINAL_SCHEDULE_QUEUE_REMOVE,
+        handler=schedule_queue_remove_handler,
+    )
+    server.post(
+        path=UI_TERMINAL_SCHEDULE_QUEUE_UPDATE,
+        handler=schedule_queue_update_handler,
+    )
     server.get(path=UI_TERMINAL_CONTENT, handler=content_handler)

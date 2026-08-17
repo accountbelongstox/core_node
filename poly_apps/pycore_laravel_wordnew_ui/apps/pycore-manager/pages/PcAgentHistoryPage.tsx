@@ -28,6 +28,7 @@ import SessionDetailView from './agent-history/SessionDetailView';
 import PcAgentHistoryConfigPanel from './agent-history/PcAgentHistoryConfigPanel';
 import PcAgentHistoryRecords from './agent-history/PcAgentHistoryRecords';
 import PcAgentHistoryPromptItem from './agent-history/PcAgentHistoryPromptItem';
+import PcPager from './agent-history/PcPager';
 import {
   agentHistoryUiStateStore,
   type AgentHistoryTabId as TabId,
@@ -133,6 +134,7 @@ const PcAgentHistoryPage: React.FC = () => {
   const filterResetReady = useRef(false);
   const skipNextFilterReset = useRef(false);
   const manualRefreshPending = useRef(false);
+  const listAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {
     agentHistoryUiStateStore.save({
@@ -415,6 +417,15 @@ const PcAgentHistoryPage: React.FC = () => {
   const sessionTotalPages = Math.max(1, Math.ceil(sessionTotal / PAGE_SIZE));
   const promptTotalPages = Math.max(1, Math.ceil(promptTotal / PAGE_SIZE));
 
+  const handleOpenToolHistory = useCallback((tool: string, tab: 'sessions' | 'prompts') => {
+    setSelectedTool(tool);
+    setFilterTool(tool);
+    setTab(tab);
+    setSessionPage(1);
+    setPromptPage(1);
+    listAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
   const promptLabels = {
     copy: tk('copy'),
     copied: tk('copied'),
@@ -425,25 +436,7 @@ const PcAgentHistoryPage: React.FC = () => {
   };
 
   const renderPager = (page: number, totalPages: number, setPage: (next: number) => void) => (
-    <div className="flex items-center justify-center gap-2 pt-2">
-      <button
-        type="button"
-        disabled={page <= 1}
-        onClick={() => setPage(Math.max(1, page - 1))}
-        className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-      >
-        {tk('prev')}
-      </button>
-      <span className="text-xs text-slate-500">{page} / {totalPages}</span>
-      <button
-        type="button"
-        disabled={page >= totalPages}
-        onClick={() => setPage(Math.min(totalPages, page + 1))}
-        className="px-3 py-1 rounded border text-sm disabled:opacity-40"
-      >
-        {tk('next')}
-      </button>
-    </div>
+    <PcPager page={page} totalPages={totalPages} onChange={setPage} tk={tk} />
   );
 
   return (
@@ -496,13 +489,14 @@ const PcAgentHistoryPage: React.FC = () => {
         storeRevision={header.generatedAt}
         onEnabledToolsChange={handleEnabledToolsChange}
         onSelectedToolChange={setSelectedTool}
+        onOpenToolHistory={handleOpenToolHistory}
         taskPeriod={taskPeriod}
         onTaskPeriodChange={setTaskPeriod}
       />
 
       <PcAgentHistoryRecords tk={tk} />
 
-      <div className="flex flex-wrap gap-2 items-center">
+      <div ref={listAnchorRef} className="flex flex-wrap gap-2 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input

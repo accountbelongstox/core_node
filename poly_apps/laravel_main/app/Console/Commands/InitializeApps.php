@@ -346,6 +346,13 @@ class InitializeApps extends Command
 
         $this->newLine();
 
+        $this->info('Word validity coverage (AI verification via mcp-chrome)...');
+        if (!$this->displayWordValidityCoverage()) {
+            return Command::FAILURE;
+        }
+
+        $this->newLine();
+
         $this->info('Creating AppQyV1 user initialization tables...');
         $userInitResults = AppQyV1UserInitializationTableService::ensureTablesExist();
         foreach ($userInitResults as $table => $status) {
@@ -635,6 +642,49 @@ class InitializeApps extends Command
             return true;
         } catch (\Throwable $e) {
             $this->error("  ❌ Dictionary summary failed: {$e->getMessage()}");
+
+            return false;
+        }
+    }
+
+    /**
+     * Report per-language word-validity coverage. Every unchecked word
+     * (validity_checked_at IS NULL) is verified once by the mcp-chrome
+     * DeepSeek lane (word_validity / remote_validity + the client-side
+     * runner); the background scan task feeds it in contract-sized batches
+     * and idles when nothing is unchecked. This step only reports state —
+     * verification itself happens when the mcp-chrome lane is enabled.
+     */
+    private function displayWordValidityCoverage(): bool
+    {
+        try {
+            $languages = \App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService::scanAvailableLanguages();
+
+            if (empty($languages)) {
+                $this->line('  <fg=gray>No dictionary data yet — nothing to verify.</>');
+
+                return true;
+            }
+
+            $totalUnchecked = 0;
+            foreach ($languages as $langCode) {
+                $summary = AppQyV1LangDictionaryModel::validitySummary($langCode);
+                $totalUnchecked += $summary['unchecked'];
+                if ($summary['unchecked'] > 0) {
+                    $this->line("    • {$langCode}: {$summary['unchecked']} unchecked / {$summary['total']} total ({$summary['invalid']} invalid)");
+                }
+            }
+
+            if ($totalUnchecked === 0) {
+                $this->line('  ✅ All words already verified (idle — nothing for mcp-chrome to check).');
+            } else {
+                $batchSize = \App\Support\QueueCenterContract::wordValidityBatchSize();
+                $this->line("  ⏳ {$totalUnchecked} unchecked word(s) across " . count($languages) . " language(s) — the validity scan feeds them to mcp-chrome in batches of {$batchSize} (marked validity_source=ai_ensure on report).");
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->error("  ❌ Word validity coverage failed: {$e->getMessage()}");
 
             return false;
         }

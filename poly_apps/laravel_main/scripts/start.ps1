@@ -95,9 +95,9 @@ $PwshServiceExe = $null
 $ServiceArgs = $null
 $ServiceRegistered = $false
 $npxCmd = $null
-$InstallationAccessCodeFile = Join-Path $LaravelDir "app\Support\InstallationAccessCode.php"
 $GeneratedAccessCode = $null
-$AccessCodeWriteError = $null
+$ShownAccessCode = $null
+$StoredAccessCode = $null
 $Argument = $null
 $HelpRequested = $false
 $ShowSuperCode = $false
@@ -125,28 +125,24 @@ function Show-Usage {
     Write-Host "  --show-super-code   Show the last generated super code and exit."
 }
 
+# The access code lives in the external runtime store (PathMapper
+# laravel_data_dir, outside the repository); InstallationAccessCode.php only
+# reads it and is never regenerated. Self-contained reader (runs before the
+# later function definitions, so it inlines the php call).
 function Get-StoredInstallationAccessCode {
     param(
-        [Parameter(Mandatory = $true)][string]$FilePath
+        [Parameter(Mandatory = $true)][string]$PhpExecutable,
+        [Parameter(Mandatory = $true)][string]$AutoloadPath,
+        [Parameter(Mandatory = $true)][string]$BootstrapPath
     )
-    $source = $null
-    $returnMatch = $null
-    $literalMatches = $null
-    $accessCode = $null
+    $phpCode = '$autoload = $argv[1]; $bootstrap = $argv[2]; require $autoload; require $bootstrap; $value = \App\Support\RuntimeConfigurationStore::get("INSTALLATION_ACCESS_CODE"); if ($value !== null) { echo $value; }'
+    $output = & $PhpExecutable -r $phpCode -- $AutoloadPath $BootstrapPath
+    $exitCode = $LASTEXITCODE
+    $accessCode = ($output | Out-String).Trim()
 
-    if (-not (Test-Path -LiteralPath $FilePath)) {
-        throw "Super code file not found: $FilePath"
+    if (($exitCode -ne 0) -or [string]::IsNullOrWhiteSpace($accessCode)) {
+        throw "Installation access code not provisioned yet; run the full start once."
     }
-    $source = [System.IO.File]::ReadAllText($FilePath)
-    $returnMatch = [regex]::Match($source, 'return\s+(?<expression>.*?);', [System.Text.RegularExpressions.RegexOptions]::Singleline)
-    if (-not $returnMatch.Success) {
-        throw "Super code return expression not found in: $FilePath"
-    }
-    $literalMatches = [regex]::Matches($returnMatch.Groups["expression"].Value, "'(?<value>[^']*)'")
-    if ($literalMatches.Count -eq 0) {
-        throw "Super code could not be read from: $FilePath"
-    }
-    $accessCode = ($literalMatches | ForEach-Object { $_.Groups["value"].Value }) -join ""
     return $accessCode
 }
 
@@ -164,8 +160,13 @@ if ($HelpRequested) {
 }
 
 if ($ShowSuperCode) {
+    $phpCmd = Get-Command php -ErrorAction SilentlyContinue
+    if (-not $phpCmd) {
+        Write-Host "ERROR: php not found; cannot read the runtime configuration store." -ForegroundColor Red
+        exit 1
+    }
     try {
-        $StoredSuperCode = Get-StoredInstallationAccessCode -FilePath $InstallationAccessCodeFile
+        $StoredSuperCode = Get-StoredInstallationAccessCode -PhpExecutable $phpCmd.Path -AutoloadPath $VendorAutoload -BootstrapPath $BootstrapApp
         Write-Host "Super code: $StoredSuperCode" -ForegroundColor Yellow
         exit 0
     } catch {
@@ -189,19 +190,6 @@ function New-InstallationAccessCode {
         ([Guid]::NewGuid().ToString("N").Substring(0, 4)).ToUpperInvariant()
     )
     return "NEXU-$($segments -join '-')"
-}
-
-function Write-InstallationAccessCode {
-    param(
-        [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string]$AccessCode
-    )
-    $directoryPath = Split-Path -Parent $FilePath
-    if (-not (Test-Path -LiteralPath $directoryPath)) {
-        New-Item -ItemType Directory -Force -Path $directoryPath | Out-Null
-    }
-    $phpSource = "<?php`r`n`r`nnamespace App\Support;`r`n`r`nfinal class InstallationAccessCode`r`n{`r`n    public static function value(): string`r`n    {`r`n        return '$AccessCode';`r`n    }`r`n}`r`n"
-    [System.IO.File]::WriteAllText($FilePath, $phpSource, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Get-RuntimeConfigurationDirectory {
@@ -318,6 +306,11 @@ function Initialize-RuntimeConfigurationStore {
     Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "REVERB_APP_KEY" -Value $generatedValue
     $generatedValue = New-SecureRuntimeValue -PhpExecutable $PhpExecutable -Type "reverb-secret"
     Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "REVERB_APP_SECRET" -Value $generatedValue
+    # Installation access (super) code: provisioned once into the external
+    # store, stable across runs; InstallationAccessCode.php only reads it.
+    if (-not [string]::IsNullOrWhiteSpace($script:GeneratedAccessCode)) {
+        Set-RuntimeConfigurationValueWhenMissing -PhpExecutable $PhpExecutable -AutoloadPath $AutoloadPath -BootstrapPath $BootstrapPath -Key "INSTALLATION_ACCESS_CODE" -Value $script:GeneratedAccessCode
+    }
 
     return $directory
 }
@@ -329,14 +322,11 @@ Write-Host ""
 try {
     Set-Location -Path $LaravelDir
 
+    # Candidate access code for THIS provisioning run; persisted into the
+    # external runtime store by Initialize-RuntimeConfigurationStore (only
+    # when the store has none - the code is stable across runs, and the
+    # InstallationAccessCode.php repository file is never rewritten).
     $GeneratedAccessCode = New-InstallationAccessCode
-    try {
-        Write-InstallationAccessCode -FilePath $InstallationAccessCodeFile -AccessCode $GeneratedAccessCode
-        Write-Host "Installation access value refreshed." -ForegroundColor Green
-    } catch {
-        $AccessCodeWriteError = $_.Exception.Message
-        Write-Host "WARNING: Installation access value could not be refreshed: $AccessCodeWriteError" -ForegroundColor Yellow
-    }
 
     # --- Toolchain: php + composer (idempotent auto-install via the canonical DevInstaller step) ---
     $phpCmd = Get-Command php -ErrorAction SilentlyContinue
@@ -731,5 +721,16 @@ finally {
     Write-Host ""
     Write-Host "Restored to initial directory: $($OriginalDirectory.Path)" -ForegroundColor DarkGray
     Write-Host ""
-    Write-Host "Installation access value: $GeneratedAccessCode" -ForegroundColor Yellow
+    # Show the STORED code when resolvable (it wins over this run's candidate
+    # once provisioned - the code is stable across runs).
+    $ShownAccessCode = $GeneratedAccessCode
+    if ($null -ne $phpCmd) {
+        try {
+            $StoredAccessCode = Get-RuntimeConfigurationValue -PhpExecutable $phpCmd.Path -AutoloadPath $VendorAutoload -BootstrapPath $BootstrapApp -Key "INSTALLATION_ACCESS_CODE"
+            if (-not [string]::IsNullOrWhiteSpace($StoredAccessCode)) {
+                $ShownAccessCode = $StoredAccessCode
+            }
+        } catch { }
+    }
+    Write-Host "Installation access value: $ShownAccessCode" -ForegroundColor Yellow
 }

@@ -1,7 +1,13 @@
 {
-  "schema_version": 23,
+  "schema_version": 24,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
+  "word_validity": {
+    "batch_size": 150,
+    "default_languages": ["en"],
+    "source_marker": "ai_ensure",
+    "idle_poll_seconds": 60
+  },
   "realtime": {
     "transport": "websocket",
     "channel": "queue-center",

@@ -2,32 +2,43 @@
  * pycore-manager layout: a left icon sidebar (driven by the page registry) + the
  * active page via <Outlet/>. Pycore theme glass surfaces; works light + dark.
  * The app-level PcProviders tree owns shared contexts used here.
+ *
+ * Mobile (< md): the sidebar auto-collapses into an overlay drawer opened from
+ * the PcTopBar menu button so it occupies no permanent screen space.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Cpu } from 'lucide-react';
+import { Cpu, X } from 'lucide-react';
 import { PC_PAGES } from './pcPages';
 import { PcFloatingLog } from './PcFloatingLog';
 import { PcHttpDebugger } from './PcHttpDebugger';
 import { PcTestPopupProvider } from './components/PcTestPopupContext';
 import { PcTopBar } from './components/PcTopBar';
 import { PcLaravelEndpointProvider } from './PcLaravelEndpointContext';
+import { useIsMobile } from './hooks/useIsMobile';
 
 const linkBase =
   'group relative flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150';
 
 export const PcLayout: React.FC = () => {
   const { t } = useTranslation('pc');
+  const isMobile = useIsMobile();
+  const [navOpen, setNavOpen] = useState(false);
   const top = PC_PAGES.filter((p) => !p.bottom);
   const bottom = PC_PAGES.filter((p) => p.bottom);
 
-  const renderLink = (p: typeof PC_PAGES[number]) => {
+  useEffect(() => {
+    if (!isMobile) setNavOpen(false);
+  }, [isMobile]);
+
+  const renderLink = (p: typeof PC_PAGES[number], onNavigate?: () => void) => {
     const Icon = p.Icon;
     return (
       <NavLink
         key={p.id}
         to={`/pycore-manager/${p.id}`}
+        onClick={onNavigate}
         className={({ isActive }) =>
           `${linkBase} ${isActive
             ? 'bg-indigo-500/15 text-indigo-600 dark:text-indigo-300 font-semibold shadow-sm ring-1 ring-inset ring-indigo-500/20'
@@ -41,7 +52,7 @@ export const PcLayout: React.FC = () => {
                 isActive ? 'opacity-100' : 'opacity-0'
               }`}
             />
-            <Icon className="w-4 h-4 shrink-0" />
+            <Icon className="w-5 h-5 shrink-0" />
             <span className="truncate">{t(p.labelKey)}</span>
           </>
         )}
@@ -49,24 +60,51 @@ export const PcLayout: React.FC = () => {
     );
   };
 
+  const renderSidebarContent = (onNavigate?: () => void) => (
+    <>
+      <div className="shrink-0 px-4 py-4 flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
+        <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/20">
+          <Cpu className="w-4.5 h-4.5 text-indigo-500" />
+        </span>
+        <span className="truncate">{t('appTitle')}</span>
+        {onNavigate && (
+          <button
+            type="button"
+            onClick={onNavigate}
+            aria-label={t('common.close')}
+            className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 hover:bg-slate-500/10 hover:text-slate-600 dark:hover:text-slate-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        )}
+      </div>
+      <nav className="flex-1 min-h-0 px-2 space-y-1 overflow-y-auto overscroll-contain">{top.map((p) => renderLink(p, onNavigate))}</nav>
+      <div className="shrink-0 px-2 py-2 border-t border-slate-200/80 dark:border-slate-800/80 space-y-1">
+        {bottom.map((p) => renderLink(p, onNavigate))}
+      </div>
+    </>
+  );
+
   return (
     <PcLaravelEndpointProvider>
       <PcTestPopupProvider>
         <div className="fixed inset-0 flex overflow-hidden" data-end="pycore-manager">
-        <aside className="w-56 shrink-0 h-full flex flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden">
-          <div className="shrink-0 px-4 py-4 flex items-center gap-2.5 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/15 ring-1 ring-inset ring-indigo-500/20">
-              <Cpu className="w-4.5 h-4.5 text-indigo-500" />
-            </span>
-            {t('appTitle')}
-          </div>
-          <nav className="flex-1 min-h-0 px-2 space-y-1 overflow-y-auto overscroll-contain">{top.map(renderLink)}</nav>
-          <div className="shrink-0 px-2 py-2 border-t border-slate-200/80 dark:border-slate-800/80 space-y-1">
-            {bottom.map(renderLink)}
-          </div>
+        <aside className="hidden md:flex w-56 shrink-0 h-full flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl overflow-hidden">
+          {renderSidebarContent()}
         </aside>
+        {isMobile && navOpen && (
+          <div className="fixed inset-0 z-[70] md:hidden">
+            <div
+              className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+              onClick={() => setNavOpen(false)}
+            />
+            <aside className="absolute inset-y-0 left-0 flex w-64 max-w-[82vw] flex-col border-r border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+              {renderSidebarContent(() => setNavOpen(false))}
+            </aside>
+          </div>
+        )}
         <main className="flex-1 min-w-0 h-full flex flex-col overflow-hidden">
-          <PcTopBar />
+          <PcTopBar onOpenNav={isMobile ? () => setNavOpen(true) : undefined} />
           {/* Reserve bottom space for the collapsed floating log (~56px). */}
           <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain pb-16">
             <Outlet />

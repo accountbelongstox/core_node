@@ -84,8 +84,9 @@ class InviteCodeInitializer
                 'description' => 'Default admin invite code (generated at installation)',
             ]);
             if ($created) {
-                // Super-admin elevation uses InstallationAccessCode (rewritten by
-                // start.sh/ps1) — never seed a super_admin row into invite_codes.
+                // Super-admin elevation uses InstallationAccessCode (read from
+                // the external runtime store, provisioned by start.sh/ps1) —
+                // never seed a super_admin row into invite_codes.
                 $results['default_codes'] = 'created';
                 $results['codes'] = [
                     'admin' => $adminCode,

@@ -173,9 +173,10 @@ export interface DictionaryWordRow {
   md5: string;
   has_translation: boolean;
   has_audio: boolean;
-  is_valid: boolean;
+  /** Validity flag; AI-verified rows may surface a string marker (e.g. the validity source). */
+  is_valid: boolean | string;
   /** Raw nullable dictionary field; null is treated as valid by the backend. */
-  is_valid_value?: boolean | null;
+  is_valid_value?: boolean | string | null;
 
   // ----- Rich per-word detail (all optional / nullable) -----
   /** Actual translation strings (preferred over the has_translation flag). */

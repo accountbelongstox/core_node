@@ -79,6 +79,26 @@ final class QueueCenterContract
     }
 
     /**
+     * Word-validity verification defaults (batch size, default languages, the
+     * validity_source marker written for AI-verified rows, and the chrome
+     * runner's idle re-poll cadence once the backlog is drained).
+     */
+    public static function wordValidity(): array
+    {
+        return self::document()['word_validity'] ?? [];
+    }
+
+    public static function wordValidityBatchSize(): int
+    {
+        return (int) (self::wordValidity()['batch_size'] ?? 150);
+    }
+
+    public static function wordValiditySourceMarker(): string
+    {
+        return (string) (self::wordValidity()['source_marker'] ?? 'ai_ensure');
+    }
+
+    /**
      * Contract-owned endpoint path templates (worker + queue-center plane).
      * Laravel registers these routes; the other three ends render the same
      * paths from this block, so a route change starts here.

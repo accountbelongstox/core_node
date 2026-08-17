@@ -161,7 +161,7 @@ export default function PcTranslatePage() {
   }, [text, src, dest, aiBusy]);
 
   return (
-    <div className="p-6 md:p-8 space-y-5">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5">
       {/* Offline ECDICT + WordNet word dictionary (served alongside Google/AI). */}
       <PcDictionaryPanel />
 

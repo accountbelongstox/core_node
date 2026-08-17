@@ -51,7 +51,7 @@ class StateAwareClickHandler:
         y: int,
         button: str = 'left',
         duration: float = 0.1,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:
@@ -70,7 +70,7 @@ class StateAwareClickHandler:
         x: int,
         y: int,
         duration: float = 0.1,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:
@@ -89,7 +89,7 @@ class StateAwareClickHandler:
         x: int,
         y: int,
         duration: float = 0.1,
-        return_to_original: bool = False,
+        return_to_original: bool = True,
         direct_click: bool = False,
         pause_after_move: Optional[float] = None,
     ) -> bool:

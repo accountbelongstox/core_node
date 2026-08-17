@@ -15,10 +15,13 @@
 # ============================================================================
 # SYNC CONTRACT (two ends, one truth):
 #   Shell end   : this file + nginx_common.sh + domain_setup_common.sh
+#                 + port_guard_common.sh (80/443 tcp+udp occupier guard)
 #   Laravel end : poly_apps/laravel_main/app/Apps/ServerManagerV1/
 #                 ServerManagerV1Controllers/ServerManagerV1NginxManagerCtl.php
 #                 ServerManagerV1Utils/ServerManagerV1NginxConfigBuilder.php
 #                 ServerManagerV1Utils/ServerManagerV1CertificateManager.php
+#                 ServerManagerV1CLI/Commands/ServerManagerV1BaseCommand.php
+#                 (api.* proxy default backend port)
 #   UI end      : poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager
 #                 (http://127.0.0.1:13054/laravel-manager#/server)
 # Any change to vhost templates (HTTP/3, 301, TLS early data), repair logic,
@@ -42,17 +45,12 @@ NGINX_MANAGER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=/dev/null
 source "$NGINX_MANAGER_DIR/domain_setup_common.sh"
 
-NM_MAIN_CONF="/etc/nginx/nginx.conf"
-NM_LOG_DIR="/var/log/nginx"
+NM_MAIN_CONF="$NGINX_MAIN_CONF"
+NM_LOG_DIR="$NGINX_LOG_DIR"
 NM_PORT="80"
-NM_CONF_D="/etc/nginx/conf.d"
+NM_CONF_D="$NGINX_CONF_D"
 
-# --- Lazy path/sudo resolution (valid with or without gvar_common.sh) -------
-
-nm_sudo() {
-    domain_setup_sudo
-}
-
+# --- Lazy path resolution (valid with or without gvar_common.sh) -----------
 nm_web_path() {
     local key="$1"
     local sub="${2:-}"
@@ -66,7 +64,7 @@ nm_web_path() {
     fi
     store_key="$(echo "NGINX_${key}${sub:+_$sub}" | tr '[:lower:]-' '[:upper:]_')"
     if [ -f "$gdir/$store_key" ]; then
-        stored=$(nm_sudo cat "$gdir/$store_key" 2>/dev/null | tr -d '\r')
+        stored=$(lazy_sudo cat "$gdir/$store_key" 2>/dev/null | tr -d '\r')
         stored=$(echo "$stored" | sed '/^\s*$/d' | head -1)
     fi
     if [ -n "$stored" ]; then
@@ -92,7 +90,7 @@ nm_backup_dir() { nm_web_path "backup" "nginx-configs"; }
 # Disable/remove competing web servers (Caddy, Apache) and their repos.
 nm_conflicts_clear() {
     local sudo_cmd
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     echo "[nginx-mgr] Checking conflicting web servers..."
 
     if command -v caddy >/dev/null 2>&1; then
@@ -112,38 +110,12 @@ nm_conflicts_clear() {
     fi
 }
 
-# Clear port 80 from foreign processes; WSL gets Windows-side guidance.
-nm_port_clear() {
-    local sudo_cmd
-    local port_pids
-    sudo_cmd=$(nm_sudo)
-    port_pids=$(lsof -ti:80 2>/dev/null || true)
-
-    if [ -z "$port_pids" ]; then
-        echo "[nginx-mgr] Port $NM_PORT is available"
-        return 0
-    fi
-
-    if [ "${IS_WSL:-false}" = true ] || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
-        echo "[nginx-mgr] WSL detected; port $NM_PORT may be held by Windows IIS/HTTP.sys."
-        echo "[nginx-mgr] Disable it in an elevated PowerShell, then run 'wsl --shutdown' and retry:"
-        echo "  Stop-Service -Name W3SVC -Force; Set-Service -Name W3SVC -StartupType Disabled"
-    fi
-
-    echo "$port_pids" | xargs -r $sudo_cmd kill -TERM 2>/dev/null || true
-    sleep 2
-    port_pids=$(lsof -ti:80 2>/dev/null || true)
-    if [ -n "$port_pids" ]; then
-        echo "$port_pids" | xargs -r $sudo_cmd kill -9 2>/dev/null || true
-    fi
-
-    sleep 1
-    if lsof -ti:80 >/dev/null 2>&1; then
-        echo "[nginx-mgr] [WARN] Port $NM_PORT is still occupied"
-        return 1
-    fi
-    echo "[nginx-mgr] Port $NM_PORT cleared"
-    return 0
+# Free the nginx edge ports (80/TCP, 443/TCP, 443/UDP for QUIC) from foreign
+# occupiers through the shared port guard (port_guard_common.sh): detect ->
+# identify -> stop -> interactive y/N uninstall -> re-detect. nginx's own
+# sockets are never touched. Self-detecting and safe to run on every pass.
+nm_edge_ports_ensure() {
+    pg_ports_ensure_free 80 443
 }
 
 # Ensure the mapped directory layout used by Laravel ServerManager.
@@ -159,17 +131,10 @@ nm_layout_ensure() {
         "$(nm_backup_dir)"
     )
     local dir
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     for dir in "${dirs[@]}"; do
-        if [ -e "$dir" ] && [ ! -d "$dir" ]; then
-            echo "[nginx-mgr] Removing conflicting non-directory path: $dir"
-            $sudo_cmd rm -f "$dir"
-        fi
-        if [ ! -d "$dir" ]; then
-            $sudo_cmd mkdir -p "$dir"
-            echo "[nginx-mgr] Created directory: $dir"
-        fi
+        nginx_ensure_directory "$dir"
     done
 
     $sudo_cmd chown -R root:root "$(nm_web_path "nginxconfig")" 2>/dev/null || true
@@ -182,7 +147,18 @@ nm_layout_ensure() {
 # TLS 1.2/1.3 with early data + QUIC tuning; content-hash idempotent.
 nm_main_config() {
     local sudo_cmd
-    sudo_cmd=$(nm_sudo)
+    local quic_bpf_line=""
+    sudo_cmd=$(lazy_sudo)
+
+    # quic_bpf (Linux 5.7+): eBPF steering keeps one QUIC connection on one
+    # worker; the reuseport alternative is NOT usable here because nginx
+    # accepts reuseport only once per address:port while every managed vhost
+    # listens on 443 quic.
+    if [ "$(uname -s 2>/dev/null)" = "Linux" ] && \
+       nginx_version_ge "$(uname -r 2>/dev/null | grep -oE '^[0-9]+(\.[0-9]+){0,2}' || echo 0)" "5.7.0"; then
+        quic_bpf_line="    quic_bpf on;
+"
+    fi
 
     write_file_if_changed "$NM_MAIN_CONF" "$(nm_backup_dir)" <<EOF
 user www-data;
@@ -223,6 +199,7 @@ http {
     # HTTP/3 (QUIC) tuning; harmless on builds without http_v3_module.
     quic_gso on;
     quic_active_connection_id_limit 4;
+${quic_bpf_line}
 
     gzip on;
     gzip_vary on;
@@ -246,7 +223,7 @@ nm_default_vhost() {
     local sudo_cmd
     local site_config
     local site_enabled
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     site_config="$(nm_sites_available)/default"
     site_enabled="$(nm_sites_enabled)/default"
 
@@ -302,7 +279,7 @@ nm_symlinks_ensure() {
     local source_path
     local target_path
     local config_dir
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     config_dir=$(nm_web_path "nginxconfig")
 
     $sudo_cmd mkdir -p "$config_dir"
@@ -344,7 +321,7 @@ nm_default_page() {
     local server_ips
     local ip
     local ip_list=""
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     html_file="$(nm_www_root)/default/index.html"
 
     server_ips=$(nm_detect_ips)
@@ -384,7 +361,7 @@ nm_service_state() {
     local wanted="${1:-start}"
     local sudo_cmd
     local unit_exists
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     unit_exists=$(systemctl list-unit-files 2>/dev/null | grep -c "^nginx\.service" || true)
 
     if [ "$unit_exists" = "0" ]; then
@@ -396,11 +373,11 @@ nm_service_state() {
         # Self-gating: never start/reload on a broken configuration. Callers
         # detect the outcome via systemctl is-active, not via this function's
         # exit code.
-        if ! $sudo_cmd nginx -t >/dev/null 2>&1; then
+        if ! $sudo_cmd nginx -t -c "$NM_MAIN_CONF" >/dev/null 2>&1; then
             echo "[nginx-mgr] [WARN] Config test failed; service start skipped (fix config, then re-run)"
             return 1
         fi
-        nm_port_clear || true
+        nm_edge_ports_ensure || true
         $sudo_cmd systemctl enable nginx 2>/dev/null || true
         $sudo_cmd systemctl start nginx 2>/dev/null || true
         local attempt
@@ -455,7 +432,7 @@ nm_verify() {
     local canonical
     local alias_path
     local alias_failures=0
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     nginx_unify_binaries || failures=$((failures + 1))
 
@@ -486,7 +463,7 @@ nm_verify() {
         echo "[nginx-mgr] [INFO] QUIC 0-RTT unavailable (OpenSSL $(nginx_get_openssl_version)); TLS 1.3 early data over TCP remains active"
     fi
 
-    if ! $sudo_cmd nginx -t 2>&1; then
+    if ! $sudo_cmd nginx -t -c "$NM_MAIN_CONF" 2>&1; then
         echo "[nginx-mgr] [FAIL] Configuration test failed"
         failures=$((failures + 1))
     fi
@@ -548,7 +525,7 @@ nm_install_or_upgrade() {
     local sudo_cmd
     local installed=""
     local candidate=""
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     nginx_ensure_official_repo || return 1
 
@@ -556,7 +533,7 @@ nm_install_or_upgrade() {
     candidate=$(apt-cache policy nginx 2>/dev/null | grep -m1 'Candidate:' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
 
     if [ -z "$installed" ]; then
-        nm_port_clear || true
+        nm_edge_ports_ensure || true
         $sudo_cmd apt install -y nginx --no-install-recommends
         return $?
     fi
@@ -579,7 +556,7 @@ nm_http3_migrate() {
     local file
     local changed
     local sudo_cmd
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     sites_available=$(nm_sites_available)
 
     [ -d "$sites_available" ] || return 0
@@ -600,6 +577,16 @@ nm_http3_migrate() {
         if ! grep -q 'listen 443 quic;' "$file"; then
             $sudo_cmd sed -i -E '0,/(listen\s+\[::\]:443 ssl;)/s//\1\n    listen 443 quic;\n    listen [::]:443 quic;\n    http3 on;\n    quic_retry on;/' "$file"
             changed=true
+        fi
+
+        # Missing fixed QUIC host key -> add (stops the per-reload random-key
+        # token invalidation under quic_retry on)
+        if grep -q 'quic_retry on;' "$file" && ! grep -q 'quic_host_key' "$file"; then
+            nginx_ensure_quic_host_key
+            if [ "$NGINX_QUIC_HOST_KEY_READY" = "yes" ]; then
+                $sudo_cmd sed -i -E "0,/(quic_retry on;)/s||\1\n    quic_host_key $(nginx_quic_host_key_file);|" "$file"
+                changed=true
+            fi
         fi
 
         # Missing Alt-Svc advertisement -> add
@@ -633,7 +620,7 @@ nm_purge_legacy_packages() {
     local pkg
     local origin
     local legacy_pkgs="nginx-common nginx-core nginx-full nginx-extras"
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     origin=$(nginx_get_package_origin)
 
     if [ -n "$(nginx_get_version)" ] && [ "$origin" != "nginx.org" ]; then
@@ -668,7 +655,7 @@ nm_replace_foreign_nginx() {
     local prefix
     local active_binary
     local quarantine_dir
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     active_binary=$(nginx_get_binary)
     quarantine_dir="$(nm_backup_dir)/foreign-nginx"
 
@@ -704,13 +691,14 @@ nm_site_add() {
     local type="$2"
     local target="$3"
     local cert_domain="${4:-$1}"
+    local http_mode="redirect"
     local sites_available
     local sites_enabled
     local site_file
     local enabled_link
     local cert_path
     local sudo_cmd
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     if [ -z "$fqdn" ] || [ -z "$type" ]; then
         echo "[nginx-mgr] Usage: site-add <fqdn> <static|proxy> <doc_root|backend_url> [cert_domain]"
@@ -721,34 +709,37 @@ nm_site_add() {
     sites_enabled=$(nm_sites_enabled)
     site_file="$sites_available/$fqdn"
     enabled_link="$sites_enabled/$fqdn"
-    cert_path=$(nginx_le_cert_path "$cert_domain")
 
-    if [ -f "$cert_path" ]; then
-        case "$type" in
-            proxy)
-                {
-                    echo "# $NGINX_MANAGED_SITE_MARKER nginx_manager fqdn=$fqdn cert=$cert_domain"
-                    nginx_render_proxy_vhost "$fqdn" "$target" "$cert_domain"
-                } | write_file_if_changed "$site_file" "$(nm_backup_dir)"
-                ;;
-            static|html)
-                {
-                    echo "# $NGINX_MANAGED_SITE_MARKER nginx_manager fqdn=$fqdn cert=$cert_domain"
-                    nginx_render_site_vhost "$fqdn" "$target" "$cert_domain"
-                } | write_file_if_changed "$site_file" "$(nm_backup_dir)"
-                ;;
-            *)
-                echo "[nginx-mgr] Unsupported site type: $type"
-                return 1
-                ;;
-        esac
-    else
-        echo "[nginx-mgr] No certificate for $cert_domain; writing HTTP bootstrap for $fqdn"
-        {
-            echo "# $NGINX_MANAGED_SITE_MARKER nginx_manager fqdn=$fqdn bootstrap"
-            nginx_render_http_bootstrap "$fqdn"
-        } | write_file_if_changed "$site_file" "$(nm_backup_dir)"
-    fi
+    # The vhost SHAPE is invariant: certificate state never downgrades the
+    # site to a bootstrap stub. Real Let's Encrypt material wins the probe;
+    # otherwise the ensured placeholder keeps the render nginx-valid (the
+    # content-hash writer swaps to the real cert on the sweep after issuance).
+    nginx_ensure_placeholder_cert
+
+    case "$type" in
+        proxy)
+            # api.* vhosts proxy directly on :80 (no 301) so plain HTTP
+            # reaches the backend even while 443 is blocked; everything else
+            # keeps the canonical 301 -> https pair.
+            if nginx_is_api_fqdn "$fqdn"; then
+                http_mode="proxy"
+            fi
+            {
+                echo "# $NGINX_MANAGED_SITE_MARKER nginx_manager fqdn=$fqdn cert=$cert_domain"
+                nginx_render_proxy_vhost "$fqdn" "$target" "$cert_domain" "$http_mode"
+            } | write_file_if_changed "$site_file" "$(nm_backup_dir)"
+            ;;
+        static|html)
+            {
+                echo "# $NGINX_MANAGED_SITE_MARKER nginx_manager fqdn=$fqdn cert=$cert_domain"
+                nginx_render_site_vhost "$fqdn" "$target" "$cert_domain"
+            } | write_file_if_changed "$site_file" "$(nm_backup_dir)"
+            ;;
+        *)
+            echo "[nginx-mgr] Unsupported site type: $type"
+            return 1
+            ;;
+    esac
 
     if [ ! -L "$enabled_link" ] || [ "$(readlink -f "$enabled_link" 2>/dev/null)" != "$(readlink -f "$site_file" 2>/dev/null)" ]; then
         $sudo_cmd mkdir -p "$sites_enabled"
@@ -764,7 +755,7 @@ nm_site_remove() {
     local sites_available
     local sites_enabled
     local sudo_cmd
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     if [ -z "$fqdn" ]; then
         echo "[nginx-mgr] Usage: site-remove <fqdn>"
@@ -825,7 +816,7 @@ nm_cert_ensure() {
 nm_cert_renew() {
     local sudo_cmd
     local certbot_bin="/usr/local/bin/certbot"
-    sudo_cmd=$(nm_sudo)
+    sudo_cmd=$(lazy_sudo)
     if [ ! -x "$certbot_bin" ]; then
         echo "[nginx-mgr] [WARN] certbot not installed at $certbot_bin; run 27_install_certbot.sh first"
         return 0
@@ -841,7 +832,7 @@ nm_cert_renew() {
 # Sync every domain from the decrypted DNSPod secrets into nginx
 # (certificates + api.<region>.<domain> sites + repair sweep).
 nm_domains_sync() {
-    local backend="${1:-http://127.0.0.1:9000}"
+    local backend="${1:-$(domain_api_backend_url)}"
     domain_setup_install_all "$backend"
 }
 
@@ -856,7 +847,7 @@ nm_status_json() {
     http3=$(nginx_has_http3 && echo true || echo false)
     early=$(nginx_quic_early_data_supported && echo true || echo false)
     active=$(systemctl is-active nginx 2>/dev/null || echo unknown)
-    if $(nm_sudo) nginx -t >/dev/null 2>&1; then config_ok=true; else config_ok=false; fi
+    if $(lazy_sudo) nginx -t -c "$NM_MAIN_CONF" >/dev/null 2>&1; then config_ok=true; else config_ok=false; fi
     cat <<EOF
 {
   "installed": $([ -n "$version" ] && echo true || echo false),
@@ -890,6 +881,8 @@ Lifecycle:
   migrate-legacy     Interactively replace a legacy/distro install
   purge-legacy       Purge distro variant packages (nginx-common/-core/...)
   replace-foreign    Quarantine foreign prefix installs (/usr/local/nginx, ...)
+  edge-ports         Free 80/TCP, 443/TCP, 443/UDP from foreign occupiers
+                     (stop + interactive y/N uninstall; nginx never touched)
   repair             Repair sites + main config + service (self-healing sweep)
   http3-migrate      Upgrade existing site files to the canonical HTTP/3 stanza
   verify             Run all verification checks
@@ -947,7 +940,7 @@ nginx_manager_main() {
         service)         nm_service_state "${1:-start}" ;;
         store-info)      nm_store_info ;;
         conflicts-clear) nm_conflicts_clear ;;
-        port-clear)      nm_port_clear ;;
+        edge-ports)      nm_edge_ports_ensure ;;
         site-add)        nm_site_add "$@" ;;
         site-remove)     nm_site_remove "$@" ;;
         site-list)       nm_site_list ;;

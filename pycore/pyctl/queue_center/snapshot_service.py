@@ -60,6 +60,10 @@ QUEUE_CENTER_HEAD_EVENTS = {
 QUEUE_CENTER_HEAD_LIMIT = 100
 QUEUE_CENTER_EVENT_ITEM_LIMIT = int(QUEUE_CENTER_DIFF_DELIVERY["data_segment_limit"])
 QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS = 8
+# Shared-health gate for the realtime lane: reuse a fresh endpoint probe within
+# this window, and idle this long between health re-probes while Laravel is down.
+QUEUE_CENTER_ENDPOINT_HEALTH_TTL_SECONDS = 10.0
+QUEUE_CENTER_ENDPOINT_IDLE_SECONDS = 10.0
 QUEUE_CENTER_RECONNECT_MIN_SECONDS = 1.0
 QUEUE_CENTER_RECONNECT_MAX_SECONDS = 15.0
 QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS = 10.0
@@ -106,9 +110,14 @@ class _QueueCenterRealtimeThread(threading.Thread):
         super().__init__(name="QueueCenterRealtimeThread", daemon=True)
         self._service = service
         self._active_socket: Any = None
+        self._last_error = ""
 
     def stop(self) -> None:
         THREAD_BUS.signal(QUEUE_CENTER_STOP_SIGNAL, True)
+        self._close_active_socket()
+
+    def request_reconnect(self) -> None:
+        """Close the live socket so the loop re-derives its endpoint (select)."""
         self._close_active_socket()
 
     def _close_active_socket(self) -> None:
@@ -131,10 +140,14 @@ class _QueueCenterRealtimeThread(threading.Thread):
             reconnect_delay = 0.0
             endpoint = ""
             try:
-                endpoint = self._service.endpoint()
+                endpoint = self._service.realtime_endpoint()
                 if not endpoint:
-                    raise RuntimeError("Laravel endpoint is unavailable")
-                connection = self._service.realtime_connection()
+                    # Every Laravel candidate is down: idle on the shared health
+                    # record instead of burning HTTP timeouts per reconnect.
+                    self._note_failure("Laravel endpoint unreachable - realtime paused")
+                    self._pause(QUEUE_CENTER_ENDPOINT_IDLE_SECONDS)
+                    continue
+                connection = self._service.realtime_connection(endpoint)
                 self._service.replay_realtime_events(endpoint)
                 websocket_url = self._websocket_url(endpoint, connection)
                 websockets = get_third_package_websockets()
@@ -145,6 +158,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
                 )
                 self._active_socket = websocket
                 reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
+                self._note_recovery(endpoint)
                 refresh_after_close = self._consume(
                     websocket,
                     endpoint,
@@ -152,15 +166,15 @@ class _QueueCenterRealtimeThread(threading.Thread):
                 )
             except Exception as exc:
                 refresh_after_close = True
-                self._service.note_realtime_disconnected(str(exc))
-                ColorPrint.yellow(f"[QueueCenterCache] realtime reconnect: {exc}")
+                self._note_failure(str(exc))
                 if endpoint:
                     try:
                         self._service.replay_realtime_events(endpoint)
                     except Exception as replay_exc:
-                        ColorPrint.yellow(
-                            f"[QueueCenterCache] fallback replay failed: {replay_exc}"
-                        )
+                        if str(replay_exc) != self._last_error:
+                            ColorPrint.yellow(
+                                f"[QueueCenterCache] fallback replay failed: {replay_exc}"
+                            )
                 reconnect_delay = reconnect_seconds
                 reconnect_seconds = min(
                     QUEUE_CENTER_RECONNECT_MAX_SECONDS,
@@ -177,6 +191,23 @@ class _QueueCenterRealtimeThread(threading.Thread):
                     QUEUE_CENTER_STOP_SIGNAL,
                     timeout=reconnect_delay,
                 )
+
+    def _note_failure(self, message: str) -> None:
+        """Record one realtime failure; log only NEW error states (no spam)."""
+        self._service.note_realtime_disconnected(message)
+        if message != self._last_error:
+            self._last_error = message
+            ColorPrint.yellow(f"[QueueCenterCache] realtime reconnect: {message}")
+
+    def _note_recovery(self, endpoint: str) -> None:
+        """Clear the logged failure once a fresh socket is established."""
+        if self._last_error:
+            self._last_error = ""
+            ColorPrint.green(f"[QueueCenterCache] realtime reconnected to {endpoint}")
+
+    @staticmethod
+    def _pause(seconds: float) -> None:
+        THREAD_BUS.wait_signal(QUEUE_CENTER_STOP_SIGNAL, timeout=seconds)
 
     @staticmethod
     def _websocket_url(endpoint: str, connection: Dict[str, Any]) -> str:
@@ -311,13 +342,36 @@ class _QueueCenterSnapshotService:
         selected = resolve_selected_endpoint_for_ui(monitor_reachable=False) or {}
         return str(selected.get("base_url") or "").rstrip("/")
 
-    def realtime_connection(self) -> Dict[str, Any]:
-        endpoint = self.endpoint()
-        if not endpoint:
+    def realtime_endpoint(self) -> str:
+        """Health-aware realtime target; '' while every candidate is down.
+
+        Reuses the endpoint manager's shared probe record when fresh, else
+        runs its stored-first resolve (single-flight, negative-TTL paced), so a
+        healthy local Laravel failover wins automatically. The realtime lane
+        follows the same health truth as the workers instead of blind-retrying
+        the stored URL.
+        """
+        stored = self.endpoint()
+        if not stored:
+            return ""
+        last = laravel_endpoint_manager.last_probe_result(stored)
+        checked_ms = int(last.get("last_checked") or 0)
+        age_s = max(0.0, time.time() - checked_ms / 1000.0) if checked_ms else None
+        if age_s is not None and age_s <= QUEUE_CENTER_ENDPOINT_HEALTH_TTL_SECONDS:
+            return stored if last.get("healthy") else ""
+        resolved = laravel_endpoint_manager.resolve()
+        if resolved and resolved != stored:
+            return resolved
+        refreshed = laravel_endpoint_manager.last_probe_result(stored)
+        return stored if refreshed.get("healthy") else ""
+
+    def realtime_connection(self, endpoint: Optional[str] = None) -> Dict[str, Any]:
+        base = str(endpoint or self.endpoint()).rstrip("/")
+        if not base:
             raise RuntimeError("Laravel endpoint is unavailable")
         response = laravel_client.get(
             queue_center_endpoint("queue_center_overview"),
-            base_url=endpoint,
+            base_url=base,
             timeout=QUEUE_CENTER_REMOTE_TIMEOUT_SECONDS,
         )
         overview = _response_data(response)
@@ -627,6 +681,9 @@ class _QueueCenterSnapshotService:
 
     def on_endpoint_changed(self, _new_url: str) -> None:
         status_snapshot_cache.invalidate(STATUS_SNAPSHOT_QUEUE_CENTER_KEY)
+        thread = self._thread
+        if thread is not None:
+            thread.request_reconnect()
 
     def _with_local_state(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(snapshot)

@@ -34,11 +34,19 @@ abstract class DiffQueueFeederTaskAbstract extends OctaneTimerTaskAbstract
         );
     }
 
+    /**
+     * @param int|null $discoverLimit  Override for the ID-discovery batch cap.
+     *        Default keeps the legacy behavior: min($pageSize, data_segment_limit).
+     *        Feeders whose contract block defines its own batch size (e.g.
+     *        word_validity.batch_size=150) pass it here so the generic 128-row
+     *        data-segment clamp does not shrink their tasks.
+     */
     protected function rowsForPendingPage(
         string $scope,
         object $idSource,
         int $pageSize,
-        callable $loader
+        callable $loader,
+        ?int $discoverLimit = null
     ): array {
         $page = $this->diffIds->pendingPage($scope);
         if ((int) ($page['page'] ?? 0) === 0) {
@@ -46,7 +54,10 @@ abstract class DiffQueueFeederTaskAbstract extends OctaneTimerTaskAbstract
                 1,
                 (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128)
             );
-            $this->diffIds->discover($scope, $idSource, min($pageSize, $segmentLimit));
+            $discoverCap = $discoverLimit !== null
+                ? max(1, $discoverLimit)
+                : min($pageSize, $segmentLimit);
+            $this->diffIds->discover($scope, $idSource, $discoverCap);
             $page = $this->diffIds->pendingPage($scope);
         }
         $ids = is_array($page['ids'] ?? null) ? $page['ids'] : [];

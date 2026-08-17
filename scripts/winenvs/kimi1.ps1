@@ -39,6 +39,69 @@ Write-Host "Running: kimi1.ps1" -ForegroundColor Yellow
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host ""
 
+#region Version-Aware CLI Upgrade
+function Invoke-VersionAwareCliUpgrade {
+$upgradeChoice = $null
+$upgradeCliCommand = Get-Command kimi -ErrorAction SilentlyContinue
+$upgradePackageManager = Get-Command pnpm -ErrorAction SilentlyContinue
+$upgradeCurrentOutput = $null
+$upgradeLatestOutput = $null
+$upgradeCurrentTokens = @()
+$upgradeLatestTokens = @()
+$upgradeSeparators = @([char]' ', [char]"`t", [char]"`r", [char]"`n")
+$upgradeToken = $null
+$upgradeCandidate = $null
+$upgradeCurrentVersion = $null
+$upgradeLatestVersion = $null
+$upgradeVersionGapLarge = $false
+$upgradeInstallerContent = $null
+
+if (($null -ne $upgradeCliCommand) -and ($null -ne $upgradePackageManager)) {
+    $upgradeCurrentOutput = (& $upgradeCliCommand.Source --version 2>$null | Out-String).Trim()
+    $upgradeLatestOutput = (& $upgradePackageManager.Source view "@moonshot-ai/kimi-code" version 2>$null | Out-String).Trim()
+    $upgradeCurrentTokens = $upgradeCurrentOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($upgradeToken in $upgradeCurrentTokens) {
+        $upgradeCandidate = $upgradeToken.Trim()
+        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $upgradeCandidate = $upgradeCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeCurrentVersion)) {
+            break
+        }
+    }
+    $upgradeLatestTokens = $upgradeLatestOutput.Split($upgradeSeparators, [System.StringSplitOptions]::RemoveEmptyEntries)
+    foreach ($upgradeToken in $upgradeLatestTokens) {
+        $upgradeCandidate = $upgradeToken.Trim()
+        if ($upgradeCandidate.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $upgradeCandidate = $upgradeCandidate.Substring(1)
+        }
+        if ([System.Version]::TryParse($upgradeCandidate, [ref]$upgradeLatestVersion)) {
+            break
+        }
+    }
+}
+if (($null -ne $upgradeCurrentVersion) -and ($null -ne $upgradeLatestVersion) -and ($upgradeLatestVersion -gt $upgradeCurrentVersion)) {
+    $upgradeVersionGapLarge = ($upgradeLatestVersion.Major -gt $upgradeCurrentVersion.Major) -or
+        (($upgradeLatestVersion.Major -eq $upgradeCurrentVersion.Major) -and ($upgradeLatestVersion.Minor -gt $upgradeCurrentVersion.Minor))
+}
+if ($upgradeVersionGapLarge) {
+    Write-Host "Upgrade Kimi Code CLI with the official native installer? [N/y]: " -ForegroundColor Yellow -NoNewline
+    $upgradeChoice = Read-Host
+}
+if (($upgradeChoice -eq "y") -or ($upgradeChoice -eq "Y")) {
+    Write-Host "[INFO] Upgrading Kimi Code CLI with the official native installer..." -ForegroundColor Cyan
+    $upgradeInstallerContent = Invoke-RestMethod -Uri "https://code.kimi.com/kimi-code/install.ps1"
+    Invoke-Expression $upgradeInstallerContent
+    Write-Host "[INFO] Kimi Code CLI native upgrade command completed." -ForegroundColor Green
+} elseif ($upgradeVersionGapLarge) {
+    Write-Host "[INFO] CLI upgrade skipped." -ForegroundColor DarkGray
+}
+}
+
+Invoke-VersionAwareCliUpgrade
+#endregion
+
+
 #region Initialize Path Variables
 $scriptActualPath = $PSCommandPath
 $item = Get-Item -LiteralPath $PSCommandPath

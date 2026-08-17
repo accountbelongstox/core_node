@@ -3,11 +3,12 @@
  *
  * A SimpleWorkerBase subclass that fulfils the batch invalid-word DETECTION lane
  * (`word_validity` tasks on the dedicated `remote_validity` execution lane). It
- * pulls a batch of untranslated + not-yet-checked words (200 per task), drives a
- * web LLM to classify each as a real dictionary word vs nonsense, and posts:
+ * pulls a batch of not-yet-checked words (contract `word_validity.batch_size`
+ * per task), drives a web LLM to classify each as a real dictionary word vs
+ * nonsense, and posts:
  *   { valid_words: [{word, md5}], invalid_words: [{word, md5}], provider }
- * The Laravel WordValidityTaskProcessor then marks is_valid in bulk so the
- * translation enqueue permanently skips the junk.
+ * The Laravel WordValidityTaskProcessor then marks is_valid in bulk (source
+ * 'ai_ensure') so the translation enqueue permanently skips the junk.
  *
  * Provider selection, prompt execution, parsing, and serialization are delegated
  * to the shared runtime also used by the Extension single-feature test panel.

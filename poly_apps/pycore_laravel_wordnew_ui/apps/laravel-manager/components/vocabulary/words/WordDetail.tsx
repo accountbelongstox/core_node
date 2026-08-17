@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Play, RefreshCw, Volume2, Languages, CheckCircle } from 'lucide-react';
+import { VocabularyWordsModel } from './VocabularyWordsModel';
 
 /**
  * Presentational per-word detail cluster extracted from VocabularyLearning.
@@ -236,7 +237,7 @@ const WordDetail: React.FC<WordDetailProps> = ({
           {audioPending ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
           Add / refresh audio
         </button>
-        {r.is_valid === false && (
+        {!VocabularyWordsModel.isWordValid(r) && (
           <button
             type="button"
             onClick={() => handleRevalidateWord(r, lng)}
@@ -330,7 +331,11 @@ const WordDetail: React.FC<WordDetailProps> = ({
       </div>
       {/* Right: metadata */}
       <div className="space-y-1.5">
-        <Field label="Valid" value={r.is_valid ? 'Yes' : 'No'} />
+        <Field label="Valid" value={(() => {
+          const valid = VocabularyWordsModel.isWordValid(r);
+          const raw = VocabularyWordsModel.rawValidityValue(r);
+          return valid ? (raw === 'true' ? 'Yes' : raw) : 'No';
+        })()} />
         <Field label="Validity note" value={r.validity_note} />
         <Field label="Validity src" value={r.validity_source} />
         <Field label="Checked at" value={r.validity_checked_at} />

@@ -4,6 +4,7 @@
  */
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
+import { getApiRegionPrefix } from '../../contracts/DomainConfig';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
@@ -40,6 +41,25 @@ function createCurrentOriginEndpoint(
     /^10\./.test(hostname) ||
     /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
     /^100\./.test(hostname);
+
+  // HTTPS on a public origin: the api.<prefix>.<domain> nginx site serves
+  // the API on 443, so the :9000 backend port is NEVER appended; the region
+  // prefix comes from the shell-written domain config (DomainConfig). A
+  // hostname that already is an api fqdn (persisted current-url id) is kept
+  // verbatim; a leading www. folds back to the apex.
+  if (protocol === 'https' && !isLocal) {
+    const apiHost = hostname.startsWith('api.')
+      ? hostname
+      : `api.${getApiRegionPrefix()}.${hostname.replace(/^www\./, '')}`;
+    return {
+      id: `${CURRENT_URL_TYPE}:${apiHost}`,
+      url: apiHost,
+      protocol,
+      priority: 0,
+      isLocal: false,
+      description: `Current URL - this site (${protocol}://${apiHost})`,
+    };
+  }
 
   return {
     id: `${CURRENT_URL_TYPE}:${hostname}`,

@@ -338,6 +338,20 @@ check_urllib3_for_certbot() {
         return 0
     fi
 
+    # pipx-isolated certbot (27_install_certbot.sh) runs inside its own venv
+    # and never touches the system interpreter, so the system-side urllib3
+    # policy is irrelevant to it. Detect by the link target (file-based);
+    # the legacy system-side repair below remains only for a legacy
+    # system-python certbot (which 27 purges anyway).
+    local certbot_resolved=""
+    certbot_resolved="$(readlink -f /usr/local/bin/certbot 2>/dev/null || true)"
+    case "$certbot_resolved" in
+        *"/venvs/certbot/bin/certbot")
+            print_info_from_common_functions "certbot is the pipx-isolated venv build; system urllib3 policy irrelevant, skipping"
+            return 0
+            ;;
+    esac
+
     # Check current urllib3 version
     local current_version=$(python3 -c "import urllib3; print(urllib3.__version__)" 2>/dev/null || echo "not found")
     print_info_from_common_functions "Current urllib3 version: $current_version"

@@ -5,6 +5,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
@@ -55,29 +56,103 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             ], 'Certbot not installed');
         }
 
-        // Try with sudo first
-        $result = ServerManagerV1Utils::executeCommand('sudo', [$certbotPath, 'certificates']);
+        // Enumerate every certbot config dir that actually holds certificates
+        // (direct file detection): the ServerManager end issues with
+        // --config-dir <mapped nginxconfig>/letsencrypt, the default
+        // /etc/letsencrypt covers legacy certificates. A bare
+        // `certbot certificates` only reads the default dir and would report
+        // "No SSL certificates found" while managed certs exist.
+        $letsEncryptDirs = [];
+        $mappedLetsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+        foreach (array_unique([$mappedLetsEncryptDir, '/etc/letsencrypt']) as $dir) {
+            if (is_dir($dir . '/live') || is_dir($dir . '/renewal')) {
+                $letsEncryptDirs[] = $dir;
+            }
+        }
+        if (empty($letsEncryptDirs)) {
+            $letsEncryptDirs[] = $mappedLetsEncryptDir; // canonical pre-issuance target
+        }
 
-        // If sudo fails, return empty list with helpful message
-        if (!$result['success']) {
+        // Query each config dir and merge by certificate name.
+        $certificates = [];
+        $rawOutput = '';
+        $lastError = null;
+        foreach ($letsEncryptDirs as $dir) {
+            $result = ServerManagerV1Utils::executeCommand('sudo', [
+                $certbotPath, 'certificates',
+                '--config-dir', $dir,
+                '--work-dir', $dir . '/work',
+                '--logs-dir', $dir . '/logs',
+            ]);
+            if (!$result['success']) {
+                $lastError = $result['error'] ?? 'unknown error';
+                continue;
+            }
+            $rawOutput .= ($result['output'] ?? '') . "\n";
+            foreach ($this->parseCertbotOutput($result['output'] ?? '') as $cert) {
+                $certificates[$cert['name']] = $cert;
+            }
+        }
+        $certificates = array_values($certificates);
+
+        // Align the response shape with the management UI contract: domain,
+        // full SAN list, days_until_expiry and a derived status — computed
+        // here once (single source), not in each consumer.
+        $now = time();
+        foreach ($certificates as &$cert) {
+            $cert['domain'] = $cert['name'] ?? '';
+            $expiryTs = null;
+            if (!empty($cert['expiry_date'])) {
+                // certbot prints "YYYY-MM-DD HH:MM:SS+00:00 (VALID: N days)"
+                $expiryTs = strtotime(preg_replace('/\s+\(.*$/', '', (string) $cert['expiry_date'])) ?: null;
+            }
+            $daysLeft = $expiryTs !== null && $expiryTs !== false ? (int) floor(($expiryTs - $now) / 86400) : 0;
+            $cert['days_until_expiry'] = $daysLeft;
+            $cert['status'] = $daysLeft <= 0 ? 'critical' : ($daysLeft <= 30 ? 'warning' : 'ok');
+            $cert['domains'] = array_values($cert['domains'] ?? []);
+        }
+        unset($cert);
+
+        if (empty($certificates) && $lastError !== null && $rawOutput === '') {
             return $this->success([
                 'certificates' => [],
                 'total_certificates' => 0,
                 'error' => 'Cannot access certbot certificates. Permission denied or no certificates found.',
-                'raw_error' => $result['error']
+                'raw_error' => $lastError
             ], 'No certificates available');
         }
-
-        // Parse certbot output
-        $certificates = $this->parseCertbotOutput($result['output']);
 
         return $this->success([
             'certificates' => $certificates,
             'total_certificates' => count($certificates),
-            'raw_output' => $result['output']
+            'raw_output' => trim($rawOutput)
         ], 'Certificate list retrieved successfully');
     }
     
+    /**
+     * DNS provider status for the management UI: which provider is active and
+     * whether its credentials are configured (secrets are never returned —
+     * only configuration state). Source of truth: the SecretStore files, via
+     * the shared CertificateManager resolver.
+     */
+    public function dnsProviderStatus(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'certificate_dns_provider');
+        if ($validation) {
+            return $validation;
+        }
+
+        $credentials = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager::getDNSPodCredentials();
+
+        return $this->success([
+            'provider' => 'dnspod',
+            'configured' => $credentials !== null,
+            'email' => $credentials['email'] ?? null,
+            'api_id' => $credentials['api_id'] ?? null,
+            'token_configured' => $credentials !== null && ($credentials['api_token'] ?? '') !== '',
+        ], $credentials !== null ? 'DNS provider configured' : 'DNS provider credentials not configured');
+    }
+
     /**
      * Generate SSL certificate for domain
      */
@@ -117,7 +192,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         $certbotPath = $this->findCertbotBinary();
         $displayCmd = $certbotPath
-            ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --dns-' . $provider
+            ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --authenticator certbot-dnspod'
               . ($staging ? ' --staging' : '')
               . ' --keep-until-expiring -d ' . escapeshellarg($domain)
             : '';
@@ -466,33 +541,12 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
      */
     private function getDnsCredentials(string $provider): ?array
     {
-        try {
-            if ($provider === 'dnspod') {
-                $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
-                $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
-
-                if ($email && $apiToken) {
-                    // Parse DNSPod API token format: "id,token"
-                    $tokenParts = explode(',', $apiToken, 2);
-                    if (count($tokenParts) === 2) {
-                        return [
-                            'email' => $email,
-                            'api_id' => trim($tokenParts[0]),
-                            'api_token' => trim($tokenParts[1]),
-                            'token' => $apiToken // Keep original format for backward compatibility
-                        ];
-                    } else {
-                        Log::error('Invalid DNSPod API token format. Expected: "id,token"', ['token' => $apiToken]);
-                        return null;
-                    }
-                }
-            }
-
-            return null;
-        } catch (\Exception $e) {
-            Log::error('Failed to get DNS credentials', ['provider' => $provider, 'error' => $e->getMessage()]);
+        if ($provider !== 'dnspod') {
             return null;
         }
+        // Single canonical resolver (CertificateManager): canonical secret
+        // file names with legacy fallback.
+        return ServerManagerV1CertificateManager::getDNSPodCredentials();
     }
     
     /**
@@ -500,6 +554,21 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
      */
     private function generateCertificateWithDns(string $domain, string $provider, array $credentials, bool $staging): array
     {
+        if ($provider === 'dnspod') {
+            // Single canonical path (CertificateManager): working
+            // certbot-dnspod authenticator, persistent credentials file,
+            // propagation wait.
+            // --keep-until-expiring: if a matching cert already exists and is
+            // not near expiry, keep it and take no action (safe to re-run on
+            // every site create). Without this, re-issuing over an existing
+            // cert errors.
+            $extraArgs = ['--keep-until-expiring'];
+            if ($staging) {
+                $extraArgs[] = '--staging';
+            }
+            return ServerManagerV1CertificateManager::runDNSPodCertbot([$domain], $extraArgs, 300, true);
+        }
+
         // Find certbot binary using absolute paths
         $certbotPaths = [
             '/usr/bin/certbot',
@@ -549,37 +618,9 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             '-d', $domain
         ]);
 
-        // Set environment variables for DNS provider
-        $env = [];
-        if ($provider === 'dnspod') {
-            $credFile = $this->createDnspodCredentialsFile($credentials);
-            $env['CERTBOT_DNS_DNSPOD_CREDENTIALS'] = $credFile;
-            $command[] = '--dns-dnspod-credentials';
-            $command[] = $credFile;
-        }
-
         // Execute certbot with sudo
         $fullCommand = array_merge([$certbotPath], $command);
-        return ServerManagerV1Utils::executeCommand('sudo', $fullCommand, 300, $env);
-    }
-    
-    /**
-     * Create temporary credentials file for DNSPod
-     */
-    private function createDnspodCredentialsFile(array $credentials): string
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'dnspod_credentials_');
-        // Standard dns-dnspod plugin requires email and api-token (full "id,token" format)
-        // certbot automatically prefixes with "dns_dnspod_" for the credentials file
-        // Use quotes to prevent configobj from parsing comma-separated value as a list
-        $apiToken = $credentials['api_id'] . ',' . $credentials['api_token'];
-        $content = "dns_dnspod_email = {$credentials['email']}\n";
-        $content .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
-
-        file_put_contents($tempFile, $content);
-        chmod($tempFile, 0600);
-
-        return $tempFile;
+        return ServerManagerV1Utils::executeCommand('sudo', $fullCommand, 300);
     }
     
     /**
@@ -707,17 +748,21 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             if (!$dnsCredentials) {
                 return $this->error('Failed to retrieve DNS credentials for ' . $provider, 400);
             }
-            $credFile = $this->createDnspodCredentialsFile($dnsCredentials);
+            $extraArgs = ['--keep-until-expiring'];
+            if ($staging) {
+                $extraArgs[] = '--staging';
+            }
+            // Canonical DNSPod certbot argument vector (working certbot-dnspod
+            // authenticator, persistent credentials file, propagation wait).
+            $certbotArgs = ServerManagerV1CertificateManager::buildDNSPodCertbotCommand([$domain], $extraArgs);
+            if ($certbotArgs === null) {
+                return $this->error('Failed to prepare the DNSPod credentials file', 500);
+            }
             $shellCmd = escapeshellcmd($certbotPath)
-                . ' certonly --dns-' . $provider
-                . ($staging ? ' --staging' : '')
-                . ' --email ' . escapeshellarg($dnsCredentials['email'])
-                . ' --agree-tos --non-interactive --keep-until-expiring'
-                . ' -d ' . escapeshellarg($domain)
-                . ' --dns-dnspod-credentials ' . escapeshellarg($credFile);
+                . ' ' . implode(' ', array_map('escapeshellarg', $certbotArgs));
         }
 
-        $displayCmd = ($certExists ? 'sudo certbot renew --cert-name ' . $domain : 'sudo certbot certonly --dns-' . $provider . ' ... -d ' . $domain);
+        $displayCmd = ($certExists ? 'sudo certbot renew --cert-name ' . $domain : 'sudo certbot certonly --authenticator certbot-dnspod ... -d ' . $domain);
 
         // Start certbot in the background: redirect stdout+stderr to the output
         // file, append a __DONE__ sentinel on exit so the polling endpoint detects

@@ -1,131 +1,319 @@
-必要的地方查看官方文档，修正    │
- │   所有BUG。找到问题就修复，不要最后总结时才修复。最后   │
- │   演算一遍，不要使用多AGENTS       
- 代码不合理的地方要重构。
 
-1:查看BUG PYCORE
-Heartbeat +0.96s] Tick #100, Time: 2026-07-28 18:42:47
-[AgentHistoryArticle +0.52s] pipeline tick error: UNIQUE constraint failed: operation_items.operation_id, operation_items.item_key
+ ✨ 扩展UI，API Endpoints
+    Re-detect
 
-2： Pycore / pycore UI,在没有任何操作的时候为什么会出现BUG
-[SSE +5.49s] disconnected id=browser-
+    0
+    Current URL — this site (https://12gm.com:9000)
+    https
+    12gm.com:9000 当CURRENT是https时。API不再加9000端口。并
+    自动加上api.$prefix，$prefix由[domain] Modify the API
+    region prefix (current: si)? [y/N]
+    [domain] Installing domains (sites: <domain> apex +
+    api.si.<domain>, both proxy -> backend): 中心数据提供
+    ，132_laravel_main_start.sh,shell / react / php均引用一
+    处，比如 12gm.com = api.$prefix.12gm.com无9000端口。
+    2:https://12gm.com/pycore-manager 端也是同样的拼接
+    ，pycore-manager / laravel-manager端都是一样。
+ … thinking 11 times, call 19 tools, 9 messages
 
-3：PYCORE为什么载入慢。重构rpc v2，修正pycore / pycore UI的通信。使用rpc v2 ws
-Auto-Subtitle Pipeline
-screenshot OCR → AI translate · every 60s
+ ● Now I understand the vite config pattern. The design the
+   user wants:
+   ... (179 more lines, ctrl+o to expand)
 
-OCR engines
-ai-vision
-fallback
-Loading OCR…
-AI providers
-Loading AI gateway…
-Loading Libraries…
-TTS engine
-Loading TTS…
-STT engines
-同时有BUG
-PcTestPopupContext.tsx:44 Uncaught Error: usePcTestPopup must be used within a PcTestPopupProvider
-    at usePcTestPopup (PcTestPopupContext.tsx:44:19)
-    at TestChip (PcPipelineStatusPanels.tsx:28:24)
+ ● Read 2 files · 169 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/apps/laravel-manager/se
+ rvices/ApiHealthRecheck.ts · 49 lines
+   └─
+ poly_apps/pycore_laravel_wordnew_ui/core/integrations/larav
+ el/ApiManager.ts · 120 lines
 
-PcPipelineStatusPanels.tsx:212 An error occurred in the <TestChip> component.
+ ● Now, where's a good hook to load domain config at startup
+   for both ends? Both ends use core ApiManager
+   ... (25 more lines, ctrl+o to expand)
 
-Consider adding an error boundary to your tree to customize error handling behavior.
-Visit https://react.dev/link/error-boundaries to learn more about error boundari
+ ● Used Read
+ (…_laravel_wordnew_ui/core/integrations/laravel/ApiManager.
+ ts) · 240 lines
 
-4：修复bug,PYCORE的连接只能在pycore的路由下连接，如果在laravel manager 或 wordnew其他路由都暂停，但保留状态。
-同时确保几个子APP的网络连接不会在其他路由下活动，只能暂停并保存状态。
-···Laravel Manager
-Pycore Manager
-Vortex Sandbox
-PDD Manager
-WordNew
-···
-BUG比如 
-CapFilesystem.ts:754 
- GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_344ab279-8cb8-4e61-998c-93b5bab1ee5f.mp3 net::ERR_CONNECTION_RESET
+ ● Now I have a good picture. Design decision for loading
+   the domain config:
+   ... (177 more lines, ctrl+o to expand)
 
-WfNewApiTransport.ts:110 
- GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_402a9355-9982-4520-beaa-4cec374ea7d6/chapters net::ERR_CONNECTION_RESET
-CapFilesystem.ts:754 
- GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_e06aad0c-6ad6-4987-8adc-2c4a4ca0131e.mp3 net::ERR_CONNECTION_RESET
-CapFilesystem.ts:754 
- GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3 net::ERR_CONNECTION_RESET
-CapFilesystem.ts:754 
- GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_7d8195a9-844b-4400-b51f-ef7ea034b05e.mp3 net::ERR_CONNECTION_RESET
-PycoreWs.ts:257 [WS <<<] event:pycore_log  
-{message: "[laravel] POST /api/app_qy_v1/assist/poster/priori…y closed by the remote host', None, 10054, None))", color: 'red', level: 'ERROR'}
+ ● Read 3 files · 166 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/core/integrations/larav
+ el/LaravelAPI.ts · 140 lines
+   ├─
+ poly_apps/pycore_laravel_wordnew_ui/core/network/api-client
+ /endpointIdentity.ts · 8 lines
+   └─ config/service_contract.json · 18 lines
 
-5:
-查看 pycore UI -> pycore -> laravel -> wordnew 中的：
-http://127.0.0.1:13054/pycore-manager/agent-history 提交双语短文到laravel，laravel生成每日短文，但为什么还有下面的BUT，没有音频。
-同时Daily Reading 下面的点击·Play from this article· 或者 `Open read-along reader` 点击时，都在路由上体现，比如 /read-daily/${id}等等
-同时增加功能：点开以后，···
-Playback order
+ ● Good — both UI ends go through the shared `apiManager` +
+   `LaravelEndpoints` (pycore-manager's LaravelAPI uses
+   ... (10 more lines, ctrl+o to expand)
 
-Sequential
-Words
+ ● Read 2 files · 296 lines
+   ├─ scripts/shells/linux/common/domain_setup_common.sh ·
+ 226 lines
+   └─ poly_apps/laravel_main/app/Support/ServiceContract.php
+  · 70 lines
 
-All words
-Word repeats
-1
-Play sentence before words
-修改为 是否在句子播放前或播放中播放短文包含的单词（只有新单词[与后端的 Word Groups 中的已读关联]只显示其中没有读过的，同时读了将立即更新 Word Groups
-下的所有组，包括 Default Vocabulary Group|所有单词|，动态调整播放顺序，可编辑揪放N次英文、N次中文、又N次英文）动态调整播放顺序，可编辑揪放N次英文、N次中文、又N次英文 还能动态调整播放单词时是在那个顺序。
-···
- GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3 net::ERR_CONNECTION_RESET
-CapFilesystem.ts:754 
+ ● Now I have the full picture. Implementation plan:
 
-CapFilesystem.ts:754  GET http://43.163.112.77:9000/static/app_qy_v1/audio/agent_history/en/article_e3ba9cfd-fdf0-4d66-a9da-6742946ddf13.mp3 404 (Not Found)
-并添加一个返回首页的按钮
+   ... (103 more lines, ctrl+o to expand)
 
-6：`Open read-along reader`点击时， Failed to load content.
-WfNewApiTransport.ts:110 
- GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e/chapters 404 (Not Found)
+ ● Used Read
+ (…_laravel_wordnew_ui/core/integrations/laravel/LaravelAPI.
+ ts) · 99 lines
 
-WfNewApiTransport.ts:110 
- GET http://43.163.112.77:9000/api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e?page=1&per_page=200 404 (Not Found)
-WfNewBookReader.tsx:237 [wordnew] Failed to load verses. Error: HTTP 404 for /api/app_qy_v1/media/books/article_256edb7c-dd0a-4492-83c5-c982e0946e4e?page=1&per_page=200
-    at Object.fetchRemote (WfNewApiTransport.ts:116:13)
-    at async CapResourcePackage.ts:279:23
-    at async Object.getBookVerses (WfNewApiHttp.ts:352:17)
-    at async WfNewBookReader.tsx:227:19
+ ● Both ends share `apiManager` (core). The cleanest single
+   hook: `loadDomainConfig()` awaited at the start of
+   ... (404 more lines, ctrl+o to expand)
 
+ ● Used TodoList
 
-7：在.apps/mcp-chrome中，Task TAB,当我勾选 ···执行图片与封面任务···Failed to start processors: media_image 并点击开始时，并没有向laravel请求需要封面的辅助，
-7.1 http://127.0.0.1:13054/wordnew#/book-reader 加上似入 http://127.0.0.1:13054/wordnew#/book-reader/${bookId}的路由。
-7。2，在laravel 端要标注图书封面的来源，如果不是来源于mcp-chrome的辅助同时不是来自于搜索引擎，均需要mcp-chrome重新上传。同时每个书允许有5张封面。
-7.3。同时在 wordnew的home页显示的书的时候，会拉取每个书的最新的5个封面图，使用不同的轮揪方式，扩展多个轮播组件，比下左右，上下，圆角展开等等，同时每个书的轮揪时间都不一样。防止统一刷新。
+ ● Used Edit (config/service_contract.json) · +2 -1
+   +2 -1 config/service_contract.json
+      1       "files": {
+      2 -         "ui_allowed_hosts": "UI_ALLOWED_HOSTS"
+      2 +         "ui_allowed_hosts": "UI_ALLOWED_HOSTS",
+      3 +         "ui_domain_config":
+   "ui_domain_config.json"
+      4       }
 
+ ● Used Edit
+ (…pycore_laravel_wordnew_ui/core/contracts/ServiceContract.
+ ts) · +1
+   +1
+   poly_apps/pycore_laravel_wordnew_ui/core/contracts/Serv
+   iceContract.ts
+      1   export const UI_ALLOWED_HOSTS_FILE_NAME: string
+   = contractDocument.files.ui_allowed_hosts;
+      2 + export const UI_DOMAIN_CONFIG_FILE_NAME: string
+   = contractDocument.files.ui_domain_config;
 
-8：.apps/mcp-chrome中，Task TAB,当我勾选 ···当我在 执行单词有效性检测···并没有看到向laravel后端拉取所有单词来进行演算，注意默认使用deepseek的web版进行，在设置中增加其他几个可用的AI选项，也要扩展库。
-调用库中的模拟用户操作和WEB数据读取来取的。沿用代码，保证逻辑可用。laravel main中的单词要在sys:init中扩展出对应字段，并确保所有单词最终演算。
-同时，有效性时同时会上传翻译结果 ，如果单词库中的单词没有翻译的更新。执行Web-AI 翻译任务（执行Bing翻译功能）合并到同一个任务中。也就是没有翻译的单词和没有有效性的单词都由AI处理一遍。
-8。2增加一个默认选项，只处理EN单词，也可以选项处理其他。
-8。3执行Web-AI 翻译任务的逻辑合并。
-8。4执行语音生成任务现在由pycore辅助。面板中去掉选项，但保留 代码并注释。
-8。5执行短文生成任务现在由pycore辅助。面板中去掉选项，但保留 代码并注释。
-8.6执行Bing翻译功能 的逻辑合并。
-8.7🗂️ Unified Task Center的数据和larabel中的也对不上。
-8.8修正很多TAB上面都显示Data TAB的内容。···
-dexed pages
-Index size 0.0 MB
-Active tabs 0
-Vector store
-Index data
-Clear All Data
-Model Cache Management
-Cache Size 0 MB
-Cache Entries 0 No cache data
-Clean Expired Cache
-Clear All Cache	··· 只由Data显示。
-8.9 mcp-chrome的其他BUG···
-[Submit Outbox] Retry assist_submit (assist_submit:poster:book:2) attempt=600: Payload failed image validation (png/jpeg/webp/gif magic expected)
-···
-8.10 修正mcp-chrome中的所有数据必须 底层共享。
+ ● Used Edit
+ (poly_apps/laravel_main/app/Support/ServiceContract.php) ·
+ +10
+   +10
+   poly_apps/laravel_main/app/Support/ServiceContract.php
+      6           }
+      7
+      8           return $hosts[$name];
+      9 +     }
+     10 +
+     11 +     public static function file(string $name):
+   string
+     12 +     {
+     13 +         $files = self::document()['files'] ??
+   [];
+     14 +         if (!isset($files[$name]) ||
+   !is_string($files[$name])) {
+     15 +             throw new RuntimeException("Unknown
+   service contract file: {$name}");
+        … 3 more changes hidden (ctrl+o to expand)
 
-9：必要的地方查看官方文档，修正    │
- │   所有BUG。找到问题就修复，不要最后总结时才修复。最后   │
- │   演算一遍，不要使用多AGENTS       
-  代码不合理的地方要重构。
+ ● Used Write
+ (…ps/pycore_laravel_wordnew_ui/core/contracts/DomainConfig.
+ ts) · 58 lines
+      1  /**
+      2   * Runtime UI domain configuration.
+      3   *
+      4   * The shell domain setup
+   (scripts/shells/linux/common/domain_setup_common.sh)
+      5   * writes this JSON into the shared data
+   directory
+      6   *
+   (<core_node_data_dir>/global_var/<files.ui_domain_confi
+   g>); the Vite
+      7   * dev/preview middleware serves it same-origin
+   at /<file name>, re-read from
+      8   * disk on every request, so a shell-side change
+   is visible to the frontend
+      9   * immediately. A missing/unreadable file keeps
+   the built-in defaults, so
+     10   * plain dev machines and compiled bundles work
+   without the file.
+   ... (49 more lines, 59 total, ctrl+o to expand)
+
+ ● Now vite.config.ts — add the constant, the middleware,
+   and the plugin. The file has mixed CRLF. Lines 6-17
+   ... (18 more lines, ctrl+o to expand)
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +1
+   +1 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1     UI_ALLOWED_HOSTS_FILE_NAME,
+      2 +   UI_DOMAIN_CONFIG_FILE_NAME,
+      3   } from './core/contracts/ServiceContract';
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +1
+   +1 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1   const UI_ALLOWED_HOSTS_FILE =
+   path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME,
+   UI_ALLOWED_HOSTS_FILE_NAME);
+      2 + const UI_DOMAIN_CONFIG_FILE =
+   path.join(CORE_NODE_DATA_DIR, GLOBAL_VAR_DIR_NAME,
+   UI_DOMAIN_CONFIG_FILE_NAME);
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +23
+   +23 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1       return hosts.length > 0 ? hosts : undefined;
+      2     } catch {
+      3       return undefined;
+      4 +   }
+      5 + };
+      6 +
+      7 + // Serve the shell-written UI domain config (api
+   region prefix) same-origin.
+      8 + // The file is re-read from disk on EVERY
+   request (no caching), so a shell-side
+      9 + // change is visible to the frontend immediately
+   in both dev and preview. A
+     10 + // missing/unreadable file answers 404 and the
+   frontend keeps its defaults.
+        … 16 more changes hidden (ctrl+o to expand)
+
+ ● Now add the plugin. The plugins array is CRLF. Read
+   output earlier:
+   ... (9 more lines, ctrl+o to expand)
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● Used Read
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · 20
+ lines
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● The Read shows `      plugins: [\r` — the \r is shown at
+   line end, meaning CRLF. My old_string with \n doesn't
+   ... (13 more lines, ctrl+o to expand)
+
+ ✗ Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1         plugins: [
+      2           react(),
+      3 +         {
+      4 +           name: 'ui-domain-config-server',
+      5 +           configureServer(server) {
+      6 +
+   server.middlewares.use(serveUiDomainConfig);
+      7 +           },
+      8 +           configurePreviewServer(server) {
+      9 +
+   server.middlewares.use(serveUiDomainConfig);
+     10 +           },
+        … 1 more change hidden (ctrl+o to expand)
+   old_string not found in
+   poly_apps/pycore_laravel_wordnew_ui/vite.config.ts, the
+   file contents may be out of date. Please use the Read
+   ... (1 more lines, ctrl+o to expand)
+
+ ● The editor keeps normalizing? The parameter passes
+   literal text; I need the carriage return character
+   ... (25 more lines, ctrl+o to expand)
+
+ ● 改用单行锚点避开 CRLF 问题：
+
+ ● Used Edit
+ (poly_apps/pycore_laravel_wordnew_ui/vite.config.ts) · +9
+   +9 poly_apps/pycore_laravel_wordnew_ui/vite.config.ts
+      1 +         {
+      2 +           name: 'ui-domain-config-server',
+      3 +           configureServer(server) {
+      4 +
+   server.middlewares.use(serveUiDomainConfig);
+      5 +           },
+      6 +           configurePreviewServer(server) {
+      7 +
+   server.middlewares.use(serveUiDomainConfig);
+      8 +           },
+      9 +         },
+     10           tailwindcss(),
+
+ ● Used TodoList
+
+ ● 现在改 LaravelEndpoints.ts 的 https 拼接规则：
+
+ ● Used Edit
+ (…el_wordnew_ui/core/integrations/laravel/LaravelEndpoints.
+ ts) · +1
+   +1
+   poly_apps/pycore_laravel_wordnew_ui/core/integrations/l
+   aravel/LaravelEndpoints.ts
+      1   import { CURRENT_URL_TYPE, isCurrentUrlId } from
+   '../../network/api-client/endpointIdentity';
+      2 + import { getApiRegionPrefix } from
+   '../../contracts/DomainConfig';
+      3   import { StorageManager } from
+   '../../persistence';
+      4   import { LaravelStorageKeys as StorageKeys }
+   from './LaravelStorageKeys';
+   Error: [provider.auth_error] 403
+ {"error":{"type":"permission_error","message":"You've
+ reached your usage limit for this billing cycle. Your quota
+ will be refreshed in the next cycle. To continue now,
+ purchase extra usage or upgrade your plan:
+ https://www.kimi.com/code/#pricing"},"type":"error"}
+   If this persists, run `/export-debug-zip` and share the
+ file with us for diagnosis. Please don't share it publicly.
+
+ ───────────────────────────────────────────────────────────
+   Todo
+   ✓ Fix sc_get load-order error in domain_setup_common.sh
+   ✓ Investigate endpoint construction on both UI ends + ...
+   ✓ Contract: files.ui_domain_config + TS/PHP/shell adap...
+   ✓ UI: DomainConfig loader + vite middleware serving th...
+   ● LaravelEndpoints: https -> api.<prefix>.<host>, no :...
+   ○ ApiManager: load domain config on detection pass
+   ○ Shell: write ui_domain_config.json in domain setup
+   ○ Verify (bash -n, tsc/build)
+   all 8 items · ctrl+t to collapse
+ ╭─────────────────────────────────────────────────────────╮
+ │ >                                                       │
+ ╰─────────────────────────────────────────────────────────╯
+ yolo  Kimi K3 thinking  D:\programing\core_node  main [+63…
+                                     context: 10% (99.2k/1M)

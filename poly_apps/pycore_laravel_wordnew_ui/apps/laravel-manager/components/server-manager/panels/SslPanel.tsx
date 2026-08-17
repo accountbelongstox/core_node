@@ -3,19 +3,25 @@ import {
   SSLCertificate,
   AsyncState,
   Language,
-  CertbotStatus
+  CertbotStatus,
+  DnsProviderStatus
 } from '@/apps/laravel-manager/uiTypes';
 import { TRANSLATIONS } from '@/apps/laravel-manager/constants';
 import { commonClasses } from '@/shared/styles/theme';
 import { LoadingBlock, AlertBox, StatusBadge } from '../../common';
-import { Shield, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Shield, CheckCircle, AlertTriangle, RefreshCw, Globe } from 'lucide-react';
 
 interface SslPanelProps {
   lang: Language;
   certbotStatus: AsyncState<CertbotStatus>;
   sslCertificates: AsyncState<SSLCertificate[]>;
+  dnsProvider: AsyncState<DnsProviderStatus>;
+  renewingAll: boolean;
+  ensuringDomain: string | null;
   onInstallCertbot: () => void;
   onShowGenerateCert: () => void;
+  onRenewAll: () => void;
+  onEnsureCert: (domain: string) => void;
   getStatusIcon: (status: string) => React.ReactNode;
 }
 
@@ -23,8 +29,13 @@ const SslPanel: React.FC<SslPanelProps> = ({
   lang,
   certbotStatus,
   sslCertificates,
+  dnsProvider,
+  renewingAll,
+  ensuringDomain,
   onInstallCertbot,
   onShowGenerateCert,
+  onRenewAll,
+  onEnsureCert,
   getStatusIcon
 }) => {
   const t = TRANSLATIONS[lang].server;
@@ -50,14 +61,42 @@ const SslPanel: React.FC<SslPanelProps> = ({
                 </p>
               </div>
             </div>
-            {!certbotStatus.data.installed && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={onInstallCertbot}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                onClick={onRenewAll}
+                disabled={renewingAll || !certbotStatus.data.installed}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium flex items-center gap-2"
               >
-                {t.ssl.certbot_install}
+                <RefreshCw className={`w-4 h-4 ${renewingAll ? 'animate-spin' : ''}`} />
+                {t.ssl.renew}
               </button>
-            )}
+              {!certbotStatus.data.installed && (
+                <button
+                  onClick={onInstallCertbot}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
+                >
+                  {t.ssl.certbot_install}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DNS Provider Status */}
+      {dnsProvider.data && (
+        <div className={`${commonClasses.card} p-4 ${dnsProvider.data.configured ? '' : 'bg-yellow-50 dark:bg-yellow-900/20'}`}>
+          <div className="flex items-center gap-3">
+            <Globe className={`w-5 h-5 ${dnsProvider.data.configured ? 'text-green-500' : 'text-yellow-500'}`} />
+            <div>
+              <p className="font-semibold">{t.ssl.dns_provider}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                {dnsProvider.data.provider}
+                {dnsProvider.data.email ? ` (${dnsProvider.data.email})` : ''}
+                {' — '}
+                {dnsProvider.data.configured ? t.ssl.dns_configured : t.ssl.dns_not_configured}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -82,6 +121,14 @@ const SslPanel: React.FC<SslPanelProps> = ({
                     withDot={false}
                   />
                 </div>
+                <button
+                  onClick={() => onEnsureCert(cert.domain)}
+                  disabled={ensuringDomain !== null}
+                  className="px-3 py-1.5 bg-slate-600 hover:bg-slate-700 disabled:opacity-50 text-white rounded-lg text-xs font-medium flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${ensuringDomain === cert.domain ? 'animate-spin' : ''}`} />
+                  {t.ssl.ensure}
+                </button>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                 <div>
@@ -99,6 +146,12 @@ const SslPanel: React.FC<SslPanelProps> = ({
                   </div>
                 )}
               </div>
+              {cert.domains && cert.domains.length > 0 && (
+                <div className="mt-3 text-sm">
+                  <span className="text-slate-500 dark:text-slate-400">{t.ssl.covered_domains}:</span>
+                  <p className="mt-1 font-mono text-xs break-all">{cert.domains.join(', ')}</p>
+                </div>
+              )}
             </div>
           ))}
         </div>

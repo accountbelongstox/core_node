@@ -38,7 +38,7 @@ const PcTaskLogPage: React.FC = () => {
   }, [q, dateFrom, dateTo]);
 
   return (
-    <div className="p-6 md:p-8 space-y-4">
+    <div className="p-3 sm:p-6 md:p-8 space-y-4">
       <div>
         <h1 className="text-xl font-bold text-slate-800 dark:text-slate-100">{t('taskLog.title')}</h1>
         <p className="text-xs text-slate-500 mt-0.5">{t('taskLog.subtitle')}</p>

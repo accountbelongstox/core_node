@@ -975,6 +975,13 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             // Version: `nginx -v` prints "nginx version: nginx/1.24.0" on STDERR
             $version = $installed ? $this->getNginxVersion($binary) : null;
 
+            // Capability fields mirror the shell end (nginx_manager.sh
+            // `status --json`) so both ends report the same truth:
+            // version, http3, quic early data, openssl, config validity.
+            $http3 = $installed ? ServerManagerV1NginxInfo::hasHttp3() : false;
+            $quicEarlyData = $installed ? ServerManagerV1NginxInfo::quicEarlyDataSupported() : false;
+            $opensslVersion = $installed ? ServerManagerV1NginxInfo::getOpensslVersion() : null;
+
             // Running state via pgrep
             $running = false;
             $processCount = 0;
@@ -1022,6 +1029,9 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
                 'installed' => $installed,
                 'binary' => $binary,
                 'version' => $version,
+                'http3' => $http3,
+                'quic_early_data' => $quicEarlyData,
+                'openssl' => $opensslVersion,
                 'running' => $running,
                 'process_count' => $processCount,
                 'service_manager' => $serviceManager,
@@ -2125,19 +2135,22 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
             }
         }
 
-        // Extract root directory
-        if (preg_match('/root\s+([^;]+);/', $content, $matches)) {
-            $info['root_directory'] = trim($matches[1]);
-        }
-
-        // Check for proxy_pass
+        // Check for proxy_pass first: a proxy vhost has no web root — any
+        // `root` inside it belongs to an ACME/location block, not the site's
+        // content, and must not surface as the site's web directory.
         if (preg_match('/proxy_pass\s+([^;]+);/', $content, $matches)) {
             $info['proxy_pass'] = trim($matches[1]);
             $info['config_type'] = 'proxy';
         } elseif (strpos($content, 'fastcgi_pass') !== false) {
             $info['config_type'] = 'php';
-        } elseif ($info['root_directory']) {
-            $info['config_type'] = 'static';
+        }
+
+        // Extract root directory
+        if ($info['config_type'] !== 'proxy' && preg_match('/root\s+([^;]+);/', $content, $matches)) {
+            $info['root_directory'] = trim($matches[1]);
+            if ($info['config_type'] === 'unknown') {
+                $info['config_type'] = 'static';
+            }
         }
 
         return $info;

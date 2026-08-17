@@ -48,6 +48,11 @@ class FlatTextStore:
             return None
         return path.read_text(encoding="utf-8", errors="replace")
 
+    def delete(self, key: str) -> None:
+        path = self._path_for_key(key)
+        if path.is_file():
+            path.unlink()
+
     def write(
         self,
         key: str,

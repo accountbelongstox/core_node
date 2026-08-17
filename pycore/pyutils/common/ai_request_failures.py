@@ -10,6 +10,7 @@ _FAILURE_RULES = (
     ("connect_timeout", ("connect timeout", "connecttimeout", "connection timed out"), True, False),
     ("connection", ("failed to establish a new connection", "connection refused", "no route to host", "network is unreachable"), True, False),
     ("read_timeout", ("read timed out", "readtimeout", "operation timed out", "curl error 28"), True, True),
+    ("tts_queue_timeout", ("queue wait timed out", "result fetch timed out"), True, False),
     ("quota", ("requests/day exceeded", "daily request limit", "quota exceeded", "insufficient quota"), True, True),
     ("rate_limit", ("http 429", "429 client error", "too many requests", "rate_limit", "ratelimit"), True, True),
     ("authentication", ("http 401", "http 403", "401 client error", "403 client error", "invalid api key", "invalid_api_key"), False, True),

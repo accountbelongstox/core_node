@@ -2,6 +2,7 @@ import React from 'react';
 import { Play } from 'lucide-react';
 import { type PaginatedListColumn } from '../PaginatedListModal';
 import { StatusBadge } from '../../common';
+import { VocabularyWordsModel } from './VocabularyWordsModel';
 
 export interface DictionaryColumnsDeps {
   /** Play a word's pronunciation audio from a URL (label is used for logging/UI). */
@@ -61,9 +62,15 @@ export const buildDictionaryColumns = (
     header: 'Valid',
     sortKey: 'is_valid',
     className: 'text-center',
-    render: (r) => (
-      <StatusBadge status={r.is_valid ? 'Yes' : 'No'} tone={r.is_valid ? 'success' : 'error'} withDot={false} />
-    ),
+    render: (r) => {
+      // String-tolerant: is_valid may carry a string marker; the AI source
+      // (e.g. 'ai_ensure') is shown when present so verified rows are
+      // distinguishable from plain Yes/No.
+      const valid = VocabularyWordsModel.isWordValid(r);
+      const label = valid ? VocabularyWordsModel.rawValidityValue(r) : 'No';
+      const text = label === 'true' ? 'Yes' : label;
+      return <StatusBadge status={text} tone={valid ? 'success' : 'error'} withDot={false} />;
+    },
   },
   { key: 'query_count', header: 'Queries', sortKey: 'queries', className: 'text-right tabular-nums', render: (r) => nf(r.query_count) },
 ];

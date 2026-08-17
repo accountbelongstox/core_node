@@ -719,7 +719,7 @@ const PcCodeSyncPage: React.FC = () => {
   ];
 
   return (
-    <div className="p-6 md:p-8 space-y-5">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5">
       {unreachable && (
         <div className="flex items-start gap-2 text-xs rounded-2xl p-3 border bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400">
           <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />

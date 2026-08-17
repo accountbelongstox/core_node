@@ -29,10 +29,9 @@ class AppQyV1WordValidityQueueService
     ): array {
         $languages = $this->normalizeLanguages($languages);
         $start = max(0, $start);
-        $segmentLimit = max(
-            1,
-            (int) (QueueCenterContract::diffDelivery()['data_segment_limit'] ?? 128)
-        );
+        // Validity pulls are sized by the word_validity contract block, not the
+        // generic diff-delivery data segment.
+        $segmentLimit = QueueCenterContract::wordValidityBatchSize();
         $limit = max(1, min($segmentLimit, $limit));
         $search = trim($search);
         $revision = $this->realtime->revision();

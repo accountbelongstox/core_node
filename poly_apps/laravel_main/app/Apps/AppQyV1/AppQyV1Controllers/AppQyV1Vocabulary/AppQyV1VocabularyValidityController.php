@@ -7,6 +7,7 @@ use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordValidityQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Http\Controllers\Controller;
+use App\Support\QueueCenterContract;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -97,7 +98,8 @@ class AppQyV1VocabularyValidityController extends Controller
 
         $languageCode = $this->resolveLanguageCode($request->input('language'));
 
-        $defaultSource = null;
+        // AI-verified rows carry the contract marker as their validity_source.
+        $defaultSource = QueueCenterContract::wordValiditySourceMarker();
         if (isset($validated['source']) && $validated['source'] !== '') {
             $defaultSource = $validated['source'];
         }
@@ -110,10 +112,7 @@ class AppQyV1VocabularyValidityController extends Controller
         }
 
         // Provider label recorded on written translations (translation_provider).
-        $provider = 'deepseek-web';
-        if ($defaultSource !== null) {
-            $provider = $defaultSource;
-        }
+        $provider = $defaultSource;
 
         // Valid results carrying a non-empty translation are collected here and
         // written in one batch AFTER the validity loop, via the canonical

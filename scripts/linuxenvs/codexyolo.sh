@@ -35,6 +35,7 @@ mcp_chrome_port="12306"
 mcp_chrome_port_ready=0
 mcp_chrome_port_wait_count=0
 mcp_chrome_needs_build=0
+mcp_chrome_enabled=0
 model="gpt-5.6-sol"
 reasoning_effort="high"
 codex_args=()
@@ -56,6 +57,9 @@ mcp_chrome_venv_python_common_path="$mcp_chrome_linux_common_dir/venv_python_com
 source "$mcp_chrome_gvar_common_path"
 source "$mcp_chrome_venv_python_common_path"
 mcp_chrome_python_path="$VENV_PYTHON3"
+if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+    mcp_chrome_enabled=1
+fi
 
 codex_args=(
     --yolo
@@ -115,6 +119,7 @@ elif [ "$version_gap_large" = "1" ]; then
     echo "[INFO] Codex CLI upgrade skipped."
 fi
 
+if [ "$mcp_chrome_enabled" -eq 1 ]; then
 if [ ! -f "$mcp_chrome_shared_artifact_path" ] ||
     [ ! -f "$mcp_chrome_native_artifact_path" ] ||
     [ ! -f "$mcp_chrome_extension_manifest_path" ]; then
@@ -171,6 +176,9 @@ if [ "$mcp_chrome_port_ready" -eq 1 ]; then
     echo "[INFO] Chrome MCP is listening on 127.0.0.1:$mcp_chrome_port."
 else
     echo "[WARN] Chrome MCP did not become ready; reload the unpacked extension once."
+fi
+else
+    echo "[INFO] No desktop environment; skipping Chrome MCP setup (no install, no build, no registration)."
 fi
 
 echo "[INFO] Model: $model ($reasoning_effort)"

@@ -9,19 +9,32 @@ one generation <=30s) - carries NO ``tts_chunked`` marker on its record:
 missing data is exactly what identifies legacy audio (single pipeline, no
 version negotiation - the marker says "multi-sentence synthesized").
 
-While the generation tick runs, this lane piggybacks a candidate scan: every
-uploaded record without the marker is re-synthesized through the SAME pinned
-audio stage as new articles (qwen3tts, multi-sentence) and its audio is
-replaced on Laravel through the worker replace-audio endpoint (public
-audio_url stays stable).
+While the generation tick runs, this lane piggybacks a candidate scan on
+its IDLE ticks (the primary batch lane always keeps priority): every
+record (uploaded or not) without the marker is re-synthesized through the
+SAME pinned audio stage as new articles (qwen3tts, multi-sentence). The lane
+is LOCAL-ONLY: generation and its ``tts_chunked`` commit never require
+Laravel main - an unreachable server defers nothing here. Delivering the
+regenerated audio to Laravel (full submit for never-uploaded records, audio
+replacement for published ones) is owned by the OTHER piggyback, the
+network-upload lane in worker.py, which stamps ``rebuild_uploaded``.
 
-Ordering contract: rebuilds always run old-first - a tick that rebuilds never
-starts new work in the same tick, so the legacy backlog drains completely
-before new articles proceed. A piggyback query returning 0 candidates skips
-the lane entirely and costs one local index scan (milliseconds); after the
-backlog is drained every subsequent tick just generates new work. One record
-is rebuilt per tick so the heartbeat cadence matches the existing
-one-stage-per-tick pipeline rhythm.
+Every step is idempotent at its own granularity (one step being done must
+never short-circuit or poison the others):
+  candidate scan  - records lacking tts_chunked, attempt-capped, old-first
+  generation      - skipped per record when tts_chunked is set AND the local
+                    audio file exists; otherwise synthesized and committed
+                    atomically (audio bytes + provenance + marker)
+  delivery        - owned by the upload lane (pending_rebuild_uploads)
+
+Ordering contract: the lane runs only in ticks the primary batch lane
+leaves idle (a true piggyback - new articles and their audio are never
+starved by the backlog). Within the lane, rebuilds run old-first so the
+backlog drains in order. A piggyback query of 0 candidates skips the lane
+entirely and costs one local index scan (milliseconds); after the backlog
+is drained every idle tick is a no-op. One record is rebuilt per idle tick
+so the heartbeat cadence matches the existing one-stage-per-tick pipeline
+rhythm.
 """
 
 import base64
@@ -32,10 +45,10 @@ from pycore.pyutils.common.operation_event_service import operation_event_servic
 from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.agent_history import article_records as records
 from pycore.pyctl.agent_history.pipeline.audio_stage import synthesize_audio
-from pycore.pyctl.agent_history.pipeline.laravel_stage import replace_audio_on_laravel
 
-# A record that keeps failing (poison text, unreachable Laravel) is retried on
-# subsequent ticks and then parked so it can never block the lane forever.
+# A record whose GENERATION keeps failing (poison text, dead engine) is
+# retried on subsequent ticks and then parked so it can never block the lane
+# forever. Delivery failures never count here - they belong to the upload lane.
 MAX_REBUILD_ATTEMPTS = 3
 
 # Deliberately NOT prefixed "agent_history": the worker's active-operation
@@ -46,13 +59,15 @@ _REBUILD_OP_KIND = "audio_rebuild"
 
 
 def is_rebuild_candidate(record: Dict[str, Any]) -> bool:
-    """Uploaded audio whose record lacks the multi-sentence marker.
+    """Any record whose data lacks the multi-sentence marker.
 
     Engine-agnostic by design: the marker is the ONLY criterion (missing data
     = legacy), and regeneration always runs through the pinned qwen3tts
     stage, so any pre-contract engine's audio (legacy qwen single-shot, the
-    ChattTS fallback era) converges on the same multi-sentence pipeline."""
-    if not bool(record.get("uploaded")):
+    ChattTS fallback era) converges on the same multi-sentence pipeline.
+    Upload state is irrelevant - a never-uploaded legacy record is rebuilt
+    too, and its FIRST full submit then publishes multi-sentence audio."""
+    if not bool(record.get("article_en")):
         return False
     if int(record.get("rebuild_attempts") or 0) >= MAX_REBUILD_ATTEMPTS:
         return False
@@ -80,11 +95,13 @@ def pending_rebuild_count() -> int:
 
 
 def piggyback_rebuild_tick() -> int:
-    """Piggyback scan on the generation tick.
+    """Piggyback scan on a free generation tick.
 
-    Returns the pending query count: 0 skips the lane (caller proceeds with
-    new work); otherwise exactly ONE record (the oldest) is rebuilt and the
-    caller must return immediately so new work waits for the backlog.
+    Returns the pending query count: 0 skips the lane entirely; otherwise
+    exactly ONE record (the oldest) is rebuilt. The caller grants this lane
+    ticks the primary batch lane leaves free (idle or head-item cooldown)
+    plus fair-share turns after every few completed articles, so new work
+    keeps priority overall while the legacy backlog still always drains.
     """
     pending = pending_rebuild_records()
     if not pending:
@@ -107,7 +124,7 @@ def piggyback_rebuild_tick() -> int:
     )
     try:
         result = rebuild_record(record)
-    except Exception as exc:  # noqa: BLE001 — counted, parked after the cap
+    except Exception as exc:  # noqa: BLE001 - counted, parked after the cap
         records.mark_rebuild_failed(record_id)
         operation_event_service.log_event(
             op.id,
@@ -120,47 +137,75 @@ def piggyback_rebuild_tick() -> int:
         ColorPrint.yellow(f"[AgentHistoryRebuild] {record_id}: {exc}")
         return len(pending)
 
+    delivery = "pending-upload-lane" if result.get("delivery_pending") else "delivered"
     operation_event_service.log_event(
         op.id,
         "info",
-        "audio_rebuild.replaced",
+        "audio_rebuild.generated",
         f"Rebuilt {record_id}: engine={result.get('engine') or 'unknown'} "
         f"model={result.get('model') or '-'} multi_sentence=yes "
-        f"bytes={result.get('bytes')} laravel=replaced",
+        f"bytes={result.get('bytes')} laravel={delivery}",
         None,
     )
     return len(pending)
 
 
 def rebuild_record(record: Dict[str, Any]) -> Dict[str, Any]:
-    """Regenerate one record's audio end-to-end: same synthesis stage as new
-    articles -> Laravel audio replacement -> local all-or-nothing re-stamp."""
+    """Regenerate one record's audio as multi-sentence and commit it LOCALLY.
+
+    Idempotent generation step: a record that already carries the marker AND
+    has its local audio file is left untouched (its delivery, if still
+    pending, is the upload lane's business). No Laravel call happens here -
+    connectivity never gates generation."""
     record_id = str(record.get("id") or "")
     article_en = str(record.get("article_en") or "").strip()
     if not record_id or not article_en:
         raise ValueError("record is missing its id or article body")
 
+    current = records.get_record(record_id) or record
+    if bool(current.get("tts_chunked")) and records.audio_path(record_id) is not None:
+        return {
+            "engine": current.get("tts_engine"),
+            "model": current.get("tts_model"),
+            "bytes": 0,
+            "generated": False,
+            "delivery_pending": _delivery_pending(current),
+        }
+
     audio = synthesize_audio(article_en)
     audio_bytes = base64.b64decode(str(audio.get("audio_base64") or ""))
     if not audio_bytes:
         raise RuntimeError("rebuild synthesis produced no audio")
+    if not bool(audio.get("chunked")):
+        # The pinned stage must always report multi-sentence synthesis; a
+        # non-chunked result would perpetuate exactly the legacy defect this
+        # lane exists to remove - never stamp it.
+        raise RuntimeError("rebuild synthesis was not multi-sentence (chunked=false)")
 
-    # Laravel first: a failed replace leaves the record unstamped so the next
-    # tick retries the whole record; local state never diverges from Laravel.
-    laravel_data = replace_audio_on_laravel(record, audio)
     records.mark_audio_rebuilt(
         record_id,
         audio_bytes,
         tts_engine=audio.get("engine"),
         tts_model=audio.get("model"),
-        tts_chunked=bool(audio.get("chunked")),
-        laravel_data=laravel_data,
+        tts_chunked=True,
     )
     return {
         "engine": audio.get("engine"),
         "model": audio.get("model"),
         "bytes": len(audio_bytes),
+        "generated": True,
+        "delivery_pending": _delivery_pending(record),
     }
+
+
+def _delivery_pending(record: Dict[str, Any]) -> bool:
+    """Whether the regenerated audio still owes Laravel main a delivery.
+
+    Never-uploaded records deliver through their first full submit; uploaded
+    records owe an audio replacement (``rebuild_uploaded`` unset)."""
+    if not bool(record.get("uploaded")):
+        return True
+    return not bool(record.get("rebuild_uploaded"))
 
 
 __all__ = [

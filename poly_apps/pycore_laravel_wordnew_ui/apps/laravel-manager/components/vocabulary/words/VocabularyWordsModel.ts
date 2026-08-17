@@ -1,8 +1,12 @@
 import type {
   DictionaryWordFilter,
-  DictionaryWordRow,
   DictionaryWordSort,
 } from '@/apps/laravel-manager/api';
+import {
+  isWordRowValid,
+  wordValidityDisplay,
+  type WordValidityFields,
+} from '@/core/integrations/laravel/wordValidity';
 
 export type VocabularyLanguageKey =
   | 'english'
@@ -17,6 +21,9 @@ export interface VocabularyLanguageOption {
   key: VocabularyLanguageKey;
   code: string;
 }
+
+/** Minimal structural shape every validity-bearing row satisfies. */
+export type ValidityFields = WordValidityFields;
 
 export class VocabularyWordsModel {
   static readonly languages: readonly VocabularyLanguageOption[] = [
@@ -57,9 +64,20 @@ export class VocabularyWordsModel {
     return option ? labels[option.key] : language;
   }
 
-  static rawValidityValue(row: DictionaryWordRow): string {
-    if (row.is_valid_value === null) return 'null';
-    return String(row.is_valid_value ?? row.is_valid);
+  /**
+   * Normalize the validity flag (boolean OR string marker). Delegates to the
+   * shared core implementation — see core/integrations/laravel/wordValidity.
+   */
+  static isWordValid(row: ValidityFields): boolean {
+    return isWordRowValid(row);
+  }
+
+  /**
+   * Human-facing validity value: the string source marker (e.g. 'ai_ensure')
+   * when present, otherwise the raw boolean stringified.
+   */
+  static rawValidityValue(row: ValidityFields): string {
+    return wordValidityDisplay(row);
   }
 
   static format(template: string, values: Record<string, string | number>): string {

@@ -47,6 +47,59 @@ echo "Running: kimi1.sh"
 echo "============================================================"
 echo ""
 
+#region Version-Aware CLI Upgrade
+run_version_aware_cli_upgrade() {
+local upgrade_choice=""
+local upgrade_current_output=""
+local upgrade_latest_output=""
+local upgrade_version_gap_large="0"
+
+if command -v kimi >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && command -v pnpm >/dev/null 2>&1; then
+    upgrade_current_output="$(kimi --version 2>/dev/null || true)"
+    upgrade_latest_output="$(pnpm view @moonshot-ai/kimi-code version 2>/dev/null || true)"
+    upgrade_version_gap_large="$(node -e '
+const currentInput = process.argv[1];
+const latestInput = process.argv[2];
+const parseVersion = (value) => {
+    const tokens = value.trim().split(/\s+/);
+    for (const token of tokens) {
+        const candidate = token.startsWith("v") ? token.slice(1) : token;
+        const parts = candidate.split(".");
+        const valid = parts.length === 3 && parts.every((part) => part.length > 0 && [...part].every((character) => character >= "0" && character <= "9"));
+        if (valid) {
+            return parts.map(Number);
+        }
+    }
+    return null;
+};
+const current = parseVersion(currentInput);
+const latest = parseVersion(latestInput);
+const newer = current !== null && latest !== null && (latest[0] > current[0] || (latest[0] === current[0] && (latest[1] > current[1] || (latest[1] === current[1] && latest[2] > current[2]))));
+const large = newer && (latest[0] > current[0] || latest[1] > current[1]);
+process.stdout.write(large ? "1" : "0");
+' "$upgrade_current_output" "$upgrade_latest_output" 2>/dev/null || true)"
+fi
+if [ "$upgrade_version_gap_large" = "1" ]; then
+    printf '\033[33mUpgrade Kimi Code CLI with the official native installer? [N/y]: \033[0m'
+    read -r upgrade_choice || upgrade_choice=""
+fi
+if [ "$upgrade_choice" = "y" ] || [ "$upgrade_choice" = "Y" ]; then
+    if command -v curl >/dev/null 2>&1; then
+        echo "[INFO] Upgrading Kimi Code CLI with the official native installer..."
+        curl -fsSL "https://code.kimi.com/kimi-code/install.sh" | bash
+        hash -r
+        echo "[INFO] Kimi Code CLI native upgrade command completed."
+    fi
+elif [ "$upgrade_version_gap_large" = "1" ]; then
+    echo "[INFO] CLI upgrade skipped."
+fi
+}
+
+run_version_aware_cli_upgrade
+unset -f run_version_aware_cli_upgrade
+#endregion
+
+
 #region Initialize Path Variables
 # Resolve script real path (handle symlinks)
 # When script is executed via symlink, BASH_SOURCE[0] returns symlink path

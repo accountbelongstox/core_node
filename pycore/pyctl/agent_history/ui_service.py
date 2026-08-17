@@ -274,6 +274,9 @@ def runtime_get(_params: Any, _request_id: str) -> Dict[str, Any]:
         include_results=False,
     )
     summary = article_record_store.summarize_records()
+    # Two piggyback lanes, one counter each: the rebuild lane (local
+    # multi-sentence regeneration, attempt-capped) and the network-upload
+    # lane's rebuild half (published legacy audio awaiting replacement).
     summary["rebuild_pending"] = audio_rebuild.pending_rebuild_count()
     return {
         "success": True,

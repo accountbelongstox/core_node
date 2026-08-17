@@ -16,7 +16,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
      * The name and signature of the console command.
      */
     protected $signature = 'servermanager:certificate
-                            {action : Action to perform (add|find|list|summary|update|renew-all)}
+                            {action : Action to perform (add|find|list|summary|update|reconcile|renew-all)}
                             {domain? : Domain name (required for add, find, update)}
                             {--prefixes= : Subdomain prefixes (comma-separated, default: si,sz,local,api)}
                             {--provider= : SSL provider (default: dnspod)}
@@ -47,6 +47,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             'list' => $this->listCertificates(),
             'summary' => $this->showSummary(),
             'update' => $this->updateCertificate($domain),
+            'reconcile' => $this->reconcileLineages(),
             'renew-all' => $this->renewAllCertificates(),
             default => $this->showHelp()
         };
@@ -294,8 +295,13 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
                     default => 'comment'
                 };
 
-                $this->line("  " . $cert['base_domain'] . " (" . $cert['domain_count'] . " domains) - " . 
+                $this->line("  " . $cert['base_domain'] . " (" . $cert['domain_count'] . " domains) - " .
                            "<$statusColor>" . $status . "</$statusColor>");
+                $this->line("    Expires: " . ($cert['expires_at'] ?? 'unknown'));
+                $domains = $cert['domains'] ?? [];
+                if (!empty($domains)) {
+                    $this->line("    Domains: " . implode(', ', $domains));
+                }
             }
         }
 
@@ -380,28 +386,27 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
         $this->line("");
 
-        // Get certificates needing renewal
+        // Informational list (the store snapshot may be stale); certbot itself
+        // is the authority on which certificates are actually due.
         $needingRenewal = ServerManagerV1CertificateManager::getCertificatesNeedingRenewal($daysThreshold);
 
         if (empty($needingRenewal)) {
-            $this->info("No certificates need renewal at this time");
-            $this->info("All certificates are valid for more than $daysThreshold days");
-            return 0;
-        }
-
-        $this->info("Certificates needing renewal: " . count($needingRenewal));
-        $this->line("");
-
-        foreach ($needingRenewal as $cert) {
-            $domain = $cert['base_domain'];
-            $daysLeft = $cert['days_until_expiry'];
-            $status = $cert['is_expired'] ? 'EXPIRED' : "Expires in $daysLeft days";
-
-            $this->line("Certificate: $domain");
-            $this->line("  Status: $status");
-            $this->line("  Expiry: " . $cert['expires_at']);
-            $this->line("  Domains: " . count($cert['domains']));
+            $this->info("No certificates near expiry per the tracked store; certbot makes the final call below");
+        } else {
+            $this->info("Certificates needing renewal: " . count($needingRenewal));
             $this->line("");
+
+            foreach ($needingRenewal as $cert) {
+                $domain = $cert['base_domain'];
+                $daysLeft = $cert['days_until_expiry'];
+                $status = $cert['is_expired'] ? 'EXPIRED' : "Expires in $daysLeft days";
+
+                $this->line("Certificate: $domain");
+                $this->line("  Status: $status");
+                $this->line("  Expiry: " . $cert['expires_at']);
+                $this->line("  Domains: " . count($cert['domains']));
+                $this->line("");
+            }
         }
 
         if ($dryRun) {
@@ -409,9 +414,24 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             return 0;
         }
 
-        // Execute certbot renew
-        $this->info("Starting certificate renewal with certbot...");
+        // Reconcile stale renewal credentials across ALL certbot-managed
+        // renewal configs (not gated by the store snapshot): certificates
+        // issued before the persistent credentials file existed reference a
+        // deleted dnspod-<timestamp>.ini, which fails every `certbot renew`.
+        // `certbot reconfigure` (official mechanism, certbot >= 2.3) re-points
+        // each config at the canonical persistent credentials file. Then
+        // repair lineages certbot skips entirely (fullchain mismatch).
         $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+        $this->reconcileAllRenewalCredentials($letsEncryptDir);
+        $this->repairBrokenLineages($letsEncryptDir);
+
+        // Execute certbot renew (self-gates: renews only near-expiry
+        // certificates and is a no-op otherwise, per the official contract).
+        // Serialize through the same canonical flock the shell self-heal layer
+        // uses (/run/lock/core_node_certbot.lock): timer runs, startup passes,
+        // UI-triggered renewals and this command queue instead of aborting
+        // with "Another instance of Certbot is already running".
+        $this->info("Starting certificate renewal with certbot...");
 
         $command = [
             'renew',
@@ -422,7 +442,14 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             '--no-random-sleep-on-renew'
         ];
 
-        $result = $this->executeCommand('certbot', $command);
+        if (is_executable('/usr/bin/flock')) {
+            $result = $this->executeCommand('flock', array_merge(
+                ['-w', '180', \App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants::CERTBOT_FLOCK_LOCK, 'certbot'],
+                $command
+            ));
+        } else {
+            $result = $this->executeCommand('certbot', $command);
+        }
 
         if ($result['success']) {
             $this->info("Certificate renewal completed successfully");
@@ -455,6 +482,212 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
     }
 
     /**
+     * Reconcile every certbot-managed lineage WITHOUT renewing: re-point stale
+     * credential references (official `certbot reconfigure`) and repair broken
+     * lineages (fullchain mismatch) via `certbot certonly --force-renewal`.
+     * This is the shell self-heal layer's reconcile step; `renew-all` runs the
+     * same steps and then a single `certbot renew`.
+     */
+    private function reconcileLineages(): int
+    {
+        $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
+        $this->reconcileAllRenewalCredentials($letsEncryptDir);
+        $this->repairBrokenLineages($letsEncryptDir);
+        return 0;
+    }
+
+    /**
+     * Repair broken certbot lineages. A lineage whose live fullchain.pem does
+     * not equal cert.pem + chain.pem is SKIPPED by every certbot operation
+     * ("fullchain does not match cert + chain ... Skipping"), which also hides
+     * the certificate from `certbot certificates`. This state arises when the
+     * self-signed fallback overwrote cert.pem in place. Official recovery:
+     * `certbot certonly --force-renewal --cert-name <name>` re-issues the
+     * certificate and rewrites the whole lineage consistently.
+     */
+    private function repairBrokenLineages(string $letsEncryptDir): void
+    {
+        $renewalConfs = is_dir($letsEncryptDir . '/renewal') ? (glob($letsEncryptDir . '/renewal/*.conf') ?: []) : [];
+        $credentials = null;
+
+        foreach ($renewalConfs as $renewalConf) {
+            $certName = basename($renewalConf, '.conf');
+            $liveDir = $letsEncryptDir . '/live/' . $certName;
+            $cert = @file_get_contents($liveDir . '/cert.pem');
+            $chain = @file_get_contents($liveDir . '/chain.pem');
+            $fullchain = @file_get_contents($liveDir . '/fullchain.pem');
+            if ($cert === false || $chain === false || $fullchain === false || $fullchain === $cert . $chain) {
+                continue; // consistent, or unreadable (nothing to repair here)
+            }
+
+            if ($credentials === null) {
+                $credentials = $this->getDNSCredentials('dnspod');
+                if (!$credentials) {
+                    $this->warn('DNSPod credentials unavailable; skipping broken-lineage repair');
+                    return;
+                }
+            }
+
+            $this->warn("Broken lineage detected: $certName (fullchain != cert + chain); re-issuing with --force-renewal...");
+            $this->forceRenewLineage($certName, $credentials, $letsEncryptDir);
+        }
+    }
+
+    /** Canonical working DNSPod authenticator (maintained third-party plugin). */
+    private const DNSPOD_AUTHENTICATOR = 'certbot-dnspod';
+
+    /**
+     * Domains of a lineage: the ServerManager issuance record is canonical
+     * (the domains the certificate was created with); the live certificate's
+     * SANs are the fallback. A SAN parse alone is never trusted — the
+     * self-signed fallback certs carry no meaningful SANs.
+     */
+    private function lineageDomains(string $certName, string $letsEncryptDir): array
+    {
+        $summary = ServerManagerV1CertificateManager::getCertificatesSummary();
+        foreach ($summary['certificates'] ?? [] as $cert) {
+            if (($cert['base_domain'] ?? '') === $certName && !empty($cert['domains'])) {
+                return array_values($cert['domains']);
+            }
+        }
+
+        $liveDir = $letsEncryptDir . '/live/' . $certName;
+        foreach (['cert.pem', 'fullchain.pem'] as $pemName) {
+            $pem = @file_get_contents($liveDir . '/' . $pemName);
+            if ($pem === false) {
+                continue;
+            }
+            $parsed = openssl_x509_parse($pem);
+            $san = (string)($parsed['extensions']['subjectAltName'] ?? '');
+            $domains = [];
+            foreach (explode(',', $san) as $entry) {
+                $entry = trim($entry);
+                if (str_starts_with($entry, 'DNS:')) {
+                    $domains[] = substr($entry, 4);
+                }
+            }
+            if (!empty($domains)) {
+                return $domains;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * Re-issue one lineage with --force-renewal using the canonical working
+     * DNSPod authenticator (official per-certificate renewal path). This also
+     * migrates the recorded authenticator/credentials in the renewal config,
+     * so every future `certbot renew` uses the working plugin.
+     */
+    private function forceRenewLineage(string $certName, string $letsEncryptDir): bool
+    {
+        $domains = $this->lineageDomains($certName, $letsEncryptDir);
+        // Union with the canonical expanded SAN list: a lineage issued with an
+        // older prefix set gains the current wildcards (e.g. *.sh./ *.hk.) on
+        // re-issue; the apex and *.apex are always included.
+        if (strpos($certName, '*') === false && strpos($certName, '.') !== false) {
+            $domains = array_values(array_unique(array_merge(
+                $domains,
+                ServerManagerV1CertificateManager::generateExpandedDomains($certName)
+            )));
+        }
+        if (empty($domains)) {
+            $this->warn("  Cannot determine domains for $certName (no store record, no SANs); manual repair required");
+            return false;
+        }
+
+        $this->info("Executing: certbot " . implode(' ', ServerManagerV1CertificateManager::buildDNSPodCertbotCommand($domains, ['--force-renewal', '--cert-name', $certName]) ?? []));
+        $result = ServerManagerV1CertificateManager::runDNSPodCertbot($domains, [
+            '--force-renewal',
+            '--cert-name', $certName,
+        ]);
+        if ($result['success']) {
+            $this->info("  Lineage re-issued: $certName (" . count($domains) . " domains)");
+            return true;
+        }
+        $this->warn("  force-renewal failed for $certName: " . ($result['error'] ?? $result['output'] ?? 'unknown'));
+        return false;
+    }
+
+    /**
+     * Reconcile stale renewal configs for EVERY certbot-managed certificate
+     * (official certbot >= 2.3 `reconfigure` mechanism). Certificates issued
+     * before the persistent credentials file existed reference a deleted
+     * dnspod-<timestamp>.ini in <config-dir>/renewal/<name>.conf, which makes
+     * every `certbot renew` fail with "File not found". For each config whose
+     * recorded credentials file is missing, ensure the canonical persistent
+     * credentials file and re-point the renewal config at it. The scan covers
+     * all renewal confs on disk (certbot is the authority), not just the ones
+     * the ServerManager store happens to track.
+     */
+    private function reconcileAllRenewalCredentials(string $letsEncryptDir): void
+    {
+        $renewalDir = $letsEncryptDir . '/renewal';
+        $renewalConfs = is_dir($renewalDir) ? (glob($renewalDir . '/*.conf') ?: []) : [];
+        if (empty($renewalConfs)) {
+            return;
+        }
+
+        $credentials = null;
+
+        foreach ($renewalConfs as $renewalConf) {
+            $certName = basename($renewalConf, '.conf');
+            $confContent = file_get_contents($renewalConf);
+            if ($confContent === false
+                || preg_match('/^\s*[\w-]*credentials\s*=\s*(\S+)\s*$/m', $confContent, $credMatch) !== 1
+                || is_file($credMatch[1])) {
+                continue; // no credentials reference, or the recorded file is alive
+            }
+
+            if (preg_match('/^\s*authenticator\s*=\s*(\S+)\s*$/m', $confContent, $authMatch) !== 1) {
+                continue;
+            }
+            $authenticator = $authMatch[1];
+
+            if ($credentials === null) {
+                $credentials = $this->getDNSCredentials('dnspod');
+                if (!$credentials) {
+                    $this->warn('DNSPod credentials unavailable; skipping renewal-config reconciliation');
+                    return;
+                }
+            }
+
+            if ($authenticator !== self::DNSPOD_AUTHENTICATOR) {
+                // Legacy/broken authenticator recorded (e.g. the zope-era
+                // dns-dnspod plugin, which cannot even load on modern
+                // certbot): reconfigure cannot fix that. Re-issue with the
+                // canonical working plugin, which also migrates the recorded
+                // authenticator/credentials for future renewals.
+                $this->info("Migrating $certName from authenticator '$authenticator' to '" . self::DNSPOD_AUTHENTICATOR . "'...");
+                $this->forceRenewLineage($certName, $letsEncryptDir);
+                continue;
+            }
+
+            $credentialsPath = ServerManagerV1CertificateManager::ensureDNSPodCredentialsFile($credentials);
+            if (!$credentialsPath) {
+                continue;
+            }
+
+            $this->info("Reconciling renewal config for $certName (stale credentials {$credMatch[1]} -> $credentialsPath)...");
+            $result = $this->executeCommand('certbot', [
+                'reconfigure',
+                '--config-dir', $letsEncryptDir,
+                '--work-dir', $letsEncryptDir . '/work',
+                '--logs-dir', $letsEncryptDir . '/logs',
+                '--cert-name', $certName,
+                '--' . $authenticator . '-credentials', $credentialsPath,
+            ]);
+
+            if ($result['success']) {
+                $this->info("  Renewal config reconciled: $certName");
+            } else {
+                $this->warn("  reconfigure failed for $certName: " . ($result['error'] ?? $result['output'] ?? 'unknown'));
+            }
+        }
+    }
+
+    /**
      * Generate certificate using DNS challenge
      */
     private function generateCertificateWithDNS(string $baseDomain, array $domains, string $provider): bool
@@ -467,11 +700,11 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $this->info("Available certbot plugins:");
             $this->line($availablePlugins);
 
-            // Try different DNSPod plugin options
+            // The canonical working DNSPod authenticator only. The zope-era
+            // dns-dnspod plugin cannot load on modern certbot and is never
+            // offered; manual is not automatable.
             $dnsPlugins = [
-                'certbot-dnspod',      // Third-party DNSPod plugin
-                'dns-dnspod',          // Alternative name
-                'manual'               // Fallback to manual (disabled for automation)
+                'certbot-dnspod',      // Third-party DNSPod plugin (maintained)
             ];
 
             foreach ($dnsPlugins as $plugin) {
@@ -499,110 +732,35 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             return $this->generateManualCertificate($baseDomain, $domains);
         }
 
-        // For DNS plugins, we need credentials
-        $credentials = $this->getDNSCredentials($provider);
-        if (!$credentials) {
-            $this->error("Failed to get DNS credentials");
-            return false;
-        }
+        // Certificate expiry check and automatic renewal
+        // Certificates naturally expire - check and renew as needed
+        $baseDomain = $domains[0] ?? '';
 
-        // Create credentials file (pass plugin type to generate correct format)
-        $credentialsPath = $this->createCredentialsFile($credentials, $provider, $plugin);
-        if (!$credentialsPath) {
-            $this->error("Failed to create credentials file");
-            return false;
-        }
-
-        try {
-            // Get custom certificate directory
-            $letsEncryptDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptDir();
-            $configDir = $letsEncryptDir;
-            $workDir = $letsEncryptDir . '/work';
-            $logsDir = $letsEncryptDir . '/logs';
-
-            // Ensure directories exist
-            if (!is_dir($configDir)) {
-                mkdir($configDir, 0755, true);
-            }
-            if (!is_dir($workDir)) {
-                mkdir($workDir, 0755, true);
-            }
-            if (!is_dir($logsDir)) {
-                mkdir($logsDir, 0755, true);
-            }
-
-            // Certificate expiry check and automatic renewal
-            // Certificates naturally expire - check and renew as needed
-            $baseDomain = $domains[0] ?? '';
-
-            if ($baseDomain) {
-                $expiryInfo = $this->checkCertificateExpiry($baseDomain);
-                if ($expiryInfo['exists'] && !$expiryInfo['expired'] && !$expiryInfo['expiring_soon']) {
-                    $this->info("Certificate for $baseDomain already exists and is valid for {$expiryInfo['days_until_expiry']} more days.");
-                    $this->info("Certificate will be automatically renewed when it expires or is expiring soon (< 30 days).");
-                    return true;
-                } elseif ($expiryInfo['exists'] && ($expiryInfo['expired'] || $expiryInfo['expiring_soon'])) {
-                    $this->warn("Certificate for $baseDomain is " . ($expiryInfo['expired'] ? 'expired' : "expiring in {$expiryInfo['days_until_expiry']} days") . ". Regenerating...");
-                } else {
-                    $this->info("No existing certificate found for $baseDomain. Generating new certificate...");
-                }
-            }
-
-            // Build command based on plugin type
-            if ($plugin === 'certbot-dnspod') {
-                // Third-party DNSPod plugin uses different parameter format
-                $command = [
-                    'certonly',
-                    '--config-dir', $configDir,
-                    '--work-dir', $workDir,
-                    '--logs-dir', $logsDir,
-                    '--authenticator', 'certbot-dnspod',
-                    '--certbot-dnspod-credentials', $credentialsPath,
-                    '--email', $credentials['email'],
-                    '--agree-tos',
-                    '--non-interactive'
-                ];
+        if ($baseDomain) {
+            $expiryInfo = $this->checkCertificateExpiry($baseDomain);
+            if ($expiryInfo['exists'] && !$expiryInfo['expired'] && !$expiryInfo['expiring_soon']) {
+                $this->info("Certificate for $baseDomain already exists and is valid for {$expiryInfo['days_until_expiry']} more days.");
+                $this->info("Certificate will be automatically renewed when it expires or is expiring soon (< 30 days).");
+                return true;
+            } elseif ($expiryInfo['exists'] && ($expiryInfo['expired'] || $expiryInfo['expiring_soon'])) {
+                $this->warn("Certificate for $baseDomain is " . ($expiryInfo['expired'] ? 'expired' : "expiring in {$expiryInfo['days_until_expiry']} days") . ". Regenerating...");
             } else {
-                // Standard DNS plugin format
-                // Use --authenticator instead of --dns-dnspod to avoid ambiguous option error
-                $command = [
-                    'certonly',
-                    '--config-dir', $configDir,
-                    '--work-dir', $workDir,
-                    '--logs-dir', $logsDir,
-                    '--authenticator', $plugin,
-                    '--' . $plugin . '-credentials', $credentialsPath,
-                    '--email', $credentials['email'],
-                    '--agree-tos',
-                    '--non-interactive'
-                ];
-            }
-
-            // Add all domains
-            foreach ($domains as $domain) {
-                $command[] = '-d';
-                $command[] = $domain;
-            }
-
-            $this->info("SSL command output:");
-            $result = $this->executeCommand('certbot', $command);
-
-            $this->line("Certbot result: " . ($result['success'] ? 'success' : 'failed'));
-            if (!empty($result['output'])) {
-                $this->line("Output: " . $result['output']);
-            }
-            if (!empty($result['error'])) {
-                $this->line("Error: " . $result['error']);
-            }
-
-            return $result['success'];
-
-        } finally {
-            // Clean up credentials file
-            if (file_exists($credentialsPath)) {
-                unlink($credentialsPath);
+                $this->info("No existing certificate found for $baseDomain. Generating new certificate...");
             }
         }
+
+        $this->info("SSL command output:");
+        $result = ServerManagerV1CertificateManager::runDNSPodCertbot($domains);
+
+        $this->line("Certbot result: " . ($result['success'] ? 'success' : 'failed'));
+        if (!empty($result['output'])) {
+            $this->line("Output: " . $result['output']);
+        }
+        if (!empty($result['error'])) {
+            $this->line("Error: " . $result['error']);
+        }
+
+        return $result['success'];
     }
 
     /**
@@ -611,9 +769,8 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
     private function generateManualCertificate(string $baseDomain, array $domains): bool
     {
         $this->error("Manual DNS challenge is not supported in automated scripts");
-        $this->info("Available DNS plugins: dns-cloudflare, dns-route53");
-        $this->info("DNSPod plugin is not available. Please install certbot-dns-dnspod or use a different provider.");
-        $this->info("To install DNSPod plugin: pip install certbot-dns-dnspod");
+        $this->info("DNSPod plugin is not available. Please install certbot-dnspod or use a different provider.");
+        $this->info("To install the DNSPod plugin: bash scripts/shells/linux/debian/install_shells/27_install_certbot.sh");
 
         // Generate self-signed certificate for testing
         $this->warn("Generating self-signed certificate for testing purposes...");
@@ -711,68 +868,18 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
 
         try {
-            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
-            $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
-
-            if (!$email || !$apiToken) {
+            // Single resolver (CertificateManager): canonical secret file
+            // names with legacy fallback.
+            $credentials = ServerManagerV1CertificateManager::getDNSPodCredentials();
+            if ($credentials === null) {
                 return null;
             }
 
-            // Parse DNSPod API token format: "id,token"
-            $tokenParts = explode(',', $apiToken, 2);
-            if (count($tokenParts) === 2) {
-                return [
-                    'email' => $email,
-                    'api_id' => trim($tokenParts[0]),
-                    'api_token' => trim($tokenParts[1])
-                ];
-            }
-
-            return null;
+            return $credentials;
 
         } catch (\Exception $e) {
             $this->error("Failed to get DNS credentials: " . $e->getMessage());
             return null;
         }
-    }
-
-    /**
-     * Create credentials file
-     */
-    private function createCredentialsFile(array $credentials, string $provider, string $plugin = 'dns-dnspod'): ?string
-    {
-        if ($provider !== 'dnspod') {
-            return null;
-        }
-
-        // Create credentials directory if it doesn't exist
-        $credentialsDir = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getSslCredentialsDir();
-        if (!is_dir($credentialsDir)) {
-            mkdir($credentialsDir, 0755, true);
-        }
-
-        $credentialsPath = $credentialsDir . '/dnspod-' . time() . '.ini';
-
-        // Format credentials based on plugin type
-        if ($plugin === 'certbot-dnspod') {
-            // Third-party certbot-dnspod plugin format
-        $content = "certbot_dnspod_token_id = {$credentials['api_id']}\n";
-        $content .= "certbot_dnspod_token = {$credentials['api_token']}\n";
-        } else {
-            // Standard dns-dnspod plugin format
-            // The plugin expects: email and api-token (full "id,token" format)
-            // But certbot automatically prefixes with "dns_dnspod_" for the credentials file
-            // Use quotes to prevent configobj from parsing comma-separated value as a list
-            $apiToken = $credentials['api_id'] . ',' . $credentials['api_token'];
-            $content = "dns_dnspod_email = {$credentials['email']}\n";
-            $content .= "dns_dnspod_api_token = \"{$apiToken}\"\n";
-        }
-
-        if (file_put_contents($credentialsPath, $content) === false) {
-            return null;
-        }
-
-        chmod($credentialsPath, 0600);
-        return $credentialsPath;
     }
 }

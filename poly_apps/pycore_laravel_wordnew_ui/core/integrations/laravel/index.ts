@@ -35,6 +35,9 @@ export type {
   VocabAssistCategory,
 } from './LaravelTypes';
 
+export { isWordRowValid, wordValidityDisplay } from './wordValidity';
+export type { WordValidityFields } from './wordValidity';
+
 /** Transport layer (single definition site for all Laravel HTTP modules). */
 export {
   BaseAPI,

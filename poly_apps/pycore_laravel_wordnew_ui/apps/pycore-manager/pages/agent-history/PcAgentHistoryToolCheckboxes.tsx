@@ -17,7 +17,8 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
   refreshRevision?: string;
   onToggle: (tool: string, checked: boolean) => void;
   onSelect: (tool: string) => void;
-}> = ({ tk, enabledTools, selectedTool, refreshRevision, onToggle, onSelect }) => {
+  onOpenToolHistory?: (tool: string, tab: 'sessions' | 'prompts') => void;
+}> = ({ tk, enabledTools, selectedTool, refreshRevision, onToggle, onSelect, onOpenToolHistory }) => {
   const [status, setStatus] = useState<Record<string, TestStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [statistics, setStatistics] = useState<Record<string, AgentHistoryToolStatistics>>({});
@@ -110,6 +111,14 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
     onSelect(tool);
   };
 
+  // Every stat number drills into that tool's filtered history: record /
+  // session counts open the sessions tab, fragment counts (processed,
+  // pending, prompts, replies) open the prompts tab.
+  const openHistory = (tool: string, tab: 'sessions' | 'prompts') => {
+    onSelect(tool);
+    onOpenToolHistory?.(tool, tab);
+  };
+
   const dotCls = (tool: string): string => {
     const st = status[tool] || 'idle';
     if (st === 'ok') return 'bg-emerald-500';
@@ -164,45 +173,73 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
           {enabledTools.map((tool) => {
             const item = statistics[tool];
+            const statBtnCls = 'rounded-lg p-2 text-left transition-colors hover:ring-2 hover:ring-indigo-500/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40';
             return (
-              <button
+              <div
                 key={tool}
-                type="button"
-                onClick={() => handleSelect(tool)}
-                className={`text-left rounded-xl border bg-white/60 dark:bg-white/[0.02] p-3 transition-colors ${
+                className={`rounded-xl border bg-white/60 dark:bg-white/[0.02] p-3 transition-colors ${
                   selectedTool === tool
                     ? 'border-indigo-500/50 ring-2 ring-indigo-500/20'
                     : 'border-slate-200 dark:border-white/10'
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-700 dark:text-slate-200">
-                  <span>{TOOL_LABELS[tool] || tool}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(tool)}
+                    className="inline-flex items-center gap-1 hover:text-indigo-600 dark:hover:text-indigo-300"
+                  >
+                    <span>{TOOL_LABELS[tool] || tool}</span>
+                  </button>
                   {statisticsLoading && !item && <span className="text-slate-400">{tk('loading')}</span>}
                 </div>
                 {item && (
                   <>
                     <div className="mt-2 grid grid-cols-3 gap-2">
-                      <div className="rounded-lg bg-slate-100 dark:bg-white/5 p-2">
+                      <button
+                        type="button"
+                        onClick={() => openHistory(tool, 'sessions')}
+                        title={`${tk('historyRecords')} · ${TOOL_LABELS[tool] || tool}`}
+                        className={`${statBtnCls} bg-slate-100 dark:bg-white/5`}
+                      >
                         <div className="text-[10px] text-slate-500">{tk('historyRecords')}</div>
                         <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{item.history_records}</div>
-                      </div>
-                      <div className="rounded-lg bg-emerald-500/10 p-2">
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openHistory(tool, 'prompts')}
+                        title={`${tk('processedRecords')} · ${TOOL_LABELS[tool] || tool}`}
+                        className={`${statBtnCls} bg-emerald-500/10`}
+                      >
                         <div className="text-[10px] text-emerald-700 dark:text-emerald-300">{tk('processedRecords')}</div>
                         <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">{item.processed}</div>
-                      </div>
-                      <div className="rounded-lg bg-amber-500/10 p-2">
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openHistory(tool, 'prompts')}
+                        title={`${tk('pendingRecords')} · ${TOOL_LABELS[tool] || tool}`}
+                        className={`${statBtnCls} bg-amber-500/10`}
+                      >
                         <div className="text-[10px] text-amber-700 dark:text-amber-300">{tk('pendingRecords')}</div>
                         <div className="text-lg font-semibold text-amber-700 dark:text-amber-300">{item.pending}</div>
-                      </div>
+                      </button>
                     </div>
-                    <div className="mt-2 text-[11px] text-slate-500">
-                      {item.sessions} {tk('sessionCount')}
-                      {' · '}{item.prompts} {tk('promptCount')}
-                      {' · '}{item.replies} {tk('replyCount')}
+                    <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1">
+                      <button type="button" onClick={() => openHistory(tool, 'sessions')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
+                        {item.sessions} {tk('sessionCount')}
+                      </button>
+                      <span>·</span>
+                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
+                        {item.prompts} {tk('promptCount')}
+                      </button>
+                      <span>·</span>
+                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
+                        {item.replies} {tk('replyCount')}
+                      </button>
                     </div>
                   </>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>

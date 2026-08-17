@@ -1,48 +1,262 @@
-1:TTS
-engine test
-qwen3tts
-up Pycore / Pycore UI rpc v2 BUG和qwen tts的BUG。注意使用rpc v2 的ID回调。对于qwentts由pycore访问qwentts的线程。
-RPC timeout after 30000ms: local.tts.test — server engines (e.g. qwen3tts) build an isolated venv and load the model on first start, which can take minutes; wait or retry.
-qwen3tts +4.58s]
-[qwen3tts +0.23s] ********
-[qwen3tts +0.35s] Warning: flash-attn is not installed. Will only run the manual PyTorch version. Please install flash-attn for faster inference.
-[qwen3tts +0.40s] ********
-[Heartbeat +0.18s] Tick #90, Time: 2026-07-27 23:27:47
-[qwen3tts +0.13s]
-[qwen3tts +0.33s] [api] Qwen3-TTS API server starting on 127.0.0.1:57210 (model=D:\www\cache\pycore\qwen3tts\weights, device=cuda:0)[managed +0.00s] qwen3tts ready
-
-[qwen3tts +0.36s] INFO:     Started server process [18908]
-[qwen3tts +0.21s] INFO:     Waiting for application startup.
-[qwen3tts +0.28s] INFO:     Application startup complete.
-[qwen3tts +0.19s] INFO:     Uvicorn running on http://127.0.0.1:57210 (Press CTRL+C to quit)
-[qwen3tts +0.33s] INFO:     127.0.0.1:58009 - "GET /health HTTP/1.1" 200 OK
-[laravel +5.77s] GET /api/app_qy_v1/ai_tools/tts/se
-
-2：[RequestProcessor +1.57s] Processing error for 832187f6-8d1c-4b70-8ad3-50e432cd0d86: database is locked
-
-3：Pycore UI顶部的 Laravel endpoint 切换的，为什么没有调用PYCORE的类库保存端点到用户数据，并在下次启动时直接载入
-4：http://127.0.0.1:13054/pycore-manager/agent-history 生成的要传给 poly apps/laravel main，并最终凡 pycore ui 中的wordnew Quantum Dossiers
- 显示，http://127.0.0.1:13054/wordnew#/home
- 目前：（1）点击后显示 Failed to load content.
-[wordnew] Failed to load verses. Error: HTTP 404 for /api/app_qy_v1/media/books/article_402a9355-9982-4520-beaa-4cec374ea7d6?page=1&per_page=200
-（2）缺少音频接口，/pycore-manager/agent-history中是否上传到laravel，
-/static/app_qy_v1/audio/agent_history/en/article_402a9355-9982-4520-beaa-4cec374ea7d6.mp3  404
-（3）play from this article / Open read-along reader都不正常。
-
-5：http://127.0.0.1:13054/wordnew#/home 对于没有封面的图书，现在修改为由apps/mcp-chrome中的task在开启状态下的google搜索查找图片并回传，骊地没有封面的Vocabulary Libraries 则由 gemini图片生成生成，但目前两端的逻辑都不对齐。
-6：http://127.0.0.1:13054/wordnew#/shelf Default Vocabulary Group   中的进度，包括目标，怩读，已背等，查看开发文档，根本没有和后端保存和同步。也没有载入用户名下的进度数据。
+Skip to main contentAccessibility help
+AI Mode
+All
+Images
+Videos
+News
+More
+Pro
 
 
 
 
+LARAVEL 有没有S M 能力,A,B两个客户端连接LARAVEL,A发信息如果B在就转组B,B发信息就转A,同时A ,A1 , B,B1为两组。其中一组中的一个发信息就能转给另一组的全部。
+Laravel 没有内置的原生 SM（Session Manager / State Manager 或 Socket Master） 长连接实时通讯能力。Laravel 本身是一个无状态（Stateless）的 HTTP 框架。
+要实现你描述的客户端 A、B 组播和跨组转播功能，你需要借助 WebSocket 扩展。
+核心实现方案
+最推荐的组合是：Laravel + Laravel Reverb (或 Swoole) + Laravel Echo。
+你可以利用 WebSocket 中的 频道（Channels） 概念来实现 A 组和 B 组的对发。
+架构设计思路
+将客户端分为两个专属的私有频道：
+Group_A 频道：包含客户端 A、A1
+Group_B 频道：包含客户端 B、B1
+1. 业务逻辑规则
+A 组任意一人发消息：Laravel 接收后，触发事件投递到 Group_B 频道。此时 B 和 B1 都会收到。
+B 组任意一人发消息：Laravel 接收后，触发事件投递到 Group_A 频道。此时 A 和 A1 都会收到。
+在线状态检测（B在就转给B）：利用 Presence Channel（存在频道）或 Redis 记录客户端的在线状态（Ping/Pong）。如果目标组无人在线，消息可以转为存入数据库（离线消息）。
+具体实现步骤
+第一步：定义广播事件 (Event)
+在 Laravel 中创建两个事件，分别用于向 A 组和 B 组广播。
+php
+// app/Events/MessageToGroupB.php
+class MessageToGroupB implements ShouldBroadcast
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public $message;
+
+    public function __construct($message) {
+        $this->message = $message;
+    }
+
+    // 广播到 B 组频道
+    public function broadcastOn() {
+        return new PrivateChannel('Group_B');
+    }
+}
+Use code with caution.
+第二步：编写控制器逻辑 (Controller)
+当收到客户端发送的 HTTP 请求或 WebSocket 消息时，进行判断和转发。
+php
+// app/Http/Controllers/ChatController.php
+public function sendMessage(Request $request) 
+{
+    $sender = $request->user()->group; // 假设能获取到发送方属于 A 组还是 B 组
+    $message = $request->input('message');
+
+    if ($sender === 'A') {
+        // 检查 B 组是否在线 (可以通过 Redis 读取 Presence Channel 的在线用户数)
+        if ($this->isGroupOnline('Group_B')) {
+            broadcast(new MessageToGroupB($message))->toOthers();
+        } else {
+            // B 不在线，存入数据库做离线消息
+            $this->saveOfflineMessage('B', $message);
+        }
+    } elseif ($sender === 'B') {
+        broadcast(new MessageToGroupA($message))->toOthers();
+    }
+
+    return response()->json(['status' => 'Message Sent!']);
+}
+Use code with caution.
+第三步：前端客户端接收 (Laravel Echo)
+客户端 A、A1 监听 Group_A 频道；客户端 B、B1 监听 Group_B 频道。
+A 和 A1 客户端代码：
+javascript
+Echo.private('Group_A')
+    .listen('MessageToGroupA', (e) => {
+        console.log('收到来自 B 组的消息:', e.message);
+    });
+Use code with caution.
+B 和 B1 客户端代码：
+javascript
+Echo.private('Group_B')
+    .listen('MessageToGroupB', (e) => {
+        console.log('收到来自 A 组的消息:', e.message);
+    });
+Use code with caution.
+技术栈选型建议
+Laravel Reverb（首选）：Laravel 11+ 官方自带的纯 PHP WebSocket 服务器，性能极高，开箱即用，完美支持事件广播。
+Swoole / Laravel Octane：如果你追求极致的异步长连接性能，可以用 Swoole 自己写 WebSocket 路由，不走 HTTP 转发，延迟更低。
+Pusher / Socket.io：如果不愿意维护服务器长连接服务，可以直接用 Pusher 等第三方云服务。
+请问你目前使用的 Laravel 是哪一个版本？
+另外，你更倾向于使用纯 WebSocket 长连接（如连接后直接发送/转发消息），还是通过 HTTP 接口发送消息 + WebSocket 接收广播 的模式？
+
+
+
+
+Laravel 13
+In Laravel 13, you can implement this efficiently using Laravel Reverb, which is fully integrated as the default, high-performance WebSocket server for Laravel. 
+Since you are using Laravel 13, you can build this entire logic using Presence Channels (to check if clients are online) and Event Broadcasting.
+Here is the complete implementation architecture to achieve your exact requirement.
+1. The Architecture Logic
+Group A Channel (presence-group.A): Subscribed by client A and A1.
+Group B Channel (presence-group.B): Subscribed by client B and B1.
+The Route: Clients send messages via a fast HTTP POST request. Laravel intercepts it, checks the target group's online status via the Presence Channel state, and broadcasts it to the entire target group if they are online. 
+2. Backend Implementation (Laravel 13)
+Step 1: Create the Broadcast Event 
+Run the artisan command to create the message event:
+bash
+php artisan make:event GroupMessageEvent
+Use code with caution.
+Configure app/Events/GroupMessageEvent.php:
+php
+namespace App\Events;
+
+use Illuminate\Broadcasting\InteractsWithSockets;
+use Illuminate\Broadcasting\PresenceChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
+use Illuminate\Foundation\Events\Dispatchable;
+use Illuminate\Queue\SerializesModels;
+
+class GroupMessageEvent implements ShouldBroadcast
+{
+    use Dispatchable, InteractsWithSockets, SerializesModels;
+
+    public function __construct(
+        public string $targetGroup, 
+        public string $message, 
+        public string $senderId
+    ) {}
+
+    // Dynamic routing to the opposing group's channel
+    public function broadcastOn(): array
+    {
+        return [
+            new PresenceChannel("group.{$this->targetGroup}"),
+        ];
+    }
+}
+Use code with caution.
+Step 2: Define Channel Authorization
+In routes/channels.php, define who can join which group. Presence channels require you to return an array of user data. 
+php
+use Illuminate\Support\Facades\Broadcast;
+
+Broadcast::channel('group.{groupId}', function ($user, $groupId) {
+    // Check if the user belongs to this group (A or B)
+    if ($user->group === $groupId) {
+        return ['id' => $user->id, 'name' => $user->name];
+    }
+    return false;
+});
+Use code with caution.
+Step 3: Implement the Routing & Logic Controller
+Create a controller to handle incoming messages and verify if the opposing group is online. 
+php
+namespace App\Http\Controllers;
+
+use App\Events\GroupMessageEvent;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Broadcast;
+
+class ChatController extends Controller
+{
+    public function handleMessage(Request $request)
+    {
+        $user = $request->user();
+        $message = $request->input('message');
+        
+        // Determine Target Group (If sender is A, target is B. If sender is B, target is A)
+        $currentGroup = $user->group; // 'A' or 'B'
+        $targetGroup = ($currentGroup === 'A') ? 'B' : 'A';
+
+        // Laravel 13 Reverb / Redis integration: Check if target group has active connections
+        // We use the Broadcast driver to inspect presence channel members
+        $targetChannelName = "presence-group.{$targetGroup}";
+        $activeUsers = Broadcast::driver()->users($targetChannelName);
+
+        if (!empty($activeUsers)) {
+            // Target group is ONLINE. Broadcast to everyone in that group.
+            broadcast(new GroupMessageEvent($targetGroup, $message, $user->id))->toOthers();
+            
+            return response()->json(['status' => 'success', 'data' => 'Broadcasted to Group ' . $targetGroup]);
+        } else {
+            // Target group is OFFLINE. Save to database or cache.
+            // $this->saveOfflineMessage($targetGroup, $message);
+            
+            return response()->json(['status' => 'offline', 'data' => 'Group ' . $targetGroup . ' is offline. Message saved.']);
+        }
+    }
+}
+Use code with caution.
+3. Client-Side Implementation (Laravel Echo)
+Your clients (A, A1, B, B1) will connect using Laravel Echo.
+For Group A Clients (A and A1):
+javascript
+import Echo from 'laravel-echo';
+import Pusher from 'pusher-js'; // Reverb uses the Pusher protocol
+
+window.Echo = new Echo({
+    broadcaster: 'reverb',
+    key: import.meta.env.VITE_REVERB_APP_KEY,
+    wsHost: import.meta.env.VITE_REVERB_HOST,
+    wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
+    forceTLS: false,
+    enabledTransports: ['ws', 'wss'],
+});
+
+// Join Group A's Presence Channel
+window.Echo.join('group.A')
+    .here((users) => {
+        console.log('Online members in Group A:', users);
+    })
+    .joining((user) => {
+        console.log(user.name + ' joined Group A');
+    })
+    .leaving((user) => {
+        console.log(user.name + ' left Group A');
+    })
+    .listen('GroupMessageEvent', (e) => {
+        // This triggers when Group B sends a message
+        console.log('Received cross-group message from ' + e.senderId + ': ' + e.message);
+    });
+Use code with caution.
+For Group B Clients (B and B1):
+javascript
+// Join Group B's Presence Channel
+window.Echo.join('group.B')
+    .here((users) => { console.log('Online members in Group B:', users); })
+    .listen('GroupMessageEvent', (e) => {
+        // This triggers when Group A sends a message
+        console.log('Received cross-group message from ' + e.senderId + ': ' + e.message);
+    });
+Use code with caution.
+How this satisfies your requirements:
+A sends, goes to B if B is online: The ChatController evaluates the Broadcast::driver()->users() array for presence-group.B. If it's not empty, it fires the event.
+B sends, goes to A: The exact inverse logic happens dynamically in the controller.
+One sends to all in the other group: Because GroupMessageEvent targets the entire presence-group.X channel, anyone subscribed to that group channel (e.g., both B and B1 simultaneously) will immediately receive the message via their open WebSocket connection.
+Would you like help setting up the database schema for storing offline messages if the target group is entirely disconnected, or do you need assistance with the Reverb server configuration command line steps?
 
 
 
 
 
+pradeepbhandari.com
+Building Real-Time Dashboards with Laravel 13 and Reverb
+With Laravel 13, we can leverage Laravel Reverb to build a l...
 
 
+Scalable Path
+Laravel 11: An In-Depth Review of The Leading PHP Framework
+Reverb is a WebSocket server for Laravel that promises to be...
 
 
+Laravel
+Introducing Laravel Reverb-Powered WebSockets for Cloud
+Well, with WebSockets for Laravel Cloud, a fully managed Rev...
+
+Show all
+Ask anything
 
 

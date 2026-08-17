@@ -21,11 +21,9 @@ import { logger } from '@/utils/logger';
 import {
   claimAssistItems,
   releaseAssistItem,
-  submitAssistCover,
-  looksLikeImageBase64,
   type AssistClaimItem,
 } from '@/services/assist-image-api';
-import { submitOutbox } from './outbox/submit-outbox';
+import { submitLibraryCover } from './assist-cover-pipeline';
 import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-library';
 
 const LOG = 'Gemini Image';
@@ -142,7 +140,7 @@ class GeminiImageWorkerService extends AssistPollingWorkerBase<Record<string, un
     });
 
     const generated = await generateViaGemini(prompt);
-    if (!generated || !looksLikeImageBase64(generated.imageBase64)) {
+    if (!generated) {
       this.assistStats.assistFailed += 1;
       this.stats.failed += 1;
       logger.warn(LOG, `Gemini failed to generate vocabulary cover#${item.id}`);
@@ -157,14 +155,17 @@ class GeminiImageWorkerService extends AssistPollingWorkerBase<Record<string, un
       latencyMs: Date.now() - started,
     };
     this.assistStats.currentAssistStage = 'submitting';
-    const result = await submitAssistCover(
-      this.config.apiUrl,
-      item.id,
-      generated.imageBase64,
-      ASSIST_CLAIMER,
+    // Magic validation + submit + release/outbox policy live in the shared
+    // assist-cover pipeline (single implementation across both image workers).
+    const outcome = await submitLibraryCover({
+      baseUrl: this.config.apiUrl,
+      itemId: item.id,
+      imageBase64: generated.imageBase64,
+      claimer: ASSIST_CLAIMER,
       extras,
-    );
-    if (result.ok) {
+      releaseReasonPrefix: 'mcp-chrome',
+    });
+    if (outcome === 'submitted') {
       this.assistStats.coversSubmitted += 1;
       this.assistStats.currentAssistStage = 'completed';
       this.stats.translated += 1;
@@ -174,30 +175,9 @@ class GeminiImageWorkerService extends AssistPollingWorkerBase<Record<string, un
 
     this.assistStats.assistFailed += 1;
     this.stats.failed += 1;
-    if (result.status === 'invalid' || result.status === 'not_found') {
-      await releaseAssistItem(
-        this.config.apiUrl,
-        'cover',
-        item.id,
-        `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`,
-      );
-      return;
+    if (outcome === 'outboxed') {
+      logger.warn(LOG, `Vocabulary cover#${item.id} queued in the durable outbox`);
     }
-    await submitOutbox.enqueue({
-      kind: 'assist_submit',
-      baseUrl: this.config.apiUrl,
-      payload: {
-        type: 'cover',
-        id: item.id,
-        imageBase64: generated.imageBase64,
-        claimer: ASSIST_CLAIMER,
-        extras,
-      },
-    });
-    logger.warn(LOG, `Vocabulary cover#${item.id} queued in the durable outbox`, {
-      status: result.status || null,
-      error: result.error || null,
-    });
   }
 
   protected async executeTask(task: Task): Promise<void> {

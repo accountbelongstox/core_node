@@ -26,6 +26,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
   storeRevision?: string;
   onEnabledToolsChange?: (tools: string[], initialHydration?: boolean) => void;
   onSelectedToolChange: (tool: string) => void;
+  onOpenToolHistory?: (tool: string, tab: 'sessions' | 'prompts') => void;
   taskPeriod: AgentHistoryTaskPeriod;
   onTaskPeriodChange: (period: AgentHistoryTaskPeriod) => void;
 }> = ({
@@ -35,6 +36,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
   storeRevision,
   onEnabledToolsChange,
   onSelectedToolChange,
+  onOpenToolHistory,
   taskPeriod,
   onTaskPeriodChange,
 }) => {
@@ -230,6 +232,7 @@ const PcAgentHistoryConfigPanel: React.FC<{
           refreshRevision={`${storeRevision || ''}|${String(opStatus?.revision || '')}`}
           onToggle={handleToolToggle}
           onSelect={onSelectedToolChange}
+          onOpenToolHistory={onOpenToolHistory}
         />
         <PcAgentHistoryAiPanel
           tk={tk}

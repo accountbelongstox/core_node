@@ -7,11 +7,11 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 PHP_BIN="${PHP_BIN:-$(command -v php)}"
-PORT="${PORT:-9000}"
+PORT="${PORT:-}"
 WORKERS="${WORKERS:-4}"
 TASK_WORKERS="${TASK_WORKERS:-4}"
 OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
-OCTANE_HOST="${OCTANE_HOST:-0.0.0.0}"
+OCTANE_HOST="${OCTANE_HOST:-}"
 OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 REVERB_HOST="${REVERB_SERVER_HOST:-0.0.0.0}"
@@ -19,6 +19,15 @@ REVERB_PORT="${REVERB_SERVER_PORT:-8080}"
 REVERB_PID=""
 OCTANE_PID=""
 RUNTIME_STATUS=0
+
+# Central service contract (config/service_contract.json) via the shell
+# adapter: default bind port = ports.laravel_api_backend, default bind host =
+# hosts.any (0.0.0.0). PORT/OCTANE_HOST env vars still win.
+# shellcheck source=/dev/null
+. "${SCRIPT_DIR}/../../../scripts/shells/linux/common/service_contract_common.sh"
+PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
+OCTANE_HOST="${OCTANE_HOST:-$(sc_get hosts.any)}"
+
 OCTANE_ARGS=(
     artisan octane:start
     "--server=${OCTANE_SERVER}"

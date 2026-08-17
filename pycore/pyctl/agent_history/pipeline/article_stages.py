@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
-import re
 from typing import Any, Dict, Tuple
 
 from pycore.pyctl.agent_history.agent_history_fragments import sanitize_fragment_text, count_words
@@ -8,6 +6,7 @@ from pycore.pyctl.ai.ai_chat import chat_once
 from pycore.pyctl.ai.ai_rate_limits import check_rate_limit
 from pycore.pyctl.agent_history.pipeline.config import get_config
 from pycore.pyutils.common.ai_request_failures import AiRequestError, classify_ai_failure
+from pycore.pyutils.common.llm_content import parse_json_object
 from pycore.pyutils.laravel.article_contract import (
     TITLE_MAX,
     TITLE_PROMPT_MAX,
@@ -15,32 +14,18 @@ from pycore.pyutils.laravel.article_contract import (
     compose_title,
 )
 
-_JSON_OBJ_RE = re.compile(r"\{.*\}", re.DOTALL)
 _QUOTA_ERROR = "openrouter daily request limit reached"
 
 def _parse_json_obj(text: str) -> Dict[str, Any]:
     """Parse the FIRST complete JSON object from model output.
 
-    Free-tier models sometimes emit the same JSON object twice back to back
-    (or append prose after it). A greedy first-{ to last-} match then spans
-    two objects and json.loads fails with "Extra data". raw_decode stops at
-    the end of the first valid object instead; the greedy-regex fallback is
-    kept for outputs where the object does not start at the first brace.
+    Delegates to the shared content-conversion library
+    (:mod:`pycore.pyutils.common.llm_content`): fenced blocks, balanced
+    first-object scan, and near-JSON repairs (python literals, trailing
+    commas, smart quotes, truncation auto-close). Failures carry the full
+    decoder error plus the offending model-text excerpt.
     """
-    blob = str(text or "")
-    start = blob.find("{")
-    if start >= 0:
-        try:
-            data, _end = json.JSONDecoder().raw_decode(blob[start:])
-            if isinstance(data, dict):
-                return data
-        except json.JSONDecodeError:
-            pass
-    match = _JSON_OBJ_RE.search(blob)
-    data = json.loads(match.group(0) if match else blob)
-    if not isinstance(data, dict):
-        raise ValueError("model returned non-object JSON")
-    return data
+    return parse_json_object(text)
 
 def ensure_openrouter_available() -> None:
     rate = check_rate_limit("openrouter")

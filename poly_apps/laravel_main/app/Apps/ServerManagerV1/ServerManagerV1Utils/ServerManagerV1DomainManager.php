@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Log;
 use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1NginxConfigBuilder;
 use App\Providers\PathMapper;
+use App\Support\ServiceContract;
 
 /**
  * Domain Management Utility for ServerManagerV1
@@ -875,36 +876,46 @@ class ServerManagerV1DomainManager
             }
         }
 
+        // Proxy sites render through the canonical builder (single source of
+        // truth, SYNC CONTRACT with the shell end): api.* gets the
+        // direct-proxy :80 block, everything else the 301 -> https pair. The
+        // legacy inline proxy template (wrong 8000 default, divergent stanza)
+        // is removed; the builder emits one self-contained file.
+        if ($config['type'] === 'proxy') {
+            $proxyPort = (int) ($config['proxy_port'] ?? ServiceContract::port('laravel_api_backend'));
+            $proxyCertPaths = null;
+            if ($sslEnabled && $certDir !== null) {
+                $proxyCertPaths = ['cert' => "$certDir/fullchain.pem", 'key' => "$certDir/privkey.pem"];
+            }
+            $proxyContent = ServerManagerV1NginxConfigBuilder::buildProxy($serverNames, "127.0.0.1:$proxyPort", $proxyCertPaths);
+            if (file_put_contents($configFile, $proxyContent) === false) {
+                Log::error('Failed to write proxy config file', [
+                    'domain' => $domain,
+                    'config_file' => $configFile
+                ]);
+                return false;
+            }
+            if (file_exists($enabledFile) || is_link($enabledFile)) {
+                @unlink($enabledFile);
+            }
+            if (!symlink($configFile, $enabledFile)) {
+                Log::error('Failed to create proxy symlink', [
+                    'domain' => $domain,
+                    'source' => $configFile,
+                    'target' => $enabledFile
+                ]);
+                return false;
+            }
+            return true;
+        }
+
         // Generate PHP configuration for Laravel/PHP sites (swoole mode only)
         $phpConfig = '';
         $reverbPort = (int) config('reverb.servers.reverb.port', 8080);
         // Fixed to swoole mode only - no longer configurable
         $phpMode = 'swoole';
 
-        if ($config['type'] === 'proxy') {
-            // Proxy mode: Reverse proxy to specified port
-            $proxyPort = $config['proxy_port'] ?? 8000;
-            $phpConfig = "
-    # Reverse Proxy Configuration
-    location / {
-        proxy_pass http://127.0.0.1:$proxyPort;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-
-        # WebSocket support
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_cache_bypass \$http_upgrade;
-
-        # Timeouts
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }";
-        } elseif (in_array($config['type'], ['laravel', 'poly', 'php'])) {
+        if (in_array($config['type'], ['laravel', 'poly', 'php'])) {
             // Always use Swoole mode (Octane): Reverse proxy configuration
             // Auto-calculate port based on app index instead of using cached value
             $wwwDir = $config['www_dir'] ?? '';
@@ -1368,7 +1379,8 @@ server {
             'type' => 'html',
             'listen_ports' => [],
             'ssl_certificate' => null,
-            'ssl_certificate_key' => null
+            'ssl_certificate_key' => null,
+            'proxy_pass' => null
         ];
 
         $lines = explode("\n", $content);
@@ -1414,7 +1426,15 @@ server {
             }
         }
 
-        if (strpos($config['root'], '/poly_apps/laravel_main') !== false) {
+        // A proxy vhost has no web root: any `root` inside it belongs to an
+        // ACME/location block, not the site's content.
+        if (preg_match('/proxy_pass\s+([^;]+);/', $content, $matches)) {
+            $config['type'] = 'proxy';
+            $config['proxy_pass'] = trim($matches[1]);
+            $config['root'] = null;
+        }
+
+        if ($config['root'] !== null && strpos($config['root'], '/poly_apps/laravel_main') !== false) {
             $config['type'] = 'poly';
         }
 

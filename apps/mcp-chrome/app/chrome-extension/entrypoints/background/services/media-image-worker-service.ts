@@ -5,6 +5,7 @@
  *   - GlobalTask `poster` on dedicated `remote_poster` lane
  *   - GlobalTask `word_media` on the fast lane (capability image)
  *   - Laravel assist pool `poster` items via /assist/claim + /assist/submit
+ *     (cover submits share the assist-cover pipeline with the Gemini worker)
  *
  * Replaces pycore TMDB/OMDB + AI cover generation (delegated to mcp-chrome).
  */
@@ -23,15 +24,12 @@ import {
 import {
   claimAssistItems,
   releaseAssistItem,
-  submitAssistCover,
   submitAssistPoster,
   looksLikeImageBase64,
   type AssistClaimItem,
-  type AssistSubmitResult,
 } from '@/services/assist-image-api';
-import type { AssistSubmitPayload } from './outbox/submit-outbox';
+import { finalizeAssistSubmit, submitLibraryCover } from './assist-cover-pipeline';
 import { generateViaGemini } from './gemini-image-generate';
-import { submitOutbox } from './outbox/submit-outbox';
 import { vocabularyCoverPromptLibrary } from '@/utils/vocabulary-cover-prompt-library';
 
 const LOG = 'Media Image';
@@ -205,32 +203,27 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
           sourceUrl: image.sourceUrl,
         });
       }
-      if (!imageBase64 || !looksLikeImageBase64(imageBase64)) {
-        // Bad bytes (SVG/HTML error page/…) would be rejected server-side as
-        // 'invalid' forever — release the claim instead of poisoning the outbox.
-        this.assistStats.assistFailed += 1;
-        this.stats.failed += 1;
-        logger.warn(LOG, `Image validation failed for library cover#${item.id}`, { provider, mime });
-        await releaseAssistItem(baseUrl, 'cover', item.id, 'mcp-chrome: cover image failed magic validation');
-        return;
-      }
       const extras = { mime, provider, model, latencyMs: Date.now() - started };
       this.assistStats.currentAssistStage = 'submitting';
       logger.debug(LOG, `Submitting library cover#${item.id}`, extras);
-      const result = await submitAssistCover(baseUrl, item.id, imageBase64, ASSIST_CLAIMER, extras);
-      await this.finalizeAssistSubmit(result, {
-        onOk: () => {
-          this.assistStats.coversSubmitted += 1;
-          this.stats.translated += 1;
-          this.assistStats.currentAssistStage = 'completed';
-          logger.info(LOG, `Backend accepted library cover#${item.id}${result.already_done ? ' (already done)' : ''}`, {
-            status: result.status,
-          });
-        },
-        release: () => releaseAssistItem(baseUrl, 'cover', item.id,
-          `mcp-chrome: submit ${result.status}: ${result.error || 'rejected'}`),
-        outboxPayload: { type: 'cover', id: item.id, imageBase64, claimer: ASSIST_CLAIMER, extras },
+      // Magic validation + submit + release/outbox policy live in the shared
+      // assist-cover pipeline (single implementation across both image workers).
+      const outcome = await submitLibraryCover({
+        baseUrl,
+        itemId: item.id,
+        imageBase64,
+        claimer: ASSIST_CLAIMER,
+        extras,
+        releaseReasonPrefix: 'mcp-chrome',
       });
+      if (outcome === 'submitted') {
+        this.assistStats.coversSubmitted += 1;
+        this.stats.translated += 1;
+        this.assistStats.currentAssistStage = 'completed';
+        return;
+      }
+      this.assistStats.assistFailed += 1;
+      this.stats.failed += 1;
       return;
     }
 
@@ -254,7 +247,7 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
         return;
       }
       if (!looksLikeImageBase64(image.imageBase64)) {
-        // Same terminal-bytes guard as the cover path (see above).
+        // Same terminal-bytes guard as the cover pipeline.
         this.assistStats.assistFailed += 1;
         this.stats.failed += 1;
         logger.warn(LOG, `Image validation failed for ${mediaType} poster#${item.id}`, {
@@ -276,11 +269,8 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
       this.assistStats.currentAssistStage = 'submitting';
       logger.debug(LOG, `Submitting ${mediaType} poster#${item.id}`, extras);
       const result = await submitAssistPoster(baseUrl, mediaType, item.id, image.imageBase64, ASSIST_CLAIMER, extras);
-      await this.finalizeAssistSubmit(result, {
+      const outcome = await finalizeAssistSubmit(baseUrl, result, {
         onOk: () => {
-          this.assistStats.postersSubmitted += 1;
-          this.stats.translated += 1;
-          this.assistStats.currentAssistStage = 'completed';
           logger.info(LOG, `Backend accepted ${mediaType} poster#${item.id}${result.already_done ? ' (already done)' : ''}`, {
             status: result.status,
             provider: image.provider,
@@ -293,44 +283,15 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
           imageBase64: image.imageBase64, claimer: ASSIST_CLAIMER, extras,
         },
       });
+      if (outcome === 'submitted') {
+        this.assistStats.postersSubmitted += 1;
+        this.stats.translated += 1;
+        this.assistStats.currentAssistStage = 'completed';
+      } else {
+        this.assistStats.assistFailed += 1;
+        this.stats.failed += 1;
+      }
     }
-  }
-
-  /**
-   * Shared outcome handling for an assist cover/poster submit:
-   *   ok/already_done -> onOk();
-   *   'invalid'/'not_found' -> TERMINAL (the bytes can never pass) -> release();
-   *   anything else (transient) -> durable outbox retry (never lost).
-   */
-  private async finalizeAssistSubmit(
-    result: AssistSubmitResult,
-    actions: {
-      onOk: () => void;
-      release: () => Promise<void>;
-      outboxPayload: AssistSubmitPayload;
-    },
-  ): Promise<void> {
-    if (result.ok) {
-      actions.onOk();
-      return;
-    }
-    this.assistStats.assistFailed += 1;
-    this.stats.failed += 1;
-    if (result.status === 'invalid' || result.status === 'not_found') {
-      logger.warn(LOG, `Assist submit rejected as ${result.status}`, { error: result.error || null });
-      await actions.release();
-      return;
-    }
-    if (!this.config?.apiUrl) return;
-    logger.warn(LOG, 'Assist submit deferred to the durable outbox', {
-      status: result.status || null,
-      error: result.error || null,
-    });
-    await submitOutbox.enqueue({
-      kind: 'assist_submit',
-      baseUrl: this.config.apiUrl,
-      payload: actions.outboxPayload,
-    });
   }
 
   protected async executeTask(task: Task): Promise<void> {

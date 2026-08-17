@@ -386,4 +386,9 @@ export class ServerManagerV1API extends BaseAPI {
     return this.get('/certificates/detect-certbot');
   }
 
+  /** DNS provider configuration status (secrets are never returned). */
+  async dnsProviderStatus(): Promise<APIResponse> {
+    return this.get('/certificates/dns-provider');
+  }
+
 }

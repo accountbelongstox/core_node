@@ -344,7 +344,7 @@ export default function PcSubtitleSearchPage() {
   const canRun = !!query.trim();
 
   return (
-    <div className="p-6 md:p-8 space-y-5">
+    <div className="p-3 sm:p-6 md:p-8 space-y-5">
       {/* header + status */}
       <section className="pc-glass p-6">
         <div className="mb-5 flex items-start justify-between gap-3">

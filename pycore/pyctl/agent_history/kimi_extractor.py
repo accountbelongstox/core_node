@@ -10,8 +10,15 @@ deduped by realpath; ``.kimi-code.migrate_pending_*`` dirs are ignored):
   sessions/<workdir-dir>/<session-id>/state.json   {"title","workDir","lastPrompt","createdAt"}
   user-history/<md5>.jsonl                {"content":"..."} (prompt-only)
 
-wire.jsonl: first line is {"type":"metadata"}; conversation events are
-{"type":"context.append_message","message":{"role","content":[{type,text}]}}.
+wire.jsonl: first line is {"type":"metadata"}; current CLIs record
+prompts as {"type":"turn.prompt","input":[{type,text}],"time":ms} (plus
+"turn.steer" for mid-turn steering) and assistant replies as streamed
+{"type":"context.append_loop_event","event":{"type":"content.part",
+"part":{"type":"text|think","text"},"turnId"}} events (think parts are
+skipped). Legacy wires instead carry both roles via
+{"type":"context.append_message","message":{"role","content":[{type,text}]}};
+when turn.prompt events exist the mirrored append_message user turns are
+dropped to avoid duplicates.
 """
 
 from __future__ import annotations
@@ -112,10 +119,49 @@ class KimiExtractor(BaseExtractor):
 
         turns: List[Dict[str, Any]] = []
         prompts: List[Dict[str, Any]] = []
+        prompt_turns: List[Dict[str, Any]] = []
+        legacy_user_turns: List[Dict[str, Any]] = []
+        legacy_assistant_turns: List[Dict[str, Any]] = []
+        assistant_parts: Dict[str, Dict[str, Any]] = {}
         first_ts = 0
         last_ts = 0
         for e in entries:
-            if e.get("type") != "context.append_message":
+            etype = str(e.get("type") or "")
+            if etype in ("turn.prompt", "turn.steer"):
+                text = self.stringify_content(e.get("input")).strip()
+                if text:
+                    ts = self.ts_to_epoch(e.get("time")) or mtime
+                    if ts > 0:
+                        last_ts = max(last_ts, ts)
+                        if first_ts == 0:
+                            first_ts = ts
+                    prompts.append({"ts": ts, "text": self.truncate(text)})
+                    prompt_turns.append(self.turn(ts, "user", text, is_sub))
+                continue
+            if etype == "context.append_loop_event":
+                ev = e.get("event") or {}
+                if str(ev.get("type")) != "content.part":
+                    continue
+                part = ev.get("part") or {}
+                if str(part.get("type")) != "text" or part.get("encrypted"):
+                    continue
+                text = str(part.get("text") or "").strip()
+                if not text:
+                    continue
+                ts = self.ts_to_epoch(e.get("time")) or mtime
+                if ts > 0:
+                    last_ts = max(last_ts, ts)
+                    if first_ts == 0:
+                        first_ts = ts
+                turn_key = str(ev.get("turnId") or "")
+                bucket = assistant_parts.get(turn_key)
+                if bucket is None:
+                    bucket = {"ts": ts, "texts": []}
+                    assistant_parts[turn_key] = bucket
+                bucket["ts"] = max(bucket["ts"], ts)
+                bucket["texts"].append(text)
+                continue
+            if etype != "context.append_message":
                 continue
             msg = e.get("message") or {}
             role = str(msg.get("role") or "")
@@ -126,14 +172,28 @@ class KimiExtractor(BaseExtractor):
                 continue
             ts = self.ts_to_epoch(e.get("timestamp") or e.get("ts") or msg.get("timestamp")) or mtime
             if ts > 0:
-                last_ts = ts
+                last_ts = max(last_ts, ts)
                 if first_ts == 0:
                     first_ts = ts
             if role == "user":
-                prompts.append({"ts": ts, "text": self.truncate(text)})
-            turns.append(self.turn(ts, role, text, is_sub))
-            if len(turns) > MAX_TURNS:
-                break
+                legacy_user_turns.append(self.turn(ts, "user", text, is_sub))
+            else:
+                legacy_assistant_turns.append(self.turn(ts, "assistant", text, is_sub))
+
+        # Newer CLIs mirror prompts as turn.prompt AND context.append_message;
+        # prefer turn.prompt and drop the mirrored duplicates. Legacy sessions
+        # (no turn.prompt events) keep the append_message user turns.
+        user_turns = prompt_turns or legacy_user_turns
+        turns = user_turns + [
+            self.turn(bucket["ts"], "assistant", "\n\n".join(bucket["texts"]), is_sub)
+            for bucket in assistant_parts.values()
+        ]
+        # Older wires carried assistant replies inside context.append_message;
+        # use them only when the loop-event stream has none.
+        if not assistant_parts:
+            turns = turns + legacy_assistant_turns
+        turns.sort(key=lambda t: (int(t.get("ts") or 0), 0 if t.get("role") == "user" else 1))
+        turns = turns[:MAX_TURNS]
 
         if not turns:
             return None

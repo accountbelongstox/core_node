@@ -366,6 +366,14 @@ class LaravelEndpointManager:
             if url and isinstance(result, dict):
                 self._probe_results[url] = dict(result)
 
+    @serialized_method
+    def last_probe_result(self, url: str) -> Dict[str, Any]:
+        """Last recorded health-probe result for one URL (network-free read).
+
+        Shared health truth for lanes that gate on Laravel reachability
+        (queue-center realtime) without re-probing themselves."""
+        return dict(self._probe_results.get(_normalize(url)) or {})
+
 
     # ----------------------------------------------------------------- #
     # Resolution (stored-first -> sweep -> cache)                        #

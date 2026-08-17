@@ -1,0 +1,75 @@
+ 先继续之前的任务， 再下一步这个。qwen3tts-events +1.69s]
+ HTTP poll failed: [WinError 10061] No connection could be
+ made because the target machine actively refused it
+ [qwen3tts-events +4.06s] HTTP poll failed: [WinError 10061]
+ No connection could be made because the target machine
+ actively refused it
+ [qwen3tts-events +6.03s] HTTP poll failed: [WinError 10061]
+ No connection could be made because the target machine
+ actively refused it
+ [qwen3tts-events +10.05s] HTTP poll failed: [WinError
+ 10061] No connection could be made because the target
+ machine actively refused it
+ [qwen3tts +4.74s]
+ [qwen3tts +0.00s] ********
+ [qwen3tts +0.00s] Warning: flash-attn is not installed.
+ Will only run the manual PyTorch version. Please install
+ flash-attn for faster inference.
+ [qwen3tts +0.01s] ********
+ [qwen3tts +0.01s]
+ [qwen3tts +2.14s]
+ D:\programing\core_node\pycore\tts_install_assets\qwen3tts_
+ api_server.py:798: DeprecationWarning:
+ [qwen3tts +0.00s] on_event is deprecated, use lifespan
+ event handlers instead.
+ [qwen3tts +0.00s]
+ [qwen3tts +0.00s] Read more about it in the
+ [qwen3tts +0.01s] FastAPI docs for Lifespan Events.
+ [qwen3tts +0.00s]
+ [qwen3tts +0.00s] @app.on_event("startup")
+ [qwen3tts +0.00s]
+ D:\programing\core_node\pycore\tts_install_assets\qwen3tts_
+ api_server.py:823: DeprecationWarning:
+ [qwen3tts +0.00s] on_event is deprecated, use lifespan
+ event handlers instead.
+ [qwen3tts +0.01s]
+ [qwen3tts +0.01s] Read more about it in the
+ [qwen3tts +0.01s] FastAPI docs for Lifespan Events.Item
+ failed [pipeline_error]: Expecting value: line 1 column 1
+ (char 0)false
+
+ Traceback (most recent call last):
+   File
+ "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
+ e\worker.py", line 149, in tick_pipeline
+     if _process_item(item, op_service, event_service):
+        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   File
+ "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
+ e\worker.py", line 429, in _process_item
+     article_en, engine =
+ translate_to_english(checkpoint["article_cn"],
+ request_context)
+
+ ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ ^^^^
+   File
+ "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
+ e\article_stages.py", line 158, in translate_to_english
+     data = _parse_json_obj(str(res.get("text") or ""))
+   File
+ "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
+ e\article_stages.py", line 40, in parse_json_obj
+     data = json.loads(match.group(0) if match else blob)
+   File "D:\.dev_win10\python313\Lib\json\_init.py", line
+ 352, in loads
+     return _default_decoder.decode(s)
+            ~~~~~~~~~~~~~~~~~~~~~~~^^^
+   File "D:\.dev_win10\python313\Lib\json\decoder.py", line
+ 345, in decode
+     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+   File "D:\.dev_win10\python313\Lib\json\decoder.py", line
+ 363, in raw_decode
+     raise JSONDecodeError("Expecting value", s, err.va 如果
+ 是内容太转换，扩展出辅助强大的内容转换类库。

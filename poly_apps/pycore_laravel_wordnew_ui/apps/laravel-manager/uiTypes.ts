@@ -882,6 +882,16 @@ export interface SSLCertificate {
   status: 'ok' | 'warning' | 'critical';
   certificate_path?: string;
   key_path?: string;
+  /** Full SAN list covered by this certificate. */
+  domains?: string[];
+}
+
+export interface DnsProviderStatus {
+  provider: string;
+  configured: boolean;
+  email?: string | null;
+  api_id?: string | null;
+  token_configured: boolean;
 }
 
 export interface SSLCertificateGenerateRequest {

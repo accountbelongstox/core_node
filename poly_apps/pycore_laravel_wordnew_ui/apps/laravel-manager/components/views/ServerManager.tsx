@@ -25,6 +25,7 @@ import {
   UnifiedApp,
   UnifiedAppStatus,
   CertbotStatus,
+  DnsProviderStatus,
   SystemProcess,
   SystemStorage,
   SystemServiceStatus,
@@ -188,6 +189,14 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     error: null,
     status: 'idle'
   });
+  const [dnsProvider, setDnsProvider] = useState<AsyncState<DnsProviderStatus>>({
+    data: null,
+    loading: false,
+    error: null,
+    status: 'idle'
+  });
+  const [renewingAll, setRenewingAll] = useState(false);
+  const [ensuringDomain, setEnsuringDomain] = useState<string | null>(null);
 
   // System Info State
   const [systemInfo, setSystemInfo] = useState<AsyncState<ServerRuntimeSystemInfo>>({
@@ -871,6 +880,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
     } else if (activeTab === 'ssl') {
       loadSSLCertificates();
       loadCertbotStatus();
+      loadDnsProvider();
     } else if (activeTab === 'system') {
       loadSystemInfo();
       loadSystemProcesses();
@@ -922,6 +932,63 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       setEditedSiteConfig('');
     }
   }, [siteConfig.data]);
+
+  // Load DNS Provider Status (secrets are never returned by the API)
+  const loadDnsProvider = async () => {
+    setDnsProvider(prev => ({ ...prev, loading: true, status: 'loading' }));
+    try {
+      const response = await api.serverManagerV1.dnsProviderStatus();
+      if (response.success && response.data) {
+        setDnsProvider({
+          data: response.data,
+          loading: false,
+          error: null,
+          status: 'success'
+        });
+      } else {
+        throw new Error(response.error || 'Failed to load DNS provider status');
+      }
+    } catch (error: any) {
+      setDnsProvider({
+        data: null,
+        loading: false,
+        error: error.message,
+        status: 'error'
+      });
+    }
+  };
+
+  // Renew every near-expiry certificate (certbot self-gates), then refresh.
+  const handleRenewAllCerts = async () => {
+    setRenewingAll(true);
+    try {
+      const response = await api.serverManagerV1.renewCertificates({ all: true });
+      if (!response.success) {
+        throw new Error(response.error || t.messages.failed_to_renew_certs);
+      }
+      await loadSSLCertificates();
+    } catch (error: any) {
+      alert(error.message || t.messages.failed_to_renew_certs);
+    } finally {
+      setRenewingAll(false);
+    }
+  };
+
+  // Idempotent per-certificate ensure (generate if missing, renew if present).
+  const handleEnsureCert = async (domain: string) => {
+    setEnsuringDomain(domain);
+    try {
+      const response = await api.serverManagerV1.ensureCertificate({ domain });
+      if (!response.success) {
+        throw new Error(response.error || 'ensure failed');
+      }
+      await loadSSLCertificates();
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setEnsuringDomain(null);
+    }
+  };
 
   // Load Certbot Status
   const loadCertbotStatus = async () => {
@@ -1438,8 +1505,13 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             lang={lang}
             certbotStatus={certbotStatus}
             sslCertificates={sslCertificates}
+            dnsProvider={dnsProvider}
+            renewingAll={renewingAll}
+            ensuringDomain={ensuringDomain}
             onInstallCertbot={handleInstallCertbot}
             onShowGenerateCert={() => setShowGenerateCert(true)}
+            onRenewAll={handleRenewAllCerts}
+            onEnsureCert={handleEnsureCert}
             getStatusIcon={getStatusIcon}
           />
         )}

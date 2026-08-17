@@ -14,75 +14,84 @@
 # - reading DNSPod secrets (DNSPOD_EMAILS / DNS_DNSPOD_API_TOKENS / DOMAINS_LISTS)
 # - region-prefix selection (si/sh/sz/hk/custom) persisted in the file-backed
 #   global-var store, so later runs only ask whether to modify
-# - idempotent nginx site install for api.<prefix>.<domain> (HTTP/3 + 301 +
-#   TLS early data, rendered by nginx_common.sh) with per-site repair
+# - idempotent nginx site install for api.<prefix>.<domain> AND the bare apex
+#   <domain>: api.* sites reverse proxy to the canonical API backend
+#   (service contract ports.laravel_api_backend on loopback) with plain HTTP
+#   on :80 proxying DIRECTLY (no 301); apex
+#   sites keep the 301 -> https pair (without the apex site, apex requests
+#   fall through to the static default vhost),
+#   HTTP/3 + 301 + TLS early data, rendered by nginx_common.sh, with per-site
+#   repair
 # - idempotent certificate issuance through Laravel ServerManager (artisan)
+#   plus the closing certificate fleet summary (the old 133 block)
 #
 # Load-time side effect free. USE_SUDO and the site directories are resolved
 # lazily so this library is safe to source from both dd.sh installers (which
 # have gvar_common.sh loaded) and plain app start scripts (which do not).
 
 DOMAIN_SETUP_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Canonical service contract adapter (ports/hosts/paths single source). Must
+# load BEFORE the DOMAIN_SETUP_* path variables below - they call sc_get at
+# source time.
+# shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/service_contract_common.sh"
 # shellcheck source=/dev/null
 source "$DOMAIN_SETUP_COMMON_DIR/nginx_common.sh"
 
 DOMAIN_SETUP_REPO_ROOT="$(cd "$DOMAIN_SETUP_COMMON_DIR/../../../.." && pwd)"
 DOMAIN_SETUP_CORE_NODE_DIR="${CORE_NODE_DIR:-$DOMAIN_SETUP_REPO_ROOT}"
 DOMAIN_SETUP_SECRETS_DIR="$DOMAIN_SETUP_CORE_NODE_DIR/.secret_keys/.secret_ignore"
-DOMAIN_SETUP_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
+DOMAIN_SETUP_GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-$(sc_get paths.core_node_data_dir_posix)}/$(sc_get paths.global_var_dir_name)"
 DOMAIN_API_PREFIX_KEY="DOMAIN_API_REGION_PREFIX"
+DOMAIN_UI_BINDING_KEY="DOMAIN_UI_BINDING"
+# External allowed-hosts file consumed by the dashboard vite.config.ts
+# (server.allowedHosts / preview.allowedHosts). One hostname per line; the
+# Vite config keeps its defaults when this file is absent, so the config
+# file itself is never rewritten for dynamic domains.
+DOMAIN_UI_ALLOWED_HOSTS_FILE="$DOMAIN_SETUP_GLOBAL_VAR_DIR/$(sc_get files.ui_allowed_hosts)"
+# systemd unit of the dashboard dev server (registered by the app start.sh).
+# vite reads the allowed-hosts file ONCE at startup, so a content change must
+# be followed by a restart of this unit or bound domains keep answering 403.
+DOMAIN_UI_SERVICE_NAME="ncore-nexus-dash"
+# Shell-written UI domain config (api region prefix) consumed by the dashboard
+# vite middleware, which serves it same-origin and re-reads it per request, so
+# a content change needs NO UI service restart (unlike the allowed-hosts file).
+DOMAIN_UI_DOMAIN_CONFIG_FILE="$DOMAIN_SETUP_GLOBAL_VAR_DIR/$(sc_get files.ui_domain_config)"
+
+# Canonical backend URLs resolve from the central service contract
+# (config/service_contract.json) at CALL time via the shell adapter - ports
+# and hosts are never hardcoded in this library. An unreadable contract is a
+# hard failure: an empty host/port would otherwise render "server :;" and
+# break nginx -t for the whole include tree.
+domain_api_backend_url() {
+    local host
+    local port
+    host=$(sc_require hosts.loopback) || return 1
+    port=$(sc_require ports.laravel_api_backend) || return 1
+    echo "http://$host:$port"
+}
+domain_ui_backend_url() {
+    local host
+    local port
+    host=$(sc_require hosts.loopback) || return 1
+    port=$(sc_require ports.nexus_dash_frontend) || return 1
+    echo "http://$host:$port"
+}
 DOMAIN_SETUP_VALID_REGIONS="si sh sz hk"
 DOMAIN_SETUP_LARAVEL_DIR="$DOMAIN_SETUP_CORE_NODE_DIR/poly_apps/laravel_main"
 
-# Fallback definition of the shared writer from common_functions.sh. That file
-# sources gvar_common.sh (heavy top-level side effects), so this library keeps
-# a guarded local copy for start-script contexts; when common_functions.sh is
-# already loaded the shared definition wins.
-if ! declare -F write_file_if_changed >/dev/null 2>&1; then
-write_file_if_changed() {
-    local target="$1"
-    local backup_dir="${2:-}"
-    local tmp_content
-    local sudo_cmd
-    tmp_content=$(mktemp)
-    cat > "$tmp_content"
-    sudo_cmd=$(domain_setup_sudo)
+# Shared idempotent-replace writer + canonical lazy sudo (single source of
+# truth; common_functions.sh and cert_selfheal_common.sh source the same
+# library, so load order never changes write semantics).
+# shellcheck source=/dev/null
+source "$DOMAIN_SETUP_COMMON_DIR/file_ops_common.sh"
 
-    if [ -f "$target" ] && cmp -s "$tmp_content" "$target"; then
-        rm -f "$tmp_content"
-        echo "[domain] [SKIP] $target already up to date"
-        return 0
-    fi
-
-    if [ -n "$backup_dir" ] && [ -f "$target" ]; then
-        $sudo_cmd mkdir -p "$backup_dir"
-        $sudo_cmd cp -a "$target" "$backup_dir/$(basename "$target").$(date +%Y%m%d%H%M%S).bak"
-    fi
-    $sudo_cmd mkdir -p "$(dirname "$target")"
-    $sudo_cmd cp "$tmp_content" "$target"
-    rm -f "$tmp_content"
-    # House policy: idempotent-replace writes are mode 777 (NTFS no-op safe).
-    $sudo_cmd chmod 777 "$target" 2>/dev/null || true
-    echo "[domain] [OK] $target written"
-    return 0
-}
-fi
-
+# Lazily resolve sudo: gvar_common.sh sets USE_SUDO when it is loaded; the
+# canonical resolver lives in file_ops_common.sh (lazy_sudo).
 DOMAIN_DNSPOD_EMAIL=""
 DOMAIN_DNSPOD_TOKEN=""
 DOMAIN_DOMAINS_LIST=""
 DOMAIN_API_PREFIX=""
-
-# Lazily resolve sudo (gvar_common.sh sets USE_SUDO when it is loaded).
-domain_setup_sudo() {
-    if [ -n "${USE_SUDO+x}" ]; then
-        echo "$USE_SUDO"
-    elif [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-        echo "sudo"
-    else
-        echo ""
-    fi
-}
 
 # Persist one key in the file-backed global-var store (the user data
 # directory). Reuses set_global_var when gvar_common.sh is loaded; otherwise
@@ -91,7 +100,7 @@ domain_state_set() {
     local key="$1"
     local value="$2"
     local sudo_cmd
-    sudo_cmd=$(domain_setup_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     if declare -F set_global_var >/dev/null 2>&1; then
         set_global_var "$key" "$value"
@@ -109,7 +118,7 @@ domain_state_get() {
     local key="$1"
     local default_value="${2:-}"
     local sudo_cmd
-    sudo_cmd=$(domain_setup_sudo)
+    sudo_cmd=$(lazy_sudo)
 
     if declare -F get_global_var >/dev/null 2>&1; then
         get_global_var "$key" "$default_value"
@@ -276,7 +285,7 @@ domain_setup_issue_certificate() {
         return 1
     fi
 
-    pre_output=$(cd "$laravel_dir" && $(domain_setup_sudo) php artisan servermanager:certificate find "$domain" 2>&1 || true)
+    pre_output=$(cd "$laravel_dir" && $(lazy_sudo) php artisan servermanager:certificate find "$domain" 2>&1 || true)
     if echo "$pre_output" | grep -q "Found certificate"; then
         echo "[domain] [SKIP] Certificate already exists for: $domain"
         echo "$pre_output" | grep "Expires:" | head -1 || true
@@ -286,11 +295,11 @@ domain_setup_issue_certificate() {
     echo "[domain] Issuing certificate: $domain (prefixes: $DOMAIN_API_PREFIX, provider: dnspod)"
     issue_output=$(cd "$laravel_dir" && \
         DNSPOD_EMAIL="$DOMAIN_DNSPOD_EMAIL" DNSPOD_API_TOKEN="$DOMAIN_DNSPOD_TOKEN" \
-        $(domain_setup_sudo) php artisan servermanager:certificate add "$domain" \
+        $(lazy_sudo) php artisan servermanager:certificate add "$domain" \
         --prefixes="$DOMAIN_API_PREFIX" --provider=dnspod 2>&1)
     echo "$issue_output" | while IFS= read -r line; do echo "[domain]   $line"; done
 
-    pre_output=$(cd "$laravel_dir" && $(domain_setup_sudo) php artisan servermanager:certificate find "$domain" 2>&1 || true)
+    pre_output=$(cd "$laravel_dir" && $(lazy_sudo) php artisan servermanager:certificate find "$domain" 2>&1 || true)
     if echo "$pre_output" | grep -q "Found certificate"; then
         echo "[domain] [OK] Certificate verified for: $domain"
         return 0
@@ -299,40 +308,64 @@ domain_setup_issue_certificate() {
     return 1
 }
 
-# Install the nginx site for api.<prefix>.<domain>. When the root domain
-# certificate exists the full HTTP/3 + 301 + early-data vhost is written;
-# otherwise an ACME-capable HTTP bootstrap. Content-hash idempotent: a site
-# whose file differs from the canonical render is rewritten (site repair).
-domain_setup_ensure_api_site() {
-    local domain="$1"
-    local backend="${2:-http://127.0.0.1:9000}"
-    local fqdn
+# Print the certificate fleet summary through Laravel ServerManager (the final
+# status block of the old 133_setup_domain_ssl.sh). Best-effort: a summary
+# failure never blocks the install result.
+domain_setup_print_certificate_summary() {
+    local laravel_dir="${1:-$DOMAIN_SETUP_LARAVEL_DIR}"
+
+    if [ ! -d "$laravel_dir" ]; then
+        return 0
+    fi
+    echo "[domain] Certificate Summary:"
+    (cd "$laravel_dir" && $(lazy_sudo) php artisan servermanager:certificate summary 2>/dev/null) \
+        | while IFS= read -r line; do echo "[domain]   $line"; done
+    return 0
+}
+
+# Install one nginx site as the canonical reverse proxy vhost. http_mode
+# selects the port-80 block shape: "redirect" (apex: 301 -> https) or
+# "proxy" (api.*: direct proxy, plain HTTP reaches the backend even while
+# 443 is blocked). Content-hash idempotent: a site whose file differs from
+# the canonical render is rewritten (site repair). Certificate state never
+# changes the vhost shape — see the placeholder note inside.
+domain_setup_ensure_proxy_site() {
+    local fqdn="$1"
+    local cert_domain="$2"
+    local backend="${3:-$(domain_api_backend_url)}"
+    local http_mode="${4:-redirect}"
+    local server_names="${5:-$fqdn}"
     local sites_available
     local sites_enabled
     local site_file
     local enabled_link
-    local cert_path
     local sudo_cmd
 
-    fqdn=$(domain_setup_api_fqdn "$domain")
     sites_available=$(nginx_get_sites_available)
     sites_enabled=$(nginx_get_sites_enabled)
     site_file="$sites_available/$fqdn"
     enabled_link="$sites_enabled/$fqdn"
-    cert_path=$(nginx_le_cert_path "$domain")
-    sudo_cmd=$(domain_setup_sudo)
+    sudo_cmd=$(lazy_sudo)
 
-    if [ -f "$cert_path" ]; then
-        {
-            echo "# $NGINX_MANAGED_SITE_MARKER domain_setup fqdn=$fqdn cert=$domain"
-            nginx_render_proxy_vhost "$fqdn" "$backend" "$domain"
-        } | write_file_if_changed "$site_file" "$(dirname "$sites_available")/backup"
-    else
-        {
-            echo "# $NGINX_MANAGED_SITE_MARKER domain_setup fqdn=$fqdn bootstrap"
-            nginx_render_http_bootstrap "$fqdn"
-        } | write_file_if_changed "$site_file" "$(dirname "$sites_available")/backup"
+    # Fail loud on an unreadable contract: an empty host/port would render
+    # "server :;" and break nginx -t for every managed site.
+    if ! echo "$backend" | grep -qE '^https?://[^:/[:space:]]+:[0-9]+$'; then
+        echo "[domain] [FAIL] $fqdn: invalid backend URL '$backend' (service contract unreadable?); site NOT rendered"
+        return 1
     fi
+
+    # The vhost SHAPE is invariant: certificate state never downgrades the
+    # site to a bootstrap stub. Real Let's Encrypt material wins the probe in
+    # nginx_le_cert_path; otherwise the ensured placeholder certificate keeps
+    # the render nginx-valid (the content-hash writer swaps to the real cert
+    # on the sweep after issuance).
+    nginx_ensure_placeholder_cert
+    echo "[domain] $fqdn: proxy -> $backend (http:$http_mode, names: $server_names), cert=$(nginx_le_cert_path "$cert_domain")"
+
+    {
+        echo "# $NGINX_MANAGED_SITE_MARKER domain_setup fqdn=$fqdn cert=$cert_domain"
+        nginx_render_proxy_vhost "$fqdn" "$backend" "$cert_domain" "$http_mode" "$server_names"
+    } | write_file_if_changed "$site_file" "$(dirname "$sites_available")/backup"
 
     if [ ! -L "$enabled_link" ] || [ "$(readlink -f "$enabled_link" 2>/dev/null)" != "$(readlink -f "$site_file" 2>/dev/null)" ]; then
         $sudo_cmd mkdir -p "$sites_enabled"
@@ -342,11 +375,142 @@ domain_setup_ensure_api_site() {
     return 0
 }
 
+# Install the nginx site for api.<prefix>.<domain>. API domains ALWAYS reverse
+# proxy to the canonical Laravel API backend (domain_api_backend_url, the
+# laravel_api_backend port on loopback) - never to the generic backend
+# argument and never to :80 (which would loop the request back into nginx
+# itself) - and their :80 block proxies DIRECTLY (http_mode=proxy, no 301) so
+# plain HTTP reaches the backend even while the cloud security group blocks 443.
+domain_setup_ensure_api_site() {
+    local domain="$1"
+    domain_setup_ensure_proxy_site "$(domain_setup_api_fqdn "$domain")" "$domain" "$(domain_api_backend_url)" "proxy"
+}
+
+# Install the nginx site for the bare apex <domain>: the apex must reverse
+# proxy to the Laravel backend too; without it apex requests fall through to
+# the static default vhost (the classic "domain serves /var/www/html instead
+# of the app" failure). When the dashboard (UI) binding is enabled the apex
+# serves the UI backend instead (persisted choice; see
+# domain_setup_enable_ui_binding).
+domain_setup_ensure_apex_site() {
+    local domain="$1"
+    local backend="${2:-$(domain_api_backend_url)}"
+    if domain_setup_ui_binding_enabled; then
+        backend="$(domain_ui_backend_url)"
+    fi
+    domain_setup_ensure_proxy_site "$domain" "$domain" "$backend"
+}
+
+# True when the dashboard (UI) domain binding is enabled (persisted in the
+# file-backed global-var store).
+domain_setup_ui_binding_enabled() {
+    [ "$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")" = "yes" ]
+}
+
+# Install the dashboard www site for one domain: server_name www.<domain>
+# www.<prefix>.<domain>, reverse proxy to the UI backend, reusing the domain
+# certificate (the wildcard SANs already cover both names). Rendered only
+# while the UI binding is enabled; content-hash idempotent like every
+# managed site.
+domain_setup_ensure_www_site() {
+    local domain="$1"
+    domain_setup_ensure_proxy_site "www.$domain" "$domain" "$(domain_ui_backend_url)" "redirect" "www.$domain www.$DOMAIN_API_PREFIX.$domain"
+}
+
+# Idempotently (re)write the dashboard allowed-hosts file (one hostname per
+# line: apex + www.<domain> + www.<prefix>.<domain> for every bound domain).
+# Content-hash idempotent via write_file_if_changed; the Vite config reads
+# this constant path and keeps its defaults while the file is absent.
+domain_setup_write_ui_allowed_hosts() {
+    local domain
+    local write_output
+
+    write_output=$({
+        while IFS= read -r domain; do
+            [ -z "$domain" ] && continue
+            echo "$domain"
+            echo "www.$domain"
+            echo "www.$DOMAIN_API_PREFIX.$domain"
+        done <<< "$DOMAIN_DOMAINS_LIST"
+    } | write_file_if_changed "$DOMAIN_UI_ALLOWED_HOSTS_FILE")
+    echo "$write_output"
+    echo "[domain] [OK] UI allowed hosts file: $DOMAIN_UI_ALLOWED_HOSTS_FILE"
+
+    # vite reads this file ONCE at startup; when the content changed the
+    # running dashboard keeps the old host list (new domains answer 403), so
+    # the service must be restarted to re-read it. No-op when [SKIP]ped.
+    case "$write_output" in
+        *written*) domain_setup_restart_ui_service ;;
+    esac
+    return 0
+}
+
+# Idempotently (re)write the UI domain config JSON carrying the API region
+# prefix the frontend uses to build api.<prefix>.<domain> endpoints for HTTPS
+# current-URL origins. Content-hash idempotent; the vite middleware re-reads
+# the file on EVERY request, so no service restart is required.
+domain_setup_write_ui_domain_config() {
+    local write_output
+
+    write_output=$(printf '{"apiRegionPrefix":"%s"}\n' "$DOMAIN_API_PREFIX" \
+        | write_file_if_changed "$DOMAIN_UI_DOMAIN_CONFIG_FILE")
+    echo "$write_output"
+    echo "[domain] [OK] UI domain config file: $DOMAIN_UI_DOMAIN_CONFIG_FILE"
+    return 0
+}
+
+# Restart the dashboard service so vite re-reads a changed allowed-hosts
+# file. Idempotent: only an ACTIVE unit is restarted; without systemd (or
+# without an active unit) a manual-restart hint is printed instead.
+domain_setup_restart_ui_service() {
+    local sudo_cmd
+    sudo_cmd=$(lazy_sudo)
+
+    if ! command -v systemctl >/dev/null 2>&1 || [ ! -d /run/systemd/system ]; then
+        echo "[domain] [WARN] UI allowed hosts changed but systemd is unavailable; restart the dashboard so vite re-reads the file"
+        return 0
+    fi
+    if systemctl is-active --quiet "$DOMAIN_UI_SERVICE_NAME" 2>/dev/null; then
+        if $sudo_cmd systemctl restart "$DOMAIN_UI_SERVICE_NAME" 2>/dev/null; then
+            echo "[domain] [OK] Restarted $DOMAIN_UI_SERVICE_NAME (vite re-reads the allowed-hosts file)"
+        else
+            echo "[domain] [WARN] Failed to restart $DOMAIN_UI_SERVICE_NAME; restart it manually"
+        fi
+    else
+        echo "[domain] [WARN] UI allowed hosts changed; $DOMAIN_UI_SERVICE_NAME is not active - start/restart it so vite re-reads the file"
+    fi
+    return 0
+}
+
+# Enable the dashboard (UI) binding and idempotently install it for every
+# secret domain: the apex retargets to the UI backend (content-hash rewrite
+# of the same site file) and the www.<domain> site is created. The stored
+# region prefix is reused without re-prompting.
+domain_setup_enable_ui_binding() {
+    local domain
+
+    domain_setup_load_secrets || return 1
+    DOMAIN_API_PREFIX="$(domain_state_get "$DOMAIN_API_PREFIX_KEY" "si")"
+    domain_state_set "$DOMAIN_UI_BINDING_KEY" "yes"
+
+    echo "[domain] UI binding enabled: <domain> + www.<domain> + www.$DOMAIN_API_PREFIX.<domain> -> $(domain_ui_backend_url)"
+    while IFS= read -r domain; do
+        [ -z "$domain" ] && continue
+        domain_setup_ensure_apex_site "$domain"
+        domain_setup_ensure_www_site "$domain"
+    done <<< "$DOMAIN_DOMAINS_LIST"
+
+    domain_setup_write_ui_allowed_hosts
+    domain_setup_write_ui_domain_config
+    nginx_repair_sites || true
+    return 0
+}
+
 # Full idempotent domain installation: secrets -> prefix -> certificates ->
 # nginx sites -> repair -> config test + reload.
 # Usage: domain_setup_install_all [backend_url] [laravel_dir] [--skip-certs]
 domain_setup_install_all() {
-    local backend="${1:-http://127.0.0.1:9000}"
+    local backend="${1:-$(domain_api_backend_url)}"
     local laravel_dir="${2:-$DOMAIN_SETUP_LARAVEL_DIR}"
     local skip_certs="${3:-}"
     local domain
@@ -356,9 +520,9 @@ domain_setup_install_all() {
     domain_setup_ensure_prefix || return 1
     domain_setup_persist_state
 
-    echo "[domain] Installing domains (API pattern: api.$DOMAIN_API_PREFIX.<domain>):"
+    echo "[domain] Installing domains (sites: <domain> apex + api.$DOMAIN_API_PREFIX.<domain>, both proxy -> backend):"
     echo "$DOMAIN_DOMAINS_LIST" | while IFS= read -r domain; do
-        [ -n "$domain" ] && echo "[domain]   - $domain -> $(domain_setup_api_fqdn "$domain")"
+        [ -n "$domain" ] && echo "[domain]   - $domain -> $domain + $(domain_setup_api_fqdn "$domain")"
     done
 
     while IFS= read -r domain; do
@@ -366,10 +530,26 @@ domain_setup_install_all() {
         if [ "$skip_certs" != "--skip-certs" ]; then
             domain_setup_issue_certificate "$domain" "$laravel_dir" || failures=$((failures + 1))
         fi
-        domain_setup_ensure_api_site "$domain" "$backend" || failures=$((failures + 1))
+        domain_setup_ensure_apex_site "$domain" "$backend" || failures=$((failures + 1))
+        domain_setup_ensure_api_site "$domain" || failures=$((failures + 1))
+        if domain_setup_ui_binding_enabled; then
+            domain_setup_ensure_www_site "$domain" || failures=$((failures + 1))
+        fi
     done <<< "$DOMAIN_DOMAINS_LIST"
 
+    # Converge the dashboard allowed-hosts file with the current secrets +
+    # prefix on every run while the binding is enabled (content-hash no-op
+    # when unchanged).
+    if domain_setup_ui_binding_enabled; then
+        domain_setup_write_ui_allowed_hosts
+        domain_setup_write_ui_domain_config
+    fi
+
     nginx_repair_sites || failures=$((failures + 1))
+
+    if [ "$skip_certs" != "--skip-certs" ]; then
+        domain_setup_print_certificate_summary "$laravel_dir"
+    fi
 
     if [ $failures -eq 0 ]; then
         echo "[domain] [OK] All domains installed"
@@ -393,6 +573,8 @@ domain_setup_certificates_only() {
         [ -z "$domain" ] && continue
         domain_setup_issue_certificate "$domain" "$laravel_dir" || failures=$((failures + 1))
     done <<< "$DOMAIN_DOMAINS_LIST"
+
+    domain_setup_print_certificate_summary "$laravel_dir"
 
     if [ $failures -eq 0 ]; then
         echo "[domain] [OK] All certificates verified"

@@ -16,14 +16,29 @@ use App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig;
  *     (nginx_render_tls_stanza / nginx_render_site_vhost /
  *      nginx_render_proxy_vhost / nginx_render_http_bootstrap)
  *   scripts/shells/linux/common/nginx_manager.sh (nm_http3_migrate)
- * Any change to the TLS/QUIC stanza, the 301 redirect server, the early-data
- * guard, or the ACME location MUST be applied to both ends in the same
+ * Any change to the TLS/QUIC stanza, the 301 redirect server, the api.*
+ * direct-proxy :80 block, the early-data guard, or the ACME location MUST
+ * be applied to both ends in the same
  * change. Initial provisioning renders through the shell end; afterwards the
  * UI (http://127.0.0.1:13054/laravel-manager#/server) manages sites through
  * this builder via the laravel_main API.
  */
 class ServerManagerV1NginxConfigBuilder
 {
+    /**
+     * True when the domain's first label is "api" (api.<region>.<domain>).
+     * api.* vhosts proxy directly on :80 (no 301) so plain HTTP reaches the
+     * backend even while the cloud security group blocks 443; apex domains
+     * keep the 301. Single Laravel-end copy of the api/apex rule (shell
+     * mirror: nginx_is_api_fqdn in nginx_common.sh).
+     */
+    public static function isApiDomain(string $domain): bool
+    {
+        $first = preg_split('/\s+/', trim($domain))[0];
+
+        return str_starts_with($first, 'api.');
+    }
+
     /**
      * Render the canonical TLS + HTTP/3 listener stanza for an HTTPS server
      * block. Uses the modern directive syntax (http2 on / http3 on instead
@@ -39,6 +54,18 @@ class ServerManagerV1NginxConfigBuilder
             'http2 on;',
             'http3 on;',
             'quic_retry on;',
+        ];
+
+        // Fixed QUIC host key (shell mirror: nginx_ensure_quic_host_key in
+        // nginx_common.sh): without it every reload generates a random key and
+        // voids outstanding quic_retry tokens. Rendered only when the key file
+        // is really in place so the stanza stays nginx -t valid.
+        $quicHostKey = self::ensureQuicHostKey();
+        if ($quicHostKey !== null) {
+            $lines[] = "quic_host_key {$quicHostKey};";
+        }
+
+        $lines = array_merge($lines, [
             "ssl_certificate {$certPath};",
             "ssl_certificate_key {$keyPath};",
             'ssl_protocols TLSv1.2 TLSv1.3;',
@@ -47,12 +74,40 @@ class ServerManagerV1NginxConfigBuilder
             'ssl_session_timeout 1d;',
             'ssl_session_tickets off;',
             "add_header Alt-Svc 'h3=\":443\"; ma=86400' always;",
-        ];
+        ]);
 
         return implode("\n", array_map(
             static fn (string $line): string => $indent . $line,
             $lines
         ));
+    }
+
+    /**
+     * Ensure the fixed QUIC host key exists (created once, 32 random bytes)
+     * and return its path; null when it cannot be ensured (the stanza then
+     * omits the directive). Shell mirror: nginx_quic_host_key_file /
+     * nginx_ensure_quic_host_key in nginx_common.sh.
+     */
+    private static function ensureQuicHostKey(): ?string
+    {
+        try {
+            $file = \App\Providers\PathMapper::mapWebPath('nginxconfig') . '/ssl/quic/host.key';
+            if (is_file($file)) {
+                return $file;
+            }
+            $dir = dirname($file);
+            if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+                return null;
+            }
+            if (@file_put_contents($file, random_bytes(32)) === false) {
+                return null;
+            }
+            @chmod($file, 0600);
+
+            return $file;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**
@@ -73,6 +128,37 @@ class ServerManagerV1NginxConfigBuilder
 {$indent}}
 
 {$indent}return 301 https://\$server_name\$request_uri;
+}";
+    }
+
+    /**
+     * Render the port-80 DIRECT-PROXY server for api.* vhosts: plain HTTP
+     * reaches the backend without a 301 (443 may be blocked by the cloud
+     * security group), while the ACME HTTP-01 location stays local for
+     * renewals. Mirror of the shell end's http_mode=proxy block
+     * (nginx_render_proxy_vhost in nginx_common.sh).
+     */
+    public static function renderHttpProxyServer(string $serverNames, string $upstream, string $indent = '    '): string
+    {
+        return "server {
+{$indent}listen 80;
+{$indent}listen [::]:80;
+{$indent}server_name {$serverNames};
+
+{$indent}location / {
+" . self::proxyLocationBody($upstream, false) . "
+{$indent}}
+
+{$indent}location /ws {
+" . self::proxyWsLocationBody($upstream) . "
+{$indent}}
+
+" . self::acmeLocation($indent) . "
+{$indent}location /health {
+{$indent}    access_log off;
+{$indent}    return 200 \"healthy\\n\";
+{$indent}    add_header Content-Type text/plain;
+{$indent}}
 }";
     }
 
@@ -140,16 +226,24 @@ class ServerManagerV1NginxConfigBuilder
         $certs = self::resolveCertPaths($domain, $certPaths);
         $primaryDomain = preg_split('/\s+/', trim($domain))[0];
         $upstream = self::upstreamName($primaryDomain);
+        $address = self::proxyTargetToAddress($proxyTarget);
+
+        // Fail loud on an unreadable contract: an empty host/port would
+        // render "server :;" and break nginx -t for the whole include tree.
+        if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[^:\/\s]+):\d+$/', $address)) {
+            throw new \InvalidArgumentException("Invalid proxy_target '{$proxyTarget}': expected scheme://host:port");
+        }
 
         $header = "# Reverse proxy configuration for {$domain}\n"
             . "# Generated by ServerManagerV1NginxConfigBuilder\n\n"
             . "upstream {$upstream} {\n"
-            . '    server ' . self::proxyTargetToAddress($proxyTarget) . ";\n"
+            . "    server {$address};\n"
             . "    keepalive 32;\n}\n\n";
 
-        $body = self::proxyLocationBody($upstream, true)
-            . "\n    location /ws {\n"
-            . self::proxyLocationBody($upstream, false)
+        $body = "    location / {\n"
+            . self::proxyLocationBody($upstream, true)
+            . "\n    }\n\n    location /ws {\n"
+            . self::proxyWsLocationBody($upstream)
             . "\n    }\n"
             . self::acmeLocation('    ')
             . "\n    location /health {\n"
@@ -158,9 +252,15 @@ class ServerManagerV1NginxConfigBuilder
             . "        add_header Content-Type text/plain;\n"
             . "    }\n";
 
+        // api.* vhosts proxy directly on :80 (no 301) so plain HTTP reaches
+        // the backend even while 443 is blocked; apex keeps the 301 pair.
+        $httpServer = self::isApiDomain($primaryDomain)
+            ? self::renderHttpProxyServer($domain, $upstream)
+            : self::renderHttpRedirectServer($domain);
+
         if ($certs['cert'] !== null && $certs['key'] !== null && self::certFilesExist($certs)) {
             return $header
-                . self::renderHttpRedirectServer($domain)
+                . $httpServer
                 . "\n\nserver {\n"
                 . self::renderTlsStanza($certs['cert'], $certs['key'])
                 . "\n    server_name {$domain};\n\n"
@@ -322,6 +422,24 @@ class ServerManagerV1NginxConfigBuilder
             . "        proxy_connect_timeout 60s;\n"
             . "        proxy_send_timeout 60s;\n"
             . "        proxy_read_timeout 60s;";
+    }
+
+    /**
+     * WebSocket location body: long-lived connections (86400s read timeout),
+     * no Early-Data guard. Mirrors the /ws leg of the shell end's
+     * nginx_render_proxy_locations.
+     */
+    private static function proxyWsLocationBody(string $upstream): string
+    {
+        return "        proxy_pass http://{$upstream};\n"
+            . "        proxy_http_version 1.1;\n"
+            . "        proxy_set_header Upgrade \$http_upgrade;\n"
+            . "        proxy_set_header Connection \"upgrade\";\n"
+            . "        proxy_set_header Host \$host;\n"
+            . "        proxy_set_header X-Real-IP \$remote_addr;\n"
+            . "        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;\n"
+            . "        proxy_set_header X-Forwarded-Proto \$scheme;\n"
+            . "        proxy_read_timeout 86400;";
     }
 
     /**

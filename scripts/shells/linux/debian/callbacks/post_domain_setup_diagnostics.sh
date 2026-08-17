@@ -361,7 +361,7 @@ done
 if [ $selfsigned_count -gt 0 ]; then
     echo "[$SCRIPT_INDEX] [!] $selfsigned_count self-signed certificate(s) found"
     echo "[$SCRIPT_INDEX]     Browser will show security warnings"
-    echo "[$SCRIPT_INDEX]     Fix: Install certbot-dns-dnspod plugin and regenerate certificates"
+    echo "[$SCRIPT_INDEX]     Fix: Install the certbot-dnspod plugin and regenerate certificates"
 fi
 
 if [ $issues_found -eq 0 ] && [ $selfsigned_count -eq 0 ]; then

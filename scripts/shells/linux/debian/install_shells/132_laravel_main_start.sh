@@ -24,8 +24,12 @@
 #     repair / per-file HTTP/3 + 301 + early-data stanza migration
 #   - certbot ensure (via 27_install_certbot.sh) + certificate auto-renewal
 #   - domain install from decrypted DNSPod secrets: api.<region>.<domain>
-#     sites rendered natively with HTTP/3 + 301; the region prefix (si/sh/sz/hk
-#     or custom) is persisted in the file-backed global-var store, so later
+#     sites rendered natively with HTTP/3, reverse-proxied to the canonical
+#     API backend (service contract ports.laravel_api_backend on loopback)
+#     with plain HTTP on :80 proxying DIRECTLY
+#     (no 301 - works even while the cloud security group blocks 443); apex
+#     domains keep the 301 -> https pair. The region prefix (si/sh/sz/hk or
+#     custom) is persisted in the file-backed global-var store, so later
 #     runs only ask whether to modify it
 # poly_apps/laravel_main/scripts/start.sh delegates here; every phase is
 # independently idempotent and safe to re-run.
@@ -49,7 +53,9 @@ DEBIAN_COM_DIR="${DEBIAN_DIR}/debian_com"
 COMMON_DIR="${LINUX_DIR}/common"
 INSTALL_SHELLS_DIR="$SCRIPT_CURRENT_DIR"
 CORE_NODE_DIR="${CORE_NODE_DIR:-$REPO_ROOT}"
-PORT="${PORT:-9000}"
+# Runtime port resolves from the central service contract after the common
+# libraries are sourced below (sc_get); PORT env still overrides.
+PORT="${PORT:-}"
 LARAVEL_RUNTIME_SCRIPT="${DEBIAN_COM_DIR}/laravel_run_runtime.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
@@ -71,6 +77,7 @@ NGINX_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/26_install_nginx.sh"
 CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/27_install_certbot.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
+CERT_SELFHEAL_COMMON="${COMMON_DIR}/cert_selfheal_common.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 SECRETS_DIR="${REPO_ROOT}/.secret_keys/.secret_ignore"
 
@@ -114,9 +121,7 @@ PG_DATA_SRC=""
 WIN_SCRIPT_PATH=""
 WIN_DRIVE=""
 WIN_REST=""
-INSTALLATION_ACCESS_CODE_FILE="${LARAVEL_DIR}/app/Support/InstallationAccessCode.php"
 GENERATED_ACCESS_CODE=""
-ACCESS_CODE_WRITE_ERROR=""
 OCTANE_RUNTIME_WATCH="0"
 OCTANE_RUNTIME_POLL="0"
 
@@ -150,14 +155,31 @@ INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
+# domain_setup_common pulls in the canonical file_ops_common.sh writer
+# (write_file_if_changed + lazy_sudo); source it before cert_selfheal_common.
+. "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
+. "$CERT_SELFHEAL_COMMON"
+
+# Runtime port: central service contract (config/service_contract.json), with
+# the PORT env var as the explicit override.
+PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
 
 cleanup_runtime() {
+    local shown_code="$GENERATED_ACCESS_CODE"
+    local stored_code=""
     cd "$ORIGINAL_DIR" || true
     echo ""
     echo "Restored to initial directory: $ORIGINAL_DIR"
     echo ""
-    echo "Installation access value: ${GENERATED_ACCESS_CODE}"
+    # The code lives in the external runtime store (PathMapper
+    # laravel_data_dir); show the STORED value when resolvable - it wins over
+    # this run's candidate once provisioned (the code is stable across runs).
+    if [ -n "$PHP_BIN" ]; then
+        stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null || true)"
+        [ -n "$stored_code" ] && shown_code="$stored_code"
+    fi
+    echo "Installation access value: ${shown_code}"
 }
 
 print_usage() {
@@ -176,28 +198,18 @@ print_usage() {
     echo "  --skip-ssh          Skip the SSH server ensure phase."
 }
 
+# The code lives in the external runtime store (RuntimeConfigurationStore,
+# rooted at the PathMapper laravel_data_dir outside the repository);
+# InstallationAccessCode.php only reads it and is never regenerated.
 read_stored_super_code() {
     local stored_code=""
-    if [ ! -f "$INSTALLATION_ACCESS_CODE_FILE" ]; then
-        echo "ERROR: Super code file not found: $INSTALLATION_ACCESS_CODE_FILE" >&2
+    if ! resolve_php; then
+        echo "ERROR: php not found; cannot read the runtime configuration store." >&2
         return 1
     fi
-    stored_code="$(awk '
-        /return[[:space:]]/ { capture = 1 }
-        capture {
-            line = $0
-            while (match(line, /\047[^\047]*\047/)) {
-                code = code substr(line, RSTART + 1, RLENGTH - 2)
-                line = substr(line, RSTART + RLENGTH)
-            }
-            if (index($0, ";")) {
-                print code
-                exit
-            }
-        }
-    ' "$INSTALLATION_ACCESS_CODE_FILE")"
+    stored_code="$(runtime_config_get "INSTALLATION_ACCESS_CODE" 2>/dev/null || true)"
     if [ -z "$stored_code" ]; then
-        echo "ERROR: Super code could not be read from: $INSTALLATION_ACCESS_CODE_FILE" >&2
+        echo "ERROR: Installation access code not provisioned yet; run the full start once." >&2
         return 1
     fi
     STORED_SUPER_CODE="$stored_code"
@@ -224,12 +236,6 @@ if [ "$HELP_REQUESTED" = "yes" ]; then
     exit 0
 fi
 
-if [ "$SHOW_SUPER_CODE" = "yes" ]; then
-    read_stored_super_code || exit 1
-    echo "Super code: $STORED_SUPER_CODE"
-    exit 0
-fi
-
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap cleanup_runtime EXIT
 
@@ -242,24 +248,6 @@ new_installation_access_code() {
     segment_three="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
     segment_four="$(od -An -N2 -tx1 /dev/urandom | tr -d ' \n' | tr '[:lower:]' '[:upper:]')"
     printf 'NEXU-%s-%s-%s-%s' "$segment_one" "$segment_two" "$segment_three" "$segment_four"
-}
-
-write_installation_access_code() {
-    local access_code="$1"
-    mkdir -p "$(dirname "$INSTALLATION_ACCESS_CODE_FILE")"
-    cat > "$INSTALLATION_ACCESS_CODE_FILE" <<PHP
-<?php
-
-namespace App\Support;
-
-final class InstallationAccessCode
-{
-    public static function value(): string
-    {
-        return '${access_code}';
-    }
-}
-PHP
 }
 
 # Resolve php into PHP_BIN: PATH -> known bin locations.
@@ -377,6 +365,9 @@ initialize_runtime_configuration_store() {
     ensure_runtime_config_value "REVERB_APP_KEY" "$generated_value" || return 1
     generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(32));')"
     ensure_runtime_config_value "REVERB_APP_SECRET" "$generated_value" || return 1
+    # Installation access (super) code: provisioned once into the external
+    # store, stable across runs; InstallationAccessCode.php only reads it.
+    ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE" || return 1
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
@@ -433,19 +424,17 @@ prompt_default_no() {
 # If a Docker container PUBLISHES <port> (e.g. MinIO on :9000, pgvector on :5432),
 # it surfaces as a docker-proxy holder we must NOT kill directly. Identify the
 # owning container and offer to stop it (default Yes). Returns 0 if one was stopped.
+# Detection/stop primitives come from the shared port guard (port_guard_common.sh).
 stop_docker_publisher() {
     local port="$1" row="" cid="" cname=""
-    command -v docker >/dev/null 2>&1 || return 1
-    row=$(docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
-    [ -n "$row" ] || row=$(${USE_SUDO:-} docker ps --filter "publish=${port}" --format '{{.ID}} {{.Names}}' 2>/dev/null | head -1)
+    row=$(pg_docker_publisher_container "$port")
     [ -n "$row" ] || return 1
     cid=$(printf '%s' "$row" | awk '{print $1}')
     cname=$(printf '%s' "$row" | awk '{print $2}')
     echo "  Port ${port} is published by Docker container: ${cname:-$cid}"
     if prompt_default_no "  Stop container ${cname:-$cid} and disable its auto-startup to free port ${port}?"; then
         echo "  Stopping container ${cname:-$cid} ..."
-        docker stop "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker stop "$cid" >/dev/null 2>&1 || true
-        docker update --restart=no "$cid" >/dev/null 2>&1 || ${USE_SUDO:-} docker update --restart=no "$cid" >/dev/null 2>&1 || true
+        pg_docker_container_stop "$cid"
         echo "  Container ${cname:-$cid} stopped and auto-startup disabled."
         return 0
     fi
@@ -625,6 +614,14 @@ ensure_nginx_stack() {
     # shellcheck source=/dev/null
     source "$NGINX_MANAGER_SCRIPT"
 
+    # Edge-port guard (80/TCP, 443/TCP, 443/UDP for QUIC): stop foreign
+    # occupiers (e.g. hysteria on UDP/443) and offer their uninstall (y/N,
+    # default No) BEFORE any install/upgrade/repair below - every reload or
+    # restart downstream can only take effect when nginx can actually bind.
+    # Self-detecting: no-op when the ports are free; nginx's own sockets are
+    # never touched.
+    nm_edge_ports_ensure
+
     current_version=$(nginx_get_version)
     if [ -z "$current_version" ]; then
         echo "nginx not found. Setting START_NGINX=true and invoking the canonical installer:"
@@ -641,6 +638,11 @@ ensure_nginx_stack() {
 
     echo "nginx present: nginx/$current_version (HTTP/3: $(nginx_has_http3 && echo yes || echo no))"
 
+    # Binary/link unification is self-detecting (every alias check no-ops when
+    # correct); run it every time so link drift (loops, dangling aliases) is
+    # repaired on every start.
+    nginx_unify_binaries || echo "  Warning: nginx binary unify reported issues (continuing)."
+
     if ! nginx_version_ge "$current_version" "$NGINX_MAINLINE_VERSION"; then
         echo "  nginx $current_version is older than the reference mainline $NGINX_MAINLINE_VERSION."
         if ask_default_yes "  Upgrade nginx to the official mainline build? Sites and certificates are preserved and repaired idempotently."; then
@@ -651,32 +653,68 @@ ensure_nginx_stack() {
         fi
     fi
 
-    if ! $USE_SUDO nginx -t >/dev/null 2>&1; then
+    if ! $USE_SUDO nginx -t -c "$NGINX_MAIN_CONF" >/dev/null 2>&1; then
         echo "  nginx configuration test FAILED."
         if ask_default_yes "  Run the idempotent site repair now (quarantines broken managed sites, reloads on success)?"; then
             nginx_repair_sites || bash "$NGINX_INSTALL_SCRIPT" || echo "  Warning: nginx repair reported failure (continuing)."
         fi
     else
-        # Healthy config: run the fine-grained repair sweep and the HTTP/3
-        # stanza migration anyway (both no-op on a clean, current tree).
+        # Healthy config: guarantee the main conf includes the mapped
+        # sites-enabled (content-hash idempotent, no-op when current), an
+        # explicit default_server exists (without one, the first site file
+        # silently becomes the default and answers every unmatched host),
+        # then the fine-grained repair sweep and the HTTP/3 stanza migration.
+        nm_main_config
+        nm_default_vhost
         nginx_repair_sites || echo "  Warning: site repair sweep reported issues (continuing)."
         nm_http3_migrate || echo "  Warning: HTTP/3 migration sweep reported issues (continuing)."
     fi
+
+    # Service state ensure (fine-grained idempotent): a configured but
+    # STOPPED nginx serves nothing - the repair/reload paths above never
+    # start it ("service not active, reload skipped"). nm_service_state
+    # self-gates on nginx -t and is effect-idempotent when already active
+    # (systemctl enable/start on a running unit is a no-op).
+    nm_service_state "start" || echo "  Warning: nginx service start reported issues (continuing)."
+    nginx_serve_truth_report
     return 0
 }
 
 # Ensure certbot tooling when domain setup is in scope (27 self-skips without nginx).
-# Ensure certbot tooling when domain setup is in scope. Binary-existence
-# detection against the canonical pipx link (27_install_certbot.sh owns it);
-# the installer self-skips when nginx is absent.
+# Ensure certbot tooling when domain setup is in scope. Detection is
+# file-based and flavor-aware: /usr/local/bin/certbot must resolve INTO the
+# pipx venv (27_install_certbot.sh owns that link). A stale real file (old
+# system-pip/apt console script at the same path) passes a bare -x check but
+# is NOT the managed install -> invoke the canonical installer to re-link.
 ensure_certbot_stack() {
-    if [ -x /usr/local/bin/certbot ]; then
-        echo "certbot present: $(/usr/local/bin/certbot --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-        return 0
+    local certbot_resolved=""
+    certbot_resolved="$(readlink -f /usr/local/bin/certbot 2>/dev/null || true)"
+    if [ -n "$certbot_resolved" ] && [ -x "$certbot_resolved" ]; then
+        case "$certbot_resolved" in
+            *"/venvs/certbot/bin/certbot")
+                # The venv must also carry the WORKING DNSPod authenticator
+                # (the zope-era dns-dnspod plugin cannot load on modern
+                # certbot). Functional probe: plugins listing.
+                if /usr/local/bin/certbot plugins 2>/dev/null | grep -q "certbot-dnspod"; then
+                    echo "certbot present: $(/usr/local/bin/certbot --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+                    return 0
+                fi
+                echo "certbot venv lacks the working certbot-dnspod plugin. Re-provisioning via the canonical installer:"
+                echo "  $CERTBOT_INSTALL_SCRIPT"
+                if [ -f "$CERTBOT_INSTALL_SCRIPT" ]; then
+                    bash "$CERTBOT_INSTALL_SCRIPT" || echo "  Warning: certbot installer reported failure (continuing)."
+                fi
+                return 0
+                ;;
+        esac
     fi
-    if [ -f "$CERTBOT_INSTALL_SCRIPT" ]; then
+    if [ -e /usr/local/bin/certbot ]; then
+        echo "certbot at /usr/local/bin/certbot is stale (not the pipx-isolated venv build). Re-linking via the canonical installer:"
+    else
         echo "certbot not found. Invoking the canonical installer:"
-        echo "  $CERTBOT_INSTALL_SCRIPT"
+    fi
+    echo "  $CERTBOT_INSTALL_SCRIPT"
+    if [ -f "$CERTBOT_INSTALL_SCRIPT" ]; then
         bash "$CERTBOT_INSTALL_SCRIPT" || echo "  Warning: certbot installer reported failure (continuing)."
     else
         echo "  Warning: certbot installer missing: $CERTBOT_INSTALL_SCRIPT"
@@ -698,14 +736,41 @@ run_domain_setup_phase() {
         return 0
     fi
     # shellcheck source=/dev/null
-    source "$DOMAIN_SETUP_COMMON"
+    # (domain_setup_common already sourced at file top; it provides the
+    # canonical file_ops_common.sh writer)
     if [ "$DOMAIN_SCOPE" = "certs" ]; then
         domain_setup_certificates_only "$LARAVEL_DIR" || echo "  Warning: certificate phase reported issues (continuing)."
     else
         domain_setup_install_all "http://127.0.0.1:$PORT" "$LARAVEL_DIR" || echo "  Warning: domain phase reported issues (continuing)."
     fi
+    # Certificate self-heal (independent fine-grained steps): deploy hooks that
+    # reload nginx only after an actual renewal, the twice-daily renewal timer,
+    # and a startup renewal pass (certbot renews only near-expiry certificates;
+    # the artisan end reconciles stale renewal configs first).
+    cert_selfheal_run_once "$LARAVEL_DIR" || echo "  Warning: certificate self-heal reported issues (continuing)."
+    # Detail: what is actually serving now (binary, master, includes, sites).
+    nginx_serve_truth_report
     return 0
 }
+
+# --show-super-code runs HERE: it needs resolve_php + runtime_config_get,
+# which are defined in the function section above. Cleanup trap is skipped
+# for this read-only query.
+if [ "$SHOW_SUPER_CODE" = "yes" ]; then
+    trap - EXIT
+    if read_stored_super_code; then
+        echo "Super code: $STORED_SUPER_CODE"
+        exit 0
+    fi
+    exit 1
+fi
+
+# Fail loud on an unreadable service contract: an empty PORT would start
+# Octane on its default and render the domain backend as "http://127.0.0.1:".
+if [ -z "$PORT" ]; then
+    echo "ERROR: service contract unreadable (ports.laravel_api_backend empty; check config/service_contract.json and common/service_contract_common.sh)." >&2
+    exit 1
+fi
 
 echo "Initial directory (invocation): $ORIGINAL_DIR"
 echo "Working directory (Laravel root): $LARAVEL_DIR"
@@ -715,13 +780,11 @@ echo ""
 cd "$LARAVEL_DIR" || exit 1
 
 # --- Ensure php (auto-install via init-ensure script if missing) ---
+# Candidate access code for THIS provisioning run; persisted into the
+# external runtime store by initialize_runtime_configuration_store (only
+# when the store has none - the code is stable across runs, and the
+# InstallationAccessCode.php repository file is never rewritten).
 GENERATED_ACCESS_CODE="$(new_installation_access_code)"
-if write_installation_access_code "$GENERATED_ACCESS_CODE"; then
-    echo "Installation access value refreshed."
-else
-    ACCESS_CODE_WRITE_ERROR="unable to write ${INSTALLATION_ACCESS_CODE_FILE}"
-    echo "WARNING: ${ACCESS_CODE_WRITE_ERROR}" >&2
-fi
 
 if ! resolve_php; then
     echo "php not found. Invoking init-ensure installer:"
@@ -1131,6 +1194,13 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
                 if [ -f "$UI_START" ]; then
                     echo "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..."
                     bash "$UI_START" --no-backend --service || echo "  Warning: UI dashboard service registration failed (continuing)."
+                    # Optional dashboard domain binding: apex + www.<domain> +
+                    # www.<prefix>.<domain> reverse-proxy to the UI backend
+                    # (certificates reused; each site is content-hash
+                    # idempotent; the stored region prefix is reused).
+                    if ask_default_yes "Bind <domain>, www.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
+                        domain_setup_enable_ui_binding || echo "  Warning: UI domain binding reported issues (continuing)."
+                    fi
                 else
                     echo "  Warning: UI start script not found: $UI_START (skipping)."
                 fi
