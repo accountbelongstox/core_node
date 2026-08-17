@@ -1935,6 +1935,8 @@ invoke_git_operations() {
 main() {
     if [ "$PULL_MODE" = true ]; then
         write_color_text "=== Unified Git PULL Script ===" "Magenta"
+    elif [ "$FORCE_OVERWRITE_MODE" = true ]; then
+        write_color_text "=== Unified Git FORCE OVERWRITE Script ===" "Magenta"
     else
         write_color_text "=== Unified Git PUSH Script ===" "Magenta"
     fi
@@ -1983,11 +1985,13 @@ main() {
     # Reorder targets to execute DEFAULT_REMOTE first
     targets=($(get_execution_order "${targets[@]}"))
 
-    # Preview targets before pushing
+    # Preview targets before executing
     write_color_text "" "White"
     write_color_text "============================================================" "Cyan"
     if [ "$PULL_MODE" = true ]; then
         write_color_text "  PULL TARGETS PREVIEW" "Cyan"
+    elif [ "$FORCE_OVERWRITE_MODE" = true ]; then
+        write_color_text "  FORCE OVERWRITE TARGETS PREVIEW" "Cyan"
     else
         write_color_text "  PUSH TARGETS PREVIEW" "Cyan"
     fi
@@ -1997,8 +2001,14 @@ main() {
     # Warning if only one target
     if [ ${#targets[@]} -eq 1 ]; then
         write_color_text "" "White"
-        write_color_text "⚠️  WARNING: Only pushing to ONE remote repository!" "Red"
-        write_color_text "    To push to all remotes, select 'all' in the menu" "Yellow"
+        if [ "$PULL_MODE" = true ]; then
+            write_color_text "⚠️  WARNING: Pulling from ONE remote repository only." "Red"
+        elif [ "$FORCE_OVERWRITE_MODE" = true ]; then
+            write_color_text "⚠️  WARNING: Force overwrite will run for ONE remote only." "Red"
+        else
+            write_color_text "⚠️  WARNING: Only pushing to ONE remote repository!" "Red"
+            write_color_text "    To push to all remotes, select 'all' in the menu" "Yellow"
+        fi
     fi
 
     write_color_text "" "White"
@@ -2016,9 +2026,9 @@ main() {
     write_color_text "============================================================" "Cyan"
     write_color_text "" "White"
 
-    # Ask once for force push decision (applies to all targets)
+    # Ask once for force push decision (push mode only)
     local force_push_mode="no"
-    if [ "$PULL_MODE" != true ]; then
+    if [ "$PULL_MODE" != true ] && [ "$FORCE_OVERWRITE_MODE" != true ]; then
         write_color_text "Do you want to force push? [y/N]: " "Yellow"
         read -r force_push_choice
         if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then

@@ -28,6 +28,7 @@ from pycore.pyctl.agent_history.heartbeat import (
     register_agent_history_extraction,
 )
 from pycore.pyctl.queue_center.snapshot_service import queue_center_snapshot_service
+from pycore.pyctl.relay import relay_service
 from pycore.pyctl.runtime.system_settings_service import apply_persisted_system_settings
 from pycore.pyctl.assist.assist_settings import (
     assist_callback_states,
@@ -60,7 +61,7 @@ from pycore.pylauncher.tray_codesync_cache import (
 
 _RUNTIME_WORKERS_REGISTERED = False
 # Heartbeat fallback cadence for the pull loops. The fast path is
-# event-driven: Reverb queue events reach worker.request_pull() through the
+# event-driven: Mercure queue events reach worker.request_pull() through the
 # shared Queue Center socket, so these intervals only matter when realtime
 # is down. 1-second fallbacks used to keep every worker in a permanent
 # lockForUpdate claim transaction on the same global_tasks rows that the
@@ -359,7 +360,7 @@ def register_event_handlers(
 
     # Register periodic heartbeat workers now that services (incl. the heartbeat
     # system) are up. Kept here because register_event_handlers() runs after
-    # launcher.start(), so shared_heartbeat_system already has a running pusher to
+    # launcher.start(), so shared_heartbeat_system already has a running ticker to
     # accept callbacks.
     register_runtime_workers()
 
@@ -391,6 +392,10 @@ def register_runtime_workers() -> None:
             enabled=callback_states[callback_name],
         )
     apply_assist_runtime(assist_settings)
+    # The relay runtime registers this machine on the central server first:
+    # its machine token feeds both the roster/pair stream and the Queue
+    # Center hub subscription that starts right after.
+    relay_service.start()
     queue_center_snapshot_service.start()
 
     # Agent-history extraction worker (backfill -> live article pipeline):

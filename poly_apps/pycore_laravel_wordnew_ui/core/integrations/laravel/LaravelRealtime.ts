@@ -1,4 +1,4 @@
-/** Shared Queue Center WebSocket client with persistent cursor replay. */
+/** Shared Queue Center Mercure client with persistent cursor replay. */
 import {
   QUEUE_CENTER_REALTIME_EVENTS,
 } from '../../contracts/QueueCenterContract';
@@ -7,7 +7,7 @@ import {
   SHARED_BASE_URL_CHANGED_EVENT,
 } from './transport/BaseAPI';
 import { laravelApi } from './LaravelAPI';
-import { LaravelReverbConnection } from './LaravelReverbConnection';
+import { LaravelMercureConnection } from './LaravelMercureConnection';
 
 export interface LaravelQueueHeadItem {
   task_id: string;
@@ -68,7 +68,7 @@ interface QueueFrame {
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 class LaravelRealtime {
-  private transport = new LaravelReverbConnection();
+  private transport = new LaravelMercureConnection();
   private started = false;
   private connected = false;
   private activeBaseURL: string | null = null;
@@ -199,9 +199,16 @@ class LaravelRealtime {
 
   private handleMessage(event: string, value: unknown): void {
     if (!this.isQueueEvent(event)) return;
-    const payload = this.parseObject(value);
+    const envelope = this.parseObject(value);
+    if (!envelope) return;
+    // Hub updates carry {event, data} envelopes; the SSE event type is the
+    // canonical name - accept both shapes from one source of truth.
+    const payload = this.parseObject(envelope.data) ?? envelope;
     if (!payload) return;
-    const queueFrame = { event, payload };
+    const eventName = (typeof envelope.event === 'string' && this.isQueueEvent(envelope.event))
+      ? envelope.event
+      : event;
+    const queueFrame = { event: eventName, payload };
     if (this.replaying) {
       this.pendingFrames.push(queueFrame);
     } else {
@@ -247,8 +254,8 @@ class LaravelRealtime {
 
   private async openSocket(): Promise<void> {
     if (!this.started || this.transport.isConnected()) return;
-    if (typeof WebSocket === 'undefined') {
-      console.warn('[laravel-realtime] WebSocket unavailable');
+    if (typeof EventSource === 'undefined') {
+      console.warn('[laravel-realtime] EventSource unavailable');
       return;
     }
     const generation = ++this.generation;
@@ -256,13 +263,15 @@ class LaravelRealtime {
       const overview = await laravelApi.getQueueCenterOverview();
       if (!this.started || generation !== this.generation) return;
       const baseURL = getSharedBaseURL();
-      if (!baseURL || !overview.realtime.app_key) {
+      const realtime = overview.realtime;
+      if (!baseURL || !realtime.hub_url || !(realtime.topics || []).length) {
         throw new Error('LARAVEL_REALTIME_CONFIGURATION_UNAVAILABLE');
       }
       this.activeBaseURL = baseURL;
       await this.replay();
       if (!this.started || generation !== this.generation) return;
-      this.transport.connect(baseURL, overview.realtime, {
+      this.transport.connect(baseURL, realtime, {
+        authorize: () => laravelApi.relayHubAuth(),
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {
             console.warn('[laravel-realtime] cursor replay failed', error);
@@ -277,7 +286,7 @@ class LaravelRealtime {
           this.pendingFrames = [];
           this.reconnectAfterFailure();
         },
-      }, 'pycore-ui');
+      });
     } catch (error) {
       console.warn('[laravel-realtime] connect failed', error);
       this.reconnectAfterFailure();

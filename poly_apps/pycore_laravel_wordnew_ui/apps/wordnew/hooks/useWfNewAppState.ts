@@ -510,7 +510,7 @@ export function useWfNewAppState(deps: { shellLang: string; dark: boolean }) {
   }, []);
 
   // Social realtime lifecycle — keyed on the login flag. When logged IN: open the
-  // Reverb channel, beat presence immediately then every ~30s, prime the unread count,
+  // Mercure topic, beat presence immediately then every ~30s, prime the unread count,
   // and subscribe to live notifications. The cleanup tears EVERYTHING down on
   // logout / unmount (stop realtime, clear the heartbeat interval, reset state). Guard
   // ensures nothing runs while logged out. Offline-safe: the client keeps

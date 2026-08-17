@@ -30,7 +30,7 @@ probing.
   capability-provider rule, development norms.
 - `DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_2.md`
   Research: project code findings (incl. already-written relay artifacts);
-  official docs - Mercure protocol (v0.x vs 1.0-alpha), FrankenPHP Mercure
+  official docs - Mercure protocol (latest, 1.0-alpha), FrankenPHP Mercure
   hub, Octane, nginx QUIC, RFC 9220, Tailscale CGNAT; Reverb/broadcasting
   findings kept as historical (pre-pivot) research context only.
 - `DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_3.md`

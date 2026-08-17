@@ -1,14 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Pycore-owned Queue Center snapshot and Laravel WebSocket exchange."""
+"""Pycore-owned Queue Center snapshot and Laravel Mercure exchange."""
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
-from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import (
@@ -16,7 +14,6 @@ from pycore.pyfoundations.serialized_worker import (
     serialized_method,
 )
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_websockets
 from pycore.pyheartbeat import heartbeat_system as shared_heartbeat_system
 from pycore.pyctl.assist.service import assist_status
 from pycore.pyctl.assist.wiring import resolve_selected_endpoint_for_ui
@@ -29,6 +26,13 @@ from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
 from pycore.pyutils.common.queue_bump_hub import queue_bump_hub
+from pycore.pyutils.common.mercure_client import (
+    MERCURE_STATE_CONNECTING,
+    MERCURE_STATE_OFFLINE,
+    MERCURE_STATE_ONLINE,
+    MercureSubscriber,
+    MercureUpdate,
+)
 from pycore.pyutils.common.queue_center_contract import (
     GLOBAL_TASK_LIMITS,
     QUEUE_CENTER_DIFF_DELIVERY,
@@ -36,6 +40,8 @@ from pycore.pyutils.common.queue_center_contract import (
     QUEUE_CENTER_REALTIME_EVENTS,
     queue_center_endpoint,
 )
+from pycore.pyctl.relay import relay_service
+
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
     status_snapshot_cache,
@@ -66,10 +72,9 @@ QUEUE_CENTER_ENDPOINT_HEALTH_TTL_SECONDS = 10.0
 QUEUE_CENTER_ENDPOINT_IDLE_SECONDS = 10.0
 QUEUE_CENTER_RECONNECT_MIN_SECONDS = 1.0
 QUEUE_CENTER_RECONNECT_MAX_SECONDS = 15.0
-QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS = 10.0
-QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS = 70.0
-QUEUE_CENTER_WEBSOCKET_PONG_TIMEOUT_SECONDS = 15.0
-QUEUE_CENTER_PUSHER_PROTOCOL = 7
+# Hub heartbeat defaults to 40s; a read window well above it keeps healthy
+# streams alive while a silent death still reconnects promptly.
+QUEUE_CENTER_SSE_READ_TIMEOUT_SECONDS = 90.0
 QUEUE_CENTER_STOP_SIGNAL = "queue_center.snapshot.stop"
 
 
@@ -104,103 +109,106 @@ def _queue_metrics(queue_overview: Dict[str, Any], scope: str) -> Optional[Dict[
 
 
 class _QueueCenterRealtimeThread(threading.Thread):
-    """Consume Reverb queue events without occupying a Laravel HTTP worker."""
+    """Consume Queue Center Mercure updates without occupying a Laravel worker.
+
+    The shared ``MercureSubscriber`` owns reconnects, Last-Event-ID resume
+    and token refresh; this thread only gates on endpoint health, re-derives
+    the server-issued hub connection per start, and reconciles missed rows
+    over the events endpoint around every reconnect.
+    """
 
     def __init__(self, service: "_QueueCenterSnapshotService") -> None:
         super().__init__(name="QueueCenterRealtimeThread", daemon=True)
         self._service = service
-        self._active_socket: Any = None
         self._last_error = ""
 
     def stop(self) -> None:
         THREAD_BUS.signal(QUEUE_CENTER_STOP_SIGNAL, True)
-        self._close_active_socket()
-
-    def request_reconnect(self) -> None:
-        """Close the live socket so the loop re-derives its endpoint (select)."""
-        self._close_active_socket()
-
-    def _close_active_socket(self) -> None:
-        websocket = self._active_socket
-        self._active_socket = None
-        if websocket is None:
-            return
-        try:
-            websocket.close()
-        except Exception as exc:
-            ColorPrint.yellow(f"[QueueCenterCache] websocket close failed: {exc}")
 
     def run(self) -> None:
-        reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
         while not THREAD_BUS.is_shutdown_requested() and not THREAD_BUS.get_signal(
             QUEUE_CENTER_STOP_SIGNAL,
             False,
         ):
-            refresh_after_close = False
-            reconnect_delay = 0.0
-            endpoint = ""
+            endpoint = self._service.realtime_endpoint()
+            if not endpoint:
+                # Every Laravel candidate is down: idle on the shared health
+                # record instead of burning HTTP timeouts per reconnect.
+                self._note_failure("Laravel endpoint unreachable - realtime paused")
+                self._pause(QUEUE_CENTER_ENDPOINT_IDLE_SECONDS)
+                continue
             try:
-                endpoint = self._service.realtime_endpoint()
-                if not endpoint:
-                    # Every Laravel candidate is down: idle on the shared health
-                    # record instead of burning HTTP timeouts per reconnect.
-                    self._note_failure("Laravel endpoint unreachable - realtime paused")
-                    self._pause(QUEUE_CENTER_ENDPOINT_IDLE_SECONDS)
-                    continue
                 connection = self._service.realtime_connection(endpoint)
                 self._service.replay_realtime_events(endpoint)
-                websocket_url = self._websocket_url(endpoint, connection)
-                websockets = get_third_package_websockets()
-                websocket = websockets.sync_client.connect(
-                    websocket_url,
-                    open_timeout=QUEUE_CENTER_WEBSOCKET_OPEN_TIMEOUT_SECONDS,
-                    close_timeout=2,
+                subscriber = MercureSubscriber(
+                    str(connection["hub_url"]),
+                    [str(topic) for topic in (connection.get("topics") or [])],
+                    token_provider=relay_service.hub_token,
+                    on_update=self._dispatch_update,
+                    on_state_change=lambda state, detail: self._on_hub_state(
+                        endpoint, state, detail
+                    ),
+                    reconnect_min_seconds=QUEUE_CENTER_RECONNECT_MIN_SECONDS,
+                    reconnect_max_seconds=QUEUE_CENTER_RECONNECT_MAX_SECONDS,
+                    read_timeout=QUEUE_CENTER_SSE_READ_TIMEOUT_SECONDS,
                 )
-                self._active_socket = websocket
-                reconnect_seconds = QUEUE_CENTER_RECONNECT_MIN_SECONDS
-                self._note_recovery(endpoint)
-                refresh_after_close = self._consume(
-                    websocket,
-                    endpoint,
-                    str(connection["channel"]),
-                )
-            except Exception as exc:
-                refresh_after_close = True
+                subscriber.run(self._should_exit_stream)
+            except Exception as exc:  # noqa: BLE001 - loop must survive
                 self._note_failure(str(exc))
-                if endpoint:
-                    try:
-                        self._service.replay_realtime_events(endpoint)
-                    except Exception as replay_exc:
-                        if str(replay_exc) != self._last_error:
-                            ColorPrint.yellow(
-                                f"[QueueCenterCache] fallback replay failed: {replay_exc}"
-                            )
-                reconnect_delay = reconnect_seconds
-                reconnect_seconds = min(
-                    QUEUE_CENTER_RECONNECT_MAX_SECONDS,
-                    reconnect_seconds * 2,
-                )
-            finally:
-                self._close_active_socket()
-            # After a realtime disconnect we replay missed events over the
-            # lightweight /api/queue-center/events endpoint. We no longer run
-            # a full remote slice refresh here; that path was a major source of
-            # worker contention and 8-second timeouts.
-            if reconnect_delay > 0:
-                THREAD_BUS.wait_signal(
-                    QUEUE_CENTER_STOP_SIGNAL,
-                    timeout=reconnect_delay,
-                )
+                self._pause(QUEUE_CENTER_RECONNECT_MIN_SECONDS)
+            if self._should_exit_stream():
+                return
+
+    def _should_exit_stream(self) -> bool:
+        """Stop the whole thread on bus shutdown; only the stream on drift."""
+        if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(
+            QUEUE_CENTER_STOP_SIGNAL,
+            False,
+        ):
+            return True
+        # An endpoint switch invalidates the live stream (hub URL, topics);
+        # the outer loop re-derives and re-subscribes against the new winner.
+        return not self._service.realtime_endpoint()
+
+    def _on_hub_state(self, endpoint: str, state: str, detail: str) -> None:
+        if state == MERCURE_STATE_ONLINE:
+            self._note_recovery(endpoint)
+            self._service.note_realtime_connected(endpoint)
+            self._service.replay_realtime_events(endpoint)
+        elif state == MERCURE_STATE_OFFLINE:
+            self._service.note_realtime_disconnected(detail)
+            self._note_failure(detail)
+        elif state == MERCURE_STATE_CONNECTING and self._last_error:
+            self._last_error = ""
+
+    def _dispatch_update(self, update: MercureUpdate) -> None:
+        payload = update.json() if update.data else {}
+        if not isinstance(payload, dict):
+            return
+        row = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+        event_name = str(update.type or payload.get("event") or "")
+        cursor = int(row.get("_id") or 0)
+        if event_name == QUEUE_CENTER_REALTIME_EVENTS["worker_presence"]:
+            self._service.advance_stream_cursor(cursor)
+            return
+        if event_name == QUEUE_CENTER_REALTIME_EVENTS["queue_changed"]:
+            self._service.advance_stream_cursor(cursor)
+            self._service.wake_workers()
+            return
+        if event_name in QUEUE_CENTER_HEAD_EVENTS:
+            self._service.apply_head_event(event_name, row, cursor)
+            return
+        if event_name in QUEUE_CENTER_PRIORITY_EVENTS:
+            self._service.apply_priority_event(event_name, row, cursor)
 
     def _note_failure(self, message: str) -> None:
         """Record one realtime failure; log only NEW error states (no spam)."""
-        self._service.note_realtime_disconnected(message)
         if message != self._last_error:
             self._last_error = message
             ColorPrint.yellow(f"[QueueCenterCache] realtime reconnect: {message}")
 
     def _note_recovery(self, endpoint: str) -> None:
-        """Clear the logged failure once a fresh socket is established."""
+        """Clear the logged failure once a fresh stream is established."""
         if self._last_error:
             self._last_error = ""
             ColorPrint.green(f"[QueueCenterCache] realtime reconnected to {endpoint}")
@@ -209,100 +217,6 @@ class _QueueCenterRealtimeThread(threading.Thread):
     def _pause(seconds: float) -> None:
         THREAD_BUS.wait_signal(QUEUE_CENTER_STOP_SIGNAL, timeout=seconds)
 
-    @staticmethod
-    def _websocket_url(endpoint: str, connection: Dict[str, Any]) -> str:
-        endpoint_parts = urlsplit(endpoint)
-        configured_host = str(connection.get("host") or "").strip()
-        host = (
-            endpoint_parts.hostname
-            if configured_host in ("", "0.0.0.0", "::")
-            else configured_host
-        )
-        configured_scheme = str(connection.get("scheme") or "http").lower()
-        secure = configured_scheme == "https" or endpoint_parts.scheme == "https"
-        scheme = "wss" if secure else "ws"
-        port = (
-            int(endpoint_parts.port or 443)
-            if secure
-            else int(connection.get("port") or 80)
-        )
-        hostname = f"[{host}]" if host and ":" in host and not host.startswith("[") else host
-        netloc = f"{hostname}:{port}"
-        app_key = quote(str(connection.get("app_key") or ""), safe="")
-        if not app_key:
-            raise RuntimeError("Laravel Reverb app key is unavailable")
-        query = urlencode({
-            "protocol": QUEUE_CENTER_PUSHER_PROTOCOL,
-            "client": "pycore",
-            "version": "1.0",
-            "flash": "false",
-        })
-        return urlunsplit((scheme, netloc, f"/app/{app_key}", query, ""))
-
-    @staticmethod
-    def _payload(value: Any) -> Dict[str, Any]:
-        if isinstance(value, dict):
-            return dict(value)
-        parsed = json.loads(value) if isinstance(value, str) else None
-        return dict(parsed) if isinstance(parsed, dict) else {}
-
-    def _consume(self, websocket: Any, endpoint: str, channel: str) -> bool:
-        subscribed = False
-        while not THREAD_BUS.is_shutdown_requested():
-            if THREAD_BUS.is_shutdown_requested() or THREAD_BUS.get_signal(
-                QUEUE_CENTER_STOP_SIGNAL,
-                False,
-            ):
-                return False
-            if self._service.endpoint() != endpoint:
-                return True
-            try:
-                message = websocket.recv(
-                    timeout=QUEUE_CENTER_WEBSOCKET_RECEIVE_TIMEOUT_SECONDS
-                )
-            except TimeoutError:
-                # Reverb pings idle connections only after ping_interval (60s)
-                # on a 60s timer, so an idle recv window can expire before any
-                # server ping; send the Pusher client keepalive instead of
-                # tearing down a healthy connection. A missing pong re-raises
-                # TimeoutError and takes the normal reconnect path.
-                websocket.send(json.dumps({"event": "pusher:ping", "data": {}}))
-                message = websocket.recv(
-                    timeout=QUEUE_CENTER_WEBSOCKET_PONG_TIMEOUT_SECONDS
-                )
-            frame = self._payload(message)
-            event_name = str(frame.get("event") or "")
-            if event_name == "pusher:connection_established":
-                websocket.send(json.dumps({
-                    "event": "pusher:subscribe",
-                    "data": {"auth": "", "channel": channel},
-                }))
-                continue
-            if event_name == "pusher:ping":
-                websocket.send(json.dumps({"event": "pusher:pong", "data": {}}))
-                continue
-            if event_name == "pusher_internal:subscription_succeeded":
-                subscribed = True
-                self._service.note_realtime_connected(endpoint)
-                self._service.replay_realtime_events(endpoint)
-                continue
-            if not subscribed:
-                continue
-            payload = self._payload(frame.get("data"))
-            cursor = int(payload.get("_id") or 0)
-            if event_name == QUEUE_CENTER_REALTIME_EVENTS["worker_presence"]:
-                self._service.advance_stream_cursor(cursor)
-                continue
-            if event_name == QUEUE_CENTER_REALTIME_EVENTS["queue_changed"]:
-                self._service.advance_stream_cursor(cursor)
-                self._service.wake_workers()
-                continue
-            if event_name in QUEUE_CENTER_HEAD_EVENTS:
-                self._service.apply_head_event(event_name, payload, cursor)
-                continue
-            if event_name in QUEUE_CENTER_PRIORITY_EVENTS:
-                self._service.apply_priority_event(event_name, payload, cursor)
-        raise ConnectionError("Laravel Queue Center websocket closed")
 
 
 class _QueueCenterSnapshotService:
@@ -452,7 +366,7 @@ class _QueueCenterSnapshotService:
 
     def get_snapshot(self, request_refresh: bool = False) -> Dict[str, Any]:
         # pycore never mirrors Laravel-owned queue rows into this snapshot.
-        # The browser reads Laravel directly; the shared Reverb connection
+        # The browser reads Laravel directly; the shared Mercure stream
         # wakes local workers without retaining an HTTP request.
         snapshot = status_snapshot_cache.peek(STATUS_SNAPSHOT_QUEUE_CENTER_KEY)
         return self._with_local_state(snapshot or self._empty_snapshot())

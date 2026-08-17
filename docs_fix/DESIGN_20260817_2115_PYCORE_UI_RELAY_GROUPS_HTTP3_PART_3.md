@@ -151,30 +151,38 @@ unpaired/https-selected, the switcher shows why forwarding is unavailable
   pattern; machine: enrollment credential per
   `DESIGN_20260814_QUEUE_CENTER_MACHINE_AUTHENTICATION.md` - first phase may
   gate on the existing InstallationAccessCode while enrollment lands).
-  Returns a **short-lived HS256 subscriber JWT** (TTL 600 s, contract
-  `relay.hub.token_ttl`) with `{"mercure":{"subscribe":[<topics allowed for
-  that identity>]}}` - roster topic for any authenticated end; pair topic
-  only for the paired machine/session.
+  Returns a **short-lived HS256 RFC 9068 subscriber access token** (`typ:
+  at+jwt`, TTL 600 s, contract `relay.hub.token_ttl_seconds`) with `iss`
+  (the trusted issuer), `aud` (the hub URL), `sub`, `client_id`, `iat`,
+  `exp`, `jti` and an RFC 9396 `authorization_details` grant
+  (`actions: ["subscribe"]`, exact-match `topics` = the topics allowed for
+  that identity) - roster topic for any authenticated end; pair topic only
+  for the paired machine/session.
 - **Browser delivery**: EventSource cannot set headers - the endpoint also
-  sets `Set-Cookie: mercureAuthorization=<jwt>;
+  sets `Set-Cookie: __Secure-mercure_access_token=<jwt>;
   Path=/.well-known/mercure; HttpOnly; Secure; SameSite=Strict;
-  Max-Age=600` (spec-recommended cookie mechanism, PART_2 2.2.3; same-origin
-  hub, so the cookie rides the SSE request). Tokens NEVER appear in URLs.
+  Max-Age=600` (the 1.0 default cookie name, PART_2 2.2.3; same-origin hub,
+  so the cookie rides the SSE request). Tokens NEVER appear in URLs.
   The client refreshes via `hub-auth` before expiry (live streams continue
-  past token expiry; only new connections authorize).
+  past token expiry; only new connections authorize; the hub also closes
+  connections at `exp`, so the refresh hook is mandatory).
 - **pycore delivery**: `Authorization: Bearer <jwt>` on its SSE HTTP client
   (machines are not browsers).
 - **Publisher path**: `mercure_publish()` in-process (no JWT handling in
   PHP); the fallback hub POST uses the publisher JWT read from the secret
   store. The publisher JWT key NEVER leaves the server - supersedes the
   REVERB_APP_SECRET rule.
-- **Hub mode**: `anonymous` disabled - every subscriber presents a JWT
-  (PART_0 §0.5); private pair updates are enforced by the hub.
-- **JWT signing**: `symfony/mercure` + `lcobucci/jwt` (official pairing per
-  the FrankenPHP docs; decision PART_2 2.2.4 - no hand-rolled signer).
-- Hub keys (`publisher_jwt`, `subscriber_jwt`) provisioned by 132 into the
-  secret store and rendered by the runtime branch as process env
-  (PART_0 §0.5/0.6) - same lifecycle the former REVERB_APP_* keys had.
+- **Hub mode**: `anonymous` disabled (off by default in 1.0) - every
+  subscriber presents a token for private updates; private pair updates are
+  enforced by the hub.
+- **JWT signing**: `lcobucci/jwt` alone (vendored; RFC 9068 tokens built by
+  `RelayHubJwt` - the symfony/mercure component targets the v0.x token
+  shape and is NOT used).
+- Hub keys (`MERCURE_PUBLISHER_JWT`, `MERCURE_SUBSCRIBER_JWT`) plus the
+  trusted issuer (`MERCURE_TRUSTED_ISSUERS` = `https://api.<region>.<domain>`,
+  derived per launch) provisioned by 132/the runtime branch into the
+  secret store and injected as process env (`{env...}` references,
+  PART_0 §0.5/0.6) - same lifecycle the former REVERB_APP_* keys had.
 
 ## 3.6 HTTP/3 work (H1, H2, A6; plane-aware - PART_0)
 
@@ -199,8 +207,9 @@ unpaired/https-selected, the switcher shows why forwarding is unavailable
 - `config/queue_center_contract.json` (schema 25): relay `channels` key ->
   **`topics`** (`pycore.machines`, `pycore.pair.{machine_id}`); endpoint
   `/api/relay/channel-auth` -> **`/api/relay/hub-auth`**; add `hub` block
-  (`token_ttl: 600`, `cookie: mercureAuthorization`, `anonymous: false`,
-  control-frame cap); `events` entries become update `type` values.
+  (`protocol: mercure-1.0`, `token_ttl_seconds: 600`, cookie
+  `__Secure-mercure_access_token`, control-frame cap); `events` entries
+  become update `type` values.
 - `config/service_contract.json`: the former `reverb_backend: 8080` is
   REMOVED; Phase 0 adds the `frankenphp_http/https/admin` ports.
 - `app/Support/QueueCenterContract.php`: rename `relayChannel()` ->

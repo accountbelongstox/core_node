@@ -53,7 +53,7 @@ class DoneWordsCache:
         """
         Record words as ALREADY translated (by this or another pycore) so this
         worker skips them for a short TTL. Called by the HTTP event client when a
-        `word.translated` Reverb event arrives, AND locally after this worker
+        `word.translated` queue event arrives, AND locally after this worker
         finishes a task (so its own just-done words also dedup future tasks).
 
         Thread-safe; expired entries are pruned opportunistically.

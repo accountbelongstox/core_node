@@ -1,6 +1,12 @@
 /** Shared Laravel API library for every unified UI application. */
 export { LARAVEL_BROWSER_EVENTS, LaravelAPI, laravelApi } from './LaravelAPI';
 export { LARAVEL_REALTIME_EVENTS, laravelRealtime } from './LaravelRealtime';
+export { LaravelMercureConnection } from './LaravelMercureConnection';
+export type {
+  LaravelMercureAuthorization,
+  LaravelMercureCallbacks,
+  LaravelMercureHubConfig,
+} from './LaravelMercureConnection';
 export type {
   LaravelRealtimeEventName,
   LaravelRealtimeEventPayloadMap,

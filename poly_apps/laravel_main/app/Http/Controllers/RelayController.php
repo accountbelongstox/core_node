@@ -15,7 +15,6 @@ use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Symfony\Component\HttpFoundation\Cookie;
 
 /**
  * Relay controller: the 12 contract endpoints under /api/relay/*.
@@ -111,19 +110,7 @@ class RelayController extends Controller
             $session['id']
         );
 
-        return $this->success($token)->cookie(
-            new Cookie(
-                $token['cookie'],
-                $token['token'],
-                now()->addSeconds($token['token_ttl_seconds'])->timestamp,
-                parse_url($token['hub_url'], PHP_URL_PATH) ?: '/.well-known/mercure',
-                null,
-                true,
-                true,
-                false,
-                'strict'
-            )
-        );
+        return RelayHubAuthService::withHubCookie($this->success($token), $token);
     }
 
     public function pair(Request $request, string $machineId): JsonResponse
@@ -266,8 +253,14 @@ class RelayController extends Controller
         return $this->created(['blob' => $meta]);
     }
 
-    public function fetchBlob(string $machineId, string $blobId): Response
+    public function fetchBlob(Request $request, string $machineId, string $blobId): Response
     {
+        // Dual identity: machines read their request bodies, the paired UI
+        // session reads its response bodies - the pair gate is the boundary.
+        if (!PycoreClientOnly::isMachineCall($request)
+            && !RelayDispatcher::gate($machineId, RelayPairRegistry::sessionFor($machineId))) {
+            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+        }
         $bytes = RelayBlobStore::read($machineId, $blobId);
         if ($bytes === null) {
             return response('Blob incomplete, unknown, or expired.', 404, ['Content-Type' => 'text/plain']);

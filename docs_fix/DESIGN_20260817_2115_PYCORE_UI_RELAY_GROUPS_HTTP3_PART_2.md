@@ -203,12 +203,19 @@ compatibility mode and is NOT used by this design.
 
 ### 2.2.4 FrankenPHP built-in Mercure hub (frankenphp.dev/docs/mercure)
 
-- **Disabled by default**; enabled via the Caddyfile block:
-  `mercure { publisher_jwt <key> ; subscriber_jwt <key> ; anonymous }` -
-  "When publisher_jwt is set, you must set subscriber_jwt too". `anonymous`
-  permits JWT-less subscribers (public updates only) - **we do NOT enable
-  it** (PART_1 R7). Both keys live in the server secret store
-  (RuntimeConfigurationStore family, PART_0 §0.5).
+- **Disabled by default**; enabled via the Caddyfile block (Mercure 1.0
+  modern mode - the pre-1.0 flat `publisher_jwt`/`subscriber_jwt`
+  directives are deprecated and only work in compatibility mode):
+  `mercure { issuer <iss> { publisher { jwt <key> [<alg>] } ;
+  subscriber { jwt <key> [<alg>] } } }`. Each `issuer` binds the trusted
+  `iss` to its verification material - publisher and subscriber keys stay
+  distinct. `anonymous` permits JWT-less subscribers (public updates only)
+  - **we do NOT enable it** (PART_1 R7; it is off by default in 1.0). The
+  hub derives the token `aud` (resource identifier) from each request by
+  default; the cookie defaults to `__Secure-mercure_access_token`; default
+  `heartbeat 40s` keeps intermediaries from idling the stream out. Keys +
+  issuer live in the server secret store (RuntimeConfigurationStore family,
+  PART_0 §0.5) and reach the hub as process env referenced by `{env...}`.
 - Hub endpoint: `/.well-known/mercure` on the same 443 listener as the app -
   same domain, same certificates, same h3. Under Octane, configurable via
   `config/octane.php` `'mercure' => [...]` (b.txt's claim confirmed; its
@@ -221,11 +228,10 @@ compatibility mode and is NOT used by this design.
   string` (returns the update id). Relay wake frames publish this way
   (PART_3 §3.2); the authenticated-POST path stays as fallback.
 - **JWT signing server-side for `/api/relay/hub-auth`**: laravel_main vendors
-  no standalone JWT signer today. The FrankenPHP-documented official path is
-  the Symfony Mercure component + `lcobucci/jwt` (also provides the cookie
-  helper). Decision recorded in PART_3 §3.5: prefer
-  `symfony/mercure` + `lcobucci/jwt` over a hand-rolled signer (official
-  pairing, reusable across wordnew-social migration later).
+  no standalone JWT signer today. Decision recorded in PART_3 §3.5:
+  `lcobucci/jwt` (already vendored) builds the RFC 9068 tokens directly -
+  the symfony/mercure component targets the v0.x token shape and was
+  dropped from the dependency set (2026-08-17).
 - SSE over h2/h3 multiplexes on one connection (no per-stream connection
   exhaustion like HTTP/1.1's 6-per-host limit); Caddy streams SSE responses
   natively (no proxy-buffering stanza needed, unlike nginx `X-Accel-Buffering`

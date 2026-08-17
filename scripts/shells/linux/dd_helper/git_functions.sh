@@ -22,8 +22,12 @@ source "$DD_HELPER_DIR/constants.sh"
 GITPUT_UNIFIED_SCRIPT_PATH="$CORE_NODE_ROOT_DIR/$GITPUT_UNIFIED_SCRIPT_RELATIVE"
 GIT_MANAGEMENT_PY="$CORE_NODE_ROOT_DIR/scripts/git/git_management.py"
 
-# File variables directory
-GIT_VARS_DIR="/var/_core_node/_build_global_vars"
+# File variables directory (must match scripts/git/git_management_vars.py cache path)
+if [ -w "/var/_core_node" ] || [ -d "/var/_core_node/.build_global_vars" ]; then
+    GIT_VARS_DIR="/var/_core_node/.build_global_vars"
+else
+    GIT_VARS_DIR="$HOME/.core_node/.build_global_vars"
+fi
 
 # Helper functions for file variables
 read_git_var() {

@@ -39,6 +39,12 @@ import type {
   LaravelTranslationStackResult,
   LaravelVocabTranslateRequest,
   LaravelVocabTtsGenerateRequest,
+  RelayHubToken,
+  RelayMachinesResponse,
+  RelayPairResponse,
+  RelayRequestFrame,
+  RelayRequestResponse,
+  RelayStoredResponse,
 } from './LaravelTypes';
 export type {
   MediaSourceListItem,
@@ -106,6 +112,21 @@ const ROUTES = {
   queueCenterOverview: queueCenterEndpoint('queue_center_overview'),
   queueCenterEvents: queueCenterEndpoint('queue_center_events'),
   queueCenterReceipts: queueCenterEndpoint('queue_center_receipts'),
+  // Relay plane (pycore UI <-> machine relay through the central server).
+  relayMachines: queueCenterEndpoint('relay_machines'),
+  relayHubAuth: queueCenterEndpoint('relay_hub_auth'),
+  relayPair: (machineId: string): string =>
+    queueCenterEndpoint('relay_pair_announce', { machine_id: machineId }),
+  relayRequest: (machineId: string): string =>
+    queueCenterEndpoint('relay_request', { machine_id: machineId }),
+  relayResponse: (machineId: string, requestId: string): string =>
+    queueCenterEndpoint('relay_response_fetch', { machine_id: machineId, request_id: requestId }),
+  relayResponsePost: (machineId: string): string =>
+    queueCenterEndpoint('relay_response', { machine_id: machineId }),
+  relayBlobCreate: (machineId: string): string =>
+    queueCenterEndpoint('relay_blob_create', { machine_id: machineId }),
+  relayBlobFetch: (machineId: string, blobId: string): string =>
+    queueCenterEndpoint('relay_blob_fetch', { machine_id: machineId, blob_id: blobId }),
   // Queue Center pump read/claim surface (diff delivery over global_tasks).
   queueCenterIdPages: (queue: string): string =>
     queueCenterEndpoint('queue_center_queue_id_pages', { queue }),
@@ -322,6 +343,57 @@ const laravelMethods = {
   getQueueCenterOverview: async (): Promise<QueueCenterOverviewResponse> => {
     const payload = await requestLaravel<any>('GET', ROUTES.queueCenterOverview);
     return unwrapData<QueueCenterOverviewResponse>(payload);
+  },
+
+  /**
+   * Relay plane (pycore UI <-> machine relay through the central server).
+   *
+   * hub-auth runs in session mode: the server resolves the UI identity,
+   * grants the roster/queue-center (+ paired machine) topics and seeds the
+   * hub-path cookie; the request MUST carry credentials so the cookie sticks
+   * for the subsequent EventSource stream.
+   */
+  relayHubAuth: async (machineId?: string): Promise<RelayHubToken> => {
+    const response = await laravelHttp.rawRequest(ROUTES.relayHubAuth, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'session', ...(machineId ? { machine_id: machineId } : {}) }),
+      credentials: 'include',
+    });
+    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
+    return unwrapData<RelayHubToken>(await response.json());
+  },
+  getRelayMachines: async (): Promise<RelayMachinesResponse> => {
+    const payload = await requestLaravel<any>('GET', ROUTES.relayMachines);
+    return unwrapData<RelayMachinesResponse>(payload);
+  },
+  relayPair: async (machineId: string): Promise<RelayPairResponse> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayPair(machineId));
+    return unwrapData<RelayPairResponse>(payload);
+  },
+  relayRequest: async (
+    machineId: string,
+    frame: RelayRequestFrame,
+  ): Promise<RelayRequestResponse> => {
+    const payload = await requestLaravel<any>('POST', ROUTES.relayRequest(machineId), frame);
+    return unwrapData<RelayRequestResponse>(payload);
+  },
+  relayResponse: async (
+    machineId: string,
+    requestId: string,
+    wait = false,
+  ): Promise<RelayStoredResponse | null> => {
+    const payload = await requestLaravel<any>(
+      'GET',
+      ROUTES.relayResponse(machineId, requestId),
+      wait ? { wait: 1 } : {},
+    ).catch((error: any) => {
+      if (error && error.status === 404) return null;
+      throw error;
+    });
+    if (!payload) return null;
+    const data = unwrapData<{ response: RelayStoredResponse }>(payload);
+    return data.response ?? null;
   },
   /**
    * Rich aggregate snapshot for the Queue Center strip. This endpoint is now

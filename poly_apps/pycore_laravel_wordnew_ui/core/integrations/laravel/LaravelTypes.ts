@@ -152,3 +152,64 @@ export interface AssistCategoryItemsResponse {
   items: any[];
   error?: string;
 }
+
+/** Relay plane contracts (pycore UI <-> machine relay through the central server). */
+
+export interface RelayMachineRecord {
+  machine_id: string;
+  label: string;
+  capabilities: string[];
+  hostname?: string;
+  platform?: string;
+  registered_at?: string;
+  last_heartbeat_at?: string;
+}
+
+export interface RelayCapabilityProvider {
+  id: string;
+  class: string;
+  implemented: boolean;
+  provides: string[];
+}
+
+export interface RelayMachinesResponse {
+  machines: RelayMachineRecord[];
+  capability_providers: RelayCapabilityProvider[];
+  heartbeat_seconds: number;
+}
+
+export interface RelayHubToken {
+  transport: string;
+  hub_url: string;
+  topics: string[];
+  token: string;
+  token_ttl_seconds: number;
+  cookie: string;
+  subscribe_url: string;
+}
+
+export interface RelayPairResponse {
+  pair: { machine_id: string; session_id: string; expires_at: string };
+  hub: RelayHubToken;
+}
+
+export interface RelayRequestFrame {
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: string | null;
+  body_ref?: string | null;
+}
+
+export interface RelayRequestResponse {
+  request: { request_id: string; method: string; path: string; size: number };
+  poll_interval_ms: number;
+}
+
+export interface RelayStoredResponse {
+  request_id: string;
+  status: number;
+  headers: Record<string, string>;
+  body: string | null;
+  body_ref: string | null;
+}

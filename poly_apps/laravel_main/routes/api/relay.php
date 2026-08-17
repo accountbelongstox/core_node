@@ -39,7 +39,10 @@ Route::prefix('relay')->group(function (): void {
         Route::middleware(PycoreClientOnly::class)->group(function (): void {
             Route::get('requests/{requestId}', [RelayController::class, 'fetchRequest']);
             Route::post('responses', [RelayController::class, 'createResponse']);
-            Route::get('blobs/{blobId}', [RelayController::class, 'fetchBlob']);
         });
+
+        // Blob reads are dual identity (machine request bodies / paired UI
+        // session response bodies) - gated in the controller, not by header.
+        Route::get('blobs/{blobId}', [RelayController::class, 'fetchBlob']);
     });
 });

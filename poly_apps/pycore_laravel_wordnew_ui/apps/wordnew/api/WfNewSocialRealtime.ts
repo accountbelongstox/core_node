@@ -1,14 +1,12 @@
-/** WordNew social realtime client: private Reverb channel plus cursor recovery. */
+/** WordNew social realtime client: private Mercure topic plus cursor recovery. */
 import {
-  LaravelReverbConnection,
-  type LaravelReverbAuthorization,
-  type LaravelReverbConfig,
-} from '../../../core/integrations/laravel/LaravelReverbConnection';
+  LaravelMercureConnection,
+  type LaravelMercureAuthorization,
+} from '../../../core/integrations/laravel/LaravelMercureConnection';
 import { wfNewEndpoints } from './WfNewEndpoints';
 import { WfNewApiPaths } from './WfNewApiPaths';
 import {
   authedGetJSON,
-  handleMaybe401,
   loadToken,
 } from './WfNewApiTransport';
 
@@ -18,8 +16,14 @@ export type WfNewSocialEvent =
   | 'post.created' | 'post.liked' | 'post.comment'
   | 'live.started' | 'live.chat.new';
 
-interface SocialRealtimeConnection extends LaravelReverbConfig {
-  auth_endpoint: string;
+interface SocialRealtimeConnection {
+  hub_url: string;
+  topics: string[];
+  token_ttl_seconds: number;
+  subscribe_url: string;
+  auth_mode: string;
+  protocol: string;
+  cookie: string;
   events: string[];
 }
 
@@ -46,7 +50,7 @@ const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 
 class WfNewSocialRealtime {
-  private transport = new LaravelReverbConnection();
+  private transport = new LaravelMercureConnection();
   private started = false;
   private connected = false;
   private generation = 0;
@@ -128,11 +132,15 @@ class WfNewSocialRealtime {
     this.emit(frame.event, payload);
   }
 
-  private handleEvent(event: string, value: unknown): void {
-    if (!this.allowedEvents.has(event)) return;
-    const payload = this.parseObject(value);
+  private handleEvent(_transportEvent: string, value: unknown): void {
+    // Hub updates arrive as {event, data} envelopes; the envelope event is
+    // the canonical name the roster gate checks.
+    const envelope = this.parseObject(value);
+    if (!envelope || typeof envelope.event !== 'string') return;
+    if (!this.allowedEvents.has(envelope.event)) return;
+    const payload = this.parseObject(envelope.data) ?? envelope;
     if (!payload) return;
-    const frame = { event, payload };
+    const frame = { event: envelope.event, payload };
     if (this.replaying) this.pendingFrames.push(frame);
     else this.dispatchFrame(frame);
   }
@@ -153,28 +161,22 @@ class WfNewSocialRealtime {
     }
   }
 
-  private async authorize(
-    baseURL: string,
-    authEndpoint: string,
-    socketId: string,
-    channel: string,
-  ): Promise<LaravelReverbAuthorization> {
-    const token = loadToken();
-    if (!token) throw new Error('AUTHENTICATION_REQUIRED');
-    const response = await fetch(new URL(authEndpoint, baseURL), {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ socket_id: socketId, channel_name: channel }),
-    });
-    if (!response.ok) {
-      handleMaybe401(response.status, token);
-      throw new Error(`SOCIAL_REALTIME_AUTH_HTTP_${response.status}`);
-    }
-    return await response.json() as LaravelReverbAuthorization;
+  /**
+   * The authenticated connection endpoint is the single authorize step: it
+   * returns the hub contract and refreshes the hub-path cookie for the
+   * private social topic; the stream itself reuses it on reconnects.
+   */
+  private async authorize(): Promise<LaravelMercureAuthorization> {
+    const config = await authedGetJSON<SocialRealtimeConnection>(
+      WfNewApiPaths.socialRealtimeConnection,
+      null as unknown as SocialRealtimeConnection,
+    );
+    if (!config?.subscribe_url) throw new Error('SOCIAL_REALTIME_UNAVAILABLE');
+    this.allowedEvents = new Set(config.events || []);
+    return {
+      subscribe_url: config.subscribe_url,
+      token_ttl_seconds: config.token_ttl_seconds,
+    };
   }
 
   private async subscribed(generation: number): Promise<void> {
@@ -223,29 +225,26 @@ class WfNewSocialRealtime {
 
   private async openSocket(): Promise<void> {
     if (!this.started || !loadToken()) return;
-    if (typeof WebSocket === 'undefined') {
-      console.warn('[wfnew-social-realtime] WebSocket unavailable');
+    if (typeof EventSource === 'undefined') {
+      console.warn('[wfnew-social-realtime] EventSource unavailable');
       return;
     }
     const generation = ++this.generation;
     try {
       await wfNewEndpoints.whenReady();
-      const baseURL = wfNewEndpoints.getCurrentBaseUrl();
       const config = await authedGetJSON<SocialRealtimeConnection>(
         WfNewApiPaths.socialRealtimeConnection,
         null as unknown as SocialRealtimeConnection,
       );
-      if (!this.started || generation !== this.generation || !config?.app_key) return;
-      this.allowedEvents = new Set(config.events);
+      if (!this.started || generation !== this.generation) return;
+      if (!config?.hub_url || !(config.topics || []).length) {
+        throw new Error('SOCIAL_REALTIME_CONFIGURATION_UNAVAILABLE');
+      }
+      this.allowedEvents = new Set(config.events || []);
       await this.replay();
       if (!this.started || generation !== this.generation) return;
-      this.transport.connect(baseURL, config, {
-        authorize: (socketId, channel) => this.authorize(
-          baseURL,
-          config.auth_endpoint,
-          socketId,
-          channel,
-        ),
+      this.transport.connect(wfNewEndpoints.getCurrentBaseUrl(), config, {
+        authorize: () => this.authorize(),
         onSubscribed: () => {
           void this.subscribed(generation).catch((error) => {
             console.warn('[wfnew-social-realtime] cursor replay failed', error);
@@ -260,7 +259,7 @@ class WfNewSocialRealtime {
           this.pendingFrames = [];
           this.reconnectAfterFailure();
         },
-      }, 'wordnew-social');
+      });
     } catch (error) {
       console.warn('[wfnew-social-realtime] connect failed', error);
       this.reconnectAfterFailure();

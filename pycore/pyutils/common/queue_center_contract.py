@@ -171,6 +171,59 @@ QUEUE_CENTER_ENDPOINTS: Dict[str, str] = {
     str(key): str(value)
     for key, value in _CONTRACT_DOCUMENT["endpoints"].items()
 }
+QUEUE_CENTER_RELAY: Dict[str, Any] = dict(_CONTRACT_DOCUMENT["relay"])
+
+
+def relay_hub_value(key: str, default: str = "") -> str:
+    """Read one string from the contract relay.hub block."""
+    hub = QUEUE_CENTER_RELAY.get("hub")
+    value = hub.get(key) if isinstance(hub, dict) else None
+    return str(value) if value is not None else default
+
+
+def relay_hub_int(key: str, default: int = 0) -> int:
+    """Read one integer from the contract relay.hub block."""
+    hub = QUEUE_CENTER_RELAY.get("hub")
+    value = hub.get(key) if isinstance(hub, dict) else None
+    return int(value) if isinstance(value, (int, float)) else default
+
+
+def relay_topic(kind: str, **tokens: Any) -> str:
+    """Render one relay topic template (relay.topics in the contract).
+
+    Mirrors the server-side renderer token-for-token: ``machines`` renders
+    verbatim, ``pair`` takes a ``machine_id`` token.
+    """
+    topics = QUEUE_CENTER_RELAY.get("topics")
+    template = topics.get(kind) if isinstance(topics, dict) else None
+    if not template:
+        raise RuntimeError(f"Unknown relay topic kind: {kind}")
+    rendered = str(template)
+    for key, value in tokens.items():
+        rendered = rendered.replace("{" + key + "}", str(value))
+    return rendered
+
+
+def relay_event(name: str) -> str:
+    """Render one relay update type (relay.events in the contract)."""
+    events = QUEUE_CENTER_RELAY.get("events")
+    value = events.get(name) if isinstance(events, dict) else None
+    if not value:
+        raise RuntimeError(f"Unknown relay event name: {name}")
+    return str(value)
+
+
+def relay_int(key: str, default: int = 0) -> int:
+    """Read one integer from the flat relay contract block."""
+    value = QUEUE_CENTER_RELAY.get(key)
+    return int(value) if isinstance(value, (int, float)) else default
+
+
+def relay_cap(key: str, default: int = 0) -> int:
+    """Read one size cap from the contract relay.caps block."""
+    caps = QUEUE_CENTER_RELAY.get("caps")
+    value = caps.get(key) if isinstance(caps, dict) else None
+    return int(value) if isinstance(value, (int, float)) else default
 
 
 def queue_center_endpoint(role: str, **tokens: Any) -> str:
@@ -589,6 +642,13 @@ __all__ = [
     "QUEUE_CENTER_QUEUE_POSITION_TASK_ALIASES",
     "QUEUE_CENTER_DIFF_DELIVERY",
     "QUEUE_CENTER_ENDPOINTS",
+    "QUEUE_CENTER_RELAY",
+    "relay_hub_value",
+    "relay_hub_int",
+    "relay_topic",
+    "relay_event",
+    "relay_int",
+    "relay_cap",
     "queue_center_endpoint",
     "QUEUE_CENTER_SECTION_DEFINITIONS",
     "QUEUE_CENTER_SCOPES",

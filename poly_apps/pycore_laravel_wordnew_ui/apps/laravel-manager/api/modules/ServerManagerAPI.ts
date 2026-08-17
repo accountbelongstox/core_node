@@ -35,7 +35,7 @@ export type GlobalTaskDetail = GlobalTaskStatusRecord;
 // laravel_main control-plane routes (no-auth), NOT under /api/app_qy_v1:
 //   GET  /api/task/{id}/detail        — full detail snapshot (task + events + phase)
 //   POST /api/task/{id}/bump          — move by the task type's contract ordering
-// Queue Center Reverb events wake the shared detail refresh owner.
+// Queue Center Mercure events wake the shared detail refresh owner.
 
 /** null means lane-only routing; non-null values come from the central capability catalog. */
 export type FastCapability = GlobalTaskCapability | null;

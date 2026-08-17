@@ -16,14 +16,24 @@ class PycoreClientOnly
     private const SERVICE_HEADER = 'X-Core-Node-Service';
     private const SERVICE_ID = 'laravel_main';
 
-    public function handle(Request $request, Closure $next): Response
+    /**
+     * Recognized machine identity: pycore header pair or loopback debug.
+     * Shared with dual-identity endpoints (relay blob reads) so the same
+     * recognition logic has one definition site.
+     */
+    public static function isMachineCall(Request $request): bool
     {
         $clientId = (string) $request->header(self::CLIENT_HEADER, '');
         $protocolVersion = (string) $request->header(self::PROTOCOL_HEADER, '');
-        $isPycoreClient = hash_equals(self::CLIENT_ID, $clientId)
-            && hash_equals(self::PROTOCOL_VERSION, $protocolVersion);
 
-        if (!DebugAuthService::isLoopback($request) && !$isPycoreClient) {
+        return DebugAuthService::isLoopback($request)
+            || (hash_equals(self::CLIENT_ID, $clientId)
+                && hash_equals(self::PROTOCOL_VERSION, $protocolVersion));
+    }
+
+    public function handle(Request $request, Closure $next): Response
+    {
+        if (!self::isMachineCall($request)) {
             return response()->json([
                 'success' => false,
                 'error' => 'Access denied. A recognized Pycore client is required.',

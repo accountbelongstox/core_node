@@ -15,7 +15,7 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Social;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Http\Controllers\Controller;
-use App\Services\Realtime\RealtimeConnectionService;
+use App\Services\Relay\RelayHubAuthService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -25,26 +25,20 @@ class AppQyV1SocialRealtimeController extends Controller
     use ApiResponse;
 
     private const BATCH_LIMIT = 200;
-    protected RealtimeConnectionService $connections;
-
-    public function __construct(RealtimeConnectionService $connections)
-    {
-        $this->connections = $connections;
-    }
 
     public function connection(Request $request): JsonResponse
     {
         $userId = (int) $request->user()->id;
-
-        return $this->success(
-            $this->connections->hubConnection(
-                [AppQyV1SocialEventModel::topic($userId)],
-                [
-                    'events' => AppQyV1SocialEventModel::eventNames(),
-                ]
-            ),
-            'Social realtime connection'
+        // One authenticated round trip carries both the hub contract and the
+        // session token + cookie for this user's private social topic: the
+        // browser EventSource authorizes through the hub-path cookie alone.
+        $token = RelayHubAuthService::issueForTopics(
+            'social:'.$userId,
+            [AppQyV1SocialEventModel::topic($userId)]
         );
+        $token['events'] = AppQyV1SocialEventModel::eventNames();
+
+        return RelayHubAuthService::withHubCookie($this->success($token, 'Social realtime connection'), $token);
     }
 
     public function events(Request $request): JsonResponse

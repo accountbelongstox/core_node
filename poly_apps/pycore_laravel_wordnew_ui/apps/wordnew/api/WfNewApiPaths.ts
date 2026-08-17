@@ -282,7 +282,7 @@ export const WfNewApiPaths = {
   socialNotificationsUnreadCount: p('/social/notifications/unread-count'),
   socialNotificationRead: p('/social/notifications/read'),
 
-  /** Per-user private Reverb connection and bounded cursor replay. */
+  /** Per-user private Mercure connection and bounded cursor replay. */
   socialRealtimeConnection: p('/social/realtime/connection'),
   socialRealtimeEvents: (cursor?: number | null): string =>
     p(`/social/realtime/events${cursor != null ? `?cursor=${cursor}` : ''}`),
