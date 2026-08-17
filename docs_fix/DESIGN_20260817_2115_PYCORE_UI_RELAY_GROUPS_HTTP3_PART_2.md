@@ -144,33 +144,43 @@ binding transport research is §2.2.3 (Mercure protocol) + §2.2.4
 
 ### 2.2.3 Mercure protocol (mercure.rocks/spec) - BINDING transport research
 
-Measured against the **v0.x stable protocol** - what the hub embedded in
-FrankenPHP implements. The site also hosts a **1.0-alpha draft** (OAuth 2.0
-`authorization_details` model, `match_*` subscribe params, protected-resource
-metadata, formalized active-subscriptions); the draft itself notes that hubs
-predating it use the `topic` query parameter and the bespoke `mercure` claim,
-and that absence of protected-resource metadata identifies such hubs. **This
-design codes against v0.x.**
+Measured against the **latest Mercure specification (1.0-alpha,
+2026-08-11; IETF draft-dunglas-mercure-08)** - the version the current hub
+build implements in modern mode (2026-08-17 decision: code against the
+LATEST spec, never the v0.x compatibility layer; `protocol_version_
+compatibility` stays off). The v0.x model (`topic` query parameter, bespoke
+`mercure` claim, `mercureAuthorization` cookie) is reachable only through
+compatibility mode and is NOT used by this design.
 
-- **Subscribe (downstream)**: `GET /.well-known/mercure?topic=<iri>` (repeat
-  `topic` for several) -> a **Server-Sent Events** stream. Browsers use the
-  native `EventSource`; any HTTP client works for machines. Non-browser
-  clients can send `Authorization: Bearer <jwt>`.
+- **Subscribe (downstream)**: `GET /.well-known/mercure?match=<topic>`
+  (repeat `match` for several; `match_urlpattern` for URL-Pattern
+  matchers) -> a **Server-Sent Events** stream. Browsers use the native
+  `EventSource`; any HTTP client works for machines. Non-browser clients
+  (pycore, UI fetch-stream readers) send `Authorization: Bearer <jwt>` -
+  the spec-RECOMMENDED mechanism.
 - **Publish (upstream)**: authenticated `POST /.well-known/mercure`,
-  form-encoded fields `topic`, `data`, `private` (flag), `id`, `type`,
-  `retry`, with a **publisher JWT** in `Authorization: Bearer`. The server
-  (Laravel) is the only publisher in this design - browsers never publish.
-- **Authorization (v0.x)**: JWT carries a `mercure` claim:
-  `{"mercure":{"publish":["*"],"subscribe":["pycore.pair.*"]}}`. Publisher
-  JWT signs the POST; **subscriber JWT** authorizes receiving **private**
-  updates (topic-scoped). For browsers, `EventSource` cannot set headers:
-  the spec's cookie mechanism (`mercureAuthorization` cookie on the hub path)
-  delivers the subscriber JWT - and the spec RECOMMENDS HttpOnly cookies for
-  browsers (XSS resilience) with CSRF origin checks.
-- **Private updates**: delivered only to subscribers whose JWT grants
-  `subscribe` on the update's topic(s); unauthenticated/anonymous subscribers
-  never receive private updates. Pair wake frames use `private=1`
-  (PART_3 §3.1).
+  form-encoded fields `topic` (repeatable: canonical + alternates), `data`,
+  `private` (flag), `id`, `type`, `retry`, with a **publisher JWT** in
+  `Authorization: Bearer`. The server (Laravel) is the only publisher in
+  this design - browsers never publish. Success = 200 with the hub-generated
+  update id (text/plain).
+- **Authorization (1.0)**: RFC 9068 access tokens (`typ: at+jwt`) carrying
+  `iss`, `aud` (the hub URL), `sub`, `client_id`, `iat`, `exp`, `jti` plus
+  an RFC 9396 `authorization_details` claim:
+  `[{"type":"https://mercure.rocks/authorization-detail","actions":
+  ["publish"|"subscribe"],"topics":[{"match":...,"match_type":...}]}]`.
+  Publisher JWT grants `publish`; **subscriber JWT** authorizes receiving
+  **private** updates (topic-scoped, matched against every topic of the
+  update). For browsers, `EventSource` cannot set headers: the cookie
+  mechanism (default name `__Secure-mercure_access_token`, Path = hub path,
+  Secure, HttpOnly, SameSite=Strict) delivers the subscriber JWT.
+- **Private updates**: delivered only to subscribers whose token grants
+  `subscribe` on at least one topic of the update; unauthenticated
+  subscribers (when the hub allows them at all) never receive private
+  updates. Pair wake frames use `private=1` (PART_3 §3.1). The hub closes
+  a subscriber connection at the token's `exp` - clients re-authenticate
+  on reconnect (the 600s TTL aligns with the hub's default 600s
+  `write_timeout`).
 - **Reconnection / reconciliation**: native `EventSource` auto-reconnects and
   sends `Last-Event-ID` (the update `id`); the hub reconciles from its
   bounded event store. Missed frames replay - a strict upgrade over the
