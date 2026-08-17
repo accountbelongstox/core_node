@@ -330,6 +330,7 @@ initialize_runtime_configuration_store() {
     # pycore, the browser UI or the extension; the runtime injects them as
     # process env for Caddy's {env...} references; the trusted issuer is
     # derived per launch by the runtime branch). Provisioned once.
+    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
     ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
     generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
     ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
