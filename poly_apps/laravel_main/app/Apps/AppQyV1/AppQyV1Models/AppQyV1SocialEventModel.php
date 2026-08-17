@@ -18,12 +18,13 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Per-user realtime event outbox for the social subsystem.
- * Reverb delivers the live private-channel frame while this table provides
- * cursor recovery after disconnects. `data` holds the JSON-encoded payload.
+ * The Mercure hub delivers the live private-topic frame while this table
+ * provides cursor recovery after disconnects. `data` holds the JSON-encoded
+ * payload.
  */
 class AppQyV1SocialEventModel extends AppQyV1Model
 {
-    private const CHANNEL_PREFIX = 'wordnew-social.';
+    private const TOPIC_PREFIX = 'wordnew.social.';
     private const EVENT_NAMES = [
         'message.new',
         'friend.request',
@@ -135,14 +136,9 @@ class AppQyV1SocialEventModel extends AppQyV1Model
         ])->save();
     }
 
-    public static function channel(int $userId): string
+    public static function topic(int $userId): string
     {
-        return self::CHANNEL_PREFIX.$userId;
-    }
-
-    public static function privateChannel(int $userId): string
-    {
-        return 'private-'.self::channel($userId);
+        return self::TOPIC_PREFIX.$userId;
     }
 
     public static function eventNames(): array

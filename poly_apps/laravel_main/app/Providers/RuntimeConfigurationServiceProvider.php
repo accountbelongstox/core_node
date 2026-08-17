@@ -45,7 +45,7 @@ class RuntimeConfigurationServiceProvider extends ServiceProvider
         $this->injectStringSecrets();
         $this->injectApplicationKeyHistory();
         $this->injectDatabasePassword();
-        $this->injectReverbCredentials();
+        $this->injectMercureKeys();
         $this->injectAuthenticationTokens();
         $this->synchronizeSmsTemplates();
     }
@@ -111,37 +111,18 @@ class RuntimeConfigurationServiceProvider extends ServiceProvider
         }
     }
 
-    private function injectReverbCredentials(): void
+    /**
+     * Mercure hub keys (HS256): provisioned once into the private store;
+     * RelayHubJwt reads them directly. They never enter the Laravel config
+     * tree, env files or any client-facing surface.
+     */
+    private function injectMercureKeys(): void
     {
-        $appId = RuntimeConfigurationStore::get('REVERB_APP_ID', LaravelConfig::REVERB_APP_ID);
-        $key = $this->reverbCredential('REVERB_APP_KEY', 16);
-        $secret = $this->reverbCredential('REVERB_APP_SECRET', 32);
-        $configValues = [
-            'broadcasting.connections.reverb.app_id' => $appId,
-            'broadcasting.connections.reverb.key' => $key,
-            'broadcasting.connections.reverb.secret' => $secret,
-            'reverb.apps.apps.0.app_id' => $appId,
-            'reverb.apps.apps.0.key' => $key,
-            'reverb.apps.apps.0.secret' => $secret,
-        ];
-
-        foreach ($configValues as $configKey => $value) {
-            $this->app['config']->set($configKey, $value);
+        foreach (['MERCURE_PUBLISHER_JWT', 'MERCURE_SUBSCRIBER_JWT'] as $mercureKey) {
+            if (RuntimeConfigurationStore::get($mercureKey) === null) {
+                RuntimeConfigurationStore::put($mercureKey, base64_encode(random_bytes(48)));
+            }
         }
-    }
-
-    private function reverbCredential(string $storeKey, int $entropyBytes): string
-    {
-        $value = RuntimeConfigurationStore::get($storeKey);
-
-        if ($value !== null) {
-            return $value;
-        }
-
-        $value = bin2hex(random_bytes($entropyBytes));
-        RuntimeConfigurationStore::put($storeKey, $value);
-
-        return $value;
     }
 
     private function injectAuthenticationTokens(): void

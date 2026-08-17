@@ -1599,6 +1599,29 @@ get_var() {
     get_global_var "$@"
 }
 
+# Web-server plane (DESIGN_20260817_2115 PART_0): the single shared plane
+# constant every plane-aware script resolves through these helpers - never
+# parsed from another script's state. Default plane = frankenphp (single
+# octane:frankenphp process with the built-in Mercure hub on 443/h3).
+# PHP-runtime derivation lives in the PHP common area
+# (octane_service_manager.sh), not here - gvar_common stays basic.
+web_server_plane() {
+    local plane=""
+    plane="$(get_global_var WEB_SERVER_PLANE 'frankenphp')"
+    case "$plane" in
+        nginx) echo "nginx" ;;
+        *) echo "frankenphp" ;;
+    esac
+}
+
+set_web_server_plane() {
+    local plane="$1"
+    case "$plane" in
+        frankenphp|nginx) set_global_var WEB_SERVER_PLANE "$plane" 'false' ;;
+        *) echo "Error: plane must be frankenphp or nginx" >&2 ;;
+    esac
+}
+
 # Function to clear all global variables
 clear_all_global_vars() {
     if [[ ! -d "$GLOBAL_VAR_DIR" ]]; then

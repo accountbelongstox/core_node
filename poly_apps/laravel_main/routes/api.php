@@ -359,7 +359,11 @@ Route::prefix('internal/pycore')->middleware('pycore.client')->group(function ()
     Route::get('logs/latest', [PycoreLogController::class, 'getLatestLogs']);
 });
 
-// Queue Center — centralized audio queues (word_audio, sentence_audio) over
+// Relay plane (Mercure wake/control + HTTP store-and-fetch data plane;
+// contract relay_* endpoints are the single source for both ends).
+require_once __DIR__ . '/api/relay.php';
+
+// Queue Center - centralized audio queues (word_audio, sentence_audio) over
 // global_tasks. Public control plane, same trust level as /api/task/*.
 use App\Http\Controllers\QueueCenterController;
 

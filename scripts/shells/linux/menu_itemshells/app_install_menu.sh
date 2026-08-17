@@ -61,6 +61,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:38_install_dotnet.sh|.NET"
     "script:26_install_nginx.sh|Nginx"
     "script:27_install_certbot.sh|Certbot"
+    "script:28_install_frankenphp.sh|FrankenPHP"
     "script:53_install_tailscale.sh|Tailscale (VPN)"
     "script:86_install_code_server.sh|Code Server"
     "script:124_install_gitea.sh|Gitea"

@@ -4,8 +4,8 @@ namespace App\Services\Realtime;
 
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1SocialEventModel;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Services\Relay\RelayHubPublisher;
 use App\Support\QueueCenterContract;
-use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -47,7 +47,7 @@ final class RealtimeOutboxPublisher
     {
         $published = 0;
         $realtime = QueueCenterContract::realtime();
-        $channel = (string) ($realtime['channel'] ?? 'queue-center');
+        $topic = (string) ($realtime['topic'] ?? 'queue-center');
         $rows = AppQyV1TranslationEventModel::pendingForPublish(self::BATCH_LIMIT);
 
         foreach ($rows as $row) {
@@ -55,10 +55,12 @@ final class RealtimeOutboxPublisher
             $payload['_id'] = (int) $row->id;
 
             try {
-                Broadcast::on($channel)
-                    ->as((string) $row->event)
-                    ->with($payload)
-                    ->sendNow();
+                RelayHubPublisher::publish(
+                    $topic,
+                    json_encode(['event' => (string) $row->event, 'data' => $payload], JSON_UNESCAPED_SLASHES),
+                    false,
+                    (string) $row->event
+                );
                 $row->markPublished();
                 $published++;
             } catch (\Throwable $exception) {
@@ -84,10 +86,12 @@ final class RealtimeOutboxPublisher
             $payload['_id'] = (int) $row->id;
 
             try {
-                Broadcast::private(AppQyV1SocialEventModel::channel((int) $row->user_id))
-                    ->as((string) $row->event)
-                    ->with($payload)
-                    ->sendNow();
+                RelayHubPublisher::publish(
+                    AppQyV1SocialEventModel::topic((int) $row->user_id),
+                    json_encode(['event' => (string) $row->event, 'data' => $payload], JSON_UNESCAPED_SLASHES),
+                    true,
+                    (string) $row->event
+                );
                 $row->markPublished();
                 $published++;
             } catch (\Throwable $exception) {

@@ -161,6 +161,102 @@ final class QueueCenterContract
         return array_values(self::realtime()['events'] ?? []);
     }
 
+    /**
+     * Relay transport contract (Mercure wake/control topics + data-plane
+     * HTTP store-and-fetch + capability-provider declarations). Every end
+     * (Laravel, pycore, the UIs) renders topics, update types, TTLs, and
+     * caps from this block; no end hardcodes a relay vocabulary.
+     */
+    public static function relay(): array
+    {
+        return self::document()['relay'] ?? [];
+    }
+
+    public static function relayTopic(string $role, array $tokens = []): string
+    {
+        $topics = self::relay()['topics'] ?? [];
+        $template = $topics[$role] ?? null;
+        if (!is_string($template) || $template === '') {
+            throw new RuntimeException("Unknown relay topic role: {$role}");
+        }
+        foreach ($tokens as $key => $value) {
+            $template = str_replace('{' . $key . '}', (string) $value, $template);
+        }
+        return $template;
+    }
+
+    public static function relayEvent(string $role): string
+    {
+        $events = self::relay()['events'] ?? [];
+        if (!array_key_exists($role, $events)) {
+            throw new RuntimeException("Unknown relay event role: {$role}");
+        }
+        return (string) $events[$role];
+    }
+
+    /**
+     * Mercure hub block: path, subscriber-token TTL, browser cookie name,
+     * anonymous flag (always false - every subscriber presents a JWT).
+     */
+    public static function relayHub(): array
+    {
+        return self::relay()['hub'] ?? [];
+    }
+
+    public static function relayHubString(string $key): string
+    {
+        $value = self::relayHub()[$key] ?? null;
+        if (!is_string($value) || $value === '') {
+            throw new RuntimeException("Unknown relay hub string setting: {$key}");
+        }
+        return $value;
+    }
+
+    public static function relayHubInt(string $key): int
+    {
+        $value = self::relayHub()[$key] ?? null;
+        if (!is_int($value)) {
+            throw new RuntimeException("Unknown relay hub integer setting: {$key}");
+        }
+        return $value;
+    }
+
+    public static function relayHubBool(string $key): bool
+    {
+        $value = self::relayHub()[$key] ?? null;
+        if (!is_bool($value)) {
+            throw new RuntimeException("Unknown relay hub boolean setting: {$key}");
+        }
+        return $value;
+    }
+
+    public static function relayInt(string $key): int
+    {
+        $value = self::relay()[$key] ?? null;
+        if (!is_int($value)) {
+            throw new RuntimeException("Unknown relay integer setting: {$key}");
+        }
+        return $value;
+    }
+
+    public static function relayCap(string $key): int
+    {
+        $caps = self::relay()['caps'] ?? [];
+        if (!isset($caps[$key]) || !is_int($caps[$key])) {
+            throw new RuntimeException("Unknown relay cap: {$key}");
+        }
+        return $caps[$key];
+    }
+
+    /**
+     * Declared capability providers (1.8): pycore is implemented; the other
+     * groups (laravel-manager, wordnew, mcp-chrome) are declaration-only.
+     */
+    public static function relayCapabilityProviders(): array
+    {
+        return self::relay()['capability_providers'] ?? [];
+    }
+
     public static function queueMetricDefaults(): array
     {
         return self::document()['section_contract_defaults']['queue'] ?? [];

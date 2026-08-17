@@ -1,5 +1,5 @@
 {
-  "schema_version": 24,
+  "schema_version": 25,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
@@ -9,8 +9,8 @@
     "idle_poll_seconds": 60
   },
   "realtime": {
-    "transport": "websocket",
-    "channel": "queue-center",
+    "transport": "mercure",
+    "topic": "queue-center",
     "event": "queue.changed",
     "events": {
       "task_priority": "task.priority",
@@ -75,7 +75,69 @@
     "worker_task_pull": "/api/worker/tasks/{task_type}/pull",
     "worker_task_accept": "/api/worker/tasks/{task_type}/accept",
     "worker_task_result": "/api/worker/tasks/{task_type}/result",
-    "worker_task_release": "/api/worker/tasks/{task_type}/release"
+    "worker_task_release": "/api/worker/tasks/{task_type}/release",
+    "relay_machines": "/api/relay/machines",
+    "relay_machine_register": "/api/relay/machine/register",
+    "relay_machine_heartbeat": "/api/relay/machine/heartbeat",
+    "relay_machine_unregister": "/api/relay/machine/unregister",
+    "relay_hub_auth": "/api/relay/hub-auth",
+    "relay_pair_announce": "/api/relay/{machine_id}/pair",
+    "relay_request": "/api/relay/{machine_id}/requests",
+    "relay_request_fetch": "/api/relay/{machine_id}/requests/{request_id}",
+    "relay_response": "/api/relay/{machine_id}/responses",
+    "relay_response_fetch": "/api/relay/{machine_id}/responses/{request_id}",
+    "relay_blob_create": "/api/relay/{machine_id}/blobs",
+    "relay_blob_fetch": "/api/relay/{machine_id}/blobs/{blob_id}"
+  },
+  "relay": {
+    "hub": {
+      "protocol": "mercure-1.0",
+      "path": "/.well-known/mercure",
+      "token_ttl_seconds": 600,
+      "cookie": "__Secure-mercure_access_token"
+    },
+    "topics": {
+      "machines": "pycore.machines",
+      "pair": "pycore.pair.{machine_id}"
+    },
+    "events": {
+      "request": "relay.request",
+      "response": "relay.response",
+      "roster": "roster.update"
+    },
+    "machine_heartbeat_seconds": 20,
+    "machine_offline_after_seconds": 45,
+    "pair_session_ttl_seconds": 60,
+    "request_ttl_seconds": 60,
+    "response_poll_interval_ms": 400,
+    "caps": {
+      "control_frame_bytes": 8192,
+      "inline_body_bytes": 262144,
+      "blob_chunk_bytes": 4194304,
+      "request_total_bytes": 33554432
+    },
+    "capability_providers": {
+      "pycore": {
+        "class": "machine",
+        "implemented": true,
+        "provides": ["http-rpc-relay", "queue-worker"]
+      },
+      "laravel-manager": {
+        "class": "ui-end",
+        "implemented": false,
+        "provides": []
+      },
+      "wordnew": {
+        "class": "ui-end",
+        "implemented": false,
+        "provides": []
+      },
+      "mcp-chrome": {
+        "class": "machine",
+        "implemented": false,
+        "provides": []
+      }
+    }
   },
   "delivery_receipt": {
     "stages": {

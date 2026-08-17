@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\Log;
 
 /**
  * Persistent real-time event outbox shared by Queue Center publishers.
- * Relevant events broadcast through Reverb immediately; rows remain available
- * for bounded cursor replay after a client reconnects.
+ * Relevant events publish to the Mercure hub immediately; rows remain
+ * available for bounded cursor replay after a client reconnects.
  */
 class AppQyV1TranslationEventModel extends AppQyV1Model
 {
@@ -51,8 +51,8 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
     protected ?string $appTableSuffix = 'translation_events';
 
     /**
-     * Append one committed event to the outbox. Reverb publication is owned by
-     * RealtimeOutboxPublisher through the runtime's bounded publisher task.
+     * Append one committed event to the outbox. Mercure publication is owned
+     * by RealtimeOutboxPublisher through the runtime's bounded publisher task.
      */
     public static function emit(string $event, array $data): void
     {

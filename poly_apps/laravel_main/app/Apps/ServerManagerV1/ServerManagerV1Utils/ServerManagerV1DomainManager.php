@@ -911,7 +911,6 @@ class ServerManagerV1DomainManager
 
         // Generate PHP configuration for Laravel/PHP sites (swoole mode only)
         $phpConfig = '';
-        $reverbPort = (int) config('reverb.servers.reverb.port', 8080);
         // Fixed to swoole mode only - no longer configurable
         $phpMode = 'swoole';
 
@@ -925,15 +924,6 @@ class ServerManagerV1DomainManager
             $phpConfig = "
     # Swoole/Octane Reverse Proxy (Fixed Mode)
     index index.php index.html index.htm;
-
-    location /app/ {
-        proxy_pass http://127.0.0.1:$reverbPort;
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_read_timeout 75s;
-    }
 
     location / {
         try_files \$uri @swoole;

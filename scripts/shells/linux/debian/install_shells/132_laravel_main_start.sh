@@ -56,7 +56,9 @@ CORE_NODE_DIR="${CORE_NODE_DIR:-$REPO_ROOT}"
 # Runtime port resolves from the central service contract after the common
 # libraries are sourced below (sc_get); PORT env still overrides.
 PORT="${PORT:-}"
-LARAVEL_RUNTIME_SCRIPT="${DEBIAN_COM_DIR}/laravel_run_runtime.sh"
+LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_frankenphp.sh"
+LARAVEL_RUNTIME_NGINX_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_nginx.sh"
+RUNTIME_CONFIG_COMMON="${COMMON_DIR}/runtime_config_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 NGINX_MANAGER_SCRIPT="${COMMON_DIR}/nginx_manager.sh"
@@ -294,47 +296,11 @@ resolve_composer() {
     return 1
 }
 
-runtime_config_directory() {
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        require $autoload;
-        require $bootstrap;
-        echo \App\Support\RuntimeConfigurationStore::directory();
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP"
-}
-
-runtime_config_get() {
-    local key="$1"
-
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
-        $value = null;
-        require $autoload;
-        require $bootstrap;
-        $value = \App\Support\RuntimeConfigurationStore::get($key);
-        if ($value !== null) {
-            echo $value;
-        }
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
-}
-
-runtime_config_put() {
-    local key="$1"
-    local value="$2"
-
-    printf '%s' "$value" | "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
-        $value = trim(stream_get_contents(STDIN));
-        require $autoload;
-        require $bootstrap;
-        exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
-}
+# Shared RuntimeConfigurationStore adapter (was duplicated here; the common
+# implementation is the single source - callers provide PHP_BIN,
+# VENDOR_AUTOLOAD, BOOTSTRAP_APP which are declared at the top of this file).
+# shellcheck source=/dev/null
+source "$RUNTIME_CONFIG_COMMON"
 
 ensure_runtime_config_value() {
     local key="$1"
@@ -360,11 +326,13 @@ initialize_runtime_configuration_store() {
 
     generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
     ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
-    ensure_runtime_config_value "REVERB_APP_ID" "task-system" || return 1
-    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(16));')"
-    ensure_runtime_config_value "REVERB_APP_KEY" "$generated_value" || return 1
-    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(32));')"
-    ensure_runtime_config_value "REVERB_APP_SECRET" "$generated_value" || return 1
+    # Mercure hub keys (HS256 secrets, server-side only - never shipped to
+    # pycore, the browser UI or the extension; the runtime injects them as
+    # process env for Caddy's {env...} references; the trusted issuer is
+    # derived per launch by the runtime branch). Provisioned once.
+    ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
+    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
     # Installation access (super) code: provisioned once into the external
     # store, stable across runs; InstallationAccessCode.php only reads it.
     ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE" || return 1
@@ -624,10 +592,10 @@ ensure_nginx_stack() {
 
     current_version=$(nginx_get_version)
     if [ -z "$current_version" ]; then
-        echo "nginx not found. Setting START_NGINX=true and invoking the canonical installer:"
+        echo "nginx not found. Setting START_WEB_SERVER=nginx and invoking the canonical installer:"
         echo "  $NGINX_INSTALL_SCRIPT"
         $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-        printf 'true\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/START_NGINX" >/dev/null 2>&1 || true
+        printf 'nginx\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/START_WEB_SERVER" >/dev/null 2>&1 || true
         if [ -f "$NGINX_INSTALL_SCRIPT" ]; then
             bash "$NGINX_INSTALL_SCRIPT" || echo "  Warning: nginx installer reported failure (continuing)."
         else
@@ -1214,23 +1182,33 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
 fi
 
 # --- Start runtime ---
-# PRIMARY (Linux/WSL): Laravel Octane on Swoole. FALLBACK: node 'composer
-# dev:win' or a node-free serve + queue:listen + schedule:work. In every mode
+# Plane dispatch (web_server_plane, gvar_common.sh): frankenphp plane runs
+# the single octane:frankenphp branch (HTTPS 443/h3 + Mercure hub); the
+# nginx plane keeps the system-PHP Swoole branch on the loopback backend.
+# FALLBACK (nginx plane, Swoole unavailable): node 'composer dev:win' or a
+# node-free serve + queue:listen + schedule:work. In every mode
 # OctaneTimerServiceProvider drives the SAME TimerTasks/* through a single,
 # never duplicated tick source.
-if [ -n "$OCTANE_AVAILABLE" ]; then
-    WATCH_FLAG=""
-    echo "Production configuration -> Octane runs without --watch."
-    if [[ "$WATCH_FLAG" == *"--watch"* ]]; then
-        OCTANE_RUNTIME_WATCH="1"
+if [ "$(web_server_plane)" = "frankenphp" ] && [ -n "$OCTANE_AVAILABLE" ]; then
+    # Site host = first configured api.<region>.<domain>; the Mercure trusted
+    # issuer (token `iss`) mirrors the same value through the runtime branch.
+    FRANKENPHP_SITE_HOST="localhost"
+    if [ "$DOMAIN_SCOPE" != "none" ] && [ -n "${DOMAIN_API_PREFIX:-}" ] && [ -n "${DOMAIN_DOMAINS_LIST:-}" ]; then
+        FRANKENPHP_FIRST_DOMAIN="$(printf '%s\n' "$DOMAIN_DOMAINS_LIST" | head -n1)"
+        if [ -n "$FRANKENPHP_FIRST_DOMAIN" ]; then
+            FRANKENPHP_SITE_HOST="api.${DOMAIN_API_PREFIX}.${FRANKENPHP_FIRST_DOMAIN}"
+        fi
     fi
-    if [[ "$WATCH_FLAG" == *"--poll"* ]]; then
-        OCTANE_RUNTIME_POLL="1"
-    fi
-    echo "Starting headless API runtime (Octane swoole -> server 0.0.0.0:${PORT}, single timer driver)"
-    PORT="$PORT" PHP_BIN="$PHP_BIN" OCTANE_SERVER="swoole" LARAVEL_DIR="$LARAVEL_DIR" \
+    echo "Starting headless API runtime (frankenphp plane -> octane:frankenphp on :$(sc_get ports.frankenphp_https) h2/h3, Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
+    PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+        FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \
         OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
-        /bin/bash "$LARAVEL_RUNTIME_SCRIPT"
+        /bin/bash "$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT"
+elif [ -n "$OCTANE_AVAILABLE" ]; then
+    echo "Starting headless API runtime (nginx plane -> Octane swoole on server 0.0.0.0:${PORT}, single timer driver)"
+    PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+        OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
+        /bin/bash "$LARAVEL_RUNTIME_NGINX_SCRIPT"
 elif [ -n "$NPX_BIN" ]; then
     echo "WARNING: Swoole unavailable -> Octane HTTP server disabled, using node-based fallback."
     echo "Starting fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue + timer)"

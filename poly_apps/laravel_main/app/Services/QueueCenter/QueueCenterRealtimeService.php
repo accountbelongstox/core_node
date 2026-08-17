@@ -66,8 +66,8 @@ class QueueCenterRealtimeService
     {
         $contract = QueueCenterContract::realtime();
 
-        return $this->connections->connection(
-            (string) ($contract['channel'] ?? 'queue-center'),
+        return $this->connections->hubConnection(
+            [(string) ($contract['topic'] ?? 'queue-center')],
             [
                 'event' => (string) ($contract['event'] ?? 'queue.changed'),
                 'revision' => $this->revision(),

@@ -25,7 +25,7 @@ declare -a MENU_CONFIG=(
     "[D] Start MySQL After Installation|START_MYSQL|false true|false|false|false|false"
     "[R] Start Redis After Installation|START_REDIS|false true|false|false|false|false"
     "[Q] Start PostgreSQL After Installation|START_POSTGRESQL|false true|false|false|false|false"
-    "[>] Start Nginx After Installation|START_NGINX|false true|false|false|false|false"
+    "[W] Web Server After Installation|START_WEB_SERVER|frankenphp nginx|frankenphp|frankenphp|frankenphp|frankenphp"
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
@@ -460,7 +460,7 @@ manage_nginx_service() {
         fi
 
         echo "Nginx service has been stopped and disabled."
-        echo "To re-enable, set START_NGINX=true and run the installation script."
+        echo "To re-enable, set START_WEB_SERVER=nginx and run the installation script."
     else
         echo "Nginx is not installed."
     fi

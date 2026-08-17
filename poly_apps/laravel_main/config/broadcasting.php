@@ -1,29 +1,21 @@
 <?php
 
-use App\Constants\LaravelConfig;
-
 return [
 
-    'default' => 'reverb',
+    /*
+    |--------------------------------------------------------------------------
+    | Default Broadcaster
+    |--------------------------------------------------------------------------
+    | The realtime plane is the Mercure hub (frankenphp) served through
+    | App\Services\Relay - publishing bypasses the broadcasting system
+    | entirely. The broadcasting container stays on the log driver: nothing
+    | is delivered through it anymore.
+    |
+    */
+
+    'default' => 'log',
 
     'connections' => [
-
-        'reverb' => [
-            'driver' => 'reverb',
-            'key' => env('REVERB_APP_KEY'),
-            'secret' => env('REVERB_APP_SECRET'),
-            'app_id' => LaravelConfig::REVERB_APP_ID,
-            'options' => [
-                'host' => LaravelConfig::REVERB_CLIENT_HOST,
-                'port' => LaravelConfig::REVERB_PORT,
-                'scheme' => LaravelConfig::REVERB_SCHEME,
-                'useTLS' => false,
-            ],
-            'client_options' => [
-                'connect_timeout' => 0.25,
-                'timeout' => 1.0,
-            ],
-        ],
 
         'log' => [
             'driver' => 'log',

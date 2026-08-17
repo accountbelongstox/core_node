@@ -24,73 +24,39 @@ LARAVEL_DIR="${LARAVEL_DIR:-${CORE_NODE_DIR:-$LARAVEL_SERVICE_REPO_ROOT}/poly_ap
 APP_NAME="$(basename "$LARAVEL_DIR")"
 PORT="${PORT:-}"
 WORKERS="${WORKERS:-4}"
-OCTANE_SERVER="${OCTANE_SERVER:-swoole}"
-RUNTIME_SCRIPT="${RUNTIME_SCRIPT:-$LARAVEL_SERVICE_COMMON_DIR/laravel_run_runtime.sh}"
+RUNTIME_SCRIPT="${RUNTIME_SCRIPT:-}"
 PHP_BIN="${PHP_BIN:-$(command -v php)}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 COMPOSER_VENDOR_COMMON="${LARAVEL_SERVICE_COMMON_DIR}/../../common/composer_vendor_common.sh"
+RUNTIME_CONFIG_COMMON="${LARAVEL_SERVICE_COMMON_DIR}/../../common/runtime_config_common.sh"
+GVAR_COMMON_SCRIPT="${LARAVEL_SERVICE_COMMON_DIR}/../../common/gvar_common.sh"
 
 . "$COMPOSER_VENDOR_COMMON"
 # Central service contract (config/service_contract.json) via the shell
 # adapter: the default bind port is ports.laravel_api_backend; PORT env wins.
 # shellcheck source=/dev/null
 . "$LARAVEL_SERVICE_COMMON_DIR/../../common/service_contract_common.sh"
+# shellcheck source=/dev/null
+. "$GVAR_COMMON_SCRIPT"
 PORT="${PORT:-$(sc_get ports.laravel_api_backend)}"
 
-runtime_config_directory() {
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        require $autoload;
-        require $bootstrap;
-        echo \App\Support\RuntimeConfigurationStore::directory();
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP"
-}
-
-runtime_config_get() {
-    local key="$1"
-
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
-        $value = null;
-        require $autoload;
-        require $bootstrap;
-        $value = \App\Support\RuntimeConfigurationStore::get($key);
-        if ($value !== null) {
-            echo $value;
-        }
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
-}
-
-runtime_config_put() {
-    local key="$1"
-    local value="$2"
-
-    printf '%s' "$value" | "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
-        $value = trim(stream_get_contents(STDIN));
-        require $autoload;
-        require $bootstrap;
-        exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
-}
-
-ensure_runtime_config_value() {
-    local key="$1"
-    local value="$2"
-    local current=""
-
-    current="$(runtime_config_get "$key")"
-    if [ -z "$current" ]; then
-        runtime_config_put "$key" "$value"
+# Plane dispatch (web_server_plane, gvar_common.sh): the runtime branch is
+# selected by the shared plane constant - frankenphp plane runs the single
+# octane:frankenphp process (HTTPS + Mercure hub), nginx plane keeps the
+# system-PHP Swoole branch on the loopback backend. RUNTIME_SCRIPT env wins.
+if [ -z "$RUNTIME_SCRIPT" ]; then
+    if [ "$(web_server_plane)" = "frankenphp" ]; then
+        RUNTIME_SCRIPT="$LARAVEL_SERVICE_COMMON_DIR/laravel_runtime_frankenphp.sh"
+    else
+        RUNTIME_SCRIPT="$LARAVEL_SERVICE_COMMON_DIR/laravel_runtime_nginx.sh"
     fi
-}
+fi
+
+# Shared RuntimeConfigurationStore adapter (common area; was duplicated here).
+# shellcheck source=/dev/null
+. "$RUNTIME_CONFIG_COMMON"
 
 initialize_runtime_configuration_store() {
     local generated_value=""
@@ -103,11 +69,12 @@ initialize_runtime_configuration_store() {
 
     generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
     ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
-    ensure_runtime_config_value "REVERB_APP_ID" "task-system" || return 1
-    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(16));')"
-    ensure_runtime_config_value "REVERB_APP_KEY" "$generated_value" || return 1
-    generated_value="$($PHP_BIN -r 'echo bin2hex(random_bytes(32));')"
-    ensure_runtime_config_value "REVERB_APP_SECRET" "$generated_value" || return 1
+    # Mercure hub keys (HS256 secrets, server-side only; the frankenphp
+    # runtime branch injects them as process env for Caddy).
+    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
+    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
@@ -116,7 +83,7 @@ echo "=== Laravel Production Service ==="
 echo "Project: $APP_NAME"
 echo "Working directory: $LARAVEL_DIR"
 echo "Port: $PORT"
-echo "Server: $OCTANE_SERVER"
+echo "Runtime branch: $RUNTIME_SCRIPT"
 echo "Workers: $WORKERS"
 echo ""
 
@@ -177,6 +144,6 @@ fi
 
 # Phase 5: start realtime and HTTP runtimes
 echo ""
-echo "Starting Octane ($OCTANE_SERVER) on 0.0.0.0:$PORT with $WORKERS workers..."
-PORT="$PORT" WORKERS="$WORKERS" OCTANE_SERVER="$OCTANE_SERVER" LARAVEL_DIR="$LARAVEL_DIR" \
+echo "Starting laravel_main runtime branch on the active web-server plane..."
+PORT="$PORT" WORKERS="$WORKERS" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
     exec /bin/bash "$RUNTIME_SCRIPT"

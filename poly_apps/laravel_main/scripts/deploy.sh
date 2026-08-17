@@ -460,98 +460,6 @@ up_20251206_install_faker() {
 }
 
 # ============================================================================
-# UP: 20251215_install_reverb
-# Date: 2025-12-15
-# Description: Install Laravel Reverb for WebSocket support
-# Idempotent: Can be run multiple times safely
-# ============================================================================
-up_20251215_install_reverb() {
-    local version="20251215_install_reverb"
-
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${CYAN}[UP] Running: $version${NC}"
-    echo -e "${CYAN}[UP] Date: 2025-12-15${NC}"
-    echo -e "${CYAN}[UP] Description: Install Laravel Reverb for WebSocket${NC}"
-
-
-    echo -e "${CYAN}========================================${NC}"
-
-    if [ -z "$LARAVEL_DIR" ]; then
-        echo -e "${RED}[UP] ERROR: Laravel directory not found${NC}"
-        return 1
-    fi
-
-    print_cmd "cd \"$LARAVEL_DIR\""
-    cd "$LARAVEL_DIR" || return 1
-
-    echo -e "${BLUE}[UP] Step 1: Checking Composer...${NC}"
-    print_cmd "command -v composer"
-    if ! command -v composer &> /dev/null; then
-        echo -e "${RED}[UP] Composer not found${NC}"
-        return 1
-    fi
-    echo -e "${GREEN}[UP] OK Composer found${NC}"
-
-    echo -e "${BLUE}[UP] Step 2: Installing Pusher PHP Server (Reverb dependency)...${NC}"
-    print_cmd "$USE_SUDO composer show | grep -q \"pusher/pusher-php-server\""
-    if $USE_SUDO composer show | grep -q "pusher/pusher-php-server"; then
-        echo -e "${BLUE}[UP] Pusher PHP Server already installed${NC}"
-    else
-        echo -e "${BLUE}[UP] Installing pusher/pusher-php-server...${NC}"
-        print_cmd "$USE_SUDO composer require pusher/pusher-php-server --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Package)\" || true"
-        $USE_SUDO composer require pusher/pusher-php-server --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
-    fi
-
-    echo -e "${BLUE}[UP] Step 3: Installing/Updating Laravel Reverb...${NC}"
-    print_cmd "$USE_SUDO composer show | grep -q \"laravel/reverb\""
-    if $USE_SUDO composer show | grep -q "laravel/reverb"; then
-        echo -e "${BLUE}[UP] Laravel Reverb already installed, ensuring latest version...${NC}"
-        print_cmd "$USE_SUDO composer update laravel/reverb --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Nothing)\" || true"
-        $USE_SUDO composer update laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Nothing)" || true
-    else
-        echo -e "${BLUE}[UP] Installing Laravel Reverb...${NC}"
-        print_cmd "$USE_SUDO composer require laravel/reverb --with-all-dependencies 2>&1 | grep -E \"(Upgrading|Installing|Package)\" || true"
-        $USE_SUDO composer require laravel/reverb --with-all-dependencies 2>&1 | grep -E "(Upgrading|Installing|Package)" || true
-    fi
-
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}[UP] Warning: Composer operation had issues, checking installation...${NC}"
-    fi
-
-    echo -e "${BLUE}[UP] Step 4: Publishing Reverb configuration...${NC}"
-    print_cmd "test -f \"$LARAVEL_DIR/config/reverb.php\""
-    if [ -f "$LARAVEL_DIR/config/reverb.php" ]; then
-        echo -e "${BLUE}[UP] Reverb config already exists, skipping publish${NC}"
-    else
-        print_cmd "$USE_SUDO php artisan reverb:install --no-interaction 2>&1 | grep -v \"npm install\" || true"
-        $USE_SUDO php artisan reverb:install --no-interaction 2>&1 | grep -v "npm install" || true
-    fi
-
-    if [ -f "$laravel_dir/config/reverb.php" ]; then
-        echo -e "${GREEN}[UP] OK Reverb config file exists${NC}"
-    else
-        echo -e "${YELLOW}[UP] WARNING Reverb config not found${NC}"
-    fi
-
-    echo -e "${BLUE}[UP] Step 5: Verifying installation...${NC}"
-    print_cmd "$USE_SUDO composer show | grep -q \"laravel/reverb\""
-    if $USE_SUDO composer show | grep -q "laravel/reverb"; then
-        echo -e "${GREEN}[UP] OK Laravel Reverb package installed${NC}"
-    else
-        echo -e "${RED}[UP] ERROR Laravel Reverb package not found${NC}"
-        return 1
-    fi
-
-    echo -e "${GREEN}[UP] $version completed${NC}"
-
-    echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}[UP] $version completed successfully${NC}"
-    echo -e "${GREEN}========================================${NC}"
-
-    return 0
-}
-
-# ============================================================================
 # UP: 20251220_install_haikunator
 # Date: 2025-12-20
 # Description: Install Haikunator PHP for auto-generating nicknames
@@ -718,7 +626,6 @@ run_all_ups() {
     up_20251115_install_octane || failed=1
     up_20251127_install_chokidar || failed=1
     up_20251206_install_faker || failed=1
-    up_20251215_install_reverb || failed=1
     up_20251220_install_haikunator || failed=1
 
     if [ $failed -eq 0 ]; then

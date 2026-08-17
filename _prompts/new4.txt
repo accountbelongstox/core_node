@@ -1,75 +1,284 @@
- 先继续之前的任务， 再下一步这个。qwen3tts-events +1.69s]
- HTTP poll failed: [WinError 10061] No connection could be
- made because the target machine actively refused it
- [qwen3tts-events +4.06s] HTTP poll failed: [WinError 10061]
- No connection could be made because the target machine
- actively refused it
- [qwen3tts-events +6.03s] HTTP poll failed: [WinError 10061]
- No connection could be made because the target machine
- actively refused it
- [qwen3tts-events +10.05s] HTTP poll failed: [WinError
- 10061] No connection could be made because the target
- machine actively refused it
- [qwen3tts +4.74s]
- [qwen3tts +0.00s] ********
- [qwen3tts +0.00s] Warning: flash-attn is not installed.
- Will only run the manual PyTorch version. Please install
- flash-attn for faster inference.
- [qwen3tts +0.01s] ********
- [qwen3tts +0.01s]
- [qwen3tts +2.14s]
- D:\programing\core_node\pycore\tts_install_assets\qwen3tts_
- api_server.py:798: DeprecationWarning:
- [qwen3tts +0.00s] on_event is deprecated, use lifespan
- event handlers instead.
- [qwen3tts +0.00s]
- [qwen3tts +0.00s] Read more about it in the
- [qwen3tts +0.01s] FastAPI docs for Lifespan Events.
- [qwen3tts +0.00s]
- [qwen3tts +0.00s] @app.on_event("startup")
- [qwen3tts +0.00s]
- D:\programing\core_node\pycore\tts_install_assets\qwen3tts_
- api_server.py:823: DeprecationWarning:
- [qwen3tts +0.00s] on_event is deprecated, use lifespan
- event handlers instead.
- [qwen3tts +0.01s]
- [qwen3tts +0.01s] Read more about it in the
- [qwen3tts +0.01s] FastAPI docs for Lifespan Events.Item
- failed [pipeline_error]: Expecting value: line 1 column 1
- (char 0)false
+修复其中的BUG，主要是环境变量二进制需要使用前置脚本中的常量全路径。以及幂等性，代码陈旧。同时兼容ubuntu / deiban / kali系统 。
+同时不要使用/root/目录，而是用real login user目录。
+同时，在scripts\shells\linux\debian\install_shells 目录下，如果当前系统的全局常量是服务器，无桌面系统 ，默认不安装所能大模型，edage浏览器，chrome，和所有应用软件IDE(但AI工具除外) 121_install_desktop_applications.sh 中过滤。
+Executing: 14_install_python_prereq_packages.sh
+[14] ============================================================
+[14] Install python prerequisite packages (captcha/AI backends)
+[14] ============================================================
+[14] Target interpreter: /www/_debian_12/python3_venv/bin/python3 (Python 3.12.3)
 
- Traceback (most recent call last):
-   File
- "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
- e\worker.py", line 149, in tick_pipeline
-     if _process_item(item, op_service, event_service):
-        ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   File
- "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
- e\worker.py", line 429, in _process_item
-     article_en, engine =
- translate_to_english(checkpoint["article_cn"],
- request_context)
+[14] [ERROR] pip is not available for /www/_debian_12/python3_venv/bin/python3.
+[14]        Run 13_ensure_python.sh first.
 
- ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- ^^^^
-   File
- "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
- e\article_stages.py", line 158, in translate_to_english
-     data = _parse_json_obj(str(res.get("text") or ""))
-   File
- "D:\programing\core_node\pycore\pyctl\agent_history\pipelin
- e\article_stages.py", line 40, in parse_json_obj
-     data = json.loads(match.group(0) if match else blob)
-   File "D:\.dev_win10\python313\Lib\json\_init.py", line
- 352, in loads
-     return _default_decoder.decode(s)
-            ~~~~~~~~~~~~~~~~~~~~~~~^^^
-   File "D:\.dev_win10\python313\Lib\json\decoder.py", line
- 345, in decode
-     obj, end = self.raw_decode(s, idx=_w(s, 0).end())
-                ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
-   File "D:\.dev_win10\python313\Lib\json\decoder.py", line
- 363, in raw_decode
-     raise JSONDecodeError("Expecting value", s, err.va 如果
- 是内容太转换，扩展出辅助强大的内容转换类库。
+[14] Python prerequisite packages step completed.
+
+
+
+
+Executing: 16_install_node_24.sh
+COMPILE_DIR: /www/_debian_12
+SELECTED_REGION: Global
+NODE_VERSION: v24.11.1
+NODE_ARCH_SUFFIX: linux-x64
+NODE_INSTALL_DIR: /www/_debian_12/node
+Node.js Installation Script
+Target version: v24.11.1
+Installation directory: /www/_debian_12/node
+Detecting and fixing previous installation issues...
+Checking /etc/environment for broken entries...
+Checking for broken symlinks in /usr/local/bin...
+Checking for Node.js installations in wrong locations...
+Cleaning up conflicting npmrc files...
+Previous issues detection and fixing completed.
+==================================================
+Node.js v24.11.1 is already installed
+==================================================
+Verifying and fixing configuration if needed...
+
+Creating and verifying symlinks...
+Created symlink: /usr/local/bin/node -> /www/_debian_12/node/node-v24.11.1/bin/node
+Created symlink: /usr/local/bin/npm -> /www/_debian_12/node/node-v24.11.1/bin/npm
+Created symlink: /usr/local/bin/npx -> /www/_debian_12/node/node-v24.11.1/bin/npx
+Core Node.js symlinks created successfully
+Setting up Node.js environment variables...
+Cleaning up previous broken environment variables...
+Successfully set global variable: PNPM_HOME -> /www/_debian_12/node/node-v24.11.1/pnpm-global
+npm + pnpm global directories already in PATH
+Environment variables configured:
+  NODE_HOME: /www/_debian_12/node/node-v24.11.1
+  NODE_PATH: /www/_debian_12/node/node-v24.11.1/lib/node_modules
+  PNPM_HOME: /www/_debian_12/node/node-v24.11.1/pnpm-global
+  PATH includes: /www/_debian_12/node/node-v24.11.1/bin /www/_debian_12/node/node-v24.11.1/pnpm-global/bin
+Ensuring Node.js install directory is writable by all users (chmod 777)...
+[permissions] Repairing: /www/_debian_12/node -> lighthouse:lighthouse mode 777
+[OK] ensured active-user ownership and mode 777 on: /www/_debian_12/node
+
+==================================================
+Verifying and fixing all Node.js configurations...
+==================================================
+[1/3] Configuring npm (system-wide)...
+Wrote global npm/pnpm config: /www/_debian_12/node/node-v24.11.1/etc/npmrc
+
+[2/3] Installing and configuring pnpm...
+pnpm already installed globally, skipping reinstall
+Linked: /usr/local/bin/pnpm
+ ERROR  EACCES: permission denied, scandir '/root'
+For help, run: pnpm help config
+ ERROR  EACCES: permission denied, scandir '/root'
+For help, run: pnpm help config
+ ERROR  EACCES: permission denied, scandir '/root'
+For help, run: pnpm help config
+
+Executing: 23_install_tts_offline.sh
+============================================================
+ Installing offline TTS (Sherpa-ONNX + Kokoro model)
+============================================================
+  python : /www/_debian_12/python3_venv/bin/python3
+  official env (sherpa): Python 3.8+; pip install sherpa-onnx. GPU: optional sherpa-onnx+cuda wheel via SHERPA_ONNX_CUDA_SPEC; model kokoro-multi-lang-v1_1 (full FP32, max quality). CPU: CPU wheel; model kokoro-int8-multi-lang-v1_1 (int8, max CPU tier).
+  model url: https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2 (cpu)
+[sherpa-guard] sherpa-onnx is missing -> installing the default wheel.
+/www/_debian_12/python3_venv/bin/python3: No module named pip
+[!] sherpa-onnx not importable; retrying next run.
+[install_tts_offline] [idempotent-probe] running post-install verification ...
+[install_tts_offline] [idempotent-probe] FAIL import sherpa_onnx
+
+Executing: 29_ensure_pnpm_packages.sh
+[29] PNPM Global Package Installation Script
+[29] Ensuring pnpm is installed...
+[29] pnpm is already installed: 10.25.0
+[29] Configuring pnpm global directories...
+[29]   global-dir: /www/_debian_12/node/node-v24.11.1/pnpm-global
+[29]   global-bin-dir: /www/_debian_12/node/node-v24.11.1/pnpm-global/bin
+[29] Setting pnpm default registry...
+npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
+[29] Creating/updating .pnpmrc file at: /root/.pnpmrc
+[29] pnpm global directories configured
+[29] Saved PNPM_GLOBAL_BIN_DIR to global vars: /www/_debian_12/node/node-v24.11.1/pnpm-global/bin
+[29] Ensuring pnpm paths are in PATH...
+[29] pnpm paths configured in PATH
+[29] Added pnpm global bin to current session PATH
+npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
+[29] Registry access OK: https://registry.npmjs.org/
+[29] Checking currently installed global packages...
+npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
+[29] Currently installed global packages:
+
+
+Executing: 35_install_composer.sh
+
+dist: The "https://api.github.com/repos/illuminate/macroable/zipball/59b5b5f3cf290a91db8cf6cd3d35ff56978bc057" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing illuminate/macroable (v13.25.0) into cache
+    Failed to download symfony/polyfill-php86 from dist: The "https://api.github.com/repos/symfony/polyfill-php86/zipball/6bc356ed3d8dbfeea8f0de235e34d670704e880e" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/polyfill-php86 (v1.41.0) into cache
+    Failed to download illuminate/reflection from dist: The "https://api.github.com/repos/illuminate/reflection/zipball/2b6ba33970dd84849322a6a9857647ca96c1bb66" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing illuminate/reflection (v13.25.0) into cache
+  - Downloading symfony/polyfill-ctype (v1.37.0)
+  - Downloading symfony/string (v8.1.2)
+ 14/33 [===========>----------------]  42%    Failed to download illuminate/conditionable from dist: The "https://api.github.com/repos/illuminate/conditionable/zipball/7f1ef52d9a346f829421b296adfb7644a951b216" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing illuminate/conditionable (v13.25.0) into cache
+ 15/33 [============>---------------]  45%    Failed to download laravel/prompts from dist: The "https://codeload.github.com/laravel/prompts/legacy.zip/02b89b39e8972a998db4d5d4ad4719239dd4aee4" file could not be downloaded (HTTP/2 429 )
+    Now trying to download from source
+  - Syncing laravel/prompts (v0.3.22) into cache
+ 17/33 [==============>-------------]  51%  - Downloading symfony/console (v8.1.4)
+    Failed to download symfony/polyfill-mbstring from dist: The "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/d3d318bad5e7a1bfbd026009c8bfb8d8f99ae6b6" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/polyfill-mbstring (v1.38.2) into cache
+  - Downloading symfony/polyfill-intl-normalizer (v1.38.0)
+  - Downloading voku/portable-ascii (2.1.1)
+ 18/33 [===============>------------]  54%  - Downloading symfony/polyfill-ctype (v1.37.0)
+  - Downloading symfony/string (v8.1.2)
+  - Downloading symfony/translation (v8.1.4)
+  - Downloading psr/clock (1.0.0)
+  - Downloading symfony/clock (v8.1.0)
+  - Downloading carbonphp/carbon-doctrine-types (3.2.0)
+  - Downloading nesbot/carbon (3.13.2)
+  - Downloading laravel/agent-detector (v2.0.2)
+  - Downloading symfony/console (v8.1.4)
+    Failed to download symfony/polyfill-intl-normalizer from dist: The "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/2d446c214bdbe5b71bde5011b060a05fece3ae6b" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/polyfill-intl-normalizer (v1.38.0) into cache
+  - Downloading voku/portable-ascii (2.1.1)
+ 19/33 [================>-----------]  57%    Failed to download symfony/polyfill-ctype from dist: The "https://api.github.com/repos/symfony/polyfill-ctype/zipball/141046a8f9477948ff284fa65be2095baafb94f2" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/polyfill-ctype (v1.37.0) into cache
+    Failed to download symfony/string from dist: The "https://api.github.com/repos/symfony/string/zipball/286a76b7255e5cc4bf0101a0bc5388ecf1c38ccc" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/string (v8.1.2) into cache
+  - Downloading symfony/translation (v8.1.4)
+ 21/33 [=================>----------]  63%  - Downloading symfony/clock (v8.1.0)
+  - Downloading carbonphp/carbon-doctrine-types (3.2.0)
+  - Downloading nesbot/carbon (3.13.2)
+ 22/33 [==================>---------]  66%  - Downloading laravel/agent-detector (v2.0.2)
+  - Downloading symfony/console (v8.1.4)
+ 23/33 [===================>--------]  69%  - Downloading voku/portable-ascii (2.1.1)
+  - Downloading symfony/translation (v8.1.4)
+  - Downloading symfony/clock (v8.1.0)
+  - Downloading carbonphp/carbon-doctrine-types (3.2.0)
+  - Downloading nesbot/carbon (3.13.2)
+  - Downloading laravel/agent-detector (v2.0.2)
+    Failed to download symfony/console from dist: The "https://api.github.com/repos/symfony/console/zipball/68efa2ebfd9a362951eb5a8b09fd177c66ddec24" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/console (v8.1.4) into cache
+ 24/33 [====================>-------]  72%    Failed to download voku/portable-ascii from dist: The "https://api.github.com/repos/voku/portable-ascii/zipball/8e1051fe39379367aecf014f41744ce7539a856f" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing voku/portable-ascii (2.1.1) into cache
+    Failed to download symfony/translation from dist: The "https://api.github.com/repos/symfony/translation/zipball/c0955eb4aa417a110e65c8162237b8a5c7d910bf" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/translation (v8.1.4) into cache
+ 26/33 [======================>-----]  78%    Failed to download symfony/clock from dist: The "https://api.github.com/repos/symfony/clock/zipball/701ef4de9705d6c32292ebee5e8044094a09fbf6" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/clock (v8.1.0) into cache
+ 27/33 [======================>-----]  81%  - Downloading symfony/finder (v8.1.1)
+  - Downloading illuminate/filesystem (v13.25.0)
+  - Downloading laravel/installer (v5.31.1)
+    Failed to download carbonphp/carbon-doctrine-types from dist: The "https://api.github.com/repos/CarbonPHP/carbon-doctrine-types/zipball/18ba5ddfec8976260ead6e866180bd5d2f71aa1d" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing carbonphp/carbon-doctrine-types (3.2.0) into cache
+    Failed to download nesbot/carbon from dist: The "https://api.github.com/repos/CarbonPHP/carbon/zipball/a1c54919f5fff9800cd03c32bd01defd5a4061cb" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing nesbot/carbon (3.13.2) into cache
+ 29/33 [========================>---]  87%    Failed to download laravel/agent-detector from dist: The "https://api.github.com/repos/laravel/agent-detector/zipball/90694b9256099591cf9e55d08c18ba7a00bf099f" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing laravel/agent-detector (v2.0.2) into cache
+ 30/33 [=========================>--]  90%  - Downloading symfony/finder (v8.1.1)
+  - Downloading illuminate/filesystem (v13.25.0)
+  - Downloading laravel/installer (v5.31.1)
+  - Downloading symfony/finder (v8.1.1)
+  - Downloading illuminate/filesystem (v13.25.0)
+  - Downloading laravel/installer (v5.31.1)
+    Failed to download symfony/finder from dist: The "https://api.github.com/repos/symfony/finder/zipball/e2989e762c70f9490fa3a00a0ac0fae5aa97a531" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing symfony/finder (v8.1.1) into cache
+    Failed to download illuminate/filesystem from dist: The "https://api.github.com/repos/illuminate/filesystem/zipball/714f6d982f9164b2b0e74952368a2e7908e7ab37" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing illuminate/filesystem (v13.25.0) into cache
+    Failed to download laravel/installer from dist: The "https://api.github.com/repos/laravel/installer/zipball/934a12759f5b1b2b4ddbb68b390fdeb1a570b0c3" file could not be downloaded (HTTP/2 504 )
+    Now trying to download from source
+  - Syncing laravel/installer (v5.31.1) into cache
+ 33/33 [============================] 100%
+In Git.php line 54:
+
+  The repository at "/var/_core_node/cache/xdg/composer/vcs/https---github.com-symfony-
+  polyfill-php84.git/" does not have the correct ownership and git refuses to use it:
+
+  fatal: detected dubious ownership in repository at '/var/_core_node/cache/xdg/compose
+  r/vcs/https---github.com-symfony-polyfill-php84.git'
+  To add an exception for this directory, call:
+
+        git config --global --add safe.directory /var/_core_node/cache/xdg/composer/vcs/http
+  s---github.com-symfony-polyfill-php84.git
+
+
+require [--dev] [--dry-run] [--prefer-source] [--prefer-dist] [--prefer-install PREFER-INSTALL] [--fixed] [--no-suggest] [--no-progress] [--no-update] [--no-install] [--no-audit] [--audit-format AUDIT-FORMAT] [--no-security-blocking] [--update-no-dev] [-w|--update-with-dependencies] [-W|--update-with-all-dependencies] [--with-dependencies] [--with-all-dependencies] [--ignore-platform-req IGNORE-PLATFORM-REQ] [--ignore-platform-reqs] [--prefer-stable] [--prefer-lowest] [-m|--minimal-changes] [--sort-packages] [-o|--optimize-autoloader] [-a|--classmap-authoritative] [--apcu-autoloader] [--apcu-autoloader-prefix APCU-AUTOLOADER-PREFIX] [--] [<packages>...]
+
+[35_COMPOSER] Laravel Installer binary is unavailable after installation
+[35_COMPOSER] Laravel Installer setup completed with warnings
+
+
+
+Executing: 37_install_puppeteer_plugins.sh
+
++++++++++++++++++
+Progress: resolved 17, reused 17, downloaded 0, added 17, done
+Config:
+command = patch, packageName = puppeteer-core, codeTarget = lib
+packagePath = /root/node_modules/puppeteer-core
+------
+❌ FATAL ERROR: Cannot read package.json Error: ENOENT: no such file or directory, open '/root/node_modules/puppeteer-core/package.json'
+    at async open (node:internal/fs/promises:642:25)
+    at async readFile (node:internal/fs/promises:1279:14)
+    at async file:///var/_core_node/cache/xdg/pnpm/dlx/2fce7262277908396751369e8a37d0d7b7aab14c41c5155acfa74674c2eeeb2f/1a01045ef59-3f8cb/node_modules/.pnpm/rebrowser-patches@1.0.19/node_modules/rebrowser-patches/scripts/patcher.js:72:29 {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/root/node_modules/puppeteer-core/package.json'
+}
+[37] Puppeteer anti-detection plugins installation completed
+[37] Installed packages:
+[37]   - rebrowser-puppeteer-core (best anti-detection)
+[37]   - rebrowser-puppeteer
+[37]   - puppeteer-real-browser
+[37]   - puppeteer-extra + stealth, adblocker, anonymize-ua plugins
+
+
+
+Executing: 98_install_qwen25.sh
+[99_install_qwen25] ========================================
+[99_install_qwen25]   Qwen2.5-0.5B-Instruct Installation
+[99_install_qwen25] ========================================
+
+[99_install_qwen25] Model: Qwen/Qwen2.5-0.5B-Instruct
+[99_install_qwen25] Size: ~1GB (0.5B parameters)
+[99_install_qwen25] Context: 32K tokens
+[99_install_qwen25] Languages: 29+ (including Chinese, English, etc.)
+
+[99_install_qwen25] Checking prerequisites...
+[99] python3 --version
+[99_install_qwen25] Python is available: Python 3.12.3
+[99_install_qwen25] Python version is sufficient (3.8+)
+
+[99_install_qwen25] Step 1: Install Python dependencies
+[99_install_qwen25] Installing Python dependencies...
+[99_install_qwen25] Using Python command: python3
+[99_install_qwen25] Note: Qwen2.5 requires transformers >= 4.37.0
+[99_install_qwen25] Checking for GPU availability...
+[99_install_qwen25] No NVIDIA GPU detected, will use CPU version
+
+[99_install_qwen25] torch not found and no GPU - installing CPU torch...
+
+[99] /www/_debian_12/python3_venv/bin/python3 -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+/www/_debian_12/python3_venv/bin/python3: No module named pip
+
+[99] checking the centralized transformers pin and accelerate
+[99_install_qwen25] Installing transformers and accelerate...
+
+[transformers-policy] Installing missing transformers>=4,<5 ...
+/www/_debian_12/python3_venv/bin/python3: No module named pip
+[99] /www/_debian_12/python3_venv/bin/python3 -m pip install accelerate
+/www/_debian_12/python3_venv/bin/python3: No module named pip
+
+

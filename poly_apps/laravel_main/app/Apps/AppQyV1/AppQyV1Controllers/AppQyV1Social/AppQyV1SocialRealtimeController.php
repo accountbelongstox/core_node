@@ -37,10 +37,9 @@ class AppQyV1SocialRealtimeController extends Controller
         $userId = (int) $request->user()->id;
 
         return $this->success(
-            $this->connections->connection(
-                AppQyV1SocialEventModel::privateChannel($userId),
+            $this->connections->hubConnection(
+                [AppQyV1SocialEventModel::topic($userId)],
                 [
-                    'auth_endpoint' => '/api/broadcasting/auth',
                     'events' => AppQyV1SocialEventModel::eventNames(),
                 ]
             ),

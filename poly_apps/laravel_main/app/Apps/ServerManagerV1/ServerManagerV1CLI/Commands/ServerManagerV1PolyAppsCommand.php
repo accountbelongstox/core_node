@@ -486,18 +486,8 @@ LAUNCHER;
     private function getProxyLocationBlock(int $port, bool $https = false): string
     {
         $proto = $https ? 'https' : '$scheme';
-        $reverbPort = (int) config('reverb.servers.reverb.port', 8080);
 
         return <<<LOCATION
-    location /app/ {
-        proxy_pass http://127.0.0.1:{$reverbPort};
-        proxy_http_version 1.1;
-        proxy_set_header Host \$host;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 75;
-    }
-
     # Proxy configuration
     location / {
         proxy_pass http://127.0.0.1:{$port};

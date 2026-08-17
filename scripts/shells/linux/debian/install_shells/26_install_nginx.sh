@@ -37,10 +37,30 @@ source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
 # shellcheck source=/dev/null
 source "$PARENT_DIR_LEVEL_2/common/nginx_manager.sh"
 
-START_NGINX=$(get_global_var "START_NGINX" "false")
+# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing nginx
+# adopts the nginx plane - the frankenphp runtime is disabled (service stop
+# + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
+# skips the counterpart disable for advanced use.
+FRANKENPHP_PLANE_DISABLE_SCRIPT="${PARENT_DIR_LEVEL_2}/common/frankenphp_plane_disable.sh"
+MUTEX_SKIP="false"
+for nginx_arg in "$@"; do
+    case "$nginx_arg" in
+        --no-mutex) MUTEX_SKIP="true" ;;
+    esac
+done
+if [ "$MUTEX_SKIP" != "true" ]; then
+    bash "$FRANKENPHP_PLANE_DISABLE_SCRIPT"
+    set_web_server_plane "nginx"
+else
+    echo "[$SCRIPT_INDEX] [WARN] --no-mutex: frankenphp plane left untouched; manage the plane manually"
+fi
+
+START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+START_NGINX="false"
+[ "$START_WEB_SERVER" = "nginx" ] && START_NGINX="true"
 
 echo "[$SCRIPT_INDEX] Nginx Installation Script (official mainline, HTTP/3 ready)"
-echo "[$SCRIPT_INDEX] START_NGINX: $START_NGINX"
+echo "[$SCRIPT_INDEX] Web server choice: $START_WEB_SERVER (START_NGINX: $START_NGINX)"
 echo "[$SCRIPT_INDEX] NGINX INSTALLATION (idempotent, step-granular)"
 
 # STEP 1: conflicting web servers
@@ -127,9 +147,9 @@ if ! $USE_SUDO nginx -t; then
     echo "[$SCRIPT_INDEX] [WARN] nginx -t failed after configuration; the service step will skip starting"
 fi
 
-# STEP 13: service enable/start per START_NGINX
+# STEP 13: service enable/start per the merged web-server choice
 service_wanted="stop"
-[ "$START_NGINX" = "true" ] && service_wanted="start"
+[ "$START_WEB_SERVER" = "nginx" ] && service_wanted="start"
 step_run "$NGINX_STEP_NAMESPACE" "service-state" "$service_wanted" nm_service_state "$service_wanted" || {
     echo "[$SCRIPT_INDEX] [WARN] Service step reported failure"
 }

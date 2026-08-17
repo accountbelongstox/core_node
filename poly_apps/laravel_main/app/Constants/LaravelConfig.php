@@ -55,12 +55,6 @@ final class LaravelConfig
 
     public const QUEUE_CONNECTION = 'sync';
 
-    public const REVERB_SERVER_HOST = '0.0.0.0';
-    public const REVERB_CLIENT_HOST = '127.0.0.1';
-    public const REVERB_PORT = 8080;
-    public const REVERB_SCHEME = 'http';
-    public const REVERB_APP_ID = 'core-node';
-
     private function __construct()
     {
     }
