@@ -1,5 +1,5 @@
 # Shared idempotent captcha/AI backend Python package installer (Windows).
-# Package bundles mirror linux/debian/install_shells/14_install_python_prereq_packages.sh.
+# Package bundles mirror linux/debian/install_shells/15_install_python_prereq_packages.sh.
 # CUDA wheel indexes mirror linux/common/base_libs/cuda_index.sh (PyTorch + PaddlePaddle 3.3 docs).
 
 $cudaIndexPath = Join-Path $PSScriptRoot 'CudaIndex.ps1'

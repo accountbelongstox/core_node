@@ -106,7 +106,10 @@ execute_installation_scripts() {
 echo "Core Node Installation Script"
 echo
 # Run selector to get configuration
-"$selector_common_file"
+if ! "$selector_common_file"; then
+    echo "Server configuration cancelled."
+    exit 0
+fi
 
 # Get the selected mode after selector runs
 INSTALL_MODE=$(get_var "INSTALL_MODE")

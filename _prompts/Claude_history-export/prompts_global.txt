@@ -258,7 +258,7 @@ not ultra ,just on claudeteam,defaulg enable multiple roles and ultracode ,and w
 [Pasted text #4 +24 lines]h
   4_set_desktop_power.shh
   4_set_desktop_power.sh
-to 2_setting_base.sh merge to 2_setting_base.sh
+to 3_setting_base.sh merge to 3_setting_base.sh
 
 [2026-06-22 14:45:00] (/mnt/dev_nvme0n1p1/programing/core_node)
 120_install_desktop_applications.sh claude code if exsitst , idempotent with dd.sh Ai install cluade code install workflow, and merge script to dd.sh workflow ,then AI & MCP Management (status/install/sync 8 tools) can call install script from shells/debian/* some install scritps.
@@ -270,7 +270,7 @@ to 2_setting_base.sh merge to 2_setting_base.sh
 go next,all work ,workflow
 
 [2026-06-22 15:03:39] (/mnt/dev_nvme0n1p1/programing/core_node)
-2_setting_base.sh ,Why it' still clock sreen? search support ubuntu debian kali Os No clock sreen,no auto pause system.
+3_setting_base.sh ,Why it' still clock sreen? search support ubuntu debian kali Os No clock sreen,no auto pause system.
 
 [2026-06-22 15:08:36] (/mnt/dev_nvme0n1p1/programing/core_node)
 129_install_claude_code.sh Can install MCP,sync claudeteam.sh to all user's bin,and sync Claude code bin to all users's, include regular users/root user,togther all funcs.native install, and anywher call this scripts, dd.sh AI & MCP Management (status/install/sync 8 tools)AI & MCP Management (status/install/sync 8 tools)
@@ -378,7 +378,7 @@ usr multiple roles ,and Claude Code workflow continue.
 
 [2026-06-22 21:20:54] (/mnt/dev_nvme0n1p1/programing/core_node)
 [Pasted text #1 +17 lines]
-Executing: 2_setting_base.sh[Pasted text #2 +13 lines] Why are these two directories getting mixed mixed up ? 0n1p1 is the correct one,verify all related logic to ensure it's correct. Note tha this also applies to the other scripts.
+Executing: 3_setting_base.sh[Pasted text #2 +13 lines] Why are these two directories getting mixed mixed up ? 0n1p1 is the correct one,verify all related logic to ensure it's correct. Note tha this also applies to the other scripts.
 
 [2026-06-22 21:31:44] (/mnt/dev_nvme0n1p1/programing/core_node)
 [Pasted text #7 +456 lines] alied lgoic, data , behavior. expecially Kali debian Ubunto,search some docs.

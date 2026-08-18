@@ -246,38 +246,38 @@ check_and_download_files() {
         echo "gvar_common.sh already exists and is valid"
     fi
 
-    # Check 2_setting_base.sh
+    # Check 3_setting_base.sh
     if [ "$force_update" = true ] || ! is_file_valid "$setting_base_file"; then
         if [ "$force_update" = true ]; then
-            echo "Updating 2_setting_base.sh to latest version..."
+            echo "Updating 3_setting_base.sh to latest version..."
         else
-            echo "2_setting_base.sh not found or invalid, downloading..."
+            echo "3_setting_base.sh not found or invalid, downloading..."
         fi
-        if download_file "$setting_base_file" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
-            echo "2_setting_base.sh downloaded successfully"
+        if download_file "$setting_base_file" "scripts/shells/linux/debian/install_shells/3_setting_base.sh"; then
+            echo "3_setting_base.sh downloaded successfully"
         else
-            echo "Failed to download 2_setting_base.sh"
+            echo "Failed to download 3_setting_base.sh"
             return 1
         fi
     else
-        echo "2_setting_base.sh already exists and is valid"
+        echo "3_setting_base.sh already exists and is valid"
     fi
 
-    # Check 8_project_validator.sh
+    # Check 7_project_validator.sh
     if [ "$force_update" = true ] || ! is_file_valid "$project_validator_file"; then
         if [ "$force_update" = true ]; then
-            echo "Updating 8_project_validator.sh to latest version..."
+            echo "Updating 7_project_validator.sh to latest version..."
         else
-            echo "8_project_validator.sh not found or invalid, downloading..."
+            echo "7_project_validator.sh not found or invalid, downloading..."
         fi
-        if download_file "$project_validator_file" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
-            echo "8_project_validator.sh downloaded successfully"
+        if download_file "$project_validator_file" "scripts/shells/linux/debian/install_shells/7_project_validator.sh"; then
+            echo "7_project_validator.sh downloaded successfully"
         else
-            echo "Failed to download 8_project_validator.sh"
+            echo "Failed to download 7_project_validator.sh"
             return 1
         fi
     else
-        echo "8_project_validator.sh already exists and is valid"
+        echo "7_project_validator.sh already exists and is valid"
     fi
 
     if [ "$force_update" = true ]; then

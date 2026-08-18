@@ -156,8 +156,8 @@ configure_redis() {
         # Configure Redis for production use
         echo "[$SCRIPT_INDEX] Applying Redis configuration optimizations..."
 
-        # Set supervised to systemd
-        $USE_SUDO sed -i 's/^supervised no/supervised systemd/' "$redis_conf"
+        # Revert supervised systemd to no (fix for Debian Type=forking service model)
+        $USE_SUDO sed -i 's/^supervised systemd/supervised no/' "$redis_conf"
 
         # Set working directory to mapped path
         $USE_SUDO sed -i "s|^dir .*|dir $REDIS_DATA_DIR|" "$redis_conf"

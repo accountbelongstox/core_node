@@ -1378,7 +1378,7 @@ power_disable_systemd_sleep() {
     info "Configuring systemd-logind to ignore idle/lid..."
     $USE_SUDO mkdir -p "$logind_dropin_dir" 2>/dev/null || true
     desired="$(cat <<'EOF'
-# Managed by core_node 2_setting_base.sh -- keep desktop awake.
+# Managed by core_node 3_setting_base.sh -- keep desktop awake.
 [Login]
 IdleAction=ignore
 IdleActionSec=0
@@ -1431,7 +1431,7 @@ power_disable_gnome_blanking() {
     # file covers GNOME, MATE, Cinnamon and Budgie. Keys for an absent schema are
     # simply ignored by dconf (no validation), so listing all three is safe.
     db_desired="$(cat <<'EOF'
-# Managed by core_node 2_setting_base.sh -- desktop stays awake.
+# Managed by core_node 3_setting_base.sh -- desktop stays awake.
 [org/gnome/settings-daemon/plugins/power]
 sleep-inactive-ac-type='nothing'
 sleep-inactive-battery-type='nothing'

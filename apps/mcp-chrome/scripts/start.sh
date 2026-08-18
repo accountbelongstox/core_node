@@ -72,6 +72,19 @@ echo -e "\n${CYAN}========================================${NC}"
 echo -e "${CYAN}  Chrome MCP Server - Linux/macOS${NC}"
 echo -e "${CYAN}========================================\n${NC}"
 
+if [ "$HAS_DESKTOP_ENVIRONMENT" = "false" ]; then
+    read -rp "Server environment detected (no desktop). Compile Chrome MCP plugin anyway? [y/N] " MCP_COMPILE_CHOICE || MCP_COMPILE_CHOICE=""
+    case "$MCP_COMPILE_CHOICE" in
+        y|Y|yes|YES|Yes)
+            echo -e "${GREEN}  Proceeding with compilation.${NC}"
+            ;;
+        *)
+            echo -e "${YELLOW}  Skipping Chrome MCP compilation.${NC}"
+            exit 0
+            ;;
+    esac
+fi
+
 if [ -z "$MCP_WATCH_CHOICE" ]; then
     read -rp "Enable development watch mode? [Y/n] " MCP_WATCH_CHOICE || MCP_WATCH_CHOICE=""
 fi
@@ -560,70 +573,24 @@ echo -e "${GREEN}  [OK] Setup completed successfully!${NC}"
 echo -e "${CYAN}========================================${NC}"
 echo ""
 
-# ======================================
-# Step 7: Optional systemd service registration (always-on dynamic debugging)
-# ======================================
-# Reuse the repo service manager (debian_service_manager.sh) to create the
-# ncore-mcp-chrome unit. The unit's ExecStart is `bash start.sh`; under systemd
-# INVOCATION_ID is set, so start.sh enters its singleton supervisor mode above.
-MCP_DEB_SVC_MGR="$MCP_CORE_NODE_ROOT/scripts/shells/linux/common/debian_service_manager.sh"
-MCP_SERVICE_NAME="ncore-mcp-chrome"
-MCP_SVC_SUDO=""
-
-if [ -f "$MCP_DEB_SVC_MGR" ] && command -v systemctl >/dev/null 2>&1; then
-    if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-        MCP_SVC_SUDO="sudo"
-    fi
-
-    if systemctl cat "${MCP_SERVICE_NAME}.service" >/dev/null 2>&1; then
-        echo ""
-        echo -e "${CYAN}  [INFO] ${MCP_SERVICE_NAME} already installed; restarting (idempotent reload)${NC}"
-        $MCP_SVC_SUDO systemctl restart "$MCP_SERVICE_NAME" 2>/dev/null || true
-        echo -e "${GREEN}  [OK] ${MCP_SERVICE_NAME} restarted${NC}"
-    else
-        echo ""
-        echo -e "${YELLOW}  For always-on dynamic debugging, register MCP Chrome as a system service${NC}"
-        echo -e "${YELLOW}  (systemd unit ${MCP_SERVICE_NAME}; autostarts the WXT dev watch at boot).${NC}"
-        read -rp "  Add to system service? [y/N] " mcp_svc_ans || mcp_svc_ans=""
-        if [[ "$mcp_svc_ans" =~ ^[Yy]$ ]]; then
-            if $MCP_SVC_SUDO bash "$MCP_DEB_SVC_MGR" create "$MCP_SCRIPT_DIR/start.sh" mcp-chrome "MCP Chrome dynamic-debug dev server" "30%" "1G"; then
-                echo -e "${GREEN}  [OK] ${MCP_SERVICE_NAME} created and started${NC}"
-            else
-                echo -e "${YELLOW}  [WARN] Service creation failed (see messages above)${NC}"
-            fi
-        else
-            echo -e "${DARK_GRAY}  Skipped service registration.${NC}"
-        fi
-    fi
-fi
-
-# Print useful service management commands (if service exists)
-if systemctl cat "${MCP_SERVICE_NAME}.service" >/dev/null 2>&1; then
-    echo ""
-    echo -e "${CYAN}========================================${NC}"
-    echo -e "${YELLOW}  SERVICE COMMANDS (${MCP_SERVICE_NAME})${NC}"
-    echo -e "${CYAN}========================================${NC}"
-    echo ""
-    echo -e "${WHITE}  View logs:        ${CYAN}sudo journalctl -u ${MCP_SERVICE_NAME} -f${NC}"
-    echo -e "${WHITE}  Last 50 lines:    ${CYAN}sudo journalctl -u ${MCP_SERVICE_NAME} --no-pager -n 50${NC}"
-    echo -e "${WHITE}  Restart:          ${CYAN}sudo systemctl restart ${MCP_SERVICE_NAME}${NC}"
-    echo -e "${WHITE}  Stop:             ${CYAN}sudo systemctl stop ${MCP_SERVICE_NAME}${NC}"
-    echo -e "${WHITE}  Status:           ${CYAN}sudo systemctl status ${MCP_SERVICE_NAME}${NC}"
-    echo -e "${WHITE}  Disable autostart:${CYAN}sudo systemctl disable ${MCP_SERVICE_NAME}${NC}"
-    echo ""
-fi
-echo ""
-
 if [ "$MCP_WATCH_MODE" = "dev" ]; then
+    echo -e "${YELLOW}  Launching watch mode...${NC}"
+    echo -e "${WHITE}  Automatic rebuilds enabled. Press Ctrl+C to stop.${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
     echo -e "${CYAN}[Watch] Starting shell-owned development compilation...${NC}"
     pnpm run dev &
     MCP_DEV_PID=$!
     trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground
+    MCP_SUPERVISOR_EXIT=$?
+    kill "$MCP_DEV_PID" 2>/dev/null || true
+else
+    echo -e "${YELLOW}  One-time build complete.${NC}"
+    echo -e "${CYAN}========================================${NC}"
+    echo ""
+    "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --wake
+    MCP_SUPERVISOR_EXIT=$?
 fi
 
-"$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground
-MCP_SUPERVISOR_EXIT=$?
-if [ -n "$MCP_DEV_PID" ]; then
-    kill "$MCP_DEV_PID" 2>/dev/null || true
-fi
 exit "$MCP_SUPERVISOR_EXIT"

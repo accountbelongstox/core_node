@@ -2,6 +2,7 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
+use App\Support\RuntimeConfigurationStore;
 use App\Support\ServiceContract;
 
 /**
@@ -55,6 +56,13 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
 
+        // DNS-01 stanza renders ONLY when both truths hold (module embedded
+        // + token stored); token value stays a {env.*} placeholder. Mirrors
+        // the shell end's fm_caddyfile_ensure gate byte-identically.
+        $dnspodTls = self::hasDnsPodModule() && self::dnspodTokenConfigured()
+            ? "\ttls {\n\t\tdns dnspod {env.DNSPOD_TOKEN}\n\t}\n\n"
+            : '';
+
         return "# Managed by ServerManagerV1FrankenPhpCaddyfileBuilder (SYNC: frankenphp_manager.sh)\n"
             . "{\n"
             . "\tadmin localhost:{$admin}\n"
@@ -65,6 +73,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
             . "\n"
+            . $dnspodTls
             . "\tmercure {\n"
             . "\t\tissuer {env.MERCURE_TRUSTED_ISSUERS} {\n"
             . "\t\t\tpublisher {\n"
@@ -196,6 +205,33 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $result = ServerManagerV1Utils::executeCommand($binary, ['list-modules']);
 
         return strpos(($result['output'] ?? '') . ($result['error'] ?? ''), 'dns.providers.dnspod') !== false;
+    }
+
+    /**
+     * True when the DNSPod API token is stored in the shared
+     * RuntimeConfigurationStore (boolean surface only - the value never
+     * leaves the store; mirrors fm_dnspod_token_value truth).
+     */
+    public static function dnspodTokenConfigured(): bool
+    {
+        $token = RuntimeConfigurationStore::get('DNSPOD_TOKEN');
+
+        return $token !== null && trim($token) !== '';
+    }
+
+    /**
+     * Store the DNSPod API token (format "id,token") and re-render the
+     * canonical Caddyfile so the tls stanza engages in the same change.
+     * Canonical write surface for the token (the shell end reads it).
+     */
+    public static function storeDnsPodToken(string $token): array
+    {
+        if (trim($token) === '') {
+            return ['stored' => false, 'error' => 'token value required (format: id,token)'];
+        }
+        RuntimeConfigurationStore::put('DNSPOD_TOKEN', trim($token));
+
+        return ['stored' => true] + self::ensure();
     }
 
     /**

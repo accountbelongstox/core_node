@@ -64,6 +64,13 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
                 'version' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::version() : null,
                 'embedded_php' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::embeddedPhpVersion() : null,
                 'dnspod_module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
+                'dns01' => [
+                    'module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
+                    'token_configured' => ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
+                    'ready' => $installed
+                        && ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule()
+                        && ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
+                ],
                 'running' => $running,
                 'caddyfile' => [
                     'path' => $caddyfile,
@@ -78,7 +85,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
                 ],
                 'install_hint' => $installed ? null : self::FRANKENPHP_INSTALL_HINT,
             ], 'FrankenPHP plane status retrieved successfully');
-        } catch (xception $e) {
+        } catch (\Exception $e) {
             return $this->handleException($e, 'frankenphp_status_overview');
         }
     }
@@ -229,6 +236,59 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
      * True when the on-disk Caddyfile matches the canonical render
      * (whitespace-tolerant compare, mirroring fm_caddyfile_ensure).
      */
+    /**
+     * Store the DNSPod API token (format "id,token") in the shared
+     * RuntimeConfigurationStore and re-render the canonical Caddyfile so
+     * the DNS-01 tls stanza engages in the same change. The token value is
+     * write-only: it is never echoed back - the status surface exposes
+     * booleans only.
+     */
+    public function storeDnsPodToken(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_store_dnspod_token');
+        if ($validation) {
+            return $validation;
+        }
+
+        try {
+            $token = trim((string) $request->input('token', ''));
+            if ($token === '') {
+                return $this->error(
+                    'token value required (format: id,token)',
+                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+                );
+            }
+            if (ServerManagerV1FrankenPhpCaddyfileBuilder::binary() === null) {
+                return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+            }
+
+            $report = ServerManagerV1FrankenPhpCaddyfileBuilder::storeDnsPodToken($token);
+            if (($report['stored'] ?? false) !== true) {
+                return $this->error(
+                    'DNSPod token store failed: ' . ($report['error'] ?? 'unknown'),
+                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
+                );
+            }
+
+            Log::info('ServerManagerV1: DNSPod token stored, Caddyfile re-rendered', [
+                'caddyfile' => $report['path'] ?? null,
+                'rendered' => $report['rendered'] ?? false,
+            ]);
+
+            return $this->success([
+                'stored' => true,
+                'dns01' => [
+                    'module' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
+                    'token_configured' => true,
+                    'ready' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
+                ],
+                'caddyfile' => $report,
+            ], 'DNSPod token stored; the frankenphp plane picks it up on the next restart');
+        } catch (\Exception $e) {
+            return $this->handleException($e, 'frankenphp_store_dnspod_token');
+        }
+    }
+
     private function caddyfileIsCanonical(): bool
     {
         $path = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();

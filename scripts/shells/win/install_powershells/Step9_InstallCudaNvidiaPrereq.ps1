@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # NVIDIA driver + CUDA runtime prerequisite (Windows, idempotent).
-# Mirrors linux/debian/install_shells/13_cuda_nvidia_prereq.sh.
+# Mirrors linux/debian/install_shells/11_cuda_nvidia_prereq.sh.
 # Runs AFTER Step8_InstallPython.ps1 (pip confirmed) and BEFORE
 # Step10_InstallPythonPrereqPackages.ps1 so torch/paddle guards pick GPU wheels.
 

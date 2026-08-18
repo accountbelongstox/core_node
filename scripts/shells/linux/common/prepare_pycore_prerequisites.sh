@@ -84,8 +84,8 @@ set_var "PYCORE_RUNTIME_STATE_PROCESS_ID" "$$" false
 # Order = dependency order (also matches numeric 103-116 after 15/22/23 in dd.sh sweep).
 # Central prerequisite manifest: key|script|skip environment variable|install mode|supports full.
 PREREQ_ENTRIES=(
-    "cuda_policy|13_cuda_nvidia_prereq.sh|||0"
-    "python_prereqs|14_install_python_prereq_packages.sh|||0"
+    "cuda_policy|11_cuda_nvidia_prereq.sh|||0"
+    "python_prereqs|15_install_python_prereq_packages.sh|||0"
     "desktop_manager|104_install_desktop_manager.sh|||0"
     "launcher|105_install_launcher.sh|||0"
     "ffmpeg|103_install_ffmpeg.sh|||0"

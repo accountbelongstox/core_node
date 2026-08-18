@@ -67,15 +67,15 @@ GITEE_BASE_URL="https://gitee.com/accountbelongstox/core_node/raw/main"
 
 # File Download Variables (relative paths)
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
-SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
-PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/7_project_validator.sh"
 PROJECT_INIT_LIB_RELATIVE="scripts/shells/linux/project_init_lib.sh"
 BOOTSTRAP_RELATIVE="scripts/shells/linux/install_bootstrap.sh"
 
 # File Download Variables (absolute paths)
 GVAR_COMMON_FILE="$COMMON_SHELLS_DIR/gvar_common.sh"
-SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/2_setting_base.sh"
-PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/8_project_validator.sh"
+SETTING_BASE_FILE="$SHELLS_DIR/linux/debian/install_shells/3_setting_base.sh"
+PROJECT_VALIDATOR_FILE="$SHELLS_DIR/linux/debian/install_shells/7_project_validator.sh"
 
 # Temporary directory for core_node operations
 CORE_NODE_TMP_DIR="/var/_core_node/_tmp"
@@ -626,34 +626,34 @@ check_and_download_files() {
 
     if [ "$force_update" = true ] || ! is_file_valid "$setting_base_file"; then
         if [ "$force_update" = true ]; then
-            echo "Updating 2_setting_base.sh to latest version..."
+            echo "Updating 3_setting_base.sh to latest version..."
         else
-            echo "2_setting_base.sh not found or invalid, downloading..."
+            echo "3_setting_base.sh not found or invalid, downloading..."
         fi
-        if download_file "$setting_base_file" "scripts/shells/linux/debian/install_shells/2_setting_base.sh"; then
-            echo "2_setting_base.sh downloaded successfully"
+        if download_file "$setting_base_file" "scripts/shells/linux/debian/install_shells/3_setting_base.sh"; then
+            echo "3_setting_base.sh downloaded successfully"
         else
-            echo "Failed to download 2_setting_base.sh"
+            echo "Failed to download 3_setting_base.sh"
             return 1
         fi
     else
-        echo "2_setting_base.sh already exists and is valid"
+        echo "3_setting_base.sh already exists and is valid"
     fi
 
     if [ "$force_update" = true ] || ! is_file_valid "$project_validator_file"; then
         if [ "$force_update" = true ]; then
-            echo "Updating 8_project_validator.sh to latest version..."
+            echo "Updating 7_project_validator.sh to latest version..."
         else
-            echo "8_project_validator.sh not found or invalid, downloading..."
+            echo "7_project_validator.sh not found or invalid, downloading..."
         fi
-        if download_file "$project_validator_file" "scripts/shells/linux/debian/install_shells/8_project_validator.sh"; then
-            echo "8_project_validator.sh downloaded successfully"
+        if download_file "$project_validator_file" "scripts/shells/linux/debian/install_shells/7_project_validator.sh"; then
+            echo "7_project_validator.sh downloaded successfully"
         else
-            echo "Failed to download 8_project_validator.sh"
+            echo "Failed to download 7_project_validator.sh"
             return 1
         fi
     else
-        echo "8_project_validator.sh already exists and is valid"
+        echo "7_project_validator.sh already exists and is valid"
     fi
 
     if [ "$force_update" = true ]; then
@@ -914,7 +914,7 @@ main() {
         echo "Warning: Common scripts directory not found at $COMMON_SCRIPTS_DIR"
     fi
 
-    # Step 5-1: Validate project location using 8_project_validator.sh
+    # Step 5-1: Validate project location using 7_project_validator.sh
     echo ""
     echo -e "\033[36m[PROJECT VALIDATION] Running project validation...\033[0m"
     if [ -s "$PROJECT_VALIDATOR_FILE" ]; then
@@ -925,7 +925,7 @@ main() {
             echo -e "\033[33m[PROJECT VALIDATION] Project validation completed with warnings\033[0m"
         fi
     else
-        echo -e "\033[31m[PROJECT VALIDATION] 8_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
+        echo -e "\033[31m[PROJECT VALIDATION] 7_project_validator.sh not found at: $PROJECT_VALIDATOR_FILE\033[0m"
     fi
 
     # Step 5-2: Check encrypted secret files (already done in step 2, no action needed here)
@@ -969,7 +969,7 @@ main() {
         fi
     else
         if [ "$skip_disk_setup" = false ]; then
-            echo -e "\033[31m[BASE SETUP] 2_setting_base.sh not found at: $SETTING_BASE_FILE\033[0m"
+            echo -e "\033[31m[BASE SETUP] 3_setting_base.sh not found at: $SETTING_BASE_FILE\033[0m"
         fi
     fi
 

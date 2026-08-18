@@ -21,7 +21,7 @@
 # refault storm that reads as "high CPU + frozen browser" (measured: memory.events
 # high=35042, PSI full ~75%). cgroup soft limits are only graceful when reclaim
 # has a swap destination, so zram is a PREREQUISITE for the caps applied by
-# app_resource_limit.sh. Also used by 6_system_maintenance.sh (single source).
+# app_resource_limit.sh. Also used by 5_system_maintenance.sh (single source).
 #
 # Public API:
 #   ensure_zram_swap    - install/configure/activate zram (zstd, % of RAM) and

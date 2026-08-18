@@ -16,7 +16,7 @@ Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 
 [9] ERROR: This script is designed for Ubuntu/Debian systems only
 
-Executing: 10_fix_dns.sh
+Executing: 9_fix_dns.sh
 Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 
@@ -26,7 +26,7 @@ Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 
 [9] ERROR: This script is designed for Ubuntu/Debian systems only
 
-Executing: 10_fix_dns.sh
+Executing: 9_fix_dns.sh
 Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 
@@ -35,15 +35,15 @@ Successfully set global variable: PUPPETEER_SKIP_DOWNLOAD -> true
 [2026-06-22 11:05:51] ASSISTANT:
 I'll find these scripts and look at how they detect the OS.
 
-[2026-06-22 11:05:52]   -> tool: Bash  {"command": "find /mnt/dev_nvme0n1p1/programing/core_node -name \"9_disable_ubuntu_auto_updates.sh\" -o -name \"10_fix_dns.sh\" 2>/dev/null", "description": "Locate the two scripts"}
+[2026-06-22 11:05:52]   -> tool: Bash  {"command": "find /mnt/dev_nvme0n1p1/programing/core_node -name \"9_disable_ubuntu_auto_updates.sh\" -o -name \"9_fix_dns.sh\" 2>/dev/null", "description": "Locate the two scripts"}
 
 [2026-06-22 11:05:53]   <- tool result:
-/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/10_fix_dns.sh
+/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/9_fix_dns.sh
 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh
 
 [2026-06-22 11:07:08]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/9_disable_ubuntu_auto_updates.sh"}
 
-[2026-06-22 11:07:08]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/10_fix_dns.sh"}
+[2026-06-22 11:07:08]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/9_fix_dns.sh"}
 
 [2026-06-22 11:07:08]   <- tool result:
 1	#!/bin/bash
@@ -213,7 +213,7 @@ fi
 
 The `ID_LIKE` check means any future Debian derivative (Mint, Raspbian, etc.) also passes without needing more edits. Verified it now resolves to `ACCEPTED: kali 2026.2`.
 
-**Script 10 (`10_fix_dns.sh`)** — I grepped the whole `install_shells` directory and this script has **no OS gate** at all, so it doesn't reject Kali. In your output it printed the `gvar` lines and continued normally (it's apt/distro-agnostic — pure DNS/systemd-resolved work). Nothing to fix there.
+**Script 10 (`9_fix_dns.sh`)** — I grepped the whole `install_shells` directory and this script has **no OS gate** at all, so it doesn't reject Kali. In your output it printed the `gvar` lines and continued normally (it's apt/distro-agnostic — pure DNS/systemd-resolved work). Nothing to fix there.
 
 The rest of script 9 is already Kali-safe: the Ubuntu-specific bits (`apt-mark hold linux-generic`, etc.) are all guarded with `|| true`, so they're harmless no-ops where those package names don't exist on Kali.
 
@@ -227,7 +227,7 @@ The user wants me to make sure no script writes Ubuntu (or foreign-distro) repos
 
 [2026-06-22 11:08:38]   <- tool result:
 ==== scripts touching sources.list / mirrors / apt ====
-10_fix_dns.sh
+9_fix_dns.sh
 12_update.sh
 126_install_antigravity.sh
 13_ensure_python.sh
@@ -252,15 +252,15 @@ pythoninstall.txt
 pythoninstall.txt
 REMOTE_DESKTOP_GUIDE.txt
 1_stop_aliyun.sh
-2_setting_base.sh
+3_setting_base.sh
 3_stop_aliyun_cloudmonitor.sh
 4_stop_huawei_cloudmonitor.sh
 5_stop_tencent_cloudmonitor.sh
 6_set_mirrors.sh
 7_auto_clean_journal.sh
-8_project_validator.sh
+7_project_validator.sh
 9_disable_ubuntu_auto_updates.sh
-10_fix_dns.sh
+9_fix_dns.sh
 11_install_sudo.sh
 12_update.sh
 13_ensure_python.sh

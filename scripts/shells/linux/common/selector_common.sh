@@ -41,6 +41,7 @@ declare -A menu_options=()
 declare -A mode_defaults=()
 declare -A current_values=()
 declare -A value_indices=()
+CANCEL_RETURN_EXIT_CODE=130
 
 # Parse menu configuration table
 parse_menu_config() {
@@ -140,7 +141,7 @@ show_menu() {
     echo "Current Mode: ${current_values["INSTALL_MODE"]}"
 
     echo "--------------------------------------"
-    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, Q=Quit, M=Linux Management"
+    echo "Controls: Arrow Keys=Navigate, Enter=Confirm, B=Back, Q=Quit, M=Linux Management"
     echo "--------------------------------------"
     
     # Ensure arrays are in sync
@@ -179,7 +180,7 @@ show_menu() {
     
     echo ""
     echo "Navigation: Up/Down arrows to move, Left/Right arrows to change values, Enter to confirm"
-    echo "Press Q to quit without saving"
+    echo "Press B to return to previous menu, Q to quit without saving"
 }
 
 # Toggle menu item value (left/right arrows)
@@ -312,7 +313,12 @@ while true; do
         [qQ])  # Q key to quit
             echo ""
             echo "Exiting without saving."
-            exit 0
+            exit "$CANCEL_RETURN_EXIT_CODE"
+            ;;
+        [bB])  # B key for return
+            echo ""
+            echo "Returning to previous menu."
+            exit "$CANCEL_RETURN_EXIT_CODE"
             ;;
     esac
 done

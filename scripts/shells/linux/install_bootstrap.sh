@@ -42,7 +42,7 @@
 #   3. DOWNLOAD REQUIRED PROJECT LIBRARIES (first priority)
 #      Download to launcher root subpaths (same layout as repo). Required libs:
 #        - scripts/shells/linux/common/gvar_common.sh
-#        - scripts/shells/linux/debian/install_shells/2_setting_base.sh
+#        - scripts/shells/linux/debian/install_shells/3_setting_base.sh
 #      Maximize reuse: source and run these instead of duplicating logic.
 #
 #   4. RESOLVE PROJECT ROOT (map path)
@@ -50,13 +50,13 @@
 #      map_web_path(), CORE_NODE_PROJECT_ROOT. This is the correct target directory.
 #
 #   5. BASE SYSTEM SETUP (optional)
-#      Run 2_setting_base.sh from launcher root path (disk detection, mount). It
+#      Run 3_setting_base.sh from launcher root path (disk detection, mount). It
 #      sources gvar_common via its own relative path; reuses the same downloaded lib.
 #
 #   6. ENSURE PROJECT CLONED
 #      If CORE_NODE_PROJECT_ROOT is missing or incomplete (no package.json, main.js),
 #      ensure directory is empty then git clone the full project. Reuse project
-#      validator logic if available (8_project_validator.sh) or inline clone steps.
+#      validator logic if available (7_project_validator.sh) or inline clone steps.
 #
 #   7. HAND OFF TO PROJECT
 #      chmod +x and exec dd.sh from CORE_NODE_PROJECT_ROOT. From then on the project
@@ -80,7 +80,7 @@ REPO_BASE_URL=""
 GVAR_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
 MOUNT_COMMON_RELATIVE="scripts/shells/linux/common/mount_common.sh"
 PERMISSION_HELPER_RELATIVE="scripts/shells/linux/common/fs_perm_helpers.sh"
-SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
+SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/3_setting_base.sh"
 GITHUB_RAW="https://raw.githubusercontent.com/accountbelongstox/core_node/refs/heads/main"
 GITEE_RAW="https://gitee.com/accountbelongstox/core_node/raw/main"
 GITHUB_REPO="https://github.com/accountbelongstox/core_node.git"
@@ -327,9 +327,9 @@ download_required_libraries() {
     fi
     log_ok "mount_common.sh"
     if ! download_to "$SETTING_BASE_RELATIVE" "$setting_path"; then
-        log_warn "Could not download 2_setting_base.sh (optional)"
+        log_warn "Could not download 3_setting_base.sh (optional)"
     else
-        log_ok "2_setting_base.sh"
+        log_ok "3_setting_base.sh"
     fi
     return 0
 }
@@ -352,11 +352,11 @@ resolve_project_root() {
     return 0
 }
 
-# Step 5: Run 2_setting_base.sh from launcher path (reuse downloaded project library)
+# Step 5: Run 3_setting_base.sh from launcher path (reuse downloaded project library)
 run_setting_base_if_desired() {
     local setting_path="$LAUNCHER_ROOT/$SETTING_BASE_RELATIVE"
     if [ ! -s "$setting_path" ]; then
-        log_warn "2_setting_base.sh not found; skipping disk setup"
+        log_warn "3_setting_base.sh not found; skipping disk setup"
         return 0
     fi
     log_info "Running base system setup (disk detection, mount) via project library..."

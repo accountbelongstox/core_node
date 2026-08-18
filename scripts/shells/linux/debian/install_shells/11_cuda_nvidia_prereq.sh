@@ -11,7 +11,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 #
-# 13_cuda_nvidia_prereq.sh - NVIDIA driver + CUDA Toolkit prerequisite (idempotent).
+# 11_cuda_nvidia_prereq.sh - NVIDIA driver + CUDA Toolkit prerequisite (idempotent).
 # Runs before 13_ensure_python.sh so the torch guard can pick the GPU build.
 #   1. Skip entirely when there is NO NVIDIA GPU (CPU-only host).
 #   2. Ensure kernel build prerequisites (gcc/make/headers/dkms).

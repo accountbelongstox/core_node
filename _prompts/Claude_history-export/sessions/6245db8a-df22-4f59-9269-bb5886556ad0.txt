@@ -1921,7 +1921,7 @@ scripts/pyvoice/CUDA_GUIDE.md:106:sudo apt install nvidia-driver-XXX nvidia-cuda
 
 === install_shells listing (workflow order) ===
 101_natgateway.sh
-10_fix_dns.sh
+9_fix_dns.sh
 11_install_sudo.sh
 120_install_desktop_applications.sh
 121_install_cursor.sh
@@ -1955,7 +1955,7 @@ scripts/pyvoice/CUDA_GUIDE.md:106:sudo apt install nvidia-driver-XXX nvidia-cuda
 26_install_certbot.sh
 28_ensure_pnpm_packages.sh
 29_ensure_npmrc.sh
-2_setting_base.sh
+3_setting_base.sh
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
@@ -2086,15 +2086,15 @@ The existing scripts only *detect* CUDA and deliberately avoid pulling it; there
 [2026-06-22 11:28:51]   <- tool result:
 === how install_shells are invoked ===
 5:# 2. Never execute, create, or modify test code.
-28:    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/2_setting_base.sh"
-29:    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+28:    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+29:    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/7_project_validator.sh"
 --- search who iterates install_shells dir ---
-scripts/shells/linux/project_init_lib.sh:28:    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/2_setting_base.sh"
-scripts/shells/linux/project_init_lib.sh:29:    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/8_project_validator.sh"
-scripts/shells/linux/install_bootstrap.sh:45:#        - scripts/shells/linux/debian/install_shells/2_setting_base.sh
-scripts/shells/linux/install_bootstrap.sh:82:SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
+scripts/shells/linux/project_init_lib.sh:28:    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+scripts/shells/linux/project_init_lib.sh:29:    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/7_project_validator.sh"
+scripts/shells/linux/install_bootstrap.sh:45:#        - scripts/shells/linux/debian/install_shells/3_setting_base.sh
+scripts/shells/linux/install_bootstrap.sh:82:SETTING_BASE_RELATIVE="scripts/shells/linux/debian/install_shells/3_setting_base.sh"
 
-[2026-06-22 11:29:00]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== who runs the numbered install_shells sequence ===\"\ngrep -rnE \"install_shells|[0-9]+_install|run_all|for f in\" scripts/shells/linux/common/install_test_menu.sh scripts/shells/linux/common/selector_common.sh scripts/shells/linux/common/testselector.sh 2>/dev/null | head -20\necho\necho \"=== does 2_setting_base.sh chain to others? ===\"\ngrep -nE \"install_shells|_install_|\\.sh\\\"|bash .*install\" scripts/shells/linux/debian/install_shells/2_setting_base.sh 2>/dev/null | head", "description": "Find the install_shells sequence runner"}
+[2026-06-22 11:29:00]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== who runs the numbered install_shells sequence ===\"\ngrep -rnE \"install_shells|[0-9]+_install|run_all|for f in\" scripts/shells/linux/common/install_test_menu.sh scripts/shells/linux/common/selector_common.sh scripts/shells/linux/common/testselector.sh 2>/dev/null | head -20\necho\necho \"=== does 3_setting_base.sh chain to others? ===\"\ngrep -nE \"install_shells|_install_|\\.sh\\\"|bash .*install\" scripts/shells/linux/debian/install_shells/3_setting_base.sh 2>/dev/null | head", "description": "Find the install_shells sequence runner"}
 
 [2026-06-22 11:29:00]   <- tool result:
 === who runs the numbered install_shells sequence ===
@@ -2117,7 +2117,7 @@ scripts/shells/linux/common/testselector.sh:31:    if [ -d "$install_shells_dir"
 scripts/shells/linux/common/testselector.sh:39:        done < <(find "$install_shells_dir" -maxdepth 1 -name "*.sh" -print0)
 scripts/shells/linux/common/testselector.sh:120:        echo "No installation scripts found in install_shells directory."
 
-=== does 2_setting_base.sh chain to others? 
+=== does 3_setting_base.sh chain to others? 
         ... [truncated 112 chars]
 
 [2026-06-22 11:29:20] ASSISTANT:
@@ -3667,15 +3667,15 @@ Good catch — that's a real ordering bug. Both scripts are prefix `12`, and the
 [2026-06-22 12:42:36]   <- tool result:
 === full execution order as the runner computes it (sort -n -t: -k1) ===
 1:1_stop_aliyun.sh
-2:2_setting_base.sh
+2:3_setting_base.sh
 3:3_stop_aliyun_cloudmonitor.sh
 4:4_stop_huawei_cloudmonitor.sh
 5:5_stop_tencent_cloudmonitor.sh
 6:6_set_mirrors.sh
 7:7_auto_clean_journal.sh
-8:8_project_validator.sh
+8:7_project_validator.sh
 9:9_disable_ubuntu_auto_updates.sh
-10:10_fix_dns.sh
+10:9_fix_dns.sh
 11:11_install_sudo.sh
 12:12_install_nvidia_cuda.sh
 12:12_update.sh
@@ -3777,12 +3777,12 @@ The correct slot is: `12_update` (apt/repos) → **CUDA** → `13_ensure_python`
 [2026-06-22 12:43:50] ASSISTANT:
 I'll update the header to reflect the new ordering, then `git mv` the file.
 
-[2026-06-22 12:43:57]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh", "old_string": "# =============================================================================\n# 12_install_nvidia_cuda.sh -- NVIDIA driver + CUDA toolkit prerequisite\n# =============================================================================\n# Runs BEFORE 13_ensure_python.sh (numeric prefix < 13) so that, on a host with\n# an NVIDIA GPU, the kernel driver is installed and loaded — making `nvidia-smi`\n# work — BEFORE the torch build guard runs. The guard (torch_cpu_guard.sh) picks\n# the CUDA torch build solely on `nvidia-smi -L`, so without this step a GPU box\n# silently gets the CPU torch build.", "new_string": "# =============================================================================\n# 13_cuda_nvidia_prereq.sh -- NVIDIA driver + CUDA toolkit prerequisite\n# =============================================================================\n# Ordering (the runner sorts by leading integer, then alphabetically within a\n# prefix — same convention as the existing 47_ensure_*/47_install_* pair):\n#   12_update.sh           (apt update + repo management)   -> MUST run first\n#   13_cuda_nvidia_prereq  (this; \"cuda\" < \"ensure\")        -> runs here\n#   13_ensure_python.sh    (torch build guard)              -> runs after this\n# Prefix 13 > 12 guarantees this runs AFTER the apt/repo refresh in 12_update.sh\n# (needed before installing the driver), and \"cuda\" sorts before \"ensure\" so it\n# still runs BEFORE the torch guard. On a host with an NVIDIA GPU the kernel\n# driver is installed and loaded — making `nvidia-smi` work — before the guard\n# (torch_cpu_guard.sh) picks the torch build solely on `nvidia-smi -L`, so a GPU\n# box no longer silently gets the CPU build."}
+[2026-06-22 12:43:57]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh", "old_string": "# =============================================================================\n# 12_install_nvidia_cuda.sh -- NVIDIA driver + CUDA toolkit prerequisite\n# =============================================================================\n# Runs BEFORE 13_ensure_python.sh (numeric prefix < 13) so that, on a host with\n# an NVIDIA GPU, the kernel driver is installed and loaded — making `nvidia-smi`\n# work — BEFORE the torch build guard runs. The guard (torch_cpu_guard.sh) picks\n# the CUDA torch build solely on `nvidia-smi -L`, so without this step a GPU box\n# silently gets the CPU torch build.", "new_string": "# =============================================================================\n# 11_cuda_nvidia_prereq.sh -- NVIDIA driver + CUDA toolkit prerequisite\n# =============================================================================\n# Ordering (the runner sorts by leading integer, then alphabetically within a\n# prefix — same convention as the existing 47_ensure_*/47_install_* pair):\n#   12_update.sh           (apt update + repo management)   -> MUST run first\n#   13_cuda_nvidia_prereq  (this; \"cuda\" < \"ensure\")        -> runs here\n#   13_ensure_python.sh    (torch build guard)              -> runs after this\n# Prefix 13 > 12 guarantees this runs AFTER the apt/repo refresh in 12_update.sh\n# (needed before installing the driver), and \"cuda\" sorts before \"ensure\" so it\n# still runs BEFORE the torch guard. On a host with an NVIDIA GPU the kernel\n# driver is installed and loaded — making `nvidia-smi` work — before the guard\n# (torch_cpu_guard.sh) picks the torch build solely on `nvidia-smi -L`, so a GPU\n# box no longer silently gets the CPU build."}
 
 [2026-06-22 12:43:57]   <- tool result:
 The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
-[2026-06-22 12:44:14]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\ngit mv scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh 2>/dev/null || mv scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh\necho \"renamed.\"\necho\necho \"=== NEW execution order (11-15 region) via the runner's exact sort ===\"\nfor f in scripts/shells/linux/debian/install_shells/*.sh; do b=$(basename \"$f\"); [[ $b =~ ^([0-9]+)_ ]] && echo \"${BASH_REMATCH[1]}:$b\"; done | sort -n -t: -k1 | grep -E \"^(11|12|13|14):\"\necho\necho \"=== syntax of renamed file ===\"\nbash -n scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh && echo \"[OK] syntax\"\necho \"=== confirm no other refs to the old name ===\"\ngrep -rn \"12_install_nvidia_cuda\" scripts/ 2>/dev/null || echo \"(no stale references)\"", "description": "Rename file and verify new ordering"}
+[2026-06-22 12:44:14]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\ngit mv scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh 2>/dev/null || mv scripts/shells/linux/debian/install_shells/12_install_nvidia_cuda.sh scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh\necho \"renamed.\"\necho\necho \"=== NEW execution order (11-15 region) via the runner's exact sort ===\"\nfor f in scripts/shells/linux/debian/install_shells/*.sh; do b=$(basename \"$f\"); [[ $b =~ ^([0-9]+)_ ]] && echo \"${BASH_REMATCH[1]}:$b\"; done | sort -n -t: -k1 | grep -E \"^(11|12|13|14):\"\necho\necho \"=== syntax of renamed file ===\"\nbash -n scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh && echo \"[OK] syntax\"\necho \"=== confirm no other refs to the old name ===\"\ngrep -rn \"12_install_nvidia_cuda\" scripts/ 2>/dev/null || echo \"(no stale references)\"", "description": "Rename file and verify new ordering"}
 
 [2026-06-22 12:44:15]   <- tool result:
 renamed.
@@ -3790,7 +3790,7 @@ renamed.
 === NEW execution order (11-15 region) via the runner's exact sort ===
 11:11_install_sudo.sh
 12:12_update.sh
-13:13_cuda_nvidia_prereq.sh
+13:11_cuda_nvidia_prereq.sh
 13:13_ensure_python.sh
 14:14_install_faster_whisper.sh
 
@@ -3805,14 +3805,14 @@ Fixed. The new execution order is now correct and robust:
 ```
 11_install_sudo.sh
 12_update.sh              ← apt update + repo management (runs FIRST)
-13_cuda_nvidia_prereq.sh  ← NVIDIA driver + CUDA toolkit (renamed from 12_install_nvidia_cuda.sh)
+11_cuda_nvidia_prereq.sh  ← NVIDIA driver + CUDA toolkit (renamed from 12_install_nvidia_cuda.sh)
 13_ensure_python.sh       ← torch build guard (runs AFTER CUDA)
 14_install_faster_whisper.sh …  ← GPU consumers, all after CUDA
 ```
 
 ## What was wrong and the fix
 - **Defect:** `12_install_nvidia_cuda.sh` and `12_update.sh` shared prefix `12`; the runner's `sort -n` broke the tie alphabetically (`install` < `update`), so CUDA ran **before** the apt/repo refresh it needs.
-- **Fix:** renamed to **`13_cuda_nvidia_prereq.sh`** (via `git mv`, history preserved). This gives both required orderings:
+- **Fix:** renamed to **`11_cuda_nvidia_prereq.sh`** (via `git mv`, history preserved). This gives both required orderings:
   - **update → CUDA** is now *robust* (prefix `13 > 12`, no tie involved).
   - **CUDA → torch** holds because within prefix `13`, `"cuda"` sorts before `"ensure"` — the same prefix-then-alphabetical convention the repo already relies on for the existing `47_ensure_php_pgsql` → `47_install_docker` pair.
 - Verified empirically with the runner's exact `sort -n -t: -k1`, header comments updated to document the ordering, syntax OK, and **no stale references** to the old filename anywhere.
@@ -3848,7 +3848,7 @@ File created successfully at: /mnt/dev_nvme0n1p1/programing/core_node/scripts/sh
 [2026-06-22 12:49:41] ASSISTANT:
 Now wire it into the CUDA prereq script — set a reboot flag, install the toolkit first, then invoke the gate at the end. Let me read the current end of the script:
 
-[2026-06-22 12:49:42]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh", "offset": 150, "limit": 75}
+[2026-06-22 12:49:42]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh", "offset": 150, "limit": 75}
 
 [2026-06-22 12:49:42]   <- tool result:
 150	    exit 0
@@ -3906,7 +3906,7 @@ Now wire it into the CUDA prereq script — set a reboot flag, install the toolk
 [2026-06-22 12:49:52] ASSISTANT:
 I'll add a reboot flag and the gate. Let me view the variable block:
 
-[2026-06-22 12:49:54]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh", "offset": 44, "limit": 8}
+[2026-06-22 12:49:54]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh", "offset": 44, "limit": 8}
 
 [2026-06-22 12:49:54]   <- tool result:
 44	# Variable declarations (declared at the beginning of the file)
@@ -3918,30 +3918,30 @@ I'll add a reboot flag and the gate. Let me view the variable block:
 50	
 51	# Run as root: directly when already root, otherwise via sudo.
 
-[2026-06-22 12:50:02]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh", "old_string": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nCOMMON_DIR=\"$(cd \"$SCRIPT_DIR/../../common\" && pwd)\"\nCUDA_TOOLKIT_INSTALLER=\"$COMMON_DIR/install_cuda_toolkit.sh\"\nOS_ID=\"\"\nOS_ID_LIKE=\"\"", "new_string": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nCOMMON_DIR=\"$(cd \"$SCRIPT_DIR/../../common\" && pwd)\"\nCUDA_TOOLKIT_INSTALLER=\"$COMMON_DIR/install_cuda_toolkit.sh\"\nREBOOT_CONFIRM_LIB=\"$COMMON_DIR/reboot_confirm.sh\"\nOS_ID=\"\"\nOS_ID_LIKE=\"\"\nREBOOT_REQUIRED=0"}
+[2026-06-22 12:50:02]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh", "old_string": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nCOMMON_DIR=\"$(cd \"$SCRIPT_DIR/../../common\" && pwd)\"\nCUDA_TOOLKIT_INSTALLER=\"$COMMON_DIR/install_cuda_toolkit.sh\"\nOS_ID=\"\"\nOS_ID_LIKE=\"\"", "new_string": "SCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nCOMMON_DIR=\"$(cd \"$SCRIPT_DIR/../../common\" && pwd)\"\nCUDA_TOOLKIT_INSTALLER=\"$COMMON_DIR/install_cuda_toolkit.sh\"\nREBOOT_CONFIRM_LIB=\"$COMMON_DIR/reboot_confirm.sh\"\nOS_ID=\"\"\nOS_ID_LIKE=\"\"\nREBOOT_REQUIRED=0"}
 
 [2026-06-22 12:50:02]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
-[2026-06-22 12:50:09]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh", "old_string": "    log \"WARNING: NVIDIA driver installed but not active yet (module not loaded).\"\n    log \"         A REBOOT is required. Until then nvidia-smi fails and torch installs the CPU\"\n    log \"         build. After rebooting, simply re-run the installer: the torch guard now\"\n    log \"         detects the GPU and switches an existing CPU torch build to the CUDA build.\"\nfi", "new_string": "    log \"WARNING: NVIDIA driver installed but not active yet (module not loaded).\"\n    log \"         A REBOOT is required. Until then nvidia-smi fails and torch installs the CPU\"\n    log \"         build. After rebooting, simply re-run the installer: the torch guard now\"\n    log \"         detects the GPU and switches an existing CPU torch build to the CUDA build.\"\n    REBOOT_REQUIRED=1\nfi"}
+[2026-06-22 12:50:09]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh", "old_string": "    log \"WARNING: NVIDIA driver installed but not active yet (module not loaded).\"\n    log \"         A REBOOT is required. Until then nvidia-smi fails and torch installs the CPU\"\n    log \"         build. After rebooting, simply re-run the installer: the torch guard now\"\n    log \"         detects the GPU and switches an existing CPU torch build to the CUDA build.\"\nfi", "new_string": "    log \"WARNING: NVIDIA driver installed but not active yet (module not loaded).\"\n    log \"         A REBOOT is required. Until then nvidia-smi fails and torch installs the CPU\"\n    log \"         build. After rebooting, simply re-run the installer: the torch guard now\"\n    log \"         detects the GPU and switches an existing CPU torch build to the CUDA build.\"\n    REBOOT_REQUIRED=1\nfi"}
 
 [2026-06-22 12:50:09]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
-[2026-06-22 12:50:18]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh", "old_string": "echo \"==================================================\"\nlog \"NVIDIA/CUDA prerequisite step complete.\"\nexit 0", "new_string": "echo \"==================================================\"\nlog \"NVIDIA/CUDA prerequisite step complete.\"\n\n# Step 4: if the freshly-installed driver needs a reboot to load, run the shared\n# reboot gate (notice + 'yes' x3 after confirming work is saved, then reboot).\n# Non-interactive runs never auto-reboot (the gate handles that).\nif [ \"$REBOOT_REQUIRED\" = \"1\" ]; then\n    if [ -f \"$REBOOT_CONFIRM_LIB\" ]; then\n        # shellcheck source=/dev/null\n        . \"$REBOOT_CONFIRM_LIB\"\n        confirm_save_and_reboot \"NVIDIA driver was installed but is not loaded yet; a reboot is required to enable the GPU (nvidia-smi) and the CUDA torch build.\"\n    else\n        log \"WARNING: reboot helper not found at $REBOOT_CONFIRM_LIB; please reboot manually.\"\n    fi\nfi\n\nexit 0"}
+[2026-06-22 12:50:18]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh", "old_string": "echo \"==================================================\"\nlog \"NVIDIA/CUDA prerequisite step complete.\"\nexit 0", "new_string": "echo \"==================================================\"\nlog \"NVIDIA/CUDA prerequisite step complete.\"\n\n# Step 4: if the freshly-installed driver needs a reboot to load, run the shared\n# reboot gate (notice + 'yes' x3 after confirming work is saved, then reboot).\n# Non-interactive runs never auto-reboot (the gate handles that).\nif [ \"$REBOOT_REQUIRED\" = \"1\" ]; then\n    if [ -f \"$REBOOT_CONFIRM_LIB\" ]; then\n        # shellcheck source=/dev/null\n        . \"$REBOOT_CONFIRM_LIB\"\n        confirm_save_and_reboot \"NVIDIA driver was installed but is not loaded yet; a reboot is required to enable the GPU (nvidia-smi) and the CUDA torch build.\"\n    else\n        log \"WARNING: reboot helper not found at $REBOOT_CONFIRM_LIB; please reboot manually.\"\n    fi\nfi\n\nexit 0"}
 
 [2026-06-22 12:50:18]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
 [2026-06-22 12:50:38] ASSISTANT:
 Now syntax-check and safely test the reboot gate (non-interactive must NOT reboot; stub the apt install so the test installs nothing):
 
-[2026-06-22 12:50:44]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== syntax ===\"\nfor f in scripts/shells/linux/common/reboot_confirm.sh scripts/shells/linux/debian/install_shells/13_cuda_nvidia_prereq.sh; do bash -n \"$f\" && echo \"[OK] $(basename $f)\"; done\nchmod +x scripts/shells/linux/common/reboot_confirm.sh\n\necho\necho \"=== non-interactive path: must NOT reboot, must NOT install (stub ensure_tools) ===\"\nbash -c '\nsource scripts/shells/linux/common/reboot_confirm.sh\nrc_ensure_tools(){ echo \"[stub] (would ensure: $RC_TOOLS)\"; }   # prevent real apt during test\nconfirm_save_and_reboot \"test reason\" < /dev/null\necho \"exit=$?\"\n'\necho\necho \"=== interactive triple-yes logic: feed yes/yes/yes/yes but stub the actual reboot ===\"\nbash -c '\nsource scripts/shells/linux/common/reboot_confirm.sh\nrc_ensure_tools(){ :; }\nrc_run_root(){ echo \"    [stub] would run: $*\"; }   # never actually reboot\nsystemctl(){ echo \"    [stub] systemctl $*\"; }      # belt-and-suspenders\nprintf \"yes\\nyes\\nyes\\nyes\\n\" | { exec 0<&0; confirm_save_and_reboot \"test reboot path\"; }\n' 2>&1 | sed 's/^/  /'", "description": "Syntax check and safe reboot-gate tests"}
+[2026-06-22 12:50:44]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== syntax ===\"\nfor f in scripts/shells/linux/common/reboot_confirm.sh scripts/shells/linux/debian/install_shells/11_cuda_nvidia_prereq.sh; do bash -n \"$f\" && echo \"[OK] $(basename $f)\"; done\nchmod +x scripts/shells/linux/common/reboot_confirm.sh\n\necho\necho \"=== non-interactive path: must NOT reboot, must NOT install (stub ensure_tools) ===\"\nbash -c '\nsource scripts/shells/linux/common/reboot_confirm.sh\nrc_ensure_tools(){ echo \"[stub] (would ensure: $RC_TOOLS)\"; }   # prevent real apt during test\nconfirm_save_and_reboot \"test reason\" < /dev/null\necho \"exit=$?\"\n'\necho\necho \"=== interactive triple-yes logic: feed yes/yes/yes/yes but stub the actual reboot ===\"\nbash -c '\nsource scripts/shells/linux/common/reboot_confirm.sh\nrc_ensure_tools(){ :; }\nrc_run_root(){ echo \"    [stub] would run: $*\"; }   # never actually reboot\nsystemctl(){ echo \"    [stub] systemctl $*\"; }      # belt-and-suspenders\nprintf \"yes\\nyes\\nyes\\nyes\\n\" | { exec 0<&0; confirm_save_and_reboot \"test reboot path\"; }\n' 2>&1 | sed 's/^/  /'", "description": "Syntax check and safe reboot-gate tests"}
 
 [2026-06-22 12:50:44]   <- tool result:
 === syntax ===
 [OK] reboot_confirm.sh
-[OK] 13_cuda_nvidia_prereq.sh
+[OK] 11_cuda_nvidia_prereq.sh
 
 === non-interactive path: must NOT reboot, must NOT install (stub ensure_tools) ===
 [stub] (would ensure: xdotool wmctrl tmux)
@@ -3968,7 +3968,7 @@ The reboot gate works: non-interactive sessions correctly **refuse to auto-reboo
 
 For the remaining two asks, I need your call — the reindexing scope is genuinely ambiguous and a mass-rename is high-risk to guess:
 
-[2026-06-22 12:51:28]   -> tool: AskUserQuestion  {"questions": [{"question": "How far should I reindex the install_shells scripts? (The numbering currently has duplicate prefixes: my CUDA step is 13 alongside 13_ensure_python, and there's a pre-existing 47/47 pair.)", "header": "Reindex scope", "multiSelect": false, "options": [{"label": "Dedupe + slot new (Rec)", "description": "Give every colliding script a UNIQUE prefix (fix 13/13 and 47/47) and insert the new tools-prepare script with a clean early index. Renames only the few colliding/new files; existing order preserved. Low risk."}, {"label": "Full gap reindex (all)", "description": "Renumber ALL ~70 scripts to spaced indices (e.g. 010, 020, 030 …) so future inserts never collide. Touches every file — bigger diff and higher risk of breaking any external references."}, {"label": "Minimal: add only", "description": "Don't renumber anything existing; just add the tools-prepare script with a unique early index. Leave the duplicate prefixes as-is (they resolve deterministically via alphabetical tie-break)."}]}, {"question": "Where should `xdotool`, `wmctrl`, `tmux` be installed during the workflow?", "header": "Tools install", "multiSelect": false, "options": [{"label": "Dedicated early script (Rec)", "description": "New early install_shells script (right after sudo/update, before the CUDA reboot step) running `apt update && apt install -y xdotool wmctrl tmux`. Matches your 'prepare script' request; tools available for the whole flow (e.g. run installer inside tmux)."}, {"label": "Add to 2_setting_base.sh", "description": "Fold the apt install into the existing base-setup script so it runs very early with no new file."}, {"label": "Lazy-ensure only", "description": "No separate script — keep the on-demand install already built into reboot_confirm.sh (tools get installed right before the reboot prompt). Simplest, but tools aren't present earlier in the flow."}]}]}
+[2026-06-22 12:51:28]   -> tool: AskUserQuestion  {"questions": [{"question": "How far should I reindex the install_shells scripts? (The numbering currently has duplicate prefixes: my CUDA step is 13 alongside 13_ensure_python, and there's a pre-existing 47/47 pair.)", "header": "Reindex scope", "multiSelect": false, "options": [{"label": "Dedupe + slot new (Rec)", "description": "Give every colliding script a UNIQUE prefix (fix 13/13 and 47/47) and insert the new tools-prepare script with a clean early index. Renames only the few colliding/new files; existing order preserved. Low risk."}, {"label": "Full gap reindex (all)", "description": "Renumber ALL ~70 scripts to spaced indices (e.g. 010, 020, 030 …) so future inserts never collide. Touches every file — bigger diff and higher risk of breaking any external references."}, {"label": "Minimal: add only", "description": "Don't renumber anything existing; just add the tools-prepare script with a unique early index. Leave the duplicate prefixes as-is (they resolve deterministically via alphabetical tie-break)."}]}, {"question": "Where should `xdotool`, `wmctrl`, `tmux` be installed during the workflow?", "header": "Tools install", "multiSelect": false, "options": [{"label": "Dedicated early script (Rec)", "description": "New early install_shells script (right after sudo/update, before the CUDA reboot step) running `apt update && apt install -y xdotool wmctrl tmux`. Matches your 'prepare script' request; tools available for the whole flow (e.g. run installer inside tmux)."}, {"label": "Add to 3_setting_base.sh", "description": "Fold the apt install into the existing base-setup script so it runs very early with no new file."}, {"label": "Lazy-ensure only", "description": "No separate script — keep the on-demand install already built into reboot_confirm.sh (tools get installed right before the reboot prompt). Simplest, but tools aren't present earlier in the flow."}]}]}
 
 [2026-06-22 12:54:15]   <- tool result:
 The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). To tell you how to proceed, the user said:
@@ -3996,7 +3996,7 @@ A few things that might help you decide, and where I'd value your steer:
 
 2. **The `1x_update` example** — did you mean a specific format there (literally a 2-char index like `1a`, `1b`…), or just "give it some new unique number"? That phrasing is what made me unsure.
 
-3. **Tools install location (unanswered)** — should `xdotool`/`wmctrl`/`tmux` go in a dedicated early script, fold into `2_setting_base.sh`, or rely on the on-demand install I already built into `reboot_confirm.sh`?
+3. **Tools install location (unanswered)** — should `xdotool`/`wmctrl`/`tmux` go in a dedicated early script, fold into `3_setting_base.sh`, or rely on the on-demand install I already built into `reboot_confirm.sh`?
 
 Tell me what you'd like to adjust (or just answer any of the above) and I'll reformulate / proceed.
 
@@ -4004,7 +4004,7 @@ Tell me what you'd like to adjust (or just answer any of the above) and I'll ref
 change all sctips-name,rename index part.
 
 [2026-06-22 12:54:58] ASSISTANT:
-Before renaming everything, I have to check what references these scripts by name — because some are hardcoded elsewhere (I recall `dd.sh` and the bootstrap reference `2_setting_base.sh` and `8_project_validator.sh` by exact path). Renaming those without updating the references would break the installer. Let me map the blast radius first.
+Before renaming everything, I have to check what references these scripts by name — because some are hardcoded elsewhere (I recall `dd.sh` and the bootstrap reference `3_setting_base.sh` and `7_project_validator.sh` by exact path). Renaming those without updating the references would break the installer. Let me map the blast radius first.
 
 [2026-06-22 12:55:03]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nISD=\"scripts/shells/linux/debian/install_shells\"\necho \"=== numbered scripts ===\"\nls \"$ISD\"/*.sh | xargs -n1 basename | grep -E '^[0-9]+_' | sort\necho\necho \"=== references to each numbered script NAME anywhere outside install_shells (excluding .git/node_modules) ===\"\nfor b in $(ls \"$ISD\"/*.sh | xargs -n1 basename | grep -E '^[0-9]+_'); do\n  hits=$(grep -rn --exclude-dir=.git --exclude-dir=node_modules -F \"$b\" . 2>/dev/null | grep -v \"$ISD/$b:\" | grep -v \"Binary file\")\n  if [ -n \"$hits\" ]; then\n    echo \"### $b\"\n    echo \"$hits\" | head -8\n    echo\n  fi\ndone", "description": "Map references to numbered scripts across repo"}
 
@@ -4016,7 +4016,7 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 [2026-06-22 12:57:16]   <- tool result:
 === numbered scripts ===
 101_natgateway.sh
-10_fix_dns.sh
+9_fix_dns.sh
 11_install_sudo.sh
 120_install_desktop_applications.sh
 121_install_cursor.sh
@@ -4032,7 +4032,7 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 132_setup_domain_ssl.sh
 133_setup_api_domains.sh
 134_setup_html_domains.sh
-13_cuda_nvidia_prereq.sh
+11_cuda_nvidia_prereq.sh
 13_ensure_python.sh
 14_install_faster_whisper.sh
 150_install_pycore_http_service.sh
@@ -4050,7 +4050,7 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 26_install_certbot.sh
 28_ensure_pnpm_packages.sh
 29_ensure_npmrc.sh
-2_setting_base.sh
+3_setting_base.sh
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
@@ -4087,7 +4087,7 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 81_generate_docker_compose_yml.sh
 83_core_node_finish.sh
 85_install_code_server.sh
-8_project_validator.sh
+7_project_validator.sh
 95_install_deepseek.sh
 96_install_deepseek_ocr.sh
 97_install_qwen25.sh

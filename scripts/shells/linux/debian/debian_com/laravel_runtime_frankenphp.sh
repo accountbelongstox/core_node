@@ -39,6 +39,7 @@ FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-localhost}"
 MERCURE_PUBLISHER_JWT=""
 MERCURE_SUBSCRIBER_JWT=""
 MERCURE_TRUSTED_ISSUERS=""
+DNSPOD_TOKEN=""
 FRANKENPHP_HTTPS_PORT=""
 FRANKENPHP_ADMIN_PORT=""
 OCTANE_ARGS=()
@@ -69,6 +70,7 @@ fm_caddyfile_ensure \
 MERCURE_PUBLISHER_JWT="$(runtime_config_get "MERCURE_PUBLISHER_JWT")"
 MERCURE_SUBSCRIBER_JWT="$(runtime_config_get "MERCURE_SUBSCRIBER_JWT")"
 MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
+DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
 if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
     MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
     runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS"
@@ -82,6 +84,9 @@ export MERCURE_PUBLISHER_JWT_ALG="HS256"
 export MERCURE_SUBSCRIBER_JWT_KEY="$MERCURE_SUBSCRIBER_JWT"
 export MERCURE_SUBSCRIBER_JWT_ALG="HS256"
 export MERCURE_TRUSTED_ISSUERS
+# DNSPod DNS-01 token (only when stored; the Caddyfile gate renders the tls
+# stanza only when module + token both exist).
+[ -n "$DNSPOD_TOKEN" ] && export DNSPOD_TOKEN
 # Embedded PHP ini scan dir (34_configure_php85.sh frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
 export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"

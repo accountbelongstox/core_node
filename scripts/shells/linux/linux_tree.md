@@ -47,7 +47,7 @@ linux/
 │   │   ├── 28_install_certbot.sh
 │   │   ├── 30_ensure_npm_packages.sh
 │   │   ├── 31_ensure_npmrc.sh
-│   │   ├── 2_setting_base.sh
+│   │   ├── 3_setting_base.sh
 │   │   ├── 32_install_edge.sh
 │   │   ├── 33_ensure_php84_intelligent.sh
 │   │   ├── 34_configure_php84.sh
@@ -75,7 +75,7 @@ linux/
 │   │   ├── 81_generate_docker_compose_yml.sh
 │   │   ├── 83_core_node_finish.sh
 │   │   ├── 87_install_code_server.sh
-│   │   └── 8_project_validator.sh
+│   │   └── 7_project_validator.sh
 │   ├── run_apps/
 │   │   ├── install_app_to_service.sh
 │   │   └── run_app.sh

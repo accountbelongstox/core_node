@@ -13,7 +13,7 @@
 
 # Single source of truth for the faster-whisper prerequisite (DEFAULT STT engine
 # for the pycore "Video Extraction" feature) on Linux/macOS. Prefix 15 sorts right
-# AFTER 13_ensure_python.sh and 14_install_python_prereq_packages.sh in install.sh's
+# AFTER 13_ensure_python.sh and 15_install_python_prereq_packages.sh in install.sh's
 # numeric-ordered run, so pip and ML prereqs are ready.
 # Also invoked by prepare_pycore_prerequisites.sh (pyservice).
 # (the pyservice prerequisite reference) to keep one copy of the logic.

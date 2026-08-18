@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Project initialization library for Linux one-click install.
-# Sourced by dd.sh after gvar_common.sh, 2_setting_base.sh, 8_project_validator.sh are downloaded.
+# Sourced by dd.sh after gvar_common.sh, 3_setting_base.sh, 7_project_validator.sh are downloaded.
 # Uses map_web_path (from gvar_common) to resolve target directory and runs project validator to clone
 # the full project to CORE_NODE_PROJECT_ROOT.
 
@@ -25,8 +25,8 @@ INIT_LIB_PROJECT_VALIDATOR=""
 run_project_init() {
     local root_dir="${1:-$CORE_NODE_ROOT_DIR}"
     local gvar_file="$root_dir/scripts/shells/linux/common/gvar_common.sh"
-    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/2_setting_base.sh"
-    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+    local setting_base="$root_dir/scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+    local project_validator="$root_dir/scripts/shells/linux/debian/install_shells/7_project_validator.sh"
 
     if [ -n "$INIT_LIB_GVAR_COMMON" ] && [ -s "$INIT_LIB_GVAR_COMMON" ]; then
         gvar_file="$INIT_LIB_GVAR_COMMON"
@@ -48,12 +48,12 @@ run_project_init() {
     source "$gvar_file"
 
     if [ -s "$setting_base" ]; then
-        echo "[project_init_lib] Running base system setup (2_setting_base.sh)..."
+        echo "[project_init_lib] Running base system setup (3_setting_base.sh)..."
         bash "$setting_base" || true
     fi
 
     if [ ! -s "$project_validator" ]; then
-        echo "[project_init_lib] ERROR: 8_project_validator.sh not found at $project_validator"
+        echo "[project_init_lib] ERROR: 7_project_validator.sh not found at $project_validator"
         return 1
     fi
 

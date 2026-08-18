@@ -43,9 +43,17 @@ FRANKENPHP_BIN_CANDIDATES="/usr/local/bin/frankenphp /usr/bin/frankenphp"
 FRANKENPHP_INSTALL_URL="https://frankenphp.dev/install.sh"
 FRANKENPHP_DNSPOD_IMPORT="github.com/caddy-dns/dnspod"
 FRANKENPHP_DNSPOD_MODULE="dns.providers.dnspod"
+FRANKENPHP_DNSPOD_TOKEN_KEY="DNSPOD_TOKEN"
 FRANKENPHP_FRANKENPHP_IMPORT="github.com/dunglas/frankenphp"
+# Official static-build xcaddy args (frankenphp.dev/docs/static): a custom
+# XCADDY_ARGS must re-include the modules the Caddyfile relies on - the
+# mercure hub directive - plus the dnspod DNS-01 provider.
+FRANKENPHP_STATIC_XCADDY_ARGS="--with github.com/caddy-dns/dnspod --with github.com/dunglas/mercure/caddy"
+FRANKENPHP_STATIC_REPO="https://github.com/php/frankenphp"
 XCADDY_BIN_CANDIDATES="/usr/local/bin/xcaddy /usr/bin/xcaddy"
-GO_BIN_CANDIDATES="/usr/local/bin/go /usr/bin/go /usr/lib/go/bin/go"
+XCADDY_GO_MODULE="github.com/caddyserver/xcaddy/cmd/xcaddy"
+GO_BIN_CANDIDATES="/usr/local/bin/go /usr/local/go/bin/go /usr/bin/go /usr/lib/go/bin/go"
+DOCKER_BIN_CANDIDATES="/usr/bin/docker /usr/local/bin/docker"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
 FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
 FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
@@ -193,74 +201,283 @@ fm_list_modules() {
 
 fm_has_module() {
     local module_name="$1"
-    local modules=""
-    modules="$(fm_list_modules)"
-    [ -n "$modules" ] && echo "$modules" | grep -q "^${module_name}\$"
+    local binary=""
+    binary="$(fm_get_binary)"
+    fm_module_in_bin "$binary" "$module_name"
 }
 
-# Rebuild the binary with the DNSPod ACME DNS module when missing. Requires
-# a Go toolchain; skips with a warning when absent (HTTP-01 still works via
-# the built-in ACME while DNS-01 waits for the toolchain).
+# Module probe against an explicit binary (fm_has_module targets the live
+# one; rebuild verification targets the candidate before it is installed).
+fm_module_in_bin() {
+    local binary="$1"
+    local module_name="$2"
+    [ -n "$binary" ] && [ -x "$binary" ] \
+        && "$binary" list-modules 2>/dev/null | grep -q "^${module_name}\$"
+}
+
+# Go toolchain path (empty when absent) - file probing only.
+fm_go_bin() {
+    local candidate=""
+    for candidate in $GO_BIN_CANDIDATES; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo ""
+}
+
+# GOPATH root (where `go install` places module binaries by default).
+fm_go_gopath() {
+    local go_bin=""
+    go_bin="$(fm_go_bin)"
+    if [ -n "$go_bin" ]; then
+        "$go_bin" env GOPATH 2>/dev/null
+        return 0
+    fi
+    echo "${HOME:-/root}/go"
+}
+
+# xcaddy binary path (empty when absent); probes the fixed candidates plus
+# the GOPATH bin location.
+fm_xcaddy_bin() {
+    local candidate=""
+    local gopath_bin=""
+    for candidate in $XCADDY_BIN_CANDIDATES; do
+        if [ -x "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    gopath_bin="$(fm_go_gopath)/bin/xcaddy"
+    if [ -x "$gopath_bin" ]; then
+        echo "$gopath_bin"
+        return 0
+    fi
+    echo ""
+}
+
+# Ensure xcaddy exists. Idempotent per step: probe -> go probe ->
+# GOBIN=/usr/local/bin install -> re-probe (including the GOPATH bin spot
+# for non-root installs). Trusts the file probe after each step.
+fm_ensure_xcaddy() {
+    local go_bin=""
+    local xcaddy_bin=""
+
+    xcaddy_bin="$(fm_xcaddy_bin)"
+    if [ -n "$xcaddy_bin" ]; then
+        echo "[$SCRIPT_INDEX] xcaddy already installed: $xcaddy_bin"
+        return 0
+    fi
+    go_bin="$(fm_go_bin)"
+    if [ -z "$go_bin" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] no Go toolchain found (golang not installed); xcaddy not installed"
+        return 1
+    fi
+    echo "[$SCRIPT_INDEX] Installing xcaddy (go install -> /usr/local/bin)"
+    $USE_SUDO env GOBIN=/usr/local/bin "$go_bin" install "${XCADDY_GO_MODULE}@latest"
+    xcaddy_bin="$(fm_xcaddy_bin)"
+    if [ -n "$xcaddy_bin" ]; then
+        echo "[$SCRIPT_INDEX] xcaddy installed: $xcaddy_bin"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] [WARN] xcaddy unavailable after go install"
+    return 1
+}
+
+# Version tag of the running binary ("v1.12.7"; empty when unparsable) -
+# pins the static rebuild to the SAME frankenphp release.
+fm_version_tag() {
+    fm_version | sed -n 's/.*\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1
+}
+
+# Docker availability probe (binary present + daemon responding).
+fm_docker_ready() {
+    local candidate=""
+    for candidate in $DOCKER_BIN_CANDIDATES; do
+        if [ -x "$candidate" ]; then
+            "$candidate" info >/dev/null 2>&1 && return 0
+            return 1
+        fi
+    done
+    return 1
+}
+
+# Official static rebuild (frankenphp.dev/docs/static): docker buildx bake
+# static-builder-musl with XCADDY_ARGS carrying the dnspod module. The musl
+# fully-static binary runs on ubuntu/debian/kali alike and keeps the
+# embedded PHP. Echoes the candidate binary path (empty on failure); the
+# caller probes it before installing.
+fm_dnspod_build_static() {
+    local version_tag=""
+    local work_dir=""
+    local arch=""
+    local container_name=""
+
+    version_tag="$(fm_version_tag)"
+    work_dir="$(mktemp -d)"
+    arch="$(uname -m)"
+    container_name="frankenphp-static-builder-$$"
+
+    echo "[$SCRIPT_INDEX] [dnspod] official static build (docker buildx bake static-builder-musl${version_tag:+ " at ${version_tag}"})"
+    if ! git clone --quiet --depth 1 ${version_tag:+--branch "$version_tag"} \
+        "$FRANKENPHP_STATIC_REPO" "$work_dir/src" 2>/dev/null; then
+        echo "[$SCRIPT_INDEX] [dnspod] [WARN] frankenphp source clone failed"
+        rm -rf "$work_dir"
+        return 1
+    fi
+    if ! (cd "$work_dir/src" && docker buildx bake --load \
+        ${version_tag:+--set "static-builder-musl.args.FRANKENPHP_VERSION=$version_tag"} \
+        --set "static-builder-musl.args.XCADDY_ARGS=$FRANKENPHP_STATIC_XCADDY_ARGS" \
+        static-builder-musl); then
+        echo "[$SCRIPT_INDEX] [dnspod] [WARN] docker buildx bake failed"
+        rm -rf "$work_dir"
+        return 1
+    fi
+    $USE_SUDO docker rm -f "$container_name" >/dev/null 2>&1
+    if ! $USE_SUDO docker create --name "$container_name" dunglas/frankenphp:static-builder-musl >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [dnspod] [WARN] baked image container create failed"
+        rm -rf "$work_dir"
+        return 1
+    fi
+    $USE_SUDO docker cp "$container_name:/go/src/app/dist/frankenphp-linux-${arch}" "$work_dir/frankenphp" >/dev/null 2>&1
+    $USE_SUDO docker rm -f "$container_name" >/dev/null 2>&1
+    if [ -x "$work_dir/frankenphp" ]; then
+        echo "$work_dir/frankenphp"
+    else
+        echo "[$SCRIPT_INDEX] [dnspod] [WARN] static binary not found in the baked image"
+        rm -rf "$work_dir"
+        echo ""
+    fi
+}
+
+# Native xcaddy rebuild (frankenphp.dev/docs/compile) - the docker-less
+# fallback; requires libphp.so headers (php-config). Echoes the candidate
+# binary path (empty on failure).
+fm_dnspod_build_native() {
+    local xcaddy_bin=""
+    local php_config=""
+    local build_dir=""
+
+    fm_ensure_xcaddy || return 1
+    xcaddy_bin="$(fm_xcaddy_bin)"
+    if [ -z "$xcaddy_bin" ]; then
+        return 1
+    fi
+    php_config=""
+    if [ -x /usr/bin/php-config ]; then
+        php_config="/usr/bin/php-config"
+    elif [ -x /usr/local/bin/php-config ]; then
+        php_config="/usr/local/bin/php-config"
+    fi
+    if [ -z "$php_config" ]; then
+        echo "[$SCRIPT_INDEX] [dnspod] native build needs php-config (libphp.so toolchain); not present"
+        return 1
+    fi
+    echo "[$SCRIPT_INDEX] [dnspod] native xcaddy build (libphp.so via $php_config)"
+    build_dir="$(mktemp -d)"
+    if ! (cd "$build_dir" && CGO_ENABLED=1 \
+        XCADDY_GO_BUILD_FLAGS="-ldflags='-w -s' -tags=nobadger,nomysql,nopgx" \
+        CGO_CFLAGS="$($php_config --includes)" \
+        CGO_LDFLAGS="$($php_config --ldflags) $($php_config --libs)" \
+        "$xcaddy_bin" build \
+            --with "${FRANKENPHP_FRANKENPHP_IMPORT}/caddy" \
+            --with "$FRANKENPHP_DNSPOD_IMPORT" \
+            --output "$build_dir/frankenphp"); then
+        echo "[$SCRIPT_INDEX] [dnspod] [WARN] native xcaddy build failed"
+        rm -rf "$build_dir"
+        return 1
+    fi
+    if [ -x "$build_dir/frankenphp" ]; then
+        echo "$build_dir/frankenphp"
+    else
+        rm -rf "$build_dir"
+        echo ""
+    fi
+}
+
+# DNSPod API token from the shared RuntimeConfigurationStore (format
+# "id,token"; the VALUE is never logged and never rendered into the
+# Caddyfile - only the {env.DNSPOD_TOKEN} placeholder is). Empty when unset
+# or when the Laravel app context is not available yet (fresh install);
+# the runtime branch re-renders the Caddyfile once it is.
+fm_dnspod_token_value() {
+    if [ -n "$PHP_BIN" ] && [ -x "$PHP_BIN" ] \
+        && [ -n "$VENDOR_AUTOLOAD" ] && [ -f "$VENDOR_AUTOLOAD" ]; then
+        runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY"
+    fi
+}
+
+# Persist the DNSPod API token (id,token) into the shared store. Requires
+# the runtime context (PHP_BIN + VENDOR_AUTOLOAD + BOOTSTRAP_APP) or a
+# Laravel-side writer (ServerManager frankenphp API).
+fm_dnspod_token_put() {
+    local token="$1"
+    if [ -z "$token" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] token value required (format: id,token)"
+        return 1
+    fi
+    if [ -z "$PHP_BIN" ] || [ -z "$VENDOR_AUTOLOAD" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] runtime store context required (PHP_BIN, VENDOR_AUTOLOAD)"
+        return 1
+    fi
+    runtime_config_put "$FRANKENPHP_DNSPOD_TOKEN_KEY" "$token"
+    echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
+}
+
+# Ensure the dnspod ACME DNS-01 module is embedded in the frankenphp
+# binary. Order (each step its own idempotent probe): already embedded ->
+# official docker static build -> native libphp rebuild. A failed path
+# defers with a warning - the built-in ACME (TLS-ALPN-01/HTTP-01) keeps
+# issuing certificates meanwhile.
 fm_ensure_dnspod_module() {
     local binary=""
-    local xcaddy_bin=""
-    local go_bin=""
-    local build_tmp=""
+    local candidate=""
 
     binary="$(fm_get_binary)"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; run fm_install first"
         return 1
     fi
-    if fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
+    if fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE"; then
         echo "[$SCRIPT_INDEX] dnspod module already embedded"
         return 0
     fi
 
-    for go_bin in $GO_BIN_CANDIDATES; do
-        [ -x "$go_bin" ] && break
-    done
-    if [ ! -x "$go_bin" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] no Go toolchain found; dnspod module build skipped (install golang-go and re-run)"
-        return 1
-    fi
-
-    for xcaddy_bin in $XCADDY_BIN_CANDIDATES; do
-        [ -x "$xcaddy_bin" ] && break
-    done
-    if [ ! -x "$xcaddy_bin" ]; then
-        echo "[$SCRIPT_INDEX] Installing xcaddy via go install"
-        "$go_bin" install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
-        for xcaddy_bin in $XCADDY_BIN_CANDIDATES; do
-            [ -x "$xcaddy_bin" ] && break
-        done
-    fi
-    if [ ! -x "$xcaddy_bin" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] xcaddy unavailable; dnspod module build skipped"
-        return 1
-    fi
-
-    echo "[$SCRIPT_INDEX] Building frankenphp with dnspod module (xcaddy)"
-    build_tmp="$(mktemp -d)"
-    "$xcaddy_bin" build \
-        --with "$FRANKENPHP_FRANKENPHP_IMPORT" \
-        --with "$FRANKENPHP_DNSPOD_IMPORT" \
-        --output "$build_tmp/frankenphp"
-    if [ -x "$build_tmp/frankenphp" ]; then
-        $USE_SUDO cp "$binary" "${binary}${FRANKENPHP_BACKUP_SUFFIX}"
-        $USE_SUDO cp "$build_tmp/frankenphp" "$binary"
-        rm -rf "$build_tmp"
-        if fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
-            echo "[$SCRIPT_INDEX] dnspod module embedded (previous binary kept at ${binary}${FRANKENPHP_BACKUP_SUFFIX})"
-        else
-            echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary still lacks the dnspod module"
-            return 1
-        fi
+    candidate=""
+    if fm_docker_ready; then
+        candidate="$(fm_dnspod_build_static)"
     else
-        rm -rf "$build_tmp"
-        echo "[$SCRIPT_INDEX] [ERROR] xcaddy build produced no binary"
+        echo "[$SCRIPT_INDEX] [dnspod] docker not available; trying the native libphp build"
+    fi
+    if [ -z "$candidate" ]; then
+        candidate="$(fm_dnspod_build_native)"
+    fi
+    if [ -z "$candidate" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (needs docker for the official static build, or Go + php-config for a native rebuild)"
         return 1
     fi
+
+    # Candidate sanity BEFORE replacing the live binary: must execute and
+    # carry the module.
+    if ! "$candidate" version >/dev/null 2>&1 \
+        || ! fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE"; then
+        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module probe; keeping $binary"
+        rm -rf "$(dirname "$candidate")"
+        return 1
+    fi
+
+    # One-time backup of the pre-dnspod binary; atomic replace via mv (a
+    # running octane keeps its old mapping - no ETXTBSY).
+    if [ ! -f "${binary}${FRANKENPHP_BACKUP_SUFFIX}" ]; then
+        $USE_SUDO cp "$binary" "${binary}${FRANKENPHP_BACKUP_SUFFIX}"
+    fi
+    $USE_SUDO cp "$candidate" "${binary}.dnspod-new"
+    $USE_SUDO chmod 755 "${binary}.dnspod-new"
+    $USE_SUDO mv -f "${binary}.dnspod-new" "$binary"
+    rm -rf "$(dirname "$candidate")"
+    echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($(fm_version))"
+    fm_store_info
 }
 
 # Canonical Caddyfile render (content-hash idempotent). Mercure JWT values
@@ -275,10 +492,24 @@ fm_caddyfile_ensure() {
     local caddyfile_dir=""
     local rendered=""
     local existing=""
+    local dnspod_tls=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
     if [ ! -d "$caddyfile_dir" ]; then
         mkdir -p "$caddyfile_dir"
+    fi
+
+    # DNS-01 stanza renders ONLY when both truths hold: the module is
+    # embedded in the binary AND the DNSPod token is stored (env placeholder
+    # only - the token itself never enters the file). Sync contract: the
+    # Laravel builder renders the identical gate.
+    dnspod_tls=""
+    if fm_has_module "$FRANKENPHP_DNSPOD_MODULE" && [ -n "$(fm_dnspod_token_value)" ]; then
+        dnspod_tls="	tls {
+		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
+	}
+
+"
     fi
 
     rendered="# Managed by frankenphp_manager.sh (SYNC: ServerManagerV1FrankenPhpManagerCtl)
@@ -291,7 +522,7 @@ https://${site_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-	mercure {
+${dnspod_tls}	mercure {
 		issuer {env.MERCURE_TRUSTED_ISSUERS} {
 			publisher {
 				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
@@ -330,6 +561,19 @@ fm_store_info() {
     set_global_var FRANKENPHP_ADMIN_PORT "$(sc_get ports.frankenphp_admin)" 'false'
 }
 
+# DNS-01 readiness summary (booleans only - never the token value).
+fm_dns01_status() {
+    if ! fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
+        echo "module missing (run: frankenphp_manager.sh dnspod)"
+        return 0
+    fi
+    if [ -z "$(fm_dnspod_token_value)" ]; then
+        echo "module embedded, token not set (built-in ACME active)"
+        return 0
+    fi
+    echo "ready (module embedded + token stored)"
+}
+
 fm_verify() {
     local binary=""
     binary="$(fm_get_binary)"
@@ -340,6 +584,27 @@ fm_verify() {
     echo "[$SCRIPT_INDEX] [VERIFY] binary: $binary ($(fm_version))"
     echo "[$SCRIPT_INDEX] [VERIFY] embedded PHP: $(fm_php_version)"
     echo "[$SCRIPT_INDEX] [VERIFY] dnspod module: $(fm_has_module "$FRANKENPHP_DNSPOD_MODULE" && echo embedded || echo missing)"
+    echo "[$SCRIPT_INDEX] [VERIFY] DNS-01 (dnspod): $(fm_dns01_status)"
     echo "[$SCRIPT_INDEX] [VERIFY] php-cli shim: $([ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ] && echo present || echo missing)"
     echo "[$SCRIPT_INDEX] [VERIFY] plane: $(web_server_plane)"
 }
+
+# Management CLI (same surface the log advertises):
+#   install | verify | status | dnspod | caddyfile <public_dir> <host> <https> <admin> <path>
+if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
+    case "${1:-verify}" in
+        install)
+            fm_install
+            ;;
+        dnspod)
+            fm_ensure_dnspod_module
+            ;;
+        caddyfile)
+            shift
+            fm_caddyfile_ensure "$@"
+            ;;
+        status|verify|*)
+            fm_verify
+            ;;
+    esac
+fi

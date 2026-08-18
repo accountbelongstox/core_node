@@ -367,7 +367,7 @@ _is_real_distinct_mount() {
 }
 
 # True when base $1 actually hosts a real core_node checkout. Uses the SAME adopt
-# predicate as 8_project_validator.sh (a .git entry or package.json under
+# predicate as 7_project_validator.sh (a .git entry or package.json under
 # programing/core_node), so "the project is really here" means the same thing
 # everywhere.
 _path_hosts_project() {
@@ -1203,7 +1203,7 @@ map_web_path() {
     # is SHARED with Windows (Linux /mnt/<ntfs>/www == Windows D:\www). data_base of
     # "/" or "/www" collapses to /www; anything else gets "<data_base>/www". There is
     # NO production short-circuit and NO POSIX coercion: NTFS DATA disks are mounted
-    # uid=/gid= (2_setting_base.sh) so the login user owns the tree, and any residual
+    # uid=/gid= (3_setting_base.sh) so the login user owns the tree, and any residual
     # chmod/chown failure on NTFS is tolerated. PostgreSQL is unaffected -- its data
     # dir stays on native ext4 (pg_mount -> /var/lib/postgresql/d), not under www.
     if [ "$IS_WSL" = true ]; then

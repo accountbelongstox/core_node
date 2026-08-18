@@ -1210,7 +1210,7 @@ remove_apt_repository_from_apt_repository_manager() {
     return 0
 }
 
-# Manage repositories based on control variables (for 2_setting_base.sh)
+# Manage repositories based on control variables (for 3_setting_base.sh)
 # This function manages repositories without automatic restore (permanent addition)
 manage_repositories_from_apt_repository_manager() {
     echo "Managing repositories based on control variables..."

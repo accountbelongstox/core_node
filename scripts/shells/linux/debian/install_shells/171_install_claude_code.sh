@@ -78,9 +78,11 @@ echo "[$SCRIPT_INDEX] ==========================================================
 if [ -s "$MCP_SYNC_ENGINE_LIB" ]; then
     # shellcheck source=/dev/null
     source "$MCP_SYNC_ENGINE_LIB"
-    if command -v mcp_install_all >/dev/null 2>&1; then
-        # mcp_install_all installs Chrome + Context7 MCP then syncs all tools.
-        mcp_install_all || echo "[$SCRIPT_INDEX] WARNING: MCP install/sync reported errors (continuing)."
+    if command -v mcp_install_chrome >/dev/null 2>&1; then
+        # Install Chrome MCP then sync all tools.
+        export MCP_CHROME_BUILD_DONE=0
+        mcp_install_chrome || echo "[$SCRIPT_INDEX] WARNING: Chrome MCP install reported errors (continuing)."
+        mcp_sync_all || echo "[$SCRIPT_INDEX] WARNING: MCP sync reported errors (continuing)."
     elif command -v mcp_sync_all >/dev/null 2>&1; then
         mcp_sync_all || echo "[$SCRIPT_INDEX] WARNING: MCP sync reported errors (continuing)."
     else

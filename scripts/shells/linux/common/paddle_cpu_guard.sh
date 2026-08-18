@@ -13,7 +13,7 @@
 #
 # Safe to SOURCE (pcg_* functions) or RUN directly. Python 3.12/3.13 on
 # Debian/Ubuntu/Kali (system interpreter or $VENV_PYTHON3 venv). Introduced at:
-#   - scripts/shells/linux/debian/install_shells/14_install_python_prereq_packages.sh
+#   - scripts/shells/linux/debian/install_shells/15_install_python_prereq_packages.sh
 #   - scripts/shells/linux/common/iniscripts/prepare.sh (repair-only)
 #
 # Usage:

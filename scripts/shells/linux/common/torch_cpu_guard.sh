@@ -16,7 +16,7 @@
 #   Already correct -> no-op.
 #
 # Safe to SOURCE (use the tcg_* functions) or RUN directly. Introduced at:
-#   - scripts/shells/linux/debian/install_shells/14_install_python_prereq_packages.sh (install time, full mode)
+#   - scripts/shells/linux/debian/install_shells/15_install_python_prereq_packages.sh (install time, full mode)
 #   - scripts/shells/linux/common/iniscripts/prepare.sh (after every prerequisite install, repair-only)
 # Python in-process counterpart (same policy, at import):
 #   pycore/pyfoundations/third_party.py::_ensure_torch_cpu_build_when_no_gpu()

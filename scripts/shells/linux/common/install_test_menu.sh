@@ -150,6 +150,14 @@ execute_selection() {
             # Run selector to get configuration
             echo "Running configuration selector..."
             "${SCRIPT_DIR}/selector_common.sh"
+            local selector_status=$?
+
+            if [ $selector_status -ne 0 ]; then
+                echo "Server configuration cancelled."
+                echo "Press any key to return to menu..."
+                read -n 1
+                return
+            fi
             
             # Get the selected mode after selector runs
             local install_mode=$(get_var "INSTALL_MODE")

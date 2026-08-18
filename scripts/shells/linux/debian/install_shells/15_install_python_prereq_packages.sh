@@ -13,7 +13,7 @@
 
 # Python prerequisite packages installer (Linux — Debian/Ubuntu/Kali).
 #
-# Runs immediately AFTER 13_ensure_python.sh (pip confirmed) and 13_cuda_nvidia_prereq.sh
+# Runs immediately AFTER 13_ensure_python.sh (pip confirmed) and 11_cuda_nvidia_prereq.sh
 # (CUDA/driver when GPU present). Installs captcha/AI backend deps into $VENV_PYTHON3:
 #   - torch + torchvision + torchaudio + ultralytics (YOLO) — one resolver pass
 #   - paddlepaddle (CPU or GPU, driver-matched) + paddleocr + paddlex

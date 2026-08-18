@@ -159,6 +159,7 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::get('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'caddyfile']);
         Route::post('test', [ServerManagerV1FrankenPhpManagerCtl::class, 'testConfig']);
         Route::post('plane', [ServerManagerV1FrankenPhpManagerCtl::class, 'adoptPlane']);
+        Route::post('dnspod-token', [ServerManagerV1FrankenPhpManagerCtl::class, 'storeDnsPodToken']);
     });
 
     // Unified Manager Routes

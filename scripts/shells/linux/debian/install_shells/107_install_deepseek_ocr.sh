@@ -321,7 +321,7 @@ install_dependencies() {
     fi
 
     # REUSE the torch provided by the prerequisite install (13_ensure_python.sh /
-    # 13_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
+    # 11_cuda_nvidia_prereq.sh) when it is importable; never reinstall it (avoids
     # version churn and conflicts in the shared venv). Only install torch if absent.
     torch_metadata="$("$run_python" -m pip show torch 2>/dev/null || true)"
     if [[ "$torch_metadata" == *"Name:"* ]]; then

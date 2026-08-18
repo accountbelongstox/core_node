@@ -24,7 +24,7 @@
 # GPU/CPU: TorchCpuGuard.ps1 and PaddleCpuGuard.ps1 auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
 # Idempotent: each bundle skips when pip metadata already exists.
-# Mirrors linux/debian/install_shells/14_install_python_prereq_packages.sh.
+# Mirrors linux/debian/install_shells/15_install_python_prereq_packages.sh.
 
 [CmdletBinding()]
 param(

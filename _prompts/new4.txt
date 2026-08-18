@@ -7,13 +7,13 @@
 前面的所有脚本
 ···
  - 1_stop_cloud_monitors.sh
-  - 2_setting_base.sh
-  - 6_system_maintenance.sh
-  - 8_project_validator.sh
-  - 10_fix_dns.sh
-  - 13_cuda_nvidia_prereq.sh
+  - 3_setting_base.sh
+  - 5_system_maintenance.sh
+  - 7_project_validator.sh
+  - 9_fix_dns.sh
+  - 11_cuda_nvidia_prereq.sh
   - 13_ensure_python.sh
-  - 14_install_python_prereq_packages.sh
+  - 15_install_python_prereq_packages.sh
   - 15_install_faster_whisper.sh
   - 16_install_node_24.sh
   - 17_enable_pipx.sh

@@ -4277,7 +4277,7 @@ Let me verify the chain (which referenced docs exist/missing), find the conflict
   OK   scripts/shells/linux/common/gvar_common.sh
     def-in: scripts/shells/linux/install_bootstrap.sh
     def-in: scripts/shells/linux/common/gvar_common.sh
-    def-in: scripts/shells/linux/debian/install_shells/8_project_validator.sh
+    def-in: scripts/shells/linux/debian/install_shells/7_project_validator.sh
 
 === conflict-resolution RULES doc candidates in development-guides + scripts/git ===
 GIT_AND_NO_REVERT_SAFETY.md

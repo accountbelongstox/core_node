@@ -36,16 +36,16 @@ INSTALL_TEST_MENU_SCRIPT_RELATIVE="scripts/shells/linux/common/install_test_menu
 SYSTEM_INFO_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/system_info_display.sh"
 UNIFIED_MANAGER_SCRIPT_RELATIVE="scripts/app_manager/linux_sh/app_manager.sh"
 ROUTER_SCRIPT_RELATIVE="scripts/shells/linux/common/linux-router/lnxrouter.sh"
-# 9_disable_ubuntu_auto_updates.sh was merged into the idempotent 6_system_maintenance.sh
+# 9_disable_ubuntu_auto_updates.sh was merged into the idempotent 5_system_maintenance.sh
 # (mirrors + journal cleanup + disable auto-updates); it still disables auto-updates.
-DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/6_system_maintenance.sh"
+DISABLE_UBUNTU_AUTO_UPDATES_SCRIPT_RELATIVE="scripts/shells/linux/debian/install_shells/5_system_maintenance.sh"
 SYNC_ALL_MCP_SCRIPT_RELATIVE="scripts/ai_shtools/sync_all_mcp_servers.sh"
 AI_MCP_MANAGEMENT_MENU_SCRIPT_RELATIVE="scripts/shells/linux/menu_itemshells/menu_func/ai_mcp_management_menu.sh"
 
 # File Paths (relative to CORE_NODE_ROOT_DIR)
 GVAR_COMMON_FILE_RELATIVE="scripts/shells/linux/common/gvar_common.sh"
-SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/2_setting_base.sh"
-PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/8_project_validator.sh"
+SETTING_BASE_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/3_setting_base.sh"
+PROJECT_VALIDATOR_FILE_RELATIVE="scripts/shells/linux/debian/install_shells/7_project_validator.sh"
 
 # Repo root: dd.sh sets CORE_NODE_ROOT_DIR before sourcing this file; if sourced alone, derive from dd_helper path (no export).
 if [ -z "${CORE_NODE_ROOT_DIR:-}" ]; then
