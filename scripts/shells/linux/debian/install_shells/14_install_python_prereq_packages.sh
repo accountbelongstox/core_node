@@ -78,11 +78,11 @@ ipp_resolve_target_python() {
     local version_marker=""
     if [[ -n "$REQUESTED_PYTHON" && -x "$REQUESTED_PYTHON" ]]; then
         TARGET_PY="$REQUESTED_PYTHON"
-        return 0
+        return
     fi
     TARGET_PY="$VENV_PYTHON3"
     if [ -n "$TARGET_PY" ] && [ -x "$TARGET_PY" ]; then
-        return 0
+        return
     fi
     for candidate in python3.13 python3.12 python3 python; do
         if command -v "$candidate" >/dev/null 2>&1; then
@@ -90,22 +90,20 @@ ipp_resolve_target_python() {
         fi
         if [[ "$version_marker" == *"__PYTHON_SUPPORTED__"* ]]; then
             TARGET_PY="$candidate"
-            return 0
+            return
         fi
     done
-    return 1
 }
 
 ipp_verify_pip_ready() {
-    if ! "$TARGET_PY" -m pip --version >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] [ERROR] pip is not available for $TARGET_PY."
+    if [ ! -f "$VENV_PIP" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] pip binary not found at $VENV_PIP."
         echo "[$SCRIPT_INDEX]        Run 13_ensure_python.sh first."
-        return 1
+    else
+        local pip_ver
+        pip_ver="$("$VENV_PIP" --version 2>&1 | awk '{print $2}')"
+        echo "[$SCRIPT_INDEX] pip ready: $pip_ver"
     fi
-    local pip_ver
-    pip_ver="$("$TARGET_PY" -m pip --version 2>&1 | awk '{print $2}')"
-    echo "[$SCRIPT_INDEX] pip ready: $pip_ver"
-    return 0
 }
 
 ipp_report_cuda_state() {
@@ -157,10 +155,18 @@ PY
 
 ipp_requirements_ready() {
     local requirement=""
+    local all_ready=true
     for requirement in "$@"; do
-        pcpi_requirement_satisfied "$TARGET_PY" "$requirement" || return 1
+        if ! pcpi_requirement_satisfied "$TARGET_PY" "$requirement"; then
+            all_ready=false
+            break
+        fi
     done
-    return 0
+    if [ "$all_ready" = true ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
 }
 
 ipp_torch_bundle_ready() {
@@ -168,8 +174,11 @@ ipp_torch_bundle_ready() {
 }
 
 ipp_deps_bundle_ready() {
-    ipp_requirements_ready "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}" \
-        && pcg_paddle_dist_present "$TARGET_PY"
+    if [ "$(ipp_requirements_ready "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}")" = "true" ] && pcg_paddle_dist_present "$TARGET_PY"; then
+        echo "true"
+    else
+        echo "false"
+    fi
 }
 
 ipp_report_import_failures() {
@@ -203,7 +212,7 @@ ipp_report_missing_modules() {
 ipp_sync_opencv_distribution() {
     local package="" installed_package=""
     for package in "${OPENCV_COMPATIBLE_PACKAGES[@]}"; do
-        if "$TARGET_PY" -m pip show "$package" >/dev/null 2>&1; then
+        if "$VENV_PIP" show "$package" >/dev/null 2>&1; then
             installed_package="$package"
             break
         fi
@@ -214,54 +223,50 @@ ipp_sync_opencv_distribution() {
     fi
     if [[ -n "$installed_package" ]]; then
         echo "[$SCRIPT_INDEX] OpenCV metadata exists but cv2 is unavailable; asking pip to repair $installed_package ..."
-        vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "$installed_package" \
+        vpip "$VENV_PIP" install "${PIP_SYSFLAGS[@]}" "$installed_package" \
             && pcpi_import_present "$TARGET_PY" cv2
         return
     fi
     echo "[$SCRIPT_INDEX] OpenCV is missing; installing $OPENCV_PACKAGE ..."
-    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "$OPENCV_PACKAGE" \
+    vpip "$VENV_PIP" install "${PIP_SYSFLAGS[@]}" "$OPENCV_PACKAGE" \
         && pcpi_import_present "$TARGET_PY" cv2
 }
 
 ipp_install_torch_yolo_bundle() {
     echo "[$SCRIPT_INDEX] Ensuring canonical torch build (CPU/GPU guard)..."
     TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
-    if ipp_torch_bundle_ready; then
+    if [ "$(ipp_torch_bundle_ready)" = "true" ]; then
         echo "[$SCRIPT_INDEX] [SKIP] torch/torchvision/torchaudio/ultralytics already present"
-        return 0
+        return
     fi
     echo "[$SCRIPT_INDEX] Installing ultralytics (YOLO) with torch bundle..."
-    echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install ${PIP_SYSFLAGS[*]} ${YOLO_BUNDLE[*]}"
-    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${YOLO_BUNDLE[@]}"
-    if ! ipp_torch_bundle_ready; then
+    echo "[$SCRIPT_INDEX] $VENV_PIP install ${PIP_SYSFLAGS[*]} ${YOLO_BUNDLE[*]}"
+    vpip "$VENV_PIP" install "${PIP_SYSFLAGS[@]}" "${YOLO_BUNDLE[@]}"
+    if [ "$(ipp_torch_bundle_ready)" != "true" ]; then
         echo "[$SCRIPT_INDEX] Rechecking the torch package group after dependency installation..."
         TCG_PYTHON="$TARGET_PY" tcg_ensure_torch_build
     fi
-    if ! ipp_torch_bundle_ready; then
+    if [ "$(ipp_torch_bundle_ready)" != "true" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] torch bundle remains incomplete after repair."
         ipp_report_import_failures "$TORCH_IMPORTS" "failed imports"
-        return 1
     fi
-    return 0
 }
 
 ipp_install_paddle_ocr_bundle() {
     echo "[$SCRIPT_INDEX] Ensuring canonical paddle build (CPU/GPU guard)..."
     PCG_PYTHON="$TARGET_PY" pcg_ensure_paddle_build
-    if ipp_deps_bundle_ready; then
+    if [ "$(ipp_deps_bundle_ready)" = "true" ]; then
         echo "[$SCRIPT_INDEX] [SKIP] paddle ecosystem + backend deps already importable"
-        return 0
+        return
     fi
     echo "[$SCRIPT_INDEX] Installing paddleocr + paddlex + backend deps (single resolver pass)..."
-    echo "[$SCRIPT_INDEX] $TARGET_PY -m pip install ${PIP_SYSFLAGS[*]} ${OCR_BUNDLE[*]} ${BACKEND_BUNDLE[*]}"
-    vpip "$TARGET_PY" -m pip install "${PIP_SYSFLAGS[@]}" "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}"
-    if ! ipp_deps_bundle_ready; then
+    echo "[$SCRIPT_INDEX] $VENV_PIP install ${PIP_SYSFLAGS[*]} ${OCR_BUNDLE[*]} ${BACKEND_BUNDLE[*]}"
+    vpip "$VENV_PIP" install "${PIP_SYSFLAGS[@]}" "${OCR_BUNDLE[@]}" "${BACKEND_BUNDLE[@]}"
+    if [ "$(ipp_deps_bundle_ready)" != "true" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] paddle/backend bundle remains unhealthy after repair."
         ipp_report_import_failures "$PADDLE_IMPORTS" "failed core imports"
         ipp_report_missing_modules "$BACKEND_IMPORTS" "missing backend modules"
-        return 1
     fi
-    return 0
 }
 
 echo "[$SCRIPT_INDEX] ============================================================"
@@ -278,7 +283,8 @@ else
     echo "[$SCRIPT_INDEX]        Run 13_ensure_python.sh first."
 fi
 
-if [[ -n "$TARGET_PY" ]] && ipp_verify_pip_ready; then
+if [[ -n "$TARGET_PY" ]] && [ -f "$VENV_PIP" ]; then
+    ipp_verify_pip_ready
     ipp_report_cuda_state
     echo ""
     ipp_install_torch_yolo_bundle
@@ -293,7 +299,7 @@ if [[ -n "$TARGET_PY" ]] && ipp_verify_pip_ready; then
     echo ""
 
     echo "[$SCRIPT_INDEX] Verifying core imports and backend module availability..."
-    if ipp_torch_bundle_ready && ipp_deps_bundle_ready; then
+    if [ "$(ipp_torch_bundle_ready)" = "true" ] && [ "$(ipp_deps_bundle_ready)" = "true" ]; then
         echo "[$SCRIPT_INDEX] [OK] all prerequisite packages are ready in $TARGET_PY"
     else
         echo "[$SCRIPT_INDEX] [WARN] some required packages remain unavailable:"

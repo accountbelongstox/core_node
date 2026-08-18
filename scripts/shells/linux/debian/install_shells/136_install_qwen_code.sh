@@ -51,23 +51,28 @@ echo "[$SCRIPT_INDEX] ==========================================================
 echo "[$SCRIPT_INDEX] Install Qwen Code ($QWEN_EXEC CLI) via npm"
 echo "[$SCRIPT_INDEX] ============================================================"
 
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[$SCRIPT_INDEX] [SKIP] Server environment without desktop and GPU detected. Skipping Qwen Code installation."
+    return 0
+fi
+
 # Idempotent: skip if qwen already works (anywhere on PATH).
 if command -v "$QWEN_EXEC" >/dev/null 2>&1 && timeout 20 "$QWEN_EXEC" --version >/dev/null 2>&1; then
     echo "[$SCRIPT_INDEX] [SKIP] $QWEN_EXEC already installed: $(command -v "$QWEN_EXEC") ($("$QWEN_EXEC" --version 2>/dev/null | head -1))"
-    exit 0
+    return 0
 fi
 
 NPM_BIN_RESOLVED="$(resolve_npm_bin)"
 if [ -z "$NPM_BIN_RESOLVED" ]; then
     echo "[$SCRIPT_INDEX] [ERROR] npm not found. Run 16_install_node_24.sh first."
-    exit 1
+    return
 fi
 echo "[$SCRIPT_INDEX] Using npm: $NPM_BIN_RESOLVED"
 
 echo "[$SCRIPT_INDEX] Installing $QWEN_NPM_PACKAGE (global)..."
 if ! "$NPM_BIN_RESOLVED" install -g "$QWEN_NPM_PACKAGE"; then
     echo "[$SCRIPT_INDEX] [ERROR] npm install failed for $QWEN_NPM_PACKAGE."
-    exit 1
+    return
 fi
 
 # Verify: qwen lands in the shared NODE_BIN_DIR (on PATH via /etc/environment) or PATH.

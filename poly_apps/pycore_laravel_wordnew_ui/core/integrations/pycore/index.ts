@@ -65,8 +65,14 @@ export {
   isPycoreSecureContext, pnaBlockedReason, isViteDevShell,
   isLoopbackPage, directPycoreHost, pycoreLocalConnectionHint,
   rewritePycoreEndpoint,
+  isPycoreRelayMode, pycoreTargetBackendUrl, normalizePycoreBackendUrl,
 } from './pycoreTarget';
 export type { PycoreTarget, PycorePresetHost } from './pycoreTarget';
+export {
+  relayDeliver, relayDesignate, relayUndesignate, relayPairedMachineId,
+  isRelayForwardingAvailable, isPycoreRelayError,
+} from './PycoreRelayTransport';
+export type { PycoreRelayError, PycoreRelayErrorKind } from './PycoreRelayTransport';
 
 export {
   PYCORE_PORT, PycorePaths,

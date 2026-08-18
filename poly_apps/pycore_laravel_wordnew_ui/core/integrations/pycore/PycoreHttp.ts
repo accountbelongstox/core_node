@@ -3,7 +3,7 @@
  */
 
 import { PycorePaths } from './pycoreEndpoints';
-import { rewritePycoreEndpoint } from './pycoreTarget';
+import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
 import { appendHttpDebug, summarizeHttpParams } from './pycoreHttpLog';
 import { PycoreHttpError, pycoreMasterClient } from './PycoreClient';
 import { StorageManager } from '../../persistence';
@@ -191,6 +191,10 @@ function scheduleEventReconnect(delayMs: number = retryDelayMs): void {
 
 function prepareEventStream(): void {
   if (!started || suspended || eventSource || typeof EventSource === 'undefined') return;
+  // Relay scheme: the pycore-local per-client SSE stream is a direct-transport
+  // concept - realtime arrives through the Laravel Mercure link instead
+  // (LaravelRealtime/LaravelRelayRoster), so no EventSource is opened here.
+  if (isPycoreRelayMode()) return;
   void pycoreMasterClient.ensureClientId()
     .then(() => {
       restoreEventCursor();

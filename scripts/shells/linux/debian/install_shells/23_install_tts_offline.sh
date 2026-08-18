@@ -54,23 +54,22 @@ done
 
 resolve_python() {
     if [[ -x "$VENV_PYTHON3" ]]; then
-        echo "$VENV_PYTHON3"; return 0
+        echo "$VENV_PYTHON3"; return
     fi
     local preferred="$1" name
     if [[ -n "$preferred" ]] && command -v "$preferred" >/dev/null 2>&1; then
-        command -v "$preferred"; return 0
+        command -v "$preferred"; return
     fi
     for name in python3 python; do
         if command -v "$name" >/dev/null 2>&1; then
-            command -v "$name"; return 0
+            command -v "$name"; return
         fi
     done
-    return 1
 }
 
 pip_has_package() {
     local metadata
-    metadata="$("$PYTHON" -m pip show "$1" 2>/dev/null)"
+    metadata="$("$VENV_PIP" show "$1" 2>/dev/null)"
     [[ "$metadata" == *"Name:"* ]]
 }
 
@@ -79,87 +78,93 @@ pip_install() {
     if [[ "$(uname -s)" != "Darwin" ]] && ! venv_is_venv_from_common "$PYTHON"; then
         PIP_ARGS=(--break-system-packages "${PIP_ARGS[@]}")
     fi
-    vpip "$PYTHON" -m pip install "${PIP_ARGS[@]}" || vpip "$PYTHON" -m pip install "$@"
+    vpip "$VENV_PIP" install "${PIP_ARGS[@]}" || vpip "$VENV_PIP" install "$@"
 }
 
 install_sherpa_model() {
     local archive="$1" tmp="$2" mdir="$3" sentinel="$4" url="$5"
-    [[ -f "$archive" ]] || return 1
+    [[ -f "$archive" ]] || return
     rm -rf "$tmp"; mkdir -p "$tmp"
-    if ! "$PYTHON" -c "import tarfile, sys
+    "$PYTHON" -c "import tarfile, sys
 t = tarfile.open(sys.argv[1], 'r:bz2')
 try:
     t.extractall(sys.argv[2], filter='data')
 except TypeError:
     t.extractall(sys.argv[2])
-t.close()" "$archive" "$tmp"; then
-        rm -rf "$tmp"; return 1
-    fi
+t.close()" "$archive" "$tmp" || true
+    
     local inner src
     inner="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
     src="${inner:-$tmp}"
     cp -rf "$src"/* "$mdir"/ 2>/dev/null || true
     if find "$mdir" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
         echo "$url" > "$sentinel"
-        rm -rf "$tmp"; return 0
     fi
-    rm -rf "$tmp"; return 1
+    rm -rf "$tmp"
 }
 
 echo "============================================================"
 echo " Installing offline TTS (Sherpa-ONNX + Kokoro model)"
 echo "============================================================"
 
-if ! PYTHON="$(resolve_python "$PYTHON")"; then
+PYTHON="$(resolve_python "$PYTHON")"
+if [ -z "$PYTHON" ]; then
     echo "[X] Python 3 was NOT found. Run 13_ensure_python.sh first." >&2
-    exit 1
-fi
-echo "  python : $PYTHON"
-_gpu_flag="--cpu"
-if gpu_present; then _gpu_flag="--gpu"; fi
-MODEL_URL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" kokoro_url "$_gpu_flag")"
-tts_official_env_line "$PYTHON" "$SCRIPT_DIR" sherpa | while read -r _line; do
-    echo "  official env (sherpa): $_line"
-done
-echo "  model url: $MODEL_URL ($(echo "$_gpu_flag" | tr -d '-'))"
-
-SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
-if pip_has_package sherpa-onnx; then
-    echo "[OK] sherpa-onnx present."
 else
-    echo "[!] sherpa-onnx not importable; retrying next run." >&2
-    fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
-fi
+    echo "  python : $PYTHON"
+    _gpu_flag="--cpu"
+    if gpu_present; then _gpu_flag="--gpu"; fi
+    MODEL_URL="$(tts_model_tier "$PYTHON" "$SCRIPT_DIR" kokoro_url "$_gpu_flag")"
+    tts_official_env_line "$PYTHON" "$SCRIPT_DIR" sherpa | while read -r _line; do
+        echo "  official env (sherpa): $_line"
+    done
+    echo "  model url: $MODEL_URL ($(echo "$_gpu_flag" | tr -d '-'))"
 
-MODEL_SENTINEL="$MODEL_DIR/.model_installed"
-MODEL_ARCHIVE="$MODEL_DIR/.download.tar.bz2"
-echo "  model dir : $MODEL_DIR"
+    SOG_PYTHON="$PYTHON" bash "$SHERPA_GUARD" --python "$PYTHON"
+    if pip_has_package sherpa-onnx; then
+        echo "[OK] sherpa-onnx present."
+    else
+        echo "[!] sherpa-onnx not importable; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
+    fi
 
-if [[ -f "$MODEL_SENTINEL" ]] && find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q . && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro model present at $MODEL_DIR"
+    MODEL_SENTINEL="$MODEL_DIR/.model_installed"
+    MODEL_ARCHIVE="$MODEL_DIR/.download.tar.bz2"
+    echo "  model dir : $MODEL_DIR"
+
+    if [[ -f "$MODEL_SENTINEL" ]] && find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q . && [[ "$FORCE" -eq 0 ]]; then
+        tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Kokoro model present at $MODEL_DIR"
+        complete_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
+    fi
+
+    mkdir -p "$MODEL_DIR"
+    TMP_EXTRACT="$(mktemp -d)"
+    MODEL_OK=0
+    if [[ -f "$MODEL_ARCHIVE" ]]; then
+        install_sherpa_model "$MODEL_ARCHIVE" "$TMP_EXTRACT" "$MODEL_DIR" "$MODEL_SENTINEL" "$MODEL_URL"
+        if find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
+            MODEL_OK=1
+        fi
+    fi
+    if [[ "$MODEL_OK" -eq 0 ]]; then
+        curl -fL -C - --retry 3 --connect-timeout 30 "$MODEL_URL" -o "$MODEL_ARCHIVE" \
+            || wget -c -q "$MODEL_URL" -O "$MODEL_ARCHIVE" || true
+        if [[ -f "$MODEL_ARCHIVE" ]]; then
+            install_sherpa_model "$MODEL_ARCHIVE" "$TMP_EXTRACT" "$MODEL_DIR" "$MODEL_SENTINEL" "$MODEL_URL"
+            if find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
+                MODEL_OK=1
+            else
+                echo "[!] Archive incomplete after download; KEPT to RESUME next boot."
+            fi
+        else
+            echo "[!] Download incomplete; partial archive KEPT. edge/ai TTS still work."
+        fi
+    fi
+    rm -rf "$TMP_EXTRACT" 2>/dev/null || true
+    if [[ "$MODEL_OK" -ne 1 ]] || [[ ! -f "$MODEL_SENTINEL" ]] \
+        || ! find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
+        echo "[!] Kokoro model is incomplete; retrying next run." >&2
+        fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
+    fi
     complete_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
 fi
-
-mkdir -p "$MODEL_DIR"
-TMP_EXTRACT="$(mktemp -d)"
-MODEL_OK=0
-if [[ -f "$MODEL_ARCHIVE" ]]; then
-    install_sherpa_model "$MODEL_ARCHIVE" "$TMP_EXTRACT" "$MODEL_DIR" "$MODEL_SENTINEL" "$MODEL_URL" && MODEL_OK=1
-fi
-if [[ "$MODEL_OK" -eq 0 ]]; then
-    if curl -fL -C - --retry 3 --connect-timeout 30 "$MODEL_URL" -o "$MODEL_ARCHIVE" \
-        || wget -c -q "$MODEL_URL" -O "$MODEL_ARCHIVE"; then
-        install_sherpa_model "$MODEL_ARCHIVE" "$TMP_EXTRACT" "$MODEL_DIR" "$MODEL_SENTINEL" "$MODEL_URL" \
-            && MODEL_OK=1 \
-            || echo "[!] Archive incomplete after download; KEPT to RESUME next boot."
-    else
-        echo "[!] Download incomplete; partial archive KEPT. edge/ai TTS still work."
-    fi
-fi
-rm -rf "$TMP_EXTRACT" 2>/dev/null || true
-if [[ "$MODEL_OK" -ne 1 ]] || [[ ! -f "$MODEL_SENTINEL" ]] \
-    || ! find "$MODEL_DIR" -name '*.onnx' -type f 2>/dev/null | grep -q .; then
-    echo "[!] Kokoro model is incomplete; retrying next run." >&2
-    fail_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx
-fi
-complete_prereq_step "$PYTHON" "[install_tts_offline] " sherpa_onnx

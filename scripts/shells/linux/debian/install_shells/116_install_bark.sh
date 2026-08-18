@@ -43,6 +43,7 @@ done
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
@@ -61,6 +62,12 @@ resolve_python() {
 echo "============================================================"
 echo " [install_bark] Bark (Suno / transformers)"
 echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_bark] [skip] Server environment without desktop and GPU detected. Skipping Bark installation."
+    complete_prereq_step "$PYTHON" "[install_bark] " --absent-ok "server CPU host" transformers
+    exit 0
+fi
 
 [[ "${BARK_SKIP:-0}" == "1" ]] && { echo "[install_bark] [i] BARK_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_bark] " --absent-ok "BARK_SKIP=1" transformers; }
 if tts_dependencies_ready "$PYTHON" "bark" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 && "$DO_FULL" -eq 0 ]]; then

@@ -85,61 +85,62 @@ fi
 if ! command -v pnpm >/dev/null 2>&1; then
     echo "[$SCRIPT_INDEX] ERROR: pnpm not found in PATH"
     echo "[$SCRIPT_INDEX] Please run 29_ensure_pnpm_packages.sh first"
-    exit 1
-fi
+else
+    echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
+    echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"
 
-echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
-echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"
+    # Function to install pnpm package
+    install_pnpm_package() {
+        local package=$1
+        # Idempotency: skip if the global package is already installed so re-runs are
+        # fast no-ops and never re-resolve the whole global store.
+        if pnpm list -g "$package" >/dev/null 2>&1 && pnpm list -g "$package" 2>/dev/null | grep -q "$package"; then
+            echo "[$SCRIPT_INDEX] $package already installed, skipping"
+            return
+        fi
+        echo "[$SCRIPT_INDEX] Installing $package..."
+        # npm_config_confirm_modules_purge=false is already exported at script top (no-TTY purge guard).
+        if pnpm add -g "$package"; then
+            echo "[$SCRIPT_INDEX] $package installed successfully"
+        else
+            echo "[$SCRIPT_INDEX] Failed to install $package"
+        fi
+    }
 
-# Function to install pnpm package
-install_pnpm_package() {
-    local package=$1
-    # Idempotency: skip if the global package is already installed so re-runs are
-    # fast no-ops and never re-resolve the whole global store.
-    if pnpm list -g "$package" >/dev/null 2>&1 && pnpm list -g "$package" 2>/dev/null | grep -q "$package"; then
-        echo "[$SCRIPT_INDEX] $package already installed, skipping"
-        return 0
+    # Install rebrowser packages (best anti-detection)
+    echo "[$SCRIPT_INDEX] Installing rebrowser packages..."
+    install_pnpm_package "rebrowser-puppeteer-core"
+    install_pnpm_package "rebrowser-puppeteer"
+
+    # Install puppeteer-real-browser
+    echo "[$SCRIPT_INDEX] Installing puppeteer-real-browser..."
+    install_pnpm_package "puppeteer-real-browser"
+
+    # Install puppeteer-extra and plugins
+    echo "[$SCRIPT_INDEX] Installing puppeteer-extra and plugins..."
+    install_pnpm_package "puppeteer-extra"
+    install_pnpm_package "puppeteer-extra-plugin-stealth"
+    install_pnpm_package "puppeteer-extra-plugin-adblocker"
+    install_pnpm_package "puppeteer-extra-plugin-anonymize-ua"
+    install_pnpm_package "puppeteer-extra-plugin-user-preferences"
+    install_pnpm_package "puppeteer-extra-plugin-recaptcha"
+    install_pnpm_package "puppeteer-extra-plugin-block-resources"
+
+    # Apply rebrowser patches to puppeteer-core if installed
+    echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
+    if pnpm list -g puppeteer-core >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
+        local pnpm_global_root="$(pnpm root -g 2>/dev/null)"
+        if [ -n "$pnpm_global_root" ] && [ -d "$pnpm_global_root" ]; then
+            local target_dir="$(dirname "$pnpm_global_root")"
+            (cd "$target_dir" && pnpm dlx rebrowser-patches@latest patch --packageName puppeteer-core) || true
+        fi
     fi
-    echo "[$SCRIPT_INDEX] Installing $package..."
-    # npm_config_confirm_modules_purge=false is already exported at script top (no-TTY purge guard).
-    if pnpm add -g "$package"; then
-        echo "[$SCRIPT_INDEX] $package installed successfully"
-        return 0
-    else
-        echo "[$SCRIPT_INDEX] Failed to install $package"
-        return 1
-    fi
-}
 
-# Install rebrowser packages (best anti-detection)
-echo "[$SCRIPT_INDEX] Installing rebrowser packages..."
-install_pnpm_package "rebrowser-puppeteer-core"
-install_pnpm_package "rebrowser-puppeteer"
-
-# Install puppeteer-real-browser
-echo "[$SCRIPT_INDEX] Installing puppeteer-real-browser..."
-install_pnpm_package "puppeteer-real-browser"
-
-# Install puppeteer-extra and plugins
-echo "[$SCRIPT_INDEX] Installing puppeteer-extra and plugins..."
-install_pnpm_package "puppeteer-extra"
-install_pnpm_package "puppeteer-extra-plugin-stealth"
-install_pnpm_package "puppeteer-extra-plugin-adblocker"
-install_pnpm_package "puppeteer-extra-plugin-anonymize-ua"
-install_pnpm_package "puppeteer-extra-plugin-user-preferences"
-install_pnpm_package "puppeteer-extra-plugin-recaptcha"
-install_pnpm_package "puppeteer-extra-plugin-block-resources"
-
-# Apply rebrowser patches to puppeteer-core if installed
-echo "[$SCRIPT_INDEX] Applying rebrowser patches..."
-if pnpm list -g puppeteer-core >/dev/null 2>&1; then
-    echo "[$SCRIPT_INDEX] Patching puppeteer-core with rebrowser-patches..."
-    pnpm dlx rebrowser-patches@latest patch --packageName puppeteer-core || true
+    echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"
+    echo "[$SCRIPT_INDEX] Installed packages:"
+    echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer-core (best anti-detection)"
+    echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer"
+    echo "[$SCRIPT_INDEX]   - puppeteer-real-browser"
+    echo "[$SCRIPT_INDEX]   - puppeteer-extra + stealth, adblocker, anonymize-ua plugins"
 fi
-
-echo "[$SCRIPT_INDEX] Puppeteer anti-detection plugins installation completed"
-echo "[$SCRIPT_INDEX] Installed packages:"
-echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer-core (best anti-detection)"
-echo "[$SCRIPT_INDEX]   - rebrowser-puppeteer"
-echo "[$SCRIPT_INDEX]   - puppeteer-real-browser"
-echo "[$SCRIPT_INDEX]   - puppeteer-extra + stealth, adblocker, anonymize-ua plugins"

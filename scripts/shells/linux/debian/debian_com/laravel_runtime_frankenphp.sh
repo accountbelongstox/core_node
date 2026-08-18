@@ -82,6 +82,9 @@ export MERCURE_PUBLISHER_JWT_ALG="HS256"
 export MERCURE_SUBSCRIBER_JWT_KEY="$MERCURE_SUBSCRIBER_JWT"
 export MERCURE_SUBSCRIBER_JWT_ALG="HS256"
 export MERCURE_TRUSTED_ISSUERS
+# Embedded PHP ini scan dir (34_configure_php85.sh frankenphp plane target):
+# the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
+export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"
 
 cd "$LARAVEL_DIR" || exit 1
 

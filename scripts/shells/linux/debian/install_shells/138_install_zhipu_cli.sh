@@ -41,6 +41,7 @@ echo "[$SCRIPT_INDEX] ==========================================================
 echo "[$SCRIPT_INDEX] Install Zhipu AI official Python SDK"
 echo "[$SCRIPT_INDEX] ============================================================"
 
+
 PYTHON_BIN_RESOLVED="$(resolve_python_bin)"
 if [ -z "$PYTHON_BIN_RESOLVED" ]; then
     echo "[$SCRIPT_INDEX] [!] Python is unavailable; retrying after Python setup."

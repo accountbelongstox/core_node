@@ -43,6 +43,7 @@ resolve_python() {
 
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
@@ -51,6 +52,14 @@ pip_i() { vpip "$PYTHON" -m pip install --break-system-packages "$@" 2>/dev/null
 echo "============================================================"
 echo " [install_voxcpm2] VoxCPM2 (OpenBMB)"
 echo "============================================================"
+
+echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_voxcpm2] [skip] Server environment without desktop and GPU detected. Skipping VoxCPM2 installation."
+    complete_prereq_step "$PYTHON" "[install_voxcpm2] " --absent-ok "server CPU host" voxcpm
+    exit 0
+fi
 
 # Honor the skip flag FIRST (before the opt-in / --full gate) so it wins even when the
 # NEURAL_TTS_INSTALL batch would otherwise force a full install. --absent-ok keeps the skip

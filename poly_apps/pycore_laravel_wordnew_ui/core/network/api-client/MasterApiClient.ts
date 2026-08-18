@@ -311,6 +311,16 @@ export abstract class MasterApiClient {
 
   // ---- Internals ----
 
+  /**
+   * One network delivery. Default: plain fetch to the resolved URL.
+   * Subclasses routing through a framed transport (e.g. the pycore relay
+   * scheme) override this hook - the queue/ceiling/replay semantics above
+   * then apply unchanged on top of the overridden leg.
+   */
+  protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+    return fetch(url, { ...init, ...(signal ? { signal } : {}) });
+  }
+
   /** One fetch with live base URL + auth headers and the abort ceiling. */
   private async send(
     endpoint: string,
@@ -329,11 +339,7 @@ export abstract class MasterApiClient {
       ? setTimeout(() => controller.abort(), ceiling)
       : null;
     try {
-      return await fetch(`${baseUrl}${endpoint}`, {
-        ...init,
-        headers,
-        ...(controller ? { signal: controller.signal } : {}),
-      });
+      return await this.deliver(`${baseUrl}${endpoint}`, { ...init, headers }, controller?.signal);
     } finally {
       if (timeoutId !== null) clearTimeout(timeoutId);
     }

@@ -89,7 +89,7 @@ INSTALL_SHELLS_DIR="$REPO_ROOT/scripts/shells/linux/debian/install_shells"
 
 pt_add_task "sherpa-core"     "23_install_tts_offline"    "bash '$INSTALL_SHELLS_DIR/23_install_tts_offline.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "edge-tts"        "22_install_edge_tts"       "bash '$INSTALL_SHELLS_DIR/22_install_edge_tts.sh' --python '$PYTHON' $FORCE_ARG"
-pt_add_task "faster-whisper"  "15_install_faster_whisper" "bash '$INSTALL_SHELLS_DIR/15_install_faster_whisper.sh' --python '$PYTHON' $FORCE_ARG"
+pt_add_task "faster-whisper"  "120_install_faster_whisper" "bash '$INSTALL_SHELLS_DIR/120_install_faster_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "openai-whisper"  "109_install_whisper"       "bash '$INSTALL_SHELLS_DIR/109_install_whisper.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "vosk"            "110_install_vosk"          "bash '$INSTALL_SHELLS_DIR/110_install_vosk.sh' --python '$PYTHON' $FORCE_ARG"
 pt_add_task "azure-sdk"       "pip azure-speech"          ". '$PT_COMMON_DIR/base_libs/pip_lock.sh'; vpip '$PYTHON' -m pip install azure-cognitiveservices-speech"

@@ -1309,6 +1309,26 @@ main() {
     post_installation_verification
 }
 
+# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): the resolver
+# is the SHARED php_runtime_plane() in the PHP common area - no local
+# plane parsing. frankenphp plane = the binary's embedded PHP 8.5 + the
+# php/php-cli shims (NO apt PHP); the system plane keeps the classic apt
+# flow below unchanged.
+PHP_RUNTIME_PLANE_ACTIVE=""
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
+PHP_RUNTIME_PLANE_ACTIVE="$(php_runtime_plane)"
+if [ "$PHP_RUNTIME_PLANE_ACTIVE" = "frankenphp" ]; then
+    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (embedded PHP, no apt PHP)${NC}"
+    fm_install
+    fm_ensure_php_cli_shim
+    fm_php_ini_ensure
+    echo -e "${GREEN}$SCRIPT_INDEX FrankenPHP plane PHP ready: embedded $(fm_php_version), php-cli shim at /usr/local/bin/php${NC}"
+    exit 0
+fi
+
 # Execute main function with error handling
 main "$@"
 exit_code=$?

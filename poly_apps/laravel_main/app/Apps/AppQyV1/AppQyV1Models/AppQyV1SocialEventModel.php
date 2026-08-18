@@ -71,7 +71,7 @@ class AppQyV1SocialEventModel extends AppQyV1Model
 
     /**
      * Persist one committed recipient event for bounded cursor recovery and
-     * asynchronous Reverb publication.
+     * asynchronous Mercure publication.
      */
     public static function emit(int $userId, string $event, array $data): void
     {

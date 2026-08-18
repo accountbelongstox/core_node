@@ -382,18 +382,59 @@ const laravelMethods = {
     machineId: string,
     requestId: string,
     wait = false,
+    signal?: AbortSignal,
   ): Promise<RelayStoredResponse | null> => {
-    const payload = await requestLaravel<any>(
-      'GET',
-      ROUTES.relayResponse(machineId, requestId),
-      wait ? { wait: 1 } : {},
-    ).catch((error: any) => {
-      if (error && error.status === 404) return null;
-      throw error;
-    });
-    if (!payload) return null;
-    const data = unwrapData<{ response: RelayStoredResponse }>(payload);
+    // A caller-provided signal owns the deadline - the shared transport's
+    // default ceiling (15 s) is shorter than the server long-poll bound
+    // (~25 s), so the wait=1 poll MUST bypass it.
+    const response = await laravelHttp.rawRequest(
+      ROUTES.relayResponse(machineId, requestId) + (wait ? '?wait=1' : ''),
+      { method: 'GET', credentials: 'include', ...(signal ? { signal } : {}) },
+    );
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
+    const data = unwrapData<{ response: RelayStoredResponse }>(await response.json());
     return data.response ?? null;
+  },
+  /**
+   * Blob upload (relay plane): one raw-bytes chunk per call. Query params
+   * carry the continuation contract (blob_id reuse, chunk index, last
+   * flag); the server reassembles + enforces the chunk/total caps.
+   */
+  relayBlobCreate: async (
+    machineId: string,
+    blobId: string | null,
+    chunkIndex: number,
+    last: boolean,
+    bytes: ArrayBuffer | Uint8Array,
+  ): Promise<{ blob_id: string; chunks: number; received_bytes: number; complete: boolean }> => {
+    const query = new URLSearchParams({
+      chunk_index: String(chunkIndex),
+      chunk_last: last ? '1' : '0',
+      ...(blobId ? { blob_id: blobId } : {}),
+    });
+    const response = await laravelHttp.rawRequest(
+      `${ROUTES.relayBlobCreate(machineId)}?${query.toString()}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: bytes instanceof Uint8Array ? bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) : bytes,
+        credentials: 'include',
+      },
+    );
+    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
+    return unwrapData<{ blob: { blob_id: string; chunks: number; received_bytes: number; complete: boolean } }>(
+      await response.json(),
+    ).blob;
+  },
+  /** Blob download (relay plane): reassembled bytes for a body ref. */
+  relayBlobFetch: async (machineId: string, blobId: string): Promise<Uint8Array> => {
+    const response = await laravelHttp.rawRequest(
+      ROUTES.relayBlobFetch(machineId, blobId),
+      { method: 'GET', credentials: 'include' },
+    );
+    if (!response.ok) throw new Error(`LARAVEL_HTTP_${response.status}`);
+    return new Uint8Array(await response.arrayBuffer());
   },
   /**
    * Rich aggregate snapshot for the Queue Center strip. This endpoint is now

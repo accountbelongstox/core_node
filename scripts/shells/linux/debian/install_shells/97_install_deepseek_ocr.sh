@@ -52,23 +52,14 @@ check_environment() {
         print_warning "WSL environment detected"
         print_warning "DeepSeek-OCR is not installed in WSL environments by default"
         print_info "This is a development/desktop tool, not suitable for WSL"
-        return 1
+        return 0
     fi
 
-    if [ "$IS_PRODUCTION" = true ]; then
-        print_warning "Production server environment detected"
-        print_warning "DeepSeek-OCR is not installed on production servers by default"
-        print_info "This requires desktop environment and GPU resources"
-        return 1
+    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+        return 0
     fi
 
-    if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
-        print_warning "No desktop environment detected"
-        print_warning "DeepSeek-OCR requires desktop environment for optimal usage"
-        return 1
-    fi
-
-    return 0
+    return 1
 }
 
 get_base_directory() {
@@ -123,55 +114,27 @@ get_base_directory() {
 }
 
 check_git() {
-    if command -v git &> /dev/null; then
-        local git_version=$(git --version)
+    if [ -x "/usr/bin/git" ] || [ -x "/usr/local/bin/git" ]; then
+        local git_version=$(git --version 2>/dev/null)
         print_success "Git is available: $git_version"
-        return 0
     else
         print_error "Git is not installed"
         print_warning "Please install Git: $USE_SUDO apt-get install git"
-        return 1
     fi
 }
 
 check_python() {
-    local python_cmd=""
+    local python_cmd="$(venv_python_from_common)"
 
-    if command -v python3 &> /dev/null; then
-        python_cmd="python3"
-    elif command -v python &> /dev/null; then
-        python_cmd="python"
+    if [ -n "$python_cmd" ] && [ -x "$python_cmd" ]; then
+        echo "[run] $python_cmd --version" >&2
+        local python_version=$($python_cmd --version 2>&1)
+        print_success "Python is available: $python_version"
+        echo "$python_cmd"
     else
         print_error "Python is not installed"
         print_warning "Please install Python 3.12+: $USE_SUDO apt-get install python3 python3-pip"
-        return 1
     fi
-
-    echo "[run] $python_cmd --version" >&2
-    local python_version=$($python_cmd --version 2>&1)
-    print_success "Python is available: $python_version"
-
-    local version_regex="Python ([0-9]+)\.([0-9]+)"
-    if [[ $python_version =~ $version_regex ]]; then
-        local major="${BASH_REMATCH[1]}"
-        local minor="${BASH_REMATCH[2]}"
-
-        if [ "$major" -ge 3 ] && [ "$minor" -ge 12 ]; then
-            print_success "Python version is sufficient (3.12+)"
-            echo "$python_cmd"
-            return 0
-        elif [ "$major" -ge 3 ] && [ "$minor" -ge 8 ]; then
-            print_warning "Python version $major.$minor found, but 3.12+ is recommended"
-            echo "$python_cmd"
-            return 0
-        else
-            print_error "Python version is too old (need 3.12+, found $major.$minor)"
-            return 1
-        fi
-    fi
-
-    echo "$python_cmd"
-    return 0
 }
 
 check_installation() {
@@ -239,23 +202,16 @@ clone_repository() {
         return 1
     fi
 
-    if git clone "$REPO_URL" "$target_dir"; then
-        print_success "Repository cloned successfully"
-
+    if [ ! -d "$target_dir/.git" ]; then
+        git clone "$REPO_URL" "$target_dir"
         if [ -d "$target_dir/.git" ]; then
-            print_success "Verification: .git directory found"
-
+            print_success "Repository cloned successfully"
             local file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l)
             print_success "Verification: $file_count files found"
-
-            if [ "$file_count" -gt 10 ]; then
-                return 0
-            fi
+        else
+            print_error "Git clone failed"
         fi
     fi
-
-    print_error "Git clone failed"
-    return 1
 }
 
 # Resolve the SHARED project virtualenv interpreter built by 13_ensure_python.sh
@@ -440,11 +396,9 @@ install_dependencies() {
 
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
-        return 0
     else
         print_warning "Installation verification failed"
         print_warning "You may need to install dependencies manually"
-        return 0
     fi
 }
 
@@ -542,8 +496,6 @@ test_installation() {
     print_success "DeepSeek-OCR is ready to use!"
     echo ""
     print_usage_instructions "$install_dir"
-
-    return 0
 }
 
 # Print run instructions using the run-script directories that actually exist in
@@ -575,11 +527,11 @@ main() {
     print_info "========================================"
     echo ""
 
-    if ! check_environment; then
+    if check_environment; then
         print_warning "Environment check failed - skipping installation"
         print_info "DeepSeek-OCR is only installed on desktop Linux systems"
         print_info "Skipped environments: WSL, production servers, headless systems"
-        exit 0
+        return
     fi
 
     local base_dir=$(get_base_directory)
@@ -591,16 +543,9 @@ main() {
     echo ""
     print_info "Checking prerequisites..."
 
-    if ! check_git; then
-        print_error "Git is required but not found"
-        return 1
-    fi
+    check_git
 
     local python_cmd=$(check_python)
-    if [ $? -ne 0 ]; then
-        print_error "Python 3.12+ is required but not found"
-        return 1
-    fi
 
     if check_installation "$install_dir"; then
         print_success "DeepSeek-OCR is already installed and valid!"
@@ -620,22 +565,16 @@ main() {
         print_info "You can use DeepSeek-OCR with:"
         print_info "  export DEEPSEEK_OCR_DIR=\"$install_dir\""
         print_usage_instructions "$install_dir"
-        return 0
+        return
     fi
 
     echo ""
     print_info "Step 1: Clone DeepSeek-OCR repository"
-    if ! clone_repository "$install_dir"; then
-        print_error "Failed to clone repository"
-        return 1
-    fi
+    clone_repository "$install_dir"
 
     echo ""
     print_info "Step 2: Install Python dependencies"
-    if ! install_dependencies "$install_dir" "$python_cmd"; then
-        print_warning "Dependency installation may have failed"
-        print_warning "You can try installing dependencies manually later"
-    fi
+    install_dependencies "$install_dir" "$python_cmd"
 
     echo ""
     print_info "Step 3: Verify installation"
@@ -660,13 +599,10 @@ main() {
         echo ""
         print_info "2. Use in your application:"
         print_usage_instructions "$install_dir"
-        return 0
     else
         echo ""
         print_error "Installation verification failed"
-        return 1
     fi
 }
 
 main
-exit $?

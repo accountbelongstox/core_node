@@ -92,7 +92,7 @@ PREREQ_ENTRIES=(
     "document_parsing|106_install_document_parsing.sh|||0"
     "dictionaries|107_install_dictionaries.sh|||0"
     "ocr|108_install_ocr.sh|||0"
-    "faster_whisper|15_install_faster_whisper.sh|||0"
+    "faster_whisper|120_install_faster_whisper.sh|||0"
     "whisper|109_install_whisper.sh|||0"
     "vosk|110_install_vosk.sh|||0"
     "edge_tts|22_install_edge_tts.sh|||0"

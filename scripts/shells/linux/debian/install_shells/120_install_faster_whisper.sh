@@ -167,6 +167,12 @@ echo "============================================================"
 echo " Installing faster-whisper (default STT for Video Extraction)"
 echo "============================================================"
 
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_faster_whisper] [skip] Server environment without desktop and GPU detected. Skipping faster-whisper installation."
+    complete_prereq_step "$PYTHON" "[install_faster_whisper] " --absent-ok "server CPU host" faster_whisper
+    exit 0
+fi
+
 # --- 0) resolve python (13_ensure_python.sh has already run in install flow) --- #
 # Prefer the shared venv built by 13_ensure_python.sh so packages install INTO the
 # venv (not the externally-managed system python). An explicit --python still wins.

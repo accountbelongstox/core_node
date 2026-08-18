@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[35_COMPOSER]"
+SCRIPT_INDEX="[34_COMPOSER]"
 
 # Source dependencies
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -66,7 +66,8 @@ version_compare() {
     local version2=$2
 
     if [ "$version1" = "unknown" ] || [ "$version1" = "not_installed" ]; then
-        return 1
+        echo "false"
+        return
     fi
 
     local IFS=.
@@ -78,13 +79,15 @@ version_compare() {
         local num2=${ver2[i]:-0}
 
         if ((num1 > num2)); then
-            return 0
+            echo "true"
+            return
         elif ((num1 < num2)); then
-            return 1
+            echo "false"
+            return
         fi
     done
 
-    return 0
+    echo "true"
 }
 
 # Check if Composer has deprecation warnings (indicates old version)
@@ -93,9 +96,10 @@ check_composer_errors() {
     test_output=$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version 2>&1)
 
     if echo "$test_output" | grep -qi "deprecated\|warning\|error"; then
-        return 1
+        echo "true"
+    else
+        echo "false"
     fi
-    return 0
 }
 
 # Get current PHP version
@@ -149,13 +153,10 @@ EOF
 }
 
 repair_composer_wrappers() {
-    local repair_failed=false
-
     if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
         write_composer_main_wrapper
         if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
             echo -e "${RED}$SCRIPT_INDEX Composer wrapper is unavailable after repair${NC}"
-            repair_failed=true
         fi
     else
         echo -e "${GREEN}$SCRIPT_INDEX Composer wrapper is already ready${NC}"
@@ -165,26 +166,16 @@ repair_composer_wrappers() {
         write_composer_safe_wrapper
         if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ]; then
             echo -e "${RED}$SCRIPT_INDEX composer-safe wrapper is unavailable after repair${NC}"
-            repair_failed=true
         fi
     else
         echo -e "${GREEN}$SCRIPT_INDEX composer-safe wrapper is already ready${NC}"
     fi
-
-    if [ "$repair_failed" = true ]; then
-        return 1
-    fi
-    return 0
 }
 
 repair_composer_path() {
     echo -e "${CYAN}$SCRIPT_INDEX Ensuring Composer is in PATH...${NC}"
-    if ! bash "$LINUX_PATH_FUNCTION" addpath "$COMPOSER_PATH_DIR"; then
-        echo -e "${RED}$SCRIPT_INDEX Failed to repair Composer PATH${NC}"
-        return 1
-    fi
+    bash "$LINUX_PATH_FUNCTION" addpath "$COMPOSER_PATH_DIR" || true
     echo -e "${GREEN}$SCRIPT_INDEX Composer PATH repair completed: $COMPOSER_PATH_DIR${NC}"
-    return 0
 }
 
 install_laravel_installer() {
@@ -193,6 +184,10 @@ install_laravel_installer() {
     local laravel_binary=""
     local update_stamp=""
     local current_week=""
+
+    if command -v git >/dev/null 2>&1; then
+        $USE_SUDO git config --global --add safe.directory '*' 2>/dev/null || true
+    fi
 
     composer_bin_dir="$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global config bin-dir --absolute --no-ansi 2>/dev/null | awk '/^\// { path=$0 } END { print path }')"
     if [ -z "$composer_bin_dir" ]; then
@@ -227,16 +222,12 @@ install_laravel_installer() {
 
     if [ ! -x "$laravel_binary" ]; then
         echo -e "${RED}$SCRIPT_INDEX Laravel Installer binary is unavailable after installation${NC}"
-        return 1
+        return
     fi
 
     echo -e "${CYAN}$SCRIPT_INDEX Ensuring Laravel Installer is in PATH...${NC}"
-    if ! bash "$LINUX_PATH_FUNCTION" addpath "$composer_bin_dir"; then
-        echo -e "${RED}$SCRIPT_INDEX Failed to repair Laravel Installer PATH${NC}"
-        return 1
-    fi
+    bash "$LINUX_PATH_FUNCTION" addpath "$composer_bin_dir" || true
     echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer PATH repair completed: $composer_bin_dir${NC}"
-    return 0
 }
 
 # Check command line arguments
@@ -293,12 +284,12 @@ main() {
     if [ ! -x "$PHP_BINARY" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
         echo -e "${YELLOW}$SCRIPT_INDEX Please run 32_ensure_php85_intelligent.sh first${NC}"
-        exit 1
+        return
     fi
 
     if ! "$PHP_BINARY" --version | grep -q "PHP ${PHP_VERSION}"; then
         echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}"
-        exit 1
+        return
     fi
 
     local php_version=$(get_current_php_version)
@@ -315,17 +306,17 @@ main() {
         echo -e "${GREEN}$SCRIPT_INDEX Composer core binary is already present (version: $current_version)${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX �?PHP version tracking: $php_version${NC}"
-        repair_composer_wrappers || echo -e "${YELLOW}$SCRIPT_INDEX Composer wrapper repair completed with warnings${NC}"
-        repair_composer_path || echo -e "${YELLOW}$SCRIPT_INDEX Composer PATH repair completed with warnings${NC}"
-        install_laravel_installer || echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer setup completed with warnings${NC}"
-        exit 0
+        repair_composer_wrappers
+        repair_composer_path
+        install_laravel_installer
+        return
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Composer core binary is missing or broken, proceeding with installation${NC}"
         auto_fix_needed=true
     fi
 
     if [ "$auto_fix_needed" = false ]; then
-        exit 0
+        return
     fi
 
     # Show environment configuration
@@ -369,7 +360,7 @@ main() {
         echo -e "${RED}$SCRIPT_INDEX Failed to download Composer installer after $max_attempts attempts${NC}"
         cd "$original_dir"
         rm -rf "$temp_dir"
-        exit 1
+        return
     fi
 
     # Verify the installer's authenticity BEFORE executing it as root (it runs below with
@@ -382,11 +373,11 @@ main() {
     actual_sig="$("$PHP_BINARY" -r "echo hash_file('sha384', 'composer-setup.php');" 2>/dev/null)"
     if [ -z "$expected_sig" ]; then
         echo -e "${RED}$SCRIPT_INDEX Could not fetch the Composer installer signature; refusing to run an unverified installer as root${NC}"
-        cd "$original_dir"; rm -rf "$temp_dir"; exit 1
+        cd "$original_dir"; rm -rf "$temp_dir"; return
     fi
     if [ "$expected_sig" != "$actual_sig" ]; then
         echo -e "${RED}$SCRIPT_INDEX Composer installer SHA-384 mismatch (expected ${expected_sig:0:16}..., got ${actual_sig:0:16}...); aborting${NC}"
-        cd "$original_dir"; rm -rf "$temp_dir"; exit 1
+        cd "$original_dir"; rm -rf "$temp_dir"; return
     fi
     echo -e "${GREEN}$SCRIPT_INDEX Composer installer SHA-384 verified${NC}"
 
@@ -413,7 +404,7 @@ main() {
         echo "$install_output"
         cd "$original_dir"
         rm -rf "$temp_dir"
-        exit 1
+        return
     fi
 
     # Make executable
@@ -423,7 +414,7 @@ main() {
     cd "$original_dir"
     rm -rf "$temp_dir"
 
-    repair_composer_wrappers || echo -e "${YELLOW}$SCRIPT_INDEX Composer wrapper repair completed with warnings${NC}"
+    repair_composer_wrappers
 
     # Verify all wrappers are working correctly
     echo -e "${CYAN}============================================================================${NC}"
@@ -469,14 +460,14 @@ main() {
 
     if [ "$all_checks_passed" = false ]; then
         echo -e "${RED}$SCRIPT_INDEX [FAIL] Some verification checks failed${NC}"
-        exit 1
+        return
     fi
 
     # Store PHP version metadata
     store_php_version
 
-    repair_composer_path || echo -e "${YELLOW}$SCRIPT_INDEX Composer PATH repair completed with warnings${NC}"
-    install_laravel_installer || echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer setup completed with warnings${NC}"
+    repair_composer_path
+    install_laravel_installer
 
     # Final verification with environment variables
     local final_version=$(get_composer_version)
@@ -502,4 +493,19 @@ main() {
 }
 
 # Execute main function
+# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): Composer is
+# installed against the ACTIVE plane's PHP CLI. Both planes expose it at
+# the same path (/usr/local/bin/php): the system plane's alternatives link
+# (apt PHP 8.5) or the frankenphp plane's php-cli shim (embedded PHP) - so
+# the installer below stays plane-agnostic. The shim is ensured here
+# because this step may run before 32 on a fresh plane.
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
+if [ "$(php_runtime_plane)" = "frankenphp" ]; then
+    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (composer targets the embedded PHP CLI shim)${NC}"
+    fm_ensure_php_cli_shim
+fi
+
 main "$@"

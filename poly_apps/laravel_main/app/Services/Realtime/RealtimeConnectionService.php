@@ -2,6 +2,8 @@
 
 namespace App\Services\Realtime;
 
+use App\Services\Realtime\RealtimeConnectionService;
+use App\Services\Relay\RelayHubJwt;
 use App\Support\QueueCenterContract;
 
 class RealtimeConnectionService
@@ -15,7 +17,7 @@ class RealtimeConnectionService
     {
         return array_merge([
             'transport' => 'mercure',
-            'hub_url' => rtrim((string) config('app.url'), '/').QueueCenterContract::relayHubString('path'),
+            'hub_url' => RelayHubJwt::hubUrl(),
             'topics' => $topics,
             'auth_mode' => 'jwt',
             'protocol' => QueueCenterContract::relayHubString('protocol'),

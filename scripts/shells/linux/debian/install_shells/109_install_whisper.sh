@@ -23,6 +23,7 @@ PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 PYTHON="python3"
 MODEL=""
@@ -62,21 +63,6 @@ get_free_disk_gb() {
         END { if (sum > 0) printf "%d", sum/1024/1024 }'
 }
 
-# Headless / non-desktop system? (Linux only; macOS is treated as a desktop.)
-is_server() {
-    [[ "$(uname -s)" == "Darwin" ]] && return 1
-    if command -v systemctl >/dev/null 2>&1; then
-        case "$(systemctl get-default 2>/dev/null)" in
-            graphical.target) return 1 ;;   # boots to a GUI => desktop
-        esac
-    fi
-    # An active display / desktop session => desktop, not a server.
-    if [[ -n "${DISPLAY:-}" || -n "${WAYLAND_DISPLAY:-}" || -n "${XDG_CURRENT_DESKTOP:-}" ]]; then
-        return 1
-    fi
-    return 0   # no GUI target, no display => treat as headless server
-}
-
 # NVIDIA CUDA GPU usable through the shared policy helper.
 has_cuda() {
     gpu_present
@@ -106,9 +92,10 @@ if [[ "$FORCE" -eq 0 ]]; then
         echo "[skip] System too small for whisper (${reasons[*]}); skipping install. Use --force to override."
         complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "resource policy" whisper
     fi
-    if is_server && ! has_cuda; then
+    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
         echo "[skip] Headless server (non-desktop) with no CUDA GPU; skipping whisper install. Use --force to override."
         complete_prereq_step "$PYTHON" "[install_whisper] " --absent-ok "headless CPU host" whisper
+        exit 0
     fi
 fi
 

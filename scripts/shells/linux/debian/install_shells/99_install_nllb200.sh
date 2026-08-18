@@ -50,14 +50,10 @@ print_error() {
 }
 
 check_python() {
-    local python_cmd=""
+    local python_cmd="$VENV_PYTHON3"
 
-    if command -v python3 &> /dev/null; then
-        python_cmd="python3"
-    elif command -v python &> /dev/null; then
-        python_cmd="python"
-    else
-        print_error "Python is not installed"
+    if [ ! -x "$python_cmd" ]; then
+        print_error "Python is not installed at $python_cmd"
         print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip"
         return 1
     fi
@@ -124,10 +120,8 @@ install_dependencies() {
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
         print_success "$verify_result"
-        return 0
     else
         print_warning "Installation verification failed"
-        return 0
     fi
 }
 
@@ -144,8 +138,8 @@ test_model_load() {
     local runner_script_path="$parent_dir_4/pytools/aitools/nllb200_tester.py"
 
     if [ ! -f "$runner_script_path" ]; then
-        print_error "Tester script not found at: $runner_script_path"
-        return 1
+        print_error "Runner script not found at: $runner_script_path"
+        return
     fi
 
     print_info "Using shared tester script: $runner_script_path"
@@ -158,8 +152,6 @@ test_model_load() {
     print_success "  Model Load Test Passed!"
     print_success "========================================"
     echo ""
-
-    return 0
 }
 
 create_interactive_script() {
@@ -239,6 +231,10 @@ download_model_weights() {
 }
 
 main() {
+    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+        return 0
+    fi
+
     print_info "========================================"
     print_info "  NLLB-200 Installation"
     print_info "========================================"

@@ -34,21 +34,7 @@
 
 # Declare module-level variables at the beginning.
 VENV_PYTHON_COMMON_DIR=""
-VENV_DIR="${VENV_DIR:-}"
-VENV_PYTHON3="${VENV_PYTHON3:-}"
-VENV_PYTHON="${VENV_PYTHON:-}"
-VENV_PIP3="${VENV_PIP3:-}"
-VENV_PIP="${VENV_PIP:-}"
 
-# Derive the venv paths from COMPILE_DIR (set/exported by gvar_common.sh). Guard
-# against an unset COMPILE_DIR so sourcing this file never aborts under `set -u`.
-if [ -n "${COMPILE_DIR:-}" ]; then
-    VENV_DIR="$COMPILE_DIR/python3_venv"
-    VENV_PYTHON3="$VENV_DIR/bin/python3"
-    VENV_PYTHON="$VENV_DIR/bin/python"
-    VENV_PIP3="$VENV_DIR/bin/pip3"
-    VENV_PIP="$VENV_DIR/bin/pip"
-fi
 
 # Resolve the interpreter a consumer should use: the venv python if it exists,
 # otherwise fall back to whatever python3/python is on PATH (first run, before

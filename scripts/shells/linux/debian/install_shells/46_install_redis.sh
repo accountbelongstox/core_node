@@ -153,6 +153,16 @@ configure_redis() {
         # Configure log level
         $USE_SUDO sed -i 's/^loglevel notice/loglevel warning/' "$redis_conf"
 
+        # Create systemd override for Redis to allow writing to custom directories
+        local systemd_override_dir="/etc/systemd/system/redis-server.service.d"
+        $USE_SUDO mkdir -p "$systemd_override_dir"
+        cat <<EOF | $USE_SUDO tee "$systemd_override_dir/override.conf" >/dev/null
+[Service]
+ReadWriteDirectories=-$REDIS_DATA_DIR
+ReadWriteDirectories=-$REDIS_LOG_DIR
+EOF
+        $USE_SUDO systemctl daemon-reload
+
         echo "[$SCRIPT_INDEX] Redis configuration updated"
     else
         echo "[$SCRIPT_INDEX] [WARNING] Redis configuration file not found at $redis_conf"

@@ -29,7 +29,7 @@ declare -a MENU_CONFIG=(
     "[^] Start Docker After Installation|START_DOCKER|false true|false|false|false|false"
     "[.] Install .NET SDK|START_DOTNET|false true|false|false|false|false"
     "[G] Install Gitea (Git Service)|INSTALL_GITEA|false true|false|true|true|false"
-    "[T] Install Tailscale (Local-Network Mesh VPN)|INSTALL_TAILSCALE|false true|true|true|true|true"
+    "[T] Install Tailscale (Local-Network Mesh VPN)|INSTALL_TAILSCALE|false true|false|true|true|true"
     "[#] Setup Network Router|INSTALL_NETWORK_ROUTER|false true|false|false|false|false"
     "[C] Set Cloud Provider|CLOUD_PROVIDER|null Tencent Alibaba Huawei Other|null|null|null|null"
 )

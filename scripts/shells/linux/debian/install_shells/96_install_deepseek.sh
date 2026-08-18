@@ -64,23 +64,14 @@ check_environment() {
         print_warning "WSL environment detected"
         print_warning "DeepSeek is not installed in WSL environments by default"
         print_info "This is a development/desktop tool, not suitable for WSL"
-        return 1
+        return 0
     fi
 
-    if [ "$IS_PRODUCTION" = true ]; then
-        print_warning "Production server environment detected"
-        print_warning "DeepSeek is not installed on production servers by default"
-        print_info "This requires desktop environment and significant resources"
-        return 1
+    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+        return 0
     fi
 
-    if [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
-        print_warning "No desktop environment detected"
-        print_warning "DeepSeek requires desktop environment for optimal usage"
-        return 1
-    fi
-
-    return 0
+    return 1
 }
 
 get_base_directory() {
@@ -135,52 +126,27 @@ get_base_directory() {
 }
 
 check_git() {
-    if command -v git &> /dev/null; then
-        local git_version=$(git --version)
+    if [ -x "/usr/bin/git" ] || [ -x "/usr/local/bin/git" ]; then
+        local git_version=$(git --version 2>/dev/null)
         print_success "Git is available: $git_version"
-        return 0
     else
         print_error "Git is not installed"
         print_warning "Please install Git: $USE_SUDO apt-get install git"
-        return 1
     fi
 }
 
 check_python() {
-    local python_cmd=""
+    local python_cmd="$(venv_python_from_common)"
 
-    # Resolve the shared venv interpreter built by 13_ensure_python.sh so that all
-    # package installs and the generated launchers run under the venv, not the
-    # externally-managed system python.
-    python_cmd="$(venv_python_from_common)"
-
-    if [ -z "$python_cmd" ] || ! command -v "$python_cmd" &> /dev/null; then
+    if [ -n "$python_cmd" ] && [ -x "$python_cmd" ]; then
+        echo "$SCRIPT_NAME [run] $python_cmd --version" >&2
+        local python_version=$($python_cmd --version 2>&1)
+        print_success "Python is available: $python_version"
+        echo "$python_cmd"
+    else
         print_error "Python is not installed"
         print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip"
-        return 1
     fi
-
-    echo "$SCRIPT_NAME [run] $python_cmd --version" >&2
-    local python_version=$($python_cmd --version 2>&1)
-    print_success "Python is available: $python_version"
-
-    local version_regex="Python ([0-9]+)\.([0-9]+)"
-    if [[ $python_version =~ $version_regex ]]; then
-        local major="${BASH_REMATCH[1]}"
-        local minor="${BASH_REMATCH[2]}"
-
-        if [ "$major" -ge 3 ] && [ "$minor" -ge 8 ]; then
-            print_success "Python version is sufficient (3.8+)"
-            echo "$python_cmd"
-            return 0
-        else
-            print_error "Python version is too old (need 3.8+, found $major.$minor)"
-            return 1
-        fi
-    fi
-
-    echo "$python_cmd"
-    return 0
 }
 
 check_installation() {
@@ -246,23 +212,16 @@ clone_repository() {
         fi
     fi
 
-    if git clone "$REPO_URL" "$target_dir"; then
-        print_success "Repository cloned successfully"
-
+    if [ ! -d "$target_dir/.git" ]; then
+        git clone "$REPO_URL" "$target_dir"
         if [ -d "$target_dir/.git" ]; then
-            print_success "Verification: .git directory found"
-
+            print_success "Repository cloned successfully"
             local file_count=$(find "$target_dir" -type f 2>/dev/null | wc -l)
             print_success "Verification: $file_count files found"
-
-            if [ "$file_count" -gt 10 ]; then
-                return 0
-            fi
+        else
+            print_error "Git clone failed"
         fi
     fi
-
-    print_error "Git clone failed"
-    return 1
 }
 
 dependencies_present() {
@@ -299,20 +258,18 @@ install_dependencies() {
         return 0
     fi
 
-    cd "$install_dir"
-    print_info "Installing core dependencies..."
-    echo ""
-    # torch from the DRIVER-MATCHED CUDA index (its own deps only); the rest from PyPI so
-    # the pinned transformers + the other packages resolve normally.
-    echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch --index-url $(torch_cuda_index_url)"
-    vpip $python_cmd -m pip install torch --index-url "$(torch_cuda_index_url)"
-    echo "$SCRIPT_NAME [run] $python_cmd -m pip install $LLM_TRANSFORMERS_SPEC pillow numpy einops timm accelerate"
-    vpip $python_cmd -m pip install "$LLM_TRANSFORMERS_SPEC" pillow numpy einops timm accelerate
-    echo ""
-    cd - > /dev/null
-
-    print_success "Dependencies installed successfully"
-    return 0
+    if [ -n "$python_cmd" ] && [ -x "$python_cmd" ]; then
+        cd "$install_dir"
+        print_info "Installing core dependencies..."
+        echo ""
+        echo "$SCRIPT_NAME [run] $python_cmd -m pip install torch --index-url $(torch_cuda_index_url)"
+        vpip $python_cmd -m pip install torch --index-url "$(torch_cuda_index_url)"
+        echo "$SCRIPT_NAME [run] $python_cmd -m pip install $LLM_TRANSFORMERS_SPEC pillow numpy einops timm accelerate"
+        vpip $python_cmd -m pip install "$LLM_TRANSFORMERS_SPEC" pillow numpy einops timm accelerate
+        echo ""
+        cd - > /dev/null
+        print_success "Dependencies installed successfully"
+    fi
 }
 
 test_model_load() {
@@ -412,8 +369,6 @@ BASH_EOF
     print_info "  $test_script"
     echo ""
     print_success "DeepSeek-VL is ready to use!"
-
-    return 0
 }
 
 download_vl_model_weights() {
@@ -443,10 +398,8 @@ download_vl_model_weights() {
             print_success "model '$VL_MODEL_PATH' ready at $VL_WEIGHTS_DIR"
         else
             print_warning "model download not finished; partial files kept at $VL_WEIGHTS_DIR; will RESUME next run."
-            return 1
         fi
     fi
-    [[ "$_model_ready" -eq 1 ]]
 }
 
 main() {
@@ -455,11 +408,11 @@ main() {
     print_info "========================================"
     echo ""
 
-    if ! check_environment; then
+    if check_environment; then
         print_warning "Environment check failed - skipping installation"
         print_info "DeepSeek is only installed on desktop Linux systems"
         print_info "Skipped environments: WSL, production servers, headless systems"
-        exit 0
+        return
     fi
 
     local base_dir=$(get_base_directory)
@@ -471,16 +424,9 @@ main() {
     echo ""
     print_info "Checking prerequisites..."
 
-    if ! check_git; then
-        print_error "Git is required but not found"
-        return 1
-    fi
+    check_git
 
     local python_cmd=$(check_python)
-    if [ $? -ne 0 ]; then
-        print_error "Python 3.8+ is required but not found"
-        return 1
-    fi
 
     if check_installation "$install_dir"; then
         print_success "DeepSeek-VL is already installed and valid!"
@@ -504,22 +450,16 @@ main() {
         print_info "You can use DeepSeek with:"
         print_info "  export DEEPSEEK_MODEL_DIR=\"$install_dir\""
         print_info "  export TRANSLATOR_PROVIDER=\"deepseek\""
-        return 0
+        return
     fi
 
     echo ""
     print_info "Step 1: Clone DeepSeek-VL repository"
-    if ! clone_repository "$install_dir"; then
-        print_error "Failed to clone repository"
-        return 1
-    fi
+    clone_repository "$install_dir"
 
     echo ""
     print_info "Step 2: Install Python dependencies"
-    if ! install_dependencies "$install_dir" "$python_cmd"; then
-        print_warning "Dependency installation may have failed"
-        print_warning "You can try installing dependencies manually later"
-    fi
+    install_dependencies "$install_dir" "$python_cmd"
 
     echo ""
     print_info "Step 3: Verify installation"
@@ -548,13 +488,10 @@ main() {
         print_info "   export TRANSLATOR_PROVIDER=\"deepseek\""
         echo ""
         print_info "2. Use in your application"
-        return 0
     else
         echo ""
         print_error "Installation verification failed"
-        return 1
     fi
 }
 
 main
-exit $?

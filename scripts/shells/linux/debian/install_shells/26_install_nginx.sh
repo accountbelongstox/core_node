@@ -37,6 +37,21 @@ source "$PARENT_DIR_LEVEL_2/common/apache_block_guard.sh"
 # shellcheck source=/dev/null
 source "$PARENT_DIR_LEVEL_2/common/nginx_manager.sh"
 
+# Web-server choice (merged selector constant; default frankenphp) is read
+# BEFORE any plane mutation: nginx installs only when it is the selected
+# web server (DESIGN_20260817_2115 PART_0 P0-A3) - the frankenphp plane
+# logs the skip and installs/adopts nothing. 132's nginx-ensure sets the
+# constant to "nginx" before invoking this step, so explicit plane switches
+# always pass here.
+START_WEB_SERVER=""
+START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+START_NGINX="false"
+[ "$START_WEB_SERVER" = "nginx" ] && START_NGINX="true"
+if [ "$START_NGINX" != "true" ]; then
+    echo "[$SCRIPT_INDEX] SKIP: START_WEB_SERVER=${START_WEB_SERVER} (frankenphp plane active); nginx not installed"
+    exit 0
+fi
+
 # Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing nginx
 # adopts the nginx plane - the frankenphp runtime is disabled (service stop
 # + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
@@ -54,10 +69,6 @@ if [ "$MUTEX_SKIP" != "true" ]; then
 else
     echo "[$SCRIPT_INDEX] [WARN] --no-mutex: frankenphp plane left untouched; manage the plane manually"
 fi
-
-START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
-START_NGINX="false"
-[ "$START_WEB_SERVER" = "nginx" ] && START_NGINX="true"
 
 echo "[$SCRIPT_INDEX] Nginx Installation Script (official mainline, HTTP/3 ready)"
 echo "[$SCRIPT_INDEX] Web server choice: $START_WEB_SERVER (START_NGINX: $START_NGINX)"

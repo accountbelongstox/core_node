@@ -34,6 +34,8 @@ export interface PycoreTarget {
   mode: 'origin' | 'local' | 'remote';
   /** Remote: full backend URL (direct http://host:59000 or https relay entry). */
   url?: string;
+  /** Legacy bare-host form (pre-URL model); migrated to url on read. */
+  host?: string;
 }
 
 function parseBackendUrl(url: string): URL | null {

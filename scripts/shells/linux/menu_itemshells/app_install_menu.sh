@@ -54,7 +54,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:43_install_rust.sh|Rust"
     "script:20_install_uv.sh|UV"
     "script:13_ensure_python.sh|Python (ensure)"
-    "script:15_install_faster_whisper.sh|faster-whisper (STT)"
+    "script:120_install_faster_whisper.sh|faster-whisper (STT)"
     "script:35_install_composer.sh|Composer"
     "script:39_install_flutter.sh|Flutter"
     "script:42_install_ruby.sh|Ruby"

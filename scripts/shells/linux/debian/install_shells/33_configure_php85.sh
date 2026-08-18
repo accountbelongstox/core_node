@@ -119,7 +119,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Script identification
-SCRIPT_INDEX="[35_PHP85_CONFIG]"
+SCRIPT_INDEX="[33_PHP85_CONFIG]"
 
 # Source global variables for constraint checking
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -361,6 +361,27 @@ main() {
 
     echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] All PHP 8.5 configuration steps completed${NC}"
 }
+
+# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): plane-aware
+# config targets. frankenphp plane configures the Caddyfile-adjacent PHP
+# ini (scan dir exported as PHP_INI_SCAN_DIR by the runtime branch) and
+# keeps the plane-invariant Laravel directory permissions - NO /etc/php
+# edits, NO alternatives. The system plane keeps the classic flow below.
+CONFIG_RUNTIME_PLANE=""
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+# shellcheck source=/dev/null
+source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
+CONFIG_RUNTIME_PLANE="$(php_runtime_plane)"
+if [ "$CONFIG_RUNTIME_PLANE" = "frankenphp" ]; then
+    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (Caddyfile-adjacent ini)${NC}"
+    fm_php_ini_ensure
+    set_directory_permissions || {
+        echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"
+    }
+    echo -e "${GREEN}$SCRIPT_INDEX FrankenPHP plane PHP configured: ini scan dir $(fm_php_ini_dir) (runtime exports PHP_INI_SCAN_DIR)${NC}"
+    exit 0
+fi
 
 # Execute main function
 main "$@"

@@ -119,6 +119,7 @@ print_info_from_common_functions() {
 }
 
 
+
 # Read a single raw secret value from .secret_keys/.secret_ignore: first non-empty,
 # stripped line (BOM-aware). Empty string if the key file is absent. The shell twin
 # of pyfoundations.secret_manager.get_secret_key. (from common_functions.sh)

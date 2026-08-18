@@ -244,7 +244,7 @@ install_via_appimage() {
         log_message "AppImage downloaded successfully"
     else
         log_message "Failed to download $app_name AppImage"
-        return 1
+        return
     fi
 
     # Make executable
@@ -446,8 +446,6 @@ WRAPPER_EOF
             log_message "$line"
         done
     fi
-
-    return 0
 }
 
 # Function to install via web download (deb packages)
@@ -465,22 +463,18 @@ install_via_web() {
             log_message "Successfully installed $app_name from web"
             # Fix any dependency issues
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" 2>/dev/null || true
-            return 0
         else
             log_message "Failed to install $app_name deb package"
             # Try to fix dependencies and retry
             $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -f -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
             if $USE_SUDO dpkg -i "$temp_file"; then
                 log_message "Successfully installed $app_name after fixing dependencies"
-                return 0
             else
                 log_message "Failed to install $app_name even after fixing dependencies"
-                return 1
             fi
         fi
     else
         log_message "Failed to download $app_name package"
-        return 1
     fi
 }
 
@@ -507,11 +501,8 @@ fix_pnpm_permissions() {
         fix_pnpm_global_permissions_from_common_functions 2>&1 | while IFS= read -r line; do
             log_message "$line"
         done
-
-        return 0
     else
         log_message "Warning: Could not determine pnpm global bin directory"
-        return 1
     fi
 }
 
@@ -529,7 +520,7 @@ install_via_pnpm() {
         pnpm_bin="$(command -v pnpm)"
     else
         log_message "pnpm not found. Run 16_install_node_24.sh first. Cannot install $app_name"
-        return 1
+        return
     fi
 
     log_message "Installing $app_name via pnpm ($pnpm_bin): $package_id"
@@ -537,16 +528,14 @@ install_via_pnpm() {
     if "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1 || command_exists "$app_name"; then
         log_message "$app_name already installed globally via pnpm, skipping add -g"
         fix_pnpm_permissions
-        return 0
+        return
     fi
     if timeout 300 env "PATH=${NODE_BIN_DIR:-}:$PATH" "npm_config_confirm_modules_purge=false" \
         "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
         log_message "Successfully installed $app_name via pnpm"
         fix_pnpm_permissions
-        return 0
     else
         log_message "Failed to install $app_name via pnpm"
-        return 1
     fi
 }
 
@@ -557,16 +546,14 @@ install_via_uv_tool() {
 
     if ! command_exists uv; then
         log_message "uv is not installed. Cannot install $app_name"
-        return 1
+        return
     fi
 
     log_message "Installing $app_name via uv tool: $package_id"
     if timeout 300 uv tool install "$package_id"; then
         log_message "Successfully installed $app_name via uv tool"
-        return 0
     else
         log_message "Failed to install $app_name via uv tool"
-        return 1
     fi
 }
 
@@ -577,16 +564,14 @@ install_via_pipx() {
 
     if ! command_exists pipx; then
         log_message "pipx is not installed. Cannot install $app_name"
-        return 1
+        return
     fi
 
     log_message "Installing $app_name via pipx: $package_id"
     if timeout 300 pipx install "$package_id"; then
         log_message "Successfully installed $app_name via pipx"
-        return 0
     else
         log_message "Failed to install $app_name via pipx"
-        return 1
     fi
 }
 
@@ -746,6 +731,30 @@ install_application() {
         return 0
     fi
 
+    # Filter out desktop apps on server environments
+    if [ "$HAS_DESKTOP_ENVIRONMENT" = false ] || [ "$ENVIRONMENT_TYPE" = "server" ]; then
+        local skip_app=false
+        # Filter large models
+        if [[ "$lookup_app" == *"ollama"* ]] || [[ "$lookup_app" == *"lmstudio"* ]] || [[ "$lookup_app" == *"gpt4all"* ]]; then
+            skip_app=true
+        fi
+        # Filter browsers
+        if [[ "$lookup_app" == *"edge"* ]] || [[ "$lookup_app" == *"chrome"* ]] || [[ "$lookup_app" == *"firefox"* ]]; then
+            skip_app=true
+        fi
+        # Filter IDEs and regular apps
+        if [ "$package_group" = "DEV" ] || [ "$package_group" = "APP" ]; then
+            # Allow AI-assisted IDEs
+            if [[ "$lookup_app" != *"cursor"* ]] && [[ "$lookup_app" != *"windsurf"* ]] && [[ "$lookup_app" != *"cline"* ]]; then
+                skip_app=true
+            fi
+        fi
+        if [ "$skip_app" = true ]; then
+            log_message "Server environment: skipping $display_name"
+            return 0
+        fi
+    fi
+
     log_message "Installing $display_name..."
     log_message "  Method: $install_method"
     log_message "  Package ID: $package_id"
@@ -793,40 +802,22 @@ install_application() {
     if [ "$install_method" = "snap" ] && [ -n "$snap_confinement" ]; then
         log_message "  Snap Confinement: $snap_confinement"
         # Pass snap_confinement to snap installer via direct call
-        if install_via_snap "$package_id" "$display_name" "$snap_confinement"; then
-            local install_result=0
-        else
-            local install_result=$?
-        fi
+        install_via_snap "$package_id" "$display_name" "$snap_confinement"
     # Handle AppImage packages with custom installation
     elif [ "$install_method" = "appimage" ]; then
         log_message "  Installing AppImage from: $package_id"
         # Get app configuration for desktop entry creation
         local app_id="${lookup_app}"
-        if install_via_appimage "$package_id" "$display_name" "$exec_name" "$app_id"; then
-            local install_result=0
-            # AppImage creates its own wrapper, skip setup_super_launch
-            should_use_super=false
-        else
-            local install_result=$?
-        fi
+        install_via_appimage "$package_id" "$display_name" "$exec_name" "$app_id"
+        # AppImage creates its own wrapper, skip setup_super_launch
+        should_use_super=false
     else
         # Use universal install function from installation library
-        universal_install "$install_method" "$package_id" "$display_name" "$exec_name"
-        local install_result=$?
-    fi
-
-    # Handle return codes:
-    # 0 = success
-    # 1 = installation failed (transient error)
-    # 2 = package not found (skip permanently)
-    if [ $install_result -eq 2 ]; then
-        log_message "Skipping $display_name - package not found in registry"
-        return 0
+        universal_install "$install_method" "$package_id" "$display_name" "$exec_name" || true
     fi
 
     # Create direct symlink if installation was successful
-    if [ $install_result -eq 0 ]; then
+    if [ "$(verify_installation "$exec_name" "$display_name")" = "true" ]; then
         log_message "Creating launch script for $display_name"
         create_launch_script "$lookup_app"
         
@@ -834,20 +825,9 @@ install_application() {
         if [ "$install_method" = "npm" ] || [ "$install_method" = "pnpm" ]; then
             refresh_npm_package_links "$exec_name" "$lookup_app"
         fi
-    fi
-
-    # Verify installation
-    if [ $install_result -eq 0 ]; then
-        if verify_installation "$exec_name" "$display_name"; then
-            log_message "Successfully installed and verified $display_name"
-            return 0
-        else
-            log_message "Installation completed but verification failed for $display_name"
-            return 1
-        fi
+        log_message "Successfully installed and verified $display_name"
     else
-        log_message "Installation failed for $display_name"
-        return 1
+        log_message "Installation failed or verification failed for $display_name"
     fi
 }
 
@@ -886,21 +866,15 @@ install_applications_by_package_group() {
         # Remove any problematic characters for array subscript
         display_name=$(echo "$display_name" | sed 's/[^a-zA-Z0-9_-]/_/g')
 
-        if install_application "$app" "$package_group"; then
+        local exec_name=$(get_app_property "$lookup_app" "exec")
+        install_application "$app" "$package_group"
+        if command_exists "$exec_name"; then
             ((installed_count++))
             INSTALLATION_RESULTS["$display_name"]="success"
         else
-            # Check if it was skipped (package not found) or failed
-            if command -v "$lookup_app" >/dev/null 2>&1; then
-                ((failed_count++))
-                INSTALLATION_RESULTS["$display_name"]="failed"
-                FAILED_APPS+=("$display_name")
-            else
-                # If command doesn't exist and install returned false, it was likely a unavailable package
-                ((skipped_count++))
-                INSTALLATION_RESULTS["$display_name"]="skipped"
-                SKIPPED_APPS+=("$display_name")
-            fi
+            ((failed_count++))
+            INSTALLATION_RESULTS["$display_name"]="failed"
+            FAILED_APPS+=("$display_name")
         fi
     done
 
@@ -928,7 +902,13 @@ install_applications_by_group() {
     local failed_count=0
 
     for app in "${apps_to_install[@]}"; do
-        if install_application "$app"; then
+        local lookup_app="$app"
+        if [[ "$app" == mcp_* ]]; then
+            lookup_app="${app#mcp_}"
+        fi
+        local exec_name=$(get_app_property "$lookup_app" "exec")
+        install_application "$app"
+        if command_exists "$exec_name"; then
             ((installed_count++))
         else
             ((failed_count++))
@@ -1078,7 +1058,7 @@ refresh_npm_package_links() {
         binary_path=$(which "$exec_name" 2>/dev/null)
         if [ -z "$binary_path" ]; then
             log_message "Warning: Could not find binary for $exec_name"
-            return 1
+            return
         fi
     fi
     
@@ -1094,7 +1074,7 @@ refresh_npm_package_links() {
         
         if [ "$current_target" = "$real_binary" ]; then
             log_message "Link already correct: $link_path -> $binary_path"
-            return 0
+            return
         fi
     fi
     
@@ -1129,7 +1109,7 @@ refresh_environment() {
     local pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
     if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin/bin" ]; then
         log_message "Warning: Could not determine pnpm global bin directory"
-        return 1
+        return
     fi
     
     log_message "NPM global bin directory: $pnpm_global_bin/bin"
@@ -1444,11 +1424,10 @@ show_parameter_rules_and_confirm() {
     case "$response" in
         [nN])
             echo "Operation cancelled by user."
-            return 1
+            return
             ;;
         *)
             echo "Continuing with installation..."
-            return 0
             ;;
     esac
 }
@@ -1460,7 +1439,7 @@ handle_cleanup() {
     if [ -z "$exec_name" ]; then
         log_message "Error: No executable name provided for cleanup"
         echo "Usage: $0 --cleanup <executable_name>"
-        return 1
+        return
     fi
 
     log_message "=========================================="
@@ -1470,7 +1449,6 @@ handle_cleanup() {
     force_cleanup_package "$exec_name" "$exec_name"
 
     log_message "Cleanup completed for: $exec_name"
-    return 0
 }
 
 # Find which package group contains the given app key
@@ -1484,11 +1462,10 @@ find_group_for_app() {
         for a in "${apps_in_group[@]}"; do
             if [ "$a" = "$app_key" ]; then
                 echo "$group"
-                return 0
+                return
             fi
         done
     done
-    return 1
 }
 
 # Function to install exactly one app by key (used by APP Install menu)
@@ -1498,14 +1475,14 @@ handle_exact_app() {
     if [ -z "$app_key" ]; then
         log_message "Error: No app key provided"
         echo "Usage: $0 --exact-app <app_key>"
-        return 1
+        return
     fi
 
     local app_group
     app_group=$(find_group_for_app "$app_key")
     if [ -z "$app_group" ]; then
         log_message "Error: App key not found in any group: $app_key"
-        return 1
+        return
     fi
 
     log_message "=========================================="
@@ -1526,7 +1503,6 @@ handle_exact_app() {
     else
         log_message "Installation finished for: $app_key (check log for details)"
     fi
-    return 0
 }
 
 # Main installation logic
@@ -1539,11 +1515,8 @@ main() {
         log_message "=========================================="
         log_message "Non-Desktop System Detected"
         log_message "=========================================="
-        log_message "Non-desktop system detected - skipping desktop applications installation"
-        log_message "This script is designed for desktop environments only"
-        log_message ""
-        log_message "Skipping installation automatically"
-        return 0
+        log_message "Non-desktop system detected - will filter out desktop applications"
+        log_message "=========================================="
     fi
 
     # Always fix npm permissions first (regardless of what the script does)
@@ -1555,19 +1528,19 @@ main() {
     # Check for help request
     if [ "$param1" = "--help" ] || [ "$param1" = "-h" ]; then
         show_help
-        return 0
+        return
     fi
 
     # Check for cleanup request
     if [ "$param1" = "--cleanup" ]; then
         handle_cleanup "$param2"
-        return $?
+        return
     fi
 
     # Check for exact app install (APP Install menu)
     if [ "$param1" = "--exact-app" ]; then
         handle_exact_app "$param2"
-        return $?
+        return
     fi
 
     log_message "=========================================="
@@ -1604,7 +1577,7 @@ main() {
             *)
                 log_message "Error: Unknown package group parameter: $param1"
                 log_message "Valid parameters: BASE, DEV, APP, AI, MCP"
-                return 1
+                return
                 ;;
         esac
 
@@ -1640,7 +1613,7 @@ main() {
 
         # Print detailed installation report
         print_installation_report
-        return 0
+        return
     fi
 
     log_message "=========================================="
@@ -1699,7 +1672,7 @@ main() {
     if read -t 20 -r response; then
         if [[ "$response" =~ ^[Nn]$ ]]; then
             log_message "Installation cancelled by user"
-            return 0
+            return
         else
             log_message "User confirmed, starting installation..."
         fi

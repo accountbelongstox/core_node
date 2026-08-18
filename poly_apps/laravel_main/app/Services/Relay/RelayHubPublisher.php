@@ -42,7 +42,7 @@ final class RelayHubPublisher
 
     private static function postToHub(array $topics, string $data, bool $private, ?string $type, ?string $id): ?string
     {
-        $hubUrl = rtrim((string) config('app.url'), '/').QueueCenterContract::relayHubString('path');
+        $hubUrl = RelayHubJwt::hubUrl();
         $form = [
             'data' => $data,
         ];

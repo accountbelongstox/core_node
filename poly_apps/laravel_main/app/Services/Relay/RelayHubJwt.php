@@ -49,7 +49,29 @@ final class RelayHubJwt
 
     public static function hubUrl(): string
     {
-        return rtrim((string) config('app.url'), '/').QueueCenterContract::relayHubString('path');
+        return self::servingOrigin().QueueCenterContract::relayHubString('path');
+    }
+
+    /**
+     * Origin the hub is reached through: the live request's scheme + host
+     * (same-origin SSE rule - the cookie and the stream ride one origin),
+     * falling back to the configured app URL outside request context
+     * (CLI, queues). One derivation for aud, hub_url and subscribe URLs.
+     */
+    public static function servingOrigin(): string
+    {
+        if (!function_exists('app') || !app()->runningInConsole()) {
+            try {
+                $request = app('request');
+                if ($request instanceof \Illuminate\Http\Request && $request->getHost() !== '') {
+                    return $request->getSchemeAndHttpHost();
+                }
+            } catch (\Throwable) {
+                // No request context bound - fall through to the app URL.
+            }
+        }
+
+        return rtrim((string) config('app.url'), '/');
     }
 
     /**
@@ -93,12 +115,21 @@ final class RelayHubJwt
         return $token->toString();
     }
 
+    /**
+     * The `iss` this app signs with and the hub trusts. Single source: the
+     * secret store (provisioned first by the server runtime, which knows the
+     * public site host); self-bootstraps from the serving origin when absent
+     * so every launch surface (worker, CLI, local dev) can issue tokens.
+     */
     public static function trustedIssuer(): string
     {
         $issuer = RuntimeConfigurationStore::get(self::TRUSTED_ISSUER_KEY, '');
-        if ($issuer === '') {
-            throw new \RuntimeException('Mercure trusted issuer is not provisioned.');
+        if ($issuer !== '') {
+            return $issuer;
         }
+
+        $issuer = self::servingOrigin();
+        RuntimeConfigurationStore::put(self::TRUSTED_ISSUER_KEY, $issuer);
 
         return $issuer;
     }

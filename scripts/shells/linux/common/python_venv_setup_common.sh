@@ -284,8 +284,8 @@ create_python_venv_and_replace_system() {
         # Ensure python3-venv is installed (real-time output)
         if ! "$sys_py" -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends"
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip --no-install-recommends
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends"
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl --no-install-recommends
         fi
 
         # Create the virtual environment WITH system-site-packages (real-time output)
@@ -293,6 +293,20 @@ create_python_venv_and_replace_system() {
         echo "[13] $sys_py -m venv --system-site-packages $VENV_DIR"
         "$sys_py" -m venv --system-site-packages "$VENV_DIR"
         print_success_from_common_functions "Virtual environment created with system-site-packages"
+
+        # Ensure pip is installed in the venv
+        if [ ! -f "$VENV_DIR/bin/pip" ] && [ ! -f "$VENV_DIR/bin/pip3" ]; then
+            print_warning_from_common_functions "pip not found in venv, installing manually..."
+            if command -v wget >/dev/null 2>&1; then
+                wget -O "$VENV_DIR/get-pip.py" https://bootstrap.pypa.io/get-pip.py
+                "$VENV_DIR/bin/python3" "$VENV_DIR/get-pip.py"
+                rm -f "$VENV_DIR/get-pip.py"
+            elif command -v curl >/dev/null 2>&1; then
+                curl -o "$VENV_DIR/get-pip.py" https://bootstrap.pypa.io/get-pip.py
+                "$VENV_DIR/bin/python3" "$VENV_DIR/get-pip.py"
+                rm -f "$VENV_DIR/get-pip.py"
+            fi
+        fi
 
         # Upgrade pip in venv - always run to ensure latest version
         if [ -f "$VENV_PIP3" ]; then
@@ -401,8 +415,8 @@ setup_production_python_venv() {
         print_step_from_common_functions "Ensuring python3-venv and pip are installed..."
         if ! python3 -m venv --help >/dev/null 2>&1; then
             print_warning_from_common_functions "python3-venv module not available, installing..."
-            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends"
-            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-setuptools python3-wheel --no-install-recommends
+            echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends"
+            $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip python3-pip-whl python3-setuptools python3-wheel --no-install-recommends
         fi
 
         if ! python3 -m pip --version >/dev/null 2>&1; then

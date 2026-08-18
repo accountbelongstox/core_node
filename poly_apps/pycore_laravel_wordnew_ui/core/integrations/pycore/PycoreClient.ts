@@ -2,7 +2,8 @@ import { MasterApiClient, type MasterRequestOptions } from '../../network/api-cl
 import { StorageManager } from '../../persistence';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
 import { normalizePycorePath } from './pycoreEndpoints';
-import { rewritePycoreEndpoint } from './pycoreTarget';
+import { rewritePycoreEndpoint, isPycoreRelayMode } from './pycoreTarget';
+import { relayDeliver } from './PycoreRelayTransport';
 import {
   PYCORE_HTTP_HEADER_NAMES,
   PYCORE_HTTP_JSON_CONTENT_TYPE,
@@ -32,6 +33,17 @@ export class PycoreMasterClient extends MasterApiClient {
 
   protected resolveBaseUrl(): string {
     return rewritePycoreEndpoint('/').replace(/\/$/, '');
+  }
+
+  /**
+   * Relay-scheme leg: with an https backend selected, the single delivery
+   * hook routes the request through the paired machine (relay data plane);
+   * every other mode keeps the plain fetch. Queue/ceiling/replay semantics
+   * of the master client apply unchanged on either leg.
+   */
+  protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+    if (isPycoreRelayMode()) return relayDeliver(url, init, signal);
+    return super.deliver(url, init, signal);
   }
 
   isReachable(): boolean {

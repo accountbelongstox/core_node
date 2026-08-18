@@ -141,10 +141,11 @@ install_python_essentials() {
 
     # Install Python and essential packages (base packages first, real-time output)
     print_step_from_common_functions "Installing Python3 base packages..."
-    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev --no-install-recommends"
+    echo "[13] $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-pip python3-pip-whl python3-venv python3-dev python3-setuptools python3-wheel build-essential libssl-dev libffi-dev --no-install-recommends"
     $USE_SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y \
         python3 \
         python3-pip \
+        python3-pip-whl \
         python3-venv \
         python3-dev \
         python3-setuptools \

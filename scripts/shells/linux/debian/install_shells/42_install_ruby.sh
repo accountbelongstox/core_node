@@ -110,7 +110,8 @@ install_rbenv() {
     fi
     
     # Clone rbenv repository
-    local rbenv_dir="$HOME/.rbenv"
+    local user_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
+    local rbenv_dir="$user_home/.rbenv"
     if [ -d "$rbenv_dir" ]; then
         log_message "rbenv directory already exists, updating..."
         cd "$rbenv_dir" && git pull
@@ -158,10 +159,11 @@ GEM_HOME="$RUBY_GEM_HOME"
     export PATH="$RUBY_GEM_BIN_DIR:$PATH"
 
     # Add gem paths to shell profiles
+    local user_home="${ACTUAL_DESKTOP_USER_HOME:-$HOME}"
     local shell_profiles=(
-        "$HOME/.bashrc"
-        "$HOME/.zshrc"
-        "$HOME/.profile"
+        "$user_home/.bashrc"
+        "$user_home/.zshrc"
+        "$user_home/.profile"
     )
 
     local gem_config_lines=(
@@ -204,7 +206,7 @@ GEM_HOME="$RUBY_GEM_HOME"
 
     for gem_name in "${common_gems[@]}"; do
         log_message "Installing gem: $gem_name"
-        if gem install "$gem_name" --user-install; then
+        if gem install "$gem_name"; then
             log_message "Successfully installed $gem_name to $RUBY_GEM_BIN_DIR"
         else
             log_message "Failed to install $gem_name"

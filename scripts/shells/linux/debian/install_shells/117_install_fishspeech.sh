@@ -24,6 +24,7 @@ REPO_MARKER="$TARGET_DIR/tools/api_server.py"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 API_SRC="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/fishspeech_api_server.py"
 API_DST="$TARGET_DIR/fishspeech_api_server.py"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -63,6 +64,12 @@ server_up() {
 echo "============================================================"
 echo " [install_fishspeech] Fish Speech / Fish Audio"
 echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_fishspeech] [skip] Server environment without desktop and GPU detected. Skipping Fish Speech installation."
+    complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "server CPU host" fishaudio
+    exit 0
+fi
 
 [[ "${FISHSPEECH_SKIP:-0}" == "1" ]] && { echo "[install_fishspeech] [i] FISHSPEECH_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_fishspeech] " --absent-ok "FISHSPEECH_SKIP=1" fishaudio; }
 if server_up; then

@@ -29,6 +29,7 @@ done
 
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 resolve_python() {
     local candidate=""
@@ -52,6 +53,14 @@ prepare_melotts_nltk() {
 echo "============================================================"
 echo " [install_melotts] MeloTTS (isolated venv)"
 echo "============================================================"
+
+echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "${PREFIX}[skip] Server environment without desktop and GPU detected. Skipping MeloTTS installation."
+    complete_prereq_step "$PYTHON" "$PREFIX" --absent-ok "server CPU host"
+    exit 0
+fi
 
 if [[ "${MELOTTS_SKIP:-0}" == "1" ]]; then
     echo "${PREFIX}[i] MELOTTS_SKIP=1 -> skipping."

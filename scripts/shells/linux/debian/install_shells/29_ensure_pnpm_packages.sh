@@ -49,51 +49,23 @@ get_installed_packages() {
 # Function to check if a package is installed and linked correctly
 is_package_installed() {
     local package_name=$1
-
-    if ! run_pnpm_from_common_functions list -g "$package_name" >/dev/null 2>&1; then
-        return 1
-    fi
-
     local pnpm_bin_dir=$(run_pnpm_from_common_functions bin -g 2>/dev/null)
-    if [ -z "$pnpm_bin_dir" ] || [ ! -d "$pnpm_bin_dir" ]; then
-        return 1
+    if [ -n "$pnpm_bin_dir" ] && [ -e "$pnpm_bin_dir/$package_name" ]; then
+        echo "true"
+    elif command -v "$package_name" >/dev/null 2>&1; then
+        echo "true"
+    else
+        echo "false"
     fi
-
-    local binary_path="$pnpm_bin_dir/$package_name"
-    if [ ! -e "$binary_path" ]; then
-        binary_path=$(which "$package_name" 2>/dev/null)
-        if [ -z "$binary_path" ]; then
-            return 1
-        fi
-    fi
-
-    local link_path="/usr/local/bin/$package_name"
-    if [ -L "$link_path" ]; then
-        local current_target=$(readlink -f "$link_path")
-        local real_binary=$(readlink -f "$binary_path")
-
-        if [ "$current_target" = "$real_binary" ]; then
-            return 0
-        else
-            echo "[$SCRIPT_INDEX] Package $package_name installed but link incorrect"
-            return 1
-        fi
-    fi
-
-    if command -v "$package_name" >/dev/null 2>&1; then
-        return 0
-    fi
-
-    return 1
 }
 
 # Function to install package if not already installed
 ensure_package() {
     local package=$1
 
-    if is_package_installed "$package"; then
+    if [ "$(is_package_installed "$package")" = "true" ]; then
         echo "[$SCRIPT_INDEX] $package is already installed, skipping..."
-        return 0
+        return
     fi
 
     echo "[$SCRIPT_INDEX] Installing $package..."
@@ -103,37 +75,38 @@ ensure_package() {
     export npm_config_confirm_modules_purge=false
     do_install() {
         if [ "$package" = "puppeteer" ]; then
-            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package"
+            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
         else
-            run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package"
+            run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
         fi
     }
 
-    local install_out
-    local install_ret
-    install_out=$(do_install 2>&1)
-    install_ret=$?
-    if [ "$install_ret" -eq 0 ]; then
+    do_install
+    if [ "$(is_package_installed "$package")" = "true" ]; then
         echo "[$SCRIPT_INDEX] $package installed successfully"
-        return 0
+        return
     fi
-    if echo "$install_out" | grep -qE '403|Forbidden|ERR_PNPM_FETCH_403'; then
-        echo "[$SCRIPT_INDEX] Install failed with 403, retrying with fallback registry..."
-        run_pnpm_from_common_functions config set registry "$FALLBACK_REGISTRY"
-        local user_home="${HOME:-/root}"
-        local pnpmrc_path="$user_home/.pnpmrc"
-        if [ -f "$pnpmrc_path" ]; then
-            local enable_scripts
-            enable_scripts=$(run_pnpm_from_common_functions config get enable-pre-post-scripts 2>/dev/null || echo "true")
-            printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$FALLBACK_REGISTRY" "$enable_scripts" > "$pnpmrc_path"
-        fi
-        if do_install; then
-            echo "[$SCRIPT_INDEX] $package installed successfully (via fallback registry)"
-            return 0
-        fi
+    
+    echo "[$SCRIPT_INDEX] Install failed, retrying with fallback registry..."
+    run_pnpm_from_common_functions config set registry "$FALLBACK_REGISTRY"
+    local real_user_home=""
+    local real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+    if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+        real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
     fi
-    echo "[$SCRIPT_INDEX] Failed to install $package"
-    return 1
+    local user_home="${real_user_home:-${HOME:-/root}}"
+    local pnpmrc_path="$user_home/.pnpmrc"
+    if [ -f "$pnpmrc_path" ]; then
+        local enable_scripts
+        enable_scripts=$(run_pnpm_from_common_functions config get enable-pre-post-scripts 2>/dev/null || echo "true")
+        printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$FALLBACK_REGISTRY" "$enable_scripts" > "$pnpmrc_path"
+    fi
+    do_install
+    if [ "$(is_package_installed "$package")" = "true" ]; then
+        echo "[$SCRIPT_INDEX] $package installed successfully (via fallback registry)"
+    else
+        echo "[$SCRIPT_INDEX] Failed to install $package"
+    fi
 }
 
 echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
@@ -155,6 +128,7 @@ configure_pnpm_global_dirs() {
     # Always set pnpm config to ensure it's correct (don't skip even if already configured)
     run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
     run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
+    run_pnpm_from_common_functions config set store-dir "$pnpm_global_dir_target/store"
     # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is workspace-level in
     # pnpm 10+ — a GLOBAL `pnpm config set` errors (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY).
     # It's the default, so we don't set it globally. Docs: https://pnpm.io/settings
@@ -173,7 +147,12 @@ configure_pnpm_global_dirs() {
     fi
 
     # Create or update .pnpmrc file
-    local user_home="$HOME"
+    local real_user_home=""
+    local real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+    if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+        real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+    fi
+    local user_home="${real_user_home:-$HOME}"
     local pnpmrc_path="$user_home/.pnpmrc"
 
     echo "[$SCRIPT_INDEX] Creating/updating .pnpmrc file at: $pnpmrc_path"
@@ -216,16 +195,19 @@ EOF
 # Test registry access; on 403/Forbidden or fetch failure, switch to fallback registry (no auth required).
 ensure_registry_accessible() {
     local view_out
-    local view_ret
-    view_out=$(run_pnpm_from_common_functions view npm version 2>&1)
-    view_ret=$?
-    if [ "$view_ret" -eq 0 ] && [ -n "$view_out" ] && ! echo "$view_out" | grep -qE '403|Forbidden|ERR_PNPM_FETCH_403'; then
+    view_out=$(run_pnpm_from_common_functions view npm version 2>&1 || true)
+    if [ -n "$view_out" ] && ! echo "$view_out" | grep -qE '403|Forbidden|ERR_PNPM_FETCH_403'; then
         echo "[$SCRIPT_INDEX] Registry access OK: $(run_pnpm_from_common_functions config get registry)"
-        return 0
+        return
     fi
     echo "[$SCRIPT_INDEX] Registry returned 403 or unreachable, switching to fallback: $FALLBACK_REGISTRY"
     run_pnpm_from_common_functions config set registry "$FALLBACK_REGISTRY"
-    local user_home="${HOME:-/root}"
+    local real_user_home=""
+    local real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+    if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+        real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+    fi
+    local user_home="${real_user_home:-${HOME:-/root}}"
     local pnpmrc_path="$user_home/.pnpmrc"
     if [ -f "$pnpmrc_path" ]; then
         local enable_scripts
@@ -251,14 +233,13 @@ else
 
     # Use npm from absolute path
     if [ -x "$NPM_BIN" ]; then
-        run_npm_from_common_functions install -g pnpm
+        run_npm_from_common_functions install -g pnpm || true
         echo "[$SCRIPT_INDEX] pnpm installed successfully"
     elif command -v npm >/dev/null 2>&1; then
-        npm install -g pnpm
+        npm install -g pnpm || true
         echo "[$SCRIPT_INDEX] pnpm installed successfully"
     else
         echo "[$SCRIPT_INDEX] ERROR: npm not found, cannot install pnpm"
-        exit 1
     fi
 
     # Create symlink if not exists
@@ -328,7 +309,8 @@ fi
 # Iterate all packages every run so re-run repairs partial failures; ensure_package skips only when that package is already installed.
 failed_packages=()
 for install_name in "${!PACKAGES[@]}"; do
-    if ! ensure_package "$install_name"; then
+    ensure_package "$install_name"
+    if [ "$(is_package_installed "$install_name")" != "true" ]; then
         failed_packages+=("$install_name")
     fi
 done

@@ -81,6 +81,7 @@ resolve_requested_python() {
 # Driver-matched CUDA wheel index (single source of truth) so the GPU torch install never
 # grabs the default "latest" wheel (e.g. cu130) that a 12.4 driver can't run.
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 # Serialize pip into the shared venv (safe under the parallel install driver). Defensive.
 PIPLOCK_LIB="$SCRIPT_DIR/../../common/base_libs/pip_lock.sh"
@@ -107,6 +108,12 @@ provision_gptsovits_venv() {
 echo "============================================================"
 echo " [install_gptsovits] GPT-SoVITS TTS (free voice-clone server)"
 echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_gptsovits] [skip] Server environment without desktop and GPU detected. Skipping GPT-SoVITS installation."
+    complete_prereq_step "$PYTHON" "[install_gptsovits] " --absent-ok "server CPU host" torch
+    exit 0
+fi
 
 [[ "${GPTSOVITS_SKIP:-0}" == "1" ]] && { echo "[install_gptsovits] [i] GPTSOVITS_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_gptsovits] " --absent-ok "GPTSOVITS_SKIP=1" torch; }
 if server_up; then

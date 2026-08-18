@@ -57,7 +57,16 @@ for frankenphp_arg in "$@"; do
     esac
 done
 
+START_WEB_SERVER=""
 START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+
+# Plane skip (DESIGN_20260817_2115 PART_0 P0-A3): the frankenphp plane is
+# the default; when nginx is the selected web server this step logs the
+# skip and installs/adopts nothing (26 restores that plane).
+if [ "$START_WEB_SERVER" != "frankenphp" ]; then
+    echo "[$SCRIPT_INDEX] SKIP: START_WEB_SERVER=${START_WEB_SERVER} (nginx plane active); frankenphp not installed"
+    exit 0
+fi
 
 echo "[$SCRIPT_INDEX] FrankenPHP Installation Script (Mercure plane, HTTP/3 ready)"
 echo "[$SCRIPT_INDEX] Web server choice: $START_WEB_SERVER | mutex: $([ "$MUTEX_SKIP" = "true" ] && echo skipped || echo on)"

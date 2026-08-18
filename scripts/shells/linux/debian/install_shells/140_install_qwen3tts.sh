@@ -58,6 +58,7 @@ done
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 . "$SCRIPT_DIR/../../common/base_libs/lib_gpu.sh"
 . "$SCRIPT_DIR/../../common/base_libs/cuda_index.sh"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 
 resolve_python() {
     local p
@@ -82,6 +83,14 @@ provision_qwen3tts_venv() {
 echo "============================================================"
 echo " [install_qwen3tts] Qwen3-TTS (Alibaba qwen-tts)"
 echo "============================================================"
+
+echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_qwen3tts] [skip] Server environment without desktop and GPU detected. Skipping Qwen3-TTS installation."
+    complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
+    exit 0
+fi
 
 [[ "${QWEN3TTS_SKIP:-0}" == "1" ]] && { echo "[install_qwen3tts] [i] QWEN3TTS_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts; }
 

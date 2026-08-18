@@ -47,11 +47,21 @@ source "$PARENT_DIR_LEVEL_2/common/step_state.sh"
 # shellcheck source=/dev/null
 source "$PARENT_DIR_LEVEL_2/common/port_guard_common.sh"
 
-# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): certbot belongs to
-# the nginx plane (the frankenphp plane runs its own ACME inside Caddy), so
-# installing certbot adopts the nginx plane - the frankenphp runtime is
-# disabled (service stop + record ONLY, binary/Caddyfile/Mercure keys
-# preserved). `--no-mutex` skips the counterpart disable for advanced use.
+# Web-server choice is read BEFORE any plane mutation: certbot belongs to
+# the nginx plane (the frankenphp plane runs ACME inside Caddy); when nginx
+# is not the selected web server this step logs the skip and installs
+# nothing (DESIGN_20260817_2115 PART_0 P0-A3).
+CERTBOT_START_WEB_SERVER=""
+CERTBOT_START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+if [ "$CERTBOT_START_WEB_SERVER" != "nginx" ]; then
+    echo "[$SCRIPT_INDEX] SKIP: START_WEB_SERVER=${CERTBOT_START_WEB_SERVER} (frankenphp plane active); certbot not installed"
+    exit 0
+fi
+
+# Plane mutual exclusion (DESIGN_20260817_2115 PART_0): installing certbot
+# adopts the nginx plane - the frankenphp runtime is disabled (service stop
+# + record ONLY, binary/Caddyfile/Mercure keys preserved). `--no-mutex`
+# skips the counterpart disable for advanced use.
 FRANKENPHP_PLANE_DISABLE_SCRIPT="${PARENT_DIR_LEVEL_2}/common/frankenphp_plane_disable.sh"
 MUTEX_SKIP="false"
 for certbot_arg in "$@"; do

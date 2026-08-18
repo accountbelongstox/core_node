@@ -26,6 +26,7 @@ REPO_MARKER="$TARGET_DIR/src/f5_tts/api.py"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"
 API_SRC="$(pycore_tts_install_assets_dir "$SCRIPT_DIR")/f5tts_api_server.py"
 API_DST="$TARGET_DIR/f5tts_api_server.py"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 SUDO=""
 
 while [[ $# -gt 0 ]]; do
@@ -73,6 +74,12 @@ ensure_linux_audio_deps() {
 echo "============================================================"
 echo " [install_f5tts] F5-TTS (flow-matching clone api)"
 echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_f5tts] [skip] Server environment without desktop and GPU detected. Skipping F5-TTS installation."
+    complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "server CPU host" f5_tts
+    exit 0
+fi
 
 [[ "${F5TTS_SKIP:-0}" == "1" ]] && { echo "[install_f5tts] [i] F5TTS_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_f5tts] " --absent-ok "F5TTS_SKIP=1" f5_tts; }
 if server_up; then

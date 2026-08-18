@@ -23,7 +23,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[34_SWOOLE]"
+SCRIPT_INDEX="[36_SWOOLE]"
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -364,5 +364,18 @@ main() {
 }
 
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+    # PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): the
+    # frankenphp plane runs Octane on the embedded PHP (server=frankenphp)
+    # - Swoole is a system-plane extension, so this step logs the skip
+    # reason and installs nothing. The resolver is the SHARED
+    # php_runtime_plane() (octane_service_manager.sh); no local parsing.
+    SWOOLE_RUNTIME_PLANE=""
+    # shellcheck source=/dev/null
+    source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+    SWOOLE_RUNTIME_PLANE="$(php_runtime_plane)"
+    if [ "$SWOOLE_RUNTIME_PLANE" = "frankenphp" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX SKIP: PHP runtime plane is frankenphp (Octane server=frankenphp); Swoole is not installed on this plane${NC}"
+        exit 0
+    fi
     main "$@"
 fi

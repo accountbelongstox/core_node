@@ -32,6 +32,7 @@ source "$COMMON_DIR/venv_python_common.sh"
 . "$COMMON_DIR/tts_install_assets_common.sh"
 PIPLOCK_LIB="$COMMON_DIR/base_libs/pip_lock.sh"
 . "$PIPLOCK_LIB"
+source "$COMMON_DIR/common_functions.sh"
 
 resolve_python() {
     local p
@@ -116,6 +117,14 @@ t.close()" "$archive" "$tmp"
 echo "============================================================"
 echo " [install_kokoro] Kokoro-82M (sherpa-onnx)"
 echo "============================================================"
+
+echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_kokoro] [skip] Server environment without desktop and GPU detected. Skipping Kokoro installation."
+    complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "server CPU host" sherpa_onnx soundfile
+    exit 0
+fi
 
 [[ "${KOKORO_SKIP:-0}" == "1" ]] && { echo "[install_kokoro] [i] KOKORO_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_kokoro] " --absent-ok "KOKORO_SKIP=1" sherpa_onnx soundfile; }
 

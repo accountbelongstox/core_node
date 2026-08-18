@@ -47,6 +47,8 @@ FRANKENPHP_FRANKENPHP_IMPORT="github.com/dunglas/frankenphp"
 XCADDY_BIN_CANDIDATES="/usr/local/bin/xcaddy /usr/bin/xcaddy"
 GO_BIN_CANDIDATES="/usr/local/bin/go /usr/bin/go /usr/lib/go/bin/go"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
+FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
+FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
 
 # Binary path (empty string when absent) - file probing only, no command -v.
 fm_get_binary() {
@@ -74,6 +76,77 @@ fm_version() {
     fi
 }
 
+# Embedded PHP version ("8.5"); empty when the binary is absent. The
+# frankenphp plane's ONLY PHP runtime (no apt PHP).
+fm_php_version() {
+    local binary=""
+    binary="$(fm_get_binary)"
+    if [ -n "$binary" ]; then
+        "$binary" php-cli -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null
+    fi
+}
+
+# Ensure the `php` / `php-cli` command shims route to the embedded PHP
+# (frankenphp plane PHP runtime; file-probe idempotent - a shim already
+# execing this binary stays untouched). /usr/local/bin precedes /usr/bin
+# in PATH, so the shim is the effective `php` even if an apt PHP lingers.
+fm_ensure_php_cli_shim() {
+    local binary=""
+    local shim=""
+    local wanted=""
+    local existing=""
+
+    binary="$(fm_get_binary)"
+    if [ -z "$binary" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; php-cli shim not created (run fm_install first)"
+        return 1
+    fi
+    for shim in php php-cli; do
+        wanted="#!/bin/sh
+exec ${binary} php-cli \"\$@\""
+        existing=""
+        [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ] && existing="$(cat "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null)"
+        if [ "$existing" = "$wanted" ]; then
+            continue
+        fi
+        printf '%s\n' "$wanted" > "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
+        chmod 755 "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
+        echo "[$SCRIPT_INDEX] php-cli shim installed: ${FRANKENPHP_PHP_SHIM_DIR}/${shim} -> ${binary} php-cli"
+    done
+}
+
+# Caddyfile-adjacent PHP ini directory (frankenphp plane config target for
+# 34_configure_php85.sh; the runtime exports it as PHP_INI_SCAN_DIR).
+fm_php_ini_dir() {
+    echo "$FRANKENPHP_PHP_INI_DIR"
+}
+
+# Ensure the ini scan directory exists with the canonical memory/time
+# overrides (idempotent content render, mirrors the system-plane ini).
+fm_php_ini_ensure() {
+    local ini_dir=""
+    local rendered=""
+    local existing=""
+
+    ini_dir="$(fm_php_ini_dir)"
+    mkdir -p "$ini_dir"
+    rendered="; Managed by frankenphp_manager.sh (frankenphp plane PHP ini)
+memory_limit = 512M
+upload_max_filesize = 64M
+post_max_size = 64M
+max_execution_time = 300
+opcache.enable_cli = 1
+"
+    existing=""
+    [ -f "${ini_dir}/99-core-node.ini" ] && existing="$(cat "${ini_dir}/99-core-node.ini")"
+    if [ "$existing" = "$rendered" ]; then
+        echo "[$SCRIPT_INDEX] PHP ini already canonical: ${ini_dir}/99-core-node.ini"
+        return 0
+    fi
+    printf '%s\n' "$rendered" > "${ini_dir}/99-core-node.ini"
+    echo "[$SCRIPT_INDEX] PHP ini rendered: ${ini_dir}/99-core-node.ini"
+}
+
 # Official installer (frankenphp.dev); idempotent via the binary probe.
 fm_install() {
     local binary=""
@@ -88,6 +161,10 @@ fm_install() {
     fi
     echo "[$SCRIPT_INDEX] Installing frankenphp (official installer)"
     curl -fsSL "$FRANKENPHP_INSTALL_URL" | $USE_SUDO sh
+    if [ -f "frankenphp" ]; then
+        $USE_SUDO mv frankenphp /usr/local/bin/frankenphp
+        $USE_SUDO chmod +x /usr/local/bin/frankenphp
+    fi
     binary="$(fm_get_binary)"
     if [ -n "$binary" ]; then
         echo "[$SCRIPT_INDEX] frankenphp installed: $binary ($(fm_version))"
@@ -253,6 +330,8 @@ fm_verify() {
         return 1
     fi
     echo "[$SCRIPT_INDEX] [VERIFY] binary: $binary ($(fm_version))"
+    echo "[$SCRIPT_INDEX] [VERIFY] embedded PHP: $(fm_php_version)"
     echo "[$SCRIPT_INDEX] [VERIFY] dnspod module: $(fm_has_module "$FRANKENPHP_DNSPOD_MODULE" && echo embedded || echo missing)"
+    echo "[$SCRIPT_INDEX] [VERIFY] php-cli shim: $([ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ] && echo present || echo missing)"
     echo "[$SCRIPT_INDEX] [VERIFY] plane: $(web_server_plane)"
 }

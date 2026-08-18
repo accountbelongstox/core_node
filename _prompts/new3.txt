@@ -17,7 +17,7 @@ d
 以下部分已经由另一个AI正在修改：···注意本项目不使用env，所有配置全部硬编码，有些配置可以在start shell中修改，所以实际上是一个组合，注意在代码中注释，···
 
 按laravel 13的优化 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。ddds
-注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如nginx安装 、 nginx是否path / nginx是否升级 / nginxg配置是否需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒度。
+注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒度。
 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
 
 
@@ -38,19 +38,19 @@ d
 
  Octane 也是常驻，docs_fix\origin\b.txt 更新了其中，改为共享
  端口并使用 FrankenPHP  ，现在更新开发文档，重新修正代码
- ，1：需要实现 26_install_nginx.sh
+ ，1：需要实现 26_install_xxx.sh
    27_install_certbot.sh 外的 28脚本，用来幂等安装
  FrankenPHP，并幂等启用 caddy-dns/dnspod 插件，并且脚本和 26
- 27 互斥，2：laravel main中的nginx manager 实现一份
+ 27 互斥，2：laravel main中的xxx manager 实现一份
  FrankenPHP Server Manager ,shells 也要实现一份.sh。
  3：132_laravel_main_start.sh 扩展出一个切换FrankenPHP 的并
- 不走nginx流程。4：通过 > [*] Switch Installation Mode
+ 不走xxx流程。4：通过 > [*] Switch Installation Mode
  [server]
    [@] Select Region [Global]
    [D] Start MySQL After Installation [false]
    [R] Start Redis After Installation [true]
    [Q] Start PostgreSQL After Installation [true]
-   [>] Start Nginx After Installation [true]
+   [>] Start xxx After Installation [true]
    [^] Start Docker After Installation [false]
    [.] Install .NET SDK [false]
    [G] Install Gitea (Git Service) [false]
@@ -64,6 +64,5 @@ d
    上需求先更新到 文档中的前置开发。
    
    
-继续实
-现。文档中的冲突部对应调整，现在以 Mercure技术方案，先实现前
+继续实现。文档中的冲突部对应调整，现在以 Mercure技术方案，先实现前
 置，同时实现后端，再扩展pycore端的类库，再实现UI端。按规范。

@@ -83,6 +83,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1ApiInfoCt
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FileManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CodeExecutorCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1NginxManagerCtl;
+use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1FrankenPhpManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1UnifiedManagerCtl;
 use App\Apps\ServerManagerV1\ServerManagerV1Controllers\ServerManagerV1CertificateManagerCtl;
 
@@ -147,6 +148,17 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('sites/{site_name}/delete-files', [ServerManagerV1NginxManagerCtl::class, 'deleteSiteFiles']);
         // Idempotently repair + reset all nginx config (ensure log/run dirs, quarantine broken sites, reload).
         Route::post('repair', [ServerManagerV1NginxManagerCtl::class, 'repairConfig']);
+    });
+
+    // FrankenPHP plane management Routes (DESIGN_20260817_2115 PART_0):
+    // binary + canonical Caddyfile + plane record for the frankenphp
+    // web-server plane. Octane worker lifecycle stays in unified/octane/*.
+    Route::prefix('frankenphp')->group(function () {
+        Route::get('status', [ServerManagerV1FrankenPhpManagerCtl::class, 'statusOverview']);
+        Route::post('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'ensureCaddyfile']);
+        Route::get('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'caddyfile']);
+        Route::post('test', [ServerManagerV1FrankenPhpManagerCtl::class, 'testConfig']);
+        Route::post('plane', [ServerManagerV1FrankenPhpManagerCtl::class, 'adoptPlane']);
     });
 
     // Unified Manager Routes

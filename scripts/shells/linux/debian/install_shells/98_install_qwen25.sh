@@ -54,14 +54,10 @@ print_error() {
 }
 
 check_python() {
-    local python_cmd=""
+    local python_cmd="$VENV_PYTHON3"
 
-    if command -v python3 &> /dev/null; then
-        python_cmd="python3"
-    elif command -v python &> /dev/null; then
-        python_cmd="python"
-    else
-        print_error "Python is not installed" >&2
+    if [ ! -x "$python_cmd" ]; then
+        print_error "Python is not installed at $python_cmd" >&2
         print_warning "Please install Python 3.8+: $USE_SUDO apt-get install python3 python3-pip" >&2
         return 1
     fi
@@ -117,7 +113,7 @@ install_dependencies() {
     # a no-op), and reinstalling just churns versions and risks conflicts with the
     # other model installers that share this venv. Only install torch when it is
     # genuinely absent.
-    torch_metadata="$("$VENV_PYTHON3" -m pip show torch 2>/dev/null || true)"
+    torch_metadata="$("$VENV_PIP3" show torch 2>/dev/null || true)"
     if [[ "$torch_metadata" == *"Name:"* ]]; then
         print_success "torch metadata is present; preserving the canonical prerequisite build"
         echo ""
@@ -125,14 +121,14 @@ install_dependencies() {
         _qwen_torch_idx="$(torch_cuda_index_url)"
         print_info "torch not found - installing driver-matched GPU torch ($_qwen_torch_idx)..."
         echo ""
-        echo "[99] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $_qwen_torch_idx"
-        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$_qwen_torch_idx"
+        echo "[99] $VENV_PIP3 install torch torchvision torchaudio --index-url $_qwen_torch_idx"
+        vpip "$VENV_PIP3" install torch torchvision torchaudio --index-url "$_qwen_torch_idx"
         echo ""
     else
         print_info "torch not found and no GPU - installing CPU torch..."
         echo ""
-        echo "[99] $VENV_PYTHON3 -m pip install torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
-        vpip "$VENV_PYTHON3" -m pip install torch torchvision torchaudio --index-url "$AI_TORCH_CPU_INDEX"
+        echo "[99] $VENV_PIP3 install torch torchvision torchaudio --index-url $AI_TORCH_CPU_INDEX"
+        vpip "$VENV_PIP3" install torch torchvision torchaudio --index-url "$AI_TORCH_CPU_INDEX"
         echo ""
     fi
 
@@ -144,8 +140,8 @@ install_dependencies() {
         print_info "Installing transformers and accelerate..."
         echo ""
         ensure_shared_transformers_from_common_functions "$VENV_PYTHON3"
-        echo "[99] $VENV_PYTHON3 -m pip install accelerate"
-        vpip "$VENV_PYTHON3" -m pip install accelerate
+        echo "[99] $VENV_PIP3 install accelerate"
+        vpip "$VENV_PIP3" install accelerate
         echo ""
     fi
 
@@ -156,10 +152,8 @@ install_dependencies() {
     if [[ "$verify_result" == *"[OK]"* ]]; then
         print_success "Dependencies installed successfully"
         print_success "$verify_result"
-        return 0
     else
         print_warning "Installation verification failed"
-        return 0
     fi
 }
 
@@ -191,8 +185,6 @@ test_model_load() {
     print_success "  Model Load Test Passed!"
     print_success "========================================"
     echo ""
-
-    return 0
 }
 
 create_interactive_script() {
@@ -210,7 +202,7 @@ create_interactive_script() {
 
     if [ ! -f "$test_script_path" ]; then
         print_error "Runner script not found at: $test_script_path"
-        return 1
+        return
     fi
 
     local shell_script="$cache_dir/qwen25_chat.sh"
@@ -267,13 +259,15 @@ download_model_weights() {
             print_success "model '$MODEL_PATH' ready at $WEIGHTS_DIR"
         else
             print_warning "model download not finished; partial files kept at $WEIGHTS_DIR; will RESUME next run."
-            return 1
         fi
     fi
-    [[ "$_model_ready" -eq 1 ]]
 }
 
 main() {
+    if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+        return 0
+    fi
+
     print_info "========================================"
     print_info "  Qwen2.5-0.5B-Instruct Installation"
     print_info "========================================"
@@ -288,9 +282,10 @@ main() {
     print_info "Checking prerequisites..."
 
     local python_cmd
-    if ! python_cmd=$(check_python); then
+    python_cmd=$(check_python)
+    if [ -z "$python_cmd" ]; then
         print_error "Python 3.8+ is required but not found"
-        return 1
+        return
     fi
 
     echo ""
@@ -321,9 +316,6 @@ main() {
     print_success "Installation completed successfully!"
     print_info "You can run the chat anytime from:"
     print_info "  ${XDG_CACHE_HOME:-${CORE_NODE_CACHE_DIR:-$HOME/.cache}}/core_node/qwen25_chat.sh"
-
-    return 0
 }
 
 main
-exit $?

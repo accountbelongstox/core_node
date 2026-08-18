@@ -72,7 +72,7 @@ run_as_real_user_node() {
     if [ "$(id -u)" -eq 0 ] && [ -n "$real_user" ] && [ "$real_user" != "$cur_user" ] && command -v sudo >/dev/null 2>&1; then
         real_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
         [ -z "$real_home" ] && real_home="$HOME"
-        sudo -u "$real_user" env "HOME=$real_home" "$@"
+        (cd "$real_home" 2>/dev/null || cd /tmp; sudo -u "$real_user" env "HOME=$real_home" "$@")
     else
         "$@"
     fi
@@ -272,6 +272,7 @@ configure_npm_settings() {
 
 check_node_installation() {
     echo "Checking Node.js installation..."
+    NODE_INSTALLATION_STATUS="NOT_FOUND"
 
     # First check if binaries exist in expected location
     local node_bin="$NODE_BIN_DIR/node"
@@ -293,14 +294,14 @@ check_node_installation() {
             if [ -n "$system_major" ] && [ -n "$NODE_SHORT_VERSION" ] && [ "$system_major" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
                 echo "System Node.js version $system_version is >= $NODE_SHORT_VERSION (required)"
                 echo "Will create proper symlinks and configuration..."
-                return 2  # Special return code for system installation found
+                NODE_INSTALLATION_STATUS="SYSTEM_NODE"
             else
                 echo "System Node.js version $system_version is < $NODE_SHORT_VERSION (required)"
-                return 3  # Special return code for old version found
+                NODE_INSTALLATION_STATUS="OLD_NODE"
             fi
         fi
 
-        return 1
+        return
     fi
 
     # Check version in target directory
@@ -311,10 +312,11 @@ check_node_installation() {
     if [ -z "$current_version" ]; then
         if echo "$run_stderr" | grep -q "Exec format error"; then
             echo "Node binary at $node_bin is wrong architecture (Exec format error), will reinstall for $(uname -m)."
-            return 4
+            NODE_INSTALLATION_STATUS="WRONG_ARCH"
+            return
         fi
         echo "Failed to get Node.js version from $node_bin"
-        return 1
+        return
     fi
 
     local major_version
@@ -322,14 +324,14 @@ check_node_installation() {
     # Guard: ensure both sides are non-empty and numeric to avoid "integer expression expected"
     if [ -z "$major_version" ] || [ -z "$NODE_SHORT_VERSION" ]; then
         echo "Failed to parse Node version (current_version=$current_version, major=$major_version)"
-        return 1
+        return
     fi
     if [ "$major_version" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
         echo "Found Node.js $current_version in $NODE_INSTALL_DIR (>= required version $NODE_SHORT_VERSION)"
-        return 0
+        NODE_INSTALLATION_STATUS="INSTALLED"
     else
         echo "Node.js version too low. Found: $current_version, Required: >= $NODE_SHORT_VERSION.x"
-        return 3  # Old version found
+        NODE_INSTALLATION_STATUS="OLD_NODE"
     fi
 }
 
@@ -385,34 +387,6 @@ remove_old_node_installation() {
     fi
 
     echo ""
-    echo "Remove old Node.js installation? [Y/n]"
-    read -r response
-
-    # Default to yes if user just presses Enter
-    if [ -z "$response" ] || [[ "$response" =~ ^[Yy]$ ]]; then
-        echo ""
-        echo "Removing old Node.js installation..."
-
-        # Remove symlinks first
-        for link in "${symlinks_to_remove[@]}"; do
-            echo "Removing: $link"
-            $USE_SUDO rm -f "$link"
-        done
-
-        # Remove directories
-        for loc in "${locations_to_remove[@]}"; do
-            echo "Removing: $loc"
-            $USE_SUDO rm -rf "$loc"
-        done
-
-        # Clean up environment variables
-        if [ -f /etc/environment ]; then
-            echo "Cleaning up environment variables..."
-            $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
-            $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
-            $USE_SUDO sed -i '/^NPM_CONFIG_PREFIX=/d' /etc/environment
-        fi
-
         echo "Old Node.js installation removed successfully"
         return 0
     else
@@ -461,65 +435,53 @@ install_node() {
     if ! check_existing_download_from_common_functions "$TAR_FILE" 20971520; then
         echo "Downloading Node.js $NODE_VERSION..."
         # Use common download function with fallback support
-        if ! download_with_fallback_from_common_functions "${NODE_DOWNLOAD_URLS[@]}" "$TAR_FILE"; then
-            echo "Failed to download Node.js from any source"
-            return 1
-        fi
+        download_with_fallback_from_common_functions "${NODE_DOWNLOAD_URLS[@]}" "$TAR_FILE"
     fi
 
     echo "Extracting Node.js..."
-    if ! extract_archive_from_common_functions "$TAR_FILE" "$EXTRACT_DIR" 1; then
-        echo "Failed to extract Node.js"
-        return 1
-    fi
+    extract_archive_from_common_functions "$TAR_FILE" "$EXTRACT_DIR" 1
 
-    echo "Installing Node.js to $NODE_INSTALL_DIR..."
-    $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
-    local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    $USE_SUDO rm -rf "$target_dir"
+    if [ -d "$EXTRACT_DIR" ]; then
+        echo "Installing Node.js to $NODE_INSTALL_DIR..."
+        $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
+        local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
+        $USE_SUDO rm -rf "$target_dir"
 
-    local src_dev target_dev
-    src_dev=$(stat -c %d "$EXTRACT_DIR" 2>/dev/null || echo "")
-    target_dev=$(stat -c %d "$NODE_INSTALL_DIR" 2>/dev/null || echo "")
-    if [ -n "$src_dev" ] && [ -n "$target_dev" ] && [ "$src_dev" != "$target_dev" ]; then
-        echo "Cross-device install: copying then removing extract dir..."
-        $USE_SUDO cp -a "$EXTRACT_DIR" "$target_dir"
-        if [ $? -ne 0 ]; then
-            echo "Failed to install Node.js (cp failed)"
-            return 1
+        local src_dev target_dev
+        src_dev=$(stat -c %d "$EXTRACT_DIR" 2>/dev/null || echo "")
+        target_dev=$(stat -c %d "$NODE_INSTALL_DIR" 2>/dev/null || echo "")
+        if [ -n "$src_dev" ] && [ -n "$target_dev" ] && [ "$src_dev" != "$target_dev" ]; then
+            echo "Cross-device install: copying then removing extract dir..."
+            $USE_SUDO cp -a "$EXTRACT_DIR" "$target_dir"
+            $USE_SUDO rm -rf "$EXTRACT_DIR"
+        else
+            $USE_SUDO mv "$EXTRACT_DIR" "$target_dir"
         fi
-        $USE_SUDO rm -rf "$EXTRACT_DIR"
-    else
-        if ! $USE_SUDO mv "$EXTRACT_DIR" "$target_dir"; then
-            echo "Failed to install Node.js"
-            return 1
-        fi
-    fi
 
-    # Set proper permissions (validate path to avoid touching system dirs)
-    echo "[SAFE_PATH] NODE_INSTALL_DIR=$NODE_INSTALL_DIR"
-    _safe_node_install=false
-    if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
-        case "$NODE_INSTALL_DIR" in
-            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
-            *) _safe_node_install=true ;;
-        esac
-    fi
-    if [ "$_safe_node_install" = true ]; then
-        safe_chown_R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-        safe_chmod_R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    else
-        echo "[SKIP] Refusing chown/chmod on system or invalid path: $NODE_INSTALL_DIR"
+        # Set proper permissions (validate path to avoid touching system dirs)
+        echo "[SAFE_PATH] NODE_INSTALL_DIR=$NODE_INSTALL_DIR"
+        _safe_node_install=false
+        if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
+            case "$NODE_INSTALL_DIR" in
+                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
+                *) _safe_node_install=true ;;
+            esac
+        fi
+        if [ "$_safe_node_install" = true ]; then
+            safe_chown_R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+            safe_chmod_R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
+        else
+            echo "[SKIP] Refusing chown/chmod on system or invalid path: $NODE_INSTALL_DIR"
+        fi
     fi
 
     cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
-    return 0
 }
 
 # After install_node: if node binary fails with Exec format error (wrong arch), retry with alternate arch once.
 ensure_node_correct_arch() {
     local node_bin="$NODE_BIN_DIR/node"
-    [ ! -f "$node_bin" ] && return 0
+    [ ! -f "$node_bin" ] && return
     local out
     out=$("$node_bin" -v 2>&1) || true
     if echo "$out" | grep -q "Exec format error"; then
@@ -535,7 +497,6 @@ ensure_node_correct_arch() {
         force_clean_for_node_install
         install_node
     fi
-    return 0
 }
 
 # Create and verify the /usr/local/bin symlinks for node/npm/npx. This function's
@@ -551,7 +512,7 @@ create_symlinks() {
 
     if [ ! -f "$node_path" ] || [ ! -f "$npm_path" ]; then
         echo "Error: Node.js binaries not found in $NODE_BIN_DIR"
-        return 1
+        return
     fi
 
     $USE_SUDO ln -sf "$node_path" /usr/local/bin/node
@@ -564,7 +525,6 @@ create_symlinks() {
     echo "Created symlink: /usr/local/bin/npx -> $npx_path"
 
     echo "Core Node.js symlinks created successfully"
-    return 0
 }
 
 setup_environment() {
@@ -617,8 +577,6 @@ setup_environment() {
     echo "  NODE_PATH: $actual_node_path"
     echo "  PNPM_HOME: $pnpm_home"
     echo "  PATH includes: $npm_global_bin $pnpm_global_bin"
-
-    return 0
 }
 
 verify_and_fix_all_configs() {
@@ -753,74 +711,57 @@ echo "Installation directory: $NODE_INSTALL_DIR"
 detect_and_fix_previous_issues
 
 # Check installation status
-installation_status=$(check_node_installation)
-installation_result=$?
+check_node_installation
 
-case $installation_result in
-    0)
+case "$NODE_INSTALLATION_STATUS" in
+    "INSTALLED")
         echo "=================================================="
         echo "Node.js $NODE_VERSION is already installed"
         echo "=================================================="
         echo "Verifying and fixing configuration if needed..."
         echo ""
         ;;
-    2)
+    "SYSTEM_NODE")
         echo "=================================================="
         echo "Found compatible system Node.js installation"
         echo "=================================================="
         echo "Will configure symlinks and environment for existing installation."
         echo ""
         ;;
-    3|4)
+    "OLD_NODE"|"WRONG_ARCH")
         echo "=================================================="
         echo "Old or wrong-architecture Node.js found"
         echo "=================================================="
         echo ""
-        if [ "$installation_result" -eq 4 ]; then
+        if [ "$NODE_INSTALLATION_STATUS" = "WRONG_ARCH" ]; then
             echo "Removing wrong-architecture installation (idempotent repair)..."
             for binary in node npm npx; do
                 $USE_SUDO rm -f "/usr/local/bin/$binary"
             done
             $USE_SUDO rm -rf "$NODE_INSTALL_DIR/node-$NODE_VERSION"
         else
-            if ! remove_old_node_installation; then
-                echo "Installation cancelled"
-                exit 0
-            fi
+            remove_old_node_installation
         fi
         echo ""
         force_clean_for_node_install
         echo "Installing Node.js $NODE_VERSION ($NODE_ARCH_SUFFIX)..."
-        if ! install_node; then
-            echo "Node.js installation failed"
-            exit 1
-        fi
+        install_node
         ensure_node_correct_arch
         ;;
-    1)
+    "NOT_FOUND")
         echo "=================================================="
         echo "No Node.js installation found"
         echo "=================================================="
         echo "Installing Node.js $NODE_VERSION..."
         echo ""
         force_clean_for_node_install
-        if ! install_node; then
-            echo "Node.js installation failed"
-            exit 1
-        fi
+        install_node
         ensure_node_correct_arch
         ;;
 esac
 
-if ! create_symlinks; then
-    echo "Failed to create symlinks"
-    exit 1
-fi
-
-if ! setup_environment; then
-    echo "Failed to setup environment"
-    exit 1
-fi
+create_symlinks
+setup_environment
 
 # Always re-assert 777 on the node install dir (idempotent, every run) so ordinary
 # users can run npm/pnpm global installs without sudo. Covers the already-installed path.
@@ -830,10 +771,7 @@ echo ""
 verify_and_fix_all_configs
 
 echo ""
-if ! verify_installation; then
-    echo "Installation verification failed"
-    exit 1
-fi
+verify_installation
 
 echo "Node.js installation completed successfully!"
 echo "COMPILE_DIR: $COMPILE_DIR"

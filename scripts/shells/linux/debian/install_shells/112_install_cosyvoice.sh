@@ -24,6 +24,7 @@ CACHE_ROOT="${CORE_NODE_CACHE_DIR:-$CORE_NODE_ROOT/.cache}"
 TARGET_DIR="${COSYVOICE_DIR:-$CACHE_ROOT/pycore/cosyvoice}"
 DEPS_SENTINEL="$TARGET_DIR/.deps_done"
 REPO_MARKER="$TARGET_DIR/cosyvoice/cli/cosyvoice.py"
+source "$SCRIPT_DIR/../../common/common_functions.sh"
 SUDO=""
 
 while [[ $# -gt 0 ]]; do
@@ -82,6 +83,12 @@ init_cosyvoice_submodules() {
 echo "============================================================"
 echo " [install_cosyvoice] CosyVoice (multilingual clone TTS)"
 echo "============================================================"
+
+if [ "$(get_global_var "SKIP_LARGE_MODELS" "false")" = "true" ]; then
+    echo "[install_cosyvoice] [skip] Server environment without desktop and GPU detected. Skipping CosyVoice installation."
+    complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "server CPU host" torch
+    exit 0
+fi
 
 [[ "${COSYVOICE_SKIP:-0}" == "1" ]] && { echo "[install_cosyvoice] [i] COSYVOICE_SKIP=1 -> skipping."; complete_prereq_step "$PYTHON" "[install_cosyvoice] " --absent-ok "COSYVOICE_SKIP=1" torch; }
 if server_up; then
