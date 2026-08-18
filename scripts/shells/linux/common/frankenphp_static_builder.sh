@@ -53,6 +53,14 @@ FRANKENPHP_STATIC_EMBED_APP_DIR="${FRANKENPHP_STATIC_REPO_ROOT}/poly_apps/larave
 FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
 FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
 FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
+# Runtime binary roots separate by packaging strategy: compiled static builds
+# and released prebuilt artifacts keep their executable files in different
+# directories and share only cache/cert paths under the same root.
+FRANKENPHP_RUNTIME_ROOT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/runtime"
+FRANKENPHP_COMPILED_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/compiled"
+FRANKENPHP_PREBUILT_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/prebuilt"
+FRANKENPHP_COMPILED_BINARY_PATH="${FRANKENPHP_COMPILED_RUNTIME_DIR}/frankenphp"
+FRANKENPHP_PREBUILT_BINARY_PATH="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/frankenphp"
 # Shared install-root path family (single source for the manager, the
 # prebuilt installer and the acme.sh helper): every FrankenPHP artifact
 # lives under the same persistent root so upgrades stay incremental.

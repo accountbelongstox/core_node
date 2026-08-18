@@ -41,7 +41,6 @@ source "$SCRIPT_CURRENT_DIR/service_contract_common.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_CURRENT_DIR/frankenphp_static_builder.sh"
 
-FRANKENPHP_BIN_CANDIDATES="/usr/local/bin/frankenphp /usr/bin/frankenphp"
 FRANKENPHP_LINK_PATH="/usr/local/bin/frankenphp"
 FRANKENPHP_INSTALL_URL="https://frankenphp.dev/install.sh"
 # Pin rationale: the newest caddy-dns/dnspod TAG (v0.0.4, 2022) still
@@ -72,12 +71,43 @@ FRANKENPHP_STATIC_REPO="https://github.com/php/frankenphp"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
 FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
 FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
+FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBUILT_BINARY_PATH} /usr/bin/frankenphp"
 
-# Binary path (empty string when absent) - file probing only, no command -v.
+# Resolve one binary path to its real executable target.
+fm_resolve_binary_path() {
+    local candidate=""
+    local resolved=""
+
+    candidate="$1"
+    if [ -z "$candidate" ]; then
+        echo ""
+        return 0
+    fi
+    resolved="$(readlink -f "$candidate" 2>/dev/null || true)"
+    if [ -n "$resolved" ] && [ -x "$resolved" ]; then
+        echo "$resolved"
+        return 0
+    fi
+    if [ -x "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
+    echo ""
+}
+
+# Binary path (empty string when absent) - real executable target from the
+# canonical link first, then strategy-specific binaries, then /usr/bin.
 fm_get_binary() {
     local candidate=""
+
+    candidate="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
+    if [ -n "$candidate" ]; then
+        echo "$candidate"
+        return 0
+    fi
     for candidate in $FRANKENPHP_BIN_CANDIDATES; do
-        if [ -x "$candidate" ]; then
+        candidate="$(fm_resolve_binary_path "$candidate")"
+        if [ -n "$candidate" ]; then
             echo "$candidate"
             return 0
         fi
@@ -94,16 +124,13 @@ fm_ensure_local_bin_link() {
     local binary=""
     local canonical_target=""
 
-    binary="$(fm_get_binary)"
+    binary="$(fm_resolve_binary_path "${1:-$(fm_get_binary)}")"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; ${FRANKENPHP_LINK_PATH} link not created"
         return 1
     fi
-    if [ "$binary" = "$FRANKENPHP_LINK_PATH" ]; then
-        return 0
-    fi
-    canonical_target="$(readlink -f "$FRANKENPHP_LINK_PATH" 2>/dev/null || true)"
-    if [ "$canonical_target" = "$(readlink -f "$binary")" ]; then
+    canonical_target="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
+    if [ -n "$canonical_target" ] && [ "$canonical_target" = "$binary" ]; then
         return 0
     fi
     $USE_SUDO ln -sf "$binary" "$FRANKENPHP_LINK_PATH"
@@ -230,12 +257,17 @@ opcache.enable_cli = 1
 # and the canonical /usr/local/bin link is re-ensured on every pass.
 fm_install() {
     local binary=""
-    binary="$(fm_get_binary)"
+    local installed_version=""
+    binary="$FRANKENPHP_COMPILED_BINARY_PATH"
+
+    binary="$(fm_resolve_binary_path "$binary")"
     if [ -n "$binary" ]; then
-        echo "[$SCRIPT_INDEX] frankenphp already installed: $binary ($(fm_version))"
-        fm_ensure_local_bin_link
+        installed_version="$("$binary" version 2>/dev/null | sed -n '1p')"
+        echo "[$SCRIPT_INDEX] frankenphp already installed: $binary (${installed_version})"
+        fm_ensure_local_bin_link "$binary"
         return 0
     fi
+
     if ! command -v curl >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [ERROR] curl is required for the frankenphp installer"
         return 1
@@ -243,17 +275,20 @@ fm_install() {
     echo "[$SCRIPT_INDEX] Installing frankenphp (official installer)"
     curl -fsSL "$FRANKENPHP_INSTALL_URL" | $USE_SUDO sh
     if [ -f "frankenphp" ]; then
-        $USE_SUDO mv frankenphp /usr/local/bin/frankenphp
-        $USE_SUDO chmod +x /usr/local/bin/frankenphp
+        binary="$FRANKENPHP_COMPILED_BINARY_PATH"
+        $USE_SUDO mkdir -p "$(dirname "$binary")"
+        $USE_SUDO mv frankenphp "$binary"
+        $USE_SUDO chmod +x "$binary"
     fi
-    binary="$(fm_get_binary)"
+    binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")"
     if [ -n "$binary" ]; then
-        echo "[$SCRIPT_INDEX] frankenphp installed: $binary ($(fm_version))"
-        fm_ensure_local_bin_link
-    else
-        echo "[$SCRIPT_INDEX] [ERROR] frankenphp binary not found after install"
-        return 1
+        installed_version="$("$binary" version 2>/dev/null | sed -n '1p')"
+        echo "[$SCRIPT_INDEX] frankenphp installed: $binary (${installed_version})"
+        fm_ensure_local_bin_link "$binary"
+        return 0
     fi
+    echo "[$SCRIPT_INDEX] [ERROR] frankenphp binary not found after install"
+    return 1
 }
 
 # Embedded Caddy module list (caddy standard module enumeration).
@@ -547,9 +582,13 @@ fm_ensure_dnspod_module() {
     # Mirror the shared secret-file token into the runtime store first
     # (idempotent; covers the 93 compile path, 175 re-uses fm_dns01_ensure).
     fm_dnspod_token_ensure
-    binary="$(fm_get_binary)"
+    binary="$FRANKENPHP_COMPILED_BINARY_PATH"
+    if [ ! -x "$binary" ]; then
+        fm_install
+    fi
+    binary="$(fm_resolve_binary_path "$binary")"
     if [ -z "$binary" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; run fm_install first"
+        echo "[$SCRIPT_INDEX] [WARN] no compiled frankenphp binary; run fm_install first"
         return 1
     fi
     # Embedded-runtime completeness floor: dnspod module (DNS-01) plus the
@@ -561,7 +600,7 @@ fm_ensure_dnspod_module() {
         && fm_embedded_extension_loaded "$binary" simplexml \
         && fm_embedded_extension_loaded "$binary" pcntl; then
         echo "[$SCRIPT_INDEX] dnspod module already embedded (phar/pcntl present)"
-        fm_ensure_local_bin_link
+        fm_ensure_local_bin_link "$binary"
         fm_disable_legacy_php_runtime
         fm_static_apt_php_cleanup
         return 0
@@ -592,10 +631,11 @@ fm_ensure_dnspod_module() {
     $USE_SUDO chmod 755 "${binary}.dnspod-new"
     $USE_SUDO mv -f "${binary}.dnspod-new" "$binary"
     rm -rf "$(dirname "$candidate")"
-    echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($(fm_version))"
-    # Variant mutex: the compiled variant now owns the link - drop a stale
-    # prebuilt-variant backup left behind by an earlier prebuilt install.
-    [ "$binary" = "$FRANKENPHP_LINK_PATH" ] && rm -f "${FRANKENPHP_LINK_PATH}.prebuilt"
+    echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($("$binary" version 2>/dev/null | sed -n '1p'))"
+    # Variant mutex: the compiled variant now owns the link - remove stale
+    # prebuilt variant backup artifacts to keep one active runtime contract.
+    rm -f "${FRANKENPHP_PREBUILT_BINARY_PATH}${FRANKENPHP_BACKUP_SUFFIX}"
+    fm_ensure_local_bin_link "$binary"
     # The binary identity changed - the php/php-cli shims must re-target it
     # (a stale shim keeps exec'ing the previous binary path, which the apt
     # purge may remove altogether).
