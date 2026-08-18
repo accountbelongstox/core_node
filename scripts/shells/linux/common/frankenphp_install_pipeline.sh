@@ -129,6 +129,10 @@ frankenphp_install_pipeline_planes() {
 }
 
 frankenphp_install_pipeline_run_binary() {
+    # Idempotent unlink first: retire any live frankenphp units so the central
+    # binary can be replaced safely; caches and build intermediates are
+    # intentionally kept (replace-only semantics).
+    fm_unlink_frankenphp_runtime
     if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ]; then
         source "$SCRIPT_CURRENT_DIR/frankenphp_install_prebuilt.sh"
         frankenphp_install_prebuilt

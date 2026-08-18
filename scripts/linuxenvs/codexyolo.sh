@@ -16,6 +16,7 @@ current_version_output=""
 latest_version_output=""
 version_gap_large="0"
 script_dir_path=""
+script_source_path=""
 scripts_dir_path=""
 core_node_path=""
 mcp_chrome_path=""
@@ -40,7 +41,11 @@ model="gpt-5.6-sol"
 reasoning_effort="high"
 codex_args=()
 
-script_dir_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_source_path="${BASH_SOURCE[0]}"
+if [ -L "$script_source_path" ]; then
+    script_source_path="$(readlink -f "$script_source_path" 2>/dev/null || echo "$script_source_path")"
+fi
+script_dir_path="$(cd "$(dirname "$script_source_path")" && pwd)"
 scripts_dir_path="$(dirname "$script_dir_path")"
 core_node_path="$(dirname "$scripts_dir_path")"
 mcp_chrome_path="$core_node_path/apps/mcp-chrome"

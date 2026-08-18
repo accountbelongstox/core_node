@@ -171,7 +171,8 @@ execute_selection() {
             set_var "INSTALL_REDIS" "true"
             set_var "INSTALL_POSTGRESQL" "true"
             set_var "INSTALL_DOCKER" "true"
-            set_var "INSTALL_NGINX" "true"
+            # Web server enablement is owned by the [W] plane mutex constant
+            # (START_WEB_SERVER); the legacy INSTALL_NGINX key is retired.
 
             # Execute installation scripts
             local shells_dir="$(dirname "$SCRIPT_DIR")"

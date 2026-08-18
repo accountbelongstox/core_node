@@ -45,14 +45,9 @@ CANCEL_RETURN_EXIT_CODE=130
 
 # Parse menu configuration table
 parse_menu_config() {
-    echo "DEBUG: Starting parse_menu_config"
-    echo "DEBUG: MENU_CONFIG array size: ${#MENU_CONFIG[@]}"
-    
     for config in "${MENU_CONFIG[@]}"; do
-        echo "DEBUG: Processing config: $config"
         IFS='|' read -r name key options base_default server_default full_default desktop_default <<< "$config"
-        echo "DEBUG: Parsed - name: '$name', key: '$key'"
-        
+
         menu_names+=("$name")
         menu_keys+=("$key")
         menu_options["$key"]="$options"
@@ -61,9 +56,7 @@ parse_menu_config() {
         mode_defaults["${key}_full"]="$full_default"
         mode_defaults["${key}_desktop"]="$desktop_default"
     done
-    echo "DEBUG: Finished parse_menu_config"
 }
-
 # Get preset value based on mode
 get_preset_value() {
     local key="$1"

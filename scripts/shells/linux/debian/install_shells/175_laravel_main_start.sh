@@ -115,6 +115,7 @@ WATCH_FLAG=""
 PG_VER=""
 DB_NAME=""
 CURRENT_INSTALL_MODE=""
+CURRENT_WEB_SERVER_PLANE=""
 PG_READY_WAIT=""
 NODE_GLOBAL_VAR_DIR=""
 PG_DATA_ACTUAL=""
@@ -157,11 +158,19 @@ INCLUDE_UI="${INCLUDE_UI:-}"
 UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 
 . "$LARAVEL_13_UPGRADE_SCRIPT"
+# Shared global var helpers (file-backed selectors: START_WEB_SERVER/WEB_SERVER_PLANE,
+# USE_SUDO and CORE_NODE_DATA_DIR defaults).
+. "$GVAR_COMMON_SCRIPT"
+source "$COMMON_DIR/common_functions.sh"
+init_global_vars >/dev/null 2>&1 || true
+FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
+
 # domain_setup_common pulls in the canonical file_ops_common.sh writer
 # (write_file_if_changed + lazy_sudo); source it before cert_selfheal_common.
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
 . "$CERT_SELFHEAL_COMMON"
+. "$FRANKENPHP_MANAGER_SCRIPT"
 
 # Runtime port: central service contract (config/service_contract.json), with
 # the PORT env var as the explicit override.
@@ -252,12 +261,95 @@ new_installation_access_code() {
     printf 'NEXU-%s-%s-%s-%s' "$segment_one" "$segment_two" "$segment_three" "$segment_four"
 }
 
-# Resolve php into PHP_BIN: PATH -> known bin locations.
-resolve_php() {
-    PHP_BIN=""
-    if command -v php >/dev/null 2>&1; then
-        PHP_BIN="$(command -v php)"
+resolve_runtime_plane_for_start() {
+    local plane=""
+    local global_var_dir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}"
+
+    if declare -F web_server_plane >/dev/null 2>&1; then
+        plane="$(web_server_plane 2>/dev/null || true)"
+    fi
+    if [ -z "$plane" ] && [ -f "$global_var_dir/START_WEB_SERVER" ]; then
+        plane="$(tr -d '[:space:]' < "$global_var_dir/START_WEB_SERVER" 2>/dev/null | head -n 1 || true)"
+    fi
+    if [ -z "$plane" ] && [ -f "$global_var_dir/WEB_SERVER_PLANE" ]; then
+        plane="$(tr -d '[:space:]' < "$global_var_dir/WEB_SERVER_PLANE" 2>/dev/null | head -n 1 || true)"
+    fi
+    if [ -z "$plane" ] && declare -F get_global_var >/dev/null 2>&1; then
+        plane="$(get_global_var START_WEB_SERVER '' 2>/dev/null || true)"
+    fi
+
+    case "$plane" in
+        nginx) echo nginx ;;
+        *) echo frankenphp ;;
+    esac
+}
+
+persist_global_var_file_value() {
+    local key="$1"
+    local value="$2"
+
+    if [ -z "$key" ]; then
+        return 1
+    fi
+
+    if declare -F set_global_var >/dev/null 2>&1; then
+        set_global_var "$key" "$value"
         return 0
+    fi
+
+    local gdir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}"
+    $USE_SUDO mkdir -p "$gdir" 2>/dev/null || true
+    printf '%s\n' "$value" | $USE_SUDO tee "$gdir/$key" >/dev/null 2>&1 || printf '%s\n' "$value" > "$gdir/$key"
+    $USE_SUDO chmod 777 "$gdir/$key" 2>/dev/null || chmod 777 "$gdir/$key" 2>/dev/null || true
+    return 0
+}
+
+# Resolve php into PHP_BIN: PATH -> known bin locations.
+# In frankenphp plane, ignore old system PHP and use the frankenphp shim only.
+resolve_php() {
+    local runtime_plane=""
+    local resolved_php=""
+    local probe_file=""
+
+    PHP_BIN=""
+    runtime_plane="$(resolve_runtime_plane_for_start)"
+
+    if [ "$runtime_plane" = "frankenphp" ]; then
+        if [ -x "/usr/local/bin/php" ]; then
+            probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-resolve.XXXXXX.php")"
+            printf '<?php echo 1;' > "$probe_file"
+            if /usr/local/bin/php "$probe_file" >/dev/null 2>&1; then
+                rm -f "$probe_file"
+                PHP_BIN="/usr/local/bin/php"
+                return 0
+            fi
+            rm -f "$probe_file"
+        fi
+
+        # On first-run or after bad manual edits (for example "/usr/local/bin/php"
+        # containing unsupported argument forwarding), rebuild the shim and retry once.
+        if declare -F fm_ensure_php_cli_shim >/dev/null 2>&1; then
+            echo "[175] Rebuild PHP CLI shim for FrankenPHP."
+            if fm_ensure_php_cli_shim; then
+                probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-resolve.XXXXXX.php")"
+                printf '<?php echo 1;' > "$probe_file"
+                if /usr/local/bin/php "$probe_file" >/dev/null 2>&1; then
+                    rm -f "$probe_file"
+                    PHP_BIN="/usr/local/bin/php"
+                    return 0
+                fi
+                rm -f "$probe_file"
+            fi
+        fi
+        return 1
+    fi
+
+    if command -v php >/dev/null 2>&1; then
+        resolved_php="$(command -v php)"
+        if [ -x "$resolved_php" ]; then
+            PHP_BIN="$resolved_php"
+            return 0
+        fi
     fi
     for PHP_CANDIDATE in "/usr/local/bin/php" "/usr/bin/php" "$HOME/.local/bin/php"; do
         if [ -x "$PHP_CANDIDATE" ]; then
@@ -268,13 +360,13 @@ resolve_php() {
     return 1
 }
 
-# Resolve composer into COMPOSER_CMD: PATH -> local phar (via php) -> known locations.
+# Resolve composer into COMPOSER_CMD: prefer frankenphp shim/installed wrapper on frankenphp plane.
 resolve_composer() {
+    local runtime_plane=""
+
     COMPOSER_CMD=""
-    if command -v composer >/dev/null 2>&1; then
-        COMPOSER_CMD="$(command -v composer)"
-        return 0
-    fi
+    runtime_plane="$(resolve_runtime_plane_for_start)"
+
     if [ -n "$PHP_BIN" ] && [ -f "${LARAVEL_DIR}/composer.phar" ]; then
         COMPOSER_CMD="${PHP_BIN} ${LARAVEL_DIR}/composer.phar"
         return 0
@@ -283,37 +375,56 @@ resolve_composer() {
         COMPOSER_CMD="${PHP_BIN} ${REPO_ROOT}/composer.phar"
         return 0
     fi
+
     for COMPOSER_CANDIDATE in \
-        "$HOME/.config/composer/vendor/bin/composer" \
-        "$HOME/.composer/vendor/bin/composer" \
         "/usr/local/bin/composer" \
-        "/usr/bin/composer"; do
+        "$HOME/.config/composer/vendor/bin/composer" \
+        "$HOME/.composer/vendor/bin/composer"; do
         if [ -x "$COMPOSER_CANDIDATE" ]; then
             COMPOSER_CMD="$COMPOSER_CANDIDATE"
             return 0
         fi
     done
-    return 1
-}
 
-# Shared RuntimeConfigurationStore adapter (was duplicated here; the common
-# implementation is the single source - callers provide PHP_BIN,
-# VENDOR_AUTOLOAD, BOOTSTRAP_APP which are declared at the top of this file).
-# shellcheck source=/dev/null
-source "$RUNTIME_CONFIG_COMMON"
-
-ensure_runtime_config_value() {
-    local key="$1"
-    local value="$2"
-    local current=""
-
-    current="$(runtime_config_get "$key")"
-    if [ -n "$current" ]; then
+    if [ "$runtime_plane" != "frankenphp" ] && [ -x "/usr/bin/composer" ]; then
+        COMPOSER_CMD="/usr/bin/composer"
         return 0
     fi
 
-    runtime_config_put "$key" "$value"
+    return 1
 }
+
+# Composer command is considered healthy only when --version is executable.
+composer_command_healthy() {
+    local command_line="$1"
+    local runtime_plane=""
+    [ -n "$command_line" ] || return 1
+
+    local cmd=( $command_line )
+    if [ ${#cmd[@]} -eq 0 ]; then
+        return 1
+    fi
+
+    runtime_plane="$(resolve_runtime_plane_for_start)"
+    if [ "${cmd[0]}" = "/usr/local/bin/composer" ] && [ "$runtime_plane" = "frankenphp" ]; then
+        if [ ! -x /usr/local/bin/composer-php-runtime ]; then
+            return 1
+        fi
+        if ! grep -Fq 'export PHP_BINARY="/usr/local/bin/composer-php-runtime"' /usr/local/bin/composer 2>/dev/null; then
+            return 1
+        fi
+    fi
+
+    if "${cmd[@]}" --version >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+# Shared RuntimeConfigurationStore adapter (central source in runtime_config_common;
+# callers provide PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP at file top).
+# shellcheck source=/dev/null
+source "$RUNTIME_CONFIG_COMMON"
 
 initialize_runtime_configuration_store() {
     local generated_value=""
@@ -324,15 +435,27 @@ initialize_runtime_configuration_store() {
         return 1
     fi
 
-    generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo "base64:".base64_encode(random_bytes(32));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate APP_KEY."
+        return 1
+    fi
     ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
     # Mercure hub keys (HS256 secrets, server-side only - never shipped to
     # pycore, the browser UI or the extension; the runtime injects them as
     # process env for Caddy's {env...} references; the trusted issuer is
     # derived per launch by the runtime branch). Provisioned once.
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate MERCURE_PUBLISHER_JWT."
+        return 1
+    fi
     ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate MERCURE_SUBSCRIBER_JWT."
+        return 1
+    fi
     ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
     # Installation access (super) code: provisioned once into the external
     # store, stable across runs; InstallationAccessCode.php only reads it.
@@ -595,8 +718,7 @@ ensure_nginx_stack() {
     if [ -z "$current_version" ]; then
         echo "nginx not found. Setting START_WEB_SERVER=nginx and invoking the canonical installer:"
         echo "  $NGINX_INSTALL_SCRIPT"
-        $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-        printf 'nginx\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/START_WEB_SERVER" >/dev/null 2>&1 || true
+        persist_global_var_file_value "START_WEB_SERVER" "nginx"
         if [ -f "$NGINX_INSTALL_SCRIPT" ]; then
             bash "$NGINX_INSTALL_SCRIPT" || echo "  Warning: nginx installer reported failure (continuing)."
         else
@@ -775,7 +897,7 @@ if ! resolve_php; then
     fi
 fi
 
-# --- Ensure composer (auto-install via init-ensure script if missing) ---
+# --- Ensure composer (auto-install via init-ensure script if missing or wrapper broken) ---
 if ! resolve_composer; then
     echo "composer not found. Invoking init-ensure installer:"
     echo "  $COMPOSER_INSTALL_SCRIPT"
@@ -794,10 +916,34 @@ if ! resolve_composer; then
         echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y composer"
         exit 1
     fi
+elif ! composer_command_healthy "$COMPOSER_CMD"; then
+    echo "composer command found but not runnable. Re-running init-ensure installer for repair:"
+    echo "  $COMPOSER_INSTALL_SCRIPT"
+    if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
+        bash "$COMPOSER_INSTALL_SCRIPT"
+        if [ $? -ne 0 ]; then
+            echo "ERROR: Composer init-ensure installer failed while repairing wrapper ($COMPOSER_INSTALL_SCRIPT)"
+            exit 1
+        fi
+        if ! resolve_composer; then
+            echo "ERROR: composer still not found after repair run"
+            exit 1
+        fi
+        if ! composer_command_healthy "$COMPOSER_CMD"; then
+            echo "ERROR: composer wrapper appears still broken after repair: $COMPOSER_CMD"
+            exit 1
+        fi
+    else
+        echo "ERROR: composer repair requested but installer missing: $COMPOSER_INSTALL_SCRIPT"
+        echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y composer"
+        exit 1
+    fi
 fi
 
+CURRENT_WEB_SERVER_PLANE="$(resolve_runtime_plane_for_start)"
 echo "Using php:      $PHP_BIN"
 echo "Using composer: $COMPOSER_CMD"
+echo "Web server plane: $CURRENT_WEB_SERVER_PLANE"
 
 # --- Ensure the SSH server (idempotent; skipped with --skip-ssh) ---
 ensure_ssh_server
@@ -865,10 +1011,8 @@ unset _PG_SYNC_ADAPTER
 # --- Database: PostgreSQL (forced on Linux), localhost-only, one DB per app ---
 echo "Ensuring PostgreSQL (localhost-only, per-app databases)..."
 
-# Resolve sudo locally. We deliberately do NOT source gvar_common.sh here: sourcing
-# it triggers heavy top-level side effects (writing /etc/environment, scanning all
-# disks via blkid/findmnt, sudo mkdir) and can HANG on a sudo password prompt on
-# every app start. The canonical 75_install_postgresql.sh sources it itself.
+# Resolve sudo locally. Global-variable persistence uses persist_global_var_file_value()
+# (set_global_var when available) so we do not inject menu state through runtime env.
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
@@ -877,14 +1021,13 @@ fi
 
 # dd.sh priority: force START_POSTGRESQL=true; only raise INSTALL_MODE to 'server'
 # when unset/base so an explicit dd.sh choice (server/full/desktop) is preserved.
-$USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-printf 'true\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/START_POSTGRESQL" >/dev/null 2>&1 || true
+persist_global_var_file_value "START_POSTGRESQL" "true"
 CURRENT_INSTALL_MODE=""
 if [ -f "$GLOBAL_VAR_DIR/INSTALL_MODE" ]; then
     CURRENT_INSTALL_MODE="$(tr -d '[:space:]' < "$GLOBAL_VAR_DIR/INSTALL_MODE" 2>/dev/null || echo "")"
 fi
 if [ -z "$CURRENT_INSTALL_MODE" ] || [ "$CURRENT_INSTALL_MODE" = "base" ]; then
-    printf 'server\n' | $USE_SUDO tee "$GLOBAL_VAR_DIR/INSTALL_MODE" >/dev/null 2>&1 || true
+    persist_global_var_file_value "INSTALL_MODE" "server"
 fi
 
 # ALWAYS invoke the canonical PostgreSQL ensurer (fully idempotent: install +
@@ -1000,8 +1143,7 @@ fi
 if ! node --version >/dev/null 2>&1; then
     if [ -f "$NODE_INSTALL_SCRIPT" ]; then
         NODE_GLOBAL_VAR_DIR="$GLOBAL_VAR_DIR"
-        ${USE_SUDO:-} mkdir -p "$NODE_GLOBAL_VAR_DIR" 2>/dev/null || true
-        printf 'true\n' | ${USE_SUDO:-} tee "$NODE_GLOBAL_VAR_DIR/INSTALL_NODE" >/dev/null 2>&1 || true
+        persist_global_var_file_value "INSTALL_NODE" "true"
         echo "node not found/working. Invoking init-ensure installer (INSTALL_NODE=true):"
         echo "  $NODE_INSTALL_SCRIPT"
         bash "$NODE_INSTALL_SCRIPT" || echo "  Warning: node init-ensure installer failed (continuing)."
@@ -1020,7 +1162,7 @@ fi
 
 # Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
 REAL_USER="${SUDO_USER:-$(id -un)}"
-LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && "$PHP_BIN" -r 'require "vendor/autoload.php"; require "bootstrap/app.php"; echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");' 2>/dev/null)"
+LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");')"
 if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR" ] && [ -d "$LARAVEL_DATA_DIR" ]; then
     echo "Ensuring ownership of web data dir for '$REAL_USER': $LARAVEL_DATA_DIR"
     $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null || true

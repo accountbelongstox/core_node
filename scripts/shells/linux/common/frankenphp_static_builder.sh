@@ -35,7 +35,7 @@ source "${FM_STATIC_CURRENT_DIR}/frankenphp_static_prereq.sh"
 # Base extension set for the static build (spc names; covers the Laravel
 # main app needs - Laravel 13 included). The official default list is
 # intentionally overridden for a deterministic, minimal binary.
-FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pdo,pdo_mysql,pdo_sqlite,session,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
+FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
 # Service-selector driven additions (get_var START_*): only the database
 # backends this host actually starts are baked into the binary.
 FRANKENPHP_STATIC_DB_EXT_MYSQL="mysqli,pdo_mysql"
@@ -53,6 +53,14 @@ FRANKENPHP_STATIC_EMBED_APP_DIR="${FRANKENPHP_STATIC_REPO_ROOT}/poly_apps/larave
 FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
 FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
 FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
+# Runtime binary roots separate by packaging strategy: compiled static builds
+# and released prebuilt artifacts keep their executable files in different
+# directories and share only cache/cert paths under the same root.
+FRANKENPHP_RUNTIME_ROOT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/runtime"
+FRANKENPHP_COMPILED_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/compiled"
+FRANKENPHP_PREBUILT_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/prebuilt"
+FRANKENPHP_COMPILED_BINARY_PATH="${FRANKENPHP_COMPILED_RUNTIME_DIR}/frankenphp"
+FRANKENPHP_PREBUILT_BINARY_PATH="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/frankenphp"
 # Shared install-root path family (single source for the manager, the
 # prebuilt installer and the acme.sh helper): every FrankenPHP artifact
 # lives under the same persistent root so upgrades stay incremental.

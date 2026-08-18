@@ -23,6 +23,7 @@ MODE="auto"
 PROVIDER="openai-codex"
 MODEL="gpt-5.6-sol"
 THINKING="high"
+THINKING_SET_BY_USER="false"
 PARSED_ARGS=()
 PI_BIN_PATH=""
 PI_USER_DIR=""
@@ -156,10 +157,12 @@ while [ "$#" -gt 0 ]; do
                 exit 1
             fi
             THINKING="$2"
+            THINKING_SET_BY_USER="true"
             shift 2
             ;;
         --thinking=*)
             THINKING="${1#*=}"
+            THINKING_SET_BY_USER="true"
             shift
             ;;
         *)
@@ -246,6 +249,23 @@ else
     if [ -d "$KIMI_SKILLS_PATH" ]; then
         SKILL_PATHS+=("$KIMI_SKILLS_PATH")
     fi
+fi
+
+if [ "$MODE" = "codex" ]; then
+    if [ "$THINKING_SET_BY_USER" = "false" ] && [ "$THINKING" = "high" ]; then
+        THINKING="xhigh"
+    fi
+    case "$THINKING" in
+        xhigh)
+            ;;
+        minimal|off|low|medium|high|max)
+            THINKING="xhigh"
+            ;;
+        *)
+            echo "[WARN] Unsupported thinking level '$THINKING' for codex; fallback to xhigh."
+            THINKING="xhigh"
+            ;;
+    esac
 fi
 
 if [ "${#PACKAGE_SOURCES[@]}" -gt 0 ]; then

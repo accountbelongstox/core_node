@@ -34,6 +34,7 @@ $candidatePath = $null
 $provider = 'openai-codex'
 $model = 'gpt-5.6-sol'
 $thinking = 'high'
+$thinkingSetByUser = $false
 $codexModels = @(
     'openai-codex/gpt-5.3-codex-spark',
     'openai-codex/gpt-5.4',
@@ -197,11 +198,13 @@ while ($argIndex -lt $forwardArgs.Count) {
             exit 1
         }
         $thinking = $forwardArgs[$argIndex + 1]
+        $thinkingSetByUser = $true
         $argIndex = $argIndex + 2
         continue
     }
     if ($currentArg -like '--thinking=*') {
         $thinking = $currentArg.Substring('--thinking='.Length)
+        $thinkingSetByUser = $true
         $argIndex++
         continue
     }
@@ -291,6 +294,19 @@ else {
         if (Test-Path -LiteralPath $candidatePath -PathType Container) {
             $skillPaths += $candidatePath
         }
+    }
+}
+
+if ($mode -eq 'codex') {
+    if (-not $thinkingSetByUser -and $thinking -eq 'high') {
+        $thinking = 'xhigh'
+    }
+    if ($thinking -eq 'minimal' -or $thinking -eq 'off' -or $thinking -eq 'low' -or $thinking -eq 'medium' -or $thinking -eq 'high' -or $thinking -eq 'max') {
+        $thinking = 'xhigh'
+    }
+    elseif ($thinking -ne 'xhigh') {
+        Write-Host "[WARN] Unsupported thinking level '$thinking' for codex; fallback to xhigh." -ForegroundColor Yellow
+        $thinking = 'xhigh'
     }
 }
 

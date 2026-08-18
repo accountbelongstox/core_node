@@ -41,7 +41,7 @@ check_swoole_installed() {
     echo -e "${BLUE}$SCRIPT_INDEX Checking Swoole installation...${NC}"
 
     # Get dynamic extension directory from PHP
-    local ext_dir=$(php -r "echo ini_get('extension_dir');" 2>/dev/null)
+    local ext_dir=$(php_script_run "echo ini_get('extension_dir');" 2>/dev/null)
     local swoole_so="$ext_dir/swoole.so"
 
     echo -e "${CYAN}$SCRIPT_INDEX PHP extension directory: $ext_dir${NC}"
@@ -50,7 +50,7 @@ check_swoole_installed() {
         echo -e "${GREEN}$SCRIPT_INDEX Swoole extension file exists: $swoole_so${NC}"
 
         if php -m 2>/dev/null | grep -q "swoole"; then
-            local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
+            local swoole_version=$(php_script_run "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
             echo -e "${GREEN}$SCRIPT_INDEX Swoole module loaded in CLI: $swoole_version${NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Swoole extension exists but not loaded in CLI${NC}"
@@ -138,7 +138,7 @@ ensure_php_symlink() {
 uninstall_old_swoole() {
     echo -e "${BLUE}$SCRIPT_INDEX Checking for existing Swoole installation...${NC}"
 
-    local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null)
+    local swoole_version=$(php_script_run "echo phpversion('swoole');" 2>/dev/null)
 
     if [ -n "$swoole_version" ] && [ "$swoole_version" != "false" ]; then
         echo -e "${YELLOW}$SCRIPT_INDEX Found existing Swoole version: $swoole_version${NC}"
@@ -151,7 +151,7 @@ uninstall_old_swoole() {
         fi
 
         # Remove swoole.so from extension directory
-        local ext_dir=$(php -r "echo ini_get('extension_dir');" 2>/dev/null)
+        local ext_dir=$(php_script_run "echo ini_get('extension_dir');" 2>/dev/null)
         if [ -n "$ext_dir" ] && [ -f "$ext_dir/swoole.so" ]; then
             echo -e "${CYAN}$SCRIPT_INDEX Removing $ext_dir/swoole.so${NC}"
             $USE_SUDO rm -f "$ext_dir/swoole.so"
@@ -271,7 +271,7 @@ verify_swoole() {
     echo -e "${BLUE}$SCRIPT_INDEX Verifying Swoole installation...${NC}"
 
     if php -m | grep -q "swoole"; then
-        local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
+        local swoole_version=$(php_script_run "echo phpversion('swoole');" 2>/dev/null || echo "unknown")
         echo -e "${GREEN}$SCRIPT_INDEX �?Swoole installed successfully${NC}"
         echo -e "${GREEN}$SCRIPT_INDEX   Version: $swoole_version${NC}"
 
@@ -302,7 +302,7 @@ main() {
         echo -e "${GREEN}$SCRIPT_INDEX Swoole is fully configured and working${NC}"
 
         # Check Swoole version
-        local swoole_version=$(php -r "echo phpversion('swoole');" 2>/dev/null)
+        local swoole_version=$(php_script_run "echo phpversion('swoole');" 2>/dev/null)
         echo -e "${CYAN}$SCRIPT_INDEX Swoole version: $swoole_version${NC}"
 
         echo -e "${GREEN}$SCRIPT_INDEX Nothing to do${NC}"
