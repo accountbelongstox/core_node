@@ -2,7 +2,7 @@
 # RustDesk Client Installation Script
 #
 # Usage:
-#   ./125_install_rustdesk_client_1.4.4.sh
+#   ./161_install_rustdesk_client_1.4.4.sh
 #
 # This script installs RustDesk Client - a remote desktop application
 # Recommended for desktop systems

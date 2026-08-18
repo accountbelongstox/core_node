@@ -283,7 +283,7 @@ main() {
     # Check PHP 8.5 availability
     if [ ! -x "$PHP_BINARY" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 32_ensure_php85_intelligent.sh first${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 43_ensure_php85_intelligent.sh first${NC}"
         return
     fi
 

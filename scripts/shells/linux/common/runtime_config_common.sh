@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # RuntimeConfigurationStore shell adapter (common area). Single shared
-# implementation for every caller (132_laravel_main_start.sh,
+# implementation for every caller (175_laravel_main_start.sh,
 # laravel_start_service.sh, the laravel_runtime_* plane branches) - the
 # store itself (key normalization, private permissions) lives in
 # poly_apps/laravel_main/app/Support/RuntimeConfigurationStore.php.

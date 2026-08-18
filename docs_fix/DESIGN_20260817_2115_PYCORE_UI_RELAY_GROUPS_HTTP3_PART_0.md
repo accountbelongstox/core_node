@@ -15,15 +15,15 @@ compat-plane legacy: package, config, process, proxies, contract ports and
 keys are gone in the same change set.
 
 Status: implementation of this part pending (plane constants,
-`28_install_frankenphp.sh`, `common/frankenphp_manager.sh`, dual-end server
+`49_install_frankenphp.sh`, `common/frankenphp_manager.sh`, dual-end server
 manager, `132` plane branch, menu/toolchain flows). Backend relay artifacts
 already written pre-pivot are listed with their required sync renames in
 PART 3 §3.7.
 
 Reference input:
 - `docs_fix/origin/b.txt` (FrankenPHP + Mercure revision)
-- `scripts/shells/linux/debian/install_shells/132_laravel_main_start.sh`
-- `scripts/shells/linux/debian/install_shells/26_install_nginx.sh`
+- `scripts/shells/linux/debian/install_shells/175_laravel_main_start.sh`
+- `scripts/shells/linux/debian/install_shells/33_install_nginx.sh`
 
 ## Basic norms (binding for this part)
 
@@ -116,7 +116,7 @@ Reference input:
   former `reverb_backend: 8080` is REMOVED (no realtime sidecar port
   exists on any plane).
 
-## 0.4 W1 - `28_install_frankenphp.sh` (new step-granular orchestrator)
+## 0.4 W1 - `49_install_frankenphp.sh` (new step-granular orchestrator)
 
 - Parallel in shape to 26: every primitive lives in a NEW shared manager
   `common/frankenphp_manager.sh` (mirrors nginx_manager.sh architecture:
@@ -168,7 +168,7 @@ Reference input:
   (never in the file, logs or URLs). `config/octane.php`'s `'mercure'`
   block stays unused - one canonical config source, no dual path.
 
-## 0.6 W3 - `132_laravel_main_start.sh` plane switch
+## 0.6 W3 - `175_laravel_main_start.sh` plane switch
 
 - Read `WEB_SERVER_PLANE`; default `frankenphp`.
 - Frankenphp branch: SKIP the nginx ensure / certbot / domain nginx-flow
@@ -197,7 +197,7 @@ Reference input:
   (base/server/full/desktop). 26 starts nginx only when the choice is
   `nginx`; 28 adopts the frankenphp plane; 132's nginx-ensure sets the
   constant to `nginx` before invoking 26.
-- `32_ensure_php85_intelligent.sh`: plane-aware - frankenphp plane ensures
+- `43_ensure_php85_intelligent.sh`: plane-aware - frankenphp plane ensures
   the FrankenPHP binary's embedded PHP 8.5 + a `php`/`php-cli` shim from
   `frankenphp php-cli` (no apt PHP); system plane unchanged.
 - `33_install_swoole.sh`: frankenphp plane SKIPS Swoole entirely (Octane

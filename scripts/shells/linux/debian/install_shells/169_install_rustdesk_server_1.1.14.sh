@@ -2,7 +2,7 @@
 # RustDesk Server Installation Script
 #
 # Usage:
-#   ./129_install_rustdesk_server_1.1.14.sh
+#   ./169_install_rustdesk_server_1.1.14.sh
 #
 # This script installs RustDesk Server OSS (hbbs and hbbr) for self-hosting.
 # OSS has NO Web Console, NO user accounts, NO client login/register; only ID + permanent password.

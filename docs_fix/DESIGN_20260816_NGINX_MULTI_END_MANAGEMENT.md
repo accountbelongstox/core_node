@@ -6,7 +6,7 @@ One nginx management truth across three ends, with fine-grained idempotency at
 every step (install, PATH/link, upgrade, config, repair, sites, certificates):
 
 1. **Shell end (initial provisioning)** - `dd.sh` chain and
-   `132_laravel_main_start.sh` install/upgrade/repair nginx with HTTP/3 + 301 +
+   `175_laravel_main_start.sh` install/upgrade/repair nginx with HTTP/3 + 301 +
    TLS 1.3 early data, and install domains from decrypted DNSPod secrets.
 2. **Laravel end (ongoing management)** - `poly_apps/laravel_main`
    ServerManagerV1 exposes the same capabilities over the API
@@ -43,7 +43,7 @@ Each file carries a `SYNC CONTRACT` header naming its counterparts.
   Load-time side effect free; directory resolution order is
   `map_web_path` -> global-var store -> `/etc/nginx` defaults, so it is safe
   to source from dd.sh installers and from plain app start scripts.
-- `install_shells/26_install_nginx.sh` - the dd.sh step orchestrator. Contains
+- `install_shells/33_install_nginx.sh` - the dd.sh step orchestrator. Contains
   no implementation of its own: each `step_run` wraps exactly one
   `nginx_manager.sh` primitive, so a satisfied step never blocks later steps.
   Supported distros: Debian / Ubuntu / Kali (Kali maps to the Debian nginx.org
@@ -54,12 +54,12 @@ Each file carries a `SYNC CONTRACT` header naming its counterparts.
   own source build carries a `.core_node_source_build` marker and is kept),
   and path unification (`nginx_unify_binaries`: every known nginx path becomes
   a symlink to one canonical binary, re-checked after the service step).
-- `install_shells/27_install_certbot.sh` - certbot tooling via **pipx
+- `install_shells/35_install_certbot.sh` - certbot tooling via **pipx
   isolation** (PEP 668 / official certbot venv route). The apt certbot ran on
   the system Python and collided with the many `--break-system-packages`
   installers (selenium needs urllib3>=2.5, apt certbot needs urllib3<2); the
   fix is isolation, not version pinning. pipx is referenced by the absolute
-  path owned by 17_enable_pipx.sh (`$COMPILE_DIR/pipx_venv/bin/pipx`), every
+  path owned by 19_enable_pipx.sh (`$COMPILE_DIR/pipx_venv/bin/pipx`), every
   legacy channel (apt packages, system-pip packages, snap) is idempotently
   purged, binaries are detected by existence tests, and functions do not
   communicate via exit codes - each step self-detects its prerequisites and
@@ -83,7 +83,7 @@ Every idempotent-replace write (`write_file_if_changed`, the domain-setup
 fallback writer, `domain_state_set`) ends with `chmod 777` on the target,
 matching the shared-variable mode-777 policy; on NTFS-mapped data disks the
 chmod is a tolerated no-op.
-- `install_shells/132_laravel_main_start.sh` - the single canonical
+- `install_shells/175_laravel_main_start.sh` - the single canonical
   laravel_main start: toolchain ensure -> SSH ensure (19) -> PostgreSQL ->
   sys:init -> nginx ensure (install / upgrade prompt / repair prompt /
   always-on repair sweep + `http3-migrate`) -> certbot ensure -> DNSPod domain
@@ -91,15 +91,15 @@ chmod is a tolerated no-op.
   Modes: `--domains-only` (old 132 scope), `--ssl-only` (old 133 scope),
   `--no-domains`, `--skip-ssh`.
 - `poly_apps/laravel_main/scripts/start.sh` - delegates to
-  `132_laravel_main_start.sh` (single-level reference, removes the old
+  `175_laravel_main_start.sh` (single-level reference, removes the old
   app->installer reverse reference).
 
 ## Deleted (no thin wrappers, no duplicate implementations)
 
 - `install_shells/132_prepare_domain_setup.sh` - merged into
-  `132_laravel_main_start.sh` (`--domains-only`).
+  `175_laravel_main_start.sh` (`--domains-only`).
 - `install_shells/133_setup_domain_ssl.sh` - merged into
-  `132_laravel_main_start.sh` (`--ssl-only`).
+  `175_laravel_main_start.sh` (`--ssl-only`).
 - `poly_apps/laravel_main/scripts/upgrade_laravel_13.sh` - canonical copy is
   `debian_com/laravel_upgrade_13.sh` (Windows uses `upgrade_laravel_13.ps1`).
 - Local `install_file_if_changed` copies in 26/27 - merged into

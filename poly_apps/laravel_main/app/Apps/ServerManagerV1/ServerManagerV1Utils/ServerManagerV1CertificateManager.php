@@ -14,7 +14,7 @@ use App\Providers\PathMapper;
  * SYNC CONTRACT (two ends, one truth): this is the Laravel end of the
  * certificate flow (issue/renew/ensure via certbot + DNSPod). The shell end
  * is:
- *   scripts/shells/linux/debian/install_shells/27_install_certbot.sh
+ *   scripts/shells/linux/debian/install_shells/35_install_certbot.sh
  *     (tooling + systemd renewal timer for automatic renewal)
  *   scripts/shells/linux/common/domain_setup_common.sh
  *     (domain_setup_issue_certificate -> artisan servermanager:certificate)

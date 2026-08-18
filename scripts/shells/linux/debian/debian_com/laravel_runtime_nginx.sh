@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # laravel_main runtime - NGINX PLANE branch (referenced by
-# 132_laravel_main_start.sh and the plane-aware laravel service).
+# 175_laravel_main_start.sh and the plane-aware laravel service).
 # System PHP + Swoole Octane on the contract laravel_api_backend port;
 # nginx (external) terminates TLS and reverse-proxies loopback. NO Reverb
 # process exists on this plane - realtime is the Mercure hub contract.

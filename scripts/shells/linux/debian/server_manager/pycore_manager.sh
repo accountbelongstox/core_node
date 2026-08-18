@@ -35,13 +35,13 @@ check_pycore_installed() {
     if [ ! -f "$SERVICE_SCRIPT" ]; then
         echo -e "${COLOR_RED}Pycore HTTP service is not installed!${COLOR_RESET}"
         echo "Service script not found: $SERVICE_SCRIPT"
-        echo "Please run installation script first: 150_install_pycore_http_service.sh"
+        echo "Please run installation script first: 189_install_pycore_http_service.sh"
         return 1
     fi
 
     if ! systemctl list-unit-files | grep -q "^$SERVICE_NAME.service"; then
         echo -e "${COLOR_RED}Pycore HTTP service is not installed!${COLOR_RESET}"
-        echo "Please run installation script first: 150_install_pycore_http_service.sh"
+        echo "Please run installation script first: 189_install_pycore_http_service.sh"
         return 1
     fi
 

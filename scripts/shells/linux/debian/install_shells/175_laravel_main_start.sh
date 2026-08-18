@@ -18,11 +18,11 @@
 #   - vendor/ integrity ensure driven by the shared composer-lock contract
 #     (common/composer_vendor_common.sh): install / repair / rebuild from
 #     composer.lock, verified by a clean autoloader load
-#   - SSH server ensure (via 19_setup_ssh_remote.sh, itself idempotent)
+#   - SSH server ensure (via 23_setup_ssh_remote.sh, itself idempotent)
 #   - nginx ensure driven by the shared management architecture
 #     (common/nginx_manager.sh): install / in-place upgrade / idempotent
 #     repair / per-file HTTP/3 + 301 + early-data stanza migration
-#   - certbot ensure (via 27_install_certbot.sh) + certificate auto-renewal
+#   - certbot ensure (via 35_install_certbot.sh) + certificate auto-renewal
 #   - domain install from decrypted DNSPod secrets: api.<region>.<domain>
 #     sites rendered natively with HTTP/3, reverse-proxied to the canonical
 #     API backend (service contract ports.laravel_api_backend on loopback)
@@ -67,16 +67,16 @@ BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 
 # Canonical init-ensure installer scripts
-PHP_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/32_ensure_php85_intelligent.sh"
+PHP_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/43_ensure_php85_intelligent.sh"
 COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/35_install_composer.sh"
-NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/16_install_node_24.sh"
+NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_24.sh"
 SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/33_install_swoole.sh"
-P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/44_install_p7zip.sh"
-POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/47_install_postgresql.sh"
-PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/48_ensure_php_pgsql.sh"
-SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/19_setup_ssh_remote.sh"
-NGINX_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/26_install_nginx.sh"
-CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/27_install_certbot.sh"
+P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"
+POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
+PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
+SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
+NGINX_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/33_install_nginx.sh"
+CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/35_install_certbot.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
 CERT_SELFHEAL_COMMON="${COMMON_DIR}/cert_selfheal_common.sh"
@@ -137,7 +137,7 @@ LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
 LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
 LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
 SERVICE_MANAGER="${COMMON_DIR}/debian_service_manager.sh"
-SELF="${SCRIPT_CURRENT_DIR}/132_laravel_main_start.sh"
+SELF="${SCRIPT_CURRENT_DIR}/175_laravel_main_start.sh"
 SERVICE_EXEC_CMD=""
 ARG=""
 HELP_REQUESTED="no"
@@ -350,7 +350,7 @@ resolve_npx() {
         NPX_BIN="$(command -v npx)"
         return 0
     fi
-    # 16_install_node_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
+    # 17_install_node_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
     for NPX_CANDIDATE in "/usr/local/bin/npx" "/usr/bin/npx" "$HOME/.local/bin/npx"; do
         if [ -x "$NPX_CANDIDATE" ]; then
             NPX_BIN="$NPX_CANDIDATE"
@@ -551,7 +551,7 @@ register_laravel_service() {
 }
 
 # Ensure the SSH server exists (fine-grained idempotent: binary check first,
-# installer 19_setup_ssh_remote.sh carries its own persistent completion flag).
+# installer 23_setup_ssh_remote.sh carries its own persistent completion flag).
 ensure_ssh_server() {
     if [ "$SKIP_SSH" = "yes" ]; then
         return 0
@@ -652,7 +652,7 @@ ensure_nginx_stack() {
 # Ensure certbot tooling when domain setup is in scope (27 self-skips without nginx).
 # Ensure certbot tooling when domain setup is in scope. Detection is
 # file-based and flavor-aware: /usr/local/bin/certbot must resolve INTO the
-# pipx venv (27_install_certbot.sh owns that link). A stale real file (old
+# pipx venv (35_install_certbot.sh owns that link). A stale real file (old
 # system-pip/apt console script at the same path) passes a bare -x check but
 # is NOT the managed install -> invoke the canonical installer to re-link.
 ensure_certbot_stack() {
@@ -868,7 +868,7 @@ echo "Ensuring PostgreSQL (localhost-only, per-app databases)..."
 # Resolve sudo locally. We deliberately do NOT source gvar_common.sh here: sourcing
 # it triggers heavy top-level side effects (writing /etc/environment, scanning all
 # disks via blkid/findmnt, sudo mkdir) and can HANG on a sudo password prompt on
-# every app start. The canonical 47_install_postgresql.sh sources it itself.
+# every app start. The canonical 75_install_postgresql.sh sources it itself.
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else

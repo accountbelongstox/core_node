@@ -123,7 +123,7 @@ install_pipx_in_uv_venv() {
 
     # Check if uv is available
     if ! command_exists uv; then
-        echo "Error: uv not found. Please install uv first (script 20_install_uv.sh)"
+        echo "Error: uv not found. Please install uv first (script 25_install_uv.sh)"
         return 1
     fi
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Certificate self-heal (certbot renewal automation), shared by
-# 27_install_certbot.sh (provisioning) and 132_laravel_main_start.sh (startup
+# 35_install_certbot.sh (provisioning) and 175_laravel_main_start.sh (startup
 # check). Design follows the official certbot renewal contract
 # (eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates):
 #   - `certbot renew` renews ONLY near-expiry certificates (certbot >= 4.0:

@@ -1080,7 +1080,7 @@ resolve_pnpm() {{
     elif command -v pnpm >/dev/null 2>&1; then
         pnpmBin="$(command -v pnpm)"
     else
-        echo "[ERROR] pnpm not found (run 16_install_node_24.sh first)." >&2
+        echo "[ERROR] pnpm not found (run 17_install_node_24.sh first)." >&2
         exit 1
     fi
 }}

@@ -250,7 +250,7 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
 
     RUNTIME only RESOLVES the pre-built venv (resolve_python) - it never builds/pips
     at start time. Provisioning is done idempotently by the install scripts
-    (Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh) that pyservice runs; a
+    (Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh) that pyservice runs; a
     missing venv -> no start + disabled_reason points at the installer."""
     venv_python = resolve_isolated_python(QWEN_ENGINE_NAME)
     model_id = qwen_weights.resolve_model_id(allow_remote=False)

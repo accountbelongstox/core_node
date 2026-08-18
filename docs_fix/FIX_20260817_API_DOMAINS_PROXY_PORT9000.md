@@ -30,7 +30,7 @@ What is already correct:
 
 - The shell install chain already targets 9000:
 
-  `132_laravel_main_start.sh:52` `PORT=9000`) -> `:745`
+  `175_laravel_main_start.sh:52` `PORT=9000`) -> `:745`
 
   `domain_setup_install_all "http://127.0.0.1:$PORT"`) ->
 

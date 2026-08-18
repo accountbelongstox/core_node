@@ -187,8 +187,8 @@ _stop_aliyun.sh
   - 30_install_edge.sh
   - 31_ensure_php85_intelligent.sh
   - 32_install_swoole.sh
-  - 33_configure_php85.sh
-  - 34_install_composer.sh
+  - 45_configure_php85.sh
+  - 47_install_composer.sh
   - 35_install_chrome.sh
   - 36_install_puppeteer_plugins.sh
   - 37_install_dotnet.sh
@@ -233,8 +233,8 @@ _stop_aliyun.sh
   - 132_setup_domain_ssl.sh
   - 133_setup_api_domains.sh
   - 134_setup_html_domains.sh
-  - 150_install_pycore_http_service.sh
-  - 151_install_octane_watcher_daemon.sh
+  - 189_install_pycore_http_service.sh
+  - 191_install_octane_watcher_daemon.sh
   - 999_check_circular_symlinks.sh_stop_aliyun.sh
   - 3_setting_base.sh
   - 3_stop_aliyun_cloudmonitor.sh
@@ -265,8 +265,8 @@ _stop_aliyun.sh
   - 30_install_edge.sh
   - 31_ensure_php85_intelligent.sh
   - 32_install_swoole.sh
-  - 33_configure_php85.sh
-  - 34_install_composer.sh
+  - 45_configure_php85.sh
+  - 47_install_composer.sh
   - 35_install_chrome.sh
   - 36_install_puppeteer_plugins.sh
   - 37_install_dotnet.sh
@@ -311,8 +311,8 @@ _stop_aliyun.sh
   - 132_setup_domain_ssl.sh
   - 133_setup_api_domains.sh
   - 134_setup_html_domains.sh
-  - 150_install_pycore_http_service.sh
-  - 151_install_octane_watcher_daemon.sh
+  - 189_install_pycore_http_service.sh
+  - 191_install_octane_watcher_daemon.sh
   - 999_check_circular_symlinks.sh
 Use multeple roles for cross-validation to verify tha every script follws idmpotent procedures and fully support Debian,Ubuntu,andKaliLinux,Consulet the official ducumentation,and where platform-specific differences exist,implement separate execuion braches,Ensure all branches remain idempotent.
 
@@ -346,8 +346,8 @@ This is a large cross-validation audit across ~95 install scripts. Let me scout 
 11_cuda_nvidia_prereq.sh
 13_ensure_python.sh
 14_install_faster_whisper.sh
-150_install_pycore_http_service.sh
-151_install_octane_watcher_daemon.sh
+189_install_pycore_http_service.sh
+191_install_octane_watcher_daemon.sh
 15_install_node_24.sh
 16_enable_pipx.sh
 17_enable_poetry.sh
@@ -365,8 +365,8 @@ This is a large cross-validation audit across ~95 install scripts. Let me scout 
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
-33_configure_php85.sh
-34_install_composer.sh
+45_configure_php85.sh
+47_install_composer.sh
 35_install_chrome.sh
 36_install_puppeteer_plugins.sh
 37_install_dotnet.sh
@@ -646,13 +646,13 @@ I have everything I need: a mature shared framework, the apt-repo policy, the id
 [2026-06-22 14:18:56]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\nls -1 *.sh | python3 -c \"import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))\"", "description": "Emit JSON array of all 77 script filenames"}
 
 [2026-06-22 14:18:56]   <- tool result:
-["101_natgateway.sh", "9_fix_dns.sh", "11_install_sudo.sh", "120_install_desktop_applications.sh", "121_install_cursor.sh", "122_install_vscode.sh", "123_install_gitea.sh", "124_install_rustdesk_client_1.4.4.sh", "125_setup_gnome_rdp.sh", "126_install_antigravity.sh", "127_install_wechat.sh", "128_install_rustdesk_server_1.1.14.sh", "12_update.sh", "131_prepare_domain_setup.sh", "132_setup_domain_ssl.sh", "133_setup_api_domains.sh", "134_setup_html_domains.sh", "11_cuda_nvidia_prereq.sh", "13_ensure_python.sh", "14_install_faster_whisper.sh", "150_install_pycore_http_service.sh", "151_install_octane_watcher_daemon.sh", "15_install_node_24.sh", "16_enable_pipx.sh", "17_enable_poetry.sh", "18_setup_ssh_remote.sh", "19_install_uv.sh", "1_stop_aliyun.sh", "20_install_git_ssh.sh", "21_install_edge_tts.sh", "22_install_tts_offline.sh", "25_install_nginx.sh", "26_install_certbot.sh", "28_ensure_pnpm_packages.sh", "29_ensure_npmrc.sh", "3_setting_base.sh", "30_install_edge.sh", "31_ensure_php85_intelligent.sh", "32_install_swoole.sh", "33_configure_php85.sh", "34_install_composer.sh", "35_install_chrome.sh", "36_install_puppeteer_plugins.sh", "37_install_dotnet.sh", "38_install_flutter.sh", "39_install_android_studio.sh", "3_stop_cloud_monitors.sh", "40_install_ittools_binaries.sh", "41_install_ruby.sh", "42_install_rust.sh", "43_install_p7zip.sh", "44_ensure_dragonfly_intelligent.sh", "45_install_redis.sh", "46_install_postgresql.sh", "47_ensure_php_pgsql.sh", "47_install_docker.sh", "48_set_docker_daemon.sh", "49_docker-compose-finish.sh", "4_set_desktop_power.sh", "50_install_mysql.sh", "51_install_shama.sh", "52_install_tailscale.sh", "53_install_golang22.sh", "54_install_java.sh", "62_install_upsc.sh", "63_install_tailscale.sh", "5_system_maintenance.sh", "81_generate_docker_compose_yml.sh", "83_core_node_finish.sh", "85_install_code_server.sh", "7_project_validator.sh", "95_install_deepseek.sh", "96_install_deepseek_ocr.sh", "97_install_qwen25.sh", "98_install_nllb20
+["101_natgateway.sh", "9_fix_dns.sh", "11_install_sudo.sh", "120_install_desktop_applications.sh", "121_install_cursor.sh", "122_install_vscode.sh", "123_install_gitea.sh", "124_install_rustdesk_client_1.4.4.sh", "125_setup_gnome_rdp.sh", "126_install_antigravity.sh", "127_install_wechat.sh", "128_install_rustdesk_server_1.1.14.sh", "12_update.sh", "131_prepare_domain_setup.sh", "132_setup_domain_ssl.sh", "133_setup_api_domains.sh", "134_setup_html_domains.sh", "11_cuda_nvidia_prereq.sh", "13_ensure_python.sh", "14_install_faster_whisper.sh", "189_install_pycore_http_service.sh", "191_install_octane_watcher_daemon.sh", "15_install_node_24.sh", "16_enable_pipx.sh", "17_enable_poetry.sh", "18_setup_ssh_remote.sh", "19_install_uv.sh", "1_stop_aliyun.sh", "20_install_git_ssh.sh", "21_install_edge_tts.sh", "22_install_tts_offline.sh", "25_install_nginx.sh", "26_install_certbot.sh", "28_ensure_pnpm_packages.sh", "29_ensure_npmrc.sh", "3_setting_base.sh", "30_install_edge.sh", "31_ensure_php85_intelligent.sh", "32_install_swoole.sh", "45_configure_php85.sh", "47_install_composer.sh", "35_install_chrome.sh", "36_install_puppeteer_plugins.sh", "37_install_dotnet.sh", "38_install_flutter.sh", "39_install_android_studio.sh", "3_stop_cloud_monitors.sh", "40_install_ittools_binaries.sh", "41_install_ruby.sh", "42_install_rust.sh", "43_install_p7zip.sh", "44_ensure_dragonfly_intelligent.sh", "45_install_redis.sh", "46_install_postgresql.sh", "47_ensure_php_pgsql.sh", "47_install_docker.sh", "48_set_docker_daemon.sh", "49_docker-compose-finish.sh", "4_set_desktop_power.sh", "50_install_mysql.sh", "51_install_shama.sh", "52_install_tailscale.sh", "53_install_golang22.sh", "54_install_java.sh", "62_install_upsc.sh", "63_install_tailscale.sh", "5_system_maintenance.sh", "81_generate_docker_compose_yml.sh", "83_core_node_finish.sh", "85_install_code_server.sh", "7_project_validator.sh", "95_install_deepseek.sh", "96_install_deepseek_ocr.sh", "97_install_qwen25.sh", "98_install_nllb20
         ... [truncated 40 chars]
 
 [2026-06-22 14:19:20] ASSISTANT:
 All set. Launching the adversarial cross-validation workflow: every one of the 75 scripts gets a finder, each finding gets an independent skeptic that tries to refute it, then the apt/repo-touching pilot scripts with confirmed findings get fixes applied in place + syntax-checked. It runs in the background and notifies me on completion.
 
-[2026-06-22 14:20:21]   -> tool: Workflow  {"args": "[\"101_natgateway.sh\",\"9_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"11_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"150_install_pycore_http_service.sh\",\"151_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"3_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"33_configure_php85.sh\",\"34_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_install_java.sh\",\"62_install_upsc.sh\",\"63_install_tailscale.sh\",\"5_system_maintenance.sh\",\"81_generate_docker_compose_yml.sh\",\"83_core_node_finish.sh\",\"85_install_code_server.sh\",\"7_project_validator.sh\",\"95_install_deep
+[2026-06-22 14:20:21]   -> tool: Workflow  {"args": "[\"101_natgateway.sh\",\"9_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"11_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"189_install_pycore_http_service.sh\",\"191_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"3_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"45_configure_php85.sh\",\"47_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_install_java.sh\",\"62_install_upsc.sh\",\"63_install_tailscale.sh\",\"5_system_maintenance.sh\",\"81_generate_docker_compose_yml.sh\",\"83_core_node_finish.sh\",\"85_install_code_server.sh\",\"7_project_validator.sh\",\"95_install_deep
         ... [truncated 12056 chars]
 
 [2026-06-22 14:20:22]   <- tool result:
@@ -694,7 +694,7 @@ You will be notified when it completes. Use /workflows to watch live progress.
 15	// Curated pilot batch: the scripts that touch APT third-party repos / have real cross-distro
 16	// install-procedure differences. Only those WITH confirmed findings get fixed this run.
 17	const PILOT = new Set([
-18	  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',
+18	  '31_ensure_php85_intelligent.sh','45_configure_php85.sh','47_ensure_php_pgsql.sh',
 19	  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',
 20	  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',
 
@@ -706,7 +706,7 @@ The file /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scr
 [2026-06-22 14:20:45] ASSISTANT:
 Fixed. Relaunching with the same script (no agents had run yet, so nothing to resume).
 
-[2026-06-22 14:20:55]   -> tool: Workflow  {"scriptPath": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "args": "[\"101_natgateway.sh\",\"9_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"11_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"150_install_pycore_http_service.sh\",\"151_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"3_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"33_configure_php85.sh\",\"34_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_in
+[2026-06-22 14:20:55]   -> tool: Workflow  {"scriptPath": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "args": "[\"101_natgateway.sh\",\"9_fix_dns.sh\",\"11_install_sudo.sh\",\"120_install_desktop_applications.sh\",\"121_install_cursor.sh\",\"122_install_vscode.sh\",\"123_install_gitea.sh\",\"124_install_rustdesk_client_1.4.4.sh\",\"125_setup_gnome_rdp.sh\",\"126_install_antigravity.sh\",\"127_install_wechat.sh\",\"128_install_rustdesk_server_1.1.14.sh\",\"12_update.sh\",\"131_prepare_domain_setup.sh\",\"132_setup_domain_ssl.sh\",\"133_setup_api_domains.sh\",\"134_setup_html_domains.sh\",\"11_cuda_nvidia_prereq.sh\",\"13_ensure_python.sh\",\"14_install_faster_whisper.sh\",\"189_install_pycore_http_service.sh\",\"191_install_octane_watcher_daemon.sh\",\"15_install_node_24.sh\",\"16_enable_pipx.sh\",\"17_enable_poetry.sh\",\"18_setup_ssh_remote.sh\",\"19_install_uv.sh\",\"1_stop_aliyun.sh\",\"20_install_git_ssh.sh\",\"21_install_edge_tts.sh\",\"22_install_tts_offline.sh\",\"25_install_nginx.sh\",\"26_install_certbot.sh\",\"28_ensure_pnpm_packages.sh\",\"29_ensure_npmrc.sh\",\"3_setting_base.sh\",\"30_install_edge.sh\",\"31_ensure_php85_intelligent.sh\",\"32_install_swoole.sh\",\"45_configure_php85.sh\",\"47_install_composer.sh\",\"35_install_chrome.sh\",\"36_install_puppeteer_plugins.sh\",\"37_install_dotnet.sh\",\"38_install_flutter.sh\",\"39_install_android_studio.sh\",\"3_stop_cloud_monitors.sh\",\"40_install_ittools_binaries.sh\",\"41_install_ruby.sh\",\"42_install_rust.sh\",\"43_install_p7zip.sh\",\"44_ensure_dragonfly_intelligent.sh\",\"45_install_redis.sh\",\"46_install_postgresql.sh\",\"47_ensure_php_pgsql.sh\",\"47_install_docker.sh\",\"48_set_docker_daemon.sh\",\"49_docker-compose-finish.sh\",\"4_set_desktop_power.sh\",\"50_install_mysql.sh\",\"51_install_shama.sh\",\"52_install_tailscale.sh\",\"53_install_golang22.sh\",\"54_in
         ... [truncated 363 chars]
 
 [2026-06-22 14:20:55]   <- tool result:
@@ -854,7 +854,7 @@ TOTALS: {"scripts": 76, "scriptsWithFindings": 44, "confirmedFindings": 106, "hi
 - 26_install_certbot.sh: applied=True syntax_ok=True | 4 changes
 - 30_install_edge.sh: applied=True syntax_ok=True | 3 changes
 - 31_ensure_php85_intelligent.sh: applied=True syntax_ok=True | 3 changes
-- 33_configure_php85.sh: applied=True syntax_ok=True | 3 changes
+- 45_configure_php85.sh: applied=True syntax_ok=True | 3 changes
 - 35_install_chrome.sh: applied=True syntax_ok=True | 5 changes
 
 === SCRIPTS WITH CONFIRMED FINDINGS ( 44 ) ===
@@ -885,7 +885,7 @@ I'll re-run the audit scoped to just the ~22 affected scripts (rate limit has pa
 15	// Curated pilot batch: the scripts that touch APT third-party repos / have real cross-distro
 16	// install-procedure differences. Only those WITH confirmed findings get fixed this run.
 17	const PILOT = new Set([
-18	  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',
+18	  '31_ensure_php85_intelligent.sh','45_configure_php85.sh','47_ensure_php_pgsql.sh',
 19	  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',
 20	  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',
 21	  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',
@@ -893,7 +893,7 @@ I'll re-run the audit scoped to just the ~22 affected scripts (rate limit has pa
 23	])
 24
 
-[2026-06-22 14:39:02]   -> tool: Edit  {"replace_all": false, "file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "old_string": "const PILOT = new Set([\n  '31_ensure_php85_intelligent.sh','33_configure_php85.sh','47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '15_install_node_24.sh','85_install_code_server.sh','123_install_gitea.sh','126_install_antigravity.sh',\n])", "new_string": "// NOTE: already-fixed-in-run-1 scripts (gitea, antigravity, node24, nginx, certbot, edge,\n// php85, configure_php85, chrome) are intentionally OMITTED so the re-run only re-verifies\n// them and does not double-edit. Remaining entries are the apt/repo scripts still needing fixes.\nconst PILOT = new Set([\n  '47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '85_install_code_server.sh',\n])"}
+[2026-06-22 14:39:02]   -> tool: Edit  {"replace_all": false, "file_path": "/home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js", "old_string": "const PILOT = new Set([\n  '31_ensure_php85_intelligent.sh','45_configure_php85.sh','47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '30_install_edge.sh','35_install_chrome.sh','25_install_nginx.sh','26_install_certbot.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '15_install_node_24.sh','85_install_code_server.sh','123_install_gitea.sh','126_install_antigravity.sh',\n])", "new_string": "// NOTE: already-fixed-in-run-1 scripts (gitea, antigravity, node24, nginx, certbot, edge,\n// php85, configure_php85, chrome) are intentionally OMITTED so the re-run only re-verifies\n// them and does not double-edit. Remaining entries are the apt/repo scripts still needing fixes.\nconst PILOT = new Set([\n  '47_ensure_php_pgsql.sh',\n  '46_install_postgresql.sh','50_install_mysql.sh','47_install_docker.sh','48_set_docker_daemon.sh',\n  '44_ensure_dragonfly_intelligent.sh','45_install_redis.sh','52_install_tailscale.sh','63_install_tailscale.sh',\n  '85_install_code_server.sh',\n])"}
 
 [2026-06-22 14:39:02]   <- tool result:
 The file /home/kali/.claude/projects/-mnt-dev-nvme0n1p1-programing-core-node-scripts-shells-linux-debian-install-shells/3330ef60-3ef9-47cd-b52f-8ab3f05a5117/workflows/scripts/install-scripts-crossvalidation-wf_2488b678-ed9.js has been updated successfully. (file state is current in your context — no need to Read it back)
@@ -991,7 +991,7 @@ FINDINGS: high=33 medium=51 low=62 total=146
   26_install_certbot.sh  (syntax_ok=True)
   30_install_edge.sh  (syntax_ok=True)
   31_ensure_php85_intelligent.sh  (syntax_ok=True)
-  33_configure_php85.sh  (syntax_ok=True)
+  45_configure_php85.sh  (syntax_ok=True)
   35_install_chrome.sh  (syntax_ok=True)
   44_ensure_dragonfly_intelligent.sh  (syntax_ok=True)
   45_install_redis.sh  (syntax_ok=True)
@@ -1024,7 +1024,7 @@ FINDINGS: high=33 medium=51 low=62 total=146
 [2026-06-22 14:45:17] ASSISTANT:
 Let me confirm the 14 fixes actually landed in the working tree and all pass syntax (independent of what the agents reported).
 
-[2026-06-22 14:45:23]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\nfixed=\"123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh\"\necho \"=== syntax check + git mod/line-delta per fixed script ===\"\nfor f in $fixed; do\n  if bash -n \"$f\" 2>/dev/null; then sx=\"OK\"; else sx=\"FAIL\"; fi\n  delta=$(git -C /mnt/dev_nvme0n1p1/programing/core_node diff --numstat -- \"scripts/shells/linux/debian/install_shells/$f\" 2>/dev/null | awk '{print \"+\"$1\" -\"$2}')\n  printf \"  %-38s syntax=%-4s diff=%s\\n\" \"$f\" \"$sx\" \"${delta:-<no-diff>}\"\ndone", "description": "Verify fixes landed and pass syntax"}
+[2026-06-22 14:45:23]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\nfixed=\"123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 45_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh\"\necho \"=== syntax check + git mod/line-delta per fixed script ===\"\nfor f in $fixed; do\n  if bash -n \"$f\" 2>/dev/null; then sx=\"OK\"; else sx=\"FAIL\"; fi\n  delta=$(git -C /mnt/dev_nvme0n1p1/programing/core_node diff --numstat -- \"scripts/shells/linux/debian/install_shells/$f\" 2>/dev/null | awk '{print \"+\"$1\" -\"$2}')\n  printf \"  %-38s syntax=%-4s diff=%s\\n\" \"$f\" \"$sx\" \"${delta:-<no-diff>}\"\ndone", "description": "Verify fixes landed and pass syntax"}
 
 [2026-06-22 14:45:23]   <- tool result:
 === syntax check + git mod/line-delta per fixed script ===
@@ -1035,7 +1035,7 @@ Let me confirm the 14 fixes actually landed in the working tree and all pass syn
   26_install_certbot.sh                  syntax=OK   diff=+54 -277
   30_install_edge.sh                     syntax=OK   diff=+9 -3
   31_ensure_php85_intelligent.sh         syntax=OK   diff=+38 -27
-  33_configure_php85.sh                  syntax=OK   diff=+17 -0
+  45_configure_php85.sh                  syntax=OK   diff=+17 -0
   35_install_chrome.sh                   syntax=OK   diff=+31 -19
   44_ensure_dragonfly_intelligent.sh     syntax=OK   diff=+24 -7
   45_install_redis.sh                    syntax=OK   diff=+11 -7
@@ -1221,7 +1221,7 @@ index ba6bd4d70..6a49d2eb3 100755
 [2026-06-22 14:46:10] ASSISTANT:
 This change hinges on whether those removed functions were still *called*. `bash -n` won't catch a call to a now-undefined function. Let me verify no dangling references remain — in antigravity and across all 14 fixed scripts.
 
-[2026-06-22 14:46:17]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== antigravity: any remaining calls to removed functions? ===\"\ngrep -nE \"\\b(add_repository|remove_repository|wait_for_apt_lock|cleanup_antigravity)\\b\" 126_install_antigravity.sh || echo \"  none — clean\"\necho\necho \"=== antigravity: does it now use the framework helper instead? ===\"\ngrep -nE \"add_antigravity_repository_from_apt_repository_manager|apt_repository_manager.sh\" 126_install_antigravity.sh\necho\necho \"=== generic dangling-function check across all 14 fixed scripts ===\"\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  # functions defined in file\n  defs=$(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$f\" | sed -E 's/\\s*\\(\\)//' | sort -u)\n  # for each removed-by-diff function name, check it's not called; simpler: check every called user-func that isn't defined and isn't a known helper\n  missing=\"\"\n  for fn in $defs; do :; done\n  echo \"  $f: $(echo \"$defs\" | wc -l) functions defined\"\ndone", "description": "Check for dangling function references after removals"}
+[2026-06-22 14:46:17]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== antigravity: any remaining calls to removed functions? ===\"\ngrep -nE \"\\b(add_repository|remove_repository|wait_for_apt_lock|cleanup_antigravity)\\b\" 126_install_antigravity.sh || echo \"  none — clean\"\necho\necho \"=== antigravity: does it now use the framework helper instead? ===\"\ngrep -nE \"add_antigravity_repository_from_apt_repository_manager|apt_repository_manager.sh\" 126_install_antigravity.sh\necho\necho \"=== generic dangling-function check across all 14 fixed scripts ===\"\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 45_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  # functions defined in file\n  defs=$(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$f\" | sed -E 's/\\s*\\(\\)//' | sort -u)\n  # for each removed-by-diff function name, check it's not called; simpler: check every called user-func that isn't defined and isn't a known helper\n  missing=\"\"\n  for fn in $defs; do :; done\n  echo \"  $f: $(echo \"$defs\" | wc -l) functions defined\"\ndone", "description": "Check for dangling function references after removals"}
 
 [2026-06-22 14:46:17]   <- tool result:
 === antigravity: any remaining calls to removed functions? ===
@@ -1241,7 +1241,7 @@ This change hinges on whether those removed functions were still *called*. `bash
   26_install_certbot.sh: 12 functions defined
   30_install_edge.sh: 4 functions defined
   31_ensure_php85_intelligent.sh: 23 functions defined
-  33_configure_php85.sh: 7 functions defined
+  45_configure_php85.sh: 7 functions defined
   35_install_chrome.sh: 10 functions defined
   44_ensure_dragonfly_intelligent.sh: 13 functions defined
   45_install_redis.sh: 11 functions defined
@@ -1252,7 +1252,7 @@ This change hinges on whether those removed functions were still *called*. `bash
 [2026-06-22 14:46:29] ASSISTANT:
 Antigravity is verified safe — the deleted `add_repository` was hand-rolled duplicate code that violated the apt-repo policy (hand-writing `.list`/keyring); the script already delegates to `add_antigravity_repository_from_apt_repository_manager`, and no removed function is still called. Let me run the precise check that matters across all 14: did any fix remove a function *definition* that's still *called* somewhere?
 
-[2026-06-22 14:46:36]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 33_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  p=\"scripts/shells/linux/debian/install_shells/$f\"\n  # functions defined at HEAD but not in working tree (i.e. removed by the fix)\n  removed=$(comm -23 \\\n    <(git show HEAD:\"$p\" 2>/dev/null | grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" | sed -E 's/\\s*\\(\\)//' | sort -u) \\\n    <(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$p\" | sed -E 's/\\s*\\(\\)//' | sort -u))\n  if [ -n \"$removed\" ]; then\n    for fn in $removed; do\n      calls=$(grep -nE \"(^|[^a-zA-Z0-9_])$fn([^a-zA-Z0-9_(]|\\s|$)\" \"$p\" | grep -vE \"^\\s*#\" | grep -cE \"$fn\")\n      if [ \"$calls\" -gt 0 ]; then echo \"  [DANGLING] $f: removed fn '$fn' still referenced $calls time(s)\"; else echo \"  [ok] $f: removed fn '$fn' fully gone\"; fi\n    done\n  fi\ndone\necho \"=== done ===\"", "description": "Detect removed-but-still-called functions across fixed scripts"}
+[2026-06-22 14:46:36]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nfor f in 123_install_gitea.sh 126_install_antigravity.sh 15_install_node_24.sh 25_install_nginx.sh 26_install_certbot.sh 30_install_edge.sh 31_ensure_php85_intelligent.sh 45_configure_php85.sh 35_install_chrome.sh 44_ensure_dragonfly_intelligent.sh 45_install_redis.sh 47_install_docker.sh 52_install_tailscale.sh 63_install_tailscale.sh; do\n  p=\"scripts/shells/linux/debian/install_shells/$f\"\n  # functions defined at HEAD but not in working tree (i.e. removed by the fix)\n  removed=$(comm -23 \\\n    <(git show HEAD:\"$p\" 2>/dev/null | grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" | sed -E 's/\\s*\\(\\)//' | sort -u) \\\n    <(grep -oE \"^[a-zA-Z_][a-zA-Z0-9_]*\\s*\\(\\)\" \"$p\" | sed -E 's/\\s*\\(\\)//' | sort -u))\n  if [ -n \"$removed\" ]; then\n    for fn in $removed; do\n      calls=$(grep -nE \"(^|[^a-zA-Z0-9_])$fn([^a-zA-Z0-9_(]|\\s|$)\" \"$p\" | grep -vE \"^\\s*#\" | grep -cE \"$fn\")\n      if [ \"$calls\" -gt 0 ]; then echo \"  [DANGLING] $f: removed fn '$fn' still referenced $calls time(s)\"; else echo \"  [ok] $f: removed fn '$fn' fully gone\"; fi\n    done\n  fi\ndone\necho \"=== done ===\"", "description": "Detect removed-but-still-called functions across fixed scripts"}
 
 [2026-06-22 14:46:36]   <- tool result:
 [ok] 126_install_antigravity.sh: removed fn 'add_repository' fully gone
@@ -1334,7 +1334,7 @@ Audited **76** scripts (Debian/Ubuntu/Kali), adversarially verified. Confirmed f
 
 ## Fixed this run (14 apt/repo pilot scripts, all `bash -n` OK)
 
-123_install_gitea.sh, 126_install_antigravity.sh, 15_install_node_24.sh, 25_install_nginx.sh, 26_install_certbot.sh, 30_install_edge.sh, 31_ensure_php85_intelligent.sh, 33_configure_php85.sh, 35_install_chrome.sh, 44_ensure_dragonfly_intelligent.sh, 45_install_redis.sh, 47_install_docker.sh, 52_install_tailscale.sh, 63_install_tailscale.sh
+123_install_gitea.sh, 126_install_antigravity.sh, 15_install_node_24.sh, 25_install_nginx.sh, 26_install_certbot.sh, 30_install_edge.sh, 31_ensure_php85_intelligent.sh, 45_configure_php85.sh, 35_install_chrome.sh, 44_ensure_dragonfly_intelligent.sh, 45_install_redis.sh, 47_install_docker.sh, 52_install_tailscale.sh, 63_install_tailscale.sh
 
 ## Remaining high/medium findings on UNFIXED scripts (grouped)
 
@@ -1402,7 +1402,7 @@ On it — second batch, fix everything. Let me build the per-script findings pay
 [2026-06-22 15:02:24]   <- tool result:
 unfixed scripts to fix: 45  findings: 21 high / 40 medium / 49 low
 bytes: 83476
-scripts: 101_natgateway.sh, 9_fix_dns.sh, 11_install_sudo.sh, 120_install_desktop_applications.sh, 121_install_cursor.sh, 122_install_vscode.sh, 124_install_rustdesk_client_1.4.4.sh, 125_setup_gnome_rdp.sh, 127_install_wechat.sh, 128_install_rustdesk_server_1.1.14.sh, 12_update.sh, 131_prepare_domain_setup.sh, 11_cuda_nvidia_prereq.sh, 13_ensure_python.sh, 150_install_pycore_http_service.sh, 151_install_octane_watcher_daemon.sh, 16_enable_pipx.sh, 18_setup_ssh_remote.sh, 19_install_uv.sh, 1_stop_aliyun.sh, 22_install_tts_offline.sh, 28_ensure_pnpm_packages.sh, 29_ensure_npmrc.sh, 3_setting_base.sh, 32_install_swoole.sh, 34_install_composer.sh, 36_install_puppeteer_plugins.sh, 37_install_dotnet.sh, 38_install_flutter.sh, 39_install_android_studio.sh, 3_stop_cloud_monitors.sh, 40_install_ittools_binaries.sh, 42_install_rust.sh, 41_install_ruby.sh, 51_install_shama.sh, 53_install_golang22.sh, 54_install_java.sh, 46_install_postgresql.sh, 83_core_node_finish.sh, 62_install_upsc.sh, 5_system_maintenance.sh, 7_project_validator.sh, 96_install_deepseek_ocr.sh, 95_install_deepseek.sh, 97_install_qwen25.sh
+scripts: 101_natgateway.sh, 9_fix_dns.sh, 11_install_sudo.sh, 120_install_desktop_applications.sh, 121_install_cursor.sh, 122_install_vscode.sh, 124_install_rustdesk_client_1.4.4.sh, 125_setup_gnome_rdp.sh, 127_install_wechat.sh, 128_install_rustdesk_server_1.1.14.sh, 12_update.sh, 131_prepare_domain_setup.sh, 11_cuda_nvidia_prereq.sh, 13_ensure_python.sh, 189_install_pycore_http_service.sh, 191_install_octane_watcher_daemon.sh, 16_enable_pipx.sh, 18_setup_ssh_remote.sh, 19_install_uv.sh, 1_stop_aliyun.sh, 22_install_tts_offline.sh, 28_ensure_pnpm_packages.sh, 29_ensure_npmrc.sh, 3_setting_base.sh, 32_install_swoole.sh, 47_install_composer.sh, 36_install_puppeteer_plugins.sh, 37_install_dotnet.sh, 38_install_flutter.sh, 39_install_android_studio.sh, 3_stop_cloud_monitors.sh, 40_install_ittools_binaries.sh, 42_install_rust.sh, 41_install_ruby.sh, 51_install_shama.sh, 53_install_golang22.sh, 54_install_java.sh, 46_install_postgresql.sh, 83_core_node_finish.sh, 62_install_upsc.sh, 5_system_maintenance.sh, 7_project_validator.sh, 96_install_deepseek_ocr.sh, 95_install_deepseek.sh, 97_install_qwen25.sh
 Shell cwd was reset to /mnt/dev_nvme0n1p1/programing/core_node
 
 [2026-06-22 15:02:34] ASSISTANT:

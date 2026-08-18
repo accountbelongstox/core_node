@@ -4,7 +4,7 @@ Idempotent launch guards for the window launcher.
 
 Before starting terminals, applications, or the pycore module, check whether the
 target is already running and skip when it is. Terminal counting mirrors
-152_install_terminal_grid_shortcut.sh (Linux wmctrl/pgrep; Windows WT window class).
+193_install_terminal_grid_shortcut.sh (Linux wmctrl/pgrep; Windows WT window class).
 """
 
 import platform

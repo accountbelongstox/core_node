@@ -7,8 +7,8 @@
       "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/common/step_state.sh\")",
       "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/common/nginx_common.sh\")",
       "Bash(python *)",
-      "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/debian/install_shells/26_install_nginx.sh\")",
-      "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/debian/install_shells/27_install_certbot.sh\")",
+      "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/debian/install_shells/33_install_nginx.sh\")",
+      "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/debian/install_shells/35_install_certbot.sh\")",
       "Bash(bash -n \"D:/programing/core_node/scripts/shells/linux/debian/server_manager/nginx_manager.sh\")",
       "WebSearch",
       "WebFetch(domain:downloads.apache.org)"

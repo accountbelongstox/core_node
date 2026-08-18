@@ -4,7 +4,7 @@
 #
 # Official: https://voxcpm.readthedocs.io/en/latest/quickstart.html
 #
-# Invocation: 119_install_voxcpm2.sh --python <py> [--full] [--force]
+# Invocation: 147_install_voxcpm2.sh --python <py> [--full] [--force]
 # Env: VOXCPM2_SKIP=1, VOXCPM2_INSTALL=1, NEURAL_TTS_INSTALL=1, VOXCPM2_MODEL
 set -uo pipefail
 

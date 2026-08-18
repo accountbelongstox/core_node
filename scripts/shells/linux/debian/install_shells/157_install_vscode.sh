@@ -2,7 +2,7 @@
 # Visual Studio Code Installation Script
 #
 # Usage:
-#   ./123_install_vscode.sh   # Normal installation (no arguments)
+#   ./157_install_vscode.sh   # Normal installation (no arguments)
 #
 # This script installs Visual Studio Code from .deb files found in /home/<username>/Downloads
 # If no .deb is found, it opens the download page and waits for manual download confirmation

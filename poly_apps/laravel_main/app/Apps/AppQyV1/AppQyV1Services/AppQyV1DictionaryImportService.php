@@ -640,7 +640,7 @@ class AppQyV1DictionaryImportService
         if ($sevenZipBin === null) {
             $msg = '7z binary not found (p7zip). Dictionary translations cannot be extracted. '
                 . 'Install it: Debian/Ubuntu/WSL -> sudo apt-get install -y p7zip-full '
-                . '(or run scripts/shells/linux/debian/install_shells/44_install_p7zip.sh).';
+                . '(or run scripts/shells/linux/debian/install_shells/69_install_p7zip.sh).';
             Log::error('[DictionaryInit] ' . $msg);
             return [
                 'error' => $msg,

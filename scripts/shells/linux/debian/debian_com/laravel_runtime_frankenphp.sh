@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # laravel_main runtime - FRANKENPHP PLANE branch (referenced by
-# 132_laravel_main_start.sh and the plane-aware laravel service).
+# 175_laravel_main_start.sh and the plane-aware laravel service).
 # Single supervised `octane:start --server=frankenphp` process: HTTPS on
 # the contract frankenphp_https port (h2/h3), admin API on frankenphp_admin
 # (loopback), built-in Mercure hub at /.well-known/mercure. NO Reverb
@@ -76,7 +76,7 @@ if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
     runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS"
 fi
 if [ -z "$MERCURE_PUBLISHER_JWT" ] || [ -z "$MERCURE_SUBSCRIBER_JWT" ]; then
-    echo "[laravel-runtime-frankenphp] [ERROR] Mercure keys missing in RuntimeConfigurationStore; run 132_laravel_main_start.sh provisioning first"
+    echo "[laravel-runtime-frankenphp] [ERROR] Mercure keys missing in RuntimeConfigurationStore; run 175_laravel_main_start.sh provisioning first"
     exit 1
 fi
 export MERCURE_PUBLISHER_JWT_KEY="$MERCURE_PUBLISHER_JWT"

@@ -1430,7 +1430,7 @@ class PathMapper
      */
     public static function getNodeInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/16_install_node_24.sh';
+        $basePath = self::getInstallShellsDir() . '/17_install_node_24.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1443,7 +1443,7 @@ class PathMapper
      */
     public static function getGoInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/54_install_golang22.sh';
+        $basePath = self::getInstallShellsDir() . '/91_install_golang22.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1456,7 +1456,7 @@ class PathMapper
      */
     public static function getFlutterInstallScript(?string $subPath = ""): string
     {
-        $basePath = self::getInstallShellsDir() . '/39_install_flutter.sh';
+        $basePath = self::getInstallShellsDir() . '/59_install_flutter.sh';
         if ($subPath !== null && $subPath !== '') {
             $subPath = ltrim($subPath, '/');
             $basePath = rtrim($basePath, '/') . '/' . $subPath;
@@ -1470,7 +1470,7 @@ class PathMapper
 
     /**
      * Get Node binary path
-     * Follows the installation script pattern from 16_install_node_24.sh
+     * Follows the installation script pattern from 17_install_node_24.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/node (created by installation script)
@@ -1499,7 +1499,7 @@ class PathMapper
 
     /**
      * Get Go binary path
-     * Follows the installation script pattern from 54_install_golang22.sh
+     * Follows the installation script pattern from 91_install_golang22.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/go (created by installation script)
@@ -1535,7 +1535,7 @@ class PathMapper
 
     /**
      * Get Flutter binary path
-     * Follows the installation script pattern from 39_install_flutter.sh
+     * Follows the installation script pattern from 59_install_flutter.sh
      *
      * Priority:
      * 1. Symlink at /usr/local/bin/flutter (created by installation script)

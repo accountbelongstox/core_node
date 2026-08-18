@@ -69,7 +69,7 @@ show_backup_menu() {
                 
                 if ! is_gitea_installed; then
                     print_error_from_common_functions "Gitea is not installed"
-                    print_info_from_common_functions "Install Gitea first using: 124_install_gitea.sh"
+                    print_info_from_common_functions "Install Gitea first using: 159_install_gitea.sh"
                 else
                     backup_gitea
                 fi
@@ -84,7 +84,7 @@ show_backup_menu() {
 
                 if ! is_gitea_installed; then
                     print_error_from_common_functions "Gitea is not installed"
-                    print_info_from_common_functions "Install Gitea first using: 124_install_gitea.sh"
+                    print_info_from_common_functions "Install Gitea first using: 159_install_gitea.sh"
                 else
                     local backup_file=$(select_backup)
                     if [[ $? -eq 0 ]] && [[ -n "$backup_file" ]]; then

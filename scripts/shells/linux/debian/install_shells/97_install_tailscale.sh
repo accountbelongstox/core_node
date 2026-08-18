@@ -9,7 +9,7 @@
 #   - systemd (tailscaled runs as a systemd service)
 #
 # Usage:
-#   ./64_install_tailscale.sh   # Normal installation (no arguments)
+#   ./97_install_tailscale.sh   # Normal installation (no arguments)
 #
 # Optional global variables (set via the selector / set_var):
 #   INSTALL_TAILSCALE        true|false  - whether to install (default true)

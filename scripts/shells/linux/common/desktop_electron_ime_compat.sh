@@ -11,7 +11,7 @@
 #   - ~/.config/cursor-flags.conf     -> --enable-wayland-ime (Wayland)
 #
 # Idempotent: managed blocks are replaced in place; safe to call from both
-# 131_install_chinese_wubi.sh and 122_install_cursor.sh (order-independent).
+# 173_install_chinese_wubi.sh and 155_install_cursor.sh (order-independent).
 #
 # Usage (source first):
 #   source desktop_electron_ime_compat.sh

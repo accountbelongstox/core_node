@@ -2,7 +2,7 @@
 # Resolve full core_node checkout: directory containing this marker (proves scripts tree exists).
 # webclaude_group alone under e.g. /www/wwwroot/webclaude_group has parent != core_node.
 
-WEBCLAUDE_CORE_NODE_MARKER="scripts/shells/linux/debian/install_shells/54_install_golang22.sh"
+WEBCLAUDE_CORE_NODE_MARKER="scripts/shells/linux/debian/install_shells/91_install_golang22.sh"
 
 # Echo absolute core_node path; exit 0 if found, 1 otherwise.
 # $1 = directory to walk upward from (e.g. webclaude_group or gateway repo root)

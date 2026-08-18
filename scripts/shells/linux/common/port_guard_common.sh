@@ -13,7 +13,7 @@
 # Shared port-guard library - the single source of truth for keeping the nginx
 # edge ports (80/TCP, 443/TCP, 443/UDP for QUIC) free of foreign occupiers.
 # Replaces the former ad-hoc port freeing in nginx_manager.sh (nm_port_clear)
-# and the docker-publisher handling in 132_laravel_main_start.sh.
+# and the docker-publisher handling in 175_laravel_main_start.sh.
 #
 # Fine-grained idempotent design - every sub-step self-detects and no-ops when
 # the state is already correct; one step's outcome never blocks a later

@@ -11,10 +11,10 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # FrankenPHP plane-disable (common area; companion of frankenphp_manager.sh,
-# called by 26_install_nginx.sh / 27_install_certbot.sh for the web-server
+# called by 33_install_nginx.sh / 35_install_certbot.sh for the web-server
 # plane mutual exclusion). DISABLES THE OCTANE FRANKENPHP SERVICE AND RECORDS
 # STATE ONLY: never deletes the binary, the Caddyfile or the Mercure keys -
-# re-running 28_install_frankenphp.sh (or the 132 frankenphp branch)
+# re-running 49_install_frankenphp.sh (or the 132 frankenphp branch)
 # restores the plane.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

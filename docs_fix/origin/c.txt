@@ -10,7 +10,7 @@
     region prefix (current: si)? [y/N]
     [domain] Installing domains (sites: <domain> apex +
     api.si.<domain>, both proxy -> backend): 中心数据提供
-    ，132_laravel_main_start.sh,shell / react / php均引用一
+    ，175_laravel_main_start.sh,shell / react / php均引用一
     处，比如 12gm.com = api.$prefix.12gm.com无9000端口。
     2:https://12gm.com/pycore-manager 端也是同样的拼接
     ，pycore-manager / laravel-manager端都是一样。

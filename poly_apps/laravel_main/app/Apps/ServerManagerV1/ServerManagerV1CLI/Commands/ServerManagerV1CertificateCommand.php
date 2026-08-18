@@ -770,7 +770,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
     {
         $this->error("Manual DNS challenge is not supported in automated scripts");
         $this->info("DNSPod plugin is not available. Please install certbot-dnspod or use a different provider.");
-        $this->info("To install the DNSPod plugin: bash scripts/shells/linux/debian/install_shells/27_install_certbot.sh");
+        $this->info("To install the DNSPod plugin: bash scripts/shells/linux/debian/install_shells/35_install_certbot.sh");
 
         // Generate self-signed certificate for testing
         $this->warn("Generating self-signed certificate for testing purposes...");

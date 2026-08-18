@@ -68,7 +68,7 @@ manage_natgateway() {
     echo "NAT Gateway Configuration"
     echo ""
     
-    local natgateway_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/102_natgateway.sh"
+    local natgateway_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/113_natgateway.sh"
     
     if [ ! -f "$natgateway_script" ]; then
         echo "Error: NAT gateway script not found at: $natgateway_script"
@@ -264,7 +264,7 @@ EOF
         echo "$rdp_status"
         echo ""
         echo "To enable RDP, run:"
-        echo "  bash $CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/126_setup_gnome_rdp.sh"
+        echo "  bash $CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/163_setup_gnome_rdp.sh"
     fi
 
     echo ""

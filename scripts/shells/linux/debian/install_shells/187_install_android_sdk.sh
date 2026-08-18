@@ -21,7 +21,7 @@
 #   5. platform      : <root>/platforms/android-36/android.jar
 #   6. build-tools   : <root>/build-tools/36.0.0
 # Constants and detectors are CENTRALIZED in common/android_build_env.sh
-# (shared with start_build.sh). Requires JDK 21 (55_install_java.sh).
+# (shared with start_build.sh). Requires JDK 21 (93_install_java.sh).
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -57,10 +57,10 @@ echo "============================================================"
 echo "COMPILE_DIR: $COMPILE_DIR"
 echo "SELECTED_REGION: $SELECTED_REGION"
 
-# --- Resolve JDK 21 (55_install_java.sh owns the install; this step only uses it) ---
+# --- Resolve JDK 21 (93_install_java.sh owns the install; this step only uses it) ---
 android_build_resolve_java_home
 android_build_java_ready || {
-    echo "[142_install_android_sdk] [!] JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ not found. Run 55_install_java.sh first."
+    echo "[142_install_android_sdk] [!] JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ not found. Run 93_install_java.sh first."
     exit 0
 }
 export JAVA_HOME="$ANDROID_BUILD_JAVA_HOME"
@@ -128,7 +128,7 @@ else
     yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT" "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null 2>&1 || echo "[142_install_android_sdk] [!] build-tools install reported an issue."
 fi
 
-# --- Detail: environment variables (idempotent /etc/environment write, like 55_install_java.sh) ---
+# --- Detail: environment variables (idempotent /etc/environment write, like 93_install_java.sh) ---
 if [ "$(id -u)" -eq 0 ]; then
     sed -i '/^ANDROID_HOME=/d; /^ANDROID_SDK_ROOT=/d' /etc/environment 2>/dev/null || true
     printf 'ANDROID_HOME="%s"\nANDROID_SDK_ROOT="%s"\n' "$SDK_ROOT" "$SDK_ROOT" | tee -a /etc/environment >/dev/null

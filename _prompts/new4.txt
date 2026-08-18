@@ -1,6 +1,6 @@
 修复其中的BUG，主要是环境变量二进制需要使用前置脚本中的常量全路径。以及幂等性，代码陈旧。同时兼容ubuntu / deiban / kali系统 。
 同时不要使用/root/目录，而是用real login user目录。
-同时，在scripts\shells\linux\debian\install_shells 目录下，如果当前系统的全局常量是服务器，无桌面系统 ，默认不安装所能大模型，edage浏览器，chrome，和所有应用软件IDE(但AI工具除外) 121_install_desktop_applications.sh 中过滤。
+同时，在scripts\shells\linux\debian\install_shells 目录下，如果当前系统的全局常量是服务器，无桌面系统 ，默认不安装所能大模型，edage浏览器，chrome，和所有应用软件IDE(但AI工具除外) 153_install_desktop_applications.sh 中过滤。
 修复 98_install_qwen25，但是要和前面的脚本共享常量。按官方要求修复。服务器环境下不安装和启动。
 修复 NLLB-200 ，但是要和前面的脚本共享常量。按官方要求修复。服务器环境下不安装和启动。
 搜索官方文档，并修复 28_install_frankenphp 同时兼容ubuntu / deiban / kali系统 。
@@ -15,318 +15,105 @@
   - 13_ensure_python.sh
   - 15_install_python_prereq_packages.sh
   - 15_install_faster_whisper.sh
-  - 16_install_node_24.sh
-  - 17_enable_pipx.sh
-  - 18_enable_poetry.sh
-  - 19_setup_ssh_remote.sh
-  - 20_install_uv.sh
-  - 21_install_git_ssh.sh
-  - 22_install_edge_tts.sh
-  - 23_install_tts_offline.sh
-  - 26_install_nginx.sh
-  - 27_install_certbot.sh
-  - 28_install_frankenphp.sh
-  - 29_ensure_pnpm_packages.sh
-  - 30_ensure_npmrc.sh
-  - 31_install_edge.sh
-  - 32_ensure_php85_intelligent.sh
+  - 17_install_node_24.sh
+  - 19_enable_pipx.sh
+  - 21_enable_poetry.sh
+  - 23_setup_ssh_remote.sh
+  - 25_install_uv.sh
+  - 27_install_git_ssh.sh
+  - 29_install_edge_tts.sh
+  - 31_install_tts_offline.sh
+  - 33_install_nginx.sh
+  - 35_install_certbot.sh
+  - 49_install_frankenphp.sh
+  - 37_ensure_pnpm_packages.sh
+  - 39_ensure_npmrc.sh
+  - 41_install_edge.sh
+  - 43_ensure_php85_intelligent.sh
   - 33_install_swoole.sh
   - 34_configure_php85.sh
   - 35_install_composer.sh
-  - 36_install_chrome.sh
-  - 37_install_puppeteer_plugins.sh
-  - 38_install_dotnet.sh
-  - 39_install_flutter.sh
-  - 40_install_android_studio.sh
-  - 41_install_ittools_binaries.sh
-  - 42_install_ruby.sh
-  - 43_install_rust.sh
-  - 44_install_p7zip.sh
-  - 45_ensure_dragonfly_intelligent.sh
-  - 46_install_redis.sh
-  - 47_install_postgresql.sh
-  - 48_ensure_php_pgsql.sh
-  - 48_install_docker.sh
-  - 49_set_docker_daemon.sh
-  - 50_docker-compose-finish.sh
-  - 51_install_mysql.sh
-  - 52_install_shama.sh
-  - 53_install_tailscale.sh
-  - 54_install_golang22.sh
-  - 55_install_java.sh
+  - 51_install_chrome.sh
+  - 55_install_puppeteer_plugins.sh
+  - 57_install_dotnet.sh
+  - 59_install_flutter.sh
+  - 61_install_android_studio.sh
+  - 63_install_ittools_binaries.sh
+  - 65_install_ruby.sh
+  - 67_install_rust.sh
+  - 69_install_p7zip.sh
+  - 71_ensure_dragonfly_intelligent.sh
+  - 73_install_redis.sh
+  - 75_install_postgresql.sh
+  - 77_ensure_php_pgsql.sh
+  - 79_install_docker.sh
+  - 81_set_docker_daemon.sh
+  - 83_docker-compose-finish.sh
+  - 85_install_mysql.sh
+  - 87_install_shama.sh
+  - 89_install_tailscale.sh
+  - 91_install_golang22.sh
+  - 93_install_java.sh
   - 63_install_upsc.sh
-  - 64_install_tailscale.sh
-  - 82_generate_docker_compose_yml.sh
-  - 84_core_node_finish.sh
-  - 86_install_code_server.sh
-  - 96_install_deepseek.sh
-  - 97_install_deepseek_ocr.sh
-  - 98_install_qwen25.sh
-  - 99_install_nllb200.sh
-  - 102_natgateway.sh
-  - 103_install_ffmpeg.sh
-  - 104_install_desktop_manager.sh
-  - 105_install_launcher.sh
-  - 106_install_document_parsing.sh
-  - 107_install_dictionaries.sh
-  - 108_install_ocr.sh
-  - 109_install_whisper.sh
-  - 110_install_vosk.sh
-  - 111_install_chattts.sh
-  - 112_install_cosyvoice.sh
-  - 113_install_f5tts.sh
-  - 114_install_gptsovits.sh
-  - 115_install_melotts.sh
-  - 116_install_bark.sh
-  - 117_install_fishspeech.sh
-  - 118_install_kokoro.sh
-  - 119_install_voxcpm2.sh
-  - 120_install_device_tools.sh
-  - 121_install_desktop_applications.sh
-  - 122_install_cursor.sh
-  - 123_install_vscode.sh
-  - 124_install_gitea.sh
-  - 125_install_rustdesk_client_1.4.4.sh
-  - 126_setup_gnome_rdp.sh
-  - 127_install_antigravity.sh
-  - 128_install_wechat.sh
-  - 129_install_rustdesk_server_1.1.14.sh
-  - 130_install_claude_code.sh
-  - 131_install_chinese_wubi.sh
-  - 132_laravel_main_start.sh
-  - 136_install_qwen_code.sh
-  - 138_install_zhipu_cli.sh
-  - 139_install_parler.sh
-  - 140_install_qwen3tts.sh
-  - 141_install_pi_harness.sh
-  - 142_install_android_sdk.sh
-  - 150_install_pycore_http_service.sh
-  - 151_install_octane_watcher_daemon.sh
-  - 152_install_terminal_grid_shortcut.sh
+  - 97_install_tailscale.sh
+  - 99_generate_docker_compose_yml.sh
+  - 101_core_node_finish.sh
+  - 103_install_code_server.sh
+  - 105_install_deepseek.sh
+  - 107_install_deepseek_ocr.sh
+  - 109_install_qwen25.sh
+  - 111_install_nllb200.sh
+  - 113_natgateway.sh
+  - 115_install_ffmpeg.sh
+  - 117_install_desktop_manager.sh
+  - 119_install_launcher.sh
+  - 121_install_document_parsing.sh
+  - 123_install_dictionaries.sh
+  - 125_install_ocr.sh
+  - 127_install_whisper.sh
+  - 129_install_vosk.sh
+  - 131_install_chattts.sh
+  - 133_install_cosyvoice.sh
+  - 135_install_f5tts.sh
+  - 137_install_gptsovits.sh
+  - 139_install_melotts.sh
+  - 141_install_bark.sh
+  - 143_install_fishspeech.sh
+  - 145_install_kokoro.sh
+  - 147_install_voxcpm2.sh
+  - 149_install_device_tools.sh
+  - 153_install_desktop_applications.sh
+  - 155_install_cursor.sh
+  - 157_install_vscode.sh
+  - 159_install_gitea.sh
+  - 161_install_rustdesk_client_1.4.4.sh
+  - 163_setup_gnome_rdp.sh
+  - 165_install_antigravity.sh
+  - 167_install_wechat.sh
+  - 169_install_rustdesk_server_1.1.14.sh
+  - 171_install_claude_code.sh
+  - 173_install_chinese_wubi.sh
+  - 175_laravel_main_start.sh
+  - 177_install_qwen_code.sh
+  - 179_install_zhipu_cli.sh
+  - 181_install_parler.sh
+  - 183_install_qwen3tts.sh
+  - 185_install_pi_harness.sh
+  - 187_install_android_sdk.sh
+  - 189_install_pycore_http_service.sh
+  - 191_install_octane_watcher_daemon.sh
+  - 193_install_terminal_grid_shortcut.sh
   - 999_check_circular_symlinks.sh
   ···
-Executing: 42_install_ruby.sh
-[42][2026-08-18 07:14:53] Starting Ruby programming language installation...
-[42][2026-08-18 07:14:53] Install mode: server
-[42][2026-08-18 07:14:53] ==========================================
-[42][2026-08-18 07:14:53] Starting Ruby Programming Language Installation
-[42][2026-08-18 07:14:53] Install Mode: server
-[42][2026-08-18 07:14:53] Ruby Install Directory: /www/_debian_12/applications/ruby
-[42][2026-08-18 07:14:53] Gem Directory: /www/_debian_12/applications/ruby/gems
-[42][2026-08-18 07:14:53] Gem Bin Directory: /www/_debian_12/applications/ruby/gems/bin
-[42][2026-08-18 07:14:53] ==========================================
-[42][2026-08-18 07:14:53] Installing Ruby via apt...
-[42][2026-08-18 07:14:53] Ruby is already installed
-ruby 3.2.3 (2024-01-18 revision 52bb2ac0a6) [x86_64-linux-gnu]
-[42][2026-08-18 07:14:53] Ruby installation successful
-[42][2026-08-18 07:14:53] Setting up Ruby environment...
-[42][2026-08-18 07:14:53] Creating gem directories at: /www/_debian_12/applications/ruby/gems
-[42][2026-08-18 07:14:53] Ruby gem configuration already present in /root/.bashrc
-[42][2026-08-18 07:14:53] Ruby gem configuration already present in /root/.zshrc
-[42][2026-08-18 07:14:53] Ruby gem configuration already present in /root/.profile
-[42][2026-08-18 07:14:53] Installing common Ruby gems to /www/_debian_12/applications/ruby/gems...
-[42][2026-08-18 07:14:53] Installing gem: bundler
-WARNING:  You don't have /root/.local/share/gem/ruby/3.2.0/bin in your PATH,
-          gem executables will not run.
-Successfully installed bundler-4.0.18
-Parsing documentation for bundler-4.0.18
-Done installing documentation for bundler after 0 seconds
-1 gem installed
-[42][2026-08-18 07:14:55] Successfully installed bundler to /www/_debian_12/applications/ruby/gems/bin
-[42][2026-08-18 07:14:55] Installing gem: rake
-WARNING:  You don't have /root/.local/share/gem/ruby/3.2.0/bin in your PATH,
-
-
-
-Executing: 46_install_redis.sh
-[46] Redis Installation Script
-[46] START_REDIS: true
-[46] === Redis Installation Process ===
-[46] START_REDIS is true - Installing and starting Redis...
-[46] Redis is already installed
-[46] Creating Redis symlinks for system-wide access...
-[46] Symlink /usr/local/bin/redis-server already exists and is valid
-[46] Symlink /usr/local/bin/redis-cli already exists and is valid
-[46] Symlink /usr/local/bin/redis-benchmark already exists and is valid
-[46] Setting up Redis service for testing...
-Job for redis-server.service failed because the control process exited with error code.
-See "systemctl status redis-server.service" and "journalctl -xeu redis-server.service" for details.
-[46] [ERROR] Failed to start Redis service
-[46] [WARNING] Could not start Redis for testing
-[46] ============================================
-[46] Configuring Redis service startup...
-[46] ============================================
-[46] START_REDIS is true - enabling and starting Redis...
-[46] Starting Redis service...
-Job for redis-server.service failed because the control process exited with error code.
-See "systemctl status redis-server.service" and "journalctl -xeu redis-server.service" for details.
-[46] Redis service started
-[46] ============================================
-[46] Redis is installed and RUNNING
-[46] Service is enabled for auto-start on boot
-[46] ============================================
-[46] Redis installation script completed
-
-Executing: 98_install_qwen25.sh
-[99_install_qwen25] ========================================
-[99_install_qwen25]   Qwen2.5-0.5B-Instruct Installation
-[99_install_qwen25] ========================================
-
-[99_install_qwen25] Model: Qwen/Qwen2.5-0.5B-Instruct
-[99_install_qwen25] Size: ~1GB (0.5B parameters)
-[99_install_qwen25] Context: 32K tokens
-[99_install_qwen25] Languages: 29+ (including Chinese, English, etc.)
-
-[99_install_qwen25] Checking prerequisites...
-[99] python3 --version
-[99_install_qwen25] Python is available: Python 3.12.3
-[99_install_qwen25] Python version is sufficient (3.8+)
-
-[99_install_qwen25] Step 1: Install Python dependencies
-[99_install_qwen25] Installing Python dependencies...
-[99_install_qwen25] Using Python command: python3
-[99_install_qwen25] Note: Qwen2.5 requires transformers >= 4.37.0
-[99_install_qwen25] Checking for GPU availability...
-[99_install_qwen25] No NVIDIA GPU detected, will use CPU version
-
-[99_install_qwen25] torch not found and no GPU - installing CPU torch...
-
-[99] /www/_debian_12/python3_venv/bin/pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-flock: failed to execute /www/_debian_12/python3_venv/bin/pip3: No such file or directory
-
-[99] checking the centralized transformers pin and accelerate
-[99_install_qwen25] Installing transformers and accelerate...
-
-[transformers-policy] Installing missing transformers>=4,<5 ...
-/www/_debian_12/python3_venv/bin/python3: No module named pip
-[99] /www/_debian_12/python3_venv/bin/pip3 install accelerate
-flock: failed to execute /www/_debian_12/python3_venv/bin/pip3: No such file or directory
-
-[99_install_qwen25] Verifying installation...
-[99] /www/_debian_12/python3_venv/bin/python3 -c "import transformers; print('[OK] transformers version:', transformers.__version__)"
-[99_install_qwen25] Installation verification failed
-
-
-Executing: 99_install_nllb200.sh
-[run] vpip /www/_debian_12/python3_venv/bin/python3 -m pip install transformers>=4,<5 sentencepiece protobuf sacremoses
-/www/_debian_12/python3_venv/bin/python3: No module named pip
-
-Executing: 22_install_edge_tts.sh
-============================================================
- Installing edge-tts (text-to-speech)
-============================================================
-  python : /www/_debian_12/python3_venv/bin/python3
-[..] pip install edge-tts ...
-/www/_debian_12/python3_venv/bin/python3: No module named pip
-[!] edge-tts metadata is still missing; retrying next run.
-
-
-Executing: 23_install_tts_offline.sh
-============================================================
- Installing offline TTS (Sherpa-ONNX + Kokoro model)
-============================================================
-  python : /www/_debian_12/python3_venv/bin/python3
-  official env (sherpa): Python 3.8+; pip install sherpa-onnx. GPU: optional sherpa-onnx+cuda wheel via SHERPA_ONNX_CUDA_SPEC; model kokoro-multi-lang-v1_1 (full FP32, max quality). CPU: CPU wheel; model kokoro-int8-multi-lang-v1_1 (int8, max CPU tier).
-  model url: https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/kokoro-int8-multi-lang-v1_1.tar.bz2 (cpu)
-[sherpa-guard] sherpa-onnx is missing -> installing the default wheel.
-/www/_debian_12/python3_venv/bin/python3: No module named pip
-[!] sherpa-onnx not importable; retrying next run.
-[install_tts_offline] [idempotent-probe] running post-install verification ...
-[install_tts_offline] [idempotent-probe] FAIL import sherpa_onnx
-
-Executing: 28_install_frankenphp.sh
-[frankenphp-mgr] FrankenPHP Installation Script (Mercure plane, HTTP/3 ready)
-[frankenphp-mgr] Web server choice: frankenphp | mutex: on
-[nginx-plane] Nginx plane-disable (idempotent, service stop + record only)
-[nginx-plane] nginx already inactive
-[nginx-plane] nginx already disabled
-[nginx-plane] nginx plane-disabled (packages, configs and certificates preserved)
-[certbot-plane] Certbot plane-disable (idempotent, timers stop + record only)
-The unit files have no installation config (WantedBy=, RequiredBy=, UpheldBy=,
-Also=, or Alias= settings in the [Install] section, and DefaultInstance= for
-template units). This means they are not meant to be enabled or disabled using systemctl.
-
-Possible reasons for having these kinds of units are:
-• A unit may be statically enabled by being symlinked from another unit's
-  .wants/, .requires/, or .upholds/ directory.
-• A unit's purpose may be to act as a helper for some other unit which has
-  a requirement dependency on it.
-• A unit may be started when needed via activation (socket, path, timer,
-  D-Bus, udev, scripted systemctl call, ...).
-• In case of template units, the unit is meant to be enabled with some
-  instance name specified.
-[certbot-plane] certbot-renewal.timer already disabled
-[certbot-plane] No systemd unit certbot.service present
-[certbot-plane] No systemd unit certbot.timer present
-[certbot-plane] certbot plane-disabled (binary, venv and /etc/letsencrypt preserved)
-[frankenphp-mgr] frankenphp already installed: /usr/bin/frankenphp (FrankenPHP v1.12.7 PHP 8.5 Caddy v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=)
-[frankenphp-mgr] Installing xcaddy via go install
-[frankenphp-mgr] [WARN] xcaddy unavailable; dnspod module build skipped
-[frankenphp-mgr] [WARN] dnspod module deferred
-[STEP:caddyfile] already satisfied, skipping
-[frankenphp-mgr] [VERIFY] binary: /usr/bin/frankenphp (FrankenPHP v1.12.7 PHP 8.5 Caddy v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=)
-[frankenphp-mgr] [VERIFY] embedded PHP: 8.5
-[frankenphp-mgr] [VERIFY] dnspod module: missing
-[frankenphp-mgr] [VERIFY] php-cli shim: present
-[frankenphp-mgr] [VERIFY] plane: frankenphp
-[frankenphp-mgr] ==============================================
-[frankenphp-mgr] FRANKENPHP PLANE READY: FrankenPHP v1.12.7 PHP 8.5 Caddy v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=
-[frankenphp-mgr] Caddyfile: /www/programing/core_node/scripts/poly_apps/laravel_main/storage/frankenphp/Caddyfile (Mercure hub: /.well-known/mercure on :443)
-[frankenphp-mgr] Runtime entry: 132_laravel_main_start.sh (frankenphp branch) or the plane-aware laravel service
-[frankenphp-mgr] Management CLI: /www/programing/core_node/scripts/shells/linux/common/frankenphp_manager.sh
-[frankenphp-mgr] ==============================================
-
-修复前后错乱问题：
-
-Executing: 29_ensure_pnpm_packages.sh
-[29] PNPM Global Package Installation Script
-[29] Ensuring pnpm is installed...
-[29] pnpm is already installed: 10.25.0
-[29] Configuring pnpm global directories...
-[29]   global-dir: /www/_debian_12/node/node-v24.11.1/pnpm-global
-[29]   global-bin-dir: /www/_debian_12/node/node-v24.11.1/pnpm-global/bin
-[29] Setting pnpm default registry...
-npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
-[29] Creating/updating .pnpmrc file at: /home/lighthouse/.pnpmrc
-[29] pnpm global directories configured
-[29] Saved PNPM_GLOBAL_BIN_DIR to global vars: /www/_debian_12/node/node-v24.11.1/pnpm-global/bin
-[29] Ensuring pnpm paths are in PATH...
-[29] pnpm paths configured in PATH
-[29] Added pnpm global bin to current session PATH
-npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
-[29] Registry access OK: https://registry.npmjs.org/
-[29] Checking currently installed global packages...
-npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
-[29] Currently installed global packages:
-
-[29] ----------------------------------------
-[29] Checking packages using Node.js script...
-[29] Package mapping: {"yarn":"yarn","nodemon":"nodemon","npm-check-updates":"npm-check-updates","pnpm":"pnpm","puppeteer":"puppeteer","node-gyp":"node-gyp","typescript":"typescript","pm2":"pm2","js-yaml":"js-yaml","http-server":"http-server","ts-node":"ts-node","serve":"serve"}
-[29] Using Node.js script for package detection...
-[29] Missing packages detected: ["yarn","nodemon","npm-check-updates","puppeteer","node-gyp","typescript","pm2","js-yaml","http-server","ts-node","serve"]
-[29] yarn is already installed, skipping...
-[29] nodemon is already installed, skipping...
-[29] npm-check-updates is already installed, skipping...
-[29] pnpm is already installed, skipping...
-[29] puppeteer is already installed, skipping...
-[29] node-gyp is already installed, skipping...
-[29] Installing typescript...
- ERR_PNPM_UNEXPECTED_STORE  Unexpected store location
-
-The dependencies at "/www/_debian_12/node/node-v24.11.1/pnpm-global/5/node_modules" are currently linked from the store at "/root/.local/share/pnpm/store/v10".
-
-pnpm now wants to use the store at "/www/_debian_12/node/node-v24.11.1/pnpm-global/store/v10" to link dependencies.
-
-If you want to use the new store location, reinstall your dependencies with "pnpm install".
-
-You may change the global store location by running "pnpm config set store-dir <dir> --global".
-(This error may happen if the node_modules was installed with a different major version of pnpm)
-[29] Install failed, retrying with fallback registry...
-npm warn Unknown env config "confirm-modules-purge". This will stop working in the next major version of npm.
- ERR_PNPM_UNEXPECTED_STORE  Unexpected store location
-
-The dependencies at "/www/_debian_12/node/node-v24.11.1/pnpm-global/5/node_modules" are currently linked from the store at "/root/.local/share/pnpm/store/v10".
-
-pnpm now wants to use the store at "/www/_debian_12/node/node-v24.11.1/pnpm-global/store/v10" to link dependencies.
-
-If you want to use the new store location, reinstall your dependencies with "pnpm install".
+# github.com/libdns/dnspod
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:77:13: invalid composite literal type libdns.Record
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:104:35: record.Name undefined (type libdns.Record has no field or method Name)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:105:17: record.Value undefined (type libdns.Record has no field or method Value)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:106:17: record.Type undefined (type libdns.Record has no field or method Type)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:108:34: record.TTL undefined (type libdns.Record has no field or method TTL)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:120:9: record.ID undefined (type libdns.Record has no field or method ID)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:134:102: record.Name undefined (type libdns.Record has no field or method Name)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:134:115: record.Value undefined (type libdns.Record has no field or method Value)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:136:52: record.ID undefined (type libdns.Record has no field or method ID)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:139:102: record.Name undefined (type libdns.Record has no field or method Name)
+/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:139:102: too many errors

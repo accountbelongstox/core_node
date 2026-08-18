@@ -280,8 +280,8 @@ REMOTE_DESKTOP_GUIDE.txt
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
-33_configure_php85.sh
-34_install_composer.sh
+45_configure_php85.sh
+47_install_composer.sh
 35_install_chrome.sh
 36_install_puppeteer_plugins.sh
 37_install_dotnet.sh

@@ -272,7 +272,7 @@ unpaired/https-selected, the switcher shows why forwarding is unavailable
 
 ### Shell (scripts)
 
-- Phase 0 (PART_0): `28_install_frankenphp.sh` + `common/frankenphp_manager.sh`
+- Phase 0 (PART_0): `49_install_frankenphp.sh` + `common/frankenphp_manager.sh`
   + `132` plane branch + `selector_common.sh` MENU_CONFIG + 32-35 plane flows
   + service-contract ports - all under the shell norms (1.9).
 - Phase 1: nothing nginx-side (relay is plane-gated; the Caddyfile builder is

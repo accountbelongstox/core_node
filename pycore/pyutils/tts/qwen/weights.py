@@ -175,7 +175,7 @@ def redownload_hint_lines(model_id: Optional[str] = None) -> list:
         f"        python scripts/pytools/aitools/qwen3tts_tester.py --model {repo}",
         "[FIX] Option D - project installer (curl resume + size verify):",
         "        Step61_InstallQwen3Tts.ps1",
-        "        scripts/shells/linux/debian/install_shells/140_install_qwen3tts.sh",
+        "        scripts/shells/linux/debian/install_shells/183_install_qwen3tts.sh",
         f'[FIX] Delete bad files first, e.g. "{weights / "model.safetensors"}"',
     ]
 

@@ -69,7 +69,7 @@ export const pycoreApiLocal = {
       task_type: params.task_type,
     }) as Promise<PcTaskRecentResponse>,
   clearRecentTasks: () =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryClearRecentTasks, {}) as Promise<PcTaskClearResponse>,
   getCompletedTaskResourceDataUrl: async (cacheKey: string): Promise<string> => {
     const response = await requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCompletedArchiveResource, {
       cache_key: cacheKey,
@@ -356,7 +356,7 @@ export const pycoreApiLocal = {
 
   // --- Offline dictionary (ECDICT + WordNet) ------------------------------ #
   // Free, offline word translation served alongside Google/AI. status reports
-  // whether the data is installed (run 107_install_dictionaries.sh).
+  // whether the data is installed (run 123_install_dictionaries.sh).
   getDictionaryStatus: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.dictionaryDictionaryStatus, {}),
   getDictionaryLookup: (word: string, target = 'zh') =>

@@ -17,7 +17,7 @@
 #   - ncore-*            create_ncore_service / debian_service_manager.sh
 #                        (incl. ncore-laravel-main from poly_apps/laravel_main/scripts/start.sh)
 #   - pycore             pycore_service.sh (headless module caller)
-#   - pycore-module-caller   150_install_pycore_http_service.sh (HTTP service :59000)
+#   - pycore-module-caller   189_install_pycore_http_service.sh (HTTP service :59000)
 #   - codesync           codesync_service.sh
 #   - octane-*           octane_service_manager.sh (legacy octane-<domain>-<port>)
 #   - app-manager-*      scripts/app_manager/linux_sh/app_manager.sh

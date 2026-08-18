@@ -2,7 +2,7 @@
 # Claude Code Installation Script
 #
 # Usage:
-#   ./130_install_claude_code.sh   # Install Claude Code (official native method)
+#   ./171_install_claude_code.sh   # Install Claude Code (official native method)
 #
 # All-in-one Claude Code provisioning (single source of truth, callable anywhere
 # -- full install run, dd.sh, or the AI & MCP Management menu). It runs ALL of:

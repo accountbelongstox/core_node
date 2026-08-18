@@ -116,7 +116,7 @@ install_pi_harness() {
     if [ -x "$PI_BIN" ] || [ -x "$PI_LINK" ]; then
         echo "[$SCRIPT_INDEX] Pi is already installed."
     elif [ ! -x "$PNPM_BIN" ]; then
-        echo "[$SCRIPT_INDEX] WARNING: pnpm is unavailable. Run 16_install_node_24.sh first."
+        echo "[$SCRIPT_INDEX] WARNING: pnpm is unavailable. Run 17_install_node_24.sh first."
     else
         echo "[$SCRIPT_INDEX] Installing Pi with pnpm from the official package..."
         $USE_SUDO "$PNPM_BIN" add --global --ignore-scripts "$PI_PACKAGE"

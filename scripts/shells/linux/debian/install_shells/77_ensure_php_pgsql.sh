@@ -19,7 +19,7 @@
 # pgsql)".
 #
 # This project's PHP 8.5 is installed from the ondrej/php PPA (see
-# 32_ensure_php85_intelligent.sh) and every PHP extension is provisioned via
+# 43_ensure_php85_intelligent.sh) and every PHP extension is provisioned via
 # `apt install php<ver>-<ext>` (e.g. php8.5-pgsql provides pdo_pgsql + pgsql and
 # auto-enables them under /etc/php/<ver>/cli/conf.d/). So this script installs the
 # apt package -- the SAME mechanism the rest of the toolchain uses -- NOT a
@@ -55,7 +55,7 @@ if [ -z "$PHP_BIN" ] && command -v php >/dev/null 2>&1; then
     PHP_BIN="$(command -v php)"
 fi
 if [ -z "$PHP_BIN" ]; then
-    print_error_from_common_functions "php not found. Run 32_ensure_php85_intelligent.sh first."
+    print_error_from_common_functions "php not found. Run 43_ensure_php85_intelligent.sh first."
     exit 1
 fi
 
@@ -85,7 +85,7 @@ print_info_from_common_functions "PHP version: $PHP_VER"
 print_info_from_common_functions "Package:     $PG_PKG"
 
 # --- Install the apt package. The PHP apt repository is normally configured by
-#     32_ensure_php85_intelligent.sh (Ubuntu -> ondrej PPA, Debian -> Sury), but
+#     43_ensure_php85_intelligent.sh (Ubuntu -> ondrej PPA, Debian -> Sury), but
 #     make THIS script self-sufficient: if the package is not locatable (the common
 #     Debian failure "Unable to locate package php8.5-pgsql"), set up that repo here
 #     using the shared apt_repository_manager and retry. ---

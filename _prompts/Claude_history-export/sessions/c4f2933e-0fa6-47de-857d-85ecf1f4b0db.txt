@@ -90,8 +90,8 @@ drwxr-xr-x 1 kali kali  4096 Jun 21 17:09 ..
 -rwxr-xr-x 1 kali kali 10139 Jun 21 20:02 11_cuda_nvidia_prereq.sh
 -rwxr-xr-x 1 kali kali 50555 Jun 21 20:17 13_ensure_python.sh
 -rwxr-xr-x 1 kali kali  6747 Jun 21 17:09 14_install_faster_whisper.sh
--rwxr-xr-x 1 kali kali  2797 Jun 21 17:09 150_install_pycore_http_service.sh
--rwxr-xr-x 1 kali kali 10613 Jun 21 17:09 151_install_octane_watcher_daemon.sh
+-rwxr-xr-x 1 kali kali  2797 Jun 21 17:09 189_install_pycore_http_service.sh
+-rwxr-xr-x 1 kali kali 10613 Jun 21 17:09 191_install_octane_watcher_daemon.sh
 -rwxr-xr-x 1 kali kali 26338 Jun 21 19:36 15_install_node_24.sh
 -rwxr-xr-x 1 kali kali 10057 Jun 21 17:09 16_enable_pipx.sh
 -rwxr-xr-x 1 kali kali  6055 Jun 21 17:09 17_enable_poetry.sh
@@ -5050,7 +5050,7 @@ This touches several intertwined issues (PG data-dir location, the `pg_hba.conf`
 scripts/shells/linux/install_bootstrap.sh
 scripts/shells/linux/common/gvar_common.sh
 scripts/shells/linux/dd_helper/webpath_permissions.sh
-scripts/shells/linux/debian/install_shells/33_configure_php85.sh
+scripts/shells/linux/debian/install_shells/45_configure_php85.sh
 --- keys it knows (grep the mapping table) ---
 scripts/shells/linux/common/linux_path_function.sh:293:    case "$action" in
 
@@ -9571,7 +9571,7 @@ R  ncore/utils/mcp_chrome/tool_schemas.js -> ncore/utils/jsmcptools/tool_schemas
  M scripts/shells/linux/dd_helper/constants.sh
  M scripts/shells/linux/debian/install_shells/3_setting_base.sh
  M scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh
- M scripts/shells/linux/debian/install_shells/34_install_composer.sh
+ M scripts/shells/linux/debian/install_shells/47_install_composer.sh
 D  scripts/shells/linux/debian/install_shells/3_stop_aliyun_cloudmonitor.sh
 D  scripts/shells/linux/debian/install_shells/4_stop_huawei_cloudmonitor.sh
 D  scripts/shells/linux/debian/install_shells/5_stop_tencent_cloudmonitor.sh
@@ -9601,7 +9601,7 @@ The tree was fully back to the original pre-change state. Restored one-to-one:
 - Run order now: `1 → 2 → 3_stop_cloud_monitors → 6_system_maintenance → 8 → 10 → 11 …` (install.sh discovers by numeric prefix).
 - No stale `mcp_chrome`/old-filename references in code (only the intentional comment in `constants.sh`, the temp-dir-name string inside the exact recovered `3_stop_cloud_monitors.sh`, and the `.txt` archives).
 
-One note: the commit also swept in two `install_shells` files the churn had already modified independently (`31_ensure_php85_intelligent.sh`, `34_install_composer.sh`) since I staged the whole dir — harmless, but tell me if you want them split out. There are two more saved records in `_prompts/` (`PHP-repaire.txt`, `Python-Repair.txt`) — say the word and I'll restore those the same way.
+One note: the commit also swept in two `install_shells` files the churn had already modified independently (`31_ensure_php85_intelligent.sh`, `47_install_composer.sh`) since I staged the whole dir — harmless, but tell me if you want them split out. There are two more saved records in `_prompts/` (`PHP-repaire.txt`, `Python-Repair.txt`) — say the word and I'll restore those the same way.
 
 [2026-06-23 11:10:15] USER:
 ❯ [Pasted text #1 +11 lines][Pasted text #2 +12 lines]  - 3_stop_aliyun_cloudmonitor.sh

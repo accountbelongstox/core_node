@@ -23,7 +23,7 @@ API_SERVER_FILENAME = "qwen3tts_api_server.py"
 # agent-history piggyback lane.
 DEFAULT_HOST = HTTP_BIND_HOST
 DEFAULT_PORT = QWEN3TTS_HTTP_PORT
-INSTALL_HINT = "Step61_InstallQwen3Tts.ps1 / 140_install_qwen3tts.sh"
+INSTALL_HINT = "Step61_InstallQwen3Tts.ps1 / 183_install_qwen3tts.sh"
 QUEUE_EVENT_NAME = BusSignals.QWEN_QUEUE_EVENT
 # Speed factor bounds accepted from QWEN3TTS_SPEED / request overrides.
 _SPEED_MIN = 0.25

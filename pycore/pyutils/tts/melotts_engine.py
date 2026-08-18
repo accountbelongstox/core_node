@@ -62,7 +62,7 @@ def disabled_reason() -> Optional[str]:
         return None
     return (
         "MeloTTS isolated venv not built - run Step55_InstallMelotts.ps1 -Full / "
-        "115_install_melotts.sh (or it auto-builds via ensure_venv on install)"
+        "139_install_melotts.sh (or it auto-builds via ensure_venv on install)"
     )
 
 

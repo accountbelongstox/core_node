@@ -1940,8 +1940,8 @@ scripts/pyvoice/CUDA_GUIDE.md:106:sudo apt install nvidia-driver-XXX nvidia-cuda
 134_setup_html_domains.sh
 13_ensure_python.sh
 14_install_faster_whisper.sh
-150_install_pycore_http_service.sh
-151_install_octane_watcher_daemon.sh
+189_install_pycore_http_service.sh
+191_install_octane_watcher_daemon.sh
 15_install_node_24.sh
 16_enable_pipx.sh
 17_enable_poetry.sh
@@ -1959,8 +1959,8 @@ scripts/pyvoice/CUDA_GUIDE.md:106:sudo apt install nvidia-driver-XXX nvidia-cuda
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
-33_configure_php85.sh
-34_install_composer.sh
+45_configure_php85.sh
+47_install_composer.sh
 35_install_chrome.sh
 36_install_puppeteer_plugins.sh
 37_install_dotnet.sh
@@ -3696,8 +3696,8 @@ Good catch — that's a real ordering bug. Both scripts are prefix `12`, and the
 30:30_install_edge.sh
 31:31_ensure_php85_intelligent.sh
 32:32_install_swoole.sh
-33:33_configure_php85.sh
-34:34_install_composer.sh
+33:45_configure_php85.sh
+34:47_install_composer.sh
 35:35_install_chrome.sh
 36:36_install_puppeteer_plugins.sh
 37:37_install_dotnet.sh
@@ -4035,8 +4035,8 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 11_cuda_nvidia_prereq.sh
 13_ensure_python.sh
 14_install_faster_whisper.sh
-150_install_pycore_http_service.sh
-151_install_octane_watcher_daemon.sh
+189_install_pycore_http_service.sh
+191_install_octane_watcher_daemon.sh
 15_install_node_24.sh
 16_enable_pipx.sh
 17_enable_poetry.sh
@@ -4054,8 +4054,8 @@ Command running in background with ID: bkohq1a3y. Output is being written to: /t
 30_install_edge.sh
 31_ensure_php85_intelligent.sh
 32_install_swoole.sh
-33_configure_php85.sh
-34_install_composer.sh
+45_configure_php85.sh
+47_install_composer.sh
 35_install_chrome.sh
 36_install_puppeteer_plugins.sh
 37_install_dotnet.sh

@@ -16,7 +16,7 @@
 # prepare_pycore_prerequisites.sh) runs them in order.
 #
 # Invocation:
-#   23_install_tts_offline.sh [--python <py>] [--force]
+#   31_install_tts_offline.sh [--python <py>] [--force]
 #   Legacy flags (--core-only, --melotts, --parallel, …) are ignored with a hint.
 
 PYTHON="python3"

@@ -19,7 +19,7 @@
 # PLANE MUTUAL EXCLUSION (default ON, `--no-mutex` to skip): nginx and
 # certbot are DISABLED via their common-area plane-disable companions -
 # services stopped and state recorded only, packages/configs/certificates
-# preserved. Re-running 26_install_nginx.sh restores the nginx plane (and
+# preserved. Re-running 33_install_nginx.sh restores the nginx plane (and
 # disables this one) symmetrically.
 #
 # The octane:frankenphp RUNTIME itself is started by the 132 frankenphp
@@ -105,6 +105,6 @@ fm_verify
 echo "[$SCRIPT_INDEX] =============================================="
 echo "[$SCRIPT_INDEX] FRANKENPHP PLANE READY: $(fm_version)"
 echo "[$SCRIPT_INDEX] Caddyfile: ${FRANKENPHP_CADDYFILE_DIR}/Caddyfile (Mercure hub: /.well-known/mercure on :$(sc_get ports.frankenphp_https))"
-echo "[$SCRIPT_INDEX] Runtime entry: 132_laravel_main_start.sh (frankenphp branch) or the plane-aware laravel service"
+echo "[$SCRIPT_INDEX] Runtime entry: 175_laravel_main_start.sh (frankenphp branch) or the plane-aware laravel service"
 echo "[$SCRIPT_INDEX] Management CLI: $PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
 echo "[$SCRIPT_INDEX] =============================================="

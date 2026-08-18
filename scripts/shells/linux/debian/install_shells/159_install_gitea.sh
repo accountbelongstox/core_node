@@ -2,12 +2,12 @@
 # Gitea Installation Script
 #
 # Prerequisites:
-#   - Git must be installed (run 21_install_git_ssh.sh first)
+#   - Git must be installed (run 27_install_git_ssh.sh first)
 #   - SQLite3 (automatically installed)
 #   - wget/curl (automatically installed)
 #
 # Usage:
-#   ./124_install_gitea.sh   # Normal installation (no arguments)
+#   ./159_install_gitea.sh   # Normal installation (no arguments)
 #
 # This script installs Gitea - a self-hosted Git service
 # After installation, it will detect all IPs and display available web addresses
@@ -140,7 +140,7 @@ check_git_installation() {
     else
         print_warning_from_common_functions "Git is not installed"
         print_info_from_common_functions "Git is required for Gitea to function"
-        print_info_from_common_functions "Please run script 21_install_git_ssh.sh first, or install Git manually"
+        print_info_from_common_functions "Please run script 27_install_git_ssh.sh first, or install Git manually"
 
         echo -n "Do you want to install Git now? (Y/n): "
         read -r response
@@ -747,7 +747,7 @@ install_gitea() {
     # Check Git installation (CRITICAL DEPENDENCY)
     if ! check_git_installation; then
         print_error_from_common_functions "Git is required but not installed"
-        print_info_from_common_functions "Please install Git first by running: ./21_install_git_ssh.sh"
+        print_info_from_common_functions "Please install Git first by running: ./27_install_git_ssh.sh"
         return 1
     fi
 

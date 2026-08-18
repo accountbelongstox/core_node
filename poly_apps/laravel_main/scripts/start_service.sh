@@ -17,7 +17,7 @@
 #
 # SYNC CONTRACT: this is the per-app instance; the canonical common-area copy is
 #   scripts/shells/linux/debian/debian_com/laravel_start_service.sh
-# (used by install_shells/132_laravel_main_start.sh). Change both together.
+# (used by install_shells/175_laravel_main_start.sh). Change both together.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"

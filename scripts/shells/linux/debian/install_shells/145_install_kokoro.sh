@@ -1,10 +1,10 @@
 ﻿#!/bin/bash
 # Kokoro-82M prerequisite (Linux) — sherpa-onnx + multi-lang Kokoro model.
-# Complements 23_install_tts_offline.sh with a dedicated KOKORO_TTS_MODEL_DIR cache.
+# Complements 31_install_tts_offline.sh with a dedicated KOKORO_TTS_MODEL_DIR cache.
 #
 # Official: https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html
 #
-# Invocation: 118_install_kokoro.sh [--python <py>]
+# Invocation: 145_install_kokoro.sh [--python <py>]
 # No parameters required: idempotently installs (skips when complete, downloads/repairs when incomplete).
 # Env: KOKORO_SKIP=1, KOKORO_TTS_MODEL_DIR
 set -uo pipefail

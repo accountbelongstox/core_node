@@ -9,12 +9,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 45_ensure_dragonfly_intelligent.sh
+# Script: 71_ensure_dragonfly_intelligent.sh
 # Description: Idempotent DragonflyDB installation for Debian/Ubuntu/Kali (Debian-family,
 #              incl. Ubuntu 24+). Uses official native packages from packages.dragonflydb.io
 #              (the repo serves one static "noble" suite that installs on any Debian-family).
 # Author: System Administrator
-# Design: Same style as 32_ensure_php85_intelligent.sh and 46_install_redis.sh
+# Design: Same style as 43_ensure_php85_intelligent.sh and 73_install_redis.sh
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'

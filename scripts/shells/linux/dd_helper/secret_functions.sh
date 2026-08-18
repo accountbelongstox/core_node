@@ -265,7 +265,7 @@ ensure_secret_keys_ready() {
             echo -e "\033[36m[SECRETS] To install Node.js, run:\033[0m"
 
             # Get the install script path (trust-based)
-            local install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/16_install_node_24.sh"
+            local install_script="$CORE_NODE_ROOT_DIR/scripts/shells/linux/debian/install_shells/17_install_node_24.sh"
             echo -e "\033[32m  bash $install_script\033[0m"
 
             echo ""

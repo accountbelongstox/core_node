@@ -49,10 +49,10 @@ else
 fi
 INSTALL_SHELLS_DIR="$REPO_ROOT/scripts/shells/linux/debian/install_shells"
 
-pt_add_task "deepseek"     "96_install_deepseek"     "bash '$INSTALL_SHELLS_DIR/96_install_deepseek.sh'"
-pt_add_task "deepseek-ocr" "97_install_deepseek_ocr" "bash '$INSTALL_SHELLS_DIR/97_install_deepseek_ocr.sh'"
-pt_add_task "qwen25"       "98_install_qwen25"       "bash '$INSTALL_SHELLS_DIR/98_install_qwen25.sh'"
-pt_add_task "nllb200"      "99_install_nllb200"      "bash '$INSTALL_SHELLS_DIR/99_install_nllb200.sh'"
+pt_add_task "deepseek"     "96_install_deepseek"     "bash '$INSTALL_SHELLS_DIR/105_install_deepseek.sh'"
+pt_add_task "deepseek-ocr" "97_install_deepseek_ocr" "bash '$INSTALL_SHELLS_DIR/107_install_deepseek_ocr.sh'"
+pt_add_task "qwen25"       "98_install_qwen25"       "bash '$INSTALL_SHELLS_DIR/109_install_qwen25.sh'"
+pt_add_task "nllb200"      "99_install_nllb200"      "bash '$INSTALL_SHELLS_DIR/111_install_nllb200.sh'"
 
 pt_run
 exit 0

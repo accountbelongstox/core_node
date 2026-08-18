@@ -301,7 +301,7 @@ create_app_databases() {
 }
 
 # Resolve (or generate + persist) the postgres superuser password via the shared
-# global-var store, mirroring the MySQL pattern (51_install_mysql.sh). The same
+# global-var store, mirroring the MySQL pattern (85_install_mysql.sh). The same
 # value is read by start.sh and written into the Laravel .env, so dd.sh and
 # start.sh stay aligned. A fresh (re)install with no stored value regenerates it.
 get_postgresql_password() {

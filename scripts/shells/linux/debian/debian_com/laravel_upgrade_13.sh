@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Canonical Laravel 13 upgrader (common-area copy, sourced by
-# install_shells/132_laravel_main_start.sh). Requires the caller to provide
+# install_shells/175_laravel_main_start.sh). Requires the caller to provide
 # LARAVEL_DIR, PHP_BIN and COMPOSER_CMD; falls back to the core_node layout.
 
 LARAVEL_13_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

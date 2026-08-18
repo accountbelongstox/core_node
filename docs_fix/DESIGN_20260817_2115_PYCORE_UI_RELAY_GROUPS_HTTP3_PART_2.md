@@ -26,7 +26,7 @@ binding transport research is §2.2.3 (Mercure protocol) + §2.2.4
 ### laravel_main (central server)
 
 - Runtime pair (measured in `debian_com/laravel_run_runtime.sh`, invoked by
-  `132_laravel_main_start.sh`): **Reverb on `0.0.0.0:8080` + Octane/Swoole on
+  `175_laravel_main_start.sh`): **Reverb on `0.0.0.0:8080` + Octane/Swoole on
   `0.0.0.0:9000`** (port from `config/service_contract.json`
   `ports.laravel_api_backend = 9000`) started as one supervised pair; USR1
   reloads both. `composer.json`: `laravel/octane ^2.13`, `laravel/reverb ^1.6`,
@@ -65,7 +65,7 @@ binding transport research is §2.2.3 (Mercure protocol) + §2.2.4
   roster index - already presence-truth shaped, unchanged by the pivot).
   Pending renames recorded in PART_3 §3.7 (channels -> topics,
   channel-auth -> hub-auth, hub block).
-- nginx (from `26_install_nginx.sh` + `common/nginx_manager.sh`): official
+- nginx (from `33_install_nginx.sh` + `common/nginx_manager.sh`): official
   mainline, `http_v3_module`, per-site stanza `listen 443 quic` + `http3 on` +
   `quic_retry on` + `quic_host_key` (fixed) + `Alt-Svc: h3=":443"` +
   `ssl_early_data on`; edge-port guard frees 80/TCP + 443/TCP + **443/UDP**;

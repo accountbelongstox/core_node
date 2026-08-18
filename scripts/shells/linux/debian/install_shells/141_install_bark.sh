@@ -12,7 +12,7 @@
 # Official: https://huggingface.co/docs/transformers/model_doc/bark
 #   pip install transformers scipy   (Do NOT pip install bark — wrong PyPI package.)
 #
-# Invocation: 116_install_bark.sh --python <py> [--full] [--force]
+# Invocation: 141_install_bark.sh --python <py> [--full] [--force]
 # Env: BARK_SKIP=1, BARK_INSTALL=1, NEURAL_TTS_INSTALL=1, BARK_DIR, BARK_MODEL
 set -uo pipefail
 
@@ -109,7 +109,7 @@ else
     install_pycore_torch_stack "$PYTHON" "[install_bark] "
     # Bucket A: install transformers at the SHARED pin, version-idempotently and NEVER
     # --upgrade (that clobbers the pin the deepseek/qwen25/nllb stack shares in this
-    # interpreter). Install only when missing; matches 98_install_qwen25.sh. scipy +
+    # interpreter). Install only when missing; matches 109_install_qwen25.sh. scipy +
     # accelerate ride along.
     if shared_transformers_matches_from_common_functions "$PYTHON" && "$PYTHON" -c "import scipy, accelerate" >/dev/null 2>&1; then
         echo "[install_bark] [OK] transformers/scipy/accelerate already present; keeping the shared pin."

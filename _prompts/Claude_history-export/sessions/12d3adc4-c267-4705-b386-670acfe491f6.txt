@@ -37,9 +37,9 @@ Starting execution of 31_ensure_php85_intelligent.sh...
 [31_PHP85_INTELLIGENT] [ANALYSIS] Performing Composer state analysis...
 [31_PHP85_INTELLIGENT] [DETECTION] Analyzing Composer binary state...
 [31_PHP85_INTELLIGENT] Composer not found
-[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
+[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 47_install_composer.sh
 [31_PHP85_INTELLIGENT] Composer: Not available
-[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
+[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 47_install_composer.sh
 [31_PHP85_INTELLIGENT]  PHP 8.5 needs attention (state code: 1)
 [31_PHP85_INTELLIGENT]  Composer needs attention (state code: 1)
 [31_PHP85_INTELLIGENT] Some components require installation/repair. Proceeding with installation...
@@ -1108,9 +1108,9 @@ Starting execution of 31_ensure_php85_intelligent.sh...
 [31_PHP85_INTELLIGENT] [ANALYSIS] Performing Composer state analysis...
 [31_PHP85_INTELLIGENT] [DETECTION] Analyzing Composer binary state...
 [31_PHP85_INTELLIGENT] Composer not found
-[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
+[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 47_install_composer.sh
 [31_PHP85_INTELLIGENT] Composer: Not available
-[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 34_install_composer.sh
+[31_PHP85_INTELLIGENT] Note: Composer will be installed in the next step via 47_install_composer.sh
 [31_PHP85_INTELLIGENT]  PHP 8.5 needs attention (state code: 1)
 [31_PHP85_INTELLIGENT]  Composer needs attention (state code: 1)
 [31_PHP85_INTELLIGENT] Some components require installation/repair. Proceeding with installation...
@@ -2863,20 +2863,20 @@ Two optional follow-ups (say the word and I'll do them):
 [2026-06-22 21:05:04] USER:
 31_ensure_php85_intelligent.sh
   32_install_swoole.sh
-  33_configure_php85.sh
-  34_install_composer.sh Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.
+  45_configure_php85.sh
+  47_install_composer.sh Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.
 
 [2026-06-22 21:05:52] ASSISTANT:
 This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared **logic** and **data** aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
 
-[2026-06-22 21:05:56]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== sizes ===\"; wc -l 31_ensure_php85_intelligent.sh 32_install_swoole.sh 33_configure_php85.sh 34_install_composer.sh 2>&1\necho; echo \"=== what each script SOURCES (shared logic/data) ===\"\nfor f in 31_ensure_php85_intelligent.sh 32_install_swoole.sh 33_configure_php85.sh 34_install_composer.sh; do\n  echo \"--- $f ---\"; grep -nE '^\\s*source |^\\s*\\. ' \"$f\" | head\ndone", "description": "Map sizes and sourced shared files for the 4 scripts"}
+[2026-06-22 21:05:56]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== sizes ===\"; wc -l 31_ensure_php85_intelligent.sh 32_install_swoole.sh 45_configure_php85.sh 47_install_composer.sh 2>&1\necho; echo \"=== what each script SOURCES (shared logic/data) ===\"\nfor f in 31_ensure_php85_intelligent.sh 32_install_swoole.sh 45_configure_php85.sh 47_install_composer.sh; do\n  echo \"--- $f ---\"; grep -nE '^\\s*source |^\\s*\\. ' \"$f\" | head\ndone", "description": "Map sizes and sourced shared files for the 4 scripts"}
 
 [2026-06-22 21:05:56]   <- tool result:
 === sizes ===
   1391 31_ensure_php85_intelligent.sh
    539 32_install_swoole.sh
-   380 33_configure_php85.sh
-   580 34_install_composer.sh
+   380 45_configure_php85.sh
+   580 47_install_composer.sh
   2890 total
 
 === what each script SOURCES (shared logic/data) ===
@@ -2890,12 +2890,12 @@ This is a cross-script consistency audit across the 4-step PHP pipeline (31→32
 33:source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 34:source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 35:source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
---- 33_configure_php85.sh ---
+--- 45_configure_php85.sh ---
 128:source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 129:source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 132:source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
 133:source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
---- 34_install_composer.sh ---
+--- 47_install_composer.sh ---
 21:source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 22:source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 25:source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
@@ -3013,7 +3013,7 @@ You will be notified when it completes. Use /workflows to watch live progress.
 [2026-06-22 21:08:06] ASSISTANT:
 The audit is running. Meanwhile, let me read scripts 33 and 34 myself (I haven't seen them) so I can evaluate the findings and apply fixes quickly.
 
-[2026-06-22 21:08:07]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh"}
+[2026-06-22 21:08:07]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh"}
 
 [2026-06-22 21:08:07]   <- tool result:
 1	#!/bin/bash
@@ -3058,11 +3058,11 @@ The audit is running. Meanwhile, let me read scripts 33 and 34 myself (I haven't
 [2026-06-22 21:08:28] ASSISTANT:
 Read 33 fully. Already spotting real misalignments: hardcoded `"8.5"` throughout (vs `$PHP_VERSION`), **update-alternatives priority `84`** here vs **`85`** in 31 (drift), three scripts managing the `php` command differently (31: alternatives@85 + symlink; 32: `ensure_php_symlink`; 33: alternatives@84 only), a stale header (self-labels "32", claims it modifies FPM files it no longer touches), and a hardcoded module list instead of `REQUIRED_EXTENSIONS`. Let me read 34.
 
-[2026-06-22 21:08:29]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh"}
+[2026-06-22 21:08:29]   -> tool: Read  {"file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh"}
 
 [2026-06-22 21:08:29]   <- tool result:
 1	#!/bin/bash
-2	# Script: 34_install_composer.sh
+2	# Script: 47_install_composer.sh
 3	# Description: Dedicated Composer installation with PHP 8.5 and strong auto-correction
 4	# Author: System Administrator
 5	# Version: 2.0
@@ -3121,7 +3121,7 @@ Read 33 fully. Already spotting real misalignments: hardcoded `"8.5"` throughout
 [2026-06-22 21:09:29] ASSISTANT:
 Read all 4 scripts now. I can already see concrete misalignments (e.g., 33 uses update-alternatives priority **84** vs 31's **85**; 34 hardcodes `/usr/local/bin/composer-safe` despite `COMPOSER_SAFE_PATH` existing in the shared vars; 4 different PHP-version-detection idioms). Let me confirm a few specifics (31's priority, 32's ext-dir/symlink handling) as ground truth while the audit finishes.
 
-[2026-06-22 21:09:35]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== 31: update-alternatives priority (expect 85) ===\"\ngrep -nE 'update-alternatives --install.*php8\\.5|priority [0-9]+' 31_ensure_php85_intelligent.sh | head\necho \"=== 33: update-alternatives priority (expect 84 = DRIFT) ===\"\ngrep -nE 'update-alternatives --install.*php8\\.5|priority [0-9]+' 33_configure_php85.sh | head\necho \"=== 32: extension dir + swoole.ini handling (hardcoded api number?) ===\"\ngrep -nE 'extension_dir|/usr/lib/php/|20250925|php-config|mods-available|swoole.ini|conf.d' 32_install_swoole.sh | head -20\necho \"=== 32: ensure_php_symlink (own impl vs shared) ===\"\ngrep -nE 'ensure_php_symlink|TARGET_LINK_PATH|/usr/local/bin/php' 32_install_swoole.sh | head\necho \"=== 34: COMPOSER_SAFE_PATH used, or hardcoded literal? ===\"\ngrep -nc 'COMPOSER_SAFE_PATH' 34_install_composer.sh; grep -nc '/usr/local/bin/composer-safe' 34_install_composer.sh", "description": "Confirm priority drift, ext-dir handling, symlink and composer-safe usage"}
+[2026-06-22 21:09:35]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== 31: update-alternatives priority (expect 85) ===\"\ngrep -nE 'update-alternatives --install.*php8\\.5|priority [0-9]+' 31_ensure_php85_intelligent.sh | head\necho \"=== 33: update-alternatives priority (expect 84 = DRIFT) ===\"\ngrep -nE 'update-alternatives --install.*php8\\.5|priority [0-9]+' 45_configure_php85.sh | head\necho \"=== 32: extension dir + swoole.ini handling (hardcoded api number?) ===\"\ngrep -nE 'extension_dir|/usr/lib/php/|20250925|php-config|mods-available|swoole.ini|conf.d' 32_install_swoole.sh | head -20\necho \"=== 32: ensure_php_symlink (own impl vs shared) ===\"\ngrep -nE 'ensure_php_symlink|TARGET_LINK_PATH|/usr/local/bin/php' 32_install_swoole.sh | head\necho \"=== 34: COMPOSER_SAFE_PATH used, or hardcoded literal? ===\"\ngrep -nc 'COMPOSER_SAFE_PATH' 47_install_composer.sh; grep -nc '/usr/local/bin/composer-safe' 47_install_composer.sh", "description": "Confirm priority drift, ext-dir handling, symlink and composer-safe usage"}
 
 [2026-06-22 21:09:35]   <- tool result:
 === 31: update-alternatives priority (expect 85) ===
@@ -3175,7 +3175,7 @@ The systematic audit workflow is finishing its synthesis (it adjudicates these +
 <output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/12d3adc4-c267-4705-b386-670acfe491f6/tasks/wsgn0z803.output</output-file>
 <status>completed</status>
 <summary>Dynamic workflow "Audit logic/data/behavior alignment across PHP install scripts 31-34 and produce concrete fixes" completed</summary>
-<result>{"profiled":["31_ensure_php85_intelligent.sh (/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh, 1392 lines)","/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh","33_configure_php85.sh","/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh"],"alignment":{"summary":"All four scripts source the canonical DATA file (php_common_vars.sh), but only 31, 33, 34 source php_common_functions.sh; 32_install_swoole.sh stops after php_common_vars.sh (line 35) and therefore reimplements every shared helper inline. The canonical DATA is almost universally IGNORED: PHP_VERSION, TARGET_LINK_PATH, PHP_BINARY_NAME, COMPOSER_SAFE_PATH, OCTANE_PECL_EXTENSIONS/OCTANE_EXTENSION_MAP, PHP_INI_FILES are sourced but hardcoded as literals across all four (verified: TARGET_LINK_PATH used 0 times in 31/32/34; PHP_VERSION used 0 times in 32/33/34). Two TRUE high-severity DRIFTs exist: (1) the update-alternatives priority disagrees -- 31 registers php at priority 85 (line 521) while 32 (line 110) and 33 (line 232) register at 84, so last-writer-wins ordering can flip the chosen default on re-run; (2) 31's repo-manager install string at line 951 hardcodes `php8.5 php8.5-fpm` (the metapackage + FPM) plus omits sqlite3/intl/readline -- this directly contradicts the canonical NO-FPM / no-metapackage intent and 31's OWN install_php_core() which correctly uses ${PHP85_CORE_PACKAGES[@]}/${CORE_EXTENSIONS[@]} and then has to detect-and-disable the FPM it pulled in (L1006-1011). LOGIC misalignments: symlink validation is done four different ways (31 inline fix_php_symbolic_link + duplicated verify, 32 inline ensure_php_symlink targeting the WRONG link /usr/bin/php instead of canonical /usr/local/bin/php, 33 inline setup_php_default with --remove-all, 34 open-coded -x+grep) instead of check_symbolic_link_from_php_common; version detection uses 3-4 idioms; 32 has no network precheck before git clone; 32 never calls prevent_apache2_conflicts despite apt installs. BEHAVIOR/handoff: 31 establishes /usr/local/bin/php (TARGET_LINK_PATH) as the entrypoint that 34 consumes, but 32 validates/repairs /usr/bin/php instead, so 32 can pass while the actual contract link is broken; 31's priority-85 default can be silently lowered to 84 by 33. Also confirmed: verify_php_symbolic_link_fix() is defined TWICE in 31 (L566 and L646, second wins); shared verify_open_basedir_config_from_php_common still probes php-fpm8.4 (php_common_functions.sh L404), a dead stale branch 33 inherits. Recommended fixes are surgical: align the three priorities to one value (85), strip metapackage+fpm from 31's L951 string (reuse the canonical arrays), source php_common_functions.sh in 32, and point 32's symlink check at TARGET_LINK_PATH.","data_misalignments":[{"issue":"update-alternatives priority for /usr/bin/php disagrees across scripts: 31 uses 85, 32 and 33 use 84. No shared constant defines it. On a host where 31 then 33 (or 32) run, the priority registered differs; with --remove-all + re-install patterns, the last writer wins and the chosen default php can flip. 84 also reads like a stale PHP-8.4-era value.","scripts":["31_ensure_php85_intelligent.sh (L521)","32_install_swoole.sh (L110)","33_configure_php85.sh (L232)"],"severity":"high","fix":"Pick one value (use 85, matching the canonical first-installer step 31) and use it in all three update-alternatives --install calls. Ideally add a shared PHP_ALT_PRIORITY=85 to php_common_vars.sh and reference it; minimally, change 32 L110 and 33 L232 from 84 to 85."},{"issue":"31's repo-manager install string hardcodes the php8.5 metapackage AND php8.5-fpm (and omits sqlite3/intl/readline that CORE_EXTENSIONS lists), directly contradicting the canonical NO-FPM/no-metapackage intent documented in php_common_vars.sh (L21-22) and contradicting 31's own install_php_core() which correctly uses ${PHP85_CORE_PACKAGES[@]} + ${CORE_EXTENSIONS[@]}. The script then must detect+disable the FPM it pulled in (L1006-1011). This is the dangerous DATA path actually executed by setup_php_repository().","scripts":["31_ensure_php85_intelligent.sh (L951)"],"severity":"high","fix":"Build the install command from the canonical arrays: \"$USE_SUDO apt install -y ${PHP85_CORE_PACKAGES[*]} ${CORE_EXTENSIONS[*]}\". This removes php8.5 metapackage + php8.5-fpm and adds the missing sqlite3/intl/readline, matching install_php_core()."},{"issue":"PHP version literal \"8.5\"/\"php8.5\"/\"/usr/bin/php8.5\" is hardcoded pervasively (31: ~102 hits incl. verify fns; 32: ~20 path/grep literals; 33: L222/232/236/263/309/314; 34: L292) instead of using the sourced PHP_VERSION. No value drift today (all are 8.5) but a future PHP_VERSION bump will not propagate, and the verify/gate functions will silently keep asserting 8.5.","scripts":["31_ensure_php85_intelligent.sh","32_install_swoole.sh","33_configure_php85.sh","34_install_composer.sh"],"severity":"medium","fix":"Where low-risk, replace literals with ${PHP_VERSION} (paths like /etc/php/${PHP_VERSION}/..., binary php${PHP_VERSION}) and the comparison prefix \"$PHP_VERSION\"* as 31 already does at L71/L115. Prioritize the version-assertion/gate spots (31 verify fns, 32 L282, 33 L263, 34 L292) so a bump is honored."},{"issue":"TARGET_LINK_PATH=\"/usr/local/bin/php\" is sourced but never referenced; 31 re-literals it at L325/569/649, 34 re-literals it as PHP_BINARY at L29 (and frozen into heredoc wrappers L483/501). PHP_BINARY_NAME never referenced anywhere.","scripts":["31_ensure_php85_intelligent.sh (L325,569,649)","34_install_composer.sh (L29,483,501)"],"severity":"low","fix":"Reference $TARGET_LINK_PATH for the link path (34: PHP_BINARY=\"$TARGET_LINK_PATH\"; 31: local target_link=\"$TARGET_LINK_PATH\"). Heredoc wrappers can interpolate it at write time."},{"issue":"COMPOSER_SAFE_PATH sourced but never used in 34; the literal /usr/local/bin/composer-safe is repeated 8x (L216,218,314,342,471,485,523,563,569). COMPOSER_TARGET_PATH/COMPOSER_DOWNLOAD_URL are correctly used.","scripts":["34_install_composer.sh"],"severity":"low","fix":"Replace the 8 /usr/local/bin/composer-safe literals with $COMPOSER_SAFE_PATH."},{"issue":"OCTANE_PECL_EXTENSIONS=(swoole openswoole) and OCTANE_EXTENSION_MAP are sourced but ignored by 32; only 'swoole' is handled (hardcoded), openswoole is dropped.","scripts":["32_install_swoole.sh"],"severity":"low","fix":"Drive the extension name/module from OCTANE_EXTENSION_MAP[\"swoole\"] at minimum; openswoole support is optional and out of scope for a surgical fix."},{"issue":"PHP_INI_FILES is iterated correctly in 33 (L182-192) but 31 re-lists the literal /etc/php/8.5/cli/php.ini at L1284 for a display check instead of iterating the array.","scripts":["31_ensure_php85_intelligent.sh (L1284)"],"severity":"low","fix":"Iterate ${PHP_INI_FILES[@]} in display_final_status() instead of the literal."}],"logic_misalignments":[{"issue":"32_install_swoole.sh does NOT source php_common_functions.sh -- it stops after php_common_vars.sh at line 35, while 31 (L38), 33 (L133), 34 (L26) all source it. Consequently none of the *_from_php_common helpers are available, forcing 32 to inline-reimplement symlink check, network handling, apache prevention, and colored output.","scripts":["32_install_swoole.sh (L35)"],"severity":"high","fix":"Add `source \"$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh\"` immediately after line 35, matching siblings."},{"issue":"Symbolic-link validation/repair is reimplemented four different ways instead of using check_symbolic_link_from_php_common (php_common_functions.sh L83-110): 31 inline fix_php_symbolic_link (L322-405) plus a DUPLICATED verify_php_symbolic_link_fix() (defined twice, L566 and L646, second silently overrides first); 32 inline ensure_php_symlink (L104-122); 33 inline setup_php_default with --remove-all (L209-305); 34 open-coded -x + grep (L286-29
+<result>{"profiled":["31_ensure_php85_intelligent.sh (/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh, 1392 lines)","/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh","45_configure_php85.sh","/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh"],"alignment":{"summary":"All four scripts source the canonical DATA file (php_common_vars.sh), but only 31, 33, 34 source php_common_functions.sh; 32_install_swoole.sh stops after php_common_vars.sh (line 35) and therefore reimplements every shared helper inline. The canonical DATA is almost universally IGNORED: PHP_VERSION, TARGET_LINK_PATH, PHP_BINARY_NAME, COMPOSER_SAFE_PATH, OCTANE_PECL_EXTENSIONS/OCTANE_EXTENSION_MAP, PHP_INI_FILES are sourced but hardcoded as literals across all four (verified: TARGET_LINK_PATH used 0 times in 31/32/34; PHP_VERSION used 0 times in 32/33/34). Two TRUE high-severity DRIFTs exist: (1) the update-alternatives priority disagrees -- 31 registers php at priority 85 (line 521) while 32 (line 110) and 33 (line 232) register at 84, so last-writer-wins ordering can flip the chosen default on re-run; (2) 31's repo-manager install string at line 951 hardcodes `php8.5 php8.5-fpm` (the metapackage + FPM) plus omits sqlite3/intl/readline -- this directly contradicts the canonical NO-FPM / no-metapackage intent and 31's OWN install_php_core() which correctly uses ${PHP85_CORE_PACKAGES[@]}/${CORE_EXTENSIONS[@]} and then has to detect-and-disable the FPM it pulled in (L1006-1011). LOGIC misalignments: symlink validation is done four different ways (31 inline fix_php_symbolic_link + duplicated verify, 32 inline ensure_php_symlink targeting the WRONG link /usr/bin/php instead of canonical /usr/local/bin/php, 33 inline setup_php_default with --remove-all, 34 open-coded -x+grep) instead of check_symbolic_link_from_php_common; version detection uses 3-4 idioms; 32 has no network precheck before git clone; 32 never calls prevent_apache2_conflicts despite apt installs. BEHAVIOR/handoff: 31 establishes /usr/local/bin/php (TARGET_LINK_PATH) as the entrypoint that 34 consumes, but 32 validates/repairs /usr/bin/php instead, so 32 can pass while the actual contract link is broken; 31's priority-85 default can be silently lowered to 84 by 33. Also confirmed: verify_php_symbolic_link_fix() is defined TWICE in 31 (L566 and L646, second wins); shared verify_open_basedir_config_from_php_common still probes php-fpm8.4 (php_common_functions.sh L404), a dead stale branch 33 inherits. Recommended fixes are surgical: align the three priorities to one value (85), strip metapackage+fpm from 31's L951 string (reuse the canonical arrays), source php_common_functions.sh in 32, and point 32's symlink check at TARGET_LINK_PATH.","data_misalignments":[{"issue":"update-alternatives priority for /usr/bin/php disagrees across scripts: 31 uses 85, 32 and 33 use 84. No shared constant defines it. On a host where 31 then 33 (or 32) run, the priority registered differs; with --remove-all + re-install patterns, the last writer wins and the chosen default php can flip. 84 also reads like a stale PHP-8.4-era value.","scripts":["31_ensure_php85_intelligent.sh (L521)","32_install_swoole.sh (L110)","45_configure_php85.sh (L232)"],"severity":"high","fix":"Pick one value (use 85, matching the canonical first-installer step 31) and use it in all three update-alternatives --install calls. Ideally add a shared PHP_ALT_PRIORITY=85 to php_common_vars.sh and reference it; minimally, change 32 L110 and 33 L232 from 84 to 85."},{"issue":"31's repo-manager install string hardcodes the php8.5 metapackage AND php8.5-fpm (and omits sqlite3/intl/readline that CORE_EXTENSIONS lists), directly contradicting the canonical NO-FPM/no-metapackage intent documented in php_common_vars.sh (L21-22) and contradicting 31's own install_php_core() which correctly uses ${PHP85_CORE_PACKAGES[@]} + ${CORE_EXTENSIONS[@]}. The script then must detect+disable the FPM it pulled in (L1006-1011). This is the dangerous DATA path actually executed by setup_php_repository().","scripts":["31_ensure_php85_intelligent.sh (L951)"],"severity":"high","fix":"Build the install command from the canonical arrays: \"$USE_SUDO apt install -y ${PHP85_CORE_PACKAGES[*]} ${CORE_EXTENSIONS[*]}\". This removes php8.5 metapackage + php8.5-fpm and adds the missing sqlite3/intl/readline, matching install_php_core()."},{"issue":"PHP version literal \"8.5\"/\"php8.5\"/\"/usr/bin/php8.5\" is hardcoded pervasively (31: ~102 hits incl. verify fns; 32: ~20 path/grep literals; 33: L222/232/236/263/309/314; 34: L292) instead of using the sourced PHP_VERSION. No value drift today (all are 8.5) but a future PHP_VERSION bump will not propagate, and the verify/gate functions will silently keep asserting 8.5.","scripts":["31_ensure_php85_intelligent.sh","32_install_swoole.sh","45_configure_php85.sh","47_install_composer.sh"],"severity":"medium","fix":"Where low-risk, replace literals with ${PHP_VERSION} (paths like /etc/php/${PHP_VERSION}/..., binary php${PHP_VERSION}) and the comparison prefix \"$PHP_VERSION\"* as 31 already does at L71/L115. Prioritize the version-assertion/gate spots (31 verify fns, 32 L282, 33 L263, 34 L292) so a bump is honored."},{"issue":"TARGET_LINK_PATH=\"/usr/local/bin/php\" is sourced but never referenced; 31 re-literals it at L325/569/649, 34 re-literals it as PHP_BINARY at L29 (and frozen into heredoc wrappers L483/501). PHP_BINARY_NAME never referenced anywhere.","scripts":["31_ensure_php85_intelligent.sh (L325,569,649)","47_install_composer.sh (L29,483,501)"],"severity":"low","fix":"Reference $TARGET_LINK_PATH for the link path (34: PHP_BINARY=\"$TARGET_LINK_PATH\"; 31: local target_link=\"$TARGET_LINK_PATH\"). Heredoc wrappers can interpolate it at write time."},{"issue":"COMPOSER_SAFE_PATH sourced but never used in 34; the literal /usr/local/bin/composer-safe is repeated 8x (L216,218,314,342,471,485,523,563,569). COMPOSER_TARGET_PATH/COMPOSER_DOWNLOAD_URL are correctly used.","scripts":["47_install_composer.sh"],"severity":"low","fix":"Replace the 8 /usr/local/bin/composer-safe literals with $COMPOSER_SAFE_PATH."},{"issue":"OCTANE_PECL_EXTENSIONS=(swoole openswoole) and OCTANE_EXTENSION_MAP are sourced but ignored by 32; only 'swoole' is handled (hardcoded), openswoole is dropped.","scripts":["32_install_swoole.sh"],"severity":"low","fix":"Drive the extension name/module from OCTANE_EXTENSION_MAP[\"swoole\"] at minimum; openswoole support is optional and out of scope for a surgical fix."},{"issue":"PHP_INI_FILES is iterated correctly in 33 (L182-192) but 31 re-lists the literal /etc/php/8.5/cli/php.ini at L1284 for a display check instead of iterating the array.","scripts":["31_ensure_php85_intelligent.sh (L1284)"],"severity":"low","fix":"Iterate ${PHP_INI_FILES[@]} in display_final_status() instead of the literal."}],"logic_misalignments":[{"issue":"32_install_swoole.sh does NOT source php_common_functions.sh -- it stops after php_common_vars.sh at line 35, while 31 (L38), 33 (L133), 34 (L26) all source it. Consequently none of the *_from_php_common helpers are available, forcing 32 to inline-reimplement symlink check, network handling, apache prevention, and colored output.","scripts":["32_install_swoole.sh (L35)"],"severity":"high","fix":"Add `source \"$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh\"` immediately after line 35, matching siblings."},{"issue":"Symbolic-link validation/repair is reimplemented four different ways instead of using check_symbolic_link_from_php_common (php_common_functions.sh L83-110): 31 inline fix_php_symbolic_link (L322-405) plus a DUPLICATED verify_php_symbolic_link_fix() (defined twice, L566 and L646, second silently overrides first); 32 inline ensure_php_symlink (L104-122); 33 inline setup_php_default with --remove-all (L209-305); 34 open-coded -x + grep (L286-29
 ... (truncated 11284 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/12d3adc4-c267-4705-b386-670acfe491f6/tasks/wsgn0z803.output)</result>
 <usage><agent_count>5</agent_count><subagent_tokens>275536</subagent_tokens><tool_uses>60</tool_uses><duration_ms>302212</duration_ms></usage>
 </task-notification>
@@ -3209,7 +3209,7 @@ has alignment: True
     "profiled": [
       "31_ensure_php85_intelligent.sh (/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh, 1392 lines)",
       "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh",
-      "33_configure_php85.sh",
+      "45_configure_php85.sh",
       "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/inst
 
 [2026-06-22 21:13:29]   -> tool: Bash  {"command": "f=\"/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/12d3adc4-c267-4705-b386-670acfe491f6/tasks/wsgn0z803.output\"\npython3 -c \"\nimport json\nd=json.load(open('$f'))\na=d['result']['alignment']\nprint('=== CONSISTENCY MATRIX ==='); print(a.get('consistency_matrix',''))\nprint(); print('=== BEHAVIOR / HANDOFF ISSUES ===')\nfor x in a.get('behavior_handoff_issues',[]): print(f\\\"[{x['severity']}] {x.get('from_to','')}: {x['issue']}\\n   FIX: {x['fix']}\\n\\\")\nprint('=== RECOMMENDED FIXES (ordered) ===')\nfor fx in sorted(a.get('recommended_fixes',[]), key=lambda z:z.get('priority',99)): print(f\\\"#{fx['priority']} [{fx['file']}] {fx['change']}\\n   WHY: {fx['rationale']}\\n\\\")\n\"", "description": "Print matrix, handoff issues, recommended fixes"}
@@ -3330,7 +3330,7 @@ DIFFER:
 [2026-06-22 21:15:18] ASSISTANT:
 The two `verify_php_symbolic_link_fix` definitions **differ** (old-version lists 7.4–8.4 vs 7.4–8.3, different var names) and the **second (L646) wins** — so L566 is dead code. I'll handle that carefully. First let me enumerate all the priority/binary literal spots across 31 and 33 so my single-source-of-truth changes are complete.
 
-[2026-06-22 21:15:22]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== 31: all update-alternatives --install php + priority literals ===\"\ngrep -nE 'update-alternatives --install /usr/bin/php php|priority [0-9]+' 31_ensure_php85_intelligent.sh\necho \"=== 33: same ===\"\ngrep -nE 'update-alternatives --install /usr/bin/php php|priority [0-9]+' 33_configure_php85.sh\necho \"=== 34: composer-safe literal lines ===\"\ngrep -nE '/usr/local/bin/composer-safe' 34_install_composer.sh\necho \"=== confirm php_common_vars line for TARGET_LINK_PATH (insertion anchor) ===\"\ngrep -nE 'TARGET_LINK_PATH=|PHP_BINARY_NAME=' ../debian_com/php_common_vars.sh", "description": "Enumerate all priority/binary/composer-safe spots"}
+[2026-06-22 21:15:22]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells\necho \"=== 31: all update-alternatives --install php + priority literals ===\"\ngrep -nE 'update-alternatives --install /usr/bin/php php|priority [0-9]+' 31_ensure_php85_intelligent.sh\necho \"=== 33: same ===\"\ngrep -nE 'update-alternatives --install /usr/bin/php php|priority [0-9]+' 45_configure_php85.sh\necho \"=== 34: composer-safe literal lines ===\"\ngrep -nE '/usr/local/bin/composer-safe' 47_install_composer.sh\necho \"=== confirm php_common_vars line for TARGET_LINK_PATH (insertion anchor) ===\"\ngrep -nE 'TARGET_LINK_PATH=|PHP_BINARY_NAME=' ../debian_com/php_common_vars.sh", "description": "Enumerate all priority/binary/composer-safe spots"}
 
 [2026-06-22 21:15:22]   <- tool result:
 === 31: all update-alternatives --install php + priority literals ===
@@ -3396,57 +3396,57 @@ The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/ins
 [2026-06-22 21:16:37] ASSISTANT:
 **Edit 5 — align 33's priority (84→shared) and binary references:**
 
-[2026-06-22 21:16:39]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh", "old_string": "    # Find PHP 8.5 binary\n    local php85_binary=\"/usr/bin/php8.5\"", "new_string": "    # Find PHP 8.5 binary\n    local php85_binary=\"$PHP_BIN\""}
+[2026-06-22 21:16:39]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh", "old_string": "    # Find PHP 8.5 binary\n    local php85_binary=\"/usr/bin/php8.5\"", "new_string": "    # Find PHP 8.5 binary\n    local php85_binary=\"$PHP_BIN\""}
 
 [2026-06-22 21:16:39]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
-[2026-06-22 21:16:47]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh", "old_string": "        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84; then\n            echo -e \"${GREEN}$SCRIPT_INDEX PHP 8.5 added to alternatives with priority 84${NC}\"\n\n            # Explicitly set PHP 8.5 as the default\n            $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true", "new_string": "        if $USE_SUDO update-alternatives --install /usr/bin/php php \"$php85_binary\" \"$PHP_ALT_PRIORITY\"; then\n            echo -e \"${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRIORITY}${NC}\"\n\n            # Explicitly set PHP 8.5 as the default\n            $USE_SUDO update-alternatives --set php \"$php85_binary\" 2>/dev/null || true"}
+[2026-06-22 21:16:47]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh", "old_string": "        if $USE_SUDO update-alternatives --install /usr/bin/php php /usr/bin/php8.5 84; then\n            echo -e \"${GREEN}$SCRIPT_INDEX PHP 8.5 added to alternatives with priority 84${NC}\"\n\n            # Explicitly set PHP 8.5 as the default\n            $USE_SUDO update-alternatives --set php /usr/bin/php8.5 2>/dev/null || true", "new_string": "        if $USE_SUDO update-alternatives --install /usr/bin/php php \"$php85_binary\" \"$PHP_ALT_PRIORITY\"; then\n            echo -e \"${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRIORITY}${NC}\"\n\n            # Explicitly set PHP 8.5 as the default\n            $USE_SUDO update-alternatives --set php \"$php85_binary\" 2>/dev/null || true"}
 
 [2026-06-22 21:16:47]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
 [2026-06-22 21:17:01] ASSISTANT:
 **Edit 5c — align 33's module verification to the canonical `REQUIRED_EXTENSIONS`/`EXTENSION_MAP` (was a divergent hardcoded subset):**
 
-[2026-06-22 21:17:06]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh", "old_string": "        echo -e \"${CYAN}$SCRIPT_INDEX Key modules status:${NC}\"\n        for module in \"curl\" \"mbstring\" \"xml\" \"zip\" \"gd\" \"mysqli\" \"opcache\"; do\n            if php -m 2>/dev/null | grep -qi \"^$module$\"; then\n                echo -e \"${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}\"\n            else\n                echo -e \"${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}\"\n            fi\n        done", "new_string": "        echo -e \"${CYAN}$SCRIPT_INDEX Key modules status:${NC}\"\n        # Drive the check from the canonical REQUIRED_EXTENSIONS + EXTENSION_MAP so this\n        # step verifies exactly the modules step 31 installs (no divergent hardcoded list).\n        for ext in \"${REQUIRED_EXTENSIONS[@]}\"; do\n            local module=\"${EXTENSION_MAP[$ext]:-$ext}\"\n            if php -m 2>/dev/null | grep -qi \"^${module}$\"; then\n                echo -e \"${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}\"\n            else\n                echo -e \"${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}\"\n            fi\n        done"}
+[2026-06-22 21:17:06]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh", "old_string": "        echo -e \"${CYAN}$SCRIPT_INDEX Key modules status:${NC}\"\n        for module in \"curl\" \"mbstring\" \"xml\" \"zip\" \"gd\" \"mysqli\" \"opcache\"; do\n            if php -m 2>/dev/null | grep -qi \"^$module$\"; then\n                echo -e \"${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}\"\n            else\n                echo -e \"${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}\"\n            fi\n        done", "new_string": "        echo -e \"${CYAN}$SCRIPT_INDEX Key modules status:${NC}\"\n        # Drive the check from the canonical REQUIRED_EXTENSIONS + EXTENSION_MAP so this\n        # step verifies exactly the modules step 31 installs (no divergent hardcoded list).\n        for ext in \"${REQUIRED_EXTENSIONS[@]}\"; do\n            local module=\"${EXTENSION_MAP[$ext]:-$ext}\"\n            if php -m 2>/dev/null | grep -qi \"^${module}$\"; then\n                echo -e \"${GREEN}$SCRIPT_INDEX   $module: [OK]${NC}\"\n            else\n                echo -e \"${YELLOW}$SCRIPT_INDEX   $module: [Missing]${NC}\"\n            fi\n        done"}
 
 [2026-06-22 21:17:07]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
 [2026-06-22 21:17:37] ASSISTANT:
 **Edit 6 — wire 34 to the canonical vars (`TARGET_LINK_PATH`, `COMPOSER_SAFE_PATH`, `PHP_VERSION`):**
 
-[2026-06-22 21:17:38]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh", "old_string": "# Configuration - using variables from php_common_vars.sh\nPHP_BINARY=\"/usr/local/bin/php\"", "new_string": "# Configuration - using variables from php_common_vars.sh\nPHP_BINARY=\"$TARGET_LINK_PATH\""}
+[2026-06-22 21:17:38]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh", "old_string": "# Configuration - using variables from php_common_vars.sh\nPHP_BINARY=\"/usr/local/bin/php\"", "new_string": "# Configuration - using variables from php_common_vars.sh\nPHP_BINARY=\"$TARGET_LINK_PATH\""}
 
 [2026-06-22 21:17:38]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
-[2026-06-22 21:17:42]   -> tool: Edit  {"replace_all": true, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh", "old_string": "/usr/local/bin/composer-safe", "new_string": "$COMPOSER_SAFE_PATH"}
+[2026-06-22 21:17:42]   -> tool: Edit  {"replace_all": true, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh", "old_string": "/usr/local/bin/composer-safe", "new_string": "$COMPOSER_SAFE_PATH"}
 
 [2026-06-22 21:17:42]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back)
 
 [2026-06-22 21:18:04] ASSISTANT:
 **Edit 6c — 34's version assertion uses `$PHP_VERSION`:**
 
-[2026-06-22 21:18:07]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh", "old_string": "    if [ ! -x \"$PHP_BINARY\" ]; then\n        echo -e \"${RED}$SCRIPT_INDEX PHP 8.5 not found at $PHP_BINARY${NC}\"\n        echo -e \"${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}\"\n        exit 1\n    fi\n\n    if ! \"$PHP_BINARY\" --version | grep -q \"PHP 8.5\"; then\n        echo -e \"${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP 8.5${NC}\"\n        exit 1\n    fi", "new_string": "    if [ ! -x \"$PHP_BINARY\" ]; then\n        echo -e \"${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}\"\n        echo -e \"${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}\"\n        exit 1\n    fi\n\n    if ! \"$PHP_BINARY\" --version | grep -q \"PHP ${PHP_VERSION}\"; then\n        echo -e \"${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}\"\n        exit 1\n    fi"}
+[2026-06-22 21:18:07]   -> tool: Edit  {"replace_all": false, "file_path": "/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh", "old_string": "    if [ ! -x \"$PHP_BINARY\" ]; then\n        echo -e \"${RED}$SCRIPT_INDEX PHP 8.5 not found at $PHP_BINARY${NC}\"\n        echo -e \"${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}\"\n        exit 1\n    fi\n\n    if ! \"$PHP_BINARY\" --version | grep -q \"PHP 8.5\"; then\n        echo -e \"${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP 8.5${NC}\"\n        exit 1\n    fi", "new_string": "    if [ ! -x \"$PHP_BINARY\" ]; then\n        echo -e \"${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}\"\n        echo -e \"${YELLOW}$SCRIPT_INDEX Please run 31_ensure_php85_intelligent.sh first${NC}\"\n        exit 1\n    fi\n\n    if ! \"$PHP_BINARY\" --version | grep -q \"PHP ${PHP_VERSION}\"; then\n        echo -e \"${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}\"\n        exit 1\n    fi"}
 
 [2026-06-22 21:18:07]   <- tool result:
-The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh has been updated successfully. (file state is current in your context — no need to Read it back)
+The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh has been updated successfully. (file state is current in your context — no need to Read it back)
 
 [2026-06-22 21:18:32] ASSISTANT:
 Now let me validate all the edits (syntax + that the alignments took) before handling the duplicate-function cleanup:
 
-[2026-06-22 21:18:37]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian\necho \"=== bash -n all edited files ===\"\nfor f in debian_com/php_common_vars.sh install_shells/31_ensure_php85_intelligent.sh install_shells/32_install_swoole.sh install_shells/33_configure_php85.sh install_shells/34_install_composer.sh; do\n  bash -n \"$f\" && echo \"OK  $f\" || echo \"FAIL $f\"\ndone\necho \"=== priority now aligned to 85 across 31/32/33? ===\"\ngrep -rnE 'PHP_ALT_PRIORITY|priority 8[0-9]|/usr/bin/php php .* 8[0-9]' install_shells/3[123]*.sh debian_com/php_common_vars.sh | grep -iE 'alt_priority|priority|--install'\necho \"=== 34: COMPOSER_SAFE_PATH wired, no bare literal left? ===\"\ngrep -nc 'COMPOSER_SAFE_PATH' install_shells/34_install_composer.sh; echo \"bare literals left: $(grep -c '/usr/local/bin/composer-safe' install_shells/34_install_composer.sh)\"\necho \"=== 31 install string now uses canonical arrays? ===\"\ngrep -n 'PHP85_CORE_PACKAGES\\[\\*\\]\\|CORE_EXTENSIONS\\[\\*\\]' install_shells/31_ensure_php85_intelligent.sh", "description": "Validate syntax and confirm alignments"}
+[2026-06-22 21:18:37]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian\necho \"=== bash -n all edited files ===\"\nfor f in debian_com/php_common_vars.sh install_shells/31_ensure_php85_intelligent.sh install_shells/32_install_swoole.sh install_shells/45_configure_php85.sh install_shells/47_install_composer.sh; do\n  bash -n \"$f\" && echo \"OK  $f\" || echo \"FAIL $f\"\ndone\necho \"=== priority now aligned to 85 across 31/32/33? ===\"\ngrep -rnE 'PHP_ALT_PRIORITY|priority 8[0-9]|/usr/bin/php php .* 8[0-9]' install_shells/3[123]*.sh debian_com/php_common_vars.sh | grep -iE 'alt_priority|priority|--install'\necho \"=== 34: COMPOSER_SAFE_PATH wired, no bare literal left? ===\"\ngrep -nc 'COMPOSER_SAFE_PATH' install_shells/47_install_composer.sh; echo \"bare literals left: $(grep -c '/usr/local/bin/composer-safe' install_shells/47_install_composer.sh)\"\necho \"=== 31 install string now uses canonical arrays? ===\"\ngrep -n 'PHP85_CORE_PACKAGES\\[\\*\\]\\|CORE_EXTENSIONS\\[\\*\\]' install_shells/31_ensure_php85_intelligent.sh", "description": "Validate syntax and confirm alignments"}
 
 [2026-06-22 21:18:37]   <- tool result:
 === bash -n all edited files ===
 OK  debian_com/php_common_vars.sh
 OK  install_shells/31_ensure_php85_intelligent.sh
 OK  install_shells/32_install_swoole.sh
-OK  install_shells/33_configure_php85.sh
-OK  install_shells/34_install_composer.sh
+OK  install_shells/45_configure_php85.sh
+OK  install_shells/47_install_composer.sh
 === priority now aligned to 85 across 31/32/33? ===
 debian_com/php_common_vars.sh:21:# PHP_ALT_PRIORITY: the update-alternatives priority for the 'php' link. MUST be the
 debian_com/php_common_vars.sh:25:PHP_ALT_PRIORITY="85"
@@ -3455,8 +3455,8 @@ install_shells/32_install_swoole.sh:115:        $USE_SUDO update-alternatives --
 install_shells/32_install_swoole.sh:117:        echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} set as default (priority ${PHP_ALT_PRIORITY})${NC}"
 install_shells/31_ensure_php85_intelligent.sh:520:        echo -e "${YELLOW}$SCRIPT_INDEX Adding PHP ${PHP_VERSION} to alternatives with priority ${PHP_ALT_PRIORITY}...${NC}"
 install_shells/31_ensure_php85_intelligent.sh:521:        $USE_SUDO update-alternatives --install /usr/bin/php php "$PHP_BIN" "$PHP_ALT_PRIORITY" 2>/dev/null || true
-install_shells/33_configure_php85.sh:232:        if $USE_SUDO update-alternatives --install /usr/bin/php php "$php85_binary" "$PHP_ALT_PRIORITY"; then
-install_shells/33_configure_php85.sh:233:            echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRIORITY}${NC}"
+install_shells/45_configure_php85.sh:232:        if $USE_SUDO update-alternatives --install /usr/bin/php php "$php85_binary" "$PHP_ALT_PRIORITY"; then
+install_shells/45_configure_php85.sh:233:            echo -e "${GREEN}$SCRIPT_INDEX PHP ${PHP_VERSION} added to alternatives with priority ${PHP_ALT_PRIORITY}${NC}"
 === 34: COMPOSER_SAFE_PATH wired, no bare literal left? ===
 8
 bare literals left: 0
@@ -3546,8 +3546,8 @@ Duplicate removed cleanly (2→1 defs, `bash -n` OK, backup discarded). Final va
 OK  php_common_vars.sh
 OK  31_ensure_php85_intelligent.sh
 OK  32_install_swoole.sh
-OK  33_configure_php85.sh
-OK  34_install_composer.sh
+OK  45_configure_php85.sh
+OK  47_install_composer.sh
 === shared vars resolve (source vars file) ===
   PHP_VERSION=8.5  PHP_BIN=/usr/bin/php8.5  PHP_ALT_PRIORITY=85
   TARGET_LINK_PATH=/usr/local/bin/php  COMPOSER_SAFE_PATH=/usr/local/bin/composer-safe
@@ -8003,7 +8003,7 @@ Sitting tight for the workflow result.
 <output-file>/tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/12d3adc4-c267-4705-b386-670acfe491f6/tasks/woi5h91l6.output</output-file>
 <status>completed</status>
 <summary>Dynamic workflow "Re-apply all fixes documented in history2.txt to core_node, then verify" completed</summary>
-<result>{"results":[{"id":"fs_posix_capable_guard","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/gvar_common.sh"],"bash_n_pass":true,"changes":["Added helper _fs_is_posix_capable(path) right after the BASE_DATA_DIR_FILE definition (anchor: BASE_DATA_DIR_FILE=...). It walks up to the nearest existing ancestor of $1, runs `findmnt -n -o FSTYPE --target \"$p\" 2&gt;/dev/null`, and returns 0 only for ext2/ext3/ext4/xfs/btrfs/zfs/reiserfs/jfs/f2fs/overlay, else 1. Reconstructed the transcript's truncated `2&gt;/d` to `2&gt;/dev/null` and added the missing closing `)` on the findmnt command substitution.","Updated the get_base_data_directory header comment: changed 'largest NTFS/data disk' to 'largest POSIX disk' and added a NOTE that non-POSIX (NTFS/exFAT/FUSE) candidates are rejected.","Priority 2 guard (persisted BASE_DATA_DIR_FILE value): changed the condition from `if [ -n \"$read_base\" ] &amp;&amp; [ -d \"$read_base\" ]; then` to also require `&amp;&amp; _fs_is_posix_capable \"$read_base\"`, plus updated the preceding comment.","Priority 3 guard (largest-disk path): changed `if [ -n \"$path\" ]; then` to `if [ -n \"$path\" ] &amp;&amp; _fs_is_posix_capable \"$path\"; then`, plus added explanatory comment.","Priority 4 guard (Windows-drive path): changed the inner condition to also require `&amp;&amp; _fs_is_posix_capable \"$DESKTOP_LARGEST_WINDOWS_PATH\"` (reconstructed the var name split across the transcript's wrapped line `DESKTOP_LARGEST_WINDO`/`WS_PATH`), plus updated the comment.","persist_base_data_directory: inserted a guard before computing parent_dir — `if [ -n \"$base_dir\" ] &amp;&amp; ! _fs_is_posix_capable \"$base_dir\"; then base_dir=\"$(get_base_data_directory)\"; fi` — so a non-POSIX base is never persisted as the source of truth."],"notes":"Scope check: grepped scripts/shells/ for definitions of get_base_data_directory / persist_base_data_directory / _fs_is_posix_capable. Only gvar_common.sh DEFINES them; the other 7 files (install_bootstrap.sh, webpath_permissions.sh, 3_setting_base.sh, 33_configure_php85.sh, 95/96_install_deepseek*.sh, 7_project_validator.sh) merely CALL them via sourcing, so no sibling needed editing — consistent with the transcript, which only edits gvar_common.sh for this fix. The transcript continues past line 2483 into 46_install_postgresql.sh (get_postgresql_password secret-mirror reuse), but that is a separate fix outside this task's stated scope and was intentionally not applied. Only `bash -n` was run as instructed; nothing else was executed. Reconstructed two truncation/mojibake spots from transcript intent + current code: `2&gt;/d` -&gt; `2&gt;/dev/null` plus the missing `)` in the findmnt line, and the wrapped variable name `DESKTOP_LARGEST_WINDO`+`WS_PATH` -&gt; `DESKTOP_LARGEST_WINDOWS_PATH`."},{"id":"postgresql-install-fix-reapply","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh"],"bash_n_pass":true,"changes":["Fix 1 (configure_localhost_only, ~line 295-309): prefixed the three existing-rule grep -q reads with $USE_SUDO so they don't fail 'Permission denied' on root/postgres-owned 0640 config files. Changed `grep -qE \"^[#[:space:]]*listen_addresses...\" \"$cfg\"` -&gt; `$USE_SUDO grep -qE ...`, and both pg_hba host-rule checks `grep -qE \"...127.0.0.1/32\" \"$hba\"` and `grep -qE \"...::1/128\" \"$hba\"` -&gt; `$USE_SUDO grep -qE ...`. Added an explanatory comment above the postgresql.conf read.","Fix 2a (helpers, inserted right after command_exists() and before port_in_use()): added pg_path_fstype() — walks up to nearest existing ancestor then `findmnt -n -o FSTYPE --target` to report the backing filesystem of a possibly-not-yet-existing path; and pg_fs_is_posix() — returns 0 only for ext2/ext3/ext4/xfs/btrfs/zfs/reiserfs/jfs/f2fs.","Fix 2b (configure_postgresql, added an else branch to the `if [ \"$IS_WSL\" = true ]` data-dir block, before the POSTGRESQL_CONFIG_DIR assignment): for non-WSL Linux, resolve `pg_mapped_base=$(map_web_path \"postgresql\")` and only when non-empty AND pg_fs_is_posix set POSTGRESQL_DATA_DIR=\"$pg_mapped_base/data\" / POSTGRESQL_LOG_DIR=\"$pg_mapped_base/logs\"; otherwise keep the compile_dir defaults (logs a not-POSIX-capable message). Declared `local pg_mapped_base`.","Fix 3 (get_postgresql_password): changed `local pw=\"\"` to `local pw=\"\" mirror=\"\"`; after reading the global-var store, if empty, read the surviving mirror at `map_web_path \"laravel_db\" \".core_node_secrets/POSTGRES_PASSWORD\"` (when present and non-empty, via `head -n1 | tr -d '\\r\\n'`) instead of regenerating; only generate (openssl/urandom) when BOTH are empty; removed the conditional set_global_var inside the generate branch and added an unconditional `set_global_var \"POSTGRES_PASSWORD\" \"$pw\"` before echo so the value is always (re)persisted."],"notes":"Reconstructed from transcript: transcript line 2246-2247 showed the non-POSIX fallback message truncated as 'keeping comp...ile_dir' with a cut-off 'whenX' in the comment; reconstructed to a complete sentence ('-&gt; keeping compile_dir: $POSTGRESQL_DATA_DIR' and comment 'when the mapped path is not POSIX'). The WSL block in the current code had no else branch, so Fix 2b was added as a new else on the existing `if [ \\\"$IS_WSL\\\" = true ]`. Sibling file 3_setting_base.sh (transcript Fix C: cleanup_orphan_mount_dir) was intentionally NOT modified — the task scoped exactly three fixes to 46_install_postgresql.sh and did not list the orphan-mount cleanup among them. The recreate/initdb block (lines ~594-600) already mkdir -p's and chowns the data-dir parent, so the ext4-guarded relocation needs no further change there. bash -n passed (printed SYNTAX_OK). No other commands were run per instructions."},{"id":"orphan-mount-cleanup","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/3_setting_base.sh"],"bash_n_pass":true,"changes":["Added cleanup_orphan_mount_dir() function (now at line 180) immediately after sanitize_mount_name() and before the 'Disk Detection Functions' header. It takes $1=device and $2=keep_mount (the live mount point), derives node_dir via the same /dev/-&gt;dev_ sed mapping under $DEFAULT_MOUNT_BASE (/mnt), and removes that dir ONLY when: it is not equal to keep_mount, it exists as a directory, it is NOT a mountpoint (mountpoint -q ... &amp;&amp; return 0), and it is empty (ls -A test). Removal uses '$USE_SUDO rmdir' (rmdir fails on non-empty dirs as an extra safety), logging an info line on success. Idempotent and safe.","Added call site in handle_ntfs_disk (line 363): inserted 'cleanup_orphan_mount_dir \"$device\" \"$mount_point\"' (with a preceding comment) right after 'info \"Standardized mount point: $mount_point\"', before the 'Check if device is already mounted' block.","Added call site in handle_data_disk (line 540): same insertion right after 'info \"Standardized mount point: $mount_point\"', before the 'Check if device is already mounted' block. Disambiguated the two near-identical handler blocks by anchoring on the handler-specific NTFS_MOUNT_POINT vs DATA_MOUNT_POINT tee lines."],"notes":"Reconstructed verbatim from transcript history2.txt lines 2270-2312, which contained the exact function body and both call-site insertions; no mojibake/truncation affected this fix region. The function's node_dir derivation intentionally mirrors device_to_mount_point's sed; the keep_mount guard ('[ \\\"$node_dir\\\" = \\\"$keep_mount\\\" ] &amp;&amp; return 0') ensures the live mount is never removed, while rmdir + the empty/mountpoint checks ensure real mountpoints and non-empty dirs are never touched. Regarding 'any sibling noted': the transcript scopes the orphan-cleanup fix solely to 3_setting_base.sh (the other transcript changes to 46_install_postgresql.sh and gvar_common.sh are unrelated separate fixes), so no sibling file required this change. bash -n passes.
+<result>{"results":[{"id":"fs_posix_capable_guard","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/gvar_common.sh"],"bash_n_pass":true,"changes":["Added helper _fs_is_posix_capable(path) right after the BASE_DATA_DIR_FILE definition (anchor: BASE_DATA_DIR_FILE=...). It walks up to the nearest existing ancestor of $1, runs `findmnt -n -o FSTYPE --target \"$p\" 2&gt;/dev/null`, and returns 0 only for ext2/ext3/ext4/xfs/btrfs/zfs/reiserfs/jfs/f2fs/overlay, else 1. Reconstructed the transcript's truncated `2&gt;/d` to `2&gt;/dev/null` and added the missing closing `)` on the findmnt command substitution.","Updated the get_base_data_directory header comment: changed 'largest NTFS/data disk' to 'largest POSIX disk' and added a NOTE that non-POSIX (NTFS/exFAT/FUSE) candidates are rejected.","Priority 2 guard (persisted BASE_DATA_DIR_FILE value): changed the condition from `if [ -n \"$read_base\" ] &amp;&amp; [ -d \"$read_base\" ]; then` to also require `&amp;&amp; _fs_is_posix_capable \"$read_base\"`, plus updated the preceding comment.","Priority 3 guard (largest-disk path): changed `if [ -n \"$path\" ]; then` to `if [ -n \"$path\" ] &amp;&amp; _fs_is_posix_capable \"$path\"; then`, plus added explanatory comment.","Priority 4 guard (Windows-drive path): changed the inner condition to also require `&amp;&amp; _fs_is_posix_capable \"$DESKTOP_LARGEST_WINDOWS_PATH\"` (reconstructed the var name split across the transcript's wrapped line `DESKTOP_LARGEST_WINDO`/`WS_PATH`), plus updated the comment.","persist_base_data_directory: inserted a guard before computing parent_dir — `if [ -n \"$base_dir\" ] &amp;&amp; ! _fs_is_posix_capable \"$base_dir\"; then base_dir=\"$(get_base_data_directory)\"; fi` — so a non-POSIX base is never persisted as the source of truth."],"notes":"Scope check: grepped scripts/shells/ for definitions of get_base_data_directory / persist_base_data_directory / _fs_is_posix_capable. Only gvar_common.sh DEFINES them; the other 7 files (install_bootstrap.sh, webpath_permissions.sh, 3_setting_base.sh, 45_configure_php85.sh, 95/96_install_deepseek*.sh, 7_project_validator.sh) merely CALL them via sourcing, so no sibling needed editing — consistent with the transcript, which only edits gvar_common.sh for this fix. The transcript continues past line 2483 into 46_install_postgresql.sh (get_postgresql_password secret-mirror reuse), but that is a separate fix outside this task's stated scope and was intentionally not applied. Only `bash -n` was run as instructed; nothing else was executed. Reconstructed two truncation/mojibake spots from transcript intent + current code: `2&gt;/d` -&gt; `2&gt;/dev/null` plus the missing `)` in the findmnt line, and the wrapped variable name `DESKTOP_LARGEST_WINDO`+`WS_PATH` -&gt; `DESKTOP_LARGEST_WINDOWS_PATH`."},{"id":"postgresql-install-fix-reapply","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh"],"bash_n_pass":true,"changes":["Fix 1 (configure_localhost_only, ~line 295-309): prefixed the three existing-rule grep -q reads with $USE_SUDO so they don't fail 'Permission denied' on root/postgres-owned 0640 config files. Changed `grep -qE \"^[#[:space:]]*listen_addresses...\" \"$cfg\"` -&gt; `$USE_SUDO grep -qE ...`, and both pg_hba host-rule checks `grep -qE \"...127.0.0.1/32\" \"$hba\"` and `grep -qE \"...::1/128\" \"$hba\"` -&gt; `$USE_SUDO grep -qE ...`. Added an explanatory comment above the postgresql.conf read.","Fix 2a (helpers, inserted right after command_exists() and before port_in_use()): added pg_path_fstype() — walks up to nearest existing ancestor then `findmnt -n -o FSTYPE --target` to report the backing filesystem of a possibly-not-yet-existing path; and pg_fs_is_posix() — returns 0 only for ext2/ext3/ext4/xfs/btrfs/zfs/reiserfs/jfs/f2fs.","Fix 2b (configure_postgresql, added an else branch to the `if [ \"$IS_WSL\" = true ]` data-dir block, before the POSTGRESQL_CONFIG_DIR assignment): for non-WSL Linux, resolve `pg_mapped_base=$(map_web_path \"postgresql\")` and only when non-empty AND pg_fs_is_posix set POSTGRESQL_DATA_DIR=\"$pg_mapped_base/data\" / POSTGRESQL_LOG_DIR=\"$pg_mapped_base/logs\"; otherwise keep the compile_dir defaults (logs a not-POSIX-capable message). Declared `local pg_mapped_base`.","Fix 3 (get_postgresql_password): changed `local pw=\"\"` to `local pw=\"\" mirror=\"\"`; after reading the global-var store, if empty, read the surviving mirror at `map_web_path \"laravel_db\" \".core_node_secrets/POSTGRES_PASSWORD\"` (when present and non-empty, via `head -n1 | tr -d '\\r\\n'`) instead of regenerating; only generate (openssl/urandom) when BOTH are empty; removed the conditional set_global_var inside the generate branch and added an unconditional `set_global_var \"POSTGRES_PASSWORD\" \"$pw\"` before echo so the value is always (re)persisted."],"notes":"Reconstructed from transcript: transcript line 2246-2247 showed the non-POSIX fallback message truncated as 'keeping comp...ile_dir' with a cut-off 'whenX' in the comment; reconstructed to a complete sentence ('-&gt; keeping compile_dir: $POSTGRESQL_DATA_DIR' and comment 'when the mapped path is not POSIX'). The WSL block in the current code had no else branch, so Fix 2b was added as a new else on the existing `if [ \\\"$IS_WSL\\\" = true ]`. Sibling file 3_setting_base.sh (transcript Fix C: cleanup_orphan_mount_dir) was intentionally NOT modified — the task scoped exactly three fixes to 46_install_postgresql.sh and did not list the orphan-mount cleanup among them. The recreate/initdb block (lines ~594-600) already mkdir -p's and chowns the data-dir parent, so the ext4-guarded relocation needs no further change there. bash -n passed (printed SYNTAX_OK). No other commands were run per instructions."},{"id":"orphan-mount-cleanup","files_changed":["/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/3_setting_base.sh"],"bash_n_pass":true,"changes":["Added cleanup_orphan_mount_dir() function (now at line 180) immediately after sanitize_mount_name() and before the 'Disk Detection Functions' header. It takes $1=device and $2=keep_mount (the live mount point), derives node_dir via the same /dev/-&gt;dev_ sed mapping under $DEFAULT_MOUNT_BASE (/mnt), and removes that dir ONLY when: it is not equal to keep_mount, it exists as a directory, it is NOT a mountpoint (mountpoint -q ... &amp;&amp; return 0), and it is empty (ls -A test). Removal uses '$USE_SUDO rmdir' (rmdir fails on non-empty dirs as an extra safety), logging an info line on success. Idempotent and safe.","Added call site in handle_ntfs_disk (line 363): inserted 'cleanup_orphan_mount_dir \"$device\" \"$mount_point\"' (with a preceding comment) right after 'info \"Standardized mount point: $mount_point\"', before the 'Check if device is already mounted' block.","Added call site in handle_data_disk (line 540): same insertion right after 'info \"Standardized mount point: $mount_point\"', before the 'Check if device is already mounted' block. Disambiguated the two near-identical handler blocks by anchoring on the handler-specific NTFS_MOUNT_POINT vs DATA_MOUNT_POINT tee lines."],"notes":"Reconstructed verbatim from transcript history2.txt lines 2270-2312, which contained the exact function body and both call-site insertions; no mojibake/truncation affected this fix region. The function's node_dir derivation intentionally mirrors device_to_mount_point's sed; the keep_mount guard ('[ \\\"$node_dir\\\" = \\\"$keep_mount\\\" ] &amp;&amp; return 0') ensures the live mount is never removed, while rmdir + the empty/mountpoint checks ensure real mountpoints and non-empty dirs are never touched. Regarding 'any sibling noted': the transcript scopes the orphan-cleanup fix solely to 3_setting_base.sh (the other transcript changes to 46_install_postgresql.sh and gvar_common.sh are unrelated separate fixes), so no sibling file required this change. bash -n passes.
 ... (truncated 12655 chars, full result in /tmp/claude-1000/-mnt-dev-nvme0n1p1-programing-core-node/12d3adc4-c267-4705-b386-670acfe491f6/tasks/woi5h91l6.output)</result>
 <usage><agent_count>7</agent_count><subagent_tokens>319830</subagent_tokens><tool_uses>81</tool_uses><duration_ms>336676</duration_ms></usage>
 </task-notification>
@@ -8239,11 +8239,11 @@ Three transcripts: `history.txt` (223KB), `history2.txt` (done), `history3.txt` 
 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/13_ensure_python.sh
 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh
 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_install_swoole.sh
-/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh
-/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh
+/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh
+/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh
 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/46_install_postgresql.sh
-/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/33_configure_php85.sh
-/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/34_install_composer.sh
+/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/45_configure_php85.sh
+/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/47_install_composer.sh
 scripts/start.sh
 --- explicit script paths referenced ---
      14 32_install_swoole.sh
@@ -8256,14 +8256,14 @@ scripts/start.sh
       6 php_common_functions.sh
       6 composer.js
       6 apt_repository_manager.sh
-      6 34_install_composer.sh
+      6 47_install_composer.sh
       5 /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/32_inst
         ... [truncated 2549 chars]
 
 [2026-06-23 09:33:25] ASSISTANT:
 `history.txt` is the transcript of **my earlier work this session** (PHP 8.5/Swoole/venv/composer/path scripts) — the exact files the buggy script wiped. `history3.txt` is a **separate** session on the translation/task-center pipeline (Laravel controllers + pycore Python + a chrome-extension TS file). Let me check which of my-session fixes (history.txt) are currently missing.
 
-[2026-06-23 09:33:35]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nP(){ printf '  %-52s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"present\"; else echo \"MISSING <<<\"; fi; }\necho \"=== history.txt (my-session PHP/venv/path) fixes — current state ===\"\nprintf '  %-52s ' 'venv_python_common.sh (created)'; [ -f scripts/shells/linux/common/venv_python_common.sh ] && echo present || echo \"MISSING <<<\"\nP scripts/shells/linux/common/apt_repository_manager.sh 'ensure_php_compat_libs_from_apt_repository_manager|ensure_php_libxml2_compat' 'apt_repo: libxml2/libicu compat shim'\nP scripts/shells/linux/common/apt_repository_manager.sh 'APT_DEBIAN_CODENAME_DEFAULT:-trixie|bookworm\\|trixie' 'apt_repo: trixie suite mapping'\nP scripts/shells/linux/common/gvar_common.sh 'TMPDIR:-/var/tmp|__resolve_global_temp_dir' 'gvar_common.sh: GLOBAL_TEMP_DIR writable'\nP scripts/nodetools/gvar_common.js \"TMPDIR ../ '/var/tmp'|/var/tmp\" 'gvar_common.js: /var/tmp'\nP scripts/shells/linux/debian/debian_com/php_common_vars.sh 'PHP_ALT_PRIORITY' 'php_common_vars: PHP_ALT_PRIORITY/PHP_BIN'\nP scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh 'PHP85_CORE_PACKAGES\\[\\*\\]' '31: canonical-array install string'\nP scripts/shells/linux/debian/install_shells/32_install_swoole.sh 'select_swoole_build_ref' '32: swoole version selection'\nP scripts/shells/linux/debian/install_shells/32_install_swoole.sh 'mktemp -d .*swoole-src-build' '32: mktemp build dir'\nP scripts/shells/linux/debian/install_shells/33_configure_php85.sh 'PHP_ALT_PRIORITY' '33: priority alignment'\nP scripts/shells/linux/debian/install_shells/34_install_composer.sh 'COMPOSER_SAFE_PATH' '34: COMPOSER_SAFE_PATH'\nP scripts/shells/linux/debian/install_shells/46_install_postgresql.sh 'polyConnection' '46: APP_DATABASES derive-from-config'\nP scripts/shells/linux/debian/install_shells/13_ensure_python.sh 'venv_python_common.sh' '13: sources venv helper'", "description": "Check which of my-session (hist
+[2026-06-23 09:33:35]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nP(){ printf '  %-52s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"present\"; else echo \"MISSING <<<\"; fi; }\necho \"=== history.txt (my-session PHP/venv/path) fixes — current state ===\"\nprintf '  %-52s ' 'venv_python_common.sh (created)'; [ -f scripts/shells/linux/common/venv_python_common.sh ] && echo present || echo \"MISSING <<<\"\nP scripts/shells/linux/common/apt_repository_manager.sh 'ensure_php_compat_libs_from_apt_repository_manager|ensure_php_libxml2_compat' 'apt_repo: libxml2/libicu compat shim'\nP scripts/shells/linux/common/apt_repository_manager.sh 'APT_DEBIAN_CODENAME_DEFAULT:-trixie|bookworm\\|trixie' 'apt_repo: trixie suite mapping'\nP scripts/shells/linux/common/gvar_common.sh 'TMPDIR:-/var/tmp|__resolve_global_temp_dir' 'gvar_common.sh: GLOBAL_TEMP_DIR writable'\nP scripts/nodetools/gvar_common.js \"TMPDIR ../ '/var/tmp'|/var/tmp\" 'gvar_common.js: /var/tmp'\nP scripts/shells/linux/debian/debian_com/php_common_vars.sh 'PHP_ALT_PRIORITY' 'php_common_vars: PHP_ALT_PRIORITY/PHP_BIN'\nP scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh 'PHP85_CORE_PACKAGES\\[\\*\\]' '31: canonical-array install string'\nP scripts/shells/linux/debian/install_shells/32_install_swoole.sh 'select_swoole_build_ref' '32: swoole version selection'\nP scripts/shells/linux/debian/install_shells/32_install_swoole.sh 'mktemp -d .*swoole-src-build' '32: mktemp build dir'\nP scripts/shells/linux/debian/install_shells/45_configure_php85.sh 'PHP_ALT_PRIORITY' '33: priority alignment'\nP scripts/shells/linux/debian/install_shells/47_install_composer.sh 'COMPOSER_SAFE_PATH' '34: COMPOSER_SAFE_PATH'\nP scripts/shells/linux/debian/install_shells/46_install_postgresql.sh 'polyConnection' '46: APP_DATABASES derive-from-config'\nP scripts/shells/linux/debian/install_shells/13_ensure_python.sh 'venv_python_common.sh' '13: sources venv helper'", "description": "Check which of my-session (hist
         ... [truncated 28 chars]
 
 [2026-06-23 09:33:35]   <- tool result:
@@ -8421,7 +8421,7 @@ History.txt restoration done. Let me read the full result (32/33/34 details + ve
   php_common_vars_restore          syntax=True changes=4
   31_ensure_php85_intelligent.sh   syntax=True changes=3
   restore-32_install_swoole        syntax=True changes=4
-  33_configure_php85.sh            syntax=True changes=3
+  45_configure_php85.sh            syntax=True changes=3
   34_install_composer              syntax=True changes=3
 
 === VERIFY === verdict: all-restored | all_syntax_ok: True
@@ -8446,7 +8446,7 @@ missing:
 [2026-06-23 09:39:45] ASSISTANT:
 **Verdict: all-restored** — all 7 install-script files pass syntax, every marker present. Many were already back (the sync restored some), and the genuinely-wiped bits (31's duplicate function, 32's sourcing/`select_swoole_build_ref`, 33's priority/module loop, 34's `COMPOSER_SAFE_PATH`) are re-applied. Let me independently verify, then commit everything (restored install scripts + the uncommitted history3 survivors) to lock it in.
 
-[2026-06-23 09:39:52]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== independent bash -n / node --check on the 7 restored files ===\"\nfor f in scripts/shells/linux/common/gvar_common.sh scripts/shells/linux/debian/debian_com/php_common_vars.sh scripts/shells/linux/debian/install_shells/3{1,2,3,4}_*.sh; do bash -n \"$f\" 2>/dev/null && echo \"OK  $(basename $f)\" || echo \"FAIL $f\"; done\nnode --check scripts/nodetools/gvar_common.js && echo \"OK  gvar_common.js\"\necho \"=== git status of candidate files (install scripts + history3 survivors) ===\"\ngit status --short \\\n  scripts/shells/linux/common/gvar_common.sh scripts/nodetools/gvar_common.js \\\n  scripts/shells/linux/debian/debian_com/php_common_vars.sh \\\n  scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh \\\n  scripts/shells/linux/debian/install_shells/32_install_swoole.sh \\\n  scripts/shells/linux/debian/install_shells/33_configure_php85.sh \\\n  scripts/shells/linux/debian/install_shells/34_install_composer.sh \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php \\\n  pycore/callmodule/services/translation_worker_service.py \\\n  pycore/pyutils/codesync/daemon.py 2>/dev/null", "description": "Verify restored files + list what's modified to commit"}
+[2026-06-23 09:39:52]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== independent bash -n / node --check on the 7 restored files ===\"\nfor f in scripts/shells/linux/common/gvar_common.sh scripts/shells/linux/debian/debian_com/php_common_vars.sh scripts/shells/linux/debian/install_shells/3{1,2,3,4}_*.sh; do bash -n \"$f\" 2>/dev/null && echo \"OK  $(basename $f)\" || echo \"FAIL $f\"; done\nnode --check scripts/nodetools/gvar_common.js && echo \"OK  gvar_common.js\"\necho \"=== git status of candidate files (install scripts + history3 survivors) ===\"\ngit status --short \\\n  scripts/shells/linux/common/gvar_common.sh scripts/nodetools/gvar_common.js \\\n  scripts/shells/linux/debian/debian_com/php_common_vars.sh \\\n  scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh \\\n  scripts/shells/linux/debian/install_shells/32_install_swoole.sh \\\n  scripts/shells/linux/debian/install_shells/45_configure_php85.sh \\\n  scripts/shells/linux/debian/install_shells/47_install_composer.sh \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php \\\n  pycore/callmodule/services/translation_worker_service.py \\\n  pycore/pyutils/codesync/daemon.py 2>/dev/null", "description": "Verify restored files + list what's modified to commit"}
 
 [2026-06-23 09:39:52]   <- tool result:
 === independent bash -n / node --check on the 7 restored files ===
@@ -8454,8 +8454,8 @@ OK  gvar_common.sh
 OK  php_common_vars.sh
 OK  31_ensure_php85_intelligent.sh
 OK  32_install_swoole.sh
-OK  33_configure_php85.sh
-OK  34_install_composer.sh
+OK  45_configure_php85.sh
+OK  47_install_composer.sh
 OK  gvar_common.js
 === git status of candidate files (install scripts + history3 survivors) ===
  M poly_apps/laravel_main/app/Http/Controllers/WorkerController.php
@@ -8465,14 +8465,14 @@ OK  gvar_common.js
  M scripts/shells/linux/debian/debian_com/php_common_vars.sh
  M scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh
  M scripts/shells/linux/debian/install_shells/32_install_swoole.sh
- M scripts/shells/linux/debian/install_shells/33_configure_php85.sh
- M scripts/shells/linux/debian/install_shells/34_install_composer.sh
+ M scripts/shells/linux/debian/install_shells/45_configure_php85.sh
+ M scripts/shells/linux/debian/install_shells/47_install_composer.sh
 ?? poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php
 
 [2026-06-23 09:40:14] ASSISTANT:
 All 7 install scripts pass. Modified set is clear. Let me `php -l` the history3 Laravel files (to ensure they're in a valid fixed state), then commit everything.
 
-[2026-06-23 09:40:24]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== php -l the history3 Laravel survivors ===\"\nfor f in \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php; do\n  /usr/local/bin/php -l \"$f\" 2>&1 | sed 's#.*/##'\ndone\necho \"=== stage + commit (restored install scripts + history3 survivors) ===\"\ngit add \\\n  scripts/nodetools/gvar_common.js \\\n  scripts/shells/linux/debian/debian_com/php_common_vars.sh \\\n  scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh \\\n  scripts/shells/linux/debian/install_shells/32_install_swoole.sh \\\n  scripts/shells/linux/debian/install_shells/33_configure_php85.sh \\\n  scripts/shells/linux/debian/install_shells/34_install_composer.sh \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php\ngit commit -q -m \"Restore install-script + task-pipeline fixes from history.txt/history3.txt\n\nhistory.txt (PHP/venv install scripts, wiped by sync):\n- gvar_common.js: temp dir -> TMPDIR||/var/tmp; php_common_vars: PHP_BIN/PHP_ALT_PRIORITY\n- 31/32/33/34: canonical-array install, alt-priority, swoole v6.2.x selection, COMPOSER_SAFE_PATH\nhistory3.txt (interactive task-top fast path survivors):\n- WorkerController/\\$wait cast, TaskManagerService, WordTranslationTaskProcessor, TaskEnqueueController\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>\" && echo \"committed\"\necho \"=== HEAD ===\"; git log --oneline -1; gi
+[2026-06-23 09:40:24]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\necho \"=== php -l the history3 Laravel survivors ===\"\nfor f in \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php; do\n  /usr/local/bin/php -l \"$f\" 2>&1 | sed 's#.*/##'\ndone\necho \"=== stage + commit (restored install scripts + history3 survivors) ===\"\ngit add \\\n  scripts/nodetools/gvar_common.js \\\n  scripts/shells/linux/debian/debian_com/php_common_vars.sh \\\n  scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh \\\n  scripts/shells/linux/debian/install_shells/32_install_swoole.sh \\\n  scripts/shells/linux/debian/install_shells/45_configure_php85.sh \\\n  scripts/shells/linux/debian/install_shells/47_install_composer.sh \\\n  poly_apps/laravel_main/app/Http/Controllers/WorkerController.php \\\n  poly_apps/laravel_main/app/Services/TaskManagerService.php \\\n  poly_apps/laravel_main/app/Services/TaskProcessors/WordTranslationTaskProcessor.php \\\n  poly_apps/laravel_main/app/Apps/AppQyV1/AppQyV1Controllers/AppQyV1AITools/AppQyV1TaskEnqueueController.php\ngit commit -q -m \"Restore install-script + task-pipeline fixes from history.txt/history3.txt\n\nhistory.txt (PHP/venv install scripts, wiped by sync):\n- gvar_common.js: temp dir -> TMPDIR||/var/tmp; php_common_vars: PHP_BIN/PHP_ALT_PRIORITY\n- 31/32/33/34: canonical-array install, alt-priority, swoole v6.2.x selection, COMPOSER_SAFE_PATH\nhistory3.txt (interactive task-top fast path survivors):\n- WorkerController/\\$wait cast, TaskManagerService, WordTranslationTaskProcessor, TaskEnqueueController\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>\" && echo \"committed\"\necho \"=== HEAD ===\"; git log --oneline -1; gi
         ... [truncated 109 chars]
 
 [2026-06-23 09:40:32]   <- tool result:
@@ -8494,8 +8494,8 @@ committed
  .../linux/debian/debian_com/php_common_vars.sh     |   8 +
  .../install_shells/31_ensure_php85_intelligent.sh  | 105 +--
  .../debian/install_shells/32_install_swoole.sh     | 141 +++-
- .../debian/install_shells/33_configure_php85.sh    |  17 +-
- .../debian/install_shells/34_install_composer.sh   |  24 +-
+ .../debian/install_shells/45_configure_php85.sh    |  17 +-
+ .../debian/install_shells/47_install_composer.sh   |  24 +-
  10 files changed, 1367 insertions(+), 213 deletions(-)
 
 [2026-06-23 09:41:03] ASSISTANT:
@@ -10552,8 +10552,8 @@ Two optional follow-ups (say the word and I'll do them):
 
 ❯ 31_ensure_php85_intelligent.sh
     32_install_swoole.sh
-    33_configure_php85.sh
-    34_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
+    45_configure_php85.sh
+    47_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
 
 This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared logic and data aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
 
@@ -10746,7 +10746,7 @@ ensure_php_symlink() {
 
 Edit 5 — align 33's priority (84→shared) and bin
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/45_configure_php85.sh)
 Added 1 line, removed 1 line
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
 
@@ -10757,7 +10757,7 @@ Added 1 line, removed 1 line
         echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
 
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 3 lines, removed 3 lines
 
         # Use update-alternatives as per documentation
@@ -10777,7 +10777,7 @@ ORITY}${NC}"
 
 Edit 5c — align 33's module verification to the canonical REQUIRED_EXTENSIONS/EXTENSION_MAP (was a divergent hardcoded subset):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 5 lines, removed 2 lines
 
         # Show some key modules
@@ -10795,7 +10795,7 @@ Added 5 lines, removed 2 lines
 
 Edit 6 — wire 34 to the canonical vars (TARGET_LINK_PATH, COMPOSER_SAFE_PATH, PHP_VERSION):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 1 line, removed 1 line
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
@@ -10806,7 +10806,7 @@ PHP_BINARY="$TARGET_LINK_PATH"
 # Version requirements
 MIN_COMPOSER_VERSION_MAJOR=2
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/47_install_composer.sh)
 Added 8 lines, removed 8 lines
     fi
 
@@ -10883,7 +10883,7 @@ EOF
 
 Edit 6c — 34's version assertion uses $PHP_VERSION:
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 3 lines, removed 3 lines
 
     # Check PHP 8.5 availability
@@ -10955,7 +10955,7 @@ Optional follow-ups I left (lower-value / cosmetic, say the word):
 [2026-06-23 10:01:25] ASSISTANT:
 You want the PHP pipeline alignment fixes (31→34 + `php_common_vars.sh`) refreshed/repaired — the same set that keeps getting wiped. Let me check current state of each marker, then re-apply what's missing.
 
-[2026-06-23 10:01:33]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nP(){ printf '  %-50s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"present\"; else echo \"MISSING <<<\"; fi; }\nD=scripts/shells/linux/debian\nP $D/debian_com/php_common_vars.sh 'PHP_ALT_PRIORITY' 'php_common_vars: PHP_BIN/PHP_ALT_PRIORITY'\nP $D/install_shells/31_ensure_php85_intelligent.sh 'PHP85_CORE_PACKAGES\\[\\*\\]' '31: canonical-array install string'\nP $D/install_shells/31_ensure_php85_intelligent.sh 'PHP_ALT_PRIORITY' '31: alternatives via $PHP_ALT_PRIORITY'\nprintf '  %-50s ' '31: single verify_php_symbolic_link_fix def'; n=$(grep -c '^verify_php_symbolic_link_fix() {' $D/install_shells/31_ensure_php85_intelligent.sh 2>/dev/null); echo \"($n def)\"\nP $D/install_shells/32_install_swoole.sh 'php_common_functions.sh' '32: sources php_common_functions.sh'\nP $D/install_shells/32_install_swoole.sh 'TARGET_LINK_PATH' '32: ensure_php_symlink uses TARGET_LINK_PATH'\nP $D/install_shells/32_install_swoole.sh 'select_swoole_build_ref' '32: swoole version selection'\nP $D/install_shells/33_configure_php85.sh 'PHP_ALT_PRIORITY' '33: priority via $PHP_ALT_PRIORITY'\nP $D/install_shells/33_configure_php85.sh 'REQUIRED_EXTENSIONS' '33: module loop via REQUIRED_EXTENSIONS'\nP $D/install_shells/34_install_composer.sh 'COMPOSER_SAFE_PATH' '34: COMPOSER_SAFE_PATH'\nP $D/install_shells/34_install_composer.sh 'PHP_BINARY=\"\\$TARGET_LINK_PATH\"' '34: PHP_BINARY=$TARGET_LINK_PATH'", "description": "Presence check of PHP pipeline alignment fixes"}
+[2026-06-23 10:01:33]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nP(){ printf '  %-50s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"present\"; else echo \"MISSING <<<\"; fi; }\nD=scripts/shells/linux/debian\nP $D/debian_com/php_common_vars.sh 'PHP_ALT_PRIORITY' 'php_common_vars: PHP_BIN/PHP_ALT_PRIORITY'\nP $D/install_shells/31_ensure_php85_intelligent.sh 'PHP85_CORE_PACKAGES\\[\\*\\]' '31: canonical-array install string'\nP $D/install_shells/31_ensure_php85_intelligent.sh 'PHP_ALT_PRIORITY' '31: alternatives via $PHP_ALT_PRIORITY'\nprintf '  %-50s ' '31: single verify_php_symbolic_link_fix def'; n=$(grep -c '^verify_php_symbolic_link_fix() {' $D/install_shells/31_ensure_php85_intelligent.sh 2>/dev/null); echo \"($n def)\"\nP $D/install_shells/32_install_swoole.sh 'php_common_functions.sh' '32: sources php_common_functions.sh'\nP $D/install_shells/32_install_swoole.sh 'TARGET_LINK_PATH' '32: ensure_php_symlink uses TARGET_LINK_PATH'\nP $D/install_shells/32_install_swoole.sh 'select_swoole_build_ref' '32: swoole version selection'\nP $D/install_shells/45_configure_php85.sh 'PHP_ALT_PRIORITY' '33: priority via $PHP_ALT_PRIORITY'\nP $D/install_shells/45_configure_php85.sh 'REQUIRED_EXTENSIONS' '33: module loop via REQUIRED_EXTENSIONS'\nP $D/install_shells/47_install_composer.sh 'COMPOSER_SAFE_PATH' '34: COMPOSER_SAFE_PATH'\nP $D/install_shells/47_install_composer.sh 'PHP_BINARY=\"\\$TARGET_LINK_PATH\"' '34: PHP_BINARY=$TARGET_LINK_PATH'", "description": "Presence check of PHP pipeline alignment fixes"}
 
 [2026-06-23 10:01:33]   <- tool result:
 php_common_vars: PHP_BIN/PHP_ALT_PRIORITY          present
@@ -10973,15 +10973,15 @@ php_common_vars: PHP_BIN/PHP_ALT_PRIORITY          present
 [2026-06-23 10:01:54] ASSISTANT:
 All PHP pipeline alignment markers are **present** — the scripts are in the fully-aligned state. So "repair" here means: validate they're internally consistent and **commit them** so the wipe can't undo it again. Let me do a thorough validation + commit.
 
-[2026-06-23 10:02:00]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nD=scripts/shells/linux/debian\necho \"=== bash -n all 5 PHP-pipeline files ===\"\nfor f in $D/debian_com/php_common_vars.sh $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh $D/install_shells/33_configure_php85.sh $D/install_shells/34_install_composer.sh; do bash -n \"$f\" && echo \"OK  $(basename $f)\" || echo \"FAIL $f\"; done\necho \"=== consistency: priority single-sourced (no bare 84/85 in --install)? ===\"\ngrep -rnE 'update-alternatives --install /usr/bin/php php .*(84|85)\\b' $D/install_shells/3[123]*.sh | grep -vE 'PHP_ALT_PRIORITY' || echo \"  none (all via \\$PHP_ALT_PRIORITY) ✓\"\necho \"=== shared vars resolve ===\"\n( source $D/debian_com/php_common_vars.sh >/dev/null 2>&1; echo \"  PHP_BIN=$PHP_BIN PHP_ALT_PRIORITY=$PHP_ALT_PRIORITY TARGET_LINK_PATH=$TARGET_LINK_PATH COMPOSER_SAFE_PATH=$COMPOSER_SAFE_PATH\" )\necho \"=== are these 5 files committed or dirty? ===\"\ngit status --short $D/debian_com/php_common_vars.sh $D/install_shells/3[1234]*.sh 2>/dev/null", "description": "Validate PHP pipeline + check commit state"}
+[2026-06-23 10:02:00]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nD=scripts/shells/linux/debian\necho \"=== bash -n all 5 PHP-pipeline files ===\"\nfor f in $D/debian_com/php_common_vars.sh $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh $D/install_shells/45_configure_php85.sh $D/install_shells/47_install_composer.sh; do bash -n \"$f\" && echo \"OK  $(basename $f)\" || echo \"FAIL $f\"; done\necho \"=== consistency: priority single-sourced (no bare 84/85 in --install)? ===\"\ngrep -rnE 'update-alternatives --install /usr/bin/php php .*(84|85)\\b' $D/install_shells/3[123]*.sh | grep -vE 'PHP_ALT_PRIORITY' || echo \"  none (all via \\$PHP_ALT_PRIORITY) ✓\"\necho \"=== shared vars resolve ===\"\n( source $D/debian_com/php_common_vars.sh >/dev/null 2>&1; echo \"  PHP_BIN=$PHP_BIN PHP_ALT_PRIORITY=$PHP_ALT_PRIORITY TARGET_LINK_PATH=$TARGET_LINK_PATH COMPOSER_SAFE_PATH=$COMPOSER_SAFE_PATH\" )\necho \"=== are these 5 files committed or dirty? ===\"\ngit status --short $D/debian_com/php_common_vars.sh $D/install_shells/3[1234]*.sh 2>/dev/null", "description": "Validate PHP pipeline + check commit state"}
 
 [2026-06-23 10:02:01]   <- tool result:
 === bash -n all 5 PHP-pipeline files ===
 OK  php_common_vars.sh
 OK  31_ensure_php85_intelligent.sh
 OK  32_install_swoole.sh
-OK  33_configure_php85.sh
-OK  34_install_composer.sh
+OK  45_configure_php85.sh
+OK  47_install_composer.sh
 === consistency: priority single-sourced (no bare 84/85 in --install)? ===
   none (all via $PHP_ALT_PRIORITY) ✓
 === shared vars resolve ===
@@ -11056,7 +11056,7 @@ Summary:
    - (PHP 8.5 install failure log) "adapt to Ubuntu / Debian / Kali."
    - (Swoole /usr/tmp failure log) "suite to Ubuntu Debian Kali, in Kali, selecte available soft version. search official documentations."
    - (Swoole still /usr/tmp log) "In kali,support wsl/debian/ubuntu/kali."
-   - "31_ensure_php85_intelligent.sh 32_install_swoole.sh 33_configure_php85.sh 34_install_composer.sh Logic and DATA share to aligned, Ensure that the logic, behavior, and data relationships remain consistent before and after each step."
+   - "31_ensure_php85_intelligent.sh 32_install_swoole.sh 45_configure_php85.sh 47_install_composer.sh Logic and DATA share to aligned, Ensure that the logic, behavior, and data relationships remain consistent before and after each step."
    - (13_ensure_python failure log) "alied lgoic, data , behavior. expecially Kali debian Ubunto,search some docs."
    - "[INFO] Using Python virtual environment... Why doesn't this align with it? According to the original design, the python executable should be linked to the global Python binary (ie under /usr/local/bin), while the actual interpreter is python3.xx. so call python is call Venv. 14_install_faster_whisper.sh ... 98_install_nllb200.sh and the venv creation/ownership."
    - "En suyer that all downstream scripts use the Python interpreter from the virtual environment, Update python3.x to point to the virtual environment as well, and rename the original system Python executable to pythonorigin. and other but repaire. No ask."
@@ -12457,8 +12457,8 @@ Two optional follow-ups (say the word and I'll do them):
 
 ❯ 31_ensure_php85_intelligent.sh
     32_install_swoole.sh
-    33_configure_php85.sh
-    34_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
+    45_configure_php85.sh
+    47_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
 
 This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared logic and data aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
 
@@ -12651,7 +12651,7 @@ ensure_php_symlink() {
 
 Edit 5 — align 33's priority (84→shared) and bin
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/45_configure_php85.sh)
 Added 1 line, removed 1 line
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
 
@@ -12662,7 +12662,7 @@ Added 1 line, removed 1 line
         echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
 
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 3 lines, removed 3 lines
 
         # Use update-alternatives as per documentation
@@ -12682,7 +12682,7 @@ ORITY}${NC}"
 
 Edit 5c — align 33's module verification to the canonical REQUIRED_EXTENSIONS/EXTENSION_MAP (was a divergent hardcoded subset):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 5 lines, removed 2 lines
 
         # Show some key modules
@@ -12700,7 +12700,7 @@ Added 5 lines, removed 2 lines
 
 Edit 6 — wire 34 to the canonical vars (TARGET_LINK_PATH, COMPOSER_SAFE_PATH, PHP_VERSION):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 1 line, removed 1 line
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
@@ -12711,7 +12711,7 @@ PHP_BINARY="$TARGET_LINK_PATH"
 # Version requirements
 MIN_COMPOSER_VERSION_MAJOR=2
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/47_install_composer.sh)
 Added 8 lines, removed 8 lines
     fi
 
@@ -12788,7 +12788,7 @@ EOF
 
 Edit 6c — 34's version assertion uses $PHP_VERSION:
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 3 lines, removed 3 lines
 
     # Check PHP 8.5 availability
@@ -14178,8 +14178,8 @@ Two optional follow-ups (say the word and I'll do them):
 
 ❯ 31_ensure_php85_intelligent.sh
     32_install_swoole.sh
-    33_configure_php85.sh
-    34_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
+    45_configure_php85.sh
+    47_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
 
 This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared logic and data aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
 
@@ -14372,7 +14372,7 @@ ensure_php_symlink() {
 
 Edit 5 — align 33's priority (84→shared) and bin
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/45_configure_php85.sh)
 Added 1 line, removed 1 line
     echo -e "${YELLOW}$SCRIPT_INDEX Step 2: Setting PHP 8.5 as default system version...${NC}"
 
@@ -14383,7 +14383,7 @@ Added 1 line, removed 1 line
         echo -e "${GREEN}$SCRIPT_INDEX Found PHP 8.5 binary: $php85_binary${NC}"
 
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 3 lines, removed 3 lines
 
         # Use update-alternatives as per documentation
@@ -14403,7 +14403,7 @@ ORITY}${NC}"
 
 Edit 5c — align 33's module verification to the canonical REQUIRED_EXTENSIONS/EXTENSION_MAP (was a divergent hardcoded subset):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/33_configure_php85.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/45_configure_php85.sh)
 Added 5 lines, removed 2 lines
 
         # Show some key modules
@@ -14421,7 +14421,7 @@ Added 5 lines, removed 2 lines
 
 Edit 6 — wire 34 to the canonical vars (TARGET_LINK_PATH, COMPOSER_SAFE_PATH, PHP_VERSION):
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 1 line, removed 1 line
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
@@ -14432,7 +14432,7 @@ PHP_BINARY="$TARGET_LINK_PATH"
 # Version requirements
 MIN_COMPOSER_VERSION_MAJOR=2
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/sstall_shells/47_install_composer.sh)
 Added 8 lines, removed 8 lines
     fi
 
@@ -14509,7 +14509,7 @@ EOF
 
 Edit 6c — 34's version assertion uses $PHP_VERSION:
 
-● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/34_install_composer.sh)
+● Update(/mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/install_shells/47_install_composer.sh)
 Added 3 lines, removed 3 lines
 
     # Check PHP 8.5 availability
@@ -14581,7 +14581,7 @@ Optional follow-ups I left (lower-value / cosmetic, say the word):
 [2026-06-23 10:05:28] ASSISTANT:
 You want the PHP-relation scripts re-repaired and solidified. My marker check showed the alignment is present; the previous turn was interrupted before committing. Let me do a **deep** integrity pass across the *full* PHP-relation set (not just the 4 pipeline scripts but the shared infra they depend on — `apt_repository_manager.sh` compat shim, `gvar_common.sh`/`.js` temp resolver, `php_common_*`), confirm nothing regressed/drifted, validate syntax, then commit so the wipe can't undo it.
 
-[2026-06-23 10:05:40]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nC=scripts/shells/linux/common; D=scripts/shells/linux/debian; N=scripts/nodetools\nP(){ printf '  %-52s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"OK\"; else echo \"MISSING <<<<<\"; fi; }\necho \"── apt_repository_manager.sh (compat shim + resolver) ──\"\nP $C/apt_repository_manager.sh 'ensure_php_compat_libs_from_apt_repository_manager\\(\\)' 'generalized compat-lib shim fn'\nP $C/apt_repository_manager.sh 'SHA256 mismatch' 'SHA256 integrity verify'\nP $C/apt_repository_manager.sh 'https://deb.debian.org/debian' 'HTTPS .deb fetch (not plain http)'\nP $C/apt_repository_manager.sh 'getconf GNU_LIBC_VERSION' 'glibc-gated bookworm/trixie clamp'\nP $C/apt_repository_manager.sh 'bullseye\\|bookworm\\|trixie\\) : ;;' 'debian codename allowlist (no forky/sid)'\nP $C/apt_repository_manager.sh 'APT_DEBIAN_CODENAME_DEFAULT' 'override env var'\necho \"── gvar_common.sh / .js (writable temp resolver) ──\"\nP $C/gvar_common.sh '__resolve_global_temp_dir_from_gvar_common' 'writable-first temp resolver fn'\nP $C/gvar_common.sh 'and \\[ -w \"\\$c\" \\]' 'resolver skips unwritable inherited value'\nP $N/gvar_common.js \"process.env.TMPDIR \\|\\| '/var/tmp'\" 'JS mirror: TMPDIR||/var/tmp'\necho \"── 32 swoole (version select + temp fallback) ──\"\nP $D/install_shells/32_install_swoole.sh 'for _tbase in \"\\$\\{GLOBAL_TEMP_DIR%/\\}\"' '32: build-dir writable fallback loop'\necho \"── syntax ──\"\nok=1\nfor f in $C/apt_repository_manager.sh $C/gvar_common.sh $C/common_functions.sh \\\n  $D/debian_com/php_common_vars.sh $D/debian_com/php_common_functions.sh \\\n  $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh \\\n  $D/install_shells/33_configure_php85.sh $D/install_shells/34_install_composer.sh; do\n  bash -n \"$f\" 2>/tmp/bnerr && echo \"  bash -n OK  $(basename $f)\" || { echo \"  bash -n FAIL $f\"; cat /tmp/bnerr; ok=0; }\ndone\nnode --check $N/gvar_common.js 2>/tmp/js
+[2026-06-23 10:05:40]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nC=scripts/shells/linux/common; D=scripts/shells/linux/debian; N=scripts/nodetools\nP(){ printf '  %-52s ' \"$3\"; if grep -rqE \"$2\" \"$1\" 2>/dev/null; then echo \"OK\"; else echo \"MISSING <<<<<\"; fi; }\necho \"── apt_repository_manager.sh (compat shim + resolver) ──\"\nP $C/apt_repository_manager.sh 'ensure_php_compat_libs_from_apt_repository_manager\\(\\)' 'generalized compat-lib shim fn'\nP $C/apt_repository_manager.sh 'SHA256 mismatch' 'SHA256 integrity verify'\nP $C/apt_repository_manager.sh 'https://deb.debian.org/debian' 'HTTPS .deb fetch (not plain http)'\nP $C/apt_repository_manager.sh 'getconf GNU_LIBC_VERSION' 'glibc-gated bookworm/trixie clamp'\nP $C/apt_repository_manager.sh 'bullseye\\|bookworm\\|trixie\\) : ;;' 'debian codename allowlist (no forky/sid)'\nP $C/apt_repository_manager.sh 'APT_DEBIAN_CODENAME_DEFAULT' 'override env var'\necho \"── gvar_common.sh / .js (writable temp resolver) ──\"\nP $C/gvar_common.sh '__resolve_global_temp_dir_from_gvar_common' 'writable-first temp resolver fn'\nP $C/gvar_common.sh 'and \\[ -w \"\\$c\" \\]' 'resolver skips unwritable inherited value'\nP $N/gvar_common.js \"process.env.TMPDIR \\|\\| '/var/tmp'\" 'JS mirror: TMPDIR||/var/tmp'\necho \"── 32 swoole (version select + temp fallback) ──\"\nP $D/install_shells/32_install_swoole.sh 'for _tbase in \"\\$\\{GLOBAL_TEMP_DIR%/\\}\"' '32: build-dir writable fallback loop'\necho \"── syntax ──\"\nok=1\nfor f in $C/apt_repository_manager.sh $C/gvar_common.sh $C/common_functions.sh \\\n  $D/debian_com/php_common_vars.sh $D/debian_com/php_common_functions.sh \\\n  $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh \\\n  $D/install_shells/45_configure_php85.sh $D/install_shells/47_install_composer.sh; do\n  bash -n \"$f\" 2>/tmp/bnerr && echo \"  bash -n OK  $(basename $f)\" || { echo \"  bash -n FAIL $f\"; cat /tmp/bnerr; ok=0; }\ndone\nnode --check $N/gvar_common.js 2>/tmp/js
         ... [truncated 198 chars]
 
 [2026-06-23 10:05:41]   <- tool result:
@@ -14606,8 +14606,8 @@ You want the PHP-relation scripts re-repaired and solidified. My marker check sh
   bash -n OK  php_common_functions.sh
   bash -n OK  31_ensure_php85_intelligent.sh
   bash -n OK  32_install_swoole.sh
-  bash -n OK  33_configure_php85.sh
-  bash -n OK  34_install_composer.sh
+  bash -n OK  45_configure_php85.sh
+  bash -n OK  47_install_composer.sh
   node --check OK  gvar_common.js
 ALL_SYNTAX_OK=1
 
@@ -14706,7 +14706,7 @@ The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/common/apt
 [2026-06-23 10:07:09] ASSISTANT:
 Now validate the re-applied glibc-gating produces the right suite on this box, then commit the full PHP-relation set so the wipe can't undo it.
 
-[2026-06-23 10:07:19]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nC=scripts/shells/linux/common; D=scripts/shells/linux/debian; N=scripts/nodetools\necho \"=== syntax + glibc-gating present + resolver still emits trixie on this Kali box ===\"\nbash -n $C/apt_repository_manager.sh && echo \"bash -n OK\"\ngrep -q 'getconf GNU_LIBC_VERSION' $C/apt_repository_manager.sh && echo \"glibc-gating: present\"\n# exercise just the clamp logic for a kali-rolling codename\nglibc=\"$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')\"\necho -n \"this box glibc=$glibc -> \"\nif [ -n \"$glibc\" ] && dpkg --compare-versions \"$glibc\" ge 2.38 2>/dev/null; then echo \"clamp picks trixie (correct for Kali)\"; else echo \"clamp picks bookworm\"; fi\necho\necho \"=== commit the full PHP-relation set ===\"\ngit add $C/apt_repository_manager.sh $C/gvar_common.sh $N/gvar_common.js \\\n  $D/debian_com/php_common_vars.sh $D/debian_com/php_common_functions.sh \\\n  $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh \\\n  $D/install_shells/33_configure_php85.sh $D/install_shells/34_install_composer.sh 2>&1\ngit commit -q -m \"Re-repair PHP-relation scripts: restore glibc-gated Debian suite clamp + lock pipeline alignment\n\nThe buggy working-tree sync had reverted the glibc-gated bookworm/trixie\nclamp in apt_repository_manager.sh's Debian codename resolver back to a flat\n':-trixie' default, dropping the cross-distro guard (a bookworm-era rolling\nspin with glibc<2.38 must stay on bookworm; Kali/sid get trixie). Restored it.\n\nRe-verified intact and committing to protect against the sync wipe:\n- apt_repository_manager.sh: generalized SHA256-verified compat-lib shim,\n  HTTPS .deb fetch, glibc-gated suite clamp, APT_DEBIAN_CODENAME_DEFAULT override\n- gvar_common.sh/.js: writable-first GLOBAL_TEMP_DIR resolver (skips stale /usr/tmp)\n- 31-34 + php_common_vars: single-source PHP_BIN/PHP_ALT_PRIORITY (85), canonical\n  install arrays, COMPOSER_SAFE_PATH/TARG
+[2026-06-23 10:07:19]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nC=scripts/shells/linux/common; D=scripts/shells/linux/debian; N=scripts/nodetools\necho \"=== syntax + glibc-gating present + resolver still emits trixie on this Kali box ===\"\nbash -n $C/apt_repository_manager.sh && echo \"bash -n OK\"\ngrep -q 'getconf GNU_LIBC_VERSION' $C/apt_repository_manager.sh && echo \"glibc-gating: present\"\n# exercise just the clamp logic for a kali-rolling codename\nglibc=\"$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $NF}')\"\necho -n \"this box glibc=$glibc -> \"\nif [ -n \"$glibc\" ] && dpkg --compare-versions \"$glibc\" ge 2.38 2>/dev/null; then echo \"clamp picks trixie (correct for Kali)\"; else echo \"clamp picks bookworm\"; fi\necho\necho \"=== commit the full PHP-relation set ===\"\ngit add $C/apt_repository_manager.sh $C/gvar_common.sh $N/gvar_common.js \\\n  $D/debian_com/php_common_vars.sh $D/debian_com/php_common_functions.sh \\\n  $D/install_shells/31_ensure_php85_intelligent.sh $D/install_shells/32_install_swoole.sh \\\n  $D/install_shells/45_configure_php85.sh $D/install_shells/47_install_composer.sh 2>&1\ngit commit -q -m \"Re-repair PHP-relation scripts: restore glibc-gated Debian suite clamp + lock pipeline alignment\n\nThe buggy working-tree sync had reverted the glibc-gated bookworm/trixie\nclamp in apt_repository_manager.sh's Debian codename resolver back to a flat\n':-trixie' default, dropping the cross-distro guard (a bookworm-era rolling\nspin with glibc<2.38 must stay on bookworm; Kali/sid get trixie). Restored it.\n\nRe-verified intact and committing to protect against the sync wipe:\n- apt_repository_manager.sh: generalized SHA256-verified compat-lib shim,\n  HTTPS .deb fetch, glibc-gated suite clamp, APT_DEBIAN_CODENAME_DEFAULT override\n- gvar_common.sh/.js: writable-first GLOBAL_TEMP_DIR resolver (skips stale /usr/tmp)\n- 31-34 + php_common_vars: single-source PHP_BIN/PHP_ALT_PRIORITY (85), canonical\n  install arrays, COMPOSER_SAFE_PATH/TARG
         ... [truncated 316 chars]
 
 [2026-06-23 10:07:22]   <- tool result:
@@ -14760,7 +14760,7 @@ Use multiple roles to cross-validate each other.Use multiple roles to cross-vali
 [2026-06-23 10:11:02] ASSISTANT:
 The user is explicitly opting into multi-agent orchestration ("use multiple roles to cross-validate each other"), and ultracode is on. I'll run a workflow where **four distinct reviewer roles** independently audit the PHP-relation scripts I just committed, then **cross-validate each other's findings** through three adversarial lenses — a finding only survives if it holds up under perspectives different from the one that raised it.
 
-[2026-06-23 10:11:52]   -> tool: Workflow  {"script": "export const meta = {\n  name: 'php-relation-cross-validate',\n  description: 'Four reviewer roles audit the PHP-relation scripts, then cross-validate each finding adversarially',\n  phases: [\n    { title: 'Review', detail: 'four distinct roles audit independently' },\n    { title: 'Cross-validate', detail: 'each finding judged by 3 opposing lenses' },\n    { title: 'Synthesize', detail: 'consolidated verdict' },\n  ],\n}\n\nconst ROOT = '/mnt/dev_nvme0n1p1/programing/core_node'\nconst FILES = [\n  'scripts/shells/linux/common/apt_repository_manager.sh',\n  'scripts/shells/linux/common/gvar_common.sh',\n  'scripts/nodetools/gvar_common.js',\n  'scripts/shells/linux/debian/debian_com/php_common_vars.sh',\n  'scripts/shells/linux/debian/debian_com/php_common_functions.sh',\n  'scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh',\n  'scripts/shells/linux/debian/install_shells/32_install_swoole.sh',\n  'scripts/shells/linux/debian/install_shells/33_configure_php85.sh',\n  'scripts/shells/linux/debian/install_shells/34_install_composer.sh',\n].map(p => `${ROOT}/${p}`)\n\nconst CONTEXT = `\nRepo: ${ROOT} (a Laravel+PHP8.5/Swoole+Python monorepo). Target distros: Ubuntu, Debian, and Kali rolling (ID=kali, tracks Debian sid; glibc 2.42; post-t64 ABI; libxml2-16/libzip5/libicu77+). No passwordless sudo is available to you, so validate with bash -n / grep / reading code, NOT by running the installers.\n\nFiles under audit (the \"PHP-relation scripts\"):\n${FILES.map(f => '  - ' + f).join('\\n')}\n\nRecent changes that were just committed and must be validated:\n1. apt_repository_manager.sh: resolver maps Kali/derivatives -> a Sury suite. Debian codename clamp is glibc-gated (glibc>=2.38 -> trixie, else bookworm; override APT_DEBIAN_CODENAME_DEFAULT). A generalized compat-lib shim (ensure_php_compat_libs_from_apt_repository_manager) pulls Debian <codename> builds of unsatisfiable lib deps (e.g. libxml2.so.2, libicu76) for the project's php p
+[2026-06-23 10:11:52]   -> tool: Workflow  {"script": "export const meta = {\n  name: 'php-relation-cross-validate',\n  description: 'Four reviewer roles audit the PHP-relation scripts, then cross-validate each finding adversarially',\n  phases: [\n    { title: 'Review', detail: 'four distinct roles audit independently' },\n    { title: 'Cross-validate', detail: 'each finding judged by 3 opposing lenses' },\n    { title: 'Synthesize', detail: 'consolidated verdict' },\n  ],\n}\n\nconst ROOT = '/mnt/dev_nvme0n1p1/programing/core_node'\nconst FILES = [\n  'scripts/shells/linux/common/apt_repository_manager.sh',\n  'scripts/shells/linux/common/gvar_common.sh',\n  'scripts/nodetools/gvar_common.js',\n  'scripts/shells/linux/debian/debian_com/php_common_vars.sh',\n  'scripts/shells/linux/debian/debian_com/php_common_functions.sh',\n  'scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh',\n  'scripts/shells/linux/debian/install_shells/32_install_swoole.sh',\n  'scripts/shells/linux/debian/install_shells/45_configure_php85.sh',\n  'scripts/shells/linux/debian/install_shells/47_install_composer.sh',\n].map(p => `${ROOT}/${p}`)\n\nconst CONTEXT = `\nRepo: ${ROOT} (a Laravel+PHP8.5/Swoole+Python monorepo). Target distros: Ubuntu, Debian, and Kali rolling (ID=kali, tracks Debian sid; glibc 2.42; post-t64 ABI; libxml2-16/libzip5/libicu77+). No passwordless sudo is available to you, so validate with bash -n / grep / reading code, NOT by running the installers.\n\nFiles under audit (the \"PHP-relation scripts\"):\n${FILES.map(f => '  - ' + f).join('\\n')}\n\nRecent changes that were just committed and must be validated:\n1. apt_repository_manager.sh: resolver maps Kali/derivatives -> a Sury suite. Debian codename clamp is glibc-gated (glibc>=2.38 -> trixie, else bookworm; override APT_DEBIAN_CODENAME_DEFAULT). A generalized compat-lib shim (ensure_php_compat_libs_from_apt_repository_manager) pulls Debian <codename> builds of unsatisfiable lib deps (e.g. libxml2.so.2, libicu76) for the project's php p
         ... [truncated 9353 chars]
 
 [2026-06-23 10:11:52]   <- tool result:
@@ -14826,7 +14826,7 @@ Cross-validation verdict: **pass-with-fixes** — 13 findings survived, the pane
 
 Before applying anything, I must **verify the findings against the real files** — one (the high-severity `libpcre3-dev`) directly contradicts your earlier successful run, which showed `libpcre2-dev is already the newest version`. I don't trust agent claims over observed reality without checking.
 
-[2026-06-23 10:32:07]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nSW=scripts/shells/linux/debian/install_shells/32_install_swoole.sh\nV=scripts/shells/linux/debian/debian_com/php_common_vars.sh\nS31=scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh\nS34=scripts/shells/linux/debian/install_shells/34_install_composer.sh\nAPT=scripts/shells/linux/common/apt_repository_manager.sh\necho \"### [HIGH] libpcre in 32 (does libpcre3-dev actually appear?) ###\"\ngrep -n 'libpcre' $SW || echo \"  no libpcre reference at all\"\necho\necho \"### Swoole build gate: literal 8.5 vs \\$PHP_VERSION ###\"\ngrep -nE '\\$php_ver.*==.*8\\.5|== \"8.5\"|\"8.5\"' $SW | head\necho\necho \"### [LOW] BINARY_STATES: keys defined in vars vs referenced in 31 ###\"\necho \"-- defined in php_common_vars.sh --\"; grep -nE '\\[\"[A-Z_]+\"\\]=' $V | grep -iE 'PHP_OK|PHP_BROKEN|PHP_MISSING|PHP_WRONG' || echo \"  (none of PHP_OK/PHP_BROKEN found)\"\necho \"-- referenced in 31 --\"; grep -nE 'BINARY_STATES\\[\"(PHP_OK|PHP_BROKEN)\"\\]' $S31 || echo \"  (not referenced)\"\necho\necho \"### [LOW] composer wrapper heredoc quoting in 34 ###\"\ngrep -nE \"tee .*composer.*EOF|<< 'EOF'|/usr/local/bin/php -d|composer.original\" $S34 | head\necho\necho \"### [LOW] curl | gpg --dearmor pipelines in apt_repository_manager.sh ###\"\ngrep -nE 'curl .*\\| .*gpg --dearmor' $APT | head\necho\necho \"### [MED] backup_apt_sources stdout: does it echo a path on stdout? ###\"\ngrep -nE 'backup_apt_sources_from_apt_repository_manager\\(\\)|return 0' $APT | grep -i backup | head\necho \"### [LOW] apt.conf Check-Valid-Until persisted? ###\"\ngrep -n 'Check-Valid-Until' $APT | head", "description": "Verify survivor findings against actual source"}
+[2026-06-23 10:32:07]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nSW=scripts/shells/linux/debian/install_shells/32_install_swoole.sh\nV=scripts/shells/linux/debian/debian_com/php_common_vars.sh\nS31=scripts/shells/linux/debian/install_shells/31_ensure_php85_intelligent.sh\nS34=scripts/shells/linux/debian/install_shells/47_install_composer.sh\nAPT=scripts/shells/linux/common/apt_repository_manager.sh\necho \"### [HIGH] libpcre in 32 (does libpcre3-dev actually appear?) ###\"\ngrep -n 'libpcre' $SW || echo \"  no libpcre reference at all\"\necho\necho \"### Swoole build gate: literal 8.5 vs \\$PHP_VERSION ###\"\ngrep -nE '\\$php_ver.*==.*8\\.5|== \"8.5\"|\"8.5\"' $SW | head\necho\necho \"### [LOW] BINARY_STATES: keys defined in vars vs referenced in 31 ###\"\necho \"-- defined in php_common_vars.sh --\"; grep -nE '\\[\"[A-Z_]+\"\\]=' $V | grep -iE 'PHP_OK|PHP_BROKEN|PHP_MISSING|PHP_WRONG' || echo \"  (none of PHP_OK/PHP_BROKEN found)\"\necho \"-- referenced in 31 --\"; grep -nE 'BINARY_STATES\\[\"(PHP_OK|PHP_BROKEN)\"\\]' $S31 || echo \"  (not referenced)\"\necho\necho \"### [LOW] composer wrapper heredoc quoting in 34 ###\"\ngrep -nE \"tee .*composer.*EOF|<< 'EOF'|/usr/local/bin/php -d|composer.original\" $S34 | head\necho\necho \"### [LOW] curl | gpg --dearmor pipelines in apt_repository_manager.sh ###\"\ngrep -nE 'curl .*\\| .*gpg --dearmor' $APT | head\necho\necho \"### [MED] backup_apt_sources stdout: does it echo a path on stdout? ###\"\ngrep -nE 'backup_apt_sources_from_apt_repository_manager\\(\\)|return 0' $APT | grep -i backup | head\necho \"### [LOW] apt.conf Check-Valid-Until persisted? ###\"\ngrep -n 'Check-Valid-Until' $APT | head", "description": "Verify survivor findings against actual source"}
 
 [2026-06-23 10:32:07]   <- tool result:
 ### [HIGH] libpcre in 32 (does libpcre3-dev actually appear?) ###
@@ -14925,7 +14925,7 @@ install_swoole_dependencies() {
 [2026-06-23 10:33:24] ASSISTANT:
 Findings confirmed real. The `libpcre3-dev` is the wipe-reverted install-breaker (your working run had `libpcre2-dev`). Let me read the two delicate spots (composer heredocs, curl|gpg sites) so I can edit them precisely, then apply the contained fixes.
 
-[2026-06-23 10:33:28]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nS34=scripts/shells/linux/debian/install_shells/34_install_composer.sh\nAPT=scripts/shells/linux/common/apt_repository_manager.sh\necho \"===== 34 composer wrapper heredocs (428,466) =====\"\nsed -n '428,466p' $S34\necho \"===== apt 385,395 =====\"\nsed -n '385,395p' $APT\necho \"===== apt 1102,1112 =====\"\nsed -n '1102,1112p' $APT", "description": "Read composer heredocs and curl|gpg contexts"}
+[2026-06-23 10:33:28]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nS34=scripts/shells/linux/debian/install_shells/47_install_composer.sh\nAPT=scripts/shells/linux/common/apt_repository_manager.sh\necho \"===== 34 composer wrapper heredocs (428,466) =====\"\nsed -n '428,466p' $S34\necho \"===== apt 385,395 =====\"\nsed -n '385,395p' $APT\necho \"===== apt 1102,1112 =====\"\nsed -n '1102,1112p' $APT", "description": "Read composer heredocs and curl|gpg contexts"}
 
 [2026-06-23 10:33:28]   <- tool result:
 ===== 34 composer wrapper heredocs (428,466) =====
@@ -14981,7 +14981,7 @@ EOF
 [2026-06-23 10:33:51] ASSISTANT:
 Now I have the contexts. Let me read the second composer heredoc body, then apply the contained fixes.
 
-[2026-06-23 10:33:53]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nsed -n '466,492p' scripts/shells/linux/debian/install_shells/34_install_composer.sh", "description": "Read second composer wrapper heredoc body"}
+[2026-06-23 10:33:53]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nsed -n '466,492p' scripts/shells/linux/debian/install_shells/47_install_composer.sh", "description": "Read second composer wrapper heredoc body"}
 
 [2026-06-23 10:33:53]   <- tool result:
 # Create main composer wrapper
@@ -15117,8 +15117,8 @@ Let me read the final section of the record (the 31→34 alignment spec).
 [2026-06-23 10:36:29]   <- tool result:
 1319	❯ 31_ensure_php85_intelligent.sh
 1320	    32_install_swoole.sh
-1321	    33_configure_php85.sh
-1322	    34_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
+1321	    45_configure_php85.sh
+1322	    47_install_composer.sh Logic and DATA share to,behavior,and datarelationsships remainconsistent before and after each step.
 1323	
 1324	This is a cross-script consistency audit across the 4-step PHP pipeline (31→32→33→34): make their shared logic and data aligned, and ensure each step's pre/post-conditions stay consistent. Let me first map the shared data model and how each script sources it.
 1325	
@@ -15221,7 +15221,7 @@ The file /mnt/dev_nvme0n1p1/programing/core_node/scripts/shells/linux/debian/ins
 [2026-06-23 10:38:33] ASSISTANT:
 Both restorations applied. Now let me verify the code matches the record's documented final state across all key spots — confirming the record-faithful values are present and that **no** cross-validation extras leaked in — then validate syntax.
 
-[2026-06-23 10:38:42]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nSW=scripts/shells/linux/debian/install_shells/32_install_swoole.sh\nV=scripts/shells/linux/debian/debian_com/php_common_vars.sh\necho \"=== restorations applied (record-faithful) ===\"\ngrep -n 'libpcre2-dev' $SW && echo \"  -> libpcre2-dev OK (matches record run line 1157)\"\ngrep -nF \"tried '\\$GLOBAL_TEMP_DIR', /var/tmp, /tmp\" $SW >/dev/null && echo \"  -> build-dir message matches record\"\necho\necho \"=== record-faithful: gate KEPT literal 8.5 (NOT changed to \\$PHP_VERSION) ===\"\ngrep -nE '\\[\\[ \"\\$php_ver\" == \"8.5\" \\]\\]' $SW && echo \"  -> gate is literal 8.5 per record\"\necho\necho \"=== confirm NO cross-validation extras were introduced ===\"\nprintf '  BINARY_STATES PHP_OK key (should be ABSENT per record): '; grep -q '\"PHP_OK\"' $V && echo \"PRESENT (extra!)\" || echo \"absent ✓\"\nprintf '  composer heredoc still single-quoted <<\\x27EOF\\x27 (record): '; grep -q \"tee \\\"\\$COMPOSER_SAFE_PATH\\\" > /dev/null << 'EOF'\" scripts/shells/linux/debian/install_shells/34_install_composer.sh && echo \"yes ✓\" || echo \"CHANGED (extra!)\"\nprintf '  curl|gpg still plain pipe (record): '; grep -q 'if curl -fsSL \"\\$key_url\" | \\$USE_SUDO gpg --dearmor' scripts/shells/linux/common/apt_repository_manager.sh && echo \"yes ✓\" || echo \"CHANGED (extra!)\"\necho\necho \"=== bash -n on the file I touched + siblings ===\"\nfor f in $SW scripts/shells/linux/common/apt_repository_manager.sh $V; do bash -n \"$f\" && echo \"  OK $(basename $f)\" || echo \"  FAIL $f\"; done\necho\necho \"=== git status of the touched file ===\"\ngit status --short $SW", "description": "Verify record-faithful restorations and no extras"}
+[2026-06-23 10:38:42]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nSW=scripts/shells/linux/debian/install_shells/32_install_swoole.sh\nV=scripts/shells/linux/debian/debian_com/php_common_vars.sh\necho \"=== restorations applied (record-faithful) ===\"\ngrep -n 'libpcre2-dev' $SW && echo \"  -> libpcre2-dev OK (matches record run line 1157)\"\ngrep -nF \"tried '\\$GLOBAL_TEMP_DIR', /var/tmp, /tmp\" $SW >/dev/null && echo \"  -> build-dir message matches record\"\necho\necho \"=== record-faithful: gate KEPT literal 8.5 (NOT changed to \\$PHP_VERSION) ===\"\ngrep -nE '\\[\\[ \"\\$php_ver\" == \"8.5\" \\]\\]' $SW && echo \"  -> gate is literal 8.5 per record\"\necho\necho \"=== confirm NO cross-validation extras were introduced ===\"\nprintf '  BINARY_STATES PHP_OK key (should be ABSENT per record): '; grep -q '\"PHP_OK\"' $V && echo \"PRESENT (extra!)\" || echo \"absent ✓\"\nprintf '  composer heredoc still single-quoted <<\\x27EOF\\x27 (record): '; grep -q \"tee \\\"\\$COMPOSER_SAFE_PATH\\\" > /dev/null << 'EOF'\" scripts/shells/linux/debian/install_shells/47_install_composer.sh && echo \"yes ✓\" || echo \"CHANGED (extra!)\"\nprintf '  curl|gpg still plain pipe (record): '; grep -q 'if curl -fsSL \"\\$key_url\" | \\$USE_SUDO gpg --dearmor' scripts/shells/linux/common/apt_repository_manager.sh && echo \"yes ✓\" || echo \"CHANGED (extra!)\"\necho\necho \"=== bash -n on the file I touched + siblings ===\"\nfor f in $SW scripts/shells/linux/common/apt_repository_manager.sh $V; do bash -n \"$f\" && echo \"  OK $(basename $f)\" || echo \"  FAIL $f\"; done\necho\necho \"=== git status of the touched file ===\"\ngit status --short $SW", "description": "Verify record-faithful restorations and no extras"}
 
 [2026-06-23 10:38:42]   <- tool result:
 === restorations applied (record-faithful) ===
@@ -15249,7 +15249,7 @@ Both restorations applied. Now let me verify the code matches the record's docum
 [2026-06-23 10:38:58] ASSISTANT:
 The composer-heredoc "CHANGED" verdict is a **false positive** from my grep (it matched on the variable's quote style, which the record's lossy paste rendered differently). The important thing is whether the heredoc is still `<< 'EOF'` with hardcoded paths (record-faithful) — i.e., that my earlier composer-interpolation idea never got applied. Let me confirm cleanly.
 
-[2026-06-23 10:39:04]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nS34=scripts/shells/linux/debian/install_shells/34_install_composer.sh\necho \"=== composer heredocs: delimiter + exec line (must be record-faithful: <<'EOF' + hardcoded) ===\"\ngrep -nE \"tee .*COMPOSER.*<< 'EOF'|<< EOF$|exec /usr/local/bin/php -d|exec \\\"\\\\\\$TARGET_LINK_PATH\\\"\" $S34\necho\necho \"=== verdict ===\"\nif grep -q \"<< 'EOF'\" $S34 && grep -q 'exec /usr/local/bin/php -d \"open_basedir=none\" /usr/local/bin/composer.original' $S34; then\n  echo \"  composer wrappers UNCHANGED from record (single-quoted heredoc, hardcoded paths) ✓\"\nelse\n  echo \"  composer wrappers were modified — needs review\"\nfi\necho\necho \"=== final: only 32 is dirty, and only the 2 record restorations ===\"\ngit diff --stat scripts/shells/linux/debian/install_shells/32_install_swoole.sh\ngit diff scripts/shells/linux/debian/install_shells/32_install_swoole.sh | grep -E '^[+-]' | grep -vE '^[+-]{3}'", "description": "Confirm composer heredoc record-faithful and 32 diff is only the 2 restorations"}
+[2026-06-23 10:39:04]   -> tool: Bash  {"command": "cd /mnt/dev_nvme0n1p1/programing/core_node\nS34=scripts/shells/linux/debian/install_shells/47_install_composer.sh\necho \"=== composer heredocs: delimiter + exec line (must be record-faithful: <<'EOF' + hardcoded) ===\"\ngrep -nE \"tee .*COMPOSER.*<< 'EOF'|<< EOF$|exec /usr/local/bin/php -d|exec \\\"\\\\\\$TARGET_LINK_PATH\\\"\" $S34\necho\necho \"=== verdict ===\"\nif grep -q \"<< 'EOF'\" $S34 && grep -q 'exec /usr/local/bin/php -d \"open_basedir=none\" /usr/local/bin/composer.original' $S34; then\n  echo \"  composer wrappers UNCHANGED from record (single-quoted heredoc, hardcoded paths) ✓\"\nelse\n  echo \"  composer wrappers were modified — needs review\"\nfi\necho\necho \"=== final: only 32 is dirty, and only the 2 record restorations ===\"\ngit diff --stat scripts/shells/linux/debian/install_shells/32_install_swoole.sh\ngit diff scripts/shells/linux/debian/install_shells/32_install_swoole.sh | grep -E '^[+-]' | grep -vE '^[+-]{3}'", "description": "Confirm composer heredoc record-faithful and 32 diff is only the 2 restorations"}
 
 [2026-06-23 10:39:04]   <- tool result:
 === composer heredocs: delimiter + exec line (must be record-faithful: <<'EOF' + hardcoded) ===
@@ -16949,8 +16949,8 @@ Available installation scripts:
   30_install_edge.sh
   31_ensure_php85_intelligent.sh
   32_install_swoole.sh
-  33_configure_php85.sh
-  34_install_composer.sh
+  45_configure_php85.sh
+  47_install_composer.sh
   35_install_chrome.sh
   36_install_puppeteer_plugins.sh
   37_install_dotnet.sh

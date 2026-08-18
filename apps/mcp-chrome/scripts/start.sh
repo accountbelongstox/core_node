@@ -244,7 +244,7 @@ mcp_ensure_node_deps() {
     mcp_node_bin_dir=$(mcp_find_node_bin_dir)
     if [ -z "$mcp_node_bin_dir" ]; then
         echo -e "${RED}  [ERROR] Node.js not found in any known location${NC}"
-        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/16_install_node_24.sh${NC}"
+        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/17_install_node_24.sh${NC}"
         exit 1
     fi
 
@@ -291,7 +291,7 @@ mcp_ensure_node_deps() {
     # Final check
     if ! command -v pnpm &>/dev/null; then
         echo -e "${RED}  [ERROR] pnpm auto-install failed${NC}"
-        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/29_ensure_pnpm_packages.sh${NC}"
+        echo -e "${YELLOW}  Run prerequisite: scripts/shells/linux/debian/install_shells/37_ensure_pnpm_packages.sh${NC}"
         exit 1
     fi
     echo -e "${GREEN}  [OK] pnpm auto-installed successfully${NC}"

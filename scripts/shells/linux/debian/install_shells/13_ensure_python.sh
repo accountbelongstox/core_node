@@ -339,7 +339,7 @@ check_urllib3_for_certbot() {
         return 0
     fi
 
-    # pipx-isolated certbot (27_install_certbot.sh) runs inside its own venv
+    # pipx-isolated certbot (35_install_certbot.sh) runs inside its own venv
     # and never touches the system interpreter, so the system-side urllib3
     # policy is irrelevant to it. Detect by the link target (file-based);
     # the legacy system-side repair below remains only for a legacy
@@ -387,7 +387,7 @@ check_urllib3_for_certbot() {
 
     echo ">>> Installing certbot-compatible urllib3 (system-side)..."
     # certbot 2.x depends on urllib3.util.ssl_.DEFAULT_CIPHERS, which urllib3 2.x REMOVED, so
-    # this repair pins the last 1.x (1.26.18) -- the SAME version 27_install_certbot.sh enforces
+    # this repair pins the last 1.x (1.26.18) -- the SAME version 35_install_certbot.sh enforces
     # (one system-python urllib3 policy; --no-user matches 26 too). Upgrading to a newer 2.x
     # would not fix a DEFAULT_CIPHERS failure. The worker venv owns its modern urllib3 major in
     # third_party.py) is a SEPARATE interpreter and is unaffected.

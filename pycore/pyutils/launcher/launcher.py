@@ -14,7 +14,7 @@ sibling modules under this package:
 This file keeps the CLI orchestrator (_parse_launch_args / main) and re-exports
 the public API so existing importers are unaffected:
   - __init__.py / __main__.py : `from ...launcher import WindowLauncher, main`
-  - 152_install_terminal_grid_shortcut.sh : WindowLauncher(...).launch_windows(limit=...)
+  - 193_install_terminal_grid_shortcut.sh : WindowLauncher(...).launch_windows(limit=...)
 Backwards-compat re-exports below cover WindowLauncher, main, get_windows_version,
 get_dev_env_path, ensure_desktop_shortcut, show_admin_permission_warning,
 launch_pycore_module and the (deleted) launch_device_sync (kept as a no-op stub).

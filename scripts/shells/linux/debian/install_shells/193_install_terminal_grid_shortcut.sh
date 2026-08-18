@@ -21,7 +21,7 @@
 # NON-FATAL: a missing tool/python only degrades the launch; install never aborts.
 #
 # Usage:
-#   ./152_install_terminal_grid_shortcut.sh
+#   ./193_install_terminal_grid_shortcut.sh
 #
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
@@ -92,7 +92,7 @@ ensure_launcher_prerequisites() {
         echo "[grid] Windows Terminal (wt) present."
         return 0
     fi
-    echo "[grid] [i] wt not on PATH; run 105_install_launcher.sh or prepare_pycore_prerequisites.sh separately."
+    echo "[grid] [i] wt not on PATH; run 119_install_launcher.sh or prepare_pycore_prerequisites.sh separately."
     return 0
 }
 

@@ -84,7 +84,7 @@ fi
 # Verify pnpm is accessible
 if ! command -v pnpm >/dev/null 2>&1; then
     echo "[$SCRIPT_INDEX] ERROR: pnpm not found in PATH"
-    echo "[$SCRIPT_INDEX] Please run 29_ensure_pnpm_packages.sh first"
+    echo "[$SCRIPT_INDEX] Please run 37_ensure_pnpm_packages.sh first"
 else
     echo "[$SCRIPT_INDEX] pnpm version: $(pnpm --version)"
     echo "[$SCRIPT_INDEX] pnpm location: $(which pnpm)"

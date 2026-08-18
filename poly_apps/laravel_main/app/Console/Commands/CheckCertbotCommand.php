@@ -66,7 +66,7 @@ class CheckCertbotCommand extends Command
         $this->warn("Installation Options:");
         $this->info("");
         $this->info("Option 1: Use the provided installation script");
-        $this->info("  bash /www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/27_install_certbot.sh");
+        $this->info("  bash /www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/35_install_certbot.sh");
         $this->info("");
         $this->info("Option 2: Install manually");
         $this->info("  sudo apt update");
@@ -84,7 +84,7 @@ class CheckCertbotCommand extends Command
         $this->info("Attempting to install certbot...");
         
         // Try using the installation script first
-        $scriptPath = '/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/27_install_certbot.sh';
+        $scriptPath = '/www/wwwroot/core_node/scripts/shells/linux/debian/install_shells/35_install_certbot.sh';
         
         if (file_exists($scriptPath)) {
             $this->info("Using installation script: $scriptPath");

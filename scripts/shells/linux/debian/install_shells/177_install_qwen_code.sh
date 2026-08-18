@@ -13,8 +13,8 @@
 
 # Qwen Code (qwen CLI) installation. Official Alibaba/QwenLM coding agent CLI.
 # Installed via the shared npm global (the same pattern used for pnpm/yarn in
-# 16_install_node_24.sh), so it lands in the shared NODE_BIN_DIR and is available to
-# ALL users. 16_install_node_24.sh chmod-777s the node dir so non-root users can run
+# 17_install_node_24.sh), so it lands in the shared NODE_BIN_DIR and is available to
+# ALL users. 17_install_node_24.sh chmod-777s the node dir so non-root users can run
 # `npm install -g` too. Official sources:
 #   https://github.com/QwenLM/qwen-code   (npm: @qwen-code/qwen-code)
 # Alternative official installer (per-user, ~/.local/bin):
@@ -64,7 +64,7 @@ fi
 
 NPM_BIN_RESOLVED="$(resolve_npm_bin)"
 if [ -z "$NPM_BIN_RESOLVED" ]; then
-    echo "[$SCRIPT_INDEX] [ERROR] npm not found. Run 16_install_node_24.sh first."
+    echo "[$SCRIPT_INDEX] [ERROR] npm not found. Run 17_install_node_24.sh first."
     return
 fi
 echo "[$SCRIPT_INDEX] Using npm: $NPM_BIN_RESOLVED"

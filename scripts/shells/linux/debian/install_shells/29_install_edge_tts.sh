@@ -28,8 +28,8 @@ source "$PARENT_DIR_LEVEL_2/common/venv_python_common.sh"
 # pyservice prerequisite reference) to keep one copy of the logic.
 #
 # Invocation contracts:
-#   - install.sh flow:  22_install_edge_tts.sh             (no args; resolves python)
-#   - pyservice flow:   22_install_edge_tts.sh --python <py> [--force]
+#   - install.sh flow:  29_install_edge_tts.sh             (no args; resolves python)
+#   - pyservice flow:   29_install_edge_tts.sh --python <py> [--force]
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$SCRIPT_DIR/../../common/tts_install_assets_common.sh"

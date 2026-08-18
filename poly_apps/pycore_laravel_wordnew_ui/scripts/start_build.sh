@@ -11,10 +11,10 @@
 # Capacitor native build entry (Linux/Debian; incl. WSL) for pycore_laravel_wordnew_ui.
 # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated to
 # the idempotent installer steps referenced by FULL PATH (dd.sh install_shells menu):
-#   16_install_node_24.sh        - node + pnpm
+#   17_install_node_24.sh        - node + pnpm
 #   13_ensure_python.sh          - python
-#   55_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
-#   142_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
+#   93_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
+#   187_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
 #                                  platforms;android-36 + build-tools;36.0.0
 # (each step is per-detail idempotent: every component is gated by binary existence)
 # Flow control here uses NO exit codes and NO install functions: progress is judged
@@ -39,10 +39,10 @@ REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
 # dd idempotent steps + central library (FULL PATHS from the dd directory layout)
 LINUX_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux"
-STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/16_install_node_24.sh"
+STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_24.sh"
 STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
-STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/55_install_java.sh"
-STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/142_install_android_sdk.sh"
+STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/93_install_java.sh"
+STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
 ANDROID_BUILD_ENV="${LINUX_SHELLS_DIR}/common/android_build_env.sh"
 GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 PACKAGE_JSON="${APP_ROOT}/package.json"
@@ -178,7 +178,7 @@ if [ "$READY" -eq 1 ] && ! test_pnpm_ready; then
     invoke_step "$STEP_NODE"
     hash -r 2>/dev/null || true
     if ! test_pnpm_ready; then
-        err "pnpm still missing after 16_install_node_24.sh."
+        err "pnpm still missing after 17_install_node_24.sh."
         READY=0
     fi
 fi
@@ -212,7 +212,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
         invoke_step "$STEP_JAVA"
         android_build_resolve_java_home
         if ! android_build_java_ready; then
-            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 55_install_java.sh."
+            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 93_install_java.sh."
             READY=0
         fi
     fi
@@ -225,7 +225,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
         invoke_step "$STEP_ANDROID_SDK"
         android_build_resolve_sdk_root
         if ! android_build_test_sdk_ready; then
-            err "Android SDK packages still missing after 142_install_android_sdk.sh (check network/proxy: HTTPS_PROXY)."
+            err "Android SDK packages still missing after 187_install_android_sdk.sh (check network/proxy: HTTPS_PROXY)."
             READY=0
         fi
     fi

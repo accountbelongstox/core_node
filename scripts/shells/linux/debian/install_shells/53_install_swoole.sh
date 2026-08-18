@@ -102,7 +102,7 @@ ensure_php_symlink() {
 
     if [ ! -x "$PHP_BIN" ]; then
         echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} binary not found at $PHP_BIN${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 32_ensure_php85_intelligent.sh first${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 43_ensure_php85_intelligent.sh first${NC}"
         return 1
     fi
 

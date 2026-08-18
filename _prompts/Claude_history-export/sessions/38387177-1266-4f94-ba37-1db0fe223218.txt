@@ -11,5 +11,5 @@ PROMPTS : 1
 [2026-06-23 10:14:15] USER:
 31_ensure_php85_intelligent.sh
   32_install_swoole.sh
-  33_configure_php85.sh
-  34_install_composer.sh Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.
+  45_configure_php85.sh
+  47_install_composer.sh Logic and DATA share to aliend, Ensure tha the logic,behavior,and datarelationsships remain consistent before and after each step.

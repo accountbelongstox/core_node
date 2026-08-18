@@ -54,7 +54,7 @@ install_poetry_in_uv_venv() {
 
     # Check if uv is available
     if ! command -v uv >/dev/null 2>&1; then
-        echo "Error: uv not found. Please install uv first (script 20_install_uv.sh)"
+        echo "Error: uv not found. Please install uv first (script 25_install_uv.sh)"
         return 1
     fi
 

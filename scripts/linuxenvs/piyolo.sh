@@ -399,5 +399,19 @@ if [ "$PREREQUISITES_READY" -eq 1 ] && [ "$PROVIDER_READY" -eq 1 ]; then
 elif [ "$PREREQUISITES_READY" -eq 1 ] && [ "$PROVIDER_READY" -eq 0 ]; then
     echo "[ERROR] No reusable $VOLC_PROFILE_TYPE API key was found in the local Ark profiles."
 else
-    echo "[ERROR] Pi prerequisites are incomplete. Run 141_install_pi_harness.sh first."
+    if [ "${PIYOLO_AUTO_INSTALL:-0}" -eq 1 ]; then
+        echo "[ERROR] Pi prerequisites are still incomplete after automatic installation."
+        exit 1
+    fi
+    echo "[INFO] Pi prerequisites are incomplete. Automatically running 185_install_pi_harness.sh..."
+    PI_HARNESS_SCRIPT="$CORE_NODE_DIR/scripts/shells/linux/debian/install_shells/185_install_pi_harness.sh"
+    if [ -f "$PI_HARNESS_SCRIPT" ]; then
+        bash "$PI_HARNESS_SCRIPT"
+        echo "[INFO] Restarting piyolo.sh..."
+        export PIYOLO_AUTO_INSTALL=1
+        exec "$SCRIPT_SOURCE" "${FORWARD_ARGS[@]}"
+    else
+        echo "[ERROR] Pi prerequisites are incomplete. Run 185_install_pi_harness.sh first."
+        exit 1
+    fi
 fi

@@ -17,14 +17,14 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
     /**
      * Hint shown when nginx is not installed on the host
      */
-    private const NGINX_INSTALL_HINT = 'nginx is not installed. Run: bash scripts/shells/linux/debian/install_shells/26_install_nginx.sh (idempotent installer)';
+    private const NGINX_INSTALL_HINT = 'nginx is not installed. Run: bash scripts/shells/linux/debian/install_shells/33_install_nginx.sh (idempotent installer)';
 
     // SYNC CONTRACT (two ends, one truth): this controller is the Laravel end
     // of nginx lifecycle management (install / repair / service / sites /
     // backups / metrics). The shell end is:
     //   scripts/shells/linux/common/nginx_manager.sh (CLI primitives)
     //   scripts/shells/linux/common/nginx_common.sh (repair + renderers)
-    //   scripts/shells/linux/debian/install_shells/26_install_nginx.sh (dd.sh step)
+    //   scripts/shells/linux/debian/install_shells/33_install_nginx.sh (dd.sh step)
     // Any change to repair semantics, upgrade policy, or service control MUST
     // be applied to both ends in the same change. The UI
     // (http://127.0.0.1:13054/laravel-manager#/server) talks ONLY to this API;
@@ -1298,7 +1298,7 @@ class ServerManagerV1NginxManagerCtl extends ServerManagerV1BaseCtl
 
             // Repo root: laravel_main lives at <repo>/poly_apps/laravel_main
             $repoRoot = dirname(dirname(base_path()));
-            $script = $repoRoot . '/scripts/shells/linux/debian/install_shells/26_install_nginx.sh';
+            $script = $repoRoot . '/scripts/shells/linux/debian/install_shells/33_install_nginx.sh';
 
             if (!is_file($script)) {
                 return $this->error(

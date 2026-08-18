@@ -24,7 +24,7 @@
 # this script provisions the tooling only.
 #
 # Conventions: pipx is referenced by the ABSOLUTE path owned by the
-# prerequisite installer 17_enable_pipx.sh ($COMPILE_DIR/pipx_venv/bin/pipx);
+# prerequisite installer 19_enable_pipx.sh ($COMPILE_DIR/pipx_venv/bin/pipx);
 # binaries are detected by existence tests (-x), never by command output;
 # functions do not communicate results via exit codes - every step self-detects
 # its own prerequisites and no-ops when they are unmet, so one step's state
@@ -84,8 +84,8 @@ RENEWAL_TIMER_NAME="certbot-renewal"
 CERT_SELFHEAL_COMMON="$PARENT_DIR_LEVEL_2/common/cert_selfheal_common.sh"
 CERTBOT_BIN_LINK="/usr/local/bin/certbot"
 CERTBOT_UPDATE_STAMP="/usr/local/etc/.certbot_pipx_update_stamp"
-PIPX_ENSURE_SCRIPT="$SCRIPT_CURRENT_DIR/17_enable_pipx.sh"
-# Absolute paths owned by the prerequisite installer (17_enable_pipx.sh).
+PIPX_ENSURE_SCRIPT="$SCRIPT_CURRENT_DIR/19_enable_pipx.sh"
+# Absolute paths owned by the prerequisite installer (19_enable_pipx.sh).
 PIPX_BIN="$COMPILE_DIR/pipx_venv/bin/pipx"
 PIPX_HOME_DIR="$COMPILE_DIR/pipx_home"
 PIPX_BIN_DIR="/usr/local/bin"
@@ -121,7 +121,7 @@ pipx_run() {
 }
 
 # STEP: ensure pipx itself at the prerequisite script's absolute path
-# (delegates to 17_enable_pipx.sh when the binary is absent, then trusts the
+# (delegates to 19_enable_pipx.sh when the binary is absent, then trusts the
 # resolved path).
 ensure_pipx() {
     if [ -x "$PIPX_BIN" ]; then
@@ -449,7 +449,7 @@ echo "[$SCRIPT_INDEX] ================================="
 echo "[$SCRIPT_INDEX] CERTBOT INSTALLATION (pipx-isolated, idempotent)"
 echo "[$SCRIPT_INDEX] ================================="
 
-# STEP 1: pipx itself (absolute path owned by 17_enable_pipx.sh)
+# STEP 1: pipx itself (absolute path owned by 19_enable_pipx.sh)
 step_run "$CERTBOT_STEP_NAMESPACE" "pipx-present" "v1" ensure_pipx
 
 # STEP 2: preflight conflict scan (informational, always runs)

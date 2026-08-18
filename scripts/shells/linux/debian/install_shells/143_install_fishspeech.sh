@@ -6,7 +6,7 @@
 # Official SDK: https://docs.fish.audio/developer-guide/sdk-guide/quickstart
 # Local server: https://speech.fish.audio/server/
 #
-# Invocation: 117_install_fishspeech.sh --python <py> [--full] [--force]
+# Invocation: 143_install_fishspeech.sh --python <py> [--full] [--force]
 # Env: FISHSPEECH_SKIP=1, FISHSPEECH_INSTALL=1, NEURAL_TTS_INSTALL=1, FISHSPEECH_DIR, FISH_API_KEY
 set -uo pipefail
 

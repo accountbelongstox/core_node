@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Canonical Laravel production service launcher (Octane/Swoole), common-area
-# copy used by 132_laravel_main_start.sh and the systemd units it registers.
+# copy used by 175_laravel_main_start.sh and the systemd units it registers.
 # LARAVEL_DIR falls back to the core_node layout; PORT selects the bind port.
 #
 # SYNC CONTRACT: the per-app instance is

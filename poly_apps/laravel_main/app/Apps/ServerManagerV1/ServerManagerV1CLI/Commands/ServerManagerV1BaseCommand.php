@@ -507,7 +507,7 @@ abstract class ServerManagerV1BaseCommand extends Command
             $this->warn("To install certbot, run the following command:");
             $coreNodePath = \App\Providers\PathMapper::getCoreNodeDir();
             if ($coreNodePath) {
-                $this->info("  bash $coreNodePath/scripts/shells/linux/debian/install_shells/27_install_certbot.sh");
+                $this->info("  bash $coreNodePath/scripts/shells/linux/debian/install_shells/35_install_certbot.sh");
             }
             $this->warn("Or install manually:");
             $this->info("  sudo apt update && sudo apt install -y certbot python3-certbot-nginx");

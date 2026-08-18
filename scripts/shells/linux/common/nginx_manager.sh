@@ -30,7 +30,7 @@
 # list changes.
 #
 # Lifecycle split: initial provisioning runs through the shell end
-# (dd.sh -> 26_install_nginx.sh -> this manager; or 132_laravel_main_start.sh
+# (dd.sh -> 33_install_nginx.sh -> this manager; or 175_laravel_main_start.sh
 # -> this manager). After provisioning, day-to-day management runs through the
 # UI -> laravel_main API (the Laravel end), which renders the SAME canonical
 # vhost stanzas.
@@ -812,13 +812,13 @@ nm_cert_ensure() {
 
 # Renew all certificates and reload nginx on change (the renewal timer calls
 # certbot directly; this subcommand is the manual/management path). Uses the
-# canonical pipx link owned by 27_install_certbot.sh (binary-existence gate).
+# canonical pipx link owned by 35_install_certbot.sh (binary-existence gate).
 nm_cert_renew() {
     local sudo_cmd
     local certbot_bin="/usr/local/bin/certbot"
     sudo_cmd=$(lazy_sudo)
     if [ ! -x "$certbot_bin" ]; then
-        echo "[nginx-mgr] [WARN] certbot not installed at $certbot_bin; run 27_install_certbot.sh first"
+        echo "[nginx-mgr] [WARN] certbot not installed at $certbot_bin; run 35_install_certbot.sh first"
         return 0
     fi
     $sudo_cmd "$certbot_bin" renew --quiet

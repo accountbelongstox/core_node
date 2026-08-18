@@ -9,7 +9,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 32_ensure_php85_intelligent.sh
+# Script: 43_ensure_php85_intelligent.sh
 # Description: Intelligent PHP 8.5 installation with multi-dimensional state detection
 # Author: System Administrator
 # Version: 1.0

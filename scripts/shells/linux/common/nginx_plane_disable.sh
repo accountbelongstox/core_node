@@ -11,10 +11,10 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Nginx plane-disable (common area; companion of nginx_manager.sh, called by
-# 28_install_frankenphp.sh for the web-server plane mutual exclusion, usable
+# 49_install_frankenphp.sh for the web-server plane mutual exclusion, usable
 # standalone). DISABLES THE SERVICE AND RECORDS STATE ONLY: never uninstalls
 # packages, never removes configs/sites/certificates - re-running
-# 26_install_nginx.sh (or nginx_manager.sh) restores the plane at any time.
+# 33_install_nginx.sh (or nginx_manager.sh) restores the plane at any time.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_INDEX="nginx-plane"

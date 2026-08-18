@@ -409,7 +409,7 @@ main() {
     install_language_support
 
     # Electron/GTK apps (Cursor, VS Code, Chrome) need explicit GTK + Wayland IME
-    # bridges; idempotent, also invoked from 122_install_cursor.sh.
+    # bridges; idempotent, also invoked from 155_install_cursor.sh.
     print_step_from_common_functions "Configuring Electron app IME compatibility (Cursor/VS Code)..."
     deic_ensure_electron_ime_compat "$REAL_USER" "$REAL_USER_HOME" "$FRAMEWORK"
     print_success_from_common_functions "Electron IME compatibility configured for $REAL_USER"
@@ -420,7 +420,7 @@ main() {
     # a no-op when Cursor is not installed, so every Wubi re-run stays safe.
     if [ -f /usr/share/applications/cursor.desktop ] || [ -L /usr/local/bin/cursor ]; then
         print_step_from_common_functions "Refreshing Cursor launcher IME bridge..."
-        bash "$SCRIPT_CURRENT_DIR/122_install_cursor.sh" refresh || true
+        bash "$SCRIPT_CURRENT_DIR/155_install_cursor.sh" refresh || true
     fi
 
     echo ""

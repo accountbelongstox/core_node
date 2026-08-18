@@ -50,7 +50,7 @@ NGINX_KNOWN_ALIAS_PATHS=(
 
 # Canonical filesystem constants — the single shell-side source, shared by
 # nginx_manager.sh / domain_setup_common.sh / cert_selfheal_common.sh /
-# 26_install_nginx.sh / 27_install_certbot.sh / 132_laravel_main_start.sh.
+# 33_install_nginx.sh / 35_install_certbot.sh / 175_laravel_main_start.sh.
 # The Laravel end mirrors the same paths through PathMapper::mapWebPath()
 # (ServerManagerV1PathConfig) — the cross-language SYNC CONTRACT. Paths are
 # identical on Ubuntu / Debian / Kali.
@@ -1045,7 +1045,7 @@ EOF
 NGINX_MANAGED_SITE_MARKER="managed-by: core_node"
 
 # Resolve the sites-available directory: map_web_path when gvar_common is
-# loaded, else the value 26_install_nginx.sh persisted, else the default.
+# loaded, else the value 33_install_nginx.sh persisted, else the default.
 nginx_get_sites_available() {
     if declare -F map_web_path >/dev/null 2>&1; then
         map_web_path "nginxconfig" "sites-available"

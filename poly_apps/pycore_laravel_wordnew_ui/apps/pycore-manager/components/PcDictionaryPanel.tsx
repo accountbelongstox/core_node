@@ -27,7 +27,7 @@ const D = {
   notInstalledBadge: 'not installed',                                   // 未安装
   entries: 'entries',                                                   // 词条
   notInstalled:
-    'ECDICT data is not installed. Run scripts/shells/linux/debian/install_shells/107_install_dictionaries.sh ' +
+    'ECDICT data is not installed. Run scripts/shells/linux/debian/install_shells/123_install_dictionaries.sh ' +
     '(or pyservice prepare.sh) to download the offline dictionary.',    // 未安装 ECDICT 数据，请运行安装脚本
   notFound: 'No ECDICT entry for this word.',                           // 词库中没有该单词
   translation: 'Translation',                                          // 中文释义

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Canonical Composer vendor integrity ensure (Debian/Ubuntu/WSL), shared by the
-# laravel_main entry points (132_laravel_main_start.sh, laravel_start_service.sh,
+# laravel_main entry points (175_laravel_main_start.sh, laravel_start_service.sh,
 # poly_apps/laravel_main/scripts/start_service.sh) and run_app.sh.
 #
 # composer.lock is the single source of truth for vendor/. A bare existence

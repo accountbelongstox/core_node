@@ -12,7 +12,7 @@
 
 # Central Android build environment library (single source of truth) for the
 # Capacitor/AGP toolchain on Linux/Debian/WSL. Consumers:
-#   debian/install_shells/142_install_android_sdk.sh (dd idempotent step)
+#   debian/install_shells/187_install_android_sdk.sh (dd idempotent step)
 #   poly_apps/pycore_laravel_wordnew_ui/scripts/start_build.sh (build entry)
 # All detection is by BINARY EXISTENCE; all shared state lives in ANDROID_BUILD_*
 # globals so functions never depend on caller scope chains. Toolchain versions
@@ -53,7 +53,7 @@ android_build_java_major_of() {
 android_build_valid_java_home() { [ -n "$1" ] && [ -x "$1/bin/java" ]; }
 
 # Fill ANDROID_BUILD_JAVA_HOME by BINARY EXISTENCE: env JAVA_HOME ->
-# /etc/environment JAVA_HOME (written by 55_install_java.sh) -> PATH java ->
+# /etc/environment JAVA_HOME (written by 93_install_java.sh) -> PATH java ->
 # compile-dir JDKs (dd constant COMPILE_DIR + conventional mirrors) -> distro JVMs.
 android_build_resolve_java_home() {
     ANDROID_BUILD_JAVA_HOME="${JAVA_HOME:-}"

@@ -154,7 +154,7 @@ In relay mode:
 
 ## 1.5 Runtime capability question (from the task)
 
-Evaluate whether Octane (as used by `132_laravel_main_start.sh`) provides the
+Evaluate whether Octane (as used by `175_laravel_main_start.sh`) provides the
 b.txt capability. Answer shape expected (verified in Part 2):
 
 - Octane is the HTTP application server - it hosts no pub/sub and no roster

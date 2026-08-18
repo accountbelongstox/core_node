@@ -44,37 +44,37 @@ declare -A SERVICE_MANAGER_SCRIPT
 
 SERVICE_NAME["redis"]="Redis"
 SERVICE_SYSTEMD["redis"]="redis-server"
-SERVICE_INSTALL_SCRIPT["redis"]="46_install_redis.sh"
+SERVICE_INSTALL_SCRIPT["redis"]="73_install_redis.sh"
 SERVICE_MANAGER_SCRIPT["redis"]="$SERVER_MANAGER_DIR/redis_manager.sh"
 
 SERVICE_NAME["postgresql"]="PostgreSQL"
 SERVICE_SYSTEMD["postgresql"]="postgresql"
-SERVICE_INSTALL_SCRIPT["postgresql"]="47_install_postgresql.sh"
+SERVICE_INSTALL_SCRIPT["postgresql"]="75_install_postgresql.sh"
 SERVICE_MANAGER_SCRIPT["postgresql"]="$SERVER_MANAGER_DIR/postgresql_manager.sh"
 
 SERVICE_NAME["docker"]="Docker"
 SERVICE_SYSTEMD["docker"]="docker"
-SERVICE_INSTALL_SCRIPT["docker"]="48_install_docker.sh"
+SERVICE_INSTALL_SCRIPT["docker"]="79_install_docker.sh"
 SERVICE_MANAGER_SCRIPT["docker"]="$SERVER_MANAGER_DIR/docker_manager.sh"
 
 SERVICE_NAME["mysql"]="MySQL"
 SERVICE_SYSTEMD["mysql"]="mariadb"
-SERVICE_INSTALL_SCRIPT["mysql"]="51_install_mysql.sh"
+SERVICE_INSTALL_SCRIPT["mysql"]="85_install_mysql.sh"
 SERVICE_MANAGER_SCRIPT["mysql"]="$SERVER_MANAGER_DIR/mysql_manager.sh"
 
 SERVICE_NAME["nginx"]="Nginx"
 SERVICE_SYSTEMD["nginx"]="nginx"
-SERVICE_INSTALL_SCRIPT["nginx"]="26_install_nginx.sh"
+SERVICE_INSTALL_SCRIPT["nginx"]="33_install_nginx.sh"
 SERVICE_MANAGER_SCRIPT["nginx"]="$SERVER_MANAGER_DIR/nginx_manager.sh"
 
 SERVICE_NAME["ssh"]="SSH Server"
 SERVICE_SYSTEMD["ssh"]="ssh"
-SERVICE_INSTALL_SCRIPT["ssh"]="19_setup_ssh_remote.sh"
+SERVICE_INSTALL_SCRIPT["ssh"]="23_setup_ssh_remote.sh"
 SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
 
 SERVICE_NAME["pycore"]="Pycore HTTP"
 SERVICE_SYSTEMD["pycore"]="pycore-module-caller"
-SERVICE_INSTALL_SCRIPT["pycore"]="150_install_pycore_http_service.sh"
+SERVICE_INSTALL_SCRIPT["pycore"]="189_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
 
 SERVICE_NAME["laravel"]="Laravel Octane"

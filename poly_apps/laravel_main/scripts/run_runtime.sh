@@ -5,7 +5,7 @@
 #   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
 #   scripts/shells/linux/debian/debian_com/laravel_runtime_nginx.sh
 # selected by the shared web_server_plane constant (gvar_common.sh) - the
-# same dispatch 132_laravel_main_start.sh and the plane-aware laravel
+# same dispatch 175_laravel_main_start.sh and the plane-aware laravel
 # service perform. Change the branches and this delegate together.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

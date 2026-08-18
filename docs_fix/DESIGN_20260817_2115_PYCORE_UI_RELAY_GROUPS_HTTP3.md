@@ -21,7 +21,7 @@ probing.
 
 - `DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_0.md`
   Prerequisite: FrankenPHP server plane (single octane:frankenphp process,
-  built-in Mercure hub on 443/h3, plane constants, 28_install_frankenphp.sh,
+  built-in Mercure hub on 443/h3, plane constants, 49_install_frankenphp.sh,
   frankenphp_manager.sh, dual-end server manager, 132 branch, menu/toolchain,
   acceptance P0-A1..A6).
 - `DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_1.md`

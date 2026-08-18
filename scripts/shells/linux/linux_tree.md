@@ -38,10 +38,10 @@ linux/
 │   │   ├── 132_setup_domains.sh
 │   │   ├── 13_ensure_python.sh
 │   │   ├── 16_install_node_22.sh
-│   │   ├── 17_enable_pipx.sh
-│   │   ├── 18_enable_poetry.sh
-│   │   ├── 20_install_uv.sh
-│   │   ├── 21_install_git_ssh.sh
+│   │   ├── 19_enable_pipx.sh
+│   │   ├── 21_enable_poetry.sh
+│   │   ├── 25_install_uv.sh
+│   │   ├── 27_install_git_ssh.sh
 │   │   ├── 1_stop_aliyun.sh
 │   │   ├── 27_install_nginx.sh
 │   │   ├── 28_install_certbot.sh
@@ -57,8 +57,8 @@ linux/
 │   │   ├── 39_install_dotnet.sh
 │   │   ├── 40_install_flutter.sh
 │   │   ├── 3_stop_aliyun_cloudmonitor.sh
-│   │   ├── 46_install_redis.sh
-│   │   ├── 47_install_postgresql.sh
+│   │   ├── 73_install_redis.sh
+│   │   ├── 75_install_postgresql.sh
 │   │   ├── 49_install_docker.sh
 │   │   ├── 50_install_bt.sh
 │   │   ├── 50_install_mysql.sh

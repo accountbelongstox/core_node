@@ -4,7 +4,7 @@
 #
 # Official: pip install git+https://github.com/huggingface/parler-tts.git
 #
-# Invocation: 139_install_parler.sh --python <py> [--full] [--force]
+# Invocation: 181_install_parler.sh --python <py> [--full] [--force]
 # Env: PARLER_SKIP=1, PARLER_INSTALL=1, NEURAL_TTS_INSTALL=1, PARLER_DIR, PARLER_MODEL
 set -uo pipefail
 

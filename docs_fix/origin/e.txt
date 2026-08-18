@@ -2718,8 +2718,8 @@
    - `scripts/shells/linux/common/nginx_manager.sh` + domain
  templates: wss
      location (SYNC CONTRACT both ends).
-   - No change needed in `132_laravel_main_start.sh` /
- `26_install_nginx.sh`
+   - No change needed in `175_laravel_main_start.sh` /
+ `33_install_nginx.sh`
      flows - the wss stanza is another idempotent
  render/migrate step.
    - `common/frankenphp_manager.sh` + 28/132: Mercure
@@ -5069,10 +5069,10 @@
    - `common/frankenphp_manager.sh` + the 0.5 builder:
      rendering + interim `/app/*` line (SYNC CONTRACT both
  ends).
-   - `132_laravel_main_start.sh`: provision Mercure JWT keys
+   - `175_laravel_main_start.sh`: provision Mercure JWT keys
  into the secret
      store consumption path (like REVERB_* today).
-   - No change needed in `26_install_nginx.sh` flows - the
+   - No change needed in `33_install_nginx.sh` flows - the
  compat plane is
      frozen.
  3.8:
