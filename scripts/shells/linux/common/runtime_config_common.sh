@@ -17,13 +17,13 @@
 # poly_apps/laravel_main/app/Support/RuntimeConfigurationStore.php.
 #
 # Callers MUST provide before use: PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP.
-# Arguments travel via environment variables, NEVER via $argv: the embedded
-# frankenphp php-cli runner does not populate $argv for -r code, while
-# getenv() works identically on the real php CLI and the embedded runner.
+# Code runs through php_script_run (temp script file + env arguments): the
+# embedded frankenphp php-cli runner accepts neither -r nor $argv, while
+# the real php CLI handles the identical file+getenv() form.
 
 runtime_config_directory() {
     RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" \
-        "$PHP_BIN" -r '
+        php_script_run '
         $autoload = getenv("RC_ARG_AUTOLOAD");
         $bootstrap = getenv("RC_ARG_BOOTSTRAP");
         require $autoload;
@@ -36,7 +36,7 @@ runtime_config_get() {
     local key="$1"
 
     RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" RC_ARG_KEY="$key" \
-        "$PHP_BIN" -r '
+        php_script_run '
         $autoload = getenv("RC_ARG_AUTOLOAD");
         $bootstrap = getenv("RC_ARG_BOOTSTRAP");
         $key = getenv("RC_ARG_KEY");
@@ -56,7 +56,7 @@ runtime_config_put() {
 
     printf '%s' "$value" | \
         RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" RC_ARG_KEY="$key" \
-        "$PHP_BIN" -r '
+        php_script_run '
         $autoload = getenv("RC_ARG_AUTOLOAD");
         $bootstrap = getenv("RC_ARG_BOOTSTRAP");
         $key = getenv("RC_ARG_KEY");

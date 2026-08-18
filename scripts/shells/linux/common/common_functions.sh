@@ -123,6 +123,24 @@ print_info_from_common_functions() {
 # Read a single raw secret value from .secret_keys/.secret_ignore: first non-empty,
 # stripped line (BOM-aware). Empty string if the key file is absent. The shell twin
 # of pyfoundations.secret_manager.get_secret_key. (from common_functions.sh)
+# Run a PHP code body (without <?php) through $PHP_BIN using a temp script
+# file + environment arguments. File mode is the ONLY form the embedded
+# frankenphp php-cli runner accepts (-r / -v / stdin are NOT supported by
+# the SPC static builds), while the real php CLI handles it identically -
+# one adapter for both runtimes. Values travel via getenv(), never $argv.
+php_script_run() {
+  local code_body="$1"
+  local php_bin="${PHP_BIN:-php}"
+  local tmp_script=""
+
+  tmp_script="$(mktemp "${TMPDIR:-/tmp}/php_script.XXXXXX.php")" || return 1
+  printf '<?php %s' "$code_body" > "$tmp_script"
+  "$php_bin" "$tmp_script"
+  local run_rc=$?
+  rm -f "$tmp_script"
+  return $run_rc
+}
+
 get_secret_key_from_common_functions() {
   local key_name="$1"
   local project_root raw_file line

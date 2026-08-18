@@ -3,8 +3,8 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
-use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateMetadata;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
 
@@ -356,7 +356,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         $this->line("");
         $this->info("Options:");
         $this->line("  --prefixes       - Subdomain prefixes (default: si,sz,local,api)");
-        $this->line("  --provider       - SSL provider (default: dnspod)");
+        $this->line("  --provider       - SSL provider (default: " . ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER . ")");
         $this->line("  --status         - Certificate status for update");
         $this->line("  --days           - Days threshold for renewal (default: 30)");
         $this->line("  --dry-run        - Check renewals without executing");
@@ -533,7 +533,6 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $this->forceRenewLineage($certName, $credentials, $letsEncryptDir);
         }
     }
-
     /**
      * Domains of a lineage: the ServerManager issuance record is canonical
      * (the domains the certificate was created with); the live certificate's
@@ -701,7 +700,9 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             // The canonical working DNSPod authenticator only. The zope-era
             // dns-dnspod plugin cannot load on modern certbot and is never
             // offered; manual is not automatable.
-            $dnsPlugins = [ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR];
+            $dnsPlugins = [
+            ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR
+        ];
 
             foreach ($dnsPlugins as $plugin) {
                 if ($plugin === 'manual' || strpos($availablePlugins, $plugin) !== false) {

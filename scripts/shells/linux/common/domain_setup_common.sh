@@ -264,7 +264,7 @@ domain_setup_persist_state() {
     domain_state_set "DOMAINS_LISTS_CONTENT" "$DOMAIN_DOMAINS_LIST"
     domain_state_set "DNSPOD_EMAIL" "$DOMAIN_DNSPOD_EMAIL"
     domain_state_set "DNSPOD_API_TOKEN" "$DOMAIN_DNSPOD_TOKEN"
-    domain_state_set "PHP_VERSION" "$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo 8.4)"
+    domain_state_set "PHP_VERSION" "$(php_script_run 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;' 2>/dev/null || echo 8.4)"
 }
 
 # Echo the fqdn of the API site for a root domain.

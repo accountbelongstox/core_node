@@ -25,7 +25,22 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return $validation;
         }
 
-        $certbotPath = $this->findCertbotBinary();
+        // Find certbot binary using absolute paths
+        $certbotPath = null;
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $certbotPath = $path;
+                break;
+            }
+        }
+
+        // Fallback to which command
+        if (!$certbotPath) {
+            $whichResult = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+            if ($whichResult['success']) {
+                $certbotPath = trim($whichResult['output']);
+            }
+        }
 
         if (!$certbotPath) {
             return $this->success([
@@ -172,9 +187,10 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $certbotPath = $this->findCertbotBinary();
         $displayCmd = $certbotPath
             ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --authenticator '
-              . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR
-              . ($staging ? ' --staging' : '')
-              . ' ' . ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG . ' -d ' . escapeshellarg($domain)
+                . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR
+                . ($staging ? ' --staging' : '')
+              . ' ' . ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG
+              . ' -d ' . escapeshellarg($domain)
             : '';
 
         // Generate certificate using DNS challenge
@@ -213,7 +229,22 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $domain = $request->input('domain');
         $all = $request->input('all', false);
 
-        $certbotPath = $this->findCertbotBinary();
+        // Find certbot binary using absolute paths
+        $certbotPath = null;
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $certbotPath = $path;
+                break;
+            }
+        }
+
+        // Fallback to which command
+        if (!$certbotPath) {
+            $whichResult = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+            if ($whichResult['success']) {
+                $certbotPath = trim($whichResult['output']);
+            }
+        }
 
         if (!$certbotPath) {
             return $this->error('Certbot not found. Please install certbot first.', 404);
@@ -234,7 +265,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             if ($domain && !$all) {
                 $certRequest = new \Illuminate\Http\Request([
                     'domain' => $domain,
-                    'provider' => ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
+            'provider' => ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
                     'staging' => false,
                 ]);
                 return $this->generateCertificate($certRequest);
@@ -519,7 +550,21 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return ServerManagerV1CertificateManager::runDNSPodCertbot([$domain], $extraArgs, 300, true);
         }
 
-        $certbotPath = $this->findCertbotBinary();
+        $certbotPath = null;
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
+            if (file_exists($path) && is_executable($path)) {
+                $certbotPath = $path;
+                break;
+            }
+        }
+
+        // Fallback to which command
+        if (!$certbotPath) {
+            $whichResult = ServerManagerV1Utils::executeCommand('which', ['certbot']);
+            if ($whichResult['success']) {
+                $certbotPath = trim($whichResult['output']);
+            }
+        }
 
         if (!$certbotPath) {
             return [
@@ -783,7 +828,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     /** @return string|null certbot binary path or null */
     private function findCertbotBinary(): ?string
     {
-        foreach (['/usr/bin/certbot','/usr/local/bin/certbot','/usr/sbin/certbot','/sbin/certbot'] as $p) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $p) {
             if (file_exists($p) && is_executable($p)) return $p;
         }
         $which = ServerManagerV1Utils::executeCommand('which', ['certbot']);

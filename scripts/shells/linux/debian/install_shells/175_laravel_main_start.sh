@@ -59,10 +59,6 @@ PORT="${PORT:-}"
 LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_frankenphp.sh"
 LARAVEL_RUNTIME_NGINX_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_nginx.sh"
 RUNTIME_CONFIG_COMMON="${COMMON_DIR}/runtime_config_common.sh"
-LARAVEL_MAIN_START_FRANKENPHP_BRANCH="${DEBIAN_COM_DIR}/175_laravel_main_start_frankenphp.sh"
-LARAVEL_MAIN_START_NGINX_BRANCH="${DEBIAN_COM_DIR}/175_laravel_main_start_nginx.sh"
-LARAVEL_MAIN_START_NPX_BRANCH="${DEBIAN_COM_DIR}/175_laravel_main_start_npx_fallback.sh"
-LARAVEL_MAIN_START_LEGACY_BRANCH="${DEBIAN_COM_DIR}/175_laravel_main_start_php_serve.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 NGINX_MANAGER_SCRIPT="${COMMON_DIR}/nginx_manager.sh"
@@ -1204,19 +1200,24 @@ if [ "$(web_server_plane)" = "frankenphp" ] && [ -n "$OCTANE_AVAILABLE" ]; then
             FRANKENPHP_SITE_HOST="api.${DOMAIN_API_PREFIX}.${FRANKENPHP_FIRST_DOMAIN}"
         fi
     fi
-    FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \
-        FRANKENPHP_HTTPS_PORT="$(sc_get ports.frankenphp_https)" \
-        LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT" \
-        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+    echo "Starting headless API runtime (frankenphp plane -> octane:frankenphp on :$(sc_get ports.frankenphp_https) h2/h3, Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
+    PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+        FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \
         OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
-        bash "$LARAVEL_MAIN_START_FRANKENPHP_BRANCH"
+        /bin/bash "$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT"
 elif [ -n "$OCTANE_AVAILABLE" ]; then
-    LARAVEL_RUNTIME_NGINX_SCRIPT="$LARAVEL_RUNTIME_NGINX_SCRIPT" \
+    echo "Starting headless API runtime (nginx plane -> Octane swoole on server 0.0.0.0:${PORT}, single timer driver)"
     PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
         OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
-        bash "$LARAVEL_MAIN_START_NGINX_BRANCH"
+        /bin/bash "$LARAVEL_RUNTIME_NGINX_SCRIPT"
 elif [ -n "$NPX_BIN" ]; then
-    COMPOSER_CMD="$COMPOSER_CMD" PORT="$PORT" bash "$LARAVEL_MAIN_START_NPX_BRANCH"
+    echo "WARNING: Swoole unavailable -> Octane HTTP server disabled, using node-based fallback."
+    echo "Starting fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue + timer)"
+    $COMPOSER_CMD dev:win
 else
-    PHP_BIN="$PHP_BIN" PORT="$PORT" bash "$LARAVEL_MAIN_START_LEGACY_BRANCH"
+    echo "WARNING: Swoole unavailable and no node -> using node-free fallback."
+    echo "node-free fallback: php artisan serve + queue:listen + schedule:work (sub-minute timer tasks still run via Laravel Schedule)"
+    "$PHP_BIN" artisan queue:listen --tries=1 --timeout=0 &
+    "$PHP_BIN" artisan schedule:work &
+    "$PHP_BIN" artisan serve --host=0.0.0.0 --port="$PORT"
 fi

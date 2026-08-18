@@ -368,6 +368,69 @@ EOF
     rm -f "$npmrc_tmp" 2>/dev/null || true
 }
 
+resolve_pnpm_binary_path() {
+    if [ -x "$PNPM_BIN_PATH" ]; then
+        echo "$PNPM_BIN_PATH"
+        return
+    fi
+
+    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
+        echo "$PNPM_BIN"
+        return
+    fi
+
+    if [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        echo "$NODE_BIN_DIR/pnpm"
+        return
+    fi
+
+    command -v pnpm 2>/dev/null || true
+}
+
+ensure_pnpm_path_persistence() {
+    local pnpm_global_bin="$1"
+    local pnpm_bin=""
+    local profile_script="/etc/profile.d/pnpm-global-bin.sh"
+
+    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
+        return
+    fi
+
+    PNPM_BIN_PATH="$(resolve_pnpm_binary_path)"
+    pnpm_bin="$PNPM_BIN_PATH"
+    if [ -z "$pnpm_bin" ]; then
+        return
+    fi
+
+    export PNPM_GLOBAL_BIN_DIR="$pnpm_global_bin"
+    export PNPM_BIN="$pnpm_bin"
+    set_var "PNPM_GLOBAL_BIN_DIR" "$PNPM_GLOBAL_BIN_DIR" || true
+
+    if [ "$(path_has_entry "$PATH" "$pnpm_global_bin")" != "true" ]; then
+        export PATH="$pnpm_global_bin:$PATH"
+    fi
+    if ! ensure_pnpm_path_from_common_functions; then
+        if ! ensure_path_entry "$pnpm_global_bin"; then
+            if ! ensure_path_entry "$NODE_BIN_DIR"; then
+                export PATH="$NODE_BIN_DIR:$PATH"
+            fi
+        fi
+    fi
+
+    if [ ! -d "/etc/profile.d" ]; then
+        return
+    fi
+
+    $USE_SUDO cat > "$profile_script" <<EOF
+# Added by $SCRIPT_NAME
+case "\$PATH" in
+    *"${pnpm_global_bin}"*) ;;
+    *) export PATH="${pnpm_global_bin}:\$PATH" ;;
+esac
+EOF
+    $USE_SUDO chmod 644 "$profile_script" 2>/dev/null || true
+}
+
 ensure_npm_latest() {
     if [ -x "$NPM_BIN_PATH" ]; then
         "$NPM_BIN_PATH" install -g npm@latest --no-audit --no-fund --ignore-scripts || true
@@ -390,6 +453,11 @@ ensure_corepack() {
 }
 
 ensure_pnpm() {
+    local pnpm_global_bin_dir="$PNPM_HOME_PATH/bin"
+    if [ -n "$pnpm_global_bin_dir" ] && [ ! -d "$pnpm_global_bin_dir" ]; then
+        $USE_SUDO mkdir -p "$pnpm_global_bin_dir"
+    fi
+
     if [ -x "$COREPACK_BIN_PATH" ]; then
         "$COREPACK_BIN_PATH" prepare pnpm@latest --activate || true
     fi
@@ -401,46 +469,23 @@ ensure_pnpm() {
     fi
 
     if [ -x "$PNPM_BIN_PATH" ]; then
+        if [ "$(path_has_entry "$PATH" "$pnpm_global_bin_dir")" != "true" ]; then
+            export PATH="$pnpm_global_bin_dir:$PATH"
+        fi
         $USE_SUDO mkdir -p "$PNPM_HOME_PATH" "$PNPM_HOME_PATH/bin" "$PNPM_HOME_PATH/store"
         repair_owned_tree_777 "$PNPM_HOME_PATH"
         "$PNPM_BIN_PATH" config set global-dir "$PNPM_HOME_PATH" || true
-        "$PNPM_BIN_PATH" config set global-bin-dir "$PNPM_HOME_PATH/bin" || true
+        "$PNPM_BIN_PATH" config set global-bin-dir "$pnpm_global_bin_dir" || true
         "$PNPM_BIN_PATH" config set store-dir "$PNPM_HOME_PATH/store" || true
         "$PNPM_BIN_PATH" config set registry "$PNPM_REGISTRY" || true
+        set_var "PNPM_GLOBAL_DIR" "$PNPM_HOME_PATH" || true
+        set_var "PNPM_GLOBAL_BIN_DIR" "$pnpm_global_bin_dir" || true
+        export PNPM_GLOBAL_DIR="$PNPM_HOME_PATH"
+        export PNPM_GLOBAL_BIN_DIR="$pnpm_global_bin_dir"
         ensure_path_entry "$PNPM_HOME_PATH/bin"
         ensure_link "$PNPM_BIN_PATH" "$PNPM_LINK"
+        ensure_pnpm_path_persistence "$pnpm_global_bin_dir"
     fi
-}
-
-reconcile_pnpm_toolchain_environment() {
-    local resolved_global_bin=""
-
-    # Always clear stale overrides before re-configuring pnpm context.
-    unset PNPM_HOME
-
-    if [ -x "$PNPM_BIN_PATH" ]; then
-        $USE_SUDO mkdir -p "$PNPM_HOME_PATH" "$PNPM_HOME_PATH/bin" "$PNPM_HOME_PATH/store" || true
-        repair_owned_tree_777 "$PNPM_HOME_PATH" || true
-        "$PNPM_BIN_PATH" config set global-dir "$PNPM_HOME_PATH" || true
-        "$PNPM_BIN_PATH" config set global-bin-dir "$PNPM_HOME_PATH/bin" || true
-        "$PNPM_BIN_PATH" config set store-dir "$PNPM_HOME_PATH/store" || true
-        "$PNPM_BIN_PATH" config set registry "$PNPM_REGISTRY" || true
-        ensure_link "$PNPM_BIN_PATH" "$PNPM_LINK"
-
-        resolved_global_bin="$("$PNPM_BIN_PATH" config get global-bin-dir 2>/dev/null || true)"
-    fi
-
-    set_env_and_var "PNPM_HOME" "$PNPM_HOME_PATH"
-    if [ -n "$resolved_global_bin" ]; then
-        set_var "PNPM_GLOBAL_BIN_DIR" "$resolved_global_bin"
-        ensure_path_entry "$resolved_global_bin"
-    else
-        set_var "PNPM_GLOBAL_BIN_DIR" "$PNPM_HOME_PATH/bin"
-        ensure_path_entry "$PNPM_HOME_PATH/bin"
-    fi
-
-    ensure_path_entry "$NODE_BIN_DIR"
-    ensure_path_entry "/usr/local/bin"
 }
 
 ensure_yarn() {
@@ -590,11 +635,10 @@ else
     ensure_npm_latest
     ensure_corepack
     ensure_pnpm
-    reconcile_pnpm_toolchain_environment
     ensure_yarn
     ensure_bun
     ensure_node_symlinks
-    reconcile_pnpm_toolchain_environment
+    ensure_path_entry "$PNPM_HOME_PATH/bin"
     ensure_path_entry "$BUN_BIN_DIR"
     ensure_path_entry "/usr/local/bin"
     repair_permissions

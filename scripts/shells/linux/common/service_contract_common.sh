@@ -36,7 +36,7 @@ sc_get() {
         return 0
     fi
     if command -v php >/dev/null 2>&1; then
-        SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php -r '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo $c===null?"":$c;' 2>/dev/null
+        SC_ARG_FILE="$SERVICE_CONTRACT_FILE" SC_ARG_KEY="$key" php_script_run '$c=json_decode(file_get_contents(getenv("SC_ARG_FILE")),true);foreach(explode(".",getenv("SC_ARG_KEY")) as $p){$c=is_array($c)&&array_key_exists($p,$c)?$c[$p]:null;}echo $c===null?"":$c;' 2>/dev/null
         return 0
     fi
     return 0

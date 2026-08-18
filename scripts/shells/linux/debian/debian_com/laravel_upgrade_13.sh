@@ -29,12 +29,12 @@ laravel_framework_major() {
     local major=""
 
     if [ -f "$autoload_path" ]; then
-        version="$(LARAVEL_UPGRADE_AUTOLOAD="$autoload_path" $PHP_BIN -r '
+        version="$(LARAVEL_UPGRADE_AUTOLOAD="$autoload_path" php_script_run '
             require getenv("LARAVEL_UPGRADE_AUTOLOAD");
             echo \Composer\InstalledVersions::getPrettyVersion("laravel/framework") ?? "";
         ' 2>/dev/null)"
     elif [ -f "$lock_path" ]; then
-        version="$(LARAVEL_UPGRADE_LOCK="$lock_path" $PHP_BIN -r '
+        version="$(LARAVEL_UPGRADE_LOCK="$lock_path" php_script_run '
             $lock = json_decode(file_get_contents(getenv("LARAVEL_UPGRADE_LOCK")), true, 512, JSON_THROW_ON_ERROR);
             $packages = array_merge($lock["packages"] ?? [], $lock["packages-dev"] ?? []);
             foreach ($packages as $package) {
@@ -43,7 +43,7 @@ laravel_framework_major() {
                     break;
                 }
             }
-        ' "$lock_path" 2>/dev/null)"
+        ' 2>/dev/null)"
     fi
 
     major="${version#v}"

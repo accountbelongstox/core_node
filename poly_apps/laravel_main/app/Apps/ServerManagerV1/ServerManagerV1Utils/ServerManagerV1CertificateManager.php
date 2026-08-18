@@ -146,7 +146,8 @@ class ServerManagerV1CertificateManager
             '--logs-dir', $letsEncryptDir . '/logs',
             '--authenticator', ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR,
             '--' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . '-credentials', $credentialsPath,
-            '--' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . '-propagation-seconds', (string) ServerManagerV1CertificateMetadata::DNSPOD_PROPAGATION_SECONDS,
+            '--' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . '-propagation-seconds',
+            (string) ServerManagerV1CertificateMetadata::DNSPOD_PROPAGATION_SECONDS,
             '--email', $credentials['email'],
             '--agree-tos', '--non-interactive',
         ];
