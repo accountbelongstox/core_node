@@ -11,10 +11,15 @@
 #   for slot #2.
 # ARKCLI_API_KEY set: skip arkcli -> plain Claude under ark2 user dir
 #   (Claude data stays in that custom profile); ARKCLI_API -> ANTHROPIC_BASE_URL.
+#   Stale ANTHROPIC_* env entries in the slot settings.json are removed first
+#   (Claude Code applies settings.json env after process env, so leftovers from
+#   an earlier arkcli run would override this launcher's gateway settings).
 # Else: arkcli configure/MCP; ARKCLI_API still forces ANTHROPIC_BASE_URL after.
 # Model: ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y=xxx);
 #   empty -> Use model kimi-k3? [Y/n]; any N -> auto ark-code-latest.
 # Agent Teams: OFF by default. Pass -team / --team to enable.
+# Headless server (no desktop environment): MCP stages (helper mcp +
+#   ark-docs-mcp) are skipped automatically.
 # Extra CLI args are forwarded to claude (e.g. ark2.sh -p "hi").
 # =============================================================================
 
@@ -62,11 +67,13 @@ ultra_enabled=0
 enable_team=0
 has_agent_plan_mcp=0
 has_docs_mcp=0
+has_desktop=0
 run_mcp_setup=1
 reconfig_mcp_choice=""
 detected_mcp_names=""
 home_claude_json=""
 config_claude_json=""
+claude_settings_file=""
 user_args=()
 arg=""
 
@@ -102,6 +109,9 @@ gvarCommon="$projectRootPath/scripts/shells/linux/common/gvar_common.sh"
 if [ -f "$gvarCommon" ]; then
     # shellcheck disable=SC1090
     . "$gvarCommon"
+fi
+if [ "${HAS_DESKTOP_ENVIRONMENT:-false}" = "true" ]; then
+    has_desktop=1
 fi
 
 # Isolated Claude + arkcli user profile.
@@ -212,6 +222,47 @@ mask_secret() {
     printf '%s' "${value: -keep}"
 }
 
+# Claude Code applies settings.json env AFTER process env; stale ANTHROPIC_*
+# entries written by an earlier arkcli run would override this launcher's
+# gateway settings. Remove them from the slot settings.json (plain mode only).
+clean_stale_anthropic_settings() {
+    local settings_path="$1"
+    if [ -z "$settings_path" ] || [ ! -f "$settings_path" ]; then
+        return 0
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+        echo "[WARN] node unavailable; leaving $settings_path unchanged."
+        return 0
+    fi
+    node - "$settings_path" <<'NODE'
+const fs = require("node:fs");
+const settingsPath = process.argv[2];
+const staleKeys = [
+    "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_API_KEY",
+    "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
+];
+let config;
+try {
+    config = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+} catch (error) {
+    process.stderr.write("[WARN] Cannot parse " + settingsPath + "; leaving it unchanged.\n");
+    process.exit(0);
+}
+if (!config || typeof config !== "object" || !config.env) {
+    process.exit(0);
+}
+const removed = staleKeys.filter((key) => Object.prototype.hasOwnProperty.call(config.env, key));
+if (removed.length === 0) {
+    process.exit(0);
+}
+for (const key of removed) {
+    delete config.env[key];
+}
+fs.writeFileSync(settingsPath, JSON.stringify(config, null, 2) + "\n", "utf8");
+process.stdout.write("[INFO] Removed stale settings.json env entries: " + removed.join(", ") + "\n");
+NODE
+}
+
 resolve_pnpm() {
     if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
         pnpmBin="$PNPM_BIN"
@@ -272,6 +323,8 @@ if [ "$use_plain_claude" -eq 1 ]; then
     export ANTHROPIC_BASE_URL="$arkcli_api"
     export ANTHROPIC_AUTH_TOKEN="$arkcli_api_key"
     unset ANTHROPIC_API_KEY
+    claude_settings_file="$claude_config_dir/settings.json"
+    clean_stale_anthropic_settings "$claude_settings_file"
     masked_api_key="$(mask_secret "$arkcli_api_key")"
     echo "ARKCLI_API_KEY: $masked_api_key -> ANTHROPIC_AUTH_TOKEN"
     echo "ANTHROPIC_BASE_URL: $ANTHROPIC_BASE_URL (set now)"
@@ -340,6 +393,11 @@ if [ "$has_docs_mcp" -eq 1 ]; then
     fi
 fi
 
+if [ "$has_desktop" -eq 0 ]; then
+    run_mcp_setup=0
+    echo ""
+    echo "[INFO] No desktop environment; skipping MCP setup (helper mcp + ark-docs-mcp)."
+else
 run_mcp_setup=1
 if [ "$has_agent_plan_mcp" -eq 1 ] || [ "$has_docs_mcp" -eq 1 ]; then
     echo ""
@@ -356,6 +414,7 @@ if [ "$has_agent_plan_mcp" -eq 1 ] || [ "$has_docs_mcp" -eq 1 ]; then
         echo "[INFO] Keeping existing MCP; skipping Stages B/C."
     fi
 fi
+fi # end has_desktop check
 
 if [ "$run_mcp_setup" -eq 1 ]; then
 # Stage B: inject Agent Plan built-in MCP (soft-fail when Coding Plan only).

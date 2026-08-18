@@ -99,6 +99,7 @@ $volcAgentDefaultBaseUrl = 'https://ark.cn-beijing.volces.com/api/plan/v3'
 $volcCodingDefaultBaseUrl = 'https://ark.cn-beijing.volces.com/api/coding/v3'
 $volcAgentDefaultModel = 'kimi-k3'
 $volcCodingDefaultModel = 'ark-code-latest'
+$volcCodingFallbackModel = 'ark-code-latest'
 $volcAgentModels = @('kimi-k3', 'auto', 'doubao-seed-evolving', 'doubao-seed-2.0-pro')
 $volcCodingModels = @('ark-code-latest')
 $volcCodingModelHint = 'When available in the Volcengine Coding Plan console, select GLM-5.3 or GLM-5.2; ark-code-latest follows that selection.'
@@ -175,13 +176,8 @@ $uvxExePath = Join-Path $Global:PYTHON_SCRIPTS_DIR 'uvx.exe'
 
 if ($args.Count -gt 0 -and $supportedModes -contains $args[0].ToLowerInvariant()) {
     $mode = $args[0].ToLowerInvariant()
-    $argIndex = 1
-    if ($args.Count -gt 1 -and $args[1] -match '^\d+$') {
-        $index = $args[1]
-        $argIndex = 2
-    }
-    if ($args.Count -gt $argIndex) {
-        $forwardArgs = @($args[$argIndex..($args.Count - 1)])
+    if ($args.Count -gt 1) {
+        $forwardArgs = @($args[1..($args.Count - 1)])
     }
 }
 else {
@@ -324,16 +320,19 @@ if ($piPath -and
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if ($mode -eq 'volc-coding' -and -not $volcApiKey) {
-            $legacySecretPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_$index"
+            $legacySecretPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_1"
             $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
             if ($volcApiKey) {
-                Write-Host "[INFO] Loaded Volcengine API Key from ARK_API_KEY_$index" -ForegroundColor Green
+                Write-Host "[INFO] Loaded Volcengine API Key from ARK_API_KEY_1" -ForegroundColor Green
+            }
+            else {
+                Write-Host "[WARN] Volcengine API Key not found in ARK_API_KEY_1. A valid API key is required." -ForegroundColor Yellow
             }
             
-            $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_$index"
+            $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_1"
             $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyBaseUrlPath
             if (-not $legacySecretValue) {
-                $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_BASE_URL_$index"
+                $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_BASE_URL_1"
                 $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyBaseUrlPath
             }
             if ($legacySecretValue) {
@@ -345,12 +344,8 @@ if ($piPath -and
             }
         }
         if ($mode -eq 'volc-coding') {
-            $legacyModelPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_MODEL_$index"
+            $legacyModelPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_MODEL_1"
             $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyModelPath
-            if (-not $legacySecretValue -and $index -eq '1') {
-                $legacyModelPath = Join-Path $coreNodePath '.secret_keys\.secret_ignore\ARKCLI_MODEL_2'
-                $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyModelPath
-            }
             if ($legacySecretValue) {
                 Write-Host "[INFO] Loaded Volcengine Model: $legacySecretValue" -ForegroundColor Green
                 $model = $legacySecretValue
@@ -361,6 +356,20 @@ if ($piPath -and
                 else {
                     $volcModels = @($legacySecretValue, $volcCodingDefaultModel, $volcCodingFallbackModel)
                     $enabledModels = @($volcModels | ForEach-Object { [string]::Format('{0}/{1}', $provider, $_) })
+                }
+            }
+            else {
+                $legacyModelPath = Join-Path $coreNodePath '.secret_keys\.secret_ignore\ARKCLI_MODEL_2'
+                $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyModelPath
+                if ($legacySecretValue) {
+                    if ($legacySecretValue -eq $volcCodingDefaultModel -or $legacySecretValue -eq $volcCodingFallbackModel) {
+                        $volcModels = @($volcCodingDefaultModel, $volcCodingFallbackModel)
+                        $enabledModels = @($volcModels | ForEach-Object { [string]::Format('{0}/{1}', $provider, $_) })
+                    }
+                    else {
+                        $volcModels = @($volcCodingDefaultModel, $legacySecretValue, $volcCodingFallbackModel)
+                        $enabledModels = @($volcModels | ForEach-Object { [string]::Format('{0}/{1}', $provider, $_) })
+                    }
                 }
             }
         }

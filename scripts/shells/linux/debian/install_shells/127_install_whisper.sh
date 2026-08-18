@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # install_whisper.sh - Dedicated prerequisite installer for OpenAI Whisper.
 #

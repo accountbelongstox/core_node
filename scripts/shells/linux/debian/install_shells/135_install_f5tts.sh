@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # F5-TTS prerequisite (Linux) — SWivid/F5-TTS + minimal HTTP /process wrapper.
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice). Clones SWivid/F5-TTS idempotently and copies
 # f5tts_api_server.py into the staging dir. pycore's f5tts engine calls POST /process.

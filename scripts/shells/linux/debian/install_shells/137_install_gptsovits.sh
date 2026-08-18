@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # GPT-SoVITS TTS prerequisite (Linux) — free voice-clone HTTP server on :9880 (class C).
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice).
 #

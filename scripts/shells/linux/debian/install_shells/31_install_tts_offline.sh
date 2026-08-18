@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.

@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Kokoro-82M prerequisite (Linux) — sherpa-onnx + multi-lang Kokoro model.
 # Complements 31_install_tts_offline.sh with a dedicated KOKORO_TTS_MODEL_DIR cache.
 #

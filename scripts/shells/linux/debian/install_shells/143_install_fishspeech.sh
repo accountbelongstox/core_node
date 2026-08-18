@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 # Fish Speech / Fish Audio prerequisite (Linux).
 # Installs fish-audio-sdk (PyPI, Python 3.13+) and clones fish-speech for optional
 # local tools/api_server.py. GPU hosts get CUDA torch by default.
