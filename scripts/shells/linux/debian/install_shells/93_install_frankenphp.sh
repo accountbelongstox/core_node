@@ -85,11 +85,15 @@ else
     echo "[$SCRIPT_INDEX] [WARN] --no-mutex: nginx/certbot left untouched; manage the plane manually"
 fi
 
-# STEP 2: binary install (official installer, binary-probe idempotent)
+# STEP 2: binary convergence - each probe independent and idempotent:
+# usable binary -> no download (compile also skipped later); missing
+# canonical link -> link only; canonical php/php-cli shims -> untouched.
 fm_install
+fm_ensure_local_bin_link
+fm_ensure_php_cli_shim
 
-# STEP 3: DNSPod ACME DNS module (xcaddy rebuild; skips with warning when
-# no Go toolchain - built-in HTTP-01 ACME keeps the plane functional)
+# STEP 3: DNSPod ACME DNS module (official static rebuild; early-returns
+# with zero compile when the module is already embedded in the binary)
 fm_ensure_dnspod_module || echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred"
 
 # STEP 4: canonical Caddyfile (content-hash idempotent; Mercure hub on 443)

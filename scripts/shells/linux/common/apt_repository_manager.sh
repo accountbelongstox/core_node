@@ -26,6 +26,10 @@ APT_TRUSTED_KEYS_DIR="/etc/apt/trusted.gpg.d"
 # (e.g. an Ubuntu-noble snapshot) can never be committed and restored onto Debian/Kali.
 APT_BACKUP_BASE_DIR="/var/_core_node/apt_repository_backups"
 APT_ORIGINAL_BACKUP_DIR="$APT_BACKUP_BASE_DIR/original"
+# Shared native-sources templates + self-heal (single source of truth;
+# also consumed by 3_setting_base.sh and frankenphp_static_prereq.sh).
+# shellcheck source=/dev/null
+source "${APT_REPO_MANAGER_DIR}/apt_sources_restore.sh"
 APT_BACKUP_TIMESTAMP=""
 APT_BACKUP_DIR=""
 
@@ -1621,36 +1625,18 @@ repair_repositories_from_apt_repository_manager() {
             # sources.list is missing/empty (gated above), so a populated native sources.list
             # is left untouched. An unknown distro is left alone rather than guessed.
             case "$os_id" in
-                ubuntu)
+                ubuntu|debian)
                     if [ -n "$os_codename" ]; then
-                        $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << EOF
-# Ubuntu repositories
-deb https://archive.ubuntu.com/ubuntu/ $os_codename main restricted universe multiverse
-deb https://archive.ubuntu.com/ubuntu/ $os_codename-updates main restricted universe multiverse
-deb https://archive.ubuntu.com/ubuntu/ $os_codename-backports main restricted universe multiverse
-deb https://security.ubuntu.com/ubuntu/ $os_codename-security main restricted universe multiverse
-EOF
-                        echo "Created clean Ubuntu sources.list"
-                    fi
-                    ;;
-                debian)
-                    if [ -n "$os_codename" ]; then
-                        $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << EOF
-# Debian repositories
-deb https://deb.debian.org/debian $os_codename main contrib non-free non-free-firmware
-deb https://deb.debian.org/debian $os_codename-updates main contrib non-free non-free-firmware
-deb https://security.debian.org/debian-security $os_codename-security main contrib non-free non-free-firmware
-EOF
-                        echo "Created clean Debian sources.list"
+                        apt_sources_restore_render_oneline "$os_id" "$os_codename" "$(apt_sources_restore_version_id)" \
+                            | $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null
+                        echo "Created clean ${os_id} sources.list (official one-line template)"
                     fi
                     ;;
                 kali)
                     # Kali is rolling: the suite is always 'kali-rolling' (VERSION_CODENAME too).
-                    $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null << 'EOF'
-# Kali repositories
-deb http://http.kali.org/kali kali-rolling main contrib non-free non-free-firmware
-EOF
-                    echo "Created clean Kali sources.list"
+                    apt_sources_restore_render_oneline "kali" "kali-rolling" "$(apt_sources_restore_version_id)" \
+                        | $USE_SUDO tee "$APT_SOURCES_LIST" > /dev/null
+                    echo "Created clean Kali sources.list (official one-line template)"
                     ;;
                 *)
                     echo "Unknown distro '$os_id'; leaving sources.list untouched (refusing to write a foreign distro's repositories)"

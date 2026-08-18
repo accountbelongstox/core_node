@@ -12,10 +12,10 @@
 
 # FrankenPHP Manager (common area; the frankenphp-plane analog of
 # nginx_manager.sh). Every primitive is idempotent and self-probing:
-#   fm_get_binary / fm_installed / fm_version        binary file probes
+#   fm_get_binary / fm_version                       binary file probes
 #   fm_install                                       official installer
 #   fm_list_modules / fm_has_module                  embedded Caddy modules
-#   fm_ensure_dnspod_module                          xcaddy build w/ dnspod
+#   fm_ensure_dnspod_module                          official static build w/ dnspod
 #   fm_caddyfile_ensure                              canonical Caddyfile render
 #   fm_store_info / fm_verify                        state + verification
 #
@@ -38,22 +38,31 @@ SCRIPT_INDEX="frankenphp-mgr"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 # shellcheck source=/dev/null
 source "$SCRIPT_CURRENT_DIR/service_contract_common.sh"
+# shellcheck source=/dev/null
+source "$SCRIPT_CURRENT_DIR/frankenphp_static_builder.sh"
 
 FRANKENPHP_BIN_CANDIDATES="/usr/local/bin/frankenphp /usr/bin/frankenphp"
+FRANKENPHP_LINK_PATH="/usr/local/bin/frankenphp"
 FRANKENPHP_INSTALL_URL="https://frankenphp.dev/install.sh"
-FRANKENPHP_DNSPOD_IMPORT="github.com/caddy-dns/dnspod"
+# Pin rationale: the newest caddy-dns/dnspod TAG (v0.0.4, 2022) still
+# targets libdns v0, which no longer compiles against the libdns v1 API
+# required by Caddy v2.11.4 (frankenphp v1.12.7); the master-branch
+# rewrite implements the libdns v1 interfaces. Drop "@master" once a
+# libdns-v1 tag is released.
+FRANKENPHP_DNSPOD_IMPORT="github.com/caddy-dns/dnspod@master"
 FRANKENPHP_DNSPOD_MODULE="dns.providers.dnspod"
 FRANKENPHP_DNSPOD_TOKEN_KEY="DNSPOD_TOKEN"
 FRANKENPHP_FRANKENPHP_IMPORT="github.com/dunglas/frankenphp"
+# Mercure hub module version, matched to the release frankenphp v1.12.7
+# pins in its own go.mod (v0.24.2) so a rebuild never drags in a newer
+# hub major behind the running binary's back.
+FRANKENPHP_MERCURE_VERSION="v0.24.2"
 # Official static-build xcaddy args (frankenphp.dev/docs/static): a custom
 # XCADDY_ARGS must re-include the modules the Caddyfile relies on - the
-# mercure hub directive - plus the dnspod DNS-01 provider.
-FRANKENPHP_STATIC_XCADDY_ARGS="--with github.com/caddy-dns/dnspod --with github.com/dunglas/mercure/caddy"
+# mercure hub directive and the official build's vulcain + cbrotli set -
+# plus the dnspod DNS-01 provider.
+FRANKENPHP_STATIC_XCADDY_ARGS="--with ${FRANKENPHP_DNSPOD_IMPORT} --with github.com/dunglas/mercure/caddy --with github.com/dunglas/vulcain/caddy --with github.com/dunglas/caddy-cbrotli"
 FRANKENPHP_STATIC_REPO="https://github.com/php/frankenphp"
-XCADDY_BIN_CANDIDATES="/usr/local/bin/xcaddy /usr/bin/xcaddy"
-XCADDY_GO_MODULE="github.com/caddyserver/xcaddy/cmd/xcaddy"
-GO_BIN_CANDIDATES="/usr/local/bin/go /usr/local/go/bin/go /usr/bin/go /usr/lib/go/bin/go"
-DOCKER_BIN_CANDIDATES="/usr/bin/docker /usr/local/bin/docker"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
 FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
 FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
@@ -70,10 +79,30 @@ fm_get_binary() {
     echo ""
 }
 
-fm_installed() {
+# Ensure the canonical /usr/local/bin link (PATH precedence over
+# /usr/bin): an INDEPENDENT fine-grained step - it runs on every ensure
+# pass, not only after a fresh download, so a usable binary discovered
+# elsewhere gets linked without compiling anything. No-op when the
+# canonical path is already the binary itself or a link resolving to it.
+fm_ensure_local_bin_link() {
     local binary=""
+    local canonical_target=""
+
     binary="$(fm_get_binary)"
-    [ -n "$binary" ]
+    if [ -z "$binary" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; ${FRANKENPHP_LINK_PATH} link not created"
+        return 1
+    fi
+    if [ "$binary" = "$FRANKENPHP_LINK_PATH" ]; then
+        return 0
+    fi
+    canonical_target="$(readlink -f "$FRANKENPHP_LINK_PATH" 2>/dev/null || true)"
+    if [ "$canonical_target" = "$(readlink -f "$binary")" ]; then
+        return 0
+    fi
+    $USE_SUDO ln -sf "$binary" "$FRANKENPHP_LINK_PATH"
+    echo "[$SCRIPT_INDEX] linked ${FRANKENPHP_LINK_PATH} -> ${binary}"
+    return 0
 }
 
 fm_version() {
@@ -132,7 +161,7 @@ exec ${binary} php-cli \"\$@\""
 }
 
 # Caddyfile-adjacent PHP ini directory (frankenphp plane config target for
-# 34_configure_php85.sh; the runtime exports it as PHP_INI_SCAN_DIR).
+# 96_configure_php85.sh; the runtime exports it as PHP_INI_SCAN_DIR).
 fm_php_ini_dir() {
     echo "$FRANKENPHP_PHP_INI_DIR"
 }
@@ -163,12 +192,14 @@ opcache.enable_cli = 1
     echo "[$SCRIPT_INDEX] PHP ini rendered: ${ini_dir}/99-core-node.ini"
 }
 
-# Official installer (frankenphp.dev); idempotent via the binary probe.
+# Official installer (frankenphp.dev); idempotent via the binary probe,
+# and the canonical /usr/local/bin link is re-ensured on every pass.
 fm_install() {
     local binary=""
     binary="$(fm_get_binary)"
     if [ -n "$binary" ]; then
         echo "[$SCRIPT_INDEX] frankenphp already installed: $binary ($(fm_version))"
+        fm_ensure_local_bin_link
         return 0
     fi
     if ! command -v curl >/dev/null 2>&1; then
@@ -184,6 +215,7 @@ fm_install() {
     binary="$(fm_get_binary)"
     if [ -n "$binary" ]; then
         echo "[$SCRIPT_INDEX] frankenphp installed: $binary ($(fm_version))"
+        fm_ensure_local_bin_link
     else
         echo "[$SCRIPT_INDEX] [ERROR] frankenphp binary not found after install"
         return 1
@@ -215,191 +247,24 @@ fm_module_in_bin() {
         && "$binary" list-modules 2>/dev/null | grep -q "^${module_name}\$"
 }
 
-# Go toolchain path (empty when absent) - file probing only.
-fm_go_bin() {
-    local candidate=""
-    for candidate in $GO_BIN_CANDIDATES; do
-        if [ -x "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    echo ""
-}
-
-# GOPATH root (where `go install` places module binaries by default).
-fm_go_gopath() {
-    local go_bin=""
-    go_bin="$(fm_go_bin)"
-    if [ -n "$go_bin" ]; then
-        "$go_bin" env GOPATH 2>/dev/null
-        return 0
-    fi
-    echo "${HOME:-/root}/go"
-}
-
-# xcaddy binary path (empty when absent); probes the fixed candidates plus
-# the GOPATH bin location.
-fm_xcaddy_bin() {
-    local candidate=""
-    local gopath_bin=""
-    for candidate in $XCADDY_BIN_CANDIDATES; do
-        if [ -x "$candidate" ]; then
-            echo "$candidate"
-            return 0
-        fi
-    done
-    gopath_bin="$(fm_go_gopath)/bin/xcaddy"
-    if [ -x "$gopath_bin" ]; then
-        echo "$gopath_bin"
-        return 0
-    fi
-    echo ""
-}
-
-# Ensure xcaddy exists. Idempotent per step: probe -> go probe ->
-# GOBIN=/usr/local/bin install -> re-probe (including the GOPATH bin spot
-# for non-root installs). Trusts the file probe after each step.
-fm_ensure_xcaddy() {
-    local go_bin=""
-    local xcaddy_bin=""
-
-    xcaddy_bin="$(fm_xcaddy_bin)"
-    if [ -n "$xcaddy_bin" ]; then
-        echo "[$SCRIPT_INDEX] xcaddy already installed: $xcaddy_bin"
-        return 0
-    fi
-    go_bin="$(fm_go_bin)"
-    if [ -z "$go_bin" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] no Go toolchain found (golang not installed); xcaddy not installed"
-        return 1
-    fi
-    echo "[$SCRIPT_INDEX] Installing xcaddy (go install -> /usr/local/bin)"
-    $USE_SUDO env GOBIN=/usr/local/bin "$go_bin" install "${XCADDY_GO_MODULE}@latest"
-    xcaddy_bin="$(fm_xcaddy_bin)"
-    if [ -n "$xcaddy_bin" ]; then
-        echo "[$SCRIPT_INDEX] xcaddy installed: $xcaddy_bin"
-        return 0
-    fi
-    echo "[$SCRIPT_INDEX] [WARN] xcaddy unavailable after go install"
-    return 1
-}
-
 # Version tag of the running binary ("v1.12.7"; empty when unparsable) -
-# pins the static rebuild to the SAME frankenphp release.
+# pins rebuilds to the SAME frankenphp release. Anchored at the line
+# start so the frankenphp tag wins over the Caddy vX.Y.Z that also
+# appears later in the version string.
 fm_version_tag() {
-    fm_version | sed -n 's/.*\(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1
+    fm_version | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1
 }
 
-# Docker availability probe (binary present + daemon responding).
-fm_docker_ready() {
-    local candidate=""
-    for candidate in $DOCKER_BIN_CANDIDATES; do
-        if [ -x "$candidate" ]; then
-            "$candidate" info >/dev/null 2>&1 && return 0
-            return 1
-        fi
-    done
-    return 1
-}
-
-# Official static rebuild (frankenphp.dev/docs/static) - THE standard path:
-# docker buildx bake static-builder-musl with XCADDY_ARGS carrying the
-# dnspod module. Fully self-contained - the builder image ships its own
-# golang + static-php toolchains (GOTOOLCHAIN=local), so NOTHING on the
-# host (Go, PHP headers) is consulted - while the source checkout is
-# pinned to the tag of the RUNNING host binary (fm_version_tag), so the
-# rebuild always matches the installed version exactly. The musl
-# fully-static binary runs on ubuntu/debian/kali alike and keeps the
-# embedded PHP. Echoes the candidate binary path (empty on failure); the
-# caller probes it before installing.
+# Official static rebuild via ./build-static.sh - the docker-LESS primary
+# path (implemented in frankenphp_static_builder.sh): fully self-contained
+# toolchains (static-php-cli builds its own PHP/libphp; spc installs its
+# own xcaddy, with the pinned host Go as the ONLY host tool consulted),
+# pinned to the RUNNING binary's frankenphp tag + embedded PHP version,
+# musl fully static (runs on ubuntu/debian/kali alike). Echoes the staged
+# candidate binary path on stdout (empty on failure; all logs go to
+# stderr); the caller probes it before installing.
 fm_dnspod_build_static() {
-    local version_tag=""
-    local work_dir=""
-    local arch=""
-    local container_name=""
-
-    version_tag="$(fm_version_tag)"
-    work_dir="$(mktemp -d)"
-    arch="$(uname -m)"
-    container_name="frankenphp-static-builder-$$"
-
-    echo "[$SCRIPT_INDEX] [dnspod] official static build (docker buildx bake static-builder-musl${version_tag:+ " at ${version_tag}"})"
-    if ! git clone --quiet --depth 1 ${version_tag:+--branch "$version_tag"} \
-        "$FRANKENPHP_STATIC_REPO" "$work_dir/src" 2>/dev/null; then
-        echo "[$SCRIPT_INDEX] [dnspod] [WARN] frankenphp source clone failed"
-        rm -rf "$work_dir"
-        return 1
-    fi
-    if ! (cd "$work_dir/src" && docker buildx bake --load \
-        ${version_tag:+--set "static-builder-musl.args.FRANKENPHP_VERSION=$version_tag"} \
-        --set "static-builder-musl.args.XCADDY_ARGS=$FRANKENPHP_STATIC_XCADDY_ARGS" \
-        static-builder-musl); then
-        echo "[$SCRIPT_INDEX] [dnspod] [WARN] docker buildx bake failed"
-        rm -rf "$work_dir"
-        return 1
-    fi
-    $USE_SUDO docker rm -f "$container_name" >/dev/null 2>&1
-    if ! $USE_SUDO docker create --name "$container_name" dunglas/frankenphp:static-builder-musl >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] [dnspod] [WARN] baked image container create failed"
-        rm -rf "$work_dir"
-        return 1
-    fi
-    $USE_SUDO docker cp "$container_name:/go/src/app/dist/frankenphp-linux-${arch}" "$work_dir/frankenphp" >/dev/null 2>&1
-    $USE_SUDO docker rm -f "$container_name" >/dev/null 2>&1
-    if [ -x "$work_dir/frankenphp" ]; then
-        echo "$work_dir/frankenphp"
-    else
-        echo "[$SCRIPT_INDEX] [dnspod] [WARN] static binary not found in the baked image"
-        rm -rf "$work_dir"
-        echo ""
-    fi
-}
-
-# Native xcaddy rebuild (frankenphp.dev/docs/compile) - the docker-LESS
-# FALLBACK only (the docker static build above is the official standard
-# path); requires the host go >= 1.26 toolchain + libphp.so headers
-# (php-config). Echoes the candidate binary path (empty on failure).
-fm_dnspod_build_native() {
-    local xcaddy_bin=""
-    local php_config=""
-    local build_dir=""
-
-    fm_ensure_xcaddy || return 1
-    xcaddy_bin="$(fm_xcaddy_bin)"
-    if [ -z "$xcaddy_bin" ]; then
-        return 1
-    fi
-    php_config=""
-    if [ -x /usr/bin/php-config ]; then
-        php_config="/usr/bin/php-config"
-    elif [ -x /usr/local/bin/php-config ]; then
-        php_config="/usr/local/bin/php-config"
-    fi
-    if [ -z "$php_config" ]; then
-        echo "[$SCRIPT_INDEX] [dnspod] native build needs php-config (libphp.so toolchain); not present"
-        return 1
-    fi
-    echo "[$SCRIPT_INDEX] [dnspod] native xcaddy build (libphp.so via $php_config)"
-    build_dir="$(mktemp -d)"
-    if ! (cd "$build_dir" && CGO_ENABLED=1 \
-        XCADDY_GO_BUILD_FLAGS="-ldflags='-w -s' -tags=nobadger,nomysql,nopgx" \
-        CGO_CFLAGS="$($php_config --includes)" \
-        CGO_LDFLAGS="$($php_config --ldflags) $($php_config --libs)" \
-        "$xcaddy_bin" build \
-            --with "${FRANKENPHP_FRANKENPHP_IMPORT}/caddy" \
-            --with "$FRANKENPHP_DNSPOD_IMPORT" \
-            --output "$build_dir/frankenphp"); then
-        echo "[$SCRIPT_INDEX] [dnspod] [WARN] native xcaddy build failed"
-        rm -rf "$build_dir"
-        return 1
-    fi
-    if [ -x "$build_dir/frankenphp" ]; then
-        echo "$build_dir/frankenphp"
-    else
-        rm -rf "$build_dir"
-        echo ""
-    fi
+    fm_static_build
 }
 
 # DNSPod API token from the shared RuntimeConfigurationStore (format
@@ -431,11 +296,89 @@ fm_dnspod_token_put() {
     echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
 }
 
+# Legacy PHP runtime mutex (frankenphp plane): once the static binary
+# carries the dnspod module it is the verified PHP runtime, and the
+# Swoole-based app servers plus the old apt PHP services are mutually
+# exclusive leftovers. FINE-GRAINED idempotency - every step probes and
+# no-ops independently, and no step's no-op blocks the next:
+#   1) systemd units whose RUNNING command is the swoole octane runtime
+#      get disable --now. Judged by the runtime command, NEVER by unit
+#      name: 175_laravel_main_start.sh re-creates the same laravel units
+#      for the frankenphp plane (octane:frankenphp) - those stay untouched.
+#   2) swoole_http_server / swoole octane processes outside systemd are
+#      stopped gracefully (TERM, then KILL for survivors).
+#   3) every loaded php*-fpm unit stops + disables (fm_static_apt_php_cleanup
+#      purges the packages afterwards).
+#   4) verify: no swoole_http_server master remains.
+# Runs as no-op before the dnspod binary is verified (gate below).
+fm_disable_legacy_php_runtime() {
+    local binary=""
+    local unit=""
+    local main_pid=""
+    local unit_cmd=""
+    local leftovers=""
+    local pid=""
+
+    binary="$(fm_get_binary)"
+    if [ -z "$binary" ] || ! fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE"; then
+        echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: dnspod frankenphp binary not verified yet"
+        return 0
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: systemctl unavailable"
+        return 0
+    fi
+
+    for unit in $(systemctl list-units --type=service --all --no-legend 2>/dev/null \
+        | awk '{print $1}' | grep -iE 'laravel|octane|swoole|app-manager'); do
+        main_pid="$(systemctl show -p MainPID --value "$unit" 2>/dev/null)"
+        unit_cmd=""
+        if [ -n "$main_pid" ] && [ "$main_pid" != "0" ]; then
+            unit_cmd="$(ps -p "$main_pid" -o args= 2>/dev/null)"
+        fi
+        [ -z "$unit_cmd" ] && unit_cmd="$(systemctl show -p ExecStart --value "$unit" 2>/dev/null)"
+        if echo "$unit_cmd" | grep -qiE 'swoole_http_server|--server=swoole'; then
+            echo "[$SCRIPT_INDEX] disabling legacy swoole unit: $unit"
+            $USE_SUDO systemctl disable --now "$unit" >/dev/null 2>&1 || true
+        fi
+    done
+
+    leftovers="$(pgrep -f 'swoole_http_server|octane:start --server=swoole' 2>/dev/null || true)"
+    if [ -n "$leftovers" ]; then
+        echo "[$SCRIPT_INDEX] stopping legacy swoole processes: $(echo "$leftovers" | tr '\n' ' ')"
+        for pid in $leftovers; do
+            kill "$pid" 2>/dev/null || $USE_SUDO kill "$pid" 2>/dev/null || true
+        done
+        sleep 2
+        leftovers="$(pgrep -f 'swoole_http_server|octane:start --server=swoole' 2>/dev/null || true)"
+        for pid in $leftovers; do
+            $USE_SUDO kill -9 "$pid" 2>/dev/null || true
+        done
+    fi
+
+    for unit in $(systemctl list-units --type=service --all --no-legend 2>/dev/null \
+        | awk '{print $1}' | grep -E 'php[0-9.]*-fpm'); do
+        if systemctl is-active --quiet "$unit" 2>/dev/null; then
+            echo "[$SCRIPT_INDEX] stopping legacy php-fpm unit: $unit"
+        fi
+        $USE_SUDO systemctl disable --now "$unit" >/dev/null 2>&1 || true
+    done
+
+    if pgrep -f 'swoole_http_server' >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [WARN] swoole_http_server still present after mutex disable"
+        return 1
+    fi
+    echo "[$SCRIPT_INDEX] legacy swoole/php runtime disabled (frankenphp plane mutex)"
+    return 0
+}
+
 # Ensure the dnspod ACME DNS-01 module is embedded in the frankenphp
 # binary. Order (each step its own idempotent probe): already embedded ->
-# official docker static build -> native libphp rebuild. A failed path
+# official static rebuild (./build-static.sh, docker-LESS). A failed build
 # defers with a warning - the built-in ACME (TLS-ALPN-01/HTTP-01) keeps
-# issuing certificates meanwhile.
+# issuing certificates meanwhile. Once the module has converged, the apt
+# PHP stack is purged (fm_static_apt_php_cleanup): the static binary is
+# the frankenphp plane's ONLY PHP runtime.
 fm_ensure_dnspod_module() {
     local binary=""
     local candidate=""
@@ -447,20 +390,15 @@ fm_ensure_dnspod_module() {
     fi
     if fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE"; then
         echo "[$SCRIPT_INDEX] dnspod module already embedded"
+        fm_ensure_local_bin_link
+        fm_disable_legacy_php_runtime
+        fm_static_apt_php_cleanup
         return 0
     fi
 
-    candidate=""
-    if fm_docker_ready; then
-        candidate="$(fm_dnspod_build_static)"
-    else
-        echo "[$SCRIPT_INDEX] [dnspod] docker not available; trying the native libphp build"
-    fi
+    candidate="$(fm_dnspod_build_static)"
     if [ -z "$candidate" ]; then
-        candidate="$(fm_dnspod_build_native)"
-    fi
-    if [ -z "$candidate" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (needs docker for the official static build, or Go + php-config for a native rebuild)"
+        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (official static build failed; the stderr log above carries the kept workdir path)"
         return 1
     fi
 
@@ -484,6 +422,8 @@ fm_ensure_dnspod_module() {
     rm -rf "$(dirname "$candidate")"
     echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($(fm_version))"
     fm_store_info
+    fm_disable_legacy_php_runtime
+    fm_static_apt_php_cleanup
 }
 
 # Canonical Caddyfile render (content-hash idempotent). Mercure JWT values

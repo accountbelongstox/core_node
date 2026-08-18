@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script: 35_install_composer.sh
+# Script: 94_install_composer.sh
 # Description: Dedicated Composer installation with fine-grained PHP 8.5 dependency repair
 # Author: System Administrator
 # Version: 3.0
@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-SCRIPT_INDEX="[34_COMPOSER]"
+SCRIPT_INDEX="[94_COMPOSER]"
 
 # Source dependencies
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

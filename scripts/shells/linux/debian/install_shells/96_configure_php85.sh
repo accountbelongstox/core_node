@@ -11,7 +11,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Script: 34_configure_php85.sh
+# Script: 96_configure_php85.sh
 # Description: PHP 8.5 configuration and web server integration
 # Author: System Administrator
 # Version: 1.0
@@ -33,7 +33,7 @@
 # Laravel files by configuring open_basedir settings correctly based on the
 # current environment and path mapping.
 #
-# This shell script (34_configure_php85.sh):
+# This shell script (96_configure_php85.sh):
 #   - Used during system installation and setup
 #   - Can be run manually or via installation scripts
 #   - Uses gvar_common.sh for path mapping (map_web_path function)
@@ -91,11 +91,11 @@
 # [ ] PathMapper::mapWebPath() changes
 #     -> Update gvar_common.sh map_web_path()
 #
-# [ ] 34_configure_php85.sh changes (especially open_basedir handling)
+# [ ] 96_configure_php85.sh changes (especially open_basedir handling)
 #     -> Update ServerManagerV1PHPConfigFixer.php comments and logic
 #
 # [ ] ServerManagerV1PHPConfigFixer.php changes
-#     -> Update 34_configure_php85.sh comments (this file)
+#     -> Update 96_configure_php85.sh comments (this file)
 #
 # [ ] php_common_functions.sh configure_php_fpm_pool_from_php_common() changes
 #     -> Update ServerManagerV1PHPConfigFixer::fixPHPFpmPoolConfig()
@@ -119,7 +119,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Script identification
-SCRIPT_INDEX="[33_PHP85_CONFIG]"
+SCRIPT_INDEX="[96_PHP85_CONFIG]"
 
 # Source global variables for constraint checking
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

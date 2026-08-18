@@ -87,7 +87,7 @@ export MERCURE_TRUSTED_ISSUERS
 # DNSPod DNS-01 token (only when stored; the Caddyfile gate renders the tls
 # stanza only when module + token both exist).
 [ -n "$DNSPOD_TOKEN" ] && export DNSPOD_TOKEN
-# Embedded PHP ini scan dir (34_configure_php85.sh frankenphp plane target):
+# Embedded PHP ini scan dir (96_configure_php85.sh frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
 export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"
 
