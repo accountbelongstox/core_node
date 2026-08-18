@@ -105,12 +105,20 @@ fm_ensure_php_cli_shim() {
         wanted="#!/bin/sh
 exec ${binary} php-cli \"\$@\""
         existing=""
-        [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ] && existing="$(cat "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null)"
+        if [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ]; then
+            # Only read if it's a small file (likely our shim) to avoid null byte warnings from binaries
+            local size=$(wc -c < "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null || echo 0)
+            if [ "$size" -lt 1000 ]; then
+                existing="$(cat "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" 2>/dev/null | tr -d '\0')"
+            fi
+        fi
         if [ "$existing" = "$wanted" ]; then
             continue
         fi
-        printf '%s\n' "$wanted" > "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
-        chmod 755 "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
+        local tmp_shim="${FRANKENPHP_PHP_SHIM_DIR}/.${shim}.tmp.$$"
+        printf '%s\n' "$wanted" > "$tmp_shim"
+        chmod 755 "$tmp_shim"
+        mv -f "$tmp_shim" "${FRANKENPHP_PHP_SHIM_DIR}/${shim}"
         echo "[$SCRIPT_INDEX] php-cli shim installed: ${FRANKENPHP_PHP_SHIM_DIR}/${shim} -> ${binary} php-cli"
     done
 }
