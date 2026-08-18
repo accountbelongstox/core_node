@@ -60,32 +60,76 @@ go_local_version() {
     fi
 }
 
+go_tarball_size() {
+    stat -c%s "$GO_TARBALL_PATH" 2>/dev/null || echo 0
+}
+
+# Acceptance gate: pinned size + pinned sha256 (gvar_common). File state
+# only - never a curl exit code (no exit-code chaining). A hijacked or
+# truncated payload cannot pass both pins.
+go_tarball_integrity_ok() {
+    local actual_size=""
+    local actual_sha=""
+    [ -f "$GO_TARBALL_PATH" ] || return 1
+    actual_size="$(go_tarball_size)"
+    [ "$actual_size" = "$GO_TARBALL_SIZE" ] || return 1
+    if [ -n "$GO_TARBALL_SHA256" ]; then
+        actual_sha="$(sha256sum "$GO_TARBALL_PATH" 2>/dev/null | awk '{print $1}')"
+        [ "$actual_sha" = "$GO_TARBALL_SHA256" ] || return 1
+    fi
+    return 0
+}
+
 download_go_tarball() {
     local url=""
     local round=""
+    local attempt=""
+    local http_code=""
     echo "Downloading Go $GO_VERSION_AMD64_FILE..."
     mkdir -p "$SCRIPT_TEMP_DIR"
     echo "Cleaning up previous downloads..."
     rm -f "$GO_TARBALL_PATH"
-    # Ordered fallbacks (gvar_common GO_TAR_URLS) x retry rounds, fetched
-    # with curl from the OFFICIAL go.dev/dl source first: regional CDN edges
-    # and round-robin mirror nodes can lag a brand-new release (a mirror
-    # hostname may answer from BOTH synced and unsynced IPs), so the whole
-    # chain is retried. Each attempt is judged by FILE presence - never by
-    # curl's exit code (no exit-code chaining).
-    for round in 1 2 3 4 5; do
+    # Anti-hijack strategy over the ordered gvar_common GO_TAR_URLS chain
+    # (aliyun first, NJU last) - three rules:
+    #   1. NO curl -f: the REAL HTTP status code is captured via
+    #      -w "%{http_code}" and judged manually, so transparent proxies
+    #      rewriting responses cannot hide behind -f error semantics.
+    #   2. curl -C - resume: Range requests (206) survive even when
+    #      long-lived full streams are reset mid-body, so each retry
+    #      continues the partial file instead of restarting from zero.
+    #   3. Only 200/206 are keepers; any other code (404, 403, hijacked
+    #      redirect, 000 connect failure) discards the partial file, and
+    #      residue is removed before switching mirrors so resume never
+    #      stitches bodies from two different origins together.
+    # Final acceptance is ALWAYS the pinned size + sha256 above.
+    for round in 1 2 3; do
         for url in "${GO_TAR_URLS[@]}"; do
-            echo "[round $round] Trying: $url"
-            $USE_SUDO curl -fsSL --connect-timeout 20 --retry 1 -o "$GO_TARBALL_PATH" "$url"
-            if [ -s "$GO_TARBALL_PATH" ]; then
-                return 0
-            fi
+            for attempt in 1 2 3; do
+                if go_tarball_integrity_ok; then
+                    echo "Download verified (size+sha256): $GO_TARBALL_PATH"
+                    return 0
+                fi
+                echo "[round $round] [try $attempt] Fetching: $url"
+                http_code="$($USE_SUDO curl -sS -L -C - --connect-timeout 10 --max-time 120 \
+                    -w "%{http_code}" -o "$GO_TARBALL_PATH" "$url" | tail -n 1 | tr -d '[:space:]')"
+                if [ "$http_code" != "200" ] && [ "$http_code" != "206" ]; then
+                    echo "[round $round] [try $attempt] Rejected: real HTTP status '$http_code'"
+                    rm -f "$GO_TARBALL_PATH"
+                    break
+                fi
+                if go_tarball_integrity_ok; then
+                    echo "Download verified (size+sha256): $GO_TARBALL_PATH"
+                    return 0
+                fi
+                echo "[round $round] [try $attempt] Partial $(go_tarball_size)/$GO_TARBALL_SIZE bytes; resuming in 5s..."
+                sleep 5
+            done
             rm -f "$GO_TARBALL_PATH"
         done
-        echo "[round $round] all sources empty so far; retrying in 15s..."
+        echo "[round $round] all sources failed so far; retrying chain in 15s..."
         sleep 15
     done
-    echo "Error: all download sources failed after 5 rounds (last: $GO_TARBALL_PATH)."
+    echo "Error: all download sources failed after 3 rounds (last: $GO_TARBALL_PATH)."
     return 1
 }
 
@@ -112,12 +156,14 @@ uninstall_old_go() {
 }
 
 install_pinned_go() {
-    if [ ! -s "$GO_TARBALL_PATH" ]; then
+    if ! go_tarball_integrity_ok; then
+        echo "No verified tarball at $GO_TARBALL_PATH; downloading..."
         download_go_tarball
-        if [ ! -s "$GO_TARBALL_PATH" ]; then
+        if ! go_tarball_integrity_ok; then
             return 1
         fi
     fi
+    echo "Tarball integrity verified: $GO_TARBALL_PATH"
 
     echo "Ensuring required directories exist..."
     if [ ! -d "$COMPILE_DIR" ]; then

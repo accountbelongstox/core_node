@@ -2060,8 +2060,24 @@ YARN_BIN="$NODE_BIN_DIR/yarn"
 
 GO_DIR="$COMPILE_DIR/go"
 GO_BIN="$GO_DIR/bin/go"
-GO_VERSION_AMD64_FILE="go1.22.5.linux-amd64"
+# Pinned Go toolchain (single source of truth for 91_install_golang.sh);
+# frankenphp v1.12.7 native xcaddy rebuild (Caddy v2.11.4) needs go >= 1.26.0.
+GO_VERSION="1.26.6"
+GO_VERSION_AMD64_FILE="go${GO_VERSION}.linux-amd64"
 GO_TAR_URL="https://dl.google.com/go/$GO_VERSION_AMD64_FILE.tar.gz"
+# Anti-hijack integrity pins for the tarball (official go.dev/dl values).
+GO_TARBALL_SIZE="66890545"
+GO_TARBALL_SHA256="708effb774be8237570d0add163225abbdfaf4fca28b2611df167beba4feef89"
+# Ordered download fallbacks (gvar_common): aliyun first (most stable on
+# CN networks), official go.dev/dl next, NJU last (stalls on some networks).
+# Consumed by sourcing from 91_install_golang.sh; not exported.
+GO_TAR_URLS=(
+    "https://mirrors.aliyun.com/golang/$GO_VERSION_AMD64_FILE.tar.gz"
+    "https://go.dev/dl/$GO_VERSION_AMD64_FILE.tar.gz"
+    "https://golang.google.cn/dl/$GO_VERSION_AMD64_FILE.tar.gz"
+    "$GO_TAR_URL"
+    "https://mirrors.nju.edu.cn/golang/$GO_VERSION_AMD64_FILE.tar.gz"
+)
 
 # Ruby installation directories
 RUBY_INSTALL_DIR="$COMPILE_DIR/ruby"
@@ -2102,8 +2118,11 @@ export BUN_BIN
 export YARN_BIN
 export GO_DIR
 export GO_BIN
+export GO_VERSION
 export GO_VERSION_AMD64_FILE
 export GO_TAR_URL
+export GO_TARBALL_SIZE
+export GO_TARBALL_SHA256
 export UPS_CONF
 export UPSD_CONF
 export UPSD_USERS_CONF

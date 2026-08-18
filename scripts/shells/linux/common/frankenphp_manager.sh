@@ -303,8 +303,13 @@ fm_docker_ready() {
     return 1
 }
 
-# Official static rebuild (frankenphp.dev/docs/static): docker buildx bake
-# static-builder-musl with XCADDY_ARGS carrying the dnspod module. The musl
+# Official static rebuild (frankenphp.dev/docs/static) - THE standard path:
+# docker buildx bake static-builder-musl with XCADDY_ARGS carrying the
+# dnspod module. Fully self-contained - the builder image ships its own
+# golang + static-php toolchains (GOTOOLCHAIN=local), so NOTHING on the
+# host (Go, PHP headers) is consulted - while the source checkout is
+# pinned to the tag of the RUNNING host binary (fm_version_tag), so the
+# rebuild always matches the installed version exactly. The musl
 # fully-static binary runs on ubuntu/debian/kali alike and keeps the
 # embedded PHP. Echoes the candidate binary path (empty on failure); the
 # caller probes it before installing.
@@ -351,9 +356,10 @@ fm_dnspod_build_static() {
     fi
 }
 
-# Native xcaddy rebuild (frankenphp.dev/docs/compile) - the docker-less
-# fallback; requires libphp.so headers (php-config). Echoes the candidate
-# binary path (empty on failure).
+# Native xcaddy rebuild (frankenphp.dev/docs/compile) - the docker-LESS
+# FALLBACK only (the docker static build above is the official standard
+# path); requires the host go >= 1.26 toolchain + libphp.so headers
+# (php-config). Echoes the candidate binary path (empty on failure).
 fm_dnspod_build_native() {
     local xcaddy_bin=""
     local php_config=""
