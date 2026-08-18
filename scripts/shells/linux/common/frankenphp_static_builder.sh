@@ -35,7 +35,7 @@ source "${FM_STATIC_CURRENT_DIR}/frankenphp_static_prereq.sh"
 # Base extension set for the static build (spc names; covers the Laravel
 # main app needs - Laravel 13 included). The official default list is
 # intentionally overridden for a deterministic, minimal binary.
-FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pdo,pdo_mysql,pdo_sqlite,session,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
+FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
 # Service-selector driven additions (get_var START_*): only the database
 # backends this host actually starts are baked into the binary.
 FRANKENPHP_STATIC_DB_EXT_MYSQL="mysqli,pdo_mysql"

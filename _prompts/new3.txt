@@ -26,67 +26,9 @@ d
 	 
 	 
 	 
+	 服务器。
+	pivolccoding.ps1 --session 01a013f8-fadd-737a-89f6-634ccece8e09
 	 
-	pivolccoding.ps1 --session 01a00aba-56ec-7abf-a45a-1f4ad9c28eb2
-	 
-	 continue，同时现在千问每一次生成的短文默认随机一种语音角色，
-但是注意，如果是一大段话，内部使用多个句子时音色角色是一样的
-，一个任务默认随机一个。同时继续完成之前的任务。
-
-找到apps/mcp-chrome，基中的API全部对齐 poly apps / laravel main，现在将重复实现合并。扩展laralvel main sys:init，所有单词的is valid需要由mcp-chrome验证一遍。证证逻辑直接查看mcp-chrome,1：如果在mcp-chrome显式开启后，将实时获取laravel没有证证过的的，并利用deepseek的网页端进行提示词获取结果 ，一次批量处理，同时得到单词的有效性和翻译，回传给laravel，如果并标记为is valid = ai_ensure, 如果单词没翻译，则正好同时使用翻译结果 ，有翻译则跳过，这样减少回传次数。2：默认mcp-chrome只勾选验证en，可多选其他语言，3：如果后端全部主验证过了，则空转。一批为150表单词。4：更新pycore UI laravel manager UI中的字段，支持is valide = 字符串，5：修正图书封面的任务开启，回传，6：修正单词列表封面图的gemini 网页端生成的任务开启，回传。注意合并公共类库和重复实现，按laravel 13的优化等等。注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
-
-153_install_desktop_applications 中凡是npm安装的，全部改为pnpm安装，注意，所有脚本都要在常量库中
-  定义full path访问二进制，因为首次安装可能 没有环境变量。之后，在
-  153_install_desktop_applications中，即使已经安装了的软件，pnpm（npm）的都要升级一遍。特别是codex
-  等等AI工具。同时确保AI工具在任何环境下都是安装的，应用软件在无桌面环境下跳过。
-  
-  [#] Setup Network Router [false]
-  [C] Set Cloud Provider [null]··· 来确定编译那个数据库的支持， 47_install_composer.sh脚本调整index到后面进行适配frankenPHP模式。同样将 45_configure_php85.sh放在后面适配配置frankenPHP。搜索廴文档，保留支持podns签发证书的编译代码。幂等编译启用。
-  
-  编写 Caddyfile 配置文件当单文件部署到生产环境后，你不能再单纯使用命令行简易拉起（./frankenphp php-server），而是需要创建一个功能完整的 Caddyfile 来告诉系统如何调用刚才注入的插件。在你的项目根目录下创建一个名为 Caddyfile 的文件，内容如下：caddy{
-    # 全局配置：关闭默认的 HTTP 验证，强制使用刚注入的 dnspod 插件
-    acme_dns dnspod "12345,abcdefgYOURDNSPODTOKENHERE"
-}
-
-# 你的域名（支持 *.yourdomain.com 泛域名证书申请）
-yourdomain.com {
-    # 启用 zstd 和 br 压缩（可选，提升响应速度）
-    encode zstd br gzip
-
-    # 核心：将所有请求交由体内静态打包的 PHP 解释器处理
-    php_server
-}
-Use code with caution.🚀 第四步：带上配置文件运行你的单文件万事俱备后，在你的生产服务器上，通过指定 --config 参数来运行你编译出来的二进制文件：bash# 带着刚才写好的 Caddyfile 启动服务
-./frankenphp run --config ./Caddyfile
-────────────────────────────────────── 
-
-pi --session 01a013c0-3219-7fc1-a426-6de2c4916eca
-
-
-[paste #1 +25 lines]  [08:55:06] [W] Pre-built content not found for
-libunistring, fallback to source download
-[08:55:06] [I] [32/48] Downloading source libunistring
-[08:55:10] [I] [33/48] Downloading source libidn2
-[08:55:13] [W] Pre-built content not found for libedit, fallback to
-source download
-[08:55:13] [I] [34/48] Downloading source libedit
-[08:55:16] [I] [35/48] Downloading source krb5
-curl: (22) The requested URL returned error: 403
-[08:55:16] [W] Download failed: Download failed: Direct command run
-failed with code: 22
-[08:55:16] [W] No alternative sources found for krb5, using default
-alternative source Executing: 93_install_frankenphp.sh
-同时不要放到  /tmp 目录编译，而是放到//www/programing/frankenphp 目录幂等
-创建，并保留中间源码。下次编译时能直接在上一次的基础上，以及git项目可以保
-留。如果存在的git项目只需要进行升级幂等升级。当让，如果 frankenphp已经可
-用，则/tmp编译的跳过，不再冲 /www/programing/frankenphp 再编译一次。同时
-验证93脚本的米的幂等性，
-注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安
-装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，
-前一个步骤的幂等不能影响后面的过程，需要细粒度。
-。同时也没有幂等disable旧的php进程和服
-务。这些服务参考 scripts\shells\linux\debian\install_shells\175_laravel_main_start.sh 中的创建规范。当然这些放到公共区的对应的php的对应脚本中。
-────────────────────────────────────────────────────
 
   1_stop_cloud_monitors.sh
   3_setting_base.sh

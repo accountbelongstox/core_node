@@ -113,6 +113,17 @@ frankenphp_prebuilt_is_expected_binary() {
     local current_tag=""
 
     expected_tag="$(frankenphp_prebuilt_expected_tag)"
+    if [ "$expected_tag" = "latest" ]; then
+        if [ -x "$(fm_get_binary)" ]; then
+            current_tag="$(frankenphp_prebuilt_existing_version)"
+            if [ -n "$current_tag" ]; then
+                echo "yes"
+                return 0
+            fi
+        fi
+        echo "no"
+        return 0
+    fi
     current_tag="$(frankenphp_prebuilt_existing_version)"
     if [ -n "$current_tag" ] && [ "$current_tag" = "$expected_tag" ] && [ -x "$(fm_get_binary)" ]; then
         echo "yes"
@@ -176,9 +187,29 @@ frankenphp_prebuilt_select_asset_url() {
     echo ""
 }
 
+# User-facing landing dir for the prebuilt binary temp file (reused across
+# runs): <invoking user>/Downloads, falling back to the persistent build-root
+# cache when the home directory is not writable.
+frankenphp_prebuilt_downloads_dir() {
+    local user_name=""
+    local user_home=""
+    local downloads_dir=""
+
+    user_name="${SUDO_USER:-${USER:-$(id -un 2>/dev/null)}}"
+    user_home="$(getent passwd "$user_name" 2>/dev/null | cut -d: -f6)"
+    [ -n "$user_home" ] || user_home="${HOME:-/root}"
+    downloads_dir="${user_home}/Downloads"
+    if mkdir -p "$downloads_dir" 2>/dev/null && [ -w "$downloads_dir" ]; then
+        echo "$downloads_dir"
+    else
+        echo "${FRANKENPHP_PREBUILT_CACHE_DIR}/downloads"
+    fi
+}
+
 frankenphp_prebuilt_download_asset() {
     local selected_url=""
     local selected_file=""
+    local downloads_dir=""
     local cache_file=""
 
     selected_url="${1%%|*}"
@@ -188,8 +219,9 @@ frankenphp_prebuilt_download_asset() {
         return 0
     fi
 
-    mkdir -p "${FRANKENPHP_PREBUILT_CACHE_DIR}/${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}/${FRANKENPHP_PREBUILT_ARCH}"
-    cache_file="${FRANKENPHP_PREBUILT_CACHE_DIR}/${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}/${FRANKENPHP_PREBUILT_ARCH}/${selected_file}"
+    downloads_dir="$(frankenphp_prebuilt_downloads_dir)"
+    mkdir -p "${downloads_dir}/frankenphp/${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}/${FRANKENPHP_PREBUILT_ARCH}"
+    cache_file="${downloads_dir}/frankenphp/${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}/${FRANKENPHP_PREBUILT_ARCH}/${selected_file}"
     if [ -s "$cache_file" ]; then
         echo "$cache_file"
         return 0
@@ -243,15 +275,25 @@ frankenphp_prebuilt_unpack() {
 frankenphp_prebuilt_validate_binary() {
     local binary_path=""
     local candidate_tag=""
+    local requested_tag=""
 
     binary_path="$1"
+    requested_tag="$(frankenphp_prebuilt_expected_tag)"
     if [ ! -f "$binary_path" ]; then
         echo "no"
         return 0
     fi
     chmod +x "$binary_path" 2>/dev/null || true
     candidate_tag="$("$binary_path" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][^ ]*\).*/\1/p' | head -n 1)"
-    if [ "$candidate_tag" = "$(frankenphp_prebuilt_expected_tag)" ]; then
+    if [ "$requested_tag" = "latest" ]; then
+        if [ -n "$candidate_tag" ]; then
+            echo "yes"
+        else
+            echo "no"
+        fi
+        return 0
+    fi
+    if [ "$candidate_tag" = "$requested_tag" ]; then
         echo "yes"
     else
         echo "no"

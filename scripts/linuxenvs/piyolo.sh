@@ -23,6 +23,8 @@ MODE="auto"
 PROVIDER="openai-codex"
 MODEL="gpt-5.6-sol"
 THINKING="high"
+THINKING_SET_BY_USER="false"
+PARSED_ARGS=()
 PI_BIN_PATH=""
 PI_USER_DIR=""
 PI_AGENT_DIR=""
@@ -145,7 +147,33 @@ if [ "$#" -gt 0 ]; then
             ;;
     esac
 fi
-FORWARD_ARGS=("$@")
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --thinking)
+            if [ -z "${2:-}" ]; then
+                echo "[ERROR] --thinking requires a value."
+                echo "[INFO] Supported levels: off, minimal, low, medium, high, xhigh, max"
+                exit 1
+            fi
+            THINKING="$2"
+            THINKING_SET_BY_USER="true"
+            shift 2
+            ;;
+        --thinking=*)
+            THINKING="${1#*=}"
+            THINKING_SET_BY_USER="true"
+            shift
+            ;;
+        *)
+            PARSED_ARGS+=("$1")
+            shift
+            ;;
+    esac
+
+done
+
+FORWARD_ARGS=("${PARSED_ARGS[@]}")
 
 if [ "$MODE" = "claude" ]; then
     PROVIDER="anthropic"
@@ -221,6 +249,23 @@ else
     if [ -d "$KIMI_SKILLS_PATH" ]; then
         SKILL_PATHS+=("$KIMI_SKILLS_PATH")
     fi
+fi
+
+if [ "$MODE" = "codex" ]; then
+    if [ "$THINKING_SET_BY_USER" = "false" ] && [ "$THINKING" = "high" ]; then
+        THINKING="xhigh"
+    fi
+    case "$THINKING" in
+        xhigh)
+            ;;
+        minimal|off|low|medium|high|max)
+            THINKING="xhigh"
+            ;;
+        *)
+            echo "[WARN] Unsupported thinking level '$THINKING' for codex; fallback to xhigh."
+            THINKING="xhigh"
+            ;;
+    esac
 fi
 
 if [ "${#PACKAGE_SOURCES[@]}" -gt 0 ]; then
@@ -414,6 +459,8 @@ echo "piyolo.sh"
 echo "============================================================"
 echo "[INFO] Mode: $MODE"
 echo "[INFO] Default model: $PROVIDER/$MODEL ($THINKING)"
+echo "[TIP] Thinking levels supported by Pi: off, minimal, low, medium, high, xhigh, max (xhigh = Extra High)."
+echo "[TIP] Override temporarily with: ./piyolo.sh <mode> --thinking <level> or --thinking=<level>"
 echo "[INFO] Pi user data: $PI_USER_DIR"
 echo "[INFO] Project trust: approved; provider model cycling enabled"
 echo "============================================================"

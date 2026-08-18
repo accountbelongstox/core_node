@@ -150,8 +150,31 @@ fm_ensure_php_cli_shim() {
         return 1
     fi
     for shim in php php-cli; do
-        wanted="#!/bin/sh
-exec ${binary} php-cli \"\$@\""
+        wanted="#!/usr/bin/env bash
+args=()
+while [ \"\$#\" -gt 0 ]; do
+    case \"\$1\" in
+        --)
+            shift
+            ;;
+        -d)
+            shift
+            if [ \"\$#\" -gt 0 ]; then
+                shift
+            fi
+            ;;
+        -d*)
+            shift
+            ;;
+        *)
+            args+=(\"\$1\")
+            shift
+            ;;
+    esac
+done
+
+exec ${binary} php-cli \"\${args[@]}\"
+"
         existing=""
         if [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ]; then
             # Only read if it's a small file (likely our shim) to avoid null byte warnings from binaries
@@ -473,6 +496,50 @@ fm_disable_legacy_php_runtime() {
 # issuing certificates meanwhile. Once the module has converged, the apt
 # PHP stack is purged (fm_static_apt_php_cleanup): the static binary is
 # the frankenphp plane's ONLY PHP runtime.
+# Probe a runtime extension inside a frankenphp binary's embedded PHP
+# (script-file mode: the embedded php-cli accepts no -r/-d flags).
+fm_embedded_extension_loaded() {
+    local binary="$1"
+    local extension="$2"
+    local probe=""
+    local rc=""
+
+    [ -n "$binary" ] && [ -x "$binary" ] || return 1
+    probe="$(mktemp)"
+    printf '<?php exit(extension_loaded(getenv("FM_PROBE_EXTENSION")) ? 0 : 1);' > "$probe"
+    FM_PROBE_EXTENSION="$extension" "$binary" php-cli "$probe" >/dev/null 2>&1
+    rc=$?
+    rm -f "$probe"
+    return $rc
+}
+
+# Idempotent unlink of a live FrankenPHP runtime BEFORE the central binary
+# is replaced: retire every unit that executes a frankenphp binary (plus its
+# trigger timer). Replace-only semantics - the prebuilt cache, the staging
+# tree and the whole static build tree are never touched here.
+fm_unlink_frankenphp_runtime() {
+    local unit=""
+    local unit_cmd=""
+
+    command -v systemctl >/dev/null 2>&1 || return 0
+    for unit in $(systemctl list-unit-files --type=service --no-legend 2>/dev/null \
+        | awk '{print $1}' | grep -Ei 'frankenphp|octane|app-manager' | grep -v '@'); do
+        unit_cmd="$(systemctl show -p ExecStart "$unit" 2>/dev/null || true)"
+        case "$unit_cmd" in
+            *frankenphp*)
+                echo "[$SCRIPT_INDEX] unlink: disabling frankenphp unit ${unit}"
+                $USE_SUDO systemctl disable --now "$unit" >/dev/null 2>&1 || true
+                if systemctl list-unit-files --type=timer --no-legend 2>/dev/null \
+                    | awk '{print $1}' | grep -qx "${unit}.timer"; then
+                    $USE_SUDO systemctl disable --now "${unit}.timer" >/dev/null 2>&1 || true
+                fi
+                ;;
+        esac
+    done
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    return 0
+}
+
 fm_ensure_dnspod_module() {
     local binary=""
     local candidate=""
@@ -485,8 +552,15 @@ fm_ensure_dnspod_module() {
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; run fm_install first"
         return 1
     fi
-    if fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE"; then
-        echo "[$SCRIPT_INDEX] dnspod module already embedded"
+    # Embedded-runtime completeness floor: dnspod module (DNS-01) plus the
+    # extensions the operating scripts depend on (phar+simplexml: composer,
+    # pcntl: worker control). A binary missing any of them is a rebuild
+    # trigger.
+    if fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE" \
+        && fm_embedded_extension_loaded "$binary" phar \
+        && fm_embedded_extension_loaded "$binary" simplexml \
+        && fm_embedded_extension_loaded "$binary" pcntl; then
+        echo "[$SCRIPT_INDEX] dnspod module already embedded (phar/pcntl present)"
         fm_ensure_local_bin_link
         fm_disable_legacy_php_runtime
         fm_static_apt_php_cleanup
@@ -502,8 +576,9 @@ fm_ensure_dnspod_module() {
     # Candidate sanity BEFORE replacing the live binary: must execute and
     # carry the module.
     if ! "$candidate" version >/dev/null 2>&1 \
-        || ! fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE"; then
-        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module probe; keeping $binary"
+        || ! fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE" \
+        || ! fm_embedded_extension_loaded "$candidate" phar; then
+        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module/phar probe; keeping $binary"
         rm -rf "$(dirname "$candidate")"
         return 1
     fi

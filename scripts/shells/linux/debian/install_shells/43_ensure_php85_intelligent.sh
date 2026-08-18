@@ -44,9 +44,11 @@ check_network_connectivity() {
     check_network_connectivity_from_php_common "$SCRIPT_INDEX"
 }
 
-# Check if Nginx is enabled for configuration
-INSTALL_NGINX=$(get_global_var "INSTALL_NGINX" "false")
-echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX${NC}"
+# Check if Nginx is enabled - derived from the [W] plane mutex constant
+# (legacy INSTALL_NGINX key is retired).
+INSTALL_NGINX="false"
+[ "$(web_server_plane)" = "nginx" ] && INSTALL_NGINX="true"
+echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX (plane: $(web_server_plane))${NC}"
 
 # Configuration variables are now sourced from php_common_vars.sh
 
@@ -631,7 +633,7 @@ verify_php_symbolic_link_fix() {
     fi
 
     # Test 5: Test PHP functionality with a simple command
-    if timeout 10 php -r "echo 'PHP is working';" >/dev/null 2>&1; then
+    if timeout 10 php_script_run "echo 'PHP is working';" >/dev/null 2>&1; then
         echo -e "${GREEN}$SCRIPT_INDEX �?PHP functionality test passed${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX �?PHP functionality test failed${NC}"

@@ -162,16 +162,24 @@ echo "Warming route, event, and view caches..."
 "$PHP_BIN" artisan view:cache 2>&1 || echo "WARNING: view cache could not be created"
 
 # ── Phase 4: Clean up legacy services ────────────────────────────────────────
-# Stop old octane-poly-* services if they exist (replaced by app-manager-* naming)
+# Stop old octane-* services if they exist (replaced by app-manager-* naming)
 if command -v systemctl >/dev/null 2>&1; then
     local_old_services=$(systemctl list-units --type=service --all --no-legend 2>/dev/null \
-        | grep -oE "octane-poly-[0-9]+\.service" | sed 's/.service$//' || true)
+        | grep -oE "octane-[a-zA-Z0-9-]+\.service" | sed 's/.service$//' || true)
     if [ -n "$local_old_services" ]; then
         echo "Cleaning up legacy Octane services..."
         for old_svc in $local_old_services; do
-            echo "  Stopping and disabling: $old_svc"
+            echo "  Stopping and disabling: $old_svc (+ trigger timer)"
             systemctl stop "$old_svc" 2>/dev/null || true
             systemctl disable "$old_svc" 2>/dev/null || true
+            # The generator (ServerManagerV1OctaneServiceManager) registers a
+            # matching .timer that re-triggers a disabled service - retire the
+            # pair together or the unit restarts forever.
+            if systemctl list-unit-files --type=timer --no-legend 2>/dev/null \
+                | awk '{print $1}' | grep -qx "${old_svc}.timer"; then
+                systemctl stop "${old_svc}.timer" 2>/dev/null || true
+                systemctl disable "${old_svc}.timer" 2>/dev/null || true
+            fi
         done
         systemctl daemon-reload 2>/dev/null || true
     fi

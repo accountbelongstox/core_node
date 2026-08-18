@@ -1607,7 +1607,12 @@ get_var() {
 # (octane_service_manager.sh), not here - gvar_common stays basic.
 web_server_plane() {
     local plane=""
-    plane="$(get_global_var WEB_SERVER_PLANE 'frankenphp')"
+    # Single source: the [W] selector key START_WEB_SERVER (mutex constant).
+    # WEB_SERVER_PLANE stays as a synchronized mirror for older readers.
+    plane="$(get_global_var START_WEB_SERVER "")"
+    if [ -z "$plane" ]; then
+        plane="$(get_global_var WEB_SERVER_PLANE 'frankenphp')"
+    fi
     case "$plane" in
         nginx) echo "nginx" ;;
         *) echo "frankenphp" ;;
@@ -1617,7 +1622,12 @@ web_server_plane() {
 set_web_server_plane() {
     local plane="$1"
     case "$plane" in
-        frankenphp|nginx) set_global_var WEB_SERVER_PLANE "$plane" 'false' ;;
+        frankenphp|nginx)
+            # Keep the selector key and the mirrored plane key in sync -
+            # readers must never see them diverge.
+            set_global_var START_WEB_SERVER "$plane" 'false'
+            set_global_var WEB_SERVER_PLANE "$plane" 'false'
+            ;;
         *) echo "Error: plane must be frankenphp or nginx" >&2 ;;
     esac
 }

@@ -20,6 +20,12 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 LINUX_PATH_FUNCTION="$PARENT_DIR_LEVEL_2/common/linux_path_function.sh"
 LARAVEL_INSTALLER_PACKAGE="laravel/installer"
+LARAVEL_INSTALLER_BINARY_NAME="laravel"
+LARAVEL_INSTALLER_BIN_DIR=""
+LARAVEL_INSTALLER_HOME=""
+LARAVEL_INSTALLER_BINARY_PATH=""
+LARAVEL_INSTALLER_LINK_PATH="/usr/local/bin/$LARAVEL_INSTALLER_BINARY_NAME"
+LARAVEL_INSTALLER_UPDATE_STAMP="/usr/local/etc/.laravel_installer_update_stamp"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
@@ -29,6 +35,12 @@ source "$PARENT_DIR_LEVEL_1/debian_com/php_common_functions.sh"
 
 # Configuration - using variables from php_common_vars.sh
 PHP_BINARY="$TARGET_LINK_PATH"
+COMPOSER_RUNTIME_PHP="$PHP_BINARY"
+COMPOSER_RUNTIME_SUBCMD=""
+COMPOSER_RUNTIME_PLANE=""
+COMPOSER_RUNTIME_CANDIDATES_LOG=""
+COMPOSER_RUNTIME_PHAR_STATUS="unknown"
+COMPOSER_RUNTIME_PHP_WRAPPER="/usr/local/bin/composer-php-runtime"
 COMPOSER_PATH_DIR="$(dirname "$COMPOSER_TARGET_PATH")"
 
 # Version requirements
@@ -51,13 +63,98 @@ else
     export COMPOSER_NO_INTERACTION=1
 fi
 
+# Resolve PHP runtime plane from shared constants:
+#  - explicit global PHP_RUNTIME_PLANE always wins
+#  - otherwise derived from web_server_plane
+# In frankenphp plane, use embedded frankenphp php-cli as the primary runtime and
+# ignore system php8.5 binaries by design (they are intentionally not the execution
+# path for Composer in this plane; use only as fallback when embedding is unavailable).
+composer_php_runtime_plane() {
+    local runtime=""
+    runtime="$(get_global_var PHP_RUNTIME_PLANE '')"
+    if [ -n "$runtime" ]; then
+        case "$runtime" in
+            system) echo "system" ;;
+            *) echo "frankenphp" ;;
+        esac
+        return 0
+    fi
+
+    if [ "$(web_server_plane)" = "nginx" ]; then
+        echo "system"
+    else
+        echo "frankenphp"
+    fi
+}
+
+# Execute with the selected composer runtime form.
+# For frankenPHP plane this becomes `frankenphp php-cli`.
+composer_runtime_exec() {
+    if [ -z "$COMPOSER_RUNTIME_PHP" ]; then
+        return 1
+    fi
+
+    if [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
+        "$COMPOSER_RUNTIME_PHP" php-cli "$@"
+    else
+        "$COMPOSER_RUNTIME_PHP" "$@"
+    fi
+}
+
+# Execute composer using the selected runtime and composer.original.
+# Keep this helper to avoid passing PHP CLI flags into frankenphp php-cli mode.
+composer_run_original_runtime() {
+    local composer_args=("$@")
+
+    if [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
+        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 composer_runtime_exec "${COMPOSER_TARGET_PATH}.original" "${composer_args[@]}"
+    else
+        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 composer_runtime_exec -d "open_basedir=none" "${COMPOSER_TARGET_PATH}.original" "${composer_args[@]}"
+    fi
+}
+
+# Run composer command through a prepared wrapper when possible.
+run_composer_wrapper_command() {
+    local wrapper_path="$1"
+    shift
+    local wrapper_args=("$@")
+
+    if [ -x "$wrapper_path" ] && [ -f "$wrapper_path" ] && [ "$(wrapper_points_to_runtime_php "$wrapper_path")" = "yes" ]; then
+        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$wrapper_path" "${wrapper_args[@]}"
+        return $?
+    fi
+    return 1
+}
+
+# Run composer through the main wrapper when possible, fallback to runtime+original binary.
+run_composer_command() {
+    local composer_args=("$@")
+
+    if run_composer_wrapper_command "$COMPOSER_TARGET_PATH" "${composer_args[@]}"; then
+        return $?
+    fi
+
+    if [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
+        composer_run_original_runtime "${composer_args[@]}"
+        return $?
+    fi
+
+    return 1
+}
+
 # Get Composer version from original binary
 get_composer_version() {
+    local composer_version="not_installed"
+
     if [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
-        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown"
-    else
-        echo "not_installed"
+        composer_version="$(composer_run_original_runtime --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || true)"
+        if [ -n "$composer_version" ]; then
+            echo "$composer_version"
+            return
+        fi
     fi
+
+    echo "unknown"
 }
 
 # Compare version strings (returns 0 if version1 >= version2)
@@ -93,7 +190,7 @@ version_compare() {
 # Check if Composer has deprecation warnings (indicates old version)
 check_composer_errors() {
     local test_output
-    test_output=$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version 2>&1)
+    test_output=$(composer_run_original_runtime --version 2>&1)
 
     if echo "$test_output" | grep -qi "deprecated\|warning\|error"; then
         echo "true"
@@ -104,8 +201,19 @@ check_composer_errors() {
 
 # Get current PHP version
 get_current_php_version() {
-    if [ -x "$PHP_BINARY" ]; then
-        "$PHP_BINARY" -v 2>/dev/null | grep -oP 'PHP \K[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown"
+    local php_probe=""
+    local version_output=""
+
+    if [ -x "$COMPOSER_RUNTIME_PHP" ]; then
+        if [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
+            php_probe="$(mktemp)"
+            printf '<?php echo PHP_VERSION;' > "$php_probe"
+            version_output="$(composer_runtime_exec "$php_probe" 2>/dev/null | tr -d '[:space:]' || true)"
+            rm -f "$php_probe"
+        else
+            version_output="$(composer_runtime_exec -v 2>/dev/null | tr -d '[:space:]' | head -n1 || true)"
+        fi
+        echo "$version_output" | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown"
     else
         echo "not_found"
     fi
@@ -121,39 +229,347 @@ store_php_version() {
     fi
 }
 
+# Check whether a runtime php binary includes the required phar extension.
+composer_runtime_supports_phar() {
+    local candidate_binary="$1"
+    local candidate_subcmd="${2:-}"
+    local probe_script=""
+    local probe_result=""
+    local supported="no"
+
+    if [ -z "$candidate_binary" ] || [ ! -x "$candidate_binary" ]; then
+        echo "no"
+        return
+    fi
+
+    probe_script="$(mktemp)"
+    printf '<?php echo extension_loaded("phar") ? "yes" : "no";\n' > "$probe_script"
+
+    if [ "$candidate_subcmd" = "php-cli" ]; then
+        probe_result="$($candidate_binary php-cli "$probe_script" 2>/dev/null | tr -d '[:space:]' || true)"
+    else
+        probe_result="$($candidate_binary "$probe_script" 2>/dev/null | tr -d '[:space:]' || true)"
+    fi
+
+    rm -f "$probe_script"
+
+    case "$probe_result" in
+        *yes*)
+            supported="yes"
+            ;;
+    esac
+
+    echo "$supported"
+}
+
+# Resolve composer runtime binary with extension-first preference.
+# On frankenPHP plane, prefer official embedded runtime usage and skip system php8.5 checks
+# that are intentionally unused by this plane.
+resolve_composer_runtime_php() {
+    local runtime_plane=""
+    local candidate=""
+    local candidate_subcmd=""
+    local fallback_candidate=""
+    local fallback_subcmd=""
+    local candidate_log=""
+
+    COMPOSER_RUNTIME_PHP=""
+    COMPOSER_RUNTIME_SUBCMD=""
+    COMPOSER_RUNTIME_CANDIDATES_LOG=""
+    COMPOSER_RUNTIME_PHAR_STATUS="unknown"
+
+    runtime_plane="$(composer_php_runtime_plane)"
+    COMPOSER_RUNTIME_PLANE="$runtime_plane"
+
+    if [ "$runtime_plane" = "frankenphp" ]; then
+        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: frankenphp - use embedded 'frankenphp php-cli' runtime per official docs, ignoring direct system php8.5 binaries unless embedding is unavailable.${NC}"
+
+        # Official docs: https://raw.githubusercontent.com/dunglas/frankenphp/main/README.md
+        # Example: frankenphp php-cli /path/to/your/script.php
+        # Primary: official FrankenPHP binary + php-cli subcommand.
+        candidate="/usr/local/bin/frankenphp"
+        candidate_subcmd="php-cli"
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="/usr/bin/frankenphp"
+        candidate_subcmd="php-cli"
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        # Compatibility fallback only when embedded CLI is unavailable.
+        # These system PHP candidates are not preferred in frankenphp plane.
+        candidate="/usr/local/bin/php"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="/usr/bin/php"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+    else
+        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: system${NC}"
+
+        candidate="/usr/bin/php${PHP_VERSION}"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="/usr/local/bin/php"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="/usr/bin/php"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+    fi
+
+    candidate="$(command -v php 2>/dev/null || true)"
+    candidate_subcmd=""
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+        if [[ "$candidate_log" != *"$candidate"* ]]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(command)"
+        fi
+        if [ -z "$fallback_candidate" ]; then
+            fallback_candidate="$candidate"
+            fallback_subcmd="$candidate_subcmd"
+        fi
+        if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+            COMPOSER_RUNTIME_PHP="$candidate"
+            COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+        fi
+    fi
+
+    if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ -n "$fallback_candidate" ]; then
+        COMPOSER_RUNTIME_PHP="$fallback_candidate"
+        COMPOSER_RUNTIME_SUBCMD="$fallback_subcmd"
+    fi
+
+    if [ -z "$COMPOSER_RUNTIME_PHP" ]; then
+        COMPOSER_RUNTIME_PHP="$PHP_BINARY"
+        COMPOSER_RUNTIME_SUBCMD=""
+    fi
+
+    COMPOSER_RUNTIME_PHAR_STATUS="$(composer_runtime_supports_phar "$COMPOSER_RUNTIME_PHP" "$COMPOSER_RUNTIME_SUBCMD")"
+    COMPOSER_RUNTIME_CANDIDATES_LOG="${candidate_log:-none}"
+    PHP_BINARY="$COMPOSER_RUNTIME_PHP"
+}
+
+wrapper_points_to_runtime_php() {
+    local wrapper_path="$1"
+
+    if [ ! -x "$wrapper_path" ]; then
+        echo "no"
+        return
+    fi
+
+    if ! grep -F -q "RUNTIME_CMD=\"$COMPOSER_RUNTIME_PHP\"" "$wrapper_path" 2>/dev/null; then
+        echo "no"
+        return
+    fi
+    if ! grep -F -q "RUNTIME_CMD_SUBCMD=\"$COMPOSER_RUNTIME_SUBCMD\"" "$wrapper_path" 2>/dev/null; then
+        echo "no"
+        return
+    fi
+    if ! grep -F -q "export PHP_BINARY=\"$COMPOSER_RUNTIME_PHP_WRAPPER\"" "$wrapper_path" 2>/dev/null; then
+        echo "no"
+        return
+    fi
+
+    if ! "$wrapper_path" --version >/dev/null 2>&1; then
+        echo "no"
+        return
+    fi
+
+    echo "yes"
+}
+
+write_composer_runtime_php_wrapper() {
+    echo -e "${CYAN}$SCRIPT_INDEX Repairing Composer runtime PHP wrapper...${NC}"
+    $USE_SUDO cat > "$COMPOSER_RUNTIME_PHP_WRAPPER" << EOF
+#!/bin/bash
+# Runtime helper used as PHP_BINARY for Composer script handlers.
+# In frankenphp-php-cli mode, Composer injects -d flags into command strings,
+# which that mode does not always accept directly.
+
+RUNTIME_CMD="${COMPOSER_RUNTIME_PHP}"
+RUNTIME_CMD_SUBCMD="${COMPOSER_RUNTIME_SUBCMD}"
+
+if [ -z "\$RUNTIME_CMD" ] || [ ! -x "\$RUNTIME_CMD" ]; then
+    exit 1
+fi
+
+if [ -z "\$RUNTIME_CMD_SUBCMD" ]; then
+    exec "\$RUNTIME_CMD" "\$@"
+fi
+
+if [ "\$RUNTIME_CMD_SUBCMD" != "php-cli" ]; then
+    exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\$@"
+fi
+
+ARGS=()
+while [ "\$#" -gt 0 ]; do
+    case "\$1" in
+        -d)
+            shift
+            if [ "\$#" -gt 0 ]; then
+                shift
+            fi
+            ;;
+        -d*)
+            shift
+            ;;
+        *)
+            ARGS+=("\$1")
+            shift
+            ;;
+    esac
+done
+
+exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\${ARGS[@]}"
+EOF
+    $USE_SUDO chmod +x "$COMPOSER_RUNTIME_PHP_WRAPPER"
+}
+
 write_composer_safe_wrapper() {
     echo -e "${CYAN}$SCRIPT_INDEX Repairing composer-safe wrapper...${NC}"
-    $USE_SUDO tee "$COMPOSER_SAFE_PATH" > /dev/null << 'EOF'
+    $USE_SUDO cat > "$COMPOSER_SAFE_PATH" << EOF
 #!/bin/bash
 # Global Composer wrapper that handles root warnings and open_basedir restrictions
 # Usage: composer-safe [composer-arguments]
 
+RUNTIME_CMD="${COMPOSER_RUNTIME_PHP}"
+RUNTIME_CMD_SUBCMD="${COMPOSER_RUNTIME_SUBCMD}"
+PHP_COMPOSER="${COMPOSER_TARGET_PATH}.original"
+export PHP_BINARY="${COMPOSER_RUNTIME_PHP_WRAPPER}"
+
 export COMPOSER_ALLOW_SUPERUSER=1
 export COMPOSER_NO_INTERACTION=1
 
-exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
+if [ -n "\$RUNTIME_CMD_SUBCMD" ]; then
+    if [ "\$RUNTIME_CMD_SUBCMD" = "php-cli" ]; then
+        exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\$PHP_COMPOSER" "\$@"
+    fi
+
+    if "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" -d display_errors=0 /dev/null >/dev/null 2>&1; then
+        exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" -d "open_basedir=none" "\$PHP_COMPOSER" "\$@"
+    fi
+    exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\$PHP_COMPOSER" "\$@"
+fi
+
+if "\$RUNTIME_CMD" -d display_errors=0 /dev/null >/dev/null 2>&1; then
+    exec "\$RUNTIME_CMD" -d "open_basedir=none" "\$PHP_COMPOSER" "\$@"
+fi
+exec "\$RUNTIME_CMD" "\$PHP_COMPOSER" "\$@"
 EOF
     $USE_SUDO chmod +x "$COMPOSER_SAFE_PATH"
 }
 
 write_composer_main_wrapper() {
     echo -e "${CYAN}$SCRIPT_INDEX Repairing Composer wrapper...${NC}"
-    $USE_SUDO tee "$COMPOSER_TARGET_PATH" > /dev/null << 'EOF'
+    $USE_SUDO cat > "$COMPOSER_TARGET_PATH" << EOF
 #!/bin/bash
 # Composer wrapper with automatic environment handling
 
-if [ "$EUID" -eq 0 ]; then
+RUNTIME_CMD="${COMPOSER_RUNTIME_PHP}"
+RUNTIME_CMD_SUBCMD="${COMPOSER_RUNTIME_SUBCMD}"
+PHP_COMPOSER="${COMPOSER_TARGET_PATH}.original"
+export PHP_BINARY="${COMPOSER_RUNTIME_PHP_WRAPPER}"
+
+if [ "\$EUID" -eq 0 ]; then
     export COMPOSER_ALLOW_SUPERUSER=1
     export COMPOSER_NO_INTERACTION=1
 fi
 
-exec /usr/local/bin/php -d "open_basedir=none" /usr/local/bin/composer.original "$@"
+if [ -n "\$RUNTIME_CMD_SUBCMD" ]; then
+    if [ "\$RUNTIME_CMD_SUBCMD" = "php-cli" ]; then
+        exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\$PHP_COMPOSER" "\$@"
+    fi
+
+    if "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" -d display_errors=0 /dev/null >/dev/null 2>&1; then
+        exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" -d "open_basedir=none" "\$PHP_COMPOSER" "\$@"
+    fi
+    exec "\$RUNTIME_CMD" "\$RUNTIME_CMD_SUBCMD" "\$PHP_COMPOSER" "\$@"
+fi
+
+if "\$RUNTIME_CMD" -d display_errors=0 /dev/null >/dev/null 2>&1; then
+    exec "\$RUNTIME_CMD" -d "open_basedir=none" "\$PHP_COMPOSER" "\$@"
+fi
+exec "\$RUNTIME_CMD" "\$PHP_COMPOSER" "\$@"
 EOF
     $USE_SUDO chmod +x "$COMPOSER_TARGET_PATH"
 }
 
 repair_composer_wrappers() {
-    if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
+    write_composer_runtime_php_wrapper
+
+    if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ] || [ "$(wrapper_points_to_runtime_php "$COMPOSER_TARGET_PATH")" != "yes" ]; then
         write_composer_main_wrapper
         if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ]; then
             echo -e "${RED}$SCRIPT_INDEX Composer wrapper is unavailable after repair${NC}"
@@ -162,7 +578,7 @@ repair_composer_wrappers() {
         echo -e "${GREEN}$SCRIPT_INDEX Composer wrapper is already ready${NC}"
     fi
 
-    if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ]; then
+    if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ] || [ "$(wrapper_points_to_runtime_php "$COMPOSER_SAFE_PATH")" != "yes" ]; then
         write_composer_safe_wrapper
         if [ ! -f "$COMPOSER_SAFE_PATH" ] || [ ! -x "$COMPOSER_SAFE_PATH" ]; then
             echo -e "${RED}$SCRIPT_INDEX composer-safe wrapper is unavailable after repair${NC}"
@@ -178,58 +594,175 @@ repair_composer_path() {
     echo -e "${GREEN}$SCRIPT_INDEX Composer PATH repair completed: $COMPOSER_PATH_DIR${NC}"
 }
 
+resolve_laravel_installer_paths() {
+    local detected_home=""
+    local detected_bin_dir=""
+
+    detected_home="${COMPOSER_HOME:-}"
+    detected_home="$(run_composer_command config --global home --no-ansi 2>/dev/null | awk '/^\// { print $0; exit }')"
+
+    if [ -z "$detected_home" ]; then
+        if [ -z "${COMPOSER_HOME:-}" ]; then
+            detected_home="$HOME/.config/composer"
+        else
+            detected_home="${COMPOSER_HOME}"
+        fi
+    fi
+
+    detected_bin_dir="$(run_composer_command global config bin-dir --absolute --no-ansi 2>/dev/null | awk '/^\// { path=$0 } END { print path }')"
+    if [ -z "$detected_bin_dir" ]; then
+        detected_bin_dir="$detected_home/vendor/bin"
+    fi
+
+    LARAVEL_INSTALLER_HOME="$detected_home"
+    LARAVEL_INSTALLER_BIN_DIR="$detected_bin_dir"
+    LARAVEL_INSTALLER_BINARY_PATH="$LARAVEL_INSTALLER_BIN_DIR/$LARAVEL_INSTALLER_BINARY_NAME"
+}
+
+ensure_laravel_installer_usrbin_link() {
+    if [ ! -x "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+        echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer binary is not executable; skip /usr/local/bin link repair${NC}"
+        return
+    fi
+
+    local current_link_target=""
+    current_link_target="$(readlink -f "$LARAVEL_INSTALLER_LINK_PATH" 2>/dev/null || true)"
+
+    if [ -L "$LARAVEL_INSTALLER_LINK_PATH" ] && [ -x "$LARAVEL_INSTALLER_LINK_PATH" ] && [ "$current_link_target" = "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer link already points to $LARAVEL_INSTALLER_LINK_PATH${NC}"
+        return
+    fi
+
+    if [ -e "$LARAVEL_INSTALLER_LINK_PATH" ]; then
+        $USE_SUDO rm -f "$LARAVEL_INSTALLER_LINK_PATH"
+    fi
+
+    $USE_SUDO ln -s "$LARAVEL_INSTALLER_BINARY_PATH" "$LARAVEL_INSTALLER_LINK_PATH"
+    if [ -L "$LARAVEL_INSTALLER_LINK_PATH" ] && [ -x "$LARAVEL_INSTALLER_LINK_PATH" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer link ready: $LARAVEL_INSTALLER_LINK_PATH${NC}"
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer link is not executable immediately: $LARAVEL_INSTALLER_LINK_PATH${NC}"
+    fi
+}
+
+print_laravel_installer_version() {
+    local current_installer_version=""
+
+    if [ ! -x "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+        return
+    fi
+
+    current_installer_version="$($LARAVEL_INSTALLER_BINARY_PATH --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
+    if [ -n "$current_installer_version" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer version detected: $current_installer_version${NC}"
+    fi
+}
+
+print_runtime_capability_summary() {
+    local runtime_invocation=""
+    local composer_version="not_installed"
+    local laravel_installer_version="not_installed"
+    local wrapper_main_state="missing"
+    local wrapper_safe_state="missing"
+
+    runtime_invocation="$COMPOSER_RUNTIME_PHP"
+    if [ -n "$COMPOSER_RUNTIME_SUBCMD" ]; then
+        runtime_invocation="$runtime_invocation $COMPOSER_RUNTIME_SUBCMD"
+    fi
+
+    if [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
+        composer_version="$(get_composer_version)"
+    fi
+
+    if [ -f "$COMPOSER_TARGET_PATH" ] && [ -x "$COMPOSER_TARGET_PATH" ] && [ "$(wrapper_points_to_runtime_php "$COMPOSER_TARGET_PATH")" = "yes" ]; then
+        wrapper_main_state="ready"
+    fi
+
+    if [ -f "$COMPOSER_SAFE_PATH" ] && [ -x "$COMPOSER_SAFE_PATH" ] && [ "$(wrapper_points_to_runtime_php "$COMPOSER_SAFE_PATH")" = "yes" ]; then
+        wrapper_safe_state="ready"
+    fi
+
+    if [ -x "$COMPOSER_TARGET_PATH" ]; then
+        resolve_laravel_installer_paths
+        if [ -x "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+            laravel_installer_version="$($LARAVEL_INSTALLER_BINARY_PATH --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true)"
+            laravel_installer_version="${laravel_installer_version:-not_installed}"
+        fi
+    fi
+
+    echo -e "${CYAN}$SCRIPT_INDEX Runtime capability summary:${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   Runtime plane      : $COMPOSER_RUNTIME_PLANE${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   Runtime candidates : $COMPOSER_RUNTIME_CANDIDATES_LOG${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   Runtime invocation : $runtime_invocation${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX   Runtime phar support: $COMPOSER_RUNTIME_PHAR_STATUS${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX   Composer version   : $composer_version${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX   Composer wrappers  : main=$wrapper_main_state, safe=$wrapper_safe_state${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX   Laravel Installer : $laravel_installer_version${NC}"
+}
+
 install_laravel_installer() {
-    local composer_bin_dir=""
-    local composer_home="${COMPOSER_HOME:-}"
-    local laravel_binary=""
-    local update_stamp=""
     local current_week=""
 
+    # Step 1: resolve composer globals -> binary home and bin directory by file path first.
+    resolve_laravel_installer_paths
+
+    # Step 2: ensure global directories exist for deterministic binary inspection.
+    if [ -d "$LARAVEL_INSTALLER_HOME" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel installer home exists: $LARAVEL_INSTALLER_HOME${NC}"
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX Creating Laravel installer home: $LARAVEL_INSTALLER_HOME${NC}"
+        $USE_SUDO mkdir -p "$LARAVEL_INSTALLER_HOME"
+    fi
+
+    if [ -d "$LARAVEL_INSTALLER_BIN_DIR" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel installer bin directory exists: $LARAVEL_INSTALLER_BIN_DIR${NC}"
+    else
+        echo -e "${YELLOW}$SCRIPT_INDEX Creating Laravel installer bin directory: $LARAVEL_INSTALLER_BIN_DIR${NC}"
+        $USE_SUDO mkdir -p "$LARAVEL_INSTALLER_BIN_DIR"
+    fi
+
+    # Step 3: trust git when composer touches checked-out vendor directories.
     if command -v git >/dev/null 2>&1; then
         $USE_SUDO git config --global --add safe.directory '*' 2>/dev/null || true
     fi
 
-    composer_bin_dir="$(COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global config bin-dir --absolute --no-ansi 2>/dev/null | awk '/^\// { path=$0 } END { print path }')"
-    if [ -z "$composer_bin_dir" ]; then
-        if [ -z "$composer_home" ]; then
-            composer_home="$HOME/.config/composer"
-        fi
-        composer_bin_dir="$composer_home/vendor/bin"
-    fi
-    laravel_binary="$composer_bin_dir/laravel"
-
-    if [ ! -x "$laravel_binary" ]; then
-        echo -e "${YELLOW}$SCRIPT_INDEX Installing Laravel Installer (latest, Laravel 13 capable)...${NC}"
-        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global require "$LARAVEL_INSTALLER_PACKAGE" --no-interaction || true
+    # Step 4: install only when missing (idempotent binary existence check).
+    if [ -x "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer is already installed: $LARAVEL_INSTALLER_BINARY_PATH${NC}"
     else
-        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer is already installed${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Installing Laravel Installer (global)...${NC}"
+        COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 run_composer_command global require "$LARAVEL_INSTALLER_PACKAGE" --no-interaction --no-progress --no-scripts || true
     fi
 
-    # Idempotent weekly refresh: keeps the global installer on the latest
-    # release (the one that scaffolds Laravel 13). The stamp file makes the
-    # update run at most once per week instead of hitting the network on every
-    # invocation.
-    update_stamp="/usr/local/etc/.laravel_installer_update_stamp"
-    current_week="$(date +%G-W%V)"
-    if [ -x "$laravel_binary" ] && [ "$(cat "$update_stamp" 2>/dev/null)" != "$current_week" ]; then
-        echo -e "${CYAN}$SCRIPT_INDEX Refreshing Laravel Installer (weekly, idempotent)...${NC}"
-        if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" global update "$LARAVEL_INSTALLER_PACKAGE" --no-interaction; then
-            echo "$current_week" | $USE_SUDO tee "$update_stamp" > /dev/null
+    # Step 5: keep PATH repair independent from binary install/update state.
+    echo -e "${CYAN}$SCRIPT_INDEX Ensuring Laravel Installer path is in PATH...${NC}"
+    bash "$LINUX_PATH_FUNCTION" addpath "$LARAVEL_INSTALLER_BIN_DIR" || true
+    ensure_laravel_installer_usrbin_link
+
+    if [ ! -x "$LARAVEL_INSTALLER_BINARY_PATH" ]; then
+        echo -e "${RED}$SCRIPT_INDEX Laravel Installer binary is unavailable after install step, skipping refresh and version check.${NC}"
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer PATH repair completed: $LARAVEL_INSTALLER_BIN_DIR and $LARAVEL_INSTALLER_LINK_PATH${NC}"
+
+        # Step 6: refresh weekly; this is idempotent and independent from install.
+        current_week="$(date +%G-W%V)"
+        if [ "$FORCE_REINSTALL" = true ] || [ "$(cat "$LARAVEL_INSTALLER_UPDATE_STAMP" 2>/dev/null)" != "$current_week" ]; then
+            echo -e "${CYAN}$SCRIPT_INDEX Refreshing Laravel Installer (weekly, idempotent)...${NC}"
+            if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 run_composer_command global update "$LARAVEL_INSTALLER_PACKAGE" --no-interaction --no-progress; then
+                $USE_SUDO mkdir -p "$(dirname "$LARAVEL_INSTALLER_UPDATE_STAMP")"
+                echo "$current_week" | $USE_SUDO tee "$LARAVEL_INSTALLER_UPDATE_STAMP" > /dev/null
+            else
+                echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer refresh failed; keeping the installed version${NC}"
+            fi
         else
-            echo -e "${YELLOW}$SCRIPT_INDEX Laravel Installer update failed; keeping the installed version${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer refresh already completed this week.${NC}"
         fi
-    fi
 
-    if [ ! -x "$laravel_binary" ]; then
-        echo -e "${RED}$SCRIPT_INDEX Laravel Installer binary is unavailable after installation${NC}"
-        return
+        # Step 7: show installed version for traceability.
+        print_laravel_installer_version
+        echo -e "${GREEN}$SCRIPT_INDEX Laravel scaffolding command (docs): laravel new <app_name>${NC}"
     fi
-
-    echo -e "${CYAN}$SCRIPT_INDEX Ensuring Laravel Installer is in PATH...${NC}"
-    bash "$LINUX_PATH_FUNCTION" addpath "$composer_bin_dir" || true
-    echo -e "${GREEN}$SCRIPT_INDEX Laravel Installer PATH repair completed: $composer_bin_dir${NC}"
 }
-
 # Check command line arguments
 FORCE_REINSTALL=false
 if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
@@ -250,7 +783,7 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}  1. Install the Composer core binary only when missing or forced${NC}"
     echo -e "${CYAN}  2. Repair each missing Composer wrapper independently${NC}"
     echo -e "${CYAN}  3. Repair Composer and Laravel PATH entries independently${NC}"
-    echo -e "${CYAN}  4. Install Laravel Installer when missing and refresh it weekly (Laravel 13 capable)${NC}"
+    echo -e "${CYAN}  4. Install Laravel Installer when missing and refresh it weekly (latest available)${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Fine-Grained Repair Features:${NC}"
     echo -e "${CYAN}  - Composer core binary existence check${NC}"
@@ -280,20 +813,47 @@ main() {
     echo -e "${CYAN}$SCRIPT_INDEX Version: 3.0 - Fine-Grained Repair${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 
-    # Check PHP 8.5 availability
-    if [ ! -x "$PHP_BINARY" ]; then
-        echo -e "${RED}$SCRIPT_INDEX PHP ${PHP_VERSION} not found at $PHP_BINARY${NC}"
-        echo -e "${YELLOW}$SCRIPT_INDEX Please run 43_ensure_php85_intelligent.sh first${NC}"
-        return
-    fi
+    # Resolve Composer runtime PHP before any Composer invocation.
+    resolve_composer_runtime_php
 
-    if ! "$PHP_BINARY" --version | grep -q "PHP ${PHP_VERSION}"; then
-        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}"
+    # Check PHP runtime availability and capability.
+    if [ ! -x "$PHP_BINARY" ]; then
+        echo -e "${RED}$SCRIPT_INDEX Runtime binary is not executable: $PHP_BINARY${NC}"
+        echo -e "${YELLOW}$SCRIPT_INDEX Please run 43_ensure_php85_intelligent.sh (system plane) or 93_install_frankenphp.sh (frankenphp plane) first${NC}"
         return
     fi
 
     local php_version=$(get_current_php_version)
-    echo -e "${GREEN}$SCRIPT_INDEX PHP $php_version confirmed at $PHP_BINARY${NC}"
+    if [ "$php_version" = "not_found" ]; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not readable (composer runtime detection failed)${NC}"
+        return
+    fi
+    if [ "$php_version" = "unknown" ] && [ "$COMPOSER_RUNTIME_PLANE" != "frankenphp" ]; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not readable (composer runtime detection failed)${NC}"
+        return
+    fi
+
+    if [ "$COMPOSER_RUNTIME_PLANE" = "frankenphp" ]; then
+        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane frankenphp: skipping strict PHP ${PHP_VERSION} comparison and using embedded runtime path by design.${NC}"
+    else
+        case "$php_version" in
+            ${PHP_VERSION}.*)
+                ;;
+            *)
+                echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY is not PHP ${PHP_VERSION}${NC}"
+                return
+                ;;
+        esac
+    fi
+
+    if [ "$COMPOSER_RUNTIME_PHAR_STATUS" != "yes" ]; then
+        echo -e "${RED}$SCRIPT_INDEX $PHP_BINARY does not expose the required phar extension; Composer cannot run on this runtime${NC}"
+        return
+    fi
+
+    echo -e "${GREEN}$SCRIPT_INDEX Composer runtime binary: $PHP_BINARY${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP runtime version: $php_version confirmed at $PHP_BINARY${NC}"
+    print_runtime_capability_summary
 
     # Independent Composer core-binary check
     local current_version=$(get_composer_version)
@@ -309,6 +869,7 @@ main() {
         repair_composer_wrappers
         repair_composer_path
         install_laravel_installer
+        print_runtime_capability_summary
         return
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Composer core binary is missing or broken, proceeding with installation${NC}"
@@ -370,7 +931,11 @@ main() {
     # verification ensure_php_compat_libs_from_apt_repository_manager applies to .debs.
     local expected_sig actual_sig
     expected_sig="$(curl -fsSL https://composer.github.io/installer.sig 2>/dev/null | tr -d '[:space:]')"
-    actual_sig="$("$PHP_BINARY" -r "echo hash_file('sha384', 'composer-setup.php');" 2>/dev/null)"
+    local composer_installer_hash_probe=""
+    composer_installer_hash_probe="$(mktemp)"
+    printf "<?php echo hash_file('sha384', 'composer-setup.php');" > "$composer_installer_hash_probe"
+    actual_sig="$(composer_runtime_exec "$composer_installer_hash_probe" 2>/dev/null)"
+    rm -f "$composer_installer_hash_probe"
     if [ -z "$expected_sig" ]; then
         echo -e "${RED}$SCRIPT_INDEX Could not fetch the Composer installer signature; refusing to run an unverified installer as root${NC}"
         cd "$original_dir"; rm -rf "$temp_dir"; return
@@ -384,14 +949,19 @@ main() {
     # Install with open_basedir disabled and environment variables set
     echo -e "${CYAN}$SCRIPT_INDEX Installing Composer with PHP 8.5 compatibility...${NC}"
     local install_output
-    install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d "open_basedir=none" composer-setup.php --install-dir="$COMPOSER_PATH_DIR" --filename=composer.original 2>&1)
+    if [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
+        install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_RUNTIME_PHP" php-cli composer-setup.php --install-dir="$COMPOSER_PATH_DIR" --filename=composer.original 2>&1)
+    else
+        install_output=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_RUNTIME_PHP" -d "open_basedir=none" composer-setup.php --install-dir="$COMPOSER_PATH_DIR" --filename=composer.original 2>&1)
+    fi
     local install_status=$?
 
     if [ $install_status -eq 0 ]; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Composer installed successfully${NC}"
 
         # Show installed version
-        local installed_version=$($USE_SUDO COMPOSER_ALLOW_SUPERUSER=1 "$PHP_BINARY" -d "open_basedir=none" "${COMPOSER_TARGET_PATH}.original" --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")
+        local installed_version
+        installed_version="$(composer_run_original_runtime --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")"
         echo -e "${GREEN}$SCRIPT_INDEX �?Installed version: $installed_version${NC}"
 
         if ! version_compare "$installed_version" "$MIN_COMPOSER_VERSION"; then
@@ -425,7 +995,7 @@ main() {
 
     # Test main composer wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing main composer wrapper...${NC}"
-    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_TARGET_PATH" --version >/dev/null 2>&1; then
+    if run_composer_command --version >/dev/null 2>&1; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Main composer wrapper: OK${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX �?Main composer wrapper: FAILED${NC}"
@@ -434,7 +1004,7 @@ main() {
 
     # Test composer-safe wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing composer-safe wrapper...${NC}"
-    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$COMPOSER_SAFE_PATH" --version >/dev/null 2>&1; then
+    if run_composer_wrapper_command "$COMPOSER_SAFE_PATH" --version >/dev/null 2>&1; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Composer-safe wrapper: OK${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX �?Composer-safe wrapper: FAILED${NC}"
@@ -443,7 +1013,7 @@ main() {
 
     # Test original composer binary
     echo -e "${CYAN}$SCRIPT_INDEX Testing original composer binary...${NC}"
-    if COMPOSER_ALLOW_SUPERUSER=1 COMPOSER_NO_INTERACTION=1 "$PHP_BINARY" -d open_basedir= "${COMPOSER_TARGET_PATH}.original" --version >/dev/null 2>&1; then
+    if composer_run_original_runtime --version >/dev/null 2>&1; then
         echo -e "${GREEN}$SCRIPT_INDEX �?Original composer binary: OK${NC}"
     else
         echo -e "${RED}$SCRIPT_INDEX �?Original composer binary: FAILED${NC}"
@@ -472,39 +1042,33 @@ main() {
     # Final verification with environment variables
     local final_version=$(get_composer_version)
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ✓✓�?INSTALLATION SUCCESSFUL ✓✓�?{NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX ✓✓ Composer installation completed ✓✓${NC}"
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?Composer Version: $final_version${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?PHP Version: $(get_current_php_version)${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?Main wrapper: $COMPOSER_TARGET_PATH${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX �?PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Composer Version: $final_version${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP Version: $(get_current_php_version)${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Main wrapper: $COMPOSER_TARGET_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Safe wrapper: $COMPOSER_SAFE_PATH${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX Original binary: ${COMPOSER_TARGET_PATH}.original${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX PHP tracking file: $PHP_VERSION_TRACK_FILE${NC}"
+    print_runtime_capability_summary
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX Usage:${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX   composer --version         (auto-handles root + open_basedir)${NC}"
     echo -e "${CYAN}$SCRIPT_INDEX   composer-safe --version    (explicit safe wrapper)${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX Features:${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   �?Automatic root warning suppression${NC}"
-    echo -e "${YELLOW}$SCRIPT_INDEX   �?open_basedir=none for maximum compatibility${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   Automatic root warning suppression${NC}"
+    echo -e "${YELLOW}$SCRIPT_INDEX   open_basedir=none for maximum compatibility${NC}"
     echo -e "${YELLOW}$SCRIPT_INDEX   - Fine-grained binary and PATH repair${NC}"
     echo -e "${CYAN}============================================================================${NC}"
 }
 
 # Execute main function
-# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): Composer is
-# installed against the ACTIVE plane's PHP CLI. Both planes expose it at
-# the same path (/usr/local/bin/php): the system plane's alternatives link
-# (apt PHP 8.5) or the frankenphp plane's php-cli shim (embedded PHP) - so
-# the installer below stays plane-agnostic. The shim is ensured here
-# because this step may run before 32 on a fresh plane.
-# shellcheck source=/dev/null
-source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+# Keep plane resolution explicit here and do not load octane command-mode scripts in this Composer-only path.
 # shellcheck source=/dev/null
 source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
-if [ "$(php_runtime_plane)" = "frankenphp" ]; then
-    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (composer targets the embedded PHP CLI shim)${NC}"
+if [ "$(composer_php_runtime_plane)" = "frankenphp" ]; then
+    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp - enabling php-cli shim for embedded runtime integration${NC}"
     fm_ensure_php_cli_shim
 fi
 

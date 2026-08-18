@@ -140,9 +140,12 @@ if [ "$1" = "--force" ] || [ "$1" = "-f" ]; then
     echo -e "${YELLOW}$SCRIPT_INDEX Force refresh mode enabled${NC}"
 fi
 
-# Check if Nginx is enabled for configuration
-INSTALL_NGINX=$(get_global_var "INSTALL_NGINX" "false")
-echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX${NC}"
+# Check if Nginx is enabled for configuration - derived from the [W] plane
+# mutex constant (legacy INSTALL_NGINX key is retired; frankenphp plane
+# never configures the nginx frontend).
+INSTALL_NGINX="false"
+[ "$(web_server_plane)" = "nginx" ] && INSTALL_NGINX="true"
+echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX (plane: $(web_server_plane))${NC}"
 
 # Configuration variables are now sourced from php_common_vars.sh
 

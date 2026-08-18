@@ -25,12 +25,16 @@ $harnessSettingsScriptPath = Join-Path $shellsCommonPath 'pi_harness_settings.js
 $mode = 'auto'
 $supportedModes = @('auto', 'codex', 'claude', 'kimi', 'volc-agent', 'volc-coding')
 $forwardArgs = @()
+$parsedArgs = @()
+$currentArg = $null
+$argIndex = 0
 $piCandidates = @()
 $piPath = $null
 $candidatePath = $null
 $provider = 'openai-codex'
 $model = 'gpt-5.6-sol'
 $thinking = 'high'
+$thinkingSetByUser = $false
 $codexModels = @(
     'openai-codex/gpt-5.3-codex-spark',
     'openai-codex/gpt-5.4',
@@ -184,6 +188,32 @@ else {
     $forwardArgs = @($args)
 }
 
+$argIndex = 0
+while ($argIndex -lt $forwardArgs.Count) {
+    $currentArg = $forwardArgs[$argIndex]
+    if ($currentArg -eq '--thinking') {
+        if ($argIndex + 1 -ge $forwardArgs.Count) {
+            Write-Host '[ERROR] --thinking requires a value.' -ForegroundColor Red
+            Write-Host '[INFO] Supported levels: off, minimal, low, medium, high, xhigh, max' -ForegroundColor Yellow
+            exit 1
+        }
+        $thinking = $forwardArgs[$argIndex + 1]
+        $thinkingSetByUser = $true
+        $argIndex = $argIndex + 2
+        continue
+    }
+    if ($currentArg -like '--thinking=*') {
+        $thinking = $currentArg.Substring('--thinking='.Length)
+        $thinkingSetByUser = $true
+        $argIndex++
+        continue
+    }
+    $parsedArgs = @($parsedArgs + @($currentArg))
+    $argIndex++
+}
+
+$forwardArgs = @($parsedArgs)
+
 foreach ($candidatePath in $piCandidates) {
     if (-not $piPath -and (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
         $piPath = (Resolve-Path -LiteralPath $candidatePath).Path
@@ -264,6 +294,19 @@ else {
         if (Test-Path -LiteralPath $candidatePath -PathType Container) {
             $skillPaths += $candidatePath
         }
+    }
+}
+
+if ($mode -eq 'codex') {
+    if (-not $thinkingSetByUser -and $thinking -eq 'high') {
+        $thinking = 'xhigh'
+    }
+    if ($thinking -eq 'minimal' -or $thinking -eq 'off' -or $thinking -eq 'low' -or $thinking -eq 'medium' -or $thinking -eq 'high' -or $thinking -eq 'max') {
+        $thinking = 'xhigh'
+    }
+    elseif ($thinking -ne 'xhigh') {
+        Write-Host "[WARN] Unsupported thinking level '$thinking' for codex; fallback to xhigh." -ForegroundColor Yellow
+        $thinking = 'xhigh'
     }
 }
 
@@ -478,6 +521,8 @@ Write-Host 'piyolo.ps1' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host "[INFO] Mode: $mode" -ForegroundColor Green
 Write-Host "[INFO] Default model: $provider/$model ($thinking)" -ForegroundColor Green
+Write-Host "[TIP] Thinking levels supported by Pi: off, minimal, low, medium, high, xhigh, max (xhigh = Extra High)." -ForegroundColor Green
+Write-Host "[TIP] Override temporarily with: .\piyolo.ps1 <mode> --thinking <level> or --thinking=<level>" -ForegroundColor Green
 if ($mode -eq 'volc-coding') {
     Write-Host "[INFO] Model selection: $volcCodingModelHint" -ForegroundColor Green
 }
