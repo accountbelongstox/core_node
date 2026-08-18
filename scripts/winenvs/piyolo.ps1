@@ -175,10 +175,16 @@ $uvxExePath = Join-Path $Global:PYTHON_SCRIPTS_DIR 'uvx.exe'
 
 if ($args.Count -gt 0 -and $supportedModes -contains $args[0].ToLowerInvariant()) {
     $mode = $args[0].ToLowerInvariant()
-    if ($args.Count -gt 1) {
-        $forwardArgs = @($args[1..($args.Count - 1)])
+    $argIndex = 1
+    if ($args.Count -gt 1 -and $args[1] -match '^\d+$') {
+        $index = $args[1]
+        $argIndex = 2
     }
-} else {
+    if ($args.Count -gt $argIndex) {
+        $forwardArgs = @($args[$argIndex..($args.Count - 1)])
+    }
+}
+else {
     $forwardArgs = @($args)
 }
 
@@ -199,7 +205,8 @@ if ($mode -eq 'claude') {
     if (Test-Path -LiteralPath $claudeSkillsPath -PathType Container) {
         $skillPaths = @($claudeSkillsPath)
     }
-} elseif ($mode -eq 'kimi') {
+}
+elseif ($mode -eq 'kimi') {
     $provider = 'kimi-coding'
     $model = 'k3'
     $enabledModels = $kimiModels
@@ -211,7 +218,8 @@ if ($mode -eq 'claude') {
     if (Test-Path -LiteralPath $kimiSkillsPath -PathType Container) {
         $skillPaths = @($kimiSkillsPath)
     }
-} elseif ($mode -eq 'codex') {
+}
+elseif ($mode -eq 'codex') {
     $enabledModels = $codexModels
     $piUserDir = $Global:PI_CODEX_USER_DIR
     $piAgentDir = $Global:PI_CODEX_AGENT_DIR
@@ -220,7 +228,8 @@ if ($mode -eq 'claude') {
     if (Test-Path -LiteralPath $codexSkillsPath -PathType Container) {
         $skillPaths = @($codexSkillsPath)
     }
-} elseif ($mode -eq 'volc-agent') {
+}
+elseif ($mode -eq 'volc-agent') {
     $provider = 'volcengine-agent-plan'
     $model = $volcAgentDefaultModel
     $volcModels = $volcAgentModels
@@ -233,7 +242,8 @@ if ($mode -eq 'claude') {
     $providerReady = $false
     $packageSources = @($portableWebPackage, $mcpPackage)
     $packageNames = @($portableWebPackageName, $mcpPackageName)
-} elseif ($mode -eq 'volc-coding') {
+}
+elseif ($mode -eq 'volc-coding') {
     $provider = 'volcengine-coding-plan'
     $model = $volcCodingDefaultModel
     $volcModels = $volcCodingModels
@@ -246,7 +256,8 @@ if ($mode -eq 'claude') {
     $providerReady = $false
     $packageSources = @($portableWebPackage, $mcpPackage)
     $packageNames = @($portableWebPackageName, $mcpPackageName)
-} else {
+}
+else {
     $enabledModels = @($codexModels + $claudeModels + $kimiModels)
     $piUserDir = $Global:PI_COMMON_USER_DIR
     $piAgentDir = $Global:PI_COMMON_AGENT_DIR
@@ -313,14 +324,43 @@ if ($piPath -and
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if ($mode -eq 'volc-coding' -and -not $volcApiKey) {
-            $legacySecretPath = Join-Path $coreNodePath '.secret_keys\.secret_ignore\ARK_API_KEY_1'
-            $legacyBaseUrlPath = Join-Path $coreNodePath '.secret_keys\.secret_ignore\ARK_BASE_URL_1'
+            $legacySecretPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_$index"
             $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
+            if ($volcApiKey) {
+                Write-Host "[INFO] Loaded Volcengine API Key from ARK_API_KEY_$index" -ForegroundColor Green
+            }
+            
+            $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_$index"
             $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyBaseUrlPath
+            if (-not $legacySecretValue) {
+                $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_BASE_URL_$index"
+                $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyBaseUrlPath
+            }
             if ($legacySecretValue) {
+                Write-Host "[INFO] Loaded Volcengine Base URL: $legacySecretValue" -ForegroundColor Green
                 $volcBaseUrl = $legacySecretValue.TrimEnd('/')
                 if (-not $volcBaseUrl.ToLowerInvariant().EndsWith('/v3')) {
                     $volcBaseUrl = [string]::Format('{0}/v3', $volcBaseUrl)
+                }
+            }
+        }
+        if ($mode -eq 'volc-coding') {
+            $legacyModelPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_MODEL_$index"
+            $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyModelPath
+            if (-not $legacySecretValue -and $index -eq '1') {
+                $legacyModelPath = Join-Path $coreNodePath '.secret_keys\.secret_ignore\ARKCLI_MODEL_2'
+                $legacySecretValue = & $nodeExePath $harnessSettingsScriptPath secret-file $legacyModelPath
+            }
+            if ($legacySecretValue) {
+                Write-Host "[INFO] Loaded Volcengine Model: $legacySecretValue" -ForegroundColor Green
+                $model = $legacySecretValue
+                if ($legacySecretValue -eq $volcCodingDefaultModel -or $legacySecretValue -eq $volcCodingFallbackModel) {
+                    $volcModels = @($volcCodingDefaultModel, $volcCodingFallbackModel)
+                    $enabledModels = @($volcModels | ForEach-Object { [string]::Format('{0}/{1}', $provider, $_) })
+                }
+                else {
+                    $volcModels = @($legacySecretValue, $volcCodingDefaultModel, $volcCodingFallbackModel)
+                    $enabledModels = @($volcModels | ForEach-Object { [string]::Format('{0}/{1}', $provider, $_) })
                 }
             }
         }
@@ -439,8 +479,10 @@ Write-Host ''
 
 if ($prerequisitesReady -and $providerReady) {
     & $piPath @piArgs @forwardArgs
-} elseif ($prerequisitesReady -and -not $providerReady) {
+}
+elseif ($prerequisitesReady -and -not $providerReady) {
     Write-Host "[ERROR] No reusable $volcProfileType API key was found in the local Ark profiles." -ForegroundColor Red
-} else {
+}
+else {
     Write-Host '[ERROR] Pi prerequisites are incomplete. Run Step41_InstallPiHarness first.' -ForegroundColor Red
 }

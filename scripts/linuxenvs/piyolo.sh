@@ -137,11 +137,16 @@ if [ ! -x "$PI_BIN_PATH" ] && [ -x /usr/local/bin/pi ]; then
     PI_BIN_PATH="/usr/local/bin/pi"
 fi
 
+INDEX="1"
 if [ "$#" -gt 0 ]; then
     case "$1" in
         auto|codex|claude|kimi|volc-agent|volc-coding)
             MODE="$1"
             shift
+            if [ "$#" -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then
+                INDEX="$1"
+                shift
+            fi
             ;;
     esac
 fi
@@ -269,11 +274,20 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if [ "$MODE" = "volc-coding" ] && [ -z "$VOLC_API_KEY" ]; then
-            LEGACY_SECRET_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_1"
-            LEGACY_BASE_URL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_BASE_URL_1"
+            LEGACY_SECRET_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_$INDEX"
             VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
+            if [ -n "$VOLC_API_KEY" ]; then
+                echo "[INFO] Loaded Volcengine API Key from ARK_API_KEY_$INDEX"
+            fi
+            
+            LEGACY_BASE_URL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_API_$INDEX"
             LEGACY_SECRET_VALUE="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_BASE_URL_PATH")"
+            if [ -z "$LEGACY_SECRET_VALUE" ]; then
+                LEGACY_BASE_URL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_BASE_URL_$INDEX"
+                LEGACY_SECRET_VALUE="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_BASE_URL_PATH")"
+            fi
             if [ -n "$LEGACY_SECRET_VALUE" ]; then
+                echo "[INFO] Loaded Volcengine Base URL: $LEGACY_SECRET_VALUE"
                 VOLC_BASE_URL="${LEGACY_SECRET_VALUE%/}"
                 if [[ "$VOLC_BASE_URL" != */v3 ]]; then
                     VOLC_BASE_URL="$VOLC_BASE_URL/v3"
@@ -281,15 +295,21 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
             fi
         fi
         if [ "$MODE" = "volc-coding" ]; then
-            LEGACY_MODEL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_MODEL_2"
+            LEGACY_MODEL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_MODEL_$INDEX"
             LEGACY_SECRET_VALUE="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_MODEL_PATH")"
+            if [ -z "$LEGACY_SECRET_VALUE" ] && [ "$INDEX" = "1" ]; then
+                LEGACY_MODEL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_MODEL_2"
+                LEGACY_SECRET_VALUE="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_MODEL_PATH")"
+            fi
             if [ -n "$LEGACY_SECRET_VALUE" ]; then
+                echo "[INFO] Loaded Volcengine Model: $LEGACY_SECRET_VALUE"
+                MODEL="$LEGACY_SECRET_VALUE"
                 if [ "$LEGACY_SECRET_VALUE" = "$VOLC_CODING_DEFAULT_MODEL" ] || [ "$LEGACY_SECRET_VALUE" = "$VOLC_CODING_FALLBACK_MODEL" ]; then
                     VOLC_MODELS=("$VOLC_CODING_DEFAULT_MODEL" "$VOLC_CODING_FALLBACK_MODEL")
                     ENABLED_MODELS="$PROVIDER/$VOLC_CODING_DEFAULT_MODEL,$PROVIDER/$VOLC_CODING_FALLBACK_MODEL"
                 else
-                    VOLC_MODELS=("$VOLC_CODING_DEFAULT_MODEL" "$LEGACY_SECRET_VALUE" "$VOLC_CODING_FALLBACK_MODEL")
-                    ENABLED_MODELS="$PROVIDER/$VOLC_CODING_DEFAULT_MODEL,$PROVIDER/$LEGACY_SECRET_VALUE,$PROVIDER/$VOLC_CODING_FALLBACK_MODEL"
+                    VOLC_MODELS=("$LEGACY_SECRET_VALUE" "$VOLC_CODING_DEFAULT_MODEL" "$VOLC_CODING_FALLBACK_MODEL")
+                    ENABLED_MODELS="$PROVIDER/$LEGACY_SECRET_VALUE,$PROVIDER/$VOLC_CODING_DEFAULT_MODEL,$PROVIDER/$VOLC_CODING_FALLBACK_MODEL"
                 fi
             fi
         fi
@@ -395,6 +415,7 @@ echo "============================================================"
 echo ""
 
 if [ "$PREREQUISITES_READY" -eq 1 ] && [ "$PROVIDER_READY" -eq 1 ]; then
+    unset SUDO_USER SUDO_UID SUDO_GID
     "$PI_BIN_PATH" "${PI_ARGS[@]}" "${FORWARD_ARGS[@]}"
 elif [ "$PREREQUISITES_READY" -eq 1 ] && [ "$PROVIDER_READY" -eq 0 ]; then
     echo "[ERROR] No reusable $VOLC_PROFILE_TYPE API key was found in the local Ark profiles."

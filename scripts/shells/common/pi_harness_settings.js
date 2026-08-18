@@ -153,6 +153,10 @@ let kimiOAuthCredential = {};
 let kimiNativeToolsEnabled = false;
 let providerModelOverrides = {};
 let providerModelConfig = {};
+let cleanEnv = { ...process.env };
+delete cleanEnv.SUDO_USER;
+delete cleanEnv.SUDO_UID;
+delete cleanEnv.SUDO_GID;
 
 // Maintenance references:
 // - Pi providers and canonical auth.json behavior: https://pi.dev/docs/latest/providers
@@ -376,6 +380,7 @@ if (mode === 'omp') {
     skillPaths = process.argv.slice(4).filter(Boolean);
     getResult = childProcess.spawnSync(targetPath, ['config', 'get', 'skills.customDirectories', '--json'], {
         encoding: 'utf8',
+        env: cleanEnv,
     });
     rawConfig = getResult.stdout || '';
     try {
@@ -390,7 +395,7 @@ if (mode === 'omp') {
         childProcess.spawnSync(
             targetPath,
             ['config', 'set', 'skills.customDirectories', JSON.stringify(mergedDirectories)],
-            { stdio: 'inherit' },
+            { stdio: 'inherit', env: cleanEnv },
         );
     }
 }
@@ -506,6 +511,7 @@ if (mode === 'pi-package') {
         packageManagerOptions = {
             cwd: packageDirectory,
             stdio: 'inherit',
+            env: cleanEnv,
         };
         if (!packageLayoutReady) {
             packageRepairResult = childProcess.spawnSync(

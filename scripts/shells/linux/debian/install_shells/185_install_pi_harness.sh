@@ -17,7 +17,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 LINUX_SHELLS_DIR="$(dirname "$PARENT_DIR_LEVEL_2")"
 SHELLS_DIR="$(dirname "$LINUX_SHELLS_DIR")"
-HARNESS_SETTINGS_SCRIPT="$SHELLS_DIR/common/pi_harness_settings.js"
+HARNESS_SETTINGS_SCRIPT="$LINUX_SHELLS_DIR/common/pi_harness_settings.js"
 PI_PACKAGE="@earendil-works/pi-coding-agent"
 BUN_INSTALLER_URL="https://bun.com/install"
 OMP_INSTALLER_URL="https://omp.sh/install"
@@ -42,8 +42,12 @@ DOWNLOAD_TARGET_PATH=""
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 
 TARGET_USER="${ACTUAL_DESKTOP_USER:-${SUDO_USER:-${USER:-$(id -un)}}}"
-TARGET_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
-TARGET_HOME="${TARGET_HOME:-$HOME}"
+if [ -n "$USER_HOME" ]; then
+    TARGET_HOME="$USER_HOME"
+else
+    TARGET_HOME="$(getent passwd "$TARGET_USER" 2>/dev/null | cut -d: -f6)"
+    TARGET_HOME="${TARGET_HOME:-$HOME}"
+fi
 PI_BIN="$PNPM_GLOBAL_BIN_DIR/pi"
 OMP_INSTALL_DIR="$COMPILE_DIR/omp"
 OMP_BIN="$OMP_INSTALL_DIR/omp"
@@ -119,7 +123,7 @@ install_pi_harness() {
         echo "[$SCRIPT_INDEX] WARNING: pnpm is unavailable. Run 17_install_node_24.sh first."
     else
         echo "[$SCRIPT_INDEX] Installing Pi with pnpm from the official package..."
-        $USE_SUDO "$PNPM_BIN" add --global --ignore-scripts "$PI_PACKAGE"
+        $USE_SUDO env PATH="$PNPM_GLOBAL_BIN_DIR:$PATH" "$PNPM_BIN" add --global --ignore-scripts "$PI_PACKAGE"
     fi
 
     if [ -x "$PI_BIN" ]; then

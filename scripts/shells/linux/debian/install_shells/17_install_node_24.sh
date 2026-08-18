@@ -387,6 +387,14 @@ remove_old_node_installation() {
     fi
 
     echo ""
+    read -r -p "Remove old Node.js installation? (Y/n): " REPLY
+    if [ -z "${REPLY}" ] || [ "${REPLY}" = "y" ] || [ "${REPLY}" = "Y" ]; then
+        for loc in "${locations_to_remove[@]}"; do
+            $USE_SUDO rm -rf "$loc"
+        done
+        for link in "${symlinks_to_remove[@]}"; do
+            $USE_SUDO rm -f "$link"
+        done
         echo "Old Node.js installation removed successfully"
         return 0
     else
