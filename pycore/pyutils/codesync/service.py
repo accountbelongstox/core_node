@@ -269,3 +269,15 @@ def toggle_backup(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     enabled = bool(_p(params).get("enabled", True))
     client.enable_backup = enabled
     return {"success": True, "enabled": enabled}
+
+
+def apply_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return get_code_sync_manager().apply_pending_update(
+        str(_p(params).get("rel") or "").strip()
+    )
+
+
+def clear_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    return get_code_sync_manager().clear_pending_update(
+        str(_p(params).get("rel") or "").strip()
+    )

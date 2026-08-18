@@ -25,6 +25,7 @@ def register_code_sync_routes(server):
     frame_body = fastapi_module.Body(default={})
     peer_config_body = fastapi_module.Body(default={})
     peer_heartbeat_body = fastapi_module.Body(default={})
+    pending_update_body = fastapi_module.Body(default={})
 
     def get_sync_logs(params, _request_id, _context):
         return cs.get_sync_logs(
@@ -93,6 +94,20 @@ def register_code_sync_routes(server):
             thread_name="CodeSyncPeerHeartbeatRoute",
         )
 
+    async def apply_pending_update(payload=pending_update_body):
+        return await await_bus_task(
+            cs.apply_pending_update,
+            payload,
+            thread_name="CodeSyncApplyPendingUpdateRoute",
+        )
+
+    async def clear_pending_update(payload=pending_update_body):
+        return await await_bus_task(
+            cs.clear_pending_update,
+            payload,
+            thread_name="CodeSyncClearPendingUpdateRoute",
+        )
+
     routes = (
         (rn.UI_CODE_SYNC_PING, cs.ping),
         (rn.UI_CODE_SYNC_GET_STATUS, cs.get_status),
@@ -119,6 +134,8 @@ def register_code_sync_routes(server):
         (rn.UI_CODE_SYNC_STOP_SYNC, cs.stop_sync),
         (rn.UI_CODE_SYNC_DOWNLOAD_FILE, cs.download_file),
         (rn.UI_CODE_SYNC_TOGGLE_BACKUP, cs.toggle_backup),
+        (rn.UI_CODE_SYNC_APPLY_PENDING_UPDATE, apply_pending_update),
+        (rn.UI_CODE_SYNC_CLEAR_PENDING_UPDATE, clear_pending_update),
     )
     server.register_routes(routes, group="code_sync")
     server.app.add_api_route(

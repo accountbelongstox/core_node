@@ -35,6 +35,8 @@ INITIAL_SYNC_PATH = f"{BASE_PATH}/initial-sync"
 CHANGES_PATH = f"{BASE_PATH}/changes"
 DOWNLOAD_PATH = f"{BASE_PATH}/download"
 TOGGLE_BACKUP_PATH = f"{BASE_PATH}/toggle-backup"
+APPLY_PENDING_UPDATE_PATH = f"{BASE_PATH}/pending/apply"
+CLEAR_PENDING_UPDATE_PATH = f"{BASE_PATH}/pending/clear"
 SET_SERVER_PATH = f"{BASE_PATH}/set-server"
 SET_CLIENT_PATH = f"{BASE_PATH}/set-client"
 STOP_PATH = f"{BASE_PATH}/stop"
@@ -47,6 +49,8 @@ PANEL_API_ROUTES = {
     "role": ROLE_PATH,
     "distribute": DISTRIBUTE_PATH,
     "skipUpdate": SKIP_UPDATE_PATH,
+    "applyPendingUpdate": APPLY_PENDING_UPDATE_PATH,
+    "clearPendingUpdate": CLEAR_PENDING_UPDATE_PATH,
 }
 
 
@@ -87,6 +91,8 @@ __all__ = [
     "STATUS_PATH",
     "STOP_PATH",
     "TOGGLE_BACKUP_PATH",
+    "APPLY_PENDING_UPDATE_PATH",
+    "CLEAR_PENDING_UPDATE_PATH",
     "UI_PING_PATH",
     "PANEL_API_ROUTES",
 ]

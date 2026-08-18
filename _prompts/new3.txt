@@ -17,7 +17,7 @@ d
 以下部分已经由另一个AI正在修改：···注意本项目不使用env，所有配置全部硬编码，有些配置可以在start shell中修改，所以实际上是一个组合，注意在代码中注释，···
 
 按laravel 13的优化 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。ddds
-注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒度。
+注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒度。按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
 
 
@@ -87,3 +87,107 @@ alternative source Executing: 93_install_frankenphp.sh
 。同时也没有幂等disable旧的php进程和服
 务。这些服务参考 scripts\shells\linux\debian\install_shells\175_laravel_main_start.sh 中的创建规范。当然这些放到公共区的对应的php的对应脚本中。
 ────────────────────────────────────────────────────
+
+  1_stop_cloud_monitors.sh
+  3_setting_base.sh
+  5_system_maintenance.sh
+  7_project_validator.sh
+  9_fix_dns.sh
+  11_cuda_nvidia_prereq.sh
+  13_ensure_python.sh
+  15_install_python_prereq_packages.sh
+  17_install_node_toolchain_24.sh
+  19_enable_pipx.sh
+  21_enable_poetry.sh
+  23_setup_ssh_remote.sh
+  25_install_uv.sh
+  27_install_git_ssh.sh
+  29_install_edge_tts.sh
+  31_install_tts_offline.sh
+  33_install_nginx.sh
+  35_install_certbot.sh
+  37_ensure_pnpm_packages.sh
+  39_ensure_npmrc.sh
+  41_install_edge.sh
+  43_ensure_php85_intelligent.sh
+  49_install_frankenphp.sh
+  51_install_chrome.sh
+  53_install_swoole.sh
+  55_install_puppeteer_plugins.sh
+  57_install_dotnet.sh
+  59_install_flutter.sh
+  61_install_android_studio.sh
+  63_install_ittools_binaries.sh
+  65_install_ruby.sh
+  67_install_rust.sh
+  69_install_p7zip.sh
+  71_ensure_dragonfly_intelligent.sh
+  73_install_redis.sh
+  75_install_postgresql.sh
+  77_ensure_php_pgsql.sh
+  79_install_docker.sh
+  81_set_docker_daemon.sh
+  83_docker-compose-finish.sh
+  85_install_mysql.sh
+  87_install_shama.sh
+  89_install_tailscale.sh
+  91_install_golang.sh
+  93_install_frankenphp.sh
+  93_install_java.sh
+  94_install_composer.sh
+  95_install_java.sh
+  96_configure_php85.sh
+  97_install_tailscale.sh
+  99_generate_docker_compose_yml.sh
+  101_core_node_finish.sh
+  103_install_code_server.sh
+  105_install_deepseek.sh
+  107_install_deepseek_ocr.sh
+  109_install_qwen25.sh
+  111_install_nllb200.sh
+  113_natgateway.sh
+  115_install_ffmpeg.sh
+  117_install_desktop_manager.sh
+  119_install_launcher.sh
+  121_install_document_parsing.sh
+  123_install_dictionaries.sh
+  125_install_ocr.sh
+  127_install_whisper.sh
+  129_install_vosk.sh
+  131_install_chattts.sh
+  133_install_cosyvoice.sh
+  135_install_f5tts.sh
+  137_install_gptsovits.sh
+  139_install_melotts.sh
+  141_install_bark.sh
+  143_install_fishspeech.sh
+  145_install_kokoro.sh
+  147_install_voxcpm2.sh
+  149_install_device_tools.sh
+  151_install_faster_whisper.sh
+  153_install_desktop_applications.sh
+  155_install_cursor.sh
+  157_install_vscode.sh
+  159_install_gitea.sh
+  161_install_rustdesk_client_1.4.4.sh
+  163_setup_gnome_rdp.sh
+  165_install_antigravity.sh
+  167_install_wechat.sh
+  169_install_rustdesk_server_1.1.14.sh
+  171_install_claude_code.sh
+  173_install_chinese_wubi.sh
+  175_laravel_main_start.sh
+  177_install_qwen_code.sh
+  179_install_zhipu_cli.sh
+  181_install_parler.sh
+  183_install_qwen3tts.sh
+  185_install_pi_harness.sh
+  187_install_android_sdk.sh
+  189_install_pycore_http_service.sh
+  191_install_octane_watcher_daemon.sh
+  193_install_terminal_grid_shortcut.sh
+  999_check_circular_symlinks.sh
+
+Enter script index to execute (e.g., 1, 11, 12, etc.)
+Press 'b' to go back, 'q' to quit
+Your choice:

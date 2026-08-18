@@ -590,6 +590,18 @@ class CodeSyncManager:
         return {"success": True, "candidates": candidates}
 
     # ----- status ---------------------------------------------------------- #
+    def _get_pending_updates_for_status(self) -> Dict[str, Any]:
+        receiver = getattr(self, "push_receiver", None)
+        if not receiver:
+            return {"count": 0, "files": []}
+        try:
+            pending = receiver.get_pending_updates()
+            if isinstance(pending, dict):
+                return pending
+        except Exception:
+            pass
+        return {"count": 0, "files": []}
+
     def get_local_peer_status(self) -> dict:
         """Lightweight self status served at /code-sync/peer/status (probed often)."""
         me = self.config.get_self()
@@ -604,6 +616,7 @@ class CodeSyncManager:
             "light": self.light,
             "code": code_stats,
         }
+        pending_updates = {"count": 0, "files": []}
         try:
             if self.role == "dev" and distributing:
                 summary["clients"] = int(
@@ -613,6 +626,8 @@ class CodeSyncManager:
                 summary["servers"] = int(
                     self.sse_receiver.get_status().get("connected_sessions", 0)
                 )
+                pending_updates = self._get_pending_updates_for_status()
+                summary["pending_updates"] = pending_updates.get("count", 0)
         except Exception:
             pass
         if not (self.light and self.role == "client"):
@@ -634,6 +649,7 @@ class CodeSyncManager:
             "summary": summary,
             "transport": code_sync_transport_status(),
             "watcher": watcher_metrics,
+            "pending_updates": pending_updates,
         }
 
     def _peer_status_rows(self) -> list:
@@ -651,6 +667,7 @@ class CodeSyncManager:
                 "peers": self._peer_status_rows(), "version": self.config.version()}
 
     def get_status(self) -> dict:
+        self_status = self.get_local_peer_status()
         status: Dict[str, Any] = {
             "role": self.role,
             "distributing": self.is_distributing(),
@@ -658,8 +675,9 @@ class CodeSyncManager:
             "light": self.light,
             "code": self.local_code_stats(),
             "version": self.config.version(),
-            "self": self.get_local_peer_status(),
+            "self": self_status,
             "peers": self._peer_status_rows(),
+            "pending_updates": self_status.get("pending_updates", {"count": 0, "files": []}),
         }
         if not (self.light and self.role == "client"):
             status["watcher"] = get_watch_manager().get_metrics()
@@ -671,6 +689,27 @@ class CodeSyncManager:
         except Exception:
             pass
         return status
+
+    # ----- pending updates (manual action hooks) -------------------------- #
+    def apply_pending_update(self, rel: str) -> dict:
+        if self.role != "client":
+            return {"success": False, "error": "Pending updates can only be managed on client mode"}
+        if self.light:
+            return {"success": False, "error": "Pending updates are not available in light mode"}
+        receiver = getattr(self, "push_receiver", None)
+        if receiver is None:
+            return {"success": False, "error": "Pending update receiver is not available"}
+        return receiver.apply_pending_update(rel)
+
+    def clear_pending_update(self, rel: str) -> dict:
+        if self.role != "client":
+            return {"success": False, "error": "Pending updates can only be managed on client mode"}
+        if self.light:
+            return {"success": False, "error": "Pending updates are not available in light mode"}
+        receiver = getattr(self, "push_receiver", None)
+        if receiver is None:
+            return {"success": False, "error": "Pending update receiver is not available"}
+        return receiver.clear_pending_update(rel)
 
     def get_file_tree(self, max_files: int = 60000) -> dict:
         """Build a nested file tree of the live synced set for the UI file-structure
