@@ -291,11 +291,11 @@ class MultiScaleImageMatcher:
 
 
 def main():
-    base_image = r"C:\Users\MPC\.core_node\pytools\tmp\debug_ui_optimized_20251007_151345_673.png"
+    base_image = r"D:\programing\Users\MPC\.core_node\pytools\tmp\debug_ui_optimized_20251007_151345_673.png"
     template_dir = r"D:\programing\core_node\apps\d3-check\images"
     template_files = ["blacksmith_indicator_1.png", "blacksmith_indicator_2.png"]
     template_paths = [str(Path(template_dir) / f) for f in template_files]
-    output_dir = r"C:\Users\MPC\.core_node\pytools\tmp"
+    output_dir = r"D:\programing\Users\MPC\.core_node\pytools\tmp"
     matcher = MultiScaleImageMatcher(base_image, template_paths, output_dir)
     matcher.run()
 

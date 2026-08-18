@@ -21,7 +21,7 @@ np = get_third_package_numpy()
 
 MIN_LINE_HEIGHT_PX = 10
 COLOR_TOLERANCE_RATIO = 0.10  # ±10%
-TARGET_DIR = r"C:\Users\accou\.core_node\pytools\tmp\debug_bag_line\run_20260208_040800"
+TARGET_DIR = r"D:\programing\Users\accou\.core_node\pytools\tmp\debug_bag_line\run_20260208_040800"
 TARGET_NAME = "slot_r2_c0_normal_legendary.png"
 
 # 太古线色 BGR（本脚本唯一颜色来源）：#860A0D #970A0D #920A08 #8C0A09 #990B08 #A10B0E #9A0B08 #5B0908 #4A0808 #390707 #2C0406 #3A0704 #5C0908 #450706

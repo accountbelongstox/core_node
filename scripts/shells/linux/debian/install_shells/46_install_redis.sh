@@ -116,13 +116,9 @@ install_redis() {
     return 0
 }
 
-# Function to configure Redis
-configure_redis() {
-    echo "[$SCRIPT_INDEX] Configuring Redis..."
-
-    local redis_conf="/etc/redis/redis.conf"
-
-    # Ensure Redis directories exist
+# Function to ensure Redis directories and systemd overrides exist
+ensure_redis_directories() {
+    echo "[$SCRIPT_INDEX] Ensuring Redis directories exist..."
     $USE_SUDO mkdir -p "$REDIS_DATA_DIR"
     $USE_SUDO mkdir -p "$REDIS_LOG_DIR"
 
@@ -131,6 +127,27 @@ configure_redis() {
         safe_chown_R redis:redis "$REDIS_DATA_DIR"
         safe_chown_R redis:redis "$REDIS_LOG_DIR"
     fi
+
+    # Create systemd override for Redis to allow writing to custom directories
+    if command_exists systemctl; then
+        local systemd_override_dir="/etc/systemd/system/redis-server.service.d"
+        $USE_SUDO mkdir -p "$systemd_override_dir"
+        cat <<EOF | $USE_SUDO tee "$systemd_override_dir/override.conf" >/dev/null
+[Service]
+ReadWriteDirectories=-$REDIS_DATA_DIR
+ReadWriteDirectories=-$REDIS_LOG_DIR
+EOF
+        $USE_SUDO systemctl daemon-reload
+    fi
+}
+
+# Function to configure Redis
+configure_redis() {
+    echo "[$SCRIPT_INDEX] Configuring Redis..."
+
+    local redis_conf="/etc/redis/redis.conf"
+
+    ensure_redis_directories
 
     if [ -f "$redis_conf" ]; then
         # Backup original configuration
@@ -153,15 +170,7 @@ configure_redis() {
         # Configure log level
         $USE_SUDO sed -i 's/^loglevel notice/loglevel warning/' "$redis_conf"
 
-        # Create systemd override for Redis to allow writing to custom directories
-        local systemd_override_dir="/etc/systemd/system/redis-server.service.d"
-        $USE_SUDO mkdir -p "$systemd_override_dir"
-        cat <<EOF | $USE_SUDO tee "$systemd_override_dir/override.conf" >/dev/null
-[Service]
-ReadWriteDirectories=-$REDIS_DATA_DIR
-ReadWriteDirectories=-$REDIS_LOG_DIR
-EOF
-        $USE_SUDO systemctl daemon-reload
+
 
         echo "[$SCRIPT_INDEX] Redis configuration updated"
     else
@@ -388,6 +397,9 @@ if [ "$START_REDIS" = "true" ]; then
 
         # Create symlinks
         create_redis_symlinks
+
+        # Ensure directories and systemd overrides exist
+        ensure_redis_directories
 
         # Start service temporarily for testing
         if setup_redis_service_for_testing; then
