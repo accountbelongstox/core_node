@@ -69,7 +69,7 @@ composer_vendor_probe_autoload() {
     local probe_out=""
     COMPOSER_VENDOR_AUTOLOAD_OK="no"
     if [ -n "$COMPOSER_VENDOR_PHP" ] && [ -f "${app_dir}/vendor/autoload.php" ]; then
-        probe_out="$("$COMPOSER_VENDOR_PHP" -r 'require $argv[1];' "${app_dir}/vendor/autoload.php" 2>&1)"
+        probe_out="$(COMPOSER_VENDOR_PROBE="${app_dir}/vendor/autoload.php" php_script_run 'require getenv("COMPOSER_VENDOR_PROBE");' 2>&1)"
         if [ -z "$probe_out" ]; then
             COMPOSER_VENDOR_AUTOLOAD_OK="yes"
         fi

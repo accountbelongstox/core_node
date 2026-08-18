@@ -53,6 +53,13 @@ FRANKENPHP_STATIC_EMBED_APP_DIR="${FRANKENPHP_STATIC_REPO_ROOT}/poly_apps/larave
 FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
 FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
 FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
+# Shared install-root path family (single source for the manager, the
+# prebuilt installer and the acme.sh helper): every FrankenPHP artifact
+# lives under the same persistent root so upgrades stay incremental.
+FRANKENPHP_PREBUILT_CACHE_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt"
+FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt-staging"
+FRANKENPHP_ACME_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/acme.sh"
+FRANKENPHP_ACME_CERT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/certs"
 
 # Effective PHP_EXTENSIONS list: base + selector-driven database sets,
 # de-duplicated preserving order.
@@ -170,6 +177,11 @@ fm_static_build() {
     echo "[$FM_STATIC_LOG_TAG] official ./build-static.sh (SPC_REL_TYPE=binary, SPC_LIBC=musl, PHP ${php_ver}, frankenphp ${version_tag}${embed_dir:+, EMBED=${embed_dir}})" >&2
     echo "[$FM_STATIC_LOG_TAG] PHP_EXTENSIONS: ${extensions}" >&2
     echo "[$FM_STATIC_LOG_TAG] XCADDY_ARGS: ${FRANKENPHP_STATIC_XCADDY_ARGS}" >&2
+    # Upstream v1.12.7 build-static.sh documents XCADDY_ARGS but never uses
+    # it - the REAL knob is SPC_CMD_VAR_FRANKENPHP_XCADDY_MODULES (only
+    # defaulted when unset). Export BOTH so the documented knob works on
+    # newer tags and the real knob drives the running tag.
+    echo "[$FM_STATIC_LOG_TAG] SPC_CMD_VAR_FRANKENPHP_XCADDY_MODULES: ${FRANKENPHP_STATIC_XCADDY_ARGS}" >&2
     # GOPROXY chain mirrors the GO_TAR_URLS fallback philosophy: official
     # proxy first, CN mirror next, VCS direct last. pipefail keeps the
     # pipeline status honest through the tee logging; everything is
@@ -181,6 +193,7 @@ fm_static_build() {
         PHP_VERSION="$php_ver" \
         PHP_EXTENSIONS="$extensions" \
         XCADDY_ARGS="$FRANKENPHP_STATIC_XCADDY_ARGS" \
+        SPC_CMD_VAR_FRANKENPHP_XCADDY_MODULES="$FRANKENPHP_STATIC_XCADDY_ARGS" \
         GOPROXY="${GOPROXY:-https://proxy.golang.org,https://goproxy.cn,direct}" \
         EMBED="${embed_dir}" \
         ./build-static.sh 2>&1 | tee "${FRANKENPHP_STATIC_BUILD_ROOT}/build.log" >&2); then
@@ -216,18 +229,29 @@ fm_static_apt_php_cleanup() {
     local binary=""
     local pkgs=""
     local fpm_pkg=""
+    local held_pkg=""
 
     binary="$(fm_get_binary)"
     if [ -z "$binary" ] || ! "$binary" version >/dev/null 2>&1; then
         echo "[$FM_STATIC_LOG_TAG] cleanup skipped: no healthy frankenphp binary"
         return 0
     fi
-    # shellcheck disable=SC2016
-    pkgs="$(dpkg-query -W -f='${binary:Package}\n' 'php*' 2>/dev/null | grep -E '^php' || true)"
+    # INSTALLED (ii-state) php runtime set only: the php* glob also matches
+    # deinstalled config leftovers (rc) which would poison the purge command;
+    # the set additionally owns the apache mod_php modules + pkg-php-tools
+    # (the only non-php* reverse dependency).
+    pkgs="$(dpkg -l 2>/dev/null | awk '$1=="ii" && $2 ~ /^(php|libapache2-mod-php|pkg-php-tools)/ {print $2}' || true)"
     if [ -z "$pkgs" ]; then
-        echo "[$FM_STATIC_LOG_TAG] apt PHP already clean (no packages to purge)"
+        echo "[$FM_STATIC_LOG_TAG] apt PHP already clean (no installed packages to purge)"
         return 0
     fi
+
+    # Held php-runtime packages freeze the dependency resolver (a hold blocks
+    # removal too - pkgProblemResolver "breaks"). Release ONLY php-related
+    # holds one by one; unrelated holds (apache2 core, kernels) stay.
+    for held_pkg in $(apt-mark showhold 2>/dev/null | grep -E '^(php|libapache2-mod-php|pkg-php-tools)' || true); do
+        $USE_SUDO apt-mark unhold "$held_pkg" >/dev/null 2>&1 || true
+    done
 
     for fpm_pkg in $(echo "$pkgs" | grep -E 'php.*fpm' || true); do
         $USE_SUDO systemctl disable --now "$fpm_pkg" >/dev/null 2>&1 || true
@@ -242,8 +266,7 @@ fm_static_apt_php_cleanup() {
         echo "[$FM_STATIC_LOG_TAG] removed stale xcaddy binary (/usr/local/bin/xcaddy)"
     fi
 
-    # shellcheck disable=SC2016
-    pkgs="$(dpkg-query -W -f='${binary:Package}\n' 'php*' 2>/dev/null | grep -E '^php' || true)"
+    pkgs="$(dpkg -l 2>/dev/null | awk '$1=="ii" && $2 ~ /^(php|libapache2-mod-php|pkg-php-tools)/ {print $2}' || true)"
     if [ -z "$pkgs" ]; then
         echo "[$FM_STATIC_LOG_TAG] apt PHP purged; php runtime: ${FRANKENPHP_PHP_SHIM_DIR}/php -> ${binary} php-cli"
     else

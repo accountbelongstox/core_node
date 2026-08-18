@@ -3,6 +3,7 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1CLI\Commands;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateMetadata;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1DomainManager;
 use App\Providers\PathMapper;
 use Illuminate\Support\Facades\Log;
@@ -74,7 +75,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         }
 
         $prefixes = $this->option('prefixes') ?: 'si,sz,local,api';
-        $provider = $this->option('provider') ?: 'dnspod';
+        $provider = $this->option('provider') ?: ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER;
 
         $this->info("Adding certificate for: $baseDomain");
         $this->info("Subdomain prefixes: $prefixes");
@@ -355,7 +356,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
         $this->line("");
         $this->info("Options:");
         $this->line("  --prefixes       - Subdomain prefixes (default: si,sz,local,api)");
-        $this->line("  --provider       - SSL provider (default: dnspod)");
+        $this->line("  --provider       - SSL provider (default: " . ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER . ")");
         $this->line("  --status         - Certificate status for update");
         $this->line("  --days           - Days threshold for renewal (default: 30)");
         $this->line("  --dry-run        - Check renewals without executing");
@@ -521,7 +522,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             }
 
             if ($credentials === null) {
-                $credentials = $this->getDNSCredentials('dnspod');
+                $credentials = $this->getDNSCredentials(ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER);
                 if (!$credentials) {
                     $this->warn('DNSPod credentials unavailable; skipping broken-lineage repair');
                     return;
@@ -532,10 +533,6 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $this->forceRenewLineage($certName, $credentials, $letsEncryptDir);
         }
     }
-
-    /** Canonical working DNSPod authenticator (maintained third-party plugin). */
-    private const DNSPOD_AUTHENTICATOR = 'certbot-dnspod';
-
     /**
      * Domains of a lineage: the ServerManager issuance record is canonical
      * (the domains the certificate was created with); the live certificate's
@@ -646,20 +643,20 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             $authenticator = $authMatch[1];
 
             if ($credentials === null) {
-                $credentials = $this->getDNSCredentials('dnspod');
+                $credentials = $this->getDNSCredentials(ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER);
                 if (!$credentials) {
                     $this->warn('DNSPod credentials unavailable; skipping renewal-config reconciliation');
                     return;
                 }
             }
 
-            if ($authenticator !== self::DNSPOD_AUTHENTICATOR) {
+            if ($authenticator !== ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR) {
                 // Legacy/broken authenticator recorded (e.g. the zope-era
                 // dns-dnspod plugin, which cannot even load on modern
                 // certbot): reconfigure cannot fix that. Re-issue with the
                 // canonical working plugin, which also migrates the recorded
                 // authenticator/credentials for future renewals.
-                $this->info("Migrating $certName from authenticator '$authenticator' to '" . self::DNSPOD_AUTHENTICATOR . "'...");
+                $this->info("Migrating $certName from authenticator '$authenticator' to '" . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . "'...");
                 $this->forceRenewLineage($certName, $letsEncryptDir);
                 continue;
             }
@@ -704,8 +701,8 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
             // dns-dnspod plugin cannot load on modern certbot and is never
             // offered; manual is not automatable.
             $dnsPlugins = [
-                'certbot-dnspod',      // Third-party DNSPod plugin (maintained)
-            ];
+            ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR
+        ];
 
             foreach ($dnsPlugins as $plugin) {
                 if ($plugin === 'manual' || strpos($availablePlugins, $plugin) !== false) {
@@ -863,7 +860,7 @@ class ServerManagerV1CertificateCommand extends ServerManagerV1BaseCommand
      */
     private function getDNSCredentials(string $provider): ?array
     {
-        if ($provider !== 'dnspod') {
+        if ($provider !== ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER) {
             return null;
         }
 

@@ -6,6 +6,7 @@ use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateMetadata;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
@@ -25,15 +26,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
 
         // Find certbot binary using absolute paths
-        $certbotPaths = [
-            '/usr/bin/certbot',
-            '/usr/local/bin/certbot',
-            '/usr/sbin/certbot',
-            '/sbin/certbot'
-        ];
-
         $certbotPath = null;
-        foreach ($certbotPaths as $path) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
             if (file_exists($path) && is_executable($path)) {
                 $certbotPath = $path;
                 break;
@@ -145,7 +139,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $credentials = \App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager::getDNSPodCredentials();
 
         return $this->success([
-            'provider' => 'dnspod',
+            'provider' => ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
             'configured' => $credentials !== null,
             'email' => $credentials['email'] ?? null,
             'api_id' => $credentials['api_id'] ?? null,
@@ -169,7 +163,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $domain = $request->input('domain');
-        $provider = $request->input('provider', 'dnspod');
+        $provider = $request->input('provider', ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER);
         $staging = $request->input('staging', false);
 
         // Validate domain
@@ -192,9 +186,11 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         $certbotPath = $this->findCertbotBinary();
         $displayCmd = $certbotPath
-            ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --authenticator certbot-dnspod'
-              . ($staging ? ' --staging' : '')
-              . ' --keep-until-expiring -d ' . escapeshellarg($domain)
+            ? 'sudo ' . escapeshellcmd($certbotPath) . ' certonly --authenticator '
+                . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR
+                . ($staging ? ' --staging' : '')
+              . ' ' . ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG
+              . ' -d ' . escapeshellarg($domain)
             : '';
 
         // Generate certificate using DNS challenge
@@ -234,15 +230,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $all = $request->input('all', false);
 
         // Find certbot binary using absolute paths
-        $certbotPaths = [
-            '/usr/bin/certbot',
-            '/usr/local/bin/certbot',
-            '/usr/sbin/certbot',
-            '/sbin/certbot'
-        ];
-
         $certbotPath = null;
-        foreach ($certbotPaths as $path) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
             if (file_exists($path) && is_executable($path)) {
                 $certbotPath = $path;
                 break;
@@ -276,7 +265,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             if ($domain && !$all) {
                 $certRequest = new \Illuminate\Http\Request([
                     'domain' => $domain,
-                    'provider' => 'dnspod',
+            'provider' => ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
                     'staging' => false,
                 ]);
                 return $this->generateCertificate($certRequest);
@@ -490,18 +479,10 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return $this->success($info, 'Certbot check skipped - Nginx not installed');
         }
 
-        // Check certbot using absolute paths
-        $certbotPaths = [
-            '/usr/bin/certbot',
-            '/usr/local/bin/certbot',
-            '/usr/sbin/certbot',
-            '/sbin/certbot'
-        ];
-
         $installed = false;
         $certbotPath = null;
 
-        foreach ($certbotPaths as $path) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
             if (file_exists($path) && is_executable($path)) {
                 $installed = true;
                 $certbotPath = $path;
@@ -541,7 +522,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
      */
     private function getDnsCredentials(string $provider): ?array
     {
-        if ($provider !== 'dnspod') {
+        if ($provider !== ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER) {
             return null;
         }
         // Single canonical resolver (CertificateManager): canonical secret
@@ -554,7 +535,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
      */
     private function generateCertificateWithDns(string $domain, string $provider, array $credentials, bool $staging): array
     {
-        if ($provider === 'dnspod') {
+        if ($provider === ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER) {
             // Single canonical path (CertificateManager): working
             // certbot-dnspod authenticator, persistent credentials file,
             // propagation wait.
@@ -562,23 +543,15 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             // not near expiry, keep it and take no action (safe to re-run on
             // every site create). Without this, re-issuing over an existing
             // cert errors.
-            $extraArgs = ['--keep-until-expiring'];
+            $extraArgs = [ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG];
             if ($staging) {
                 $extraArgs[] = '--staging';
             }
             return ServerManagerV1CertificateManager::runDNSPodCertbot([$domain], $extraArgs, 300, true);
         }
 
-        // Find certbot binary using absolute paths
-        $certbotPaths = [
-            '/usr/bin/certbot',
-            '/usr/local/bin/certbot',
-            '/usr/sbin/certbot',
-            '/sbin/certbot'
-        ];
-
         $certbotPath = null;
-        foreach ($certbotPaths as $path) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $path) {
             if (file_exists($path) && is_executable($path)) {
                 $certbotPath = $path;
                 break;
@@ -614,7 +587,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             // Idempotent: if a matching cert already exists and is not near
             // expiry, keep it and take no action (safe to re-run on every site
             // create). Without this, re-issuing over an existing cert errors.
-            '--keep-until-expiring',
+            ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG,
             '-d', $domain
         ]);
 
@@ -710,7 +683,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $domain = $request->input('domain');
-        $provider = $request->input('provider', 'dnspod');
+        $provider = $request->input('provider', ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER);
         $staging = (bool) $request->input('staging', false);
 
         if (empty($domain) || !preg_match('/^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]$/', $domain)) {
@@ -748,7 +721,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             if (!$dnsCredentials) {
                 return $this->error('Failed to retrieve DNS credentials for ' . $provider, 400);
             }
-            $extraArgs = ['--keep-until-expiring'];
+            $extraArgs = [ServerManagerV1CertificateMetadata::DNSPOD_KEEP_UNTIL_EXPIRING_ARG];
             if ($staging) {
                 $extraArgs[] = '--staging';
             }
@@ -762,7 +735,9 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 . ' ' . implode(' ', array_map('escapeshellarg', $certbotArgs));
         }
 
-        $displayCmd = ($certExists ? 'sudo certbot renew --cert-name ' . $domain : 'sudo certbot certonly --authenticator certbot-dnspod ... -d ' . $domain);
+        $displayCmd = ($certExists
+            ? 'sudo certbot renew --cert-name ' . $domain
+            : 'sudo certbot certonly --authenticator ' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . ' ... -d ' . $domain);
 
         // Start certbot in the background: redirect stdout+stderr to the output
         // file, append a __DONE__ sentinel on exit so the polling endpoint detects
@@ -853,7 +828,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
     /** @return string|null certbot binary path or null */
     private function findCertbotBinary(): ?string
     {
-        foreach (['/usr/bin/certbot','/usr/local/bin/certbot','/usr/sbin/certbot','/sbin/certbot'] as $p) {
+        foreach (ServerManagerV1CertificateMetadata::CERTBOT_BINARY_CANDIDATES as $p) {
             if (file_exists($p) && is_executable($p)) return $p;
         }
         $which = ServerManagerV1Utils::executeCommand('which', ['certbot']);

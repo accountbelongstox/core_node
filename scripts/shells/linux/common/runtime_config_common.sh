@@ -17,24 +17,29 @@
 # poly_apps/laravel_main/app/Support/RuntimeConfigurationStore.php.
 #
 # Callers MUST provide before use: PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP.
+# Code runs through php_script_run (temp script file + env arguments): the
+# embedded frankenphp php-cli runner accepts neither -r nor $argv, while
+# the real php CLI handles the identical file+getenv() form.
 
 runtime_config_directory() {
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
+    RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" \
+        php_script_run '
+        $autoload = getenv("RC_ARG_AUTOLOAD");
+        $bootstrap = getenv("RC_ARG_BOOTSTRAP");
         require $autoload;
         require $bootstrap;
         echo \App\Support\RuntimeConfigurationStore::directory();
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP"
+    '
 }
 
 runtime_config_get() {
     local key="$1"
 
-    "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
+    RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" RC_ARG_KEY="$key" \
+        php_script_run '
+        $autoload = getenv("RC_ARG_AUTOLOAD");
+        $bootstrap = getenv("RC_ARG_BOOTSTRAP");
+        $key = getenv("RC_ARG_KEY");
         $value = null;
         require $autoload;
         require $bootstrap;
@@ -42,22 +47,24 @@ runtime_config_get() {
         if ($value !== null) {
             echo $value;
         }
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
+    '
 }
 
 runtime_config_put() {
     local key="$1"
     local value="$2"
 
-    printf '%s' "$value" | "$PHP_BIN" -r '
-        $autoload = $argv[1];
-        $bootstrap = $argv[2];
-        $key = $argv[3];
+    printf '%s' "$value" | \
+        RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" RC_ARG_KEY="$key" \
+        php_script_run '
+        $autoload = getenv("RC_ARG_AUTOLOAD");
+        $bootstrap = getenv("RC_ARG_BOOTSTRAP");
+        $key = getenv("RC_ARG_KEY");
         $value = trim(stream_get_contents(STDIN));
         require $autoload;
         require $bootstrap;
         exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);
-    ' "$VENDOR_AUTOLOAD" "$BOOTSTRAP_APP" "$key"
+    '
 }
 
 ensure_runtime_config_value() {

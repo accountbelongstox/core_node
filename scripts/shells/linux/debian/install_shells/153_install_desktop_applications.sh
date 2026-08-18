@@ -88,6 +88,61 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+resolve_pnpm_binary_path() {
+    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
+        echo "$PNPM_BIN"
+        return
+    fi
+
+    if [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        echo "$NODE_BIN_DIR/pnpm"
+        return
+    fi
+
+    command -v pnpm 2>/dev/null || true
+}
+
+resolve_pnpm_global_bin_dir() {
+    local pnpm_bin="$1"
+    local pnpm_global_bin_dir=""
+
+    if [ -n "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -d "$PNPM_GLOBAL_BIN_DIR" ]; then
+        echo "$PNPM_GLOBAL_BIN_DIR"
+        return
+    fi
+
+    if [ -n "${PNPM_GLOBAL_DIR:-}" ] && [ -d "$PNPM_GLOBAL_DIR/bin" ]; then
+        echo "$PNPM_GLOBAL_DIR/bin"
+        return
+    fi
+
+    if command -v get_var >/dev/null 2>&1; then
+        pnpm_global_bin_dir="$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null || true)"
+        if [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ]; then
+            echo "$pnpm_global_bin_dir"
+            return
+        fi
+    fi
+
+    if [ -n "$pnpm_bin" ] && [ -x "$pnpm_bin" ]; then
+        pnpm_global_bin_dir="$("$pnpm_bin" config get global-bin-dir 2>/dev/null)"
+        if [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ]; then
+            echo "$pnpm_global_bin_dir"
+            return
+        fi
+    fi
+
+    local fallback_pnpm_binary=""
+    fallback_pnpm_binary="$(command -v pnpm 2>/dev/null || true)"
+    if [ -n "$fallback_pnpm_binary" ] && [ -x "$fallback_pnpm_binary" ]; then
+        pnpm_global_bin_dir="$("$fallback_pnpm_binary" config get global-bin-dir 2>/dev/null)"
+        if [ -n "$pnpm_global_bin_dir" ] && [ -d "$pnpm_global_bin_dir" ]; then
+            echo "$pnpm_global_bin_dir"
+            return
+        fi
+    fi
+}
+
 # Function to install package via snap
 install_via_snap() {
     local package_id="$1"
@@ -484,17 +539,20 @@ install_via_web() {
 fix_pnpm_permissions() {
     log_message "Fixing pnpm global binary permissions..."
 
-    # Get pnpm global bin directory
-    local pnpm_global_bin
-    pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
+    local pnpm_binary=""
+    local pnpm_global_bin=""
+    local binary_count=0
 
-    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin/bin" ]; then
+    pnpm_binary="$(resolve_pnpm_binary_path)"
+    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_binary")"
+
+    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin" ]; then
         # Set executable permissions for all binaries in pnpm global bin directory
-        $USE_SUDO find "$pnpm_global_bin/bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
-        log_message "Fixed executable permissions for all binaries in: $pnpm_global_bin/bin"
+        $USE_SUDO find "$pnpm_global_bin" -type f -name "*" -exec chmod +x {} \; 2>/dev/null || true
+        log_message "Fixed executable permissions for all binaries in: $pnpm_global_bin"
 
         # Count how many binaries were fixed
-        local binary_count=$(find "$pnpm_global_bin/bin" -type f -name "*" 2>/dev/null | wc -l)
+        binary_count=$(find "$pnpm_global_bin" -type f -name "*" 2>/dev/null | wc -l)
         log_message "Fixed permissions for $binary_count pnpm global binaries"
 
         # Use new comprehensive permission fix function
@@ -506,36 +564,41 @@ fix_pnpm_permissions() {
     fi
 }
 
-# Function to install via pnpm (absolute PNPM_BIN; idempotent)
+# Function to install/upgrade via pnpm (absolute PNPM_BIN)
 install_via_pnpm() {
     local package_id="$1"
     local app_name="$2"
     local pnpm_bin=""
+    local pnpm_global_bin=""
+    local pnpm_run_path=""
+    local package_basename=""
+    local binary_path=""
 
-    if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
-        pnpm_bin="$PNPM_BIN"
-    elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
-        pnpm_bin="$NODE_BIN_DIR/pnpm"
-    elif command -v pnpm >/dev/null 2>&1; then
-        pnpm_bin="$(command -v pnpm)"
-    else
+    pnpm_bin="$(resolve_pnpm_binary_path)"
+    if [ -z "$pnpm_bin" ]; then
         log_message "pnpm not found. Run 17_install_node_24.sh first. Cannot install $app_name"
         return
     fi
 
-    log_message "Installing $app_name via pnpm ($pnpm_bin): $package_id"
+    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_bin")"
+    pnpm_run_path="${NODE_BIN_DIR:-$(dirname "$pnpm_bin")}:${pnpm_global_bin:-}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    log_message "Upgrading $app_name via pnpm ($pnpm_bin): $package_id"
     export npm_config_confirm_modules_purge=false
-    if "$pnpm_bin" list -g "$package_id" >/dev/null 2>&1 || command_exists "$app_name"; then
-        log_message "$app_name already installed globally via pnpm, skipping add -g"
-        fix_pnpm_permissions
-        return
-    fi
-    if timeout 300 env "PATH=${NODE_BIN_DIR:-}:$PATH" "npm_config_confirm_modules_purge=false" \
+    package_basename=$(echo "$package_id" | sed 's|.*/||' | sed 's|@.*||')
+    if timeout 300 env "PATH=$pnpm_run_path" "npm_config_confirm_modules_purge=false" \
         "$pnpm_bin" add -g --config.confirm-modules-purge=false "$package_id"; then
-        log_message "Successfully installed $app_name via pnpm"
+        log_message "Successfully upgraded $app_name via pnpm"
+        if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin" ]; then
+            $USE_SUDO find "$pnpm_global_bin" -type f -exec chmod +x {} \; 2>/dev/null || true
+            binary_path="$pnpm_global_bin/$package_basename"
+            if [ -f "$binary_path" ]; then
+                $USE_SUDO chmod +x "$binary_path" 2>/dev/null || true
+            fi
+        fi
         fix_pnpm_permissions
     else
-        log_message "Failed to install $app_name via pnpm"
+        log_message "Failed to upgrade $app_name via pnpm"
     fi
 }
 
@@ -721,6 +784,11 @@ install_application() {
     display_name=$(get_app_property "$lookup_app" "name")
     exec_name=$(get_app_property "$lookup_app" "exec")
     install_method=$(get_install_method "$lookup_app")
+    case "$install_method" in
+        npm|pnpm)
+            install_method="pnpm"
+            ;;
+    esac
     package_id=$(get_package_id "$lookup_app")
     super_command=$(get_app_property "$lookup_app" "super")
     snap_confinement=$(get_snap_confinement "$lookup_app")
@@ -734,19 +802,22 @@ install_application() {
     # Filter out desktop apps on server environments
     if [ "$HAS_DESKTOP_ENVIRONMENT" = false ] || [ "$ENVIRONMENT_TYPE" = "server" ]; then
         local skip_app=false
-        # Filter large models
-        if [[ "$lookup_app" == *"ollama"* ]] || [[ "$lookup_app" == *"lmstudio"* ]] || [[ "$lookup_app" == *"gpt4all"* ]]; then
-            skip_app=true
-        fi
-        # Filter browsers
-        if [[ "$lookup_app" == *"edge"* ]] || [[ "$lookup_app" == *"chrome"* ]] || [[ "$lookup_app" == *"firefox"* ]]; then
-            skip_app=true
-        fi
-        # Filter IDEs and regular apps
-        if [ "$package_group" = "DEV" ] || [ "$package_group" = "APP" ]; then
-            # Allow AI-assisted IDEs
-            if [[ "$lookup_app" != *"cursor"* ]] && [[ "$lookup_app" != *"windsurf"* ]] && [[ "$lookup_app" != *"cline"* ]]; then
+        # Keep AI and MCP packages installable in all environments.
+        if [ "$package_group" != "AI" ] && [ "$package_group" != "MCP" ]; then
+            # Filter large models
+            if [[ "$lookup_app" == *"ollama"* ]] || [[ "$lookup_app" == *"lmstudio"* ]] || [[ "$lookup_app" == *"gpt4all"* ]]; then
                 skip_app=true
+            fi
+            # Filter browsers
+            if [[ "$lookup_app" == *"edge"* ]] || [[ "$lookup_app" == *"chrome"* ]] || [[ "$lookup_app" == *"firefox"* ]]; then
+                skip_app=true
+            fi
+            # Filter IDEs and regular apps
+            if [ "$package_group" = "DEV" ] || [ "$package_group" = "APP" ]; then
+                # Allow AI-assisted IDEs
+                if [[ "$lookup_app" != *"cursor"* ]] && [[ "$lookup_app" != *"windsurf"* ]] && [[ "$lookup_app" != *"cline"* ]]; then
+                    skip_app=true
+                fi
             fi
         fi
         if [ "$skip_app" = true ]; then
@@ -781,21 +852,25 @@ install_application() {
 
     # Check if already installed
     if verify_installation "$exec_name" "$display_name"; then
-        log_message "$display_name is already installed, repairing links and scripts..."
+        if [ "$install_method" = "pnpm" ]; then
+            log_message "$display_name is already installed. Running pnpm upgrade."
+        else
+            log_message "$display_name is already installed, repairing links and scripts..."
 
-        # Create or repair launch script if launch command exists (always repair, even if installed)
-        if [ -n "$launch_command" ]; then
-            log_message "Repairing launch script for $display_name"
-            create_launch_script "$lookup_app"
+            # Create or repair launch script if launch command exists (always repair, even if installed)
+            if [ -n "$launch_command" ]; then
+                log_message "Repairing launch script for $display_name"
+                create_launch_script "$lookup_app"
+            fi
+
+            # For pnpm packages, refresh the symlink to point directly to pnpm binary
+            if [ "$install_method" = "pnpm" ]; then
+                log_message "Refreshing pnpm package links for $display_name"
+                refresh_npm_package_links "$exec_name" "$lookup_app"
+            fi
+
+            return 0
         fi
-
-        # For pnpm packages, refresh the symlink to point directly to pnpm binary
-        if [ "$install_method" = "npm" ] || [ "$install_method" = "pnpm" ]; then
-            log_message "Refreshing pnpm package links for $display_name"
-            refresh_npm_package_links "$exec_name" "$lookup_app"
-        fi
-
-        return 0
     fi
 
     # Handle snap packages with special confinement requirements
@@ -822,7 +897,7 @@ install_application() {
         create_launch_script "$lookup_app"
         
         # For pnpm packages, also refresh the direct symlink
-        if [ "$install_method" = "npm" ] || [ "$install_method" = "pnpm" ]; then
+        if [ "$install_method" = "pnpm" ]; then
             refresh_npm_package_links "$exec_name" "$lookup_app"
         fi
         log_message "Successfully installed and verified $display_name"
@@ -1040,29 +1115,32 @@ print_installation_report() {
     refresh_environment
 }
 
-# Function to refresh links for a single npm package
+# Function to refresh links for a single pnpm package
 refresh_npm_package_links() {
     local exec_name="$1"
     local lookup_app="$2"
     
     # Get pnpm global bin directory
-    local pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
+    local pnpm_binary=""
+    local pnpm_global_bin=""
     local binary_path=""
     
-    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin/bin" ]; then
-        binary_path="$pnpm_global_bin/bin/$exec_name"
+    pnpm_binary="$(resolve_pnpm_binary_path)"
+    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_binary")"
+    if [ -n "$pnpm_global_bin" ] && [ -d "$pnpm_global_bin" ]; then
+        binary_path="$pnpm_global_bin/$exec_name"
     fi
     
     # Fallback to which if pnpm bin directory not available
     if [ -z "$binary_path" ] || [ ! -e "$binary_path" ]; then
-        binary_path=$(which "$exec_name" 2>/dev/null)
+        binary_path=$(command -v "$exec_name" 2>/dev/null)
         if [ -z "$binary_path" ]; then
             log_message "Warning: Could not find binary for $exec_name"
             return
         fi
     fi
     
-    log_message "Refreshing links for npm package: $exec_name"
+    log_message "Refreshing links for pnpm package: $exec_name"
     
     # Create symbolic link in /usr/local/bin pointing directly to pnpm binary
     local link_path="/usr/local/bin/$exec_name"
@@ -1095,7 +1173,7 @@ refresh_npm_package_links() {
 refresh_environment() {
     log_message ""
     log_message "=========================================="
-    log_message "REFRESHING NPM BINARIES AND LAUNCH SCRIPTS"
+    log_message "REFRESHING PNPM BINARIES AND LAUNCH SCRIPTS"
     log_message "=========================================="
     
     # Create super_scripts directory if it doesn't exist
@@ -1106,20 +1184,23 @@ refresh_environment() {
     fi
     
     # Get pnpm global bin directory
-    local pnpm_global_bin=$(pnpm bin -g 2>/dev/null)
-    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin/bin" ]; then
+    local pnpm_binary=""
+    local pnpm_global_bin=""
+    pnpm_binary="$(resolve_pnpm_binary_path)"
+    pnpm_global_bin="$(resolve_pnpm_global_bin_dir "$pnpm_binary")"
+    if [ -z "$pnpm_global_bin" ] || [ ! -d "$pnpm_global_bin" ]; then
         log_message "Warning: Could not determine pnpm global bin directory"
         return
     fi
     
-    log_message "NPM global bin directory: $pnpm_global_bin/bin"
+    log_message "pnpm global bin directory: $pnpm_global_bin"
     
-    # Process all AI packages that use npm installation method.
+    # Process all AI packages that use pnpm installation method.
     # NOTE: "claude" is excluded here on purpose -- Claude Code is installed and
     # linked by install_shells/171_install_claude_code.sh (native workflow).
-    local npm_packages=("gemini" "codex" "auggie")
+    local pnpm_packages=("gemini" "codex" "auggie")
     
-    for package in "${npm_packages[@]}"; do
+    for package in "${pnpm_packages[@]}"; do
         local exec_name=$(get_app_property "$package" "exec")
         local launch_command=$(get_app_property "$package" "launch_command")
         local package_id=$(get_app_property "$package" "package_id")
@@ -1128,8 +1209,8 @@ refresh_environment() {
             log_message ""
             log_message "Processing $package ($exec_name)..."
             
-            # Check if the binary exists in npm global bin
-            local binary_path="$pnpm_global_bin/bin/$exec_name"
+            # Check if the binary exists in pnpm global bin
+            local binary_path="$pnpm_global_bin/$exec_name"
             if [ -f "$binary_path" ]; then
                 log_message "Found binary: $binary_path"
                 
@@ -1168,8 +1249,8 @@ refresh_environment() {
 # Generated by 153_install_desktop_applications.sh
 # Package: $package_id
 
-# Add npm global bin to PATH
-export PATH="\$PATH:$pnpm_global_bin/bin"
+# Add pnpm global bin to PATH
+export PATH="\$PATH:$pnpm_global_bin"
 
 # Execute the launch command
 $final_command "\$@"
@@ -1202,7 +1283,7 @@ EOF
     done
     
     log_message ""
-    log_message "NPM binaries refresh completed!"
+    log_message "PNPM binaries refresh completed!"
     log_message "=========================================="
 }
 
@@ -1489,7 +1570,7 @@ handle_exact_app() {
     log_message "Exact App Install: $app_key (group: $app_group)"
     log_message "=========================================="
 
-    log_message "Checking and fixing npm global binary permissions..."
+    log_message "Checking and fixing pnpm global binary permissions..."
     fix_pnpm_permissions
 
     log_message "Updating package lists with timeout..."
@@ -1519,9 +1600,9 @@ main() {
         log_message "=========================================="
     fi
 
-    # Always fix npm permissions first (regardless of what the script does)
+    # Always fix pnpm permissions first (regardless of what the script does)
     log_message "=========================================="
-    log_message "Checking and fixing npm global binary permissions..."
+    log_message "Checking and fixing pnpm global binary permissions..."
     log_message "=========================================="
     fix_pnpm_permissions
 
@@ -1697,7 +1778,7 @@ main() {
     log_message "Log file: $LOG_FILE"
     log_message "=========================================="
 
-    # Fix npm permissions after all installations
+    # Fix pnpm permissions after all installations
     log_message ""
     log_message "=========================================="
     log_message "Fixing pnpm global binary permissions..."
