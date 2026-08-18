@@ -74,11 +74,28 @@ ensure_package() {
     # automation (no TTY); allow pnpm to purge/replace the global modules dir non-interactively.
     export npm_config_confirm_modules_purge=false
     do_install() {
+        local temp_log=$(mktemp)
         if [ "$package" = "puppeteer" ]; then
-            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
+            PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" 2>&1 | tee "$temp_log"
         else
-            run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
+            run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" 2>&1 | tee "$temp_log"
         fi
+        
+        if grep -q "ERR_PNPM_UNEXPECTED_STORE" "$temp_log"; then
+            echo "[$SCRIPT_INDEX] Detected store mismatch. Cleaning up global node_modules to fix..."
+            local pnpm_global_dir=$(run_pnpm_from_common_functions config get global-dir 2>/dev/null)
+            if [ -n "$pnpm_global_dir" ] && [ -d "$pnpm_global_dir" ]; then
+                # Remove the layout version directories (e.g., 5, 6)
+                find "$pnpm_global_dir" -maxdepth 1 -type d -name "[0-9]*" -exec rm -rf {} + 2>/dev/null || true
+                echo "[$SCRIPT_INDEX] Retrying installation of $package..."
+                if [ "$package" = "puppeteer" ]; then
+                    PUPPETEER_SKIP_DOWNLOAD=true run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
+                else
+                    run_pnpm_from_common_functions --config.confirm-modules-purge=false add -g "$package" || true
+                fi
+            fi
+        fi
+        rm -f "$temp_log"
     }
 
     do_install
