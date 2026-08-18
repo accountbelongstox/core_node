@@ -324,6 +324,16 @@ class _Handler(BaseHTTPRequestHandler):
             client.enable_backup = enabled
             return self._send_json({"success": True, "enabled": enabled})
 
+        if path == routes.APPLY_PENDING_UPDATE_PATH:
+            if not m.is_client_mode():
+                return self._send_json({"detail": "Not in client mode"}, status=503)
+            return self._send_json(m.apply_pending_update(str(body.get("rel", ""))))
+
+        if path == routes.CLEAR_PENDING_UPDATE_PATH:
+            if not m.is_client_mode():
+                return self._send_json({"detail": "Not in client mode"}, status=503)
+            return self._send_json(m.clear_pending_update(str(body.get("rel", ""))))
+
         # ---- deprecated back-compat shims -------------------------------- #
         if path == routes.SET_SERVER_PATH:
             m.set_server_mode()

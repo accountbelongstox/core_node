@@ -7,6 +7,19 @@ const endpoint = (name) => state.routes[name];
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[character]);
+const escapeAttr = (value) => encodeURIComponent(String(value ?? ''));
+const formatBytes = (value) => {
+  const size = Number(value || 0);
+  if (!Number.isFinite(size) || size <= 0) return '0 B';
+  const suffixes = ['B', 'KB', 'MB', 'GB'];
+  let magnitude = size;
+  let index = 0;
+  while (magnitude >= 1024 && index < suffixes.length - 1) {
+    magnitude /= 1024;
+    index += 1;
+  }
+  return `${magnitude.toFixed(index === 0 ? 0 : 1)} ${suffixes[index]}`;
+};
 
 async function request(path, body) {
   const options = body === undefined
@@ -28,6 +41,7 @@ function renderStatus(status) {
   const self = status.self || status;
   const receiver = status.client || {};
   const sessions = Number(receiver.connected_sessions || 0);
+  const pending = status.pending_updates || self.pending_updates || { count: 0, files: [] };
   state.self = self;
   byId('node-name').textContent = self.name || self.hostname || '-';
   byId('role').textContent = self.role || '-';
@@ -41,6 +55,7 @@ function renderStatus(status) {
   byId('toggle-sync').textContent = self.role === 'dev'
     ? (status.distributing ? 'Stop distribution' : 'Start distribution')
     : (status.skip_update ? 'Resume updates' : 'Pause updates');
+  renderPendingUpdates(pending);
 }
 
 function renderPeers(peers) {
@@ -58,6 +73,54 @@ function renderPeers(peers) {
     const connectionLabel = connected ? 'online · HTTP SSE' : (reachable ? 'reachable' : 'offline');
     return `<div class="row"><span>${escapeHtml(peer.name || peer.host)}<br><small>${escapeHtml(peer.host)}:${escapeHtml(peer.port)} · ${escapeHtml(peer.role)} · ${escapeHtml(phase)}</small></span><strong class="${reachable ? 'ok' : 'bad'}">${connectionLabel}</strong></div>`;
   }).join('');
+}
+
+function renderPendingUpdates(pending) {
+  const root = byId('pending-updates');
+  const rows = Array.isArray(pending?.files) ? pending.files : [];
+  if (!rows.length) {
+    root.className = 'list empty';
+    root.textContent = 'No pending updates.';
+    return;
+  }
+  root.className = 'list';
+  root.innerHTML = rows.map((item) => {
+    const cachedAt = Number(item.cached_at || 0);
+    const cachedText = cachedAt ? new Date(cachedAt * 1000).toLocaleString() : '-';
+    const rel = String(item.rel || '');
+    const relAttr = escapeAttr(rel);
+    return `<div class="row"><span>${escapeHtml(item.rel)}<br><small>${escapeHtml(item.source_name || item.source_id || 'source unknown')} · cached ${cachedText} · ${formatBytes(item.size)}</small></span><span class="pending-actions"><button class="mini" type="button" data-action="apply" data-rel="${relAttr}">Apply</button><button class="mini bad" type="button" data-action="clear" data-rel="${relAttr}">Clear</button></span><strong class="ok">${escapeHtml((item.hash || '').slice(0, 12))}</strong></div>`;
+  }).join('');
+}
+
+function pendingUpdateAction(action, encodedRel) {
+  let rel = '';
+  try {
+    rel = decodeURIComponent(encodedRel || '');
+  } catch (error) {
+    rel = String(encodedRel || '');
+  }
+  const actionKey = action === 'apply' ? 'applyPendingUpdate' : action === 'clear' ? 'clearPendingUpdate' : '';
+  if (!actionKey || !endpoint(actionKey)) {
+    return Promise.reject(new Error('Endpoint not available'));
+  }
+  return request(endpoint(actionKey), { rel });
+}
+
+async function onPendingUpdateClick(event) {
+  const button = event.target.closest('button[data-action][data-rel]');
+  if (!button || !button.closest('#pending-updates')) return;
+  const action = button.getAttribute('data-action');
+  const rel = button.getAttribute('data-rel');
+  try {
+    const response = await pendingUpdateAction(action, rel);
+    if (response && response.success === false) {
+      throw new Error(response.error || 'Unable to process pending update');
+    }
+    await refresh();
+  } catch (error) {
+    setConnection(false, error.message || String(error));
+  }
 }
 
 function renderLogs() {
@@ -111,6 +174,7 @@ async function start() {
   byId('role-dev').addEventListener('click', () => setRole('dev'));
   byId('role-client').addEventListener('click', () => setRole('client'));
   byId('toggle-sync').addEventListener('click', toggleSync);
+  byId('pending-updates').addEventListener('click', onPendingUpdateClick);
   document.querySelectorAll('[data-minutes]').forEach((button) => {
     button.addEventListener('click', () => {
       state.minutes = Number(button.dataset.minutes);

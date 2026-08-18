@@ -558,7 +558,7 @@ class PushSender:
                 client_name=client_name, peer_label=peer_label, first_reason="full",
                 log_reason_for=lambda dest: "full sync",
                 on_acked=full_results.extend)
-        result_counts = {"written": 0, "skipped": 0, "error": 0}
+        result_counts = {"written": 0, "skipped": 0, "cached": 0, "error": 0}
         for result in full_results:
             status = str(result.get("status") or "error")
             result_counts[status if status in result_counts else "error"] += 1
@@ -569,6 +569,7 @@ class PushSender:
             "manifest": len(manifest),
             "different": len(need),
             "written": result_counts["written"],
+            "cached": result_counts["cached"],
             "skipped": result_counts["skipped"],
             "errors": result_counts["error"],
         }
@@ -587,6 +588,7 @@ class PushSender:
             "full diff complete",
             details=(f"{len(manifest)} compared, {len(need)} differed, "
                      f"{result_counts['written']} written, "
+                     f"{result_counts['cached']} cached, "
                      f"{result_counts['skipped']} skipped, "
                      f"{result_counts['error']} error(s); "
                      f"{time.monotonic() - started_at:.1f}s"),
@@ -640,11 +642,11 @@ class PushSender:
                             peer=peer_label, direction="push")
 
         def _on_acked(results):
-            # Advance last_sent only for files the client confirmed written/skipped,
-            # then persist so a mid-sync drop resumes from exactly here.
+            # Advance last_sent for terminal outcomes (written/skipped/cached), then
+            # persist so a mid-sync drop resumes from exactly here.
             for r in results:
                 rel = r.get("rel")
-                if r.get("status") in ("written", "skipped") and rel in cur:
+                if r.get("status") in ("written", "skipped", "cached") and rel in cur:
                     last[rel] = cur[rel]
             self._store_client_state(client_id, last)
 
