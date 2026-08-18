@@ -25,6 +25,9 @@ $harnessSettingsScriptPath = Join-Path $shellsCommonPath 'pi_harness_settings.js
 $mode = 'auto'
 $supportedModes = @('auto', 'codex', 'claude', 'kimi', 'volc-agent', 'volc-coding')
 $forwardArgs = @()
+$parsedArgs = @()
+$currentArg = $null
+$argIndex = 0
 $piCandidates = @()
 $piPath = $null
 $candidatePath = $null
@@ -183,6 +186,30 @@ if ($args.Count -gt 0 -and $supportedModes -contains $args[0].ToLowerInvariant()
 else {
     $forwardArgs = @($args)
 }
+
+$argIndex = 0
+while ($argIndex -lt $forwardArgs.Count) {
+    $currentArg = $forwardArgs[$argIndex]
+    if ($currentArg -eq '--thinking') {
+        if ($argIndex + 1 -ge $forwardArgs.Count) {
+            Write-Host '[ERROR] --thinking requires a value.' -ForegroundColor Red
+            Write-Host '[INFO] Supported levels: off, minimal, low, medium, high, xhigh, max' -ForegroundColor Yellow
+            exit 1
+        }
+        $thinking = $forwardArgs[$argIndex + 1]
+        $argIndex = $argIndex + 2
+        continue
+    }
+    if ($currentArg -like '--thinking=*') {
+        $thinking = $currentArg.Substring('--thinking='.Length)
+        $argIndex++
+        continue
+    }
+    $parsedArgs = @($parsedArgs + @($currentArg))
+    $argIndex++
+}
+
+$forwardArgs = @($parsedArgs)
 
 foreach ($candidatePath in $piCandidates) {
     if (-not $piPath -and (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
@@ -478,6 +505,8 @@ Write-Host 'piyolo.ps1' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host "[INFO] Mode: $mode" -ForegroundColor Green
 Write-Host "[INFO] Default model: $provider/$model ($thinking)" -ForegroundColor Green
+Write-Host "[TIP] Thinking levels supported by Pi: off, minimal, low, medium, high, xhigh, max (xhigh = Extra High)." -ForegroundColor Green
+Write-Host "[TIP] Override temporarily with: .\piyolo.ps1 <mode> --thinking <level> or --thinking=<level>" -ForegroundColor Green
 if ($mode -eq 'volc-coding') {
     Write-Host "[INFO] Model selection: $volcCodingModelHint" -ForegroundColor Green
 }
