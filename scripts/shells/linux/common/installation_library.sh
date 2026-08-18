@@ -535,6 +535,16 @@ install_via_npm() {
     # Idempotency: under no TTY, pnpm may abort module-dir purge; auto-confirm.
     export npm_config_confirm_modules_purge="${npm_config_confirm_modules_purge:-false}"
 
+    # Ensure PNPM_GLOBAL_BIN_DIR is populated so it gets included in PATH
+    if [ -z "${PNPM_GLOBAL_BIN_DIR:-}" ]; then
+        if command -v get_var >/dev/null 2>&1; then
+            PNPM_GLOBAL_BIN_DIR=$(get_var "PNPM_GLOBAL_BIN_DIR" 2>/dev/null)
+        fi
+        if [ -z "${PNPM_GLOBAL_BIN_DIR:-}" ] && [ -x "$pnpm_bin" ]; then
+            PNPM_GLOBAL_BIN_DIR=$("$pnpm_bin" config get global-bin-dir 2>/dev/null)
+        fi
+    fi
+
     pnpm_run_path="${NODE_BIN_DIR:-$(dirname "$pnpm_bin")}:${PNPM_GLOBAL_BIN_DIR:-}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
     # Idempotent skip when already present globally or on PATH.
