@@ -36,15 +36,82 @@ d
 找到apps/mcp-chrome，基中的API全部对齐 poly apps / laravel main，现在将重复实现合并。扩展laralvel main sys:init，所有单词的is valid需要由mcp-chrome验证一遍。证证逻辑直接查看mcp-chrome,1：如果在mcp-chrome显式开启后，将实时获取laravel没有证证过的的，并利用deepseek的网页端进行提示词获取结果 ，一次批量处理，同时得到单词的有效性和翻译，回传给laravel，如果并标记为is valid = ai_ensure, 如果单词没翻译，则正好同时使用翻译结果 ，有翻译则跳过，这样减少回传次数。2：默认mcp-chrome只勾选验证en，可多选其他语言，3：如果后端全部主验证过了，则空转。一批为150表单词。4：更新pycore UI laravel manager UI中的字段，支持is valide = 字符串，5：修正图书封面的任务开启，回传，6：修正单词列表封面图的gemini 网页端生成的任务开启，回传。注意合并公共类库和重复实现，按laravel 13的优化等等。注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
 
 
-# github.com/libdns/dnspod
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:77:13: invalid composite literal type libdns.Record
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:104:35: record.Name undefined (type libdns.Record has no field or method Name)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:105:17: record.Value undefined (type libdns.Record has no field or method Value)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:106:17: record.Type undefined (type libdns.Record has no field or method Type)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:108:34: record.TTL undefined (type libdns.Record has no field or method TTL)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:120:9: record.ID undefined (type libdns.Record has no field or method ID)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:134:102: record.Name undefined (type libdns.Record has no field or method Name)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:134:115: record.Value undefined (type libdns.Record has no field or method Value)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:136:52: record.ID undefined (type libdns.Record has no field or method ID)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:139:102: record.Name undefined (type libdns.Record has no field or method Name)
-/root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:139:102: too many errors
+e
+go: downloading github.com/go-openapi/testify/v2 v2.6.0
+2026/08/18 16:01:37 [INFO] exec (timeout=0s): /usr/local/bin/go build
+-ldflags=-w -s -tags=nobadger,nomysql,nopgx -o
+/tmp/tmp.wIX82YM9UD/frankenphp
+# github.com/e-dant/watcher/watcher-go
+/root/go/pkg/mod/github.com/e-dant/watcher@v0.0.0-20260223030516-06f84a13
+14be/watcher-go/watcher.go:9:10: fatal error: wtr/watcher-c.h: No such
+file or directory
+    9 | #include <wtr/watcher-c.h>
+      |          ^~~~~~~~~~~~~~~~~
+compilation terminated.
+ 现在，换一个思路，根据官方的说明，参考  43_ensure_php85_intelligent.sh
+77_ensure_php_pgsql ，在公共区写一个清理脚本，将系统必要的清理干净（如果编译了则幂等跳过），之后
+https://github.com/php/frankenphp  clone 项目到临时目录，并使用官方编译脚
+本 chmod +x build-static.sh。除了编译必要的库， Ctype, cURL, DOM,
+Fileinfo, Filter, Hash, Mbstring, OpenSSL, PCRE, PDO, Session,
+Tokenizer, XML。 apcu, bcmath, brotli, bz2, calendar, ctype, curl, dom,
+fileinfo, filter, gd, iconv, intl, mbstring, mysqli, openssl, opcache,
+pdo, pdo_mysql, pdo_sqlite, session, sodium, sqlite3, tokenizer, xml,
+xmlreader, xmlwriter, zip, zstd 等。 编译时通过 EMBED=/path/to/your/app
+指定了你的项目路径 poly apps / laravel main，确保支持laravel 13。同时根
+据···> [*] Switch Installation Mode [server]
+  [@] Select Region [Global]
+  [D] Start MySQL After Installation [false]
+  [R] Start Redis After Installation [true]
+  [Q] Start PostgreSQL After Installation [true]
+  [W] Web Server After Installation [frankenphp]
+  [^] Start Docker After Installation [false]
+  [.] Install .NET SDK [false]
+  [G] Install Gitea (Git Service) [false]
+  [T] Install Tailscale (Local-Network Mesh VPN) [false]
+  [#] Setup Network Router [false]
+  [C] Set Cloud Provider [null]··· 来确定编译那个数据库的支持， 47_install_composer.sh脚本调整index到后面进行适配frankenPHP模式。同样将 45_configure_php85.sh放在后面适配配置frankenPHP。搜索廴文档，保留支持podns签发证书的编译代码。幂等编译启用。
+  
+  编写 Caddyfile 配置文件当单文件部署到生产环境后，你不能再单纯使用命令行简易拉起（./frankenphp php-server），而是需要创建一个功能完整的 Caddyfile 来告诉系统如何调用刚才注入的插件。在你的项目根目录下创建一个名为 Caddyfile 的文件，内容如下：caddy{
+    # 全局配置：关闭默认的 HTTP 验证，强制使用刚注入的 dnspod 插件
+    acme_dns dnspod "12345,abcdefgYOURDNSPODTOKENHERE"
+}
+
+# 你的域名（支持 *.yourdomain.com 泛域名证书申请）
+yourdomain.com {
+    # 启用 zstd 和 br 压缩（可选，提升响应速度）
+    encode zstd br gzip
+
+    # 核心：将所有请求交由体内静态打包的 PHP 解释器处理
+    php_server
+}
+Use code with caution.🚀 第四步：带上配置文件运行你的单文件万事俱备后，在你的生产服务器上，通过指定 --config 参数来运行你编译出来的二进制文件：bash# 带着刚才写好的 Caddyfile 启动服务
+./frankenphp run --config ./Caddyfile
+────────────────────────────────────── 
+
+pi --session 01a013c0-3219-7fc1-a426-6de2c4916eca
+
+
+[paste #1 +25 lines]  [08:55:06] [W] Pre-built content not found for
+libunistring, fallback to source download
+[08:55:06] [I] [32/48] Downloading source libunistring
+[08:55:10] [I] [33/48] Downloading source libidn2
+[08:55:13] [W] Pre-built content not found for libedit, fallback to
+source download
+[08:55:13] [I] [34/48] Downloading source libedit
+[08:55:16] [I] [35/48] Downloading source krb5
+curl: (22) The requested URL returned error: 403
+[08:55:16] [W] Download failed: Download failed: Direct command run
+failed with code: 22
+[08:55:16] [W] No alternative sources found for krb5, using default
+alternative source Executing: 93_install_frankenphp.sh
+同时不要放到  /tmp 目录编译，而是放到//www/programing/frankenphp 目录幂等
+创建，并保留中间源码。下次编译时能直接在上一次的基础上，以及git项目可以保
+留。如果存在的git项目只需要进行升级幂等升级。当让，如果 frankenphp已经可
+用，则/tmp编译的跳过，不再冲 /www/programing/frankenphp 再编译一次。同时
+验证93脚本的米的幂等性，
+注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安
+装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，
+前一个步骤的幂等不能影响后面的过程，需要细粒度。
+。同时也没有幂等disable旧的php进程和服
+务。这些服务参考 scripts\shells\linux\debian\install_shells\175_laravel_main_start.sh 中的创建规范。当然这些放到公共区的对应的php的对应脚本中。
+────────────────────────────────────────────────────

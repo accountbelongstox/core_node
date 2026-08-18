@@ -416,6 +416,14 @@ $Global:FLUTTER_DIR = Join-Path $Global:LANG_COMPILER_DIR "flutter"
 $Global:FLUTTER_EXE_PATH = Join-Path $Global:FLUTTER_DIR "bin\flutter.bat"
 $Global:FLUTTER_INSTALLED_FLAG = "$Global:USER_CACHE_DIR\Flutter_Installed_flag"
 
+# Global Go install constants
+$Global:GO_RELEASE_API_URL = "https://go.dev/dl/?mode=json"
+$Global:GO_DOWNLOAD_BASE_URL = "https://go.dev/dl"
+$Global:GO_DEFAULT_VERSION = "1.26.6"
+$Global:GO_ARCHIVE_NAME_TEMPLATE = "go{0}.windows-{1}.zip"
+$Global:GO_INSTALL_DIR = Join-Path $Global:LANG_COMPILER_DIR "Go"
+$Global:GO_EXECUTABLE = "go.exe"
+
 # Flutter mirror configuration
 $Global:FLUTTER_MIRRORS = @{
     "Global" = @{

@@ -85,6 +85,7 @@ $SCRIPT_STEP59_INSTALL_BARK = "Step59_InstallBark.ps1"
 $SCRIPT_STEP60_INSTALL_PARLER = "Step60_InstallParler.ps1"
 $SCRIPT_STEP61_INSTALL_QWEN3TTS = "Step61_InstallQwen3Tts.ps1"
 $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES = "Step62_InstallAndroidSdkPackages.ps1"
+$SCRIPT_STEP63_INSTALL_GO = "Step63_InstallGo.ps1"
 
 $InstallerScriptsMap = @{
     "InitializeBaseDirectories" = $SCRIPT_STEP1_INITIALIZE_BASE_DIRECTORIES
@@ -147,6 +148,7 @@ $InstallerScriptsMap = @{
     "InstallParler" = $SCRIPT_STEP60_INSTALL_PARLER
     "InstallQwen3Tts" = $SCRIPT_STEP61_INSTALL_QWEN3TTS
     "InstallAndroidSdkPackages" = $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES
+    "InstallGo" = $SCRIPT_STEP63_INSTALL_GO
 }
 
 # DevInstaller sweep order (Step13 offline TTS removed; TTS engines are separate Step5x scripts).
@@ -210,7 +212,8 @@ $InstallerScripts = @(
     $SCRIPT_STEP59_INSTALL_BARK,
     $SCRIPT_STEP60_INSTALL_PARLER,
     $SCRIPT_STEP61_INSTALL_QWEN3TTS,
-    $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES
+    $SCRIPT_STEP62_INSTALL_ANDROID_SDK_PACKAGES,
+    $SCRIPT_STEP63_INSTALL_GO
 )
 
 function Get-DiscoveredInstallerStepScripts {
