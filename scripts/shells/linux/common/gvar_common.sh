@@ -2028,6 +2028,14 @@ BASE_DIR=$(map_web_path "www")
 WIS_PROGRAMING_DIR="$BASE_DIR/programing"
 COMPILE_DIR=$(map_web_path "compile_dir")
 
+# Python VENV constants
+if [ -n "${COMPILE_DIR:-}" ]; then
+    export VENV_DIR="$COMPILE_DIR/python3_venv"
+    export VENV_PYTHON3="$VENV_DIR/bin/python3"
+    export VENV_PYTHON="$VENV_DIR/bin/python"
+    export VENV_PIP3="$VENV_DIR/bin/pip3"
+    export VENV_PIP="$VENV_DIR/bin/pip"
+fi
 # Installation directories (set after all functions are defined)
 POETRY_HOME="$COMPILE_DIR/poetry"
 POETRY_LINK="$COMPILE_DIR/bin/poetry"
@@ -2141,3 +2149,17 @@ confirm_core_node_deletion() {
     echo -e "\033[33m[DELETE-GUARD] All three confirmations received; proceeding to delete $target\033[0m" >&2
     return 0
 }
+
+# Calculate and set SKIP_LARGE_MODELS flag
+if [ -z "$(get_global_var "SKIP_LARGE_MODELS" "")" ]; then
+    if [ "$IS_PRODUCTION" = true ] && [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
+        if ! command -v nvidia-smi >/dev/null 2>&1 || ! nvidia-smi -L >/dev/null 2>&1; then
+            set_global_var "SKIP_LARGE_MODELS" "true" "false"
+        else
+            set_global_var "SKIP_LARGE_MODELS" "false" "false"
+        fi
+    else
+        set_global_var "SKIP_LARGE_MODELS" "false" "false"
+    fi
+fi
+
