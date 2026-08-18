@@ -52,6 +52,12 @@ FRANKENPHP_INSTALL_URL="https://frankenphp.dev/install.sh"
 FRANKENPHP_DNSPOD_IMPORT="github.com/caddy-dns/dnspod@master"
 FRANKENPHP_DNSPOD_MODULE="dns.providers.dnspod"
 FRANKENPHP_DNSPOD_TOKEN_KEY="DNSPOD_TOKEN"
+# Secret-file keys (.secret_keys/.secret_ignore via the common_functions
+# reader): the DNSPod API token "id,token" + the ACME account email -
+# shared by the compiled variant (Caddy dns provider) and the prebuilt
+# variant (acme.sh dns_dp DNS-01).
+FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY="DNS_DNSPOD_API_TOKENS"
+FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY="DNSPOD_EMAILS"
 FRANKENPHP_FRANKENPHP_IMPORT="github.com/dunglas/frankenphp"
 # Mercure hub module version, matched to the release frankenphp v1.12.7
 # pins in its own go.mod (v0.24.2) so a rebuild never drags in a newer
@@ -273,10 +279,16 @@ fm_dnspod_build_static() {
 # or when the Laravel app context is not available yet (fresh install);
 # the runtime branch re-renders the Caddyfile once it is.
 fm_dnspod_token_value() {
+    local stored=""
     if [ -n "$PHP_BIN" ] && [ -x "$PHP_BIN" ] \
         && [ -n "$VENDOR_AUTOLOAD" ] && [ -f "$VENDOR_AUTOLOAD" ]; then
-        runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY"
+        stored="$(runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY" 2>/dev/null || true)"
     fi
+    if [ -n "$stored" ]; then
+        echo "$stored"
+        return 0
+    fi
+    get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY"
 }
 
 # Persist the DNSPod API token (id,token) into the shared store. Requires
@@ -296,11 +308,61 @@ fm_dnspod_token_put() {
     echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
 }
 
-# Legacy PHP runtime mutex (frankenphp plane): once the static binary
-# carries the dnspod module it is the verified PHP runtime, and the
-# Swoole-based app servers plus the old apt PHP services are mutually
-# exclusive leftovers. FINE-GRAINED idempotency - every step probes and
-# no-ops independently, and no step's no-op blocks the next:
+# Mirror the secret-file token (${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY}) into
+# the Laravel RuntimeConfigurationStore - the canonical store the app and the
+# Caddyfile {env.DNSPOD_TOKEN} chain read. Idempotent: a non-empty stored
+# value always wins; no secret file or no runtime context -> plain no-op.
+fm_dnspod_token_ensure() {
+    local file_token=""
+    local stored=""
+
+    file_token="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY")"
+    [ -n "$file_token" ] || return 0
+    if [ -n "$PHP_BIN" ] && [ -x "$PHP_BIN" ] \
+        && [ -n "$VENDOR_AUTOLOAD" ] && [ -f "$VENDOR_AUTOLOAD" ]; then
+        stored="$(runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY" 2>/dev/null || true)"
+        if [ -z "$stored" ]; then
+            fm_dnspod_token_put "$file_token" >/dev/null 2>&1 || true
+            echo "[$SCRIPT_INDEX] DNSPod token seeded into the runtime store (from ${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY})"
+        fi
+    fi
+    return 0
+}
+
+# Shared site host - single source for the 93 pipeline, the 175 dispatch and
+# the Mercure issuer wiring: first configured api.<region>.<domain>, else
+# localhost. An already-set FRANKENPHP_SITE_HOST env wins over the resolver.
+fm_site_host() {
+    local first_domain=""
+    if [ "${DOMAIN_SCOPE:-none}" != "none" ] \
+        && [ -n "${DOMAIN_API_PREFIX:-}" ] && [ -n "${DOMAIN_DOMAINS_LIST:-}" ]; then
+        first_domain="$(printf '%s\\n' "$DOMAIN_DOMAINS_LIST" | head -n1)"
+        if [ -n "$first_domain" ]; then
+            echo "api.${DOMAIN_API_PREFIX}.${first_domain}"
+            return 0
+        fi
+    fi
+    echo "localhost"
+}
+
+# Certificate directory (prebuilt/acme.sh variant) serving the given site
+# host: keyed by the registrable apex (api.<region>. prefix stripped). Empty
+# string when the apex cannot be derived.
+fm_acme_cert_dir_for_host() {
+    local apex=""
+    apex="${1#api.${DOMAIN_API_PREFIX:-}.}"
+    [ -n "$apex" ] || return 0
+    echo "${FRANKENPHP_ACME_CERT_DIR}/${apex}"
+}
+
+# Legacy PHP runtime mutex (frankenphp plane): the gate is the SHARED
+# PLANE CONSTANT adopted from the dd.sh selector (START_WEB_SERVER ->
+# web_server_plane(), gvar_common) - NEVER the compile result: whether the
+# dnspod static build succeeded must not decide which runtime may run.
+# With plane=frankenphp the Swoole-based app servers and the old apt PHP
+# services are mutually exclusive leftovers. FINE-GRAINED idempotency -
+# every step probes and no-ops independently, and no step's no-op blocks
+# the next:
 #   1) systemd units whose RUNNING command is the swoole octane runtime
 #      get disable --now. Judged by the runtime command, NEVER by unit
 #      name: 175_laravel_main_start.sh re-creates the same laravel units
@@ -310,7 +372,9 @@ fm_dnspod_token_put() {
 #   3) every loaded php*-fpm unit stops + disables (fm_static_apt_php_cleanup
 #      purges the packages afterwards).
 #   4) verify: no swoole_http_server master remains.
-# Runs as no-op before the dnspod binary is verified (gate below).
+# Sanity floor (availability, not build state): the frankenphp binary
+# itself must at least execute before any legacy runtime is retired.
+# No-op on other planes and before the binary exists.
 fm_disable_legacy_php_runtime() {
     local binary=""
     local unit=""
@@ -319,9 +383,13 @@ fm_disable_legacy_php_runtime() {
     local leftovers=""
     local pid=""
 
+    if [ "$(web_server_plane)" != "frankenphp" ]; then
+        echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: web server plane is $(web_server_plane)"
+        return 0
+    fi
     binary="$(fm_get_binary)"
-    if [ -z "$binary" ] || ! fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE"; then
-        echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: dnspod frankenphp binary not verified yet"
+    if [ -z "$binary" ] || ! "$binary" version >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] legacy-runtime disable deferred: frankenphp binary not executable yet"
         return 0
     fi
     if ! command -v systemctl >/dev/null 2>&1; then
@@ -383,6 +451,9 @@ fm_ensure_dnspod_module() {
     local binary=""
     local candidate=""
 
+    # Mirror the shared secret-file token into the runtime store first
+    # (idempotent; covers the 93 compile path, 175 re-uses fm_dns01_ensure).
+    fm_dnspod_token_ensure
     binary="$(fm_get_binary)"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; run fm_install first"
@@ -421,6 +492,9 @@ fm_ensure_dnspod_module() {
     $USE_SUDO mv -f "${binary}.dnspod-new" "$binary"
     rm -rf "$(dirname "$candidate")"
     echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($(fm_version))"
+    # Variant mutex: the compiled variant now owns the link - drop a stale
+    # prebuilt-variant backup left behind by an earlier prebuilt install.
+    [ "$binary" = "$FRANKENPHP_LINK_PATH" ] && rm -f "${FRANKENPHP_LINK_PATH}.prebuilt"
     fm_store_info
     fm_disable_legacy_php_runtime
     fm_static_apt_php_cleanup
@@ -439,6 +513,8 @@ fm_caddyfile_ensure() {
     local rendered=""
     local existing=""
     local dnspod_tls=""
+    local acme_tls=""
+    local acme_cert_dir=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
     if [ ! -d "$caddyfile_dir" ]; then
@@ -458,6 +534,21 @@ fm_caddyfile_ensure() {
 "
     fi
 
+    # Prebuilt variant gate: when the dnspod module is NOT embedded but the
+    # acme.sh DNS-01 certificates are on disk, pin them explicitly. Neither
+    # gate matching -> Caddy built-in ACME (HTTP-01/TLS-ALPN-01) stays in
+    # charge. Sync contract: the Laravel builder renders the identical gates.
+    if [ -z "$dnspod_tls" ]; then
+        acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
+        if [ -n "$acme_cert_dir" ] \
+            && [ -f "${acme_cert_dir}/fullchain.pem" ] \
+            && [ -f "${acme_cert_dir}/key.pem" ]; then
+            acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
+
+"
+        fi
+    fi
+
     rendered="# Managed by frankenphp_manager.sh (SYNC: ServerManagerV1FrankenPhpManagerCtl)
 {
 	admin localhost:${admin_port}
@@ -468,7 +559,7 @@ https://${site_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${dnspod_tls}	mercure {
+${dnspod_tls}${acme_tls}	mercure {
 		issuer {env.MERCURE_TRUSTED_ISSUERS} {
 			publisher {
 				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
@@ -520,6 +611,32 @@ fm_dns01_status() {
     echo "ready (module embedded + token stored)"
 }
 
+# Idempotent DNS-01 CERTIFICATE readiness: the wildcard certificate is
+# issued AND renewed by Caddy's built-in ACME at runtime start whenever
+# BOTH the dnspod module is embedded AND the DNSPod API token is stored
+# (the canonical Caddyfile renders the `tls { dns dnspod ... }` stanza
+# only under exactly that pair). This converges that pair and reports the
+# one manual input that cannot be generated (the API token); every re-run
+# is a no-op probe once ready. Requires the runtime store context
+# (PHP_BIN + VENDOR_AUTOLOAD) for the token read.
+fm_dns01_ensure() {
+    # Seed the runtime store from the shared secret file first (no-op when
+    # already stored or when the file/context is absent).
+    fm_dnspod_token_ensure
+    if ! fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
+        echo "[$SCRIPT_INDEX] DNS-01 deferred: dnspod module not embedded yet (built-in HTTP-01/TLS-ALPN-01 stays active)"
+        return 0
+    fi
+    if [ -z "$(fm_dnspod_token_value)" ]; then
+        echo "[$SCRIPT_INDEX] DNS-01 pending: DNSPod API token not stored; add it once via"
+        echo "[$SCRIPT_INDEX]   frankenphp_manager.sh dnspod-token '<id,token>'"
+        echo "[$SCRIPT_INDEX] (afterwards the wildcard certificate issues/renews idempotently at every start)"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] DNS-01 ready: module embedded + token stored; Caddy issues/renews the wildcard certificate idempotently at start"
+    return 0
+}
+
 fm_verify() {
     local binary=""
     binary="$(fm_get_binary)"
@@ -536,7 +653,8 @@ fm_verify() {
 }
 
 # Management CLI (same surface the log advertises):
-#   install | verify | status | dnspod | caddyfile <public_dir> <host> <https> <admin> <path>
+#   install | verify | status | dnspod | dnspod-token <id,token> |
+#   caddyfile <public_dir> <host> <https> <admin> <path>
 if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
     case "${1:-verify}" in
         install)
@@ -544,6 +662,9 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
             ;;
         dnspod)
             fm_ensure_dnspod_module
+            ;;
+        dnspod-token)
+            fm_dnspod_token_put "${2:-}"
             ;;
         caddyfile)
             shift

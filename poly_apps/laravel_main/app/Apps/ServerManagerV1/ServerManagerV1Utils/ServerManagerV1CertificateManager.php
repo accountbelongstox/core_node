@@ -49,13 +49,13 @@ class ServerManagerV1CertificateManager
      */
     public static function getDNSPodCredentials(): ?array
     {
-        $email = \App\Utils\SecretStore::get('DNSPOD_EMAILS');
+        $email = \App\Utils\SecretStore::get(ServerManagerV1CertificateMetadata::DNSPOD_CREDENTIALS_EMAIL_KEY);
         if ($email === '') {
-            $email = \App\Utils\SecretStore::get('DNS_DNSPOD_EMAILS');
+            $email = \App\Utils\SecretStore::get(ServerManagerV1CertificateMetadata::DNSPOD_CREDENTIALS_EMAIL_LEGACY_KEY);
         }
-        $apiToken = \App\Utils\SecretStore::get('DNS_DNSPOD_API_TOKENS');
+        $apiToken = \App\Utils\SecretStore::get(ServerManagerV1CertificateMetadata::DNSPOD_CREDENTIALS_TOKEN_KEY);
         if ($apiToken === '') {
-            $apiToken = \App\Utils\SecretStore::get('DNSPOD_API_TOKENS');
+            $apiToken = \App\Utils\SecretStore::get(ServerManagerV1CertificateMetadata::DNSPOD_CREDENTIALS_TOKEN_LEGACY_KEY);
         }
 
         if ($email === '' || $apiToken === '') {
@@ -74,13 +74,6 @@ class ServerManagerV1CertificateManager
             'api_token' => trim($tokenParts[1]),
         ];
     }
-
-    // DNS-01 propagation wait passed to the certbot-dnspod plugin. The plugin
-    // inherits certbot's dns_common default of 10 seconds, which is too short
-    // for DNSPod authoritative sync: the CA then validates before the TXT
-    // record is visible and every challenge fails even though the record was
-    // created (credentials are NOT the problem in that failure mode).
-    private const DNSPOD_PROPAGATION_SECONDS = 60;
 
     /**
      * Ensure the persistent certbot-dnspod credentials file (official plugin
@@ -103,7 +96,7 @@ class ServerManagerV1CertificateManager
         $content = "certbot_dnspod_token_id = {$credentials['api_id']}\n";
         $content .= "certbot_dnspod_token = {$credentials['api_token']}\n";
 
-        $credentialsPath = $credentialsDir . '/certbot-dnspod.ini';
+        $credentialsPath = $credentialsDir . '/' . ServerManagerV1CertificateMetadata::DNSPOD_CREDENTIALS_FILE;
 
         if (is_file($credentialsPath) && file_get_contents($credentialsPath) === $content) {
             return $credentialsPath;
@@ -151,9 +144,9 @@ class ServerManagerV1CertificateManager
             '--config-dir', $letsEncryptDir,
             '--work-dir', $letsEncryptDir . '/work',
             '--logs-dir', $letsEncryptDir . '/logs',
-            '--authenticator', 'certbot-dnspod',
-            '--certbot-dnspod-credentials', $credentialsPath,
-            '--certbot-dnspod-propagation-seconds', (string) self::DNSPOD_PROPAGATION_SECONDS,
+            '--authenticator', ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR,
+            '--' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . '-credentials', $credentialsPath,
+            '--' . ServerManagerV1CertificateMetadata::DNSPOD_AUTHENTICATOR . '-propagation-seconds', (string) ServerManagerV1CertificateMetadata::DNSPOD_PROPAGATION_SECONDS,
             '--email', $credentials['email'],
             '--agree-tos', '--non-interactive',
         ];
@@ -307,7 +300,7 @@ class ServerManagerV1CertificateManager
             'base_domain' => $baseDomain,
             'domains' => $domains,
             'certificate_path' => ServerManagerV1PathConfig::getLetsEncryptLiveDir($baseDomain) . '/',
-            'provider' => $certificateData['provider'] ?? 'dnspod',
+            'provider' => $certificateData['provider'] ?? ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
             'status' => $certificateData['status'] ?? 'pending',
             'issued_at' => $certificateData['issued_at'] ?? null,
             'expires_at' => $certificateData['expires_at'] ?? null,

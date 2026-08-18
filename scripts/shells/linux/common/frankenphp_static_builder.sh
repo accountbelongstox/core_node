@@ -53,6 +53,13 @@ FRANKENPHP_STATIC_EMBED_APP_DIR="${FRANKENPHP_STATIC_REPO_ROOT}/poly_apps/larave
 FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
 FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
 FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
+# Shared install-root path family (single source for the manager, the
+# prebuilt installer and the acme.sh helper): every FrankenPHP artifact
+# lives under the same persistent root so upgrades stay incremental.
+FRANKENPHP_PREBUILT_CACHE_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt"
+FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt-staging"
+FRANKENPHP_ACME_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/acme.sh"
+FRANKENPHP_ACME_CERT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/certs"
 
 # Effective PHP_EXTENSIONS list: base + selector-driven database sets,
 # de-duplicated preserving order.
@@ -181,6 +188,7 @@ fm_static_build() {
         PHP_VERSION="$php_ver" \
         PHP_EXTENSIONS="$extensions" \
         XCADDY_ARGS="$FRANKENPHP_STATIC_XCADDY_ARGS" \
+        SPC_CMD_VAR_FRANKENPHP_XCADDY_MODULES="$FRANKENPHP_STATIC_XCADDY_ARGS" \
         GOPROXY="${GOPROXY:-https://proxy.golang.org,https://goproxy.cn,direct}" \
         EMBED="${embed_dir}" \
         ./build-static.sh 2>&1 | tee "${FRANKENPHP_STATIC_BUILD_ROOT}/build.log" >&2); then

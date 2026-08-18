@@ -32,6 +32,40 @@ CHECK_PACKAGES_SCRIPT="$(dirname "$PARENT_DIR_LEVEL_2")/scripts/check_global_pac
 
 # Fallback registry when registry.npmjs.org returns 403 (e.g. network/proxy/geo restriction)
 FALLBACK_REGISTRY="https://registry.npmmirror.com/"
+PNPM_REGISTRY_DEFAULT="https://registry.npmjs.org/"
+PNPM_REGISTRY_CHINA="https://repo.huaweicloud.com/repository/npm/"
+
+RESOLVED_PNPM_GLOBAL_DIR="${PNPM_GLOBAL_DIR:-$NODE_BIN_DIR/../pnpm-global}"
+RESOLVED_PNPM_GLOBAL_BIN_DIR="${PNPM_GLOBAL_BIN_DIR:-$RESOLVED_PNPM_GLOBAL_DIR/bin}"
+
+# Resolve current non-root user home for .pnpmrc writes.
+resolve_pnpm_user_home() {
+    local real_user_home=""
+    local real_user=""
+
+    real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+    if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
+        real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
+    fi
+    echo "${real_user_home:-${HOME:-/root}}"
+}
+
+resolve_pnpm_binary_path() {
+    local pnpm_path=""
+
+    if [ -x "$PNPM_BIN" ]; then
+        pnpm_path="$PNPM_BIN"
+    elif [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        pnpm_path="$NODE_BIN_DIR/pnpm"
+    elif command -v pnpm >/dev/null 2>&1; then
+        pnpm_path="$(command -v pnpm)"
+        if [ -n "$pnpm_path" ] && [ ! -x "$pnpm_path" ]; then
+            pnpm_path=""
+        fi
+    fi
+
+    echo "$pnpm_path"
+}
 
 # Function to extract package names from pnpm list output
 get_installed_packages() {
@@ -46,13 +80,25 @@ get_installed_packages() {
     echo "$GLOBAL_PACKAGES" | grep -v 'pnpm@\|npm@' | sed -n 's/.*\([@/][^@]*\)@.*/\1/p' | sed 's/^[@/]*//'
 }
 
+get_package_binary_name() {
+    local package_name="$1"
+
+    if [[ "$package_name" == @*/* ]]; then
+        package_name="${package_name#*/}"
+    fi
+    echo "$package_name"
+}
+
 # Function to check if a package is installed and linked correctly
 is_package_installed() {
     local package_name=$1
     local pnpm_bin_dir=$(run_pnpm_from_common_functions bin -g 2>/dev/null)
-    if [ -n "$pnpm_bin_dir" ] && [ -e "$pnpm_bin_dir/$package_name" ]; then
+    local package_binary_name=""
+    package_binary_name="$(get_package_binary_name "$package_name")"
+
+    if [ -n "$pnpm_bin_dir" ] && [ -x "$pnpm_bin_dir/$package_binary_name" ]; then
         echo "true"
-    elif command -v "$package_name" >/dev/null 2>&1; then
+    elif command -v "$package_binary_name" >/dev/null 2>&1; then
         echo "true"
     else
         echo "false"
@@ -132,80 +178,97 @@ echo "[$SCRIPT_INDEX] PNPM Global Package Installation Script"
 # (e.g. skip installing a single package when it is already installed). Re-running
 # repairs partial failures (e.g. previous run failed on 403 for some packages).
 
-# Function to configure pnpm global directories
+# Function to configure and repair pnpm global environment on every run.
 configure_pnpm_global_dirs() {
-    # Use global variables from gvar_common.sh
-    local pnpm_global_dir_target="$PNPM_GLOBAL_DIR"
-    local pnpm_global_bin_target="$PNPM_GLOBAL_BIN_DIR"
+    local pnpm_global_dir_target=""
+    local pnpm_global_bin_target=""
+    local pnpm_global_dir_final=""
+    local pnpm_global_bin_final=""
+    local pnpm_path=""
+    local pnpm_registry="$PNPM_REGISTRY_DEFAULT"
+    local current_user_home=""
+    local pnpmrc_path=""
+    local enable_scripts="true"
 
-    echo "[$SCRIPT_INDEX] Configuring pnpm global directories..."
+    pnpm_global_dir_target="${RESOLVED_PNPM_GLOBAL_DIR:-$NODE_BIN_DIR/../pnpm-global}"
+    pnpm_global_bin_target="${RESOLVED_PNPM_GLOBAL_BIN_DIR:-$pnpm_global_dir_target/bin}"
+
+    if [ "$SELECTED_REGION" = "China" ]; then
+        pnpm_registry="$PNPM_REGISTRY_CHINA"
+    fi
+
+    echo "[$SCRIPT_INDEX] Re-applying pnpm configuration..."
     echo "[$SCRIPT_INDEX]   global-dir: $pnpm_global_dir_target"
     echo "[$SCRIPT_INDEX]   global-bin-dir: $pnpm_global_bin_target"
+    echo "[$SCRIPT_INDEX]   registry: $pnpm_registry"
 
-    # Always set pnpm config to ensure it's correct (don't skip even if already configured)
-    run_pnpm_from_common_functions config set global-dir "$pnpm_global_dir_target"
-    run_pnpm_from_common_functions config set global-bin-dir "$pnpm_global_bin_target"
-    run_pnpm_from_common_functions config set store-dir "$pnpm_global_dir_target/store"
-    # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is workspace-level in
-    # pnpm 10+ — a GLOBAL `pnpm config set` errors (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY).
-    # It's the default, so we don't set it globally. Docs: https://pnpm.io/settings
+    # Always cleanup stale values before repair.
+    if [ -n "$PNPM_HOME" ]; then
+        unset PNPM_HOME
+    fi
 
-    # Create directories
-    mkdir -p "$pnpm_global_dir_target"
-    mkdir -p "$pnpm_global_bin_target"
+    # Create/update config paths.
+    $USE_SUDO mkdir -p "$pnpm_global_dir_target" "$pnpm_global_bin_target" "$pnpm_global_dir_target/store" || true
 
-    # Configure registry based on region
-    if [ "$SELECTED_REGION" = "China" ]; then
-        echo "[$SCRIPT_INDEX] Setting pnpm China mirror..."
-        run_pnpm_from_common_functions config set registry https://repo.huaweicloud.com/repository/npm/
+    pnpm_path="$(resolve_pnpm_binary_path)"
+    if [ -n "$pnpm_path" ] && [ -x "$pnpm_path" ]; then
+        "$pnpm_path" config set global-dir "$pnpm_global_dir_target" || true
+        "$pnpm_path" config set global-bin-dir "$pnpm_global_bin_target" || true
+        "$pnpm_path" config set store-dir "$pnpm_global_dir_target/store" || true
+        "$pnpm_path" config set registry "$pnpm_registry" || true
+
+        pnpm_global_dir_final="$("$pnpm_path" config get global-dir 2>/dev/null || true)"
+        pnpm_global_bin_final="$("$pnpm_path" config get global-bin-dir 2>/dev/null || true)"
+        if [ -z "$pnpm_global_dir_final" ] || [ "$pnpm_global_dir_final" = "undefined" ]; then
+            pnpm_global_dir_final="$pnpm_global_dir_target"
+        fi
+        if [ -z "$pnpm_global_bin_final" ] || [ "$pnpm_global_bin_final" = "undefined" ]; then
+            pnpm_global_bin_final="$pnpm_global_bin_target"
+        fi
     else
-        echo "[$SCRIPT_INDEX] Setting pnpm default registry..."
-        run_pnpm_from_common_functions config set registry https://registry.npmjs.org/
+        pnpm_global_dir_final="$pnpm_global_dir_target"
+        pnpm_global_bin_final="$pnpm_global_bin_target"
     fi
 
-    # Create or update .pnpmrc file
-    local real_user_home=""
-    local real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
-    if [ -n "$real_user" ] && [ "$real_user" != "root" ]; then
-        real_user_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
-    fi
-    local user_home="${real_user_home:-$HOME}"
-    local pnpmrc_path="$user_home/.pnpmrc"
+    # Keep env + global vars in sync for all subsequent steps.
+    set_env_and_var "PNPM_HOME" "$pnpm_global_dir_final"
+    set_env_and_var "PNPM_GLOBAL_BIN_DIR" "$pnpm_global_bin_final"
+    PNPM_HOME="$pnpm_global_dir_final"
+    PNPM_GLOBAL_BIN_DIR="$pnpm_global_bin_final"
 
-    echo "[$SCRIPT_INDEX] Creating/updating .pnpmrc file at: $pnpmrc_path"
+    # Ensure pnpm config file is aligned to selected region.
+    current_user_home="$(resolve_pnpm_user_home)"
+    pnpmrc_path="$current_user_home/.pnpmrc"
+    echo "[$SCRIPT_INDEX] Updating pnpmrc for user: $pnpmrc_path"
     if [ "$SELECTED_REGION" = "China" ]; then
-        cat > "$pnpmrc_path" <<EOF
-registry=https://repo.huaweicloud.com/repository/npm/
-enable-pre-post-scripts=true
-EOF
+        printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$pnpm_registry" "$enable_scripts" > "$pnpmrc_path"
     else
-        cat > "$pnpmrc_path" <<EOF
-registry=https://registry.npmjs.org/
-enable-pre-post-scripts=true
-EOF
+        printf 'registry=%s\nenable-pre-post-scripts=%s\n' "$pnpm_registry" "$enable_scripts" > "$pnpmrc_path"
     fi
 
-    echo "[$SCRIPT_INDEX] pnpm global directories configured"
-
-    # Save pnpm global bin directory to global variables
-    local pnpm_global_bin_final=$(pnpm config get global-bin-dir 2>/dev/null)
-    if [ -n "$pnpm_global_bin_final" ]; then
-        set_var "PNPM_GLOBAL_BIN_DIR" "$pnpm_global_bin_final"
-        echo "[$SCRIPT_INDEX] Saved PNPM_GLOBAL_BIN_DIR to global vars: $pnpm_global_bin_final"
-    fi
-
-    # Ensure PATH is set (using common function)
+    # Always ensure PATH includes configured pnpm global bin directory.
     echo "[$SCRIPT_INDEX] Ensuring pnpm paths are in PATH..."
     if ensure_pnpm_path_from_common_functions; then
         echo "[$SCRIPT_INDEX] pnpm paths configured in PATH"
     else
-        echo "[$SCRIPT_INDEX] Warning: Could not configure pnpm paths"
+        if [ -n "$pnpm_global_bin_final" ] && [ -d "$pnpm_global_bin_final" ]; then
+            case ":$PATH:" in
+                *":$pnpm_global_bin_final:"*) ;;
+                *) export PATH="$pnpm_global_bin_final:$PATH" ;;
+            esac
+            echo "[$SCRIPT_INDEX] Added pnpm global bin to current session PATH: $pnpm_global_bin_final"
+        else
+            echo "[$SCRIPT_INDEX] Warning: Could not determine pnpm global bin directory"
+        fi
     fi
 
-    # Export PATH for current session
-    if [ -n "$pnpm_global_bin_final" ]; then
-        export PATH="$pnpm_global_bin_final:$PATH"
-        echo "[$SCRIPT_INDEX] Added pnpm global bin to current session PATH"
+    # Repair /usr/local symlink each run so package binaries remain reachable.
+    if [ -n "$pnpm_path" ] && [ -x "$pnpm_path" ]; then
+        $USE_SUDO ln -sf "$pnpm_path" /usr/local/bin/pnpm || true
+    elif [ -x "$NODE_BIN_DIR/pnpm" ]; then
+        $USE_SUDO ln -sf "$NODE_BIN_DIR/pnpm" /usr/local/bin/pnpm || true
+    elif [ -x "$PNPM_BIN" ]; then
+        $USE_SUDO ln -sf "$PNPM_BIN" /usr/local/bin/pnpm || true
     fi
 }
 

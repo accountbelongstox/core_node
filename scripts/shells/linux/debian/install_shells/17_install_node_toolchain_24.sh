@@ -412,6 +412,37 @@ ensure_pnpm() {
     fi
 }
 
+reconcile_pnpm_toolchain_environment() {
+    local resolved_global_bin=""
+
+    # Always clear stale overrides before re-configuring pnpm context.
+    unset PNPM_HOME
+
+    if [ -x "$PNPM_BIN_PATH" ]; then
+        $USE_SUDO mkdir -p "$PNPM_HOME_PATH" "$PNPM_HOME_PATH/bin" "$PNPM_HOME_PATH/store" || true
+        repair_owned_tree_777 "$PNPM_HOME_PATH" || true
+        "$PNPM_BIN_PATH" config set global-dir "$PNPM_HOME_PATH" || true
+        "$PNPM_BIN_PATH" config set global-bin-dir "$PNPM_HOME_PATH/bin" || true
+        "$PNPM_BIN_PATH" config set store-dir "$PNPM_HOME_PATH/store" || true
+        "$PNPM_BIN_PATH" config set registry "$PNPM_REGISTRY" || true
+        ensure_link "$PNPM_BIN_PATH" "$PNPM_LINK"
+
+        resolved_global_bin="$("$PNPM_BIN_PATH" config get global-bin-dir 2>/dev/null || true)"
+    fi
+
+    set_env_and_var "PNPM_HOME" "$PNPM_HOME_PATH"
+    if [ -n "$resolved_global_bin" ]; then
+        set_var "PNPM_GLOBAL_BIN_DIR" "$resolved_global_bin"
+        ensure_path_entry "$resolved_global_bin"
+    else
+        set_var "PNPM_GLOBAL_BIN_DIR" "$PNPM_HOME_PATH/bin"
+        ensure_path_entry "$PNPM_HOME_PATH/bin"
+    fi
+
+    ensure_path_entry "$NODE_BIN_DIR"
+    ensure_path_entry "/usr/local/bin"
+}
+
 ensure_yarn() {
     if [ -x "$COREPACK_BIN_PATH" ]; then
         "$COREPACK_BIN_PATH" prepare yarn@stable --activate || true
@@ -559,10 +590,11 @@ else
     ensure_npm_latest
     ensure_corepack
     ensure_pnpm
+    reconcile_pnpm_toolchain_environment
     ensure_yarn
     ensure_bun
     ensure_node_symlinks
-    ensure_path_entry "$PNPM_HOME_PATH/bin"
+    reconcile_pnpm_toolchain_environment
     ensure_path_entry "$BUN_BIN_DIR"
     ensure_path_entry "/usr/local/bin"
     repair_permissions
