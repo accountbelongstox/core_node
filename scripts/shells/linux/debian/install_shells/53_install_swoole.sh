@@ -375,6 +375,12 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     SWOOLE_RUNTIME_PLANE="$(php_runtime_plane)"
     if [ "$SWOOLE_RUNTIME_PLANE" = "frankenphp" ]; then
         echo -e "${YELLOW}$SCRIPT_INDEX SKIP: PHP runtime plane is frankenphp (Octane server=frankenphp); Swoole is not installed on this plane${NC}"
+        # Mutex (idempotent): with the dnspod frankenphp binary verified,
+        # retire the legacy swoole units/processes this script would
+        # otherwise manage (no-op until the static binary is healthy).
+        # shellcheck source=/dev/null
+        source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
+        fm_disable_legacy_php_runtime
         exit 0
     fi
     main "$@"

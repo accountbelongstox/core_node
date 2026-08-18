@@ -68,7 +68,7 @@ RUNTIME_CONFIG_DIR=""
 
 # Canonical init-ensure installer scripts
 PHP_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/43_ensure_php85_intelligent.sh"
-COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/35_install_composer.sh"
+COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/94_install_composer.sh"
 NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_24.sh"
 SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/33_install_swoole.sh"
 P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"

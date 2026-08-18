@@ -55,7 +55,7 @@ SCRIPT_INSTALL_ENTRIES=(
     "script:25_install_uv.sh|UV"
     "script:13_ensure_python.sh|Python (ensure)"
     "script:151_install_faster_whisper.sh|faster-whisper (STT)"
-    "script:35_install_composer.sh|Composer"
+    "script:94_install_composer.sh|Composer"
     "script:59_install_flutter.sh|Flutter"
     "script:65_install_ruby.sh|Ruby"
     "script:57_install_dotnet.sh|.NET"

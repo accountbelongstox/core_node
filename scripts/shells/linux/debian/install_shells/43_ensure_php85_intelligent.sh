@@ -96,7 +96,7 @@ check_composer_binary_state() {
         return 0
     else
         echo -e "${RED}$SCRIPT_INDEX ${BINARY_STATES["COMPOSER_MISSING"]}${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 35_install_composer.sh${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 94_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -718,7 +718,7 @@ analyze_composer_state() {
         return 0
     else
         echo -e "${YELLOW}$SCRIPT_INDEX Composer: Not available${NC}"
-        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 35_install_composer.sh${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Note: Composer will be installed in the next step via 94_install_composer.sh${NC}"
         return 1
     fi
 }
@@ -1080,7 +1080,7 @@ install_php_core() {
     echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 core installation completed${NC}"
 }
 
-# Composer installation is now handled by separate script 35_install_composer.sh
+# Composer installation is now handled by separate script 94_install_composer.sh
 
 # 4.3 FPM is NOT installed - Using Swoole instead
 # PHP-FPM removed because Laravel Octane with Swoole is used for better performance
@@ -1091,7 +1091,7 @@ install_php_fpm() {
 }
 
 # 4.4 Note: PHP-FPM not used - Using Swoole with Laravel Octane
-# Configuration functions moved to 34_configure_php85.sh
+# Configuration functions moved to 96_configure_php85.sh
 
 # 4.6 Main installation execution function
 # Idempotent: run every step every time. Do not skip a step because a previous step succeeded; only exit on hard failure.
@@ -1136,8 +1136,8 @@ execute_installation() {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP symbolic link verification completed with warnings${NC}"
     }
 
-    # Step 7: Configuration delegated to 34_configure_php85.sh
-    echo -e "${CYAN}$SCRIPT_INDEX PHP configuration delegated to 34_configure_php85.sh${NC}"
+    # Step 7: Configuration delegated to 96_configure_php85.sh
+    echo -e "${CYAN}$SCRIPT_INDEX PHP configuration delegated to 96_configure_php85.sh${NC}"
 
     # Step 8: Next step will configure PHP
     echo -e "${CYAN}$SCRIPT_INDEX Next step will configure PHP settings and Composer${NC}"
@@ -1325,6 +1325,10 @@ if [ "$PHP_RUNTIME_PLANE_ACTIVE" = "frankenphp" ]; then
     fm_install
     fm_ensure_php_cli_shim
     fm_php_ini_ensure
+    # Mutex (idempotent): the embedded runtime replaces the apt PHP
+    # services - disable the swoole/php-fpm leftovers once the dnspod
+    # binary is verified (self-gated no-op until then).
+    fm_disable_legacy_php_runtime
     echo -e "${GREEN}$SCRIPT_INDEX FrankenPHP plane PHP ready: embedded $(fm_php_version), php-cli shim at /usr/local/bin/php${NC}"
     exit 0
 fi

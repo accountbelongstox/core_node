@@ -38,6 +38,9 @@ source "$PARENT_DIR_LEVEL_2/common/fs_perm_helpers.sh"
 source "$PARENT_DIR_LEVEL_2/common/mount_common.sh"
 # Repository manager (merged from former 12_update.sh: repo repair + management).
 source "$PARENT_DIR_LEVEL_2/common/apt_repository_manager.sh"
+# Native apt sources restore (distro-aware self-heal for polluted
+# sources.list; consumed here and by frankenphp_static_prereq.sh).
+source "$PARENT_DIR_LEVEL_2/common/apt_sources_restore.sh"
 MOUNT_LOG_PREFIX="[2]"
 
 # Default mount base directory
@@ -1738,6 +1741,15 @@ main() {
     fi
     if command -v manage_repositories_from_apt_repository_manager >/dev/null 2>&1; then
         manage_repositories_from_apt_repository_manager
+    fi
+    # Native sources self-heal AFTER repository repair: repair may restore a
+    # polluted "original" backup (foreign suites); this converges the native
+    # distro sources as the final writer before the apt update below.
+    if command -v apt_sources_restore_ensure >/dev/null 2>&1; then
+        apt_sources_restore_ensure
+        if [ "$APT_SOURCES_RESTORE_CHANGED" = "true" ]; then
+            $USE_SUDO apt-get update 2>/dev/null || true
+        fi
     fi
     $USE_SUDO apt update 2>/dev/null || $USE_SUDO apt update --allow-unauthenticated 2>/dev/null || true
     install_packages_and_configure_git

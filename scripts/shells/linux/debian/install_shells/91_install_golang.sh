@@ -24,9 +24,10 @@ source "$COMMON_DIR/common_functions.sh"
 #     - GO_BIN missing / broken           -> clean install
 #   Convergence is bidirectional (older OR newer local toolchains are reset to
 #   the pin) so xcaddy/frankenphp builds always see one deterministic toolchain.
-#   This step is the Go prerequisite for 93_install_frankenphp.sh: the native
-#   xcaddy rebuild of frankenphp v1.12.7 (Caddy v2.11.4, libdns v1) requires
-#   go >= 1.26.0, which go1.22.x cannot satisfy.
+#   This step is the Go prerequisite for 93_install_frankenphp.sh: the official
+#   static build (./build-static.sh; spc go-xcaddy + frankenphp v1.12.7
+#   module build, Caddy v2.11.4 / libdns v1) requires go >= 1.26.0, which
+#   go1.22.x cannot satisfy.
 
 # Source gvar_common.sh from parent directory
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
