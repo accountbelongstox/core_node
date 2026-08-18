@@ -10,6 +10,9 @@
 #   for slot #1.
 # ARKCLI_API_KEY set: skip arkcli -> plain Claude under ark1 user dir
 #   (Claude data stays in that custom profile); ARKCLI_API -> ANTHROPIC_BASE_URL.
+#   Stale ANTHROPIC_* env entries in the slot settings.json are removed first
+#   (Claude Code applies settings.json env after process env, so leftovers from
+#   an earlier arkcli run would override this launcher's gateway settings).
 # Else: arkcli configure/MCP; ARKCLI_API still forces ANTHROPIC_BASE_URL after.
 # Model: ARKCLI_MODEL set -> Use model xxx? [Y/n] (Y=xxx);
 #   empty -> Use model kimi-k3? [Y/n]; any N -> auto ark-code-latest.
@@ -87,6 +90,7 @@ $configClaudeJson = $null
 $mcpName = $null
 $userArgs = $null
 $arg = $null
+$claudeSettingsFile = $null
 
 $env:DISABLE_AUTOUPDATER = "1"
 $env:CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
@@ -217,6 +221,43 @@ function Read-SecretFile {
         }
     }
     return $value
+}
+
+# Claude Code applies settings.json env AFTER process env; stale ANTHROPIC_*
+# entries written by an earlier arkcli run would override this launcher's
+# gateway settings. Remove them from the slot settings.json (plain mode only).
+function Remove-StaleAnthropicEnv {
+    param([string]$SettingsPath)
+    $staleKeys = @(
+        'ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_API_KEY',
+        'ANTHROPIC_MODEL', 'ANTHROPIC_DEFAULT_HAIKU_MODEL', 'ANTHROPIC_DEFAULT_SONNET_MODEL'
+    )
+    $removedKeys = @()
+    $settingsJson = $null
+    $settingsText = $null
+    if (-not $SettingsPath -or -not (Test-Path -LiteralPath $SettingsPath)) {
+        return
+    }
+    try {
+        $settingsJson = Get-Content -LiteralPath $SettingsPath -Raw -ErrorAction Stop | ConvertFrom-Json
+    } catch {
+        Write-Host "[WARN] Cannot parse $SettingsPath; leaving it unchanged." -ForegroundColor Yellow
+        return
+    }
+    if ($null -eq $settingsJson.env) {
+        return
+    }
+    foreach ($staleKey in $staleKeys) {
+        if ($settingsJson.env.PSObject.Properties.Name -contains $staleKey) {
+            $settingsJson.env.PSObject.Properties.Remove($staleKey)
+            $removedKeys += $staleKey
+        }
+    }
+    if ($removedKeys.Count -gt 0) {
+        $settingsText = $settingsJson | ConvertTo-Json -Depth 100
+        [System.IO.File]::WriteAllText($SettingsPath, $settingsText, (New-Object System.Text.UTF8Encoding($false)))
+        Write-Host "[INFO] Removed stale settings.json env entries: $($removedKeys -join ', ')" -ForegroundColor Yellow
+    }
 }
 
 $secretDir = Join-Path $projectRootPath ".secret_keys\.secret_ignore"
@@ -388,6 +429,8 @@ if ($usePlainClaude) {
     $env:ANTHROPIC_BASE_URL = $arkcliApi
     $env:ANTHROPIC_AUTH_TOKEN = $arkcliApiKey
     Remove-Item Env:ANTHROPIC_API_KEY -ErrorAction SilentlyContinue
+    $claudeSettingsFile = Join-Path $claudeConfigDir "settings.json"
+    Remove-StaleAnthropicEnv -SettingsPath $claudeSettingsFile
     $maskedApiKey = Get-MaskedSecret $arkcliApiKey
     Write-Host "ARKCLI_API_KEY: $maskedApiKey -> ANTHROPIC_AUTH_TOKEN" -ForegroundColor White
     Write-Host "ANTHROPIC_BASE_URL: $env:ANTHROPIC_BASE_URL (set now)" -ForegroundColor White

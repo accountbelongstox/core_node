@@ -6,7 +6,29 @@
 搜索官方文档，并修复 28_install_frankenphp 同时兼容ubuntu / deiban / kali系统 。
 前面的所有脚本
   ···
-# github.com/libdns/dnspod
+
+
+Executing: 49_install_frankenphp.sh
+ [frankenphp-mgr] FrankenPHP Installation Script (Mercure
+ plane, HTTP/3 ready)
+ 注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一
+ 交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否
+ 需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过
+ 程，需要细粒度。
+ 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的
+ 规范。注意合并公共类库和重复实现，查询官方文档。不要使用多
+ agents.按规范开发。shells不要使用任何返回值退出码，信任上一
+ 个函数的运行结果，二进制直接对文件检测。
+
+继续 PART0步 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_0.md 、 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_1.md 、 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_2.md 、 docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_3.md
+ 骤，
+ 1：将 49_install_frankenphp.sh的步骤调整到php / go 的后面，以便有前置逻辑，同时所有脚本中心化常量，go php 等全部要用full path，防止刚刚安装时没有环境变量。调整所有脚本的index。优化顺序。
+ 2：搜索官方文档。为S M dnspod没有安装成功。需要能读取
+ DNSPOD自动更新证书的功能。支持ubuntu / debian / kali OS。同
+ 时，全部更新脚本的index和关联文件，。
+ 
+ [frankenphp-mgr] Web server choice: frankenphp | mutex: on# 
+ github.com/libdns/dnspod
 /root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:77:13: invalid composite literal type libdns.Record
 /root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:104:35: record.Name undefined (type libdns.Record has no field or method Name)
 /root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:105:17: record.Value undefined (type libdns.Record has no field or method Value)
@@ -20,90 +42,6 @@
 /root/go/pkg/mod/github.com/libdns/dnspod@v0.0.3/client.go:139:102: too many errors
 
 
-
-Executing: 28_install_frankenphp.sh
- [frankenphp-mgr] FrankenPHP Installation Script (Mercure
- plane, HTTP/3 ready)
- 注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一
- 交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否
- 需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过
- 程，需要细粒度。
- 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的
- 规范。注意合并公共类库和重复实现，查询官方文档。不要使用多
- agents.按规范开发。shells不要使用任何返回值退出码，信任上一
- 个函数的运行结果，二进制直接对文件检测。
-
-继续 PART0步
- 骤，
- 1：将 49_install_frankenphp.sh的步骤调整到php / go 的后面，以便有前置逻辑，同时所有脚本中心化常量，go php 等全部要用full path，防止刚刚安装时没有环境变量。调整所有脚本的index。优化顺序。
- 2：搜索官方文档。为S M dnspod没有安装成功。需要能读取
- DNSPOD自动更新证书的功能。支持ubuntu / debian / kali OS。同
- 时，全部更新脚本的index和关联文件，。
- 
- [frankenphp-mgr] Web server choice: frankenphp | mutex: on
- [nginx-plane] Nginx plane-disable (idempotent, service stop
- + record only)
- [nginx-plane] nginx already inactive
- [nginx-plane] nginx already disabled
- [nginx-plane] nginx plane-disabled (packages, configs and
- certificates preserved)
- [certbot-plane] Certbot plane-disable (idempotent, timers
- stop + record only)
- The unit files have no installation config (WantedBy=,
- RequiredBy=, UpheldBy=,
- Also=, or Alias= settings in the [Install] section, and
- DefaultInstance= for
- template units). This means they are not meant to be
- enabled or disabled using systemctl.
-
- Possible reasons for having these kinds of units are:
- • A unit may be statically enabled by being symlinked from
- another unit's
-   .wants/, .requires/, or .upholds/ directory.
- • A unit's purpose may be to act as a helper for some other
- unit which has
-   a requirement dependency on it.
- • A unit may be started when needed via activation (socket,
- path, timer,
-   D-Bus, udev, scripted systemctl call, ...).
- • In case of template units, the unit is meant to be
- enabled with some
-   instance name specified.
- [certbot-plane] certbot-renewal.timer already disabled
- [certbot-plane] No systemd unit certbot.service present
- [certbot-plane] No systemd unit certbot.timer present
- [certbot-plane] certbot plane-disabled (binary, venv and
- /etc/letsencrypt preserved)
- [frankenphp-mgr] frankenphp already installed:
- /usr/bin/frankenphp (FrankenPHP v1.12.7 PHP 8.5 Caddy
- v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=)
- [frankenphp-mgr] Installing xcaddy via go install
- [frankenphp-mgr] [WARN] xcaddy unavailable; dnspod module
- build skipped
- [frankenphp-mgr] [WARN] dnspod module deferred
- [STEP:caddyfile] already satisfied, skipping
- [frankenphp-mgr] [VERIFY] binary: /usr/bin/frankenphp
- (FrankenPHP v1.12.7 PHP 8.5 Caddy v2.11.4
- h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=)
- [frankenphp-mgr] [VERIFY] embedded PHP: 8.5
- [frankenphp-mgr] [VERIFY] dnspod module: missing
- [frankenphp-mgr] [VERIFY] php-cli shim: present
- [frankenphp-mgr] [VERIFY] plane: frankenphp
- [frankenphp-mgr]
- ==============================================
- [frankenphp-mgr] FRANKENPHP PLANE READY: FrankenPHP v1.12.7
- PHP 8.5 Caddy v2.11.4
- h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=
- [frankenphp-mgr] Caddyfile:
- /www/programing/core_node/scripts/poly_apps/laravel_main/st
- orage/frankenphp/Caddyfile (Mercure hub:
- /.well-known/mercure on :443)
- [frankenphp-mgr] Runtime entry: 132_laravel_main_start.sh
- (frankenphp branch) or the plane-aware laravel service
- [frankenphp-mgr] Management CLI:
- /www/programing/core_node/scripts/shells/linux/common/frank
- enphp_manager.sh
- [frankenphp-mgr]
  ============================================== ``` 
 ···
  - 1_stop_cloud_monitors.sh

@@ -11,57 +11,142 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
+SCRIPT_NAME="17_install_node_toolchain_24.sh"
+SCRIPT_INDEX="17"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 
-# Source global variables
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 
-# Declare all variables at the beginning
 INSTALL_NODE=$(get_var "INSTALL_NODE")
 INSTALL_MODE=$(get_var "INSTALL_MODE")
-SELECTED_REGION=${SELECTED_REGION:-$(get_var "SELECTED_REGION")}
-# NODE_VERSION, NODE_SHORT_VERSION, NODE_INSTALL_DIR, NODE_DOWNLOAD_URL are already defined in gvar_common.sh
-# Defensive default so integer comparisons never see empty (avoids "integer expression expected")
-NODE_SHORT_VERSION="${NODE_SHORT_VERSION:-24}"
-# Detect architecture for correct Node binary (idempotent: reinstall if wrong arch was installed)
+SELECTED_REGION="${SELECTED_REGION:-$(get_var "SELECTED_REGION")}"
+
+NODE_INSTALLATION_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION"
+NODE_INSTALL_BIN_DIR="$NODE_INSTALLATION_DIR/bin"
+NODE_HOME_PATH="$NODE_INSTALLATION_DIR"
+NODE_PATH_VALUE="$NODE_INSTALLATION_DIR/lib/node_modules"
+PNPM_HOME_PATH="$NODE_INSTALLATION_DIR/pnpm-global"
+NPM_BIN_PATH="$NODE_INSTALL_BIN_DIR/npm"
+NPX_BIN_PATH="$NODE_INSTALL_BIN_DIR/npx"
+NODE_BIN_PATH="$NODE_INSTALL_BIN_DIR/node"
+COREPACK_BIN_PATH="$NODE_INSTALL_BIN_DIR/corepack"
+PNPM_BIN_PATH="$NODE_INSTALL_BIN_DIR/pnpm"
+YARN_BIN_PATH="$NODE_INSTALL_BIN_DIR/yarn"
+BUN_BIN_PATH="$BUN_BIN_DIR/bun"
+BUN_SYMLINK="/usr/local/bin/bun"
+NPM_SYMLINK="/usr/local/bin/npm"
+NODE_SYMLINK="/usr/local/bin/node"
+NPX_SYMLINK="/usr/local/bin/npx"
+COREPACK_SYMLINK="/usr/local/bin/corepack"
+PNPM_SYMLINK="/usr/local/bin/pnpm"
+YARN_SYMLINK="/usr/local/bin/yarn"
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "17_install_node_toolchain")
+TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION.tar.xz"
+EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION"
+
+NODE_SHORT_VERSION_GUARD="${NODE_SHORT_VERSION:-24}"
 NODE_ARCH_SUFFIX="linux-x64"
-case "$(uname -m)" in
-    x86_64|amd64) NODE_ARCH_SUFFIX="linux-x64" ;;
-    aarch64|arm64) NODE_ARCH_SUFFIX="linux-arm64" ;;
-    armv7l|armhf) NODE_ARCH_SUFFIX="linux-armv7l" ;;
-    *) echo "Unsupported architecture $(uname -m), using linux-x64"; NODE_ARCH_SUFFIX="linux-x64" ;;
-esac
-# Use official Node.js download URL for detected arch
-NODE_DOWNLOAD_URLS=(
-    "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
-)
-# Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "16_install_node_24")
-TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
-EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX"
-NODE_BIN_DIR="$NODE_INSTALL_DIR/node-$NODE_VERSION/bin"
+NODE_DOWNLOAD_URLS=()
+NODE_INSTALL_OK="false"
+NODE_INSTALLATION_STATUS="NOT_FOUND"
+NODE_VERSION_CURRENT=""
+NPM_REGISTRY="https://registry.npmjs.org/"
+PNPM_REGISTRY="https://registry.npmjs.org/"
+
+if [ "$SELECTED_REGION" = "China" ]; then
+    NPM_REGISTRY="https://registry.npmmirror.com/"
+    PNPM_REGISTRY="https://registry.npmmirror.com/"
+fi
+SKIP_TOOLCHAIN_INSTALL="false"
 
 if [ "$INSTALL_NODE" = "false" ]; then
     echo "Skipping Node.js installation, INSTALL_NODE: $INSTALL_NODE, INSTALL_MODE: $INSTALL_MODE"
-    exit 0
+    echo "To use updated environment variables, restart your shell or run 'source /etc/environment'"
+    SKIP_TOOLCHAIN_INSTALL="true"
 fi
 
 echo "COMPILE_DIR: $COMPILE_DIR"
 echo "SELECTED_REGION: $SELECTED_REGION"
 echo "NODE_VERSION: $NODE_VERSION"
-echo "NODE_ARCH_SUFFIX: $NODE_ARCH_SUFFIX"
 echo "NODE_INSTALL_DIR: $NODE_INSTALL_DIR"
+echo "SCRIPT: $SCRIPT_NAME"
 
-# Run a command as the real (desktop) user when this script runs as root, so per-user
-# package-manager config (~/.config/pnpm/rc, ~/.pnpmrc, ~/.npmrc) is written with the
-# REAL user's ownership. A root-mode run that writes these as root:root later
-# EACCES-blocks the normal user (pnpm cannot create ~/.config/pnpm/rc.<rand>). When
-# already the real user, run directly so HOME + the live session env survive. Global
-# installs still land in the shared 777 $NODE_HOME (via --prefix at the call site), so
-# every user shares the binaries regardless of which user ran the install.
+if [ "$NODE_SHORT_VERSION_GUARD" -le 0 ]; then
+    NODE_SHORT_VERSION_GUARD=24
+fi
+
+case "$(uname -m)" in
+    x86_64|amd64) NODE_ARCH_SUFFIX="linux-x64" ;;
+    aarch64|arm64) NODE_ARCH_SUFFIX="linux-arm64" ;;
+    armv7l|armhf) NODE_ARCH_SUFFIX="linux-armv7l" ;;
+    *) echo "Unsupported architecture $(uname -m), using linux-x64 fallback"; NODE_ARCH_SUFFIX="linux-x64" ;;
+esac
+
+NODE_DOWNLOAD_URLS=(
+    "https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
+)
+
+NODE_TOOLS_BINARIES=(
+    node
+    npm
+    npx
+    corepack
+    pnpm
+    yarn
+    bun
+)
+
+sanitize_path_for_environment() {
+    local candidate="$1"
+    if [ -z "$candidate" ] || [ ! -d "$candidate" ]; then
+        echo ""
+        return
+    fi
+    echo "$candidate"
+}
+
+path_has_entry() {
+    local path_value="$1"
+    local entry="$2"
+    if [ -z "$path_value" ] || [ -z "$entry" ]; then
+        echo "false"
+        return
+    fi
+    case ",$path_value," in
+        *,"$entry",*) echo "true" ;;
+        *) echo "false" ;;
+    esac
+}
+
+append_path_entry_to_environment() {
+    local entry="$1"
+    local current_path
+    local has_entry
+
+    entry="$(sanitize_path_for_environment "$entry")"
+    if [ -z "$entry" ]; then
+        return
+    fi
+
+    if [ -f /etc/environment ]; then
+        current_path="$(grep '^PATH=' /etc/environment 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "")"
+    fi
+    if [ -z "$current_path" ]; then
+        current_path="/usr/local/bin:/usr/bin:/bin"
+    fi
+
+    has_entry="$(path_has_entry "$current_path" "$entry")"
+    if [ "$has_entry" = "true" ]; then
+        return
+    fi
+    set_env_and_var "PATH" "$entry:$current_path"
+}
+
+# Run command as the real desktop user when running as root so per-user pm config is owned
+# correctly. This avoids `~/.config/pnpm/rc` permission issues for normal users.
 run_as_real_user_node() {
     local cur_user real_user real_home
     cur_user="$(id -un 2>/dev/null)"
@@ -78,712 +163,452 @@ run_as_real_user_node() {
     fi
 }
 
-# Idempotent permission repair: a prior root-mode run may have created root-owned
-# package-manager config inside the real user's HOME (~/.config/pnpm, ~/.pnpmrc,
-# ~/.npmrc, ~/.npm-global), which then EACCES-blocks the normal user. chown them back
-# to the real user. Runs in BOTH root and normal-user mode (uses $USE_SUDO), every run.
 heal_real_user_pm_config_ownership() {
-    local real_user real_home cur_owner t
+    local real_user real_home cur_owner target
     real_user="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
     if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
         real_user="${SUDO_USER:-$(id -un 2>/dev/null)}"
     fi
     if [ -z "$real_user" ] || [ "$real_user" = "root" ]; then
-        return 0
+        return
     fi
     real_home="$(getent passwd "$real_user" 2>/dev/null | cut -d: -f6)"
     if [ -z "$real_home" ] || [ ! -d "$real_home" ]; then
-        return 0
+        return
     fi
-    for t in "$real_home/.config/pnpm" "$real_home/.pnpmrc" "$real_home/.npmrc" "$real_home/.npm-global"; do
-        [ -e "$t" ] || continue
-        cur_owner="$(stat -c '%U' "$t" 2>/dev/null || echo "")"
+
+    for target in "$real_home/.config/pnpm" "$real_home/.pnpmrc" "$real_home/.npmrc" "$real_home/.npm-global"; do
+        [ -e "$target" ] || continue
+        cur_owner="$(stat -c '%U' "$target" 2>/dev/null || echo "")"
         if [ -n "$cur_owner" ] && [ "$cur_owner" != "$real_user" ]; then
-            echo "Healing root-owned $t -> $real_user:$real_user"
-            $USE_SUDO chown -R "$real_user:$real_user" "$t" 2>/dev/null || true
+            echo "Healing root-owned package config: $target"
+            $USE_SUDO chown -R "$real_user:$real_user" "$target" 2>/dev/null || true
         fi
     done
-    return 0
 }
 
-# Function to detect and fix previous installation issues
+is_safe_system_path() {
+    local path_value="$1"
+    if [ -z "$path_value" ] || [ "${path_value:0:1}" != "/" ]; then
+        echo "false"
+        return
+    fi
+    case "$path_value" in
+        /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var)
+            echo "false" ;;
+        *) echo "true" ;;
+    esac
+}
+
 detect_and_fix_previous_issues() {
     echo "Detecting and fixing previous installation issues..."
 
-    # 1. Fix broken environment variables from previous runs
-    echo "Checking /etc/environment for broken entries..."
+    # 1) environment variable cleanup in /etc/environment
     if [ -f /etc/environment ]; then
-        # Remove invalid NODE-V* entries
-        if grep -q "NODE-V.*_HOME=" /etc/environment; then
-            echo "Found broken NODE-V*_HOME entries, removing..."
-            $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment
-        fi
-
-        # Remove invalid entries that don't follow KEY="VALUE" format
-        if grep -q "^[^=]*=[^\"]*$" /etc/environment | grep -v "^PATH="; then
-            echo "Found entries without proper quoting, fixing..."
-            $USE_SUDO sed -i 's/^\([^=]*\)=\([^"]*\)$/\1="\2"/' /etc/environment
-        fi
-
-        # Remove duplicate NODE_HOME entries
-        if [ $(grep -c "^NODE_HOME=" /etc/environment) -gt 1 ]; then
-            echo "Found duplicate NODE_HOME entries, removing duplicates..."
-            $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
-        fi
-
-        # Remove duplicate NODE_PATH entries
-        if [ $(grep -c "^NODE_PATH=" /etc/environment) -gt 1 ]; then
-            echo "Found duplicate NODE_PATH entries, removing duplicates..."
-            $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
-        fi
+        echo "Checking /etc/environment for broken entries..."
+        $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment 2>/dev/null || true
+        $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment 2>/dev/null || true
+        $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment 2>/dev/null || true
+        $USE_SUDO sed -i '/^PNPM_HOME=/d' /etc/environment 2>/dev/null || true
+        $USE_SUDO sed -i '/^BUN_INSTALL=/d' /etc/environment 2>/dev/null || true
     fi
-    
-    # 2. Fix broken symlinks
-    echo "Checking for broken symlinks in /usr/local/bin..."
-    for binary in node npm npx; do
+
+    # 2) remove broken global node toolchain symlinks
+    echo "Checking /usr/local/bin for broken links..."
+    for binary in "${NODE_TOOLS_BINARIES[@]}"; do
         local link_path="/usr/local/bin/$binary"
         if [ -L "$link_path" ] && [ ! -e "$link_path" ]; then
-            echo "Found broken symlink: $link_path, removing..."
+            echo "Removing broken symlink: $link_path"
             $USE_SUDO rm -f "$link_path"
         fi
     done
 
-    # 2b. Fix wrong-architecture Node binary (Exec format error): remove so idempotent reinstall uses correct arch
-    if [ -e /usr/local/bin/node ]; then
-        local node_run_err
-        node_run_err=$(/usr/local/bin/node --version 2>&1) || true
-        if echo "$node_run_err" | grep -q "Exec format error"; then
-            echo "Found wrong-architecture Node binary (Exec format error), removing for reinstall..."
-            for binary in node npm npx; do
-                $USE_SUDO rm -f "/usr/local/bin/$binary"
-            done
-            if [ -d "$NODE_INSTALL_DIR/node-$NODE_VERSION" ]; then
-                echo "Removing wrong-arch installation: $NODE_INSTALL_DIR/node-$NODE_VERSION"
-                $USE_SUDO rm -rf "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-            fi
+    # 3) repair exec format issue on wrong architecture
+    if [ -e "$NODE_SYMLINK" ]; then
+        local node_err
+        node_err=$("$NODE_SYMLINK" -v 2>&1) || true
+        if echo "$node_err" | grep -qi "exec format error"; then
+            echo "Found wrong-architecture node symlink, removing links and target path."
+            $USE_SUDO rm -f "$NODE_SYMLINK" "$NPM_SYMLINK" "$NPX_SYMLINK" "$COREPACK_SYMLINK" "$PNPM_SYMLINK" "$YARN_SYMLINK" "$BUN_SYMLINK"
+            $USE_SUDO rm -rf "$NODE_INSTALLATION_DIR"
         fi
     fi
 
-    # 3. Clean up old Node.js installations in wrong locations
-    echo "Checking for Node.js installations in wrong locations..."
-    local wrong_locations=(
-        "/usr/local/node"
-        "/opt/node"
-        "/var/node"
-    )
-
-    for wrong_location in "${wrong_locations[@]}"; do
+    # 4) cleanup known wrong-location Node trees (idempotent and non-interactive)
+    echo "Checking for Node.js installations in known wrong locations..."
+    for wrong_location in /usr/local/node /opt/node /var/node /usr/local/lib/node_modules; do
         if [ -d "$wrong_location" ] && [ "$wrong_location" != "$NODE_INSTALL_DIR" ]; then
-            echo "Found old Node.js installation in wrong location: $wrong_location"
-            read -p "Remove old installation at $wrong_location? (y/N): " -n 1 -r
-            echo
-            if [[ $REPLY =~ ^[Yy]$ ]]; then
-                $USE_SUDO rm -rf "$wrong_location"
-                echo "Removed: $wrong_location"
-            fi
+            echo "Removing legacy node location: $wrong_location"
+            $USE_SUDO rm -rf "$wrong_location"
         fi
     done
 
-    # 4. Fix npm global directory permissions and clean up conflicting npmrc files
-    if [ -d "$COMPILE_DIR/npm-global" ]; then
-        echo "[SAFE_PATH] COMPILE_DIR=$COMPILE_DIR COMPILE_DIR/npm-global=$COMPILE_DIR/npm-global"
-        _safe_compile=false
-        if [ -n "$COMPILE_DIR" ] && [[ "$COMPILE_DIR" == /* ]]; then
-            case "$COMPILE_DIR" in
-                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
-                *) _safe_compile=true ;;
-            esac
-        fi
-        if [ "$_safe_compile" = true ]; then
-            echo "Fixing npm global directory permissions..."
-            if [ "$(id -u)" -eq 0 ]; then
-                safe_chown_R root:root "$COMPILE_DIR/npm-global"
-                safe_chmod_R 755 "$COMPILE_DIR/npm-global"
-            else
-                safe_chown_R "$(whoami):$(whoami)" "$COMPILE_DIR/npm-global"
-                safe_chmod_R 755 "$COMPILE_DIR/npm-global"
-            fi
-        else
-            echo "[SKIP] Refusing chown/chmod on system or invalid path: $COMPILE_DIR/npm-global"
-        fi
-    fi
-
-    # 5. Clean up conflicting npmrc files when running as root
+    # 5) remove conflicting user `.npmrc` when running as root (keep real-user config)
     if [ "$(id -u)" -eq 0 ]; then
-        echo "Cleaning up conflicting npmrc files..."
-        # Only remove the real user's conflicting .npmrc (with a backup), never every account's config.
-        # Resolve the real user's home; if it cannot be resolved, skip deletion entirely.
-        local real_user_npmrc_owner
-        real_user_npmrc_owner="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
-        local real_user_home=""
-        if [ -n "$real_user_npmrc_owner" ] && [ "$real_user_npmrc_owner" != "root" ]; then
-            real_user_home="$(getent passwd "$real_user_npmrc_owner" 2>/dev/null | cut -d: -f6)"
-        fi
-        if [ -n "$real_user_home" ] && [ -d "$real_user_home" ] && [ -f "$real_user_home/.npmrc" ]; then
-            cp -a "$real_user_home/.npmrc" "$real_user_home/.npmrc.bak.$(date +%s)" 2>/dev/null || true
-            rm -f "$real_user_home/.npmrc" 2>/dev/null || true
+        local real_user_owner real_user_home
+        real_user_owner="$(get_real_user_from_common_functions 2>/dev/null || echo "")"
+        if [ -n "$real_user_owner" ] && [ "$real_user_owner" != "root" ]; then
+            real_user_home="$(getent passwd "$real_user_owner" 2>/dev/null | cut -d: -f6)"
+            if [ -n "$real_user_home" ] && [ -f "$real_user_home/.npmrc" ]; then
+                cp -a "$real_user_home/.npmrc" "$real_user_home/.npmrc.bak.$(date +%s)" 2>/dev/null || true
+                rm -f "$real_user_home/.npmrc" 2>/dev/null || true
+            fi
         fi
     fi
-    
-    # 6. Heal root-owned package-manager config in the real user's HOME (prior root-mode
-    # run pollution -> normal-user EACCES). Runs in both root and normal-user mode.
-    heal_real_user_pm_config_ownership
 
+    heal_real_user_pm_config_ownership
     echo "Previous issues detection and fixing completed."
-    return 0
 }
 
-# Idempotent: ensure the Node.js install directory is writable by ALL users (chmod 777)
-# so ordinary (non-root) users can run `npm install -g` / `pnpm add -g` without sudo.
-# Runs EVERY time this script executes -- including when Node is already installed
-# (case 0) -- per the /opt node dir ordinary-user write requirement. The node subtree
-# (NODE_INSTALL_DIR = $COMPILE_DIR/node, e.g. /opt/_<sys>_<ver>/node) is root:root 755
-# after install_node, which blocks non-root global installs; this re-asserts 777 each run.
-# SAFE_PATH guard prevents touching system dirs.
+check_node_installation_status() {
+    NODE_INSTALLATION_STATUS="NOT_FOUND"
+    NODE_INSTALL_OK="false"
+    NODE_VERSION_CURRENT=""
+
+    if [ ! -x "$NODE_BIN_PATH" ] || [ ! -x "$NPM_BIN_PATH" ] || [ ! -x "$NPX_BIN_PATH" ]; then
+        if [ -x "$NODE_BIN_PATH" ] || [ -x "$NPM_BIN_PATH" ] || [ -x "$NPX_BIN_PATH" ]; then
+            NODE_INSTALLATION_STATUS="PARTIAL"
+        fi
+        return
+    fi
+
+    local node_version_output node_major
+    node_version_output=$("$NODE_BIN_PATH" -v 2>&1 || true)
+    if echo "$node_version_output" | grep -qi "exec format error"; then
+        NODE_INSTALLATION_STATUS="WRONG_ARCH"
+        return
+    fi
+
+    NODE_VERSION_CURRENT="$(echo "$node_version_output" | sed 's/^v//g')"
+    node_major="$(echo "$NODE_VERSION_CURRENT" | cut -d. -f1)"
+    if [ -z "$node_major" ]; then
+        NODE_INSTALLATION_STATUS="NOT_FOUND"
+        return
+    fi
+
+    if [ "$node_major" -ge "$NODE_SHORT_VERSION_GUARD" ] 2>/dev/null; then
+        NODE_INSTALLATION_STATUS="READY"
+        NODE_INSTALL_OK="true"
+    else
+        NODE_INSTALLATION_STATUS="OLD_VERSION"
+    fi
+}
+
+clean_node_install_workspace() {
+    echo "Cleaning Node.js install workspace for idempotent re-install..."
+
+    for binary in node npm npx corepack pnpm yarn; do
+        $USE_SUDO rm -f "/usr/local/bin/$binary" 2>/dev/null || true
+    done
+    if [ "$NODE_INSTALLATION_DIR" = "$NODE_INSTALLATION_DIR" ] && [ -d "$NODE_INSTALLATION_DIR" ]; then
+        $USE_SUDO rm -rf "$NODE_INSTALLATION_DIR"
+    fi
+    if [ -d "$EXTRACT_DIR" ]; then
+        cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
+    fi
+    if [ -f "$TAR_FILE" ]; then
+        rm -f "$TAR_FILE"
+    fi
+}
+
+download_node_payload() {
+    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
+    if ! check_existing_download_from_common_functions "$TAR_FILE" 20971520; then
+        download_with_fallback_from_common_functions "${NODE_DOWNLOAD_URLS[@]}" "$TAR_FILE"
+    fi
+}
+
+extract_node_payload() {
+    extract_archive_from_common_functions "$TAR_FILE" "$EXTRACT_DIR" 1
+}
+
+install_node_tree() {
+    echo "Installing Node.js $NODE_VERSION..."
+    echo "Download URL: ${NODE_DOWNLOAD_URLS[0]}"
+
+    download_node_payload
+    extract_node_payload
+
+    if [ -d "$EXTRACT_DIR" ]; then
+        $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
+        $USE_SUDO rm -rf "$NODE_INSTALLATION_DIR"
+
+        local source_dev target_dev
+        source_dev=$(stat -c %d "$EXTRACT_DIR" 2>/dev/null || echo "")
+        target_dev=$(stat -c %d "$NODE_INSTALL_DIR" 2>/dev/null || echo "")
+        if [ -n "$source_dev" ] && [ -n "$target_dev" ] && [ "$source_dev" != "$target_dev" ]; then
+            $USE_SUDO cp -a "$EXTRACT_DIR" "$NODE_INSTALLATION_DIR"
+            $USE_SUDO rm -rf "$EXTRACT_DIR"
+        else
+            $USE_SUDO mv "$EXTRACT_DIR" "$NODE_INSTALLATION_DIR"
+        fi
+
+        if [ -d "$NODE_INSTALLATION_DIR" ]; then
+            local safe_target
+            safe_target="$(is_safe_system_path "$NODE_INSTALL_DIR")"
+            if [ "$safe_target" = "true" ]; then
+                safe_chown_R root:root "$NODE_INSTALLATION_DIR"
+                safe_chmod_R 755 "$NODE_INSTALLATION_DIR"
+            else
+                echo "[SKIP] Refusing permission fix on unsafe path: $NODE_INSTALLATION_DIR"
+            fi
+        fi
+        NODE_INSTALL_OK="true"
+    fi
+
+    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
+}
+
+check_node_correct_architecture() {
+    local output
+    output=$("$NODE_BIN_PATH" -v 2>&1 || true)
+    if echo "$output" | grep -qi "exec format error"; then
+        echo "Detected wrong architecture binary in $NODE_BIN_PATH"
+        NODE_INSTALLATION_STATUS="WRONG_ARCH"
+        NODE_INSTALL_OK="false"
+        return
+    fi
+
+    if [ -x "$COREPACK_BIN_PATH" ] && [ -x "$NPM_BIN_PATH" ]; then
+        NODE_INSTALLATION_STATUS="READY"
+        NODE_INSTALL_OK="true"
+    else
+        NODE_INSTALLATION_STATUS="PARTIAL"
+        NODE_INSTALL_OK="false"
+    fi
+}
+
+ensure_node_installation() {
+    check_node_installation_status
+
+    case "$NODE_INSTALLATION_STATUS" in
+        READY)
+            echo "=================================================="
+            echo "Node.js $NODE_VERSION is already installed"
+            echo "=================================================="
+            ;;
+        WRONG_ARCH|OLD_VERSION|PARTIAL|NOT_FOUND)
+            echo "=================================================="
+            echo "Node.js $NODE_VERSION needs install or re-install"
+            echo "=================================================="
+            clean_node_install_workspace
+            install_node_tree
+            check_node_correct_architecture
+            if [ "$NODE_INSTALL_OK" != "true" ]; then
+                echo "[WARN] Node.js install did not complete this run."
+            fi
+            ;;
+        *)
+            clean_node_install_workspace
+            install_node_tree
+            check_node_correct_architecture
+            ;;
+    esac
+}
+
 fix_node_install_dir_permissions_all_users() {
     echo "Ensuring Node.js install directory is writable by all users (chmod 777)..."
-
-    local _safe_node_dir=false
-    if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
-        case "$NODE_INSTALL_DIR" in
-            /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
-            *) _safe_node_dir=true ;;
-        esac
+    local safe_path
+    safe_path="$(is_safe_system_path "$NODE_INSTALL_DIR")"
+    if [ "$safe_path" != "true" ]; then
+        echo "[SKIP] Refusing chmod on unsafe path: $NODE_INSTALL_DIR"
+        return
     fi
-    if [ "$_safe_node_dir" != true ]; then
-        echo "[SKIP] Refusing chmod on system or invalid path: $NODE_INSTALL_DIR"
-        return 0
-    fi
-
     if [ -d "$NODE_INSTALL_DIR" ]; then
         repair_owned_tree_777 "$NODE_INSTALL_DIR"
         echo "[OK] ensured active-user ownership and mode 777 on: $NODE_INSTALL_DIR"
     else
         echo "[SKIP] Node install dir does not exist yet: $NODE_INSTALL_DIR"
     fi
-    return 0
 }
 
-# Function to configure pnpm mirror and global settings
-configure_npm_settings() {
-    echo "Configuring npm settings..."
-    return 0
-}
-
-check_node_installation() {
-    echo "Checking Node.js installation..."
-    NODE_INSTALLATION_STATUS="NOT_FOUND"
-
-    # First check if binaries exist in expected location
-    local node_bin="$NODE_BIN_DIR/node"
-    local npm_bin="$NODE_BIN_DIR/npm"
-
-    if [ ! -f "$node_bin" ] || [ ! -f "$npm_bin" ]; then
-        echo "Node.js not found in expected location: $NODE_INSTALL_DIR"
-
-        # Try to find Node.js in system locations
-        echo "Searching for existing Node.js installations..."
-        local system_node=$(which node 2>/dev/null)
-        local system_npm=$(which npm 2>/dev/null)
-
-        if [ -n "$system_node" ] && [ -n "$system_npm" ]; then
-            echo "Found system Node.js at: $system_node"
-            local system_version=$("$system_node" -v 2>/dev/null | sed 's/^v//')
-            local system_major=$(echo "$system_version" | cut -d. -f1)
-            # Guard: wrong-arch or broken node -v can leave system_major empty; avoid "integer expression expected"
-            if [ -n "$system_major" ] && [ -n "$NODE_SHORT_VERSION" ] && [ "$system_major" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
-                echo "System Node.js version $system_version is >= $NODE_SHORT_VERSION (required)"
-                echo "Will create proper symlinks and configuration..."
-                NODE_INSTALLATION_STATUS="SYSTEM_NODE"
-            else
-                echo "System Node.js version $system_version is < $NODE_SHORT_VERSION (required)"
-                NODE_INSTALLATION_STATUS="OLD_NODE"
-            fi
-        fi
-
-        return
-    fi
-
-    # Check version in target directory
-    local current_version
-    local run_stderr
-    run_stderr=$("$node_bin" -v 2>&1) || true
-    current_version=$(echo "$run_stderr" | sed -n 's/^v//p')
-    if [ -z "$current_version" ]; then
-        if echo "$run_stderr" | grep -q "Exec format error"; then
-            echo "Node binary at $node_bin is wrong architecture (Exec format error), will reinstall for $(uname -m)."
-            NODE_INSTALLATION_STATUS="WRONG_ARCH"
-            return
-        fi
-        echo "Failed to get Node.js version from $node_bin"
-        return
-    fi
-
-    local major_version
-    major_version=$(echo "$current_version" | cut -d. -f1)
-    # Guard: ensure both sides are non-empty and numeric to avoid "integer expression expected"
-    if [ -z "$major_version" ] || [ -z "$NODE_SHORT_VERSION" ]; then
-        echo "Failed to parse Node version (current_version=$current_version, major=$major_version)"
-        return
-    fi
-    if [ "$major_version" -ge "$NODE_SHORT_VERSION" ] 2>/dev/null; then
-        echo "Found Node.js $current_version in $NODE_INSTALL_DIR (>= required version $NODE_SHORT_VERSION)"
-        NODE_INSTALLATION_STATUS="INSTALLED"
-    else
-        echo "Node.js version too low. Found: $current_version, Required: >= $NODE_SHORT_VERSION.x"
-        NODE_INSTALLATION_STATUS="OLD_NODE"
+create_or_refresh_symlink() {
+    local source_path="$1"
+    local link_path="$2"
+    if [ -x "$source_path" ]; then
+        $USE_SUDO ln -sf "$source_path" "$link_path"
+        echo "Linked: $link_path -> $source_path"
     fi
 }
 
-remove_old_node_installation() {
-    echo "=================================================="
-    echo "Old Node.js version detected"
-    echo "=================================================="
-    echo "Current Node.js needs to be removed to install version $NODE_SHORT_VERSION"
-    echo ""
-
-    # Find all Node.js installations
-    local locations_to_remove=()
-
-    # Check target directory
-    if [ -d "$NODE_INSTALL_DIR" ]; then
-        locations_to_remove+=("$NODE_INSTALL_DIR")
-    fi
-
-    # Check common installation locations
-    local common_locations=(
-        "/usr/local/node"
-        "/opt/node"
-        "/usr/lib/node"
-        "/usr/local/lib/node_modules"
-    )
-
-    for loc in "${common_locations[@]}"; do
-        if [ -d "$loc" ]; then
-            locations_to_remove+=("$loc")
-        fi
-    done
-
-    # Check symlinks
-    local symlinks_to_remove=()
-    for binary in node npm npx; do
-        local link_path="/usr/local/bin/$binary"
-        if [ -L "$link_path" ] || [ -f "$link_path" ]; then
-            symlinks_to_remove+=("$link_path")
-        fi
-    done
-
-    echo "Found Node.js installation(s) at:"
-    for loc in "${locations_to_remove[@]}"; do
-        echo "  - $loc"
-    done
-
-    if [ ${#symlinks_to_remove[@]} -gt 0 ]; then
-        echo ""
-        echo "Found Node.js symlinks:"
-        for link in "${symlinks_to_remove[@]}"; do
-            echo "  - $link"
-        done
-    fi
-
-    echo ""
-    read -r -p "Remove old Node.js installation? (Y/n): " REPLY
-    if [ -z "${REPLY}" ] || [ "${REPLY}" = "y" ] || [ "${REPLY}" = "Y" ]; then
-        for loc in "${locations_to_remove[@]}"; do
-            $USE_SUDO rm -rf "$loc"
-        done
-        for link in "${symlinks_to_remove[@]}"; do
-            $USE_SUDO rm -f "$link"
-        done
-        echo "Old Node.js installation removed successfully"
-        return 0
-    else
-        echo "Installation cancelled by user"
-        return 1
-    fi
-}
-
-# Idempotent: when a fresh install is required, force-clean target, extract dir, and download
-# so install always has a clean state (avoids inter-device mv and leftover dirs).
-force_clean_for_node_install() {
-    echo "Force-cleaning old Node install target and temp files for idempotent install..."
-
-    local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-
-    for binary in node npm npx; do
-        $USE_SUDO rm -f "/usr/local/bin/$binary"
-    done
-
-    if [ -d "$target_dir" ]; then
-        echo "Removing existing target: $target_dir"
-        $USE_SUDO rm -rf "$target_dir"
-    fi
-
-    if [ -d "$EXTRACT_DIR" ]; then
-        echo "Removing extract dir: $EXTRACT_DIR"
-        $USE_SUDO rm -rf "$EXTRACT_DIR"
-    fi
-
-    if [ -f "$TAR_FILE" ]; then
-        echo "Removing cached download: $TAR_FILE"
-        rm -f "$TAR_FILE"
-    fi
-
-    echo "Force-clean completed."
-}
-
-
-install_node() {
-    echo "Installing Node.js $NODE_VERSION..."
-    echo "Download URL: ${NODE_DOWNLOAD_URLS[0]}"
-
-    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
-
-    # Check if download already exists using common function
-    if ! check_existing_download_from_common_functions "$TAR_FILE" 20971520; then
-        echo "Downloading Node.js $NODE_VERSION..."
-        # Use common download function with fallback support
-        download_with_fallback_from_common_functions "${NODE_DOWNLOAD_URLS[@]}" "$TAR_FILE"
-    fi
-
-    echo "Extracting Node.js..."
-    extract_archive_from_common_functions "$TAR_FILE" "$EXTRACT_DIR" 1
-
-    if [ -d "$EXTRACT_DIR" ]; then
-        echo "Installing Node.js to $NODE_INSTALL_DIR..."
-        $USE_SUDO mkdir -p "$NODE_INSTALL_DIR"
-        local target_dir="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-        $USE_SUDO rm -rf "$target_dir"
-
-        local src_dev target_dev
-        src_dev=$(stat -c %d "$EXTRACT_DIR" 2>/dev/null || echo "")
-        target_dev=$(stat -c %d "$NODE_INSTALL_DIR" 2>/dev/null || echo "")
-        if [ -n "$src_dev" ] && [ -n "$target_dev" ] && [ "$src_dev" != "$target_dev" ]; then
-            echo "Cross-device install: copying then removing extract dir..."
-            $USE_SUDO cp -a "$EXTRACT_DIR" "$target_dir"
-            $USE_SUDO rm -rf "$EXTRACT_DIR"
-        else
-            $USE_SUDO mv "$EXTRACT_DIR" "$target_dir"
-        fi
-
-        # Set proper permissions (validate path to avoid touching system dirs)
-        echo "[SAFE_PATH] NODE_INSTALL_DIR=$NODE_INSTALL_DIR"
-        _safe_node_install=false
-        if [ -n "$NODE_INSTALL_DIR" ] && [[ "$NODE_INSTALL_DIR" == /* ]]; then
-            case "$NODE_INSTALL_DIR" in
-                /|/usr|/usr/*|/etc|/etc/*|/bin|/bin/*|/sbin|/sbin/*|/lib|/lib/*|/var) ;;
-                *) _safe_node_install=true ;;
-            esac
-        fi
-        if [ "$_safe_node_install" = true ]; then
-            safe_chown_R root:root "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-            safe_chmod_R 755 "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-        else
-            echo "[SKIP] Refusing chown/chmod on system or invalid path: $NODE_INSTALL_DIR"
-        fi
-    fi
-
-    cleanup_temp_files_from_common_functions "$EXTRACT_DIR"
-}
-
-# After install_node: if node binary fails with Exec format error (wrong arch), retry with alternate arch once.
-ensure_node_correct_arch() {
-    local node_bin="$NODE_BIN_DIR/node"
-    [ ! -f "$node_bin" ] && return
-    local out
-    out=$("$node_bin" -v 2>&1) || true
-    if echo "$out" | grep -q "Exec format error"; then
-        echo "Wrong architecture detected (Exec format error). Retrying with alternate arch..."
-        if [ "$NODE_ARCH_SUFFIX" = "linux-x64" ]; then
-            NODE_ARCH_SUFFIX="linux-arm64"
-        else
-            NODE_ARCH_SUFFIX="linux-x64"
-        fi
-        NODE_DOWNLOAD_URLS=("https://nodejs.org/dist/$NODE_VERSION/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz")
-        TAR_FILE="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX.tar.xz"
-        EXTRACT_DIR="$SCRIPT_TEMP_DIR/node-$NODE_VERSION-$NODE_ARCH_SUFFIX"
-        force_clean_for_node_install
-        install_node
-    fi
-}
-
-# Create and verify the /usr/local/bin symlinks for node/npm/npx. This function's
-# header had been lost: its body ran at top level (local/return errors) and the
-# trailing `}` was a syntax error that ABORTED the whole script before install_node
-# ran -- so node never installed. Restored here.
-create_symlinks() {
+create_core_symlinks() {
     echo "Creating and verifying symlinks..."
-
-    local node_path="$NODE_BIN_DIR/node"
-    local npm_path="$NODE_BIN_DIR/npm"
-    local npx_path="$NODE_BIN_DIR/npx"
-
-    if [ ! -f "$node_path" ] || [ ! -f "$npm_path" ]; then
-        echo "Error: Node.js binaries not found in $NODE_BIN_DIR"
-        return
-    fi
-
-    $USE_SUDO ln -sf "$node_path" /usr/local/bin/node
-    echo "Created symlink: /usr/local/bin/node -> $node_path"
-
-    $USE_SUDO ln -sf "$npm_path" /usr/local/bin/npm
-    echo "Created symlink: /usr/local/bin/npm -> $npm_path"
-
-    $USE_SUDO ln -sf "$npx_path" /usr/local/bin/npx
-    echo "Created symlink: /usr/local/bin/npx -> $npx_path"
-
-    echo "Core Node.js symlinks created successfully"
+    create_or_refresh_symlink "$NODE_BIN_PATH" "$NODE_SYMLINK"
+    create_or_refresh_symlink "$NPM_BIN_PATH" "$NPM_SYMLINK"
+    create_or_refresh_symlink "$NPX_BIN_PATH" "$NPX_SYMLINK"
+    create_or_refresh_symlink "$COREPACK_BIN_PATH" "$COREPACK_SYMLINK"
+    create_or_refresh_symlink "$PNPM_BIN_PATH" "$PNPM_SYMLINK"
+    create_or_refresh_symlink "$YARN_BIN_PATH" "$YARN_SYMLINK"
+    create_or_refresh_symlink "$BUN_BIN_PATH" "$BUN_SYMLINK"
 }
 
 setup_environment() {
     echo "Setting up Node.js environment variables..."
+    set_env_and_var "NODE_HOME" "$NODE_HOME_PATH"
+    set_env_and_var "NODE_PATH" "$NODE_PATH_VALUE"
+    set_env_and_var "PNPM_HOME" "$PNPM_HOME_PATH"
+    set_env_and_var "BUN_INSTALL" "$BUN_INSTALL_DIR"
 
-    if [ -f /etc/environment ]; then
-        echo "Cleaning up previous broken environment variables..."
-        $USE_SUDO sed -i '/NODE-V.*_HOME=/d' /etc/environment
-        $USE_SUDO sed -i '/^NODE_HOME=/d' /etc/environment
-        $USE_SUDO sed -i '/^NODE_PATH=/d' /etc/environment
-        $USE_SUDO sed -i '/^PNPM_HOME=/d' /etc/environment
-    fi
-
-    local actual_node_home="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    local actual_node_path="$actual_node_home/lib/node_modules"
-    local pnpm_home="$actual_node_home/pnpm-global"
-
-    set_env_and_var "NODE_HOME" "$actual_node_home"
-    set_env_and_var "NODE_PATH" "$actual_node_path"
-    # PNPM_HOME (all users): pnpm-installed global binaries live in $PNPM_HOME/bin,
-    # which we also put on PATH below so every user can run them. Per pnpm docs.
-    set_env_and_var "PNPM_HOME" "$pnpm_home"
-
-    local current_path=$(grep "^PATH=" /etc/environment 2>/dev/null | cut -d'=' -f2 | tr -d '"' || echo "$PATH")
-    local npm_global_bin="$actual_node_home/bin"
-    local pnpm_global_bin="$pnpm_home/bin"
-
-    # Prepend whichever of {pnpm_global_bin, npm_global_bin} is not already on PATH
-    # so all users get both node/npm and pnpm-installed global CLIs.
-    local prepend=""
-    if [[ "$current_path" != *"$pnpm_global_bin"* ]]; then
-        prepend="$pnpm_global_bin"
-    fi
-    if [[ "$current_path" != *"$npm_global_bin"* ]]; then
-        if [ -n "$prepend" ]; then
-            prepend="$prepend:$npm_global_bin"
-        else
-            prepend="$npm_global_bin"
-        fi
-    fi
-    if [ -n "$prepend" ]; then
-        set_env_and_var "PATH" "$prepend:$current_path"
-        echo "Added to PATH: $prepend"
-    else
-        echo "npm + pnpm global directories already in PATH"
-    fi
-
-    echo "Environment variables configured:"
-    echo "  NODE_HOME: $actual_node_home"
-    echo "  NODE_PATH: $actual_node_path"
-    echo "  PNPM_HOME: $pnpm_home"
-    echo "  PATH includes: $npm_global_bin $pnpm_global_bin"
+    append_path_entry_to_environment "$NODE_BIN_PATH"
+    append_path_entry_to_environment "$PNPM_HOME_PATH/bin"
+    append_path_entry_to_environment "$BUN_BIN_DIR"
+    append_path_entry_to_environment "/usr/local/bin"
 }
 
-verify_and_fix_all_configs() {
-    echo "=================================================="
-    echo "Verifying and fixing all Node.js configurations..."
-    echo "=================================================="
-
-    local node_home="$NODE_INSTALL_DIR/node-$NODE_VERSION"
-    local npm_bin="$node_home/bin/npm"
-    local pnpm_bin="$node_home/bin/pnpm"
-    local yarn_bin="$node_home/bin/yarn"
-    local pnpm_global_dir="$node_home/pnpm-global"
-    local global_npmrc="$node_home/etc/npmrc"
-    local npm_registry pnpm_registry
-    if [ "$SELECTED_REGION" = "China" ]; then
-        npm_registry="https://registry.npmmirror.com"
-        pnpm_registry="https://repo.huaweicloud.com/repository/npm/"
-    else
-        npm_registry="https://registry.npmjs.org/"
-        pnpm_registry="https://registry.npmjs.org/"
-    fi
-
-    # Silence deprecated/unknown npm env configs inherited from the parent shell so
-    # npm/pnpm stop emitting "npm warn Unknown env config confirm-modules-purge /
-    # manage-package-manager-versions" on every call.
-    unset npm_config_confirm_modules_purge npm_config_manage_package_manager_versions
-
-    echo "[1/3] Configuring npm (system-wide)..."
-    # Global npm/pnpm config at $node_home/etc/npmrc: read by npm globally (all users)
-    # and by pnpm (npmrc-compatible). Gives every user the same registry + pnpm global
-    # dirs WITHOUT per-user writes (which, created by root, EACCES-block the normal
-    # user). prefix=$node_home makes `npm -g` land in the shared tree regardless of any
-    # per-user ~/.npmrc prefix. 644 so any user can read it.
-    $USE_SUDO mkdir -p "$node_home/etc"
-    $USE_SUDO tee "$global_npmrc" >/dev/null <<EOF
-registry=$npm_registry
-prefix=$node_home
-global-dir=$pnpm_global_dir
-global-bin-dir=$pnpm_global_dir/bin
+refresh_npmrc_config() {
+    local global_npmrc="$NODE_HOME_PATH/etc/npmrc"
+    echo "Configuring npm global rc: $global_npmrc"
+    $USE_SUDO mkdir -p "$NODE_HOME_PATH/etc"
+    cat > "$global_npmrc" <<EOF
+prefix=$NODE_HOME_PATH
+registry=$NPM_REGISTRY
 EOF
     $USE_SUDO chmod 644 "$global_npmrc"
-    echo "Wrote global npm/pnpm config: $global_npmrc"
+}
 
-    echo ""
-    echo "[2/3] Installing and configuring pnpm..."
-    # --prefix forces the shared $node_home regardless of any per-user ~/.npmrc prefix,
-    # so pnpm lands in $node_home/bin (usable by all users via the /usr/local/bin
-    # symlink). Run as the real user when root so no root-owned file is left in any
-    # user's HOME (the EACCES root cause).
-    if [ -x "$pnpm_bin" ]; then
-        echo "pnpm already installed globally, skipping reinstall"
-    else
-        run_as_real_user_node "$npm_bin" install -g pnpm --prefix="$node_home"
+ensure_npm() {
+    echo "[1/4] Ensuring npm and npm config..."
+    if [ ! -x "$NPM_BIN_PATH" ]; then
+        echo "[WARN] npm not found in expected location: $NPM_BIN_PATH"
+        return
     fi
-    $USE_SUDO ln -sf "$pnpm_bin" /usr/local/bin/pnpm
-    echo "Linked: /usr/local/bin/pnpm"
-
-    # Per-user pnpm rc for the real (desktop) user, written AS that user so it is owned
-    # correctly (no root pollution -> no EACCES). pnpm's own global rc is
-    # ~/.config/pnpm/rc (per pnpm docs); this mirrors the system-wide npmrc above.
-    run_as_real_user_node "$pnpm_bin" config set global-dir "$pnpm_global_dir"
-    run_as_real_user_node "$pnpm_bin" config set global-bin-dir "$pnpm_global_dir/bin"
-    run_as_real_user_node "$pnpm_bin" config set registry "$pnpm_registry"
-    echo "pnpm configured"
-
-    echo ""
-    echo "[3/3] Installing and linking yarn..."
-    if [ -x "$yarn_bin" ]; then
-        echo "yarn already installed globally, skipping reinstall"
-    else
-        run_as_real_user_node "$npm_bin" install -g yarn --prefix="$node_home"
+    local npm_version
+    npm_version=$("$NPM_BIN_PATH" -v 2>/dev/null || true)
+    if [ -n "$npm_version" ]; then
+        echo "Current npm version: $npm_version"
     fi
-    $USE_SUDO ln -sf "$yarn_bin" /usr/local/bin/yarn
-    echo "Linked: /usr/local/bin/yarn"
+    run_npm_from_common_functions install -g npm@latest --no-audit --no-fund --ignore-scripts >/dev/null 2>&1 || true
+    refresh_npmrc_config
+}
 
-    echo ""
-    echo "=================================================="
-    echo "All configurations completed"
-    echo "=================================================="
-    return 0
+ensure_corepack() {
+    echo "[2/4] Ensuring corepack..."
+    if [ ! -x "$COREPACK_BIN_PATH" ]; then
+        if [ -x "$NPM_BIN_PATH" ]; then
+            echo "Corepack not found; installing from npm..."
+            run_npm_from_common_functions install -g corepack@latest --no-audit --no-fund --ignore-scripts >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if [ -x "$COREPACK_BIN_PATH" ]; then
+        echo "Corepack version: $("$COREPACK_BIN_PATH" --version 2>/dev/null || true)"
+        "$COREPACK_BIN_PATH" enable >/dev/null 2>&1 || true
+        "$COREPACK_BIN_PATH" prepare pnpm@latest --activate >/dev/null 2>&1 || true
+        "$COREPACK_BIN_PATH" prepare yarn@stable --activate >/dev/null 2>&1 || true
+    else
+        echo "[WARN] corepack is still not available, continuing with npm-managed flow."
+    fi
+}
+
+ensure_pnpm() {
+    echo "[3/4] Ensuring pnpm..."
+    if [ -x "$NPM_BIN_PATH" ]; then
+        run_npm_from_common_functions install -g pnpm@latest --no-audit --no-fund --ignore-scripts >/dev/null 2>&1 || true
+    fi
+
+    if [ -x "$PNPM_BIN_PATH" ]; then
+        echo "Linked: $PNPM_SYMLINK -> $PNPM_BIN_PATH"
+        create_or_refresh_symlink "$PNPM_BIN_PATH" "$PNPM_SYMLINK"
+        run_pnpm_from_common_functions config set global-dir "$PNPM_HOME_PATH" >/dev/null 2>&1 || true
+        run_pnpm_from_common_functions config set global-bin-dir "$PNPM_HOME_PATH/bin" >/dev/null 2>&1 || true
+        run_pnpm_from_common_functions config set registry "$PNPM_REGISTRY" >/dev/null 2>&1 || true
+        echo "pnpm version: $(pnpm --version 2>/dev/null || true)"
+        echo "pnpm configuration:"
+        pnpm config list >/dev/null 2>&1 || true
+    else
+        echo "[WARN] pnpm is still missing after upgrade attempt."
+    fi
+}
+
+ensure_yarn() {
+    echo "[4/4] Ensuring yarn..."
+    if [ -x "$NPM_BIN_PATH" ]; then
+        run_npm_from_common_functions install -g yarn@latest --no-audit --no-fund --ignore-scripts >/dev/null 2>&1 || true
+    fi
+
+    if [ -x "$YARN_BIN_PATH" ]; then
+        create_or_refresh_symlink "$YARN_BIN_PATH" "$YARN_SYMLINK"
+        echo "yarn version: $("$YARN_BIN_PATH" -v 2>/dev/null || true)"
+    else
+        echo "[WARN] yarn is still missing after upgrade attempt."
+    fi
+}
+
+install_or_upgrade_bun() {
+    echo "Ensuring bun..."
+    if [ -x "$BUN_BIN_PATH" ]; then
+        local bun_version
+        bun_version=$("$BUN_BIN_PATH" --version 2>/dev/null || true)
+        if [ -n "$bun_version" ]; then
+            echo "Bun version: $bun_version"
+            if "$BUN_BIN_PATH" upgrade >/dev/null 2>&1; then
+                echo "Bun upgrade completed."
+            fi
+            return
+        fi
+    fi
+
+    echo "Installing/upgrading bun via official installer"
+    $USE_SUDO env HOME="$BUN_INSTALL_DIR" BUN_INSTALL="$BUN_INSTALL_DIR" sh -c 'curl -fsSL https://bun.sh/install | bash' >/tmp/bun-install.log 2>&1 || true
+    if [ -s /tmp/bun-install.log ]; then
+        echo "Bun installer output recorded at /tmp/bun-install.log"
+    fi
+    if [ ! -x "$BUN_BIN_PATH" ] && command -v wget >/dev/null 2>&1; then
+        $USE_SUDO env HOME="$BUN_INSTALL_DIR" BUN_INSTALL="$BUN_INSTALL_DIR" sh -c 'wget -qO- https://bun.sh/install | bash' >/tmp/bun-install.log 2>&1 || true
+    fi
+    create_or_refresh_symlink "$BUN_BIN_PATH" "$BUN_SYMLINK"
+    if [ -x "$BUN_BIN_PATH" ]; then
+        echo "Bun ready: $("$BUN_BIN_PATH" --version 2>/dev/null || true)"
+    else
+        echo "[WARN] bun is still missing; will retry on next run."
+    fi
+}
+
+configure_after_install() {
+    setup_environment
+    ensure_npm
+    ensure_corepack
+    ensure_pnpm
+    ensure_yarn
+    create_or_refresh_symlink "$COREPACK_BIN_PATH" "$COREPACK_SYMLINK"
+    install_or_upgrade_bun
 }
 
 verify_installation() {
     echo "Verifying installation..."
-
-    # Check binaries in install directory
-    local node_bin="$NODE_BIN_DIR/node"
-    local npm_bin="$NODE_BIN_DIR/npm"
-
-    if [ ! -f "$node_bin" ] || [ ! -f "$npm_bin" ]; then
-        echo "Error: Node.js binaries not found in installation directory"
-        return 1
+    if [ ! -x "$NODE_BIN_PATH" ] || [ ! -x "$NPM_BIN_PATH" ]; then
+        echo "Error: Node.js binaries missing in $NODE_INSTALLATION_DIR"
+        return
     fi
 
-    # Check symlinks
-    if [ ! -L /usr/local/bin/node ] || [ ! -L /usr/local/bin/npm ]; then
-        echo "Error: Symlinks verification failed"
-        return 1
-    fi
-
-    echo "Node.js version (from install dir): $($node_bin -v)"
-    echo "npm version: $($npm_bin -v)"
-    if [ -f "$NODE_BIN_DIR/npx" ]; then
-        echo "npx version: $($NODE_BIN_DIR/npx -v)"
-    fi
-
-    # Require /usr/local/bin/node --version to work (catches Exec format error after symlink)
-    local node_version_out
-    if ! node_version_out=$(/usr/local/bin/node --version 2>&1); then
-        echo "Error: /usr/local/bin/node --version failed: $node_version_out"
-        return 1
-    fi
-    echo "node --version (from PATH/symlink): $node_version_out"
-
-    # Show pnpm configuration if available
-    if command -v pnpm >/dev/null 2>&1; then
-        echo ""
-        echo "pnpm version: $(pnpm --version)"
-        echo "pnpm configuration:"
-        pnpm config list
-    fi
-
-    return 0
+    echo "Node.js version (from install dir): $($NODE_BIN_PATH -v)"
+    echo "npm version: $($NPM_BIN_PATH -v)"
+    echo "npx version: $($NPX_BIN_PATH -v)"
+    echo "corepack version: $("$COREPACK_BIN_PATH" --version 2>/dev/null || true)"
+    echo "pnpm version: $(pnpm --version 2>/dev/null || echo 'missing')"
+    echo "yarn version: $(yarn --version 2>/dev/null || echo 'missing')"
+    echo "bun version: $("$BUN_BIN_PATH" --version 2>/dev/null || echo 'missing')"
+    echo "node --version (from PATH): $(node --version 2>/dev/null || true)"
+    echo "Node.js binaries linked to /usr/local/bin/"
 }
 
-# Main execution
-echo "Node.js Installation Script"
-echo "Target version: $NODE_VERSION"
-echo "Installation directory: $NODE_INSTALL_DIR"
+if [ "$SKIP_TOOLCHAIN_INSTALL" != "true" ]; then
+    echo "Node.js Toolchain Installation Script"
+    echo "Target version: $NODE_VERSION"
+    echo "Installation directory: $NODE_INSTALL_DIR"
+    echo "Tools: node, npm, pnpm, yarn, corepack, bun"
 
-# First, detect and fix any previous installation issues
-detect_and_fix_previous_issues
+    detect_and_fix_previous_issues
+    ensure_node_installation
+    create_core_symlinks
+    fix_node_install_dir_permissions_all_users
+    configure_after_install
+    verify_installation
 
-# Check installation status
-check_node_installation
-
-case "$NODE_INSTALLATION_STATUS" in
-    "INSTALLED")
-        echo "=================================================="
-        echo "Node.js $NODE_VERSION is already installed"
-        echo "=================================================="
-        echo "Verifying and fixing configuration if needed..."
-        echo ""
-        ;;
-    "SYSTEM_NODE")
-        echo "=================================================="
-        echo "Found compatible system Node.js installation"
-        echo "=================================================="
-        echo "Will configure symlinks and environment for existing installation."
-        echo ""
-        ;;
-    "OLD_NODE"|"WRONG_ARCH")
-        echo "=================================================="
-        echo "Old or wrong-architecture Node.js found"
-        echo "=================================================="
-        echo ""
-        if [ "$NODE_INSTALLATION_STATUS" = "WRONG_ARCH" ]; then
-            echo "Removing wrong-architecture installation (idempotent repair)..."
-            for binary in node npm npx; do
-                $USE_SUDO rm -f "/usr/local/bin/$binary"
-            done
-            $USE_SUDO rm -rf "$NODE_INSTALL_DIR/node-$NODE_VERSION"
-        else
-            remove_old_node_installation
-        fi
-        echo ""
-        force_clean_for_node_install
-        echo "Installing Node.js $NODE_VERSION ($NODE_ARCH_SUFFIX)..."
-        install_node
-        ensure_node_correct_arch
-        ;;
-    "NOT_FOUND")
-        echo "=================================================="
-        echo "No Node.js installation found"
-        echo "=================================================="
-        echo "Installing Node.js $NODE_VERSION..."
-        echo ""
-        force_clean_for_node_install
-        install_node
-        ensure_node_correct_arch
-        ;;
-esac
-
-create_symlinks
-setup_environment
-
-# Always re-assert 777 on the node install dir (idempotent, every run) so ordinary
-# users can run npm/pnpm global installs without sudo. Covers the already-installed path.
-fix_node_install_dir_permissions_all_users
-
-echo ""
-verify_and_fix_all_configs
-
-echo ""
-verify_installation
-
-echo "Node.js installation completed successfully!"
-echo "COMPILE_DIR: $COMPILE_DIR"
-echo "Node.js installed in: $NODE_INSTALL_DIR/node-$NODE_VERSION"
-echo "npm global packages in: $NODE_INSTALL_DIR/node-$NODE_VERSION"
-echo "Node.js binaries linked to: /usr/local/bin/"
-echo "To use updated environment variables, restart your shell or run 'source /etc/environment'"
+    echo "Node.js toolchain installation completed."
+    echo "COMPILE_DIR: $COMPILE_DIR"
+    echo "Node.js installed in: $NODE_INSTALLATION_DIR"
+    echo "npm global packages in: $NODE_INSTALLATION_DIR"
+    echo "Node.js binaries linked to: /usr/local/bin/"
+    echo "To use updated environment variables, restart your shell or run 'source /etc/environment'"
+fi
