@@ -134,6 +134,9 @@ UVX_BIN_PATH="$(command -v uvx 2>/dev/null || true)"
 
 PI_BIN_PATH="$PNPM_GLOBAL_BIN_DIR/pi"
 if [ ! -x "$PI_BIN_PATH" ] && [ -x /usr/local/bin/pi ]; then
+    PI_BIN_PATH="/usr/local/bin/pi"
+fi
+
 if [ "$#" -gt 0 ]; then
     case "$1" in
         auto|codex|claude|kimi|volc-agent|volc-coding)

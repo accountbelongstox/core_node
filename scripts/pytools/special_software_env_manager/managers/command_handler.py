@@ -130,6 +130,8 @@ class CommandHandler:
 
         ColorMessage.write(f"Configuration: {config['DisplayName']}", 'info')
         ColorMessage.write(f"Command Prefix: {command_prefix}", 'info')
+        if command_prefix.lower() == 'ark':
+            ColorMessage.write("Note: This will also generate piark${index} scripts. pivolccoding is also available.", 'info')
         if script_only and empty_keep is not None:
             ColorMessage.write(
                 f"Empty native launcher already present (#{empty_keep}); "
@@ -157,6 +159,8 @@ class CommandHandler:
 
         config_info_new = self._prepare_config_info_for_display(config, file_number=None)
         create_label = f"Create New {config['DisplayName']} #{next_file_number}"
+        if command_prefix.lower() == 'ark':
+            create_label += f" (ark{next_file_number}.ps1 / ark{next_file_number}.sh / piark{next_file_number}.ps1 / piark{next_file_number}.sh)"
         if script_only and empty_keep is not None:
             create_label = (
                 f"Create New {config['DisplayName']} #{next_file_number} "
@@ -185,6 +189,9 @@ class CommandHandler:
                 platform_info = f"{script['linux_name']} (Linux only)"
             else:
                 platform_info = f"{script['windows_name']} / {script['linux_name']}"
+                
+            if command_prefix.lower() == 'ark':
+                platform_info += f" / piark{file_num}.ps1 / piark{file_num}.sh"
 
             config_info_existing = self._prepare_config_info_for_display(config, file_number=file_num)
             empty_tag = ""
