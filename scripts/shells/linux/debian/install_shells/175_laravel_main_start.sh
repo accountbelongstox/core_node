@@ -161,6 +161,7 @@ UI_START="${POLY_APPS_DIR}/pycore_laravel_wordnew_ui/scripts/start.sh"
 # Shared global var helpers (file-backed selectors: START_WEB_SERVER/WEB_SERVER_PLANE,
 # USE_SUDO and CORE_NODE_DATA_DIR defaults).
 . "$GVAR_COMMON_SCRIPT"
+source "$COMMON_DIR/common_functions.sh"
 init_global_vars >/dev/null 2>&1 || true
 FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 
@@ -420,24 +421,10 @@ composer_command_healthy() {
     return 1
 }
 
-# Shared RuntimeConfigurationStore adapter (was duplicated here; the common
-# implementation is the single source - callers provide PHP_BIN,
-# VENDOR_AUTOLOAD, BOOTSTRAP_APP which are declared at the top of this file).
+# Shared RuntimeConfigurationStore adapter (central source in runtime_config_common;
+# callers provide PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP at file top).
 # shellcheck source=/dev/null
 source "$RUNTIME_CONFIG_COMMON"
-
-ensure_runtime_config_value() {
-    local key="$1"
-    local value="$2"
-    local current=""
-
-    current="$(runtime_config_get "$key")"
-    if [ -n "$current" ]; then
-        return 0
-    fi
-
-    runtime_config_put "$key" "$value"
-}
 
 initialize_runtime_configuration_store() {
     local generated_value=""
@@ -448,15 +435,27 @@ initialize_runtime_configuration_store() {
         return 1
     fi
 
-    generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo "base64:".base64_encode(random_bytes(32));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate APP_KEY."
+        return 1
+    fi
     ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
     # Mercure hub keys (HS256 secrets, server-side only - never shipped to
     # pycore, the browser UI or the extension; the runtime injects them as
     # process env for Caddy's {env...} references; the trusted issuer is
     # derived per launch by the runtime branch). Provisioned once.
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate MERCURE_PUBLISHER_JWT."
+        return 1
+    fi
     ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
+    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
+    if [ -z "$generated_value" ]; then
+        echo "ERROR: Failed to generate MERCURE_SUBSCRIBER_JWT."
+        return 1
+    fi
     ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
     # Installation access (super) code: provisioned once into the external
     # store, stable across runs; InstallationAccessCode.php only reads it.
@@ -1163,7 +1162,7 @@ fi
 
 # Ensure the mapped web data dir is owned by the invoking user BEFORE sys:init.
 REAL_USER="${SUDO_USER:-$(id -un)}"
-LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && "$PHP_BIN" -r 'require "vendor/autoload.php"; require "bootstrap/app.php"; echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");' 2>/dev/null)"
+LARAVEL_DATA_DIR="$(cd "$LARAVEL_DIR" && RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo \App\Providers\PathMapper::mapWebPath("laravel_data_dir");')"
 if [ -n "$REAL_USER" ] && [ "$REAL_USER" != "root" ] && [ -n "$LARAVEL_DATA_DIR" ] && [ -d "$LARAVEL_DATA_DIR" ]; then
     echo "Ensuring ownership of web data dir for '$REAL_USER': $LARAVEL_DATA_DIR"
     $USE_SUDO chown -R "$REAL_USER:$REAL_USER" "$LARAVEL_DATA_DIR" 2>/dev/null || true

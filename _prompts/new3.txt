@@ -19,11 +19,21 @@ d
 按laravel 13的优化 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。ddds
 注意幂等是每一个小步骤都要幂等一下，而不是一个总入口幂等一交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒度。按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
 注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
+搜索官方文档，以官方文档为准。搜索官方文档，以官方文档为准。
 
-
-✨ pycore / Code sync为s m 没有同步到
-     scripts\shells\linux\debian\install_shells 中的脚本。
-	 
+用 93_install_frankenphp 中的新常量，对齐到 94_install_composer.sh
+    96_configure_php85.sh
+    175_laravel_main_start.sh，按规范全部常量中心化。
+  35_install_certbot.sh注意幂等是每一个小步骤都要幂等一下，而不是一个总
+  入口幂等一交，比如xxx安装 、 xxx是否path / xxx是否升级 / xxxg配置是否
+  需要安装 、 修护都要幂等，前一个步骤的幂等不能影响后面的过程，需要细粒
+  度。按规范开发。shells不要使用任何返回值退出码，信任上一个函数的运行结
+  果，二进制直接对文件检测。
+  注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合
+  并公共类库和重复实现，查询官方文档。不要使用多agents.按规范开发。
+  shells不要使用任何返回值退出码，信任上一个函数的运行结果，二进制直接对
+  文件检测。
+  搜索官方文档，以官方文档为准。搜索官方文档，以官方文档为准。
 	 
 	 
 	 服务器。
@@ -133,3 +143,36 @@ d
 Enter script index to execute (e.g., 1, 11, 12, etc.)
 Press 'b' to go back, 'q' to quit
 Your choice:
+
+
+搜索官方文档，以官方文档为准 
+ Executing: 175_laravel_main_start.sh
+
+ Starting execution of 175_laravel_main_start.sh...
+ Initial directory (invocation): /www/programing/core_node
+ Working directory (Laravel root): /www/programing/core_node/poly_apps/laravel_main
+ Repo root (dynamic): /www/programing/core_node
+
+ Using php:      /usr/local/bin/php
+ Using composer: /usr/local/bin/composer
+ SSH server present.
+ Ensuring Laravel runtime directories...
+ vendor/ not found. Running composer install...
+ Installing dependencies from lock file (including require
+ --------------------------------------
+
+ │ [*] Switch Installation Mode [server]
+ │   [@] Select Region [Global]
+ │   [D] Start MySQL After Installation [false]
+ │   [R] Start Redis After Installation [true]
+ │   [Q] Start PostgreSQL After Installation [true]
+ │   [W] Web Server After Installation [frankenphp]
+ │   [^] Start Docker After Installation [false]
+ │   [.] Install .NET SDK [false]
+ │   [G] Install Gitea (Git Service) [false] , 175脚本为什么没有用 Web Server After
+ │ Installation [frankenphp] 中的全局常量，并走frankenPHP的流程。 如果是 frankenphp 时则用 frankenphp 的安装方
+ 式，因为此时的系
+  统 php8.5 是停用状态，注释上说清楚要忽略。同时搜索官方文档，以官方文档为准，而不
+ 是
+  docs_fix,  需要幂等处理旧的不存在时新安装。需要幂等查看运行时
+ 。搜索官方文档

@@ -10,9 +10,9 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Public prebuilt installer for FrankenPHP.
-# It downloads a Linux binary from GitHub release assets and installs it to
-# /usr/local/bin/frankenphp. Prebuilt mode intentionally skips dnspod module
-# rebuilds and executes the shared acme.sh installer after installation.
+# It downloads a Linux binary from GitHub release assets and installs it to the
+# dedicated prebuilt-runtime path. Prebuilt mode intentionally skips dnspod
+# module rebuilds and executes the shared acme.sh installer after installation.
 
 FRANKENPHP_PREBUILT_INDEX="93-install-prebuilt"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,10 +34,9 @@ source "$SCRIPT_CURRENT_DIR/file_ops_common.sh"
 source "$SCRIPT_CURRENT_DIR/step_state.sh"
 source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
 
-# Unified binary/link + cache/staging path family (single source in the
-# manager + builder): FRANKENPHP_LINK_PATH, FRANKENPHP_PREBUILT_CACHE_DIR,
-# FRANKENPHP_PREBUILT_STAGING_DIR.
-FRANKENPHP_PREBUILT_INSTALL_BIN="${FRANKENPHP_LINK_PATH}"
+# Prebuilt binary lives in its own runtime directory; only the canonical link is
+# shared.
+FRANKENPHP_PREBUILT_INSTALL_BIN="${FRANKENPHP_PREBUILT_BINARY_PATH}"
 
 frankenphp_prebuilt_set_release_tag() {
     local normalized_version=""
@@ -105,7 +104,12 @@ frankenphp_prebuilt_expected_tag() {
 }
 
 frankenphp_prebuilt_existing_version() {
-    fm_version_tag
+    local version=""
+
+    if [ -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ]; then
+        version="$("$FRANKENPHP_PREBUILT_INSTALL_BIN" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)"
+        printf '%s' "$version"
+    fi
 }
 
 frankenphp_prebuilt_is_expected_binary() {
@@ -113,19 +117,21 @@ frankenphp_prebuilt_is_expected_binary() {
     local current_tag=""
 
     expected_tag="$(frankenphp_prebuilt_expected_tag)"
-    if [ "$expected_tag" = "latest" ]; then
-        if [ -x "$(fm_get_binary)" ]; then
-            current_tag="$(frankenphp_prebuilt_existing_version)"
-            if [ -n "$current_tag" ]; then
-                echo "yes"
-                return 0
-            fi
-        fi
+    if [ ! -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ]; then
         echo "no"
         return 0
     fi
+    if [ "$expected_tag" = "latest" ]; then
+        current_tag="$(frankenphp_prebuilt_existing_version)"
+        if [ -n "$current_tag" ]; then
+            echo "yes"
+        else
+            echo "no"
+        fi
+        return 0
+    fi
     current_tag="$(frankenphp_prebuilt_existing_version)"
-    if [ -n "$current_tag" ] && [ "$current_tag" = "$expected_tag" ] && [ -x "$(fm_get_binary)" ]; then
+    if [ -n "$current_tag" ] && [ "$current_tag" = "$expected_tag" ]; then
         echo "yes"
     else
         echo "no"
@@ -305,10 +311,9 @@ frankenphp_prebuilt_install_binary() {
     local cache_path=""
     local unpack_dir=""
     local extracted_binary=""
-    local rc="0"
 
     if [ "$(frankenphp_prebuilt_is_expected_binary)" = "yes" ]; then
-        echo "[$FRANKENPHP_PREBUILT_INDEX] [SKIP] prebuilt FrankenPHP already installed: $(frankenphp_prebuilt_existing_version) at $(fm_get_binary)"
+        echo "[$FRANKENPHP_PREBUILT_INDEX] [SKIP] prebuilt FrankenPHP already installed: $(frankenphp_prebuilt_existing_version) at ${FRANKENPHP_PREBUILT_INSTALL_BIN}"
         return 0
     fi
 
@@ -340,14 +345,15 @@ frankenphp_prebuilt_install_binary() {
     if [ -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ] && [ ! -f "${FRANKENPHP_PREBUILT_INSTALL_BIN}${FRANKENPHP_PREBUILT_BACKUP_SUFFIX}" ]; then
         $USE_SUDO cp "$FRANKENPHP_PREBUILT_INSTALL_BIN" "${FRANKENPHP_PREBUILT_INSTALL_BIN}${FRANKENPHP_PREBUILT_BACKUP_SUFFIX}" || return 1
     fi
+    $USE_SUDO mkdir -p "$(dirname "$FRANKENPHP_PREBUILT_INSTALL_BIN")" || return 1
     $USE_SUDO cp "$extracted_binary" "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
     $USE_SUDO chmod 755 "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
-    fm_ensure_local_bin_link || return 1
+    fm_ensure_local_bin_link "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
     fm_ensure_php_cli_shim || return 1
     echo "[$FRANKENPHP_PREBUILT_INDEX] installed prebuilt FrankenPHP: $(frankenphp_prebuilt_expected_tag) from ${cache_path}"
     # Variant mutex: the prebuilt variant now owns the link - drop a stale
     # compiled-variant backup left behind by an earlier dnspod rebuild.
-    rm -f "${FRANKENPHP_PREBUILT_INSTALL_BIN}.pre-dnspod"
+    rm -f "${FRANKENPHP_COMPILED_BINARY_PATH}${FRANKENPHP_BACKUP_SUFFIX}"
     fm_store_info
     return 0
 }
