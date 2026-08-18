@@ -15,7 +15,7 @@ import type {
 
 import {
   requestPycoreHttp, requestPycoreStatus, PYCORE_HTTP_ROUTES,
-  directPycoreHost, buildPycoreHttpUrl,
+  rewritePycoreEndpoint,
   fileToBase64,
 } from './PycoreApiTransport';
 import {
@@ -133,9 +133,8 @@ export const pycoreApi = {
   ping: () => requestPycoreStatus(),
 
   getRuntime: (): Promise<RuntimeInfo> => {
-    const host = directPycoreHost();
-    const apiBase = buildPycoreHttpUrl(host, '/').replace(/\/$/, '');
-    const eventUrl = buildPycoreHttpUrl(host, PycorePaths.events);
+    const apiBase = rewritePycoreEndpoint('/').replace(/\/$/, '');
+    const eventUrl = rewritePycoreEndpoint(PycorePaths.events);
     return Promise.resolve({ eventUrl, apiBase });
   },
 

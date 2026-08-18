@@ -14,6 +14,7 @@ import {
   normalizePycorePath,
 } from './pycoreEndpoints';
 import { PycoreStorageKeys as StorageKeys } from './PycoreStorageKeys';
+import { getApiRegionPrefix } from '../../contracts/DomainConfig';
 import { DEFAULT_FRONTEND_PORT } from '../../config/FrontendConfig';
 import { StorageManager } from '../../persistence';
 
@@ -21,6 +22,8 @@ export interface PycorePresetHost {
   host: string;
   label: string;
   hint?: string;
+  /** Full backend URL preset (relay scheme https entry); bare-host entries render to the direct :59000 form. */
+  url?: string;
 }
 
 const PRESET_HOSTS: PycorePresetHost[] = [
@@ -204,7 +207,30 @@ export function getPycoreTargetRecent(): string[] {
 }
 
 export function getPycoreTargetPresets(): PycorePresetHost[] {
-  return PRESET_HOSTS;
+  const relayPreset = relayBackendPreset();
+  return relayPreset ? [relayPreset, ...PRESET_HOSTS] : PRESET_HOSTS;
+}
+
+/**
+ * Contract-rendered HTTPS relay preset (PART_3 §3.6): on a domain-served
+ * HTTPS page the server-side relay entry is `https://api.<prefix>.<domain>`
+ * - prefix from the shell-written domain config (not hardcoded), domain
+ * from the page origin. Null on loopback/IP pages and plain-HTTP dev shells
+ * (no same-origin relay entry exists there).
+ */
+function relayBackendPreset(): PycorePresetHost | null {
+  if (typeof location === 'undefined' || location.protocol !== 'https:') return null;
+  const hostname = location.hostname.toLowerCase();
+  const labels = hostname.split('.');
+  if (labels.length < 2 || /^\d+\x2e?/.test(hostname) || hostname === 'localhost') return null;
+  const prefix = getApiRegionPrefix();
+  const relayHost = `api.${prefix}.${labels.slice(-2).join('.')}`;
+  return {
+    host: relayHost,
+    url: `https://${relayHost}`,
+    label: 'Relay (this server)',
+    hint: 'https relay scheme - rides the designated machine',
+  };
 }
 
 /** Legacy direct-host normalizer (preset entries stay bare hosts). */

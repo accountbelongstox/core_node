@@ -38,7 +38,7 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
   const remoteUrl = mode === 'remote' ? String(target.url || '') : '';
   const recent = getPycoreTargetRecent();
   const presets = getPycoreTargetPresets();
-  const presetHosts = new Set(presets.map((p) => p.host));
+  const presetHosts = new Set(presets.map((p) => p.url ?? `http://${p.host}:${PYCORE_HTTP_PORT}`));
   const recentShown = recent.filter((u) => !presetHosts.has(u));  // presets already cover these
   const localHost = localPycoreHost();        // page host - the "Local" target
   const connHint = pycoreLocalConnectionHint();
@@ -190,23 +190,34 @@ export const PcPycoreTargetSwitcher: React.FC<Props> = ({ variant = 'header' }) 
             <div className="space-y-1">
               <div className="text-[10px] font-mono uppercase tracking-wide text-slate-400 px-1">Quick connect</div>
               {presets.map((p) => {
-                const active = mode === 'remote' && remoteUrl === `http://${p.host}:${PYCORE_HTTP_PORT}`;
+                const active = p.url
+                  ? mode === 'remote' && remoteUrl === p.url
+                  : mode === 'remote' && remoteUrl === `http://${p.host}:${PYCORE_HTTP_PORT}`;
                 return (
                   <button
                     key={p.host}
-                    onClick={() => goRemote(p.host)}
+                    onClick={() => (p.url ? goUrl(p.url) : goRemote(p.host))}
                     title={p.hint ? `${p.label} (${p.hint})` : p.label}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border transition-all ${
                       active
-                        ? 'border-amber-500 bg-amber-500/5'
+                        ? p.url
+                          ? 'border-emerald-500 bg-emerald-500/5'
+                          : 'border-amber-500 bg-amber-500/5'
                         : 'border-slate-200 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5'
                     }`}
                   >
                     <span className="flex flex-col items-start text-slate-700 dark:text-slate-200">
-                      <span className="flex items-center gap-2 text-xs"><Globe className="w-4 h-4 text-sky-500" /> {p.label}</span>
-                      <span className="text-[10px] font-mono text-slate-400 pl-6">{p.host}:{PYCORE_HTTP_PORT}</span>
+                      <span className="flex items-center gap-2 text-xs">
+                        {p.url
+                          ? <Radio className="w-4 h-4 text-emerald-500" />
+                          : <Globe className="w-4 h-4 text-sky-500" />}
+                        {' '}{p.label}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400 pl-6">
+                        {p.url ?? `${p.host}:${PYCORE_HTTP_PORT}`}
+                      </span>
                     </span>
-                    {active && <Check className="w-4 h-4 text-amber-500" />}
+                    {active && <Check className={`w-4 h-4 ${p.url ? 'text-emerald-500' : 'text-amber-500'}`} />}
                   </button>
                 );
               })}
