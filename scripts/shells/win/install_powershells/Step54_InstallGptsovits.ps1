@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     GPT-SoVITS TTS prerequisite (free voice cloning), auto-run by PreparePycorePrerequisites.ps1
     (pyservice). Installs by default into a STAGING area under the code's data root

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Qwen3-TTS prerequisite (Alibaba qwen-tts) — ISOLATED venv, never the main interpreter.
 

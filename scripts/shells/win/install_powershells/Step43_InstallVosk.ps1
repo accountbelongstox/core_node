@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Thin delegator for offline Vosk STT (pip + model download).
 

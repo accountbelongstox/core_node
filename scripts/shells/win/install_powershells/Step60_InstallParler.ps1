@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Parler-TTS prerequisite (Hugging Face parler-tts).
 

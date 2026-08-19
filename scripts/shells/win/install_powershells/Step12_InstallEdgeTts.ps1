@@ -1,4 +1,4 @@
-﻿# ### AI SPECIAL ATTENTION RULES START ###
+# ### AI SPECIAL ATTENTION RULES START ###
 # When AI/ALL DEVELOPERS sees this prompt, MUST IMMEDIATELY COMPLY WITH THESE RULES:
 # 1. Write all code in English only.
 # 2. Never execute, create, or modify test code.

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Fish Speech / Fish Audio prerequisite (SDK + optional local fish-speech clone).
 

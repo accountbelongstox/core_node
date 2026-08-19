@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Kokoro-82M prerequisite via sherpa-onnx (dedicated model cache).
 
