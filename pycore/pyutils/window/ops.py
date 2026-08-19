@@ -13,6 +13,10 @@ from ctypes import windll, byref, c_int, c_uint, c_char_p, c_wchar_p, c_void_p, 
 
 # Use wintypes.POINT so user32 GetCursorPos/ScreenToClient match other libs (e.g. pyautogui) and avoid "expected LP_POINT instead of pointer to POINT"
 wintypes = ctypes.wintypes
+HWND = wintypes.HWND
+LPARAM = wintypes.LPARAM
+BOOL = wintypes.BOOL
+WNDENUMPROC = ctypes.WINFUNCTYPE(BOOL, HWND, LPARAM)
 POINT = wintypes.POINT
 
 from pycore.pyfoundations.third_party.api import get_third_package_win32gui, get_third_package_win32con, get_third_package_win32api
@@ -141,35 +145,37 @@ class WindowOps:
     
     def _setup_function_signatures(self):
         self.user32.FindWindowW.argtypes = [c_wchar_p, c_wchar_p]
-        self.user32.FindWindowW.restype = c_void_p
-        self.user32.GetWindowTextW.argtypes = [c_void_p, c_wchar_p, c_int]
+        self.user32.FindWindowW.restype = HWND
+        self.user32.GetWindowTextW.argtypes = [HWND, c_wchar_p, c_int]
         self.user32.GetWindowTextW.restype = c_int
-        self.user32.GetWindowTextLengthW.argtypes = [c_void_p]
+        self.user32.GetWindowTextLengthW.argtypes = [HWND]
         self.user32.GetWindowTextLengthW.restype = c_int
-        self.user32.ShowWindow.argtypes = [c_void_p, c_int]
-        self.user32.ShowWindow.restype = c_bool
-        self.user32.SetForegroundWindow.argtypes = [c_void_p]
-        self.user32.SetForegroundWindow.restype = c_bool
-        self.user32.BringWindowToTop.argtypes = [c_void_p]
-        self.user32.BringWindowToTop.restype = c_bool
-        self.user32.GetWindowLongW.argtypes = [c_void_p, c_int]
+        self.user32.ShowWindow.argtypes = [HWND, c_int]
+        self.user32.ShowWindow.restype = BOOL
+        self.user32.SetForegroundWindow.argtypes = [HWND]
+        self.user32.SetForegroundWindow.restype = BOOL
+        self.user32.BringWindowToTop.argtypes = [HWND]
+        self.user32.BringWindowToTop.restype = BOOL
+        self.user32.GetWindowLongW.argtypes = [HWND, c_int]
         self.user32.GetWindowLongW.restype = c_long
-        self.user32.PostMessageW.argtypes = [c_void_p, c_uint, c_void_p, c_void_p]
-        self.user32.PostMessageW.restype = c_bool
-        self.user32.EnumWindows.argtypes = [ctypes.WINFUNCTYPE(c_bool, c_void_p, c_void_p), c_void_p]
-        self.user32.EnumWindows.restype = c_bool
-        self.user32.GetWindowRect.argtypes = [c_void_p, POINTER(RECT)]
-        self.user32.GetWindowRect.restype = c_bool
-        self.user32.GetWindowThreadProcessId.argtypes = [c_void_p, POINTER(c_ulong)]
+        self.user32.PostMessageW.argtypes = [HWND, c_uint, c_void_p, c_void_p]
+        self.user32.PostMessageW.restype = BOOL
+        self.user32.EnumWindows.argtypes = [WNDENUMPROC, LPARAM]
+        self.user32.EnumWindows.restype = BOOL
+        self.user32.GetWindowRect.argtypes = [HWND, POINTER(RECT)]
+        self.user32.GetWindowRect.restype = BOOL
+        self.user32.GetWindowThreadProcessId.argtypes = [HWND, POINTER(c_ulong)]
         self.user32.GetWindowThreadProcessId.restype = c_ulong
-        self.user32.GetClassNameW.argtypes = [c_void_p, c_wchar_p, c_int]
+        self.user32.GetClassNameW.argtypes = [HWND, c_wchar_p, c_int]
         self.user32.GetClassNameW.restype = c_int
         self.user32.GetForegroundWindow.argtypes = []
         self.user32.GetForegroundWindow.restype = c_void_p
-        self.user32.IsIconic.argtypes = [c_void_p]
-        self.user32.IsIconic.restype = c_bool
+        self.user32.IsWindowVisible.argtypes = [HWND]
+        self.user32.IsWindowVisible.restype = BOOL
+        self.user32.IsIconic.argtypes = [HWND]
+        self.user32.IsIconic.restype = BOOL
         self.user32.SetWindowPos.argtypes = [
-            c_void_p,
+            HWND,
             c_void_p,
             c_int,
             c_int,
@@ -177,9 +183,9 @@ class WindowOps:
             c_int,
             c_uint,
         ]
-        self.user32.SetWindowPos.restype = c_bool
+        self.user32.SetWindowPos.restype = BOOL
         self.user32.SetCursorPos.argtypes = [c_int, c_int]
-        self.user32.SetCursorPos.restype = c_bool
+        self.user32.SetCursorPos.restype = BOOL
         self.user32.SendInput.argtypes = [
             c_uint,
             POINTER(NativeInput),
@@ -192,11 +198,11 @@ class WindowOps:
             c_void_p,
             c_uint,
         ]
-        self.user32.SystemParametersInfoW.restype = c_bool
+        self.user32.SystemParametersInfoW.restype = BOOL
         self.user32.GetCursorPos.argtypes = [POINTER(POINT)]
-        self.user32.GetCursorPos.restype = c_bool
-        self.user32.ScreenToClient.argtypes = [c_void_p, POINTER(POINT)]
-        self.user32.ScreenToClient.restype = c_bool
+        self.user32.GetCursorPos.restype = BOOL
+        self.user32.ScreenToClient.argtypes = [HWND, POINTER(POINT)]
+        self.user32.ScreenToClient.restype = BOOL
         self.kernel32.OpenProcess.argtypes = [c_ulong, c_bool, c_ulong]
         self.kernel32.OpenProcess.restype = c_void_p
         self.kernel32.QueryFullProcessImageNameW.argtypes = [
@@ -205,9 +211,9 @@ class WindowOps:
             c_wchar_p,
             POINTER(c_ulong),
         ]
-        self.kernel32.QueryFullProcessImageNameW.restype = c_bool
+        self.kernel32.QueryFullProcessImageNameW.restype = BOOL
         self.kernel32.CloseHandle.argtypes = [c_void_p]
-        self.kernel32.CloseHandle.restype = c_bool
+        self.kernel32.CloseHandle.restype = BOOL
     
     def find_window(self, class_name: Optional[str] = None, window_title: Optional[str] = None) -> Optional[int]:
         try:
@@ -534,7 +540,7 @@ class WindowOps:
             return True
         
         try:
-            enum_func = ctypes.WINFUNCTYPE(c_bool, c_void_p, c_void_p)(enum_proc)
+            enum_func = WNDENUMPROC(enum_proc)
             self.user32.EnumWindows(enum_func, 0)
             return windows
         except OSError:
