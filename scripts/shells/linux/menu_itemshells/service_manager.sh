@@ -78,14 +78,17 @@ SERVICE_INSTALL_SCRIPT["pycore"]="189_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
 
 SERVICE_NAME["laravel"]="Laravel Octane"
-# Canonical unit registered by poly_apps/laravel_main/scripts/start.sh (--service).
+# Canonical units registered by 175_laravel_main_start.sh --service.
+# Plane-aware: frankenphp -> ncore-laravel-frankenphp, nginx -> ncore-laravel-nginx.
+# Legacy ncore-laravel-main (pre-plane) is also recognized.
 SERVICE_SYSTEMD["laravel"]="ncore-laravel-main"
-# Install/reinstall is special-cased to run start.sh --service (see reinstall_service).
+# Install/reinstall is special-cased to run 175_laravel_main_start.sh (see reinstall_service).
 SERVICE_INSTALL_SCRIPT["laravel"]="134_setup_api_domains.sh"
 SERVICE_MANAGER_SCRIPT["laravel"]="$SERVER_MANAGER_DIR/laravel_octane_manager.sh"
-# Laravel service grep pattern: canonical (ncore-laravel-main, from start.sh) +
-# legacy app_manager (app-manager-laravel*) + legacy octane-* multi-domain units.
-LARAVEL_SERVICE_PATTERN="ncore-laravel-main\|app-manager-laravel\|octane-.*"
+# Laravel service grep pattern: plane-aware (ncore-laravel-frankenphp, ncore-laravel-nginx) +
+# canonical (ncore-laravel-main) + legacy app_manager (app-manager-laravel*) +
+# legacy octane-* multi-domain units.
+LARAVEL_SERVICE_PATTERN="ncore-laravel\|app-manager-laravel\|octane-.*"
 
 SERVICE_NAME["unified_apps"]="Unified Apps"
 SERVICE_SYSTEMD["unified_apps"]=""

@@ -133,17 +133,28 @@ OCTANE_RUNTIME_WATCH="0"
 OCTANE_RUNTIME_POLL="0"
 
 # Background systemd service options (idempotent registration via debian_service_manager).
-# AS_SERVICE: yes|no|empty(ask). LARAVEL_SERVICE_RUN=1 marks the in-service run so it
-# skips registration and runs the full setup + Octane in the foreground.
+# AS_SERVICE: yes|no|empty(ask). The service exec is a plane-specific runtime
+# launcher (175_laravel_main_service_{frankenphp,nginx}.sh) that skips ALL init
+# (domain setup, certs, installers) and only runs minimal convergence + octane.
+# 175 init is the ONE-TIME setup; the service is "just start octane".
+# LARAVEL_SERVICE_RUN=1 is no longer needed (the service launcher is init-free).
 AS_SERVICE="${AS_SERVICE:-}"
-LARAVEL_SERVICE_NAME="ncore-laravel-main"
-LARAVEL_SERVICE_DESC="laravel_main backend (Octane)"
+LARAVEL_SERVICE_NAME_BASE="ncore-laravel"
+LARAVEL_SERVICE_DESC_FRANKENPHP="laravel_main backend (octane:frankenphp, h2/h3)"
+LARAVEL_SERVICE_DESC_NGINX="laravel_main backend (octane:swoole, nginx proxy)"
 LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
 LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
 LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
 SERVICE_MANAGER="${COMMON_DIR}/debian_service_manager.sh"
 SELF="${SCRIPT_CURRENT_DIR}/175_laravel_main_start.sh"
+SERVICE_FRANKENPHP_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_frankenphp.sh"
+SERVICE_NGINX_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_nginx.sh"
 SERVICE_EXEC_CMD=""
+LARAVEL_SERVICE_PLANE=""
+LARAVEL_SERVICE_PLANE_NAME=""
+LARAVEL_SERVICE_PLANE_LAUNCHER=""
+_opposite_service=""
+_old_service=""
 ARG=""
 HELP_REQUESTED="no"
 SHOW_SUPER_CODE="no"
@@ -640,19 +651,50 @@ systemd_available() {
     [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
 }
 
+# Resolve the plane-specific service name, description, and launcher script
+# from the CURRENT web-server plane. The service is always plane-aware:
+#   frankenphp -> ncore-laravel-frankenphp  (175SF launcher)
+#   nginx       -> ncore-laravel-nginx       (175SN launcher)
+# A plane-neutral "ncore-laravel-main" alias is NOT created (the service
+# manager's grep patterns recognize both plane names).
+_resolve_laravel_service_plane() {
+    LARAVEL_SERVICE_PLANE="$(web_server_plane)"
+    case "$LARAVEL_SERVICE_PLANE" in
+        frankenphp)
+            LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-frankenphp"
+            LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_FRANKENPHP"
+            LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_FRANKENPHP_LAUNCHER"
+            ;;
+        nginx)
+            LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-nginx"
+            LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_NGINX"
+            LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_NGINX_LAUNCHER"
+            ;;
+        *)
+            LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-main"
+            LARAVEL_SERVICE_PLANE_DESC="laravel_main backend (Octane)"
+            LARAVEL_SERVICE_PLANE_LAUNCHER="$SELF"
+            ;;
+    esac
+}
+
 # Register (or refresh) the laravel_main systemd service via debian_service_manager.
+# The ExecStart is a plane-specific runtime launcher (175SF/175SN) that does
+# minimal convergence + octane — NO init, NO domain setup, NO installers.
+# Default: hot-reload (OCTANE_WATCH=1).
 register_laravel_service() {
     local exec_cmd="$1"
     if [ ! -f "$SERVICE_MANAGER" ]; then echo "ERROR: debian_service_manager not found: $SERVICE_MANAGER"; return 1; fi
+    if [ ! -f "$LARAVEL_SERVICE_PLANE_LAUNCHER" ]; then echo "ERROR: service launcher missing: $LARAVEL_SERVICE_PLANE_LAUNCHER"; return 1; fi
     if [ "$(id -u)" -eq 0 ]; then
         (
             # shellcheck disable=SC1090
             source "$SERVICE_MANAGER"
-            create_systemd_service "$LARAVEL_SERVICE_NAME" "$LARAVEL_SERVICE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
         ) || return 1
-        systemctl enable "$LARAVEL_SERVICE_NAME" >/dev/null 2>&1 || true
-        systemctl restart "$LARAVEL_SERVICE_NAME" || return 1
-        systemctl status "$LARAVEL_SERVICE_NAME" --no-pager -l || true
+        systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1 || true
+        systemctl restart "$LARAVEL_SERVICE_PLANE_NAME" || return 1
+        systemctl status "$LARAVEL_SERVICE_PLANE_NAME" --no-pager -l || true
         return 0
     fi
     if command -v sudo >/dev/null 2>&1; then
@@ -662,7 +704,7 @@ register_laravel_service() {
             systemctl enable "$2" >/dev/null 2>&1 || true
             systemctl restart "$2"
             systemctl status "$2" --no-pager -l || true
-        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_NAME" "$LARAVEL_SERVICE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
         return $?
     fi
     echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
@@ -1115,40 +1157,68 @@ ensure_port_free "$PORT" "$PHP_BIN" || echo "  Continuing; the runtime may fail 
 ensure_schedule_work_stopped
 
 # --- Optional background service registration (AFTER the full prerequisite setup) ---
-if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
-    if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
-        echo ""
-        if is_wsl; then
-            echo "Background systemd service unavailable: this WSL distro was not booted with systemd."
-            echo "    (systemctl would fail with 'System has not been booted with systemd as init system'.)"
-            echo "    To enable it (optional): add the following to /etc/wsl.conf, then run 'wsl --shutdown'"
-            echo "    from Windows PowerShell and reopen the distro:"
-            echo "        [boot]"
-            echo "        systemd=true"
-            echo "    For now, laravel_main will run in the FOREGROUND in this terminal (Ctrl+C to stop)."
-        else
-            echo "Background systemd service unavailable: systemd is not the active init (no /run/systemd/system)."
-            echo "    Running under a non-systemd init/container -> laravel_main will run in the FOREGROUND (Ctrl+C to stop)."
-        fi
-        echo ""
+# The service ExecStart is a plane-specific runtime launcher that does only
+# minimal convergence + octane (NO init, NO domain setup, NO installers).
+# 175 init is the ONE-TIME setup; the service is "just start octane".
+if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
+    echo ""
+    if is_wsl; then
+        echo "Background systemd service unavailable: this WSL distro was not booted with systemd."
+        echo "    (systemctl would fail with 'System has not been booted with systemd as init system'.)"
+        echo "    To enable it (optional): add the following to /etc/wsl.conf, then run 'wsl --shutdown'"
+        echo "    from Windows PowerShell and reopen the distro:"
+        echo "        [boot]"
+        echo "        systemd=true"
+        echo "    For now, laravel_main will run in the FOREGROUND in this terminal (Ctrl+C to stop)."
+    else
+        echo "Background systemd service unavailable: systemd is not the active init (no /run/systemd/system)."
+        echo "    Running under a non-systemd init/container -> laravel_main will run in the FOREGROUND (Ctrl+C to stop)."
+    fi
+    echo ""
+    AS_SERVICE="no"
+fi
+if [ -z "$AS_SERVICE" ]; then
+    _resolve_laravel_service_plane
+    if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (${LARAVEL_SERVICE_PLANE_NAME}, via debian_service_manager)?"; then
+        AS_SERVICE="yes"
+    else
         AS_SERVICE="no"
     fi
-    if [ -z "$AS_SERVICE" ]; then
-        if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (via debian_service_manager)?"; then
-            AS_SERVICE="yes"
-        else
-            AS_SERVICE="no"
+fi
+if [ "$AS_SERVICE" = "yes" ]; then
+    [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
+    _resolve_laravel_service_plane
+    echo "Registering systemd service $LARAVEL_SERVICE_PLANE_NAME (plane=$LARAVEL_SERVICE_PLANE, CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
+    echo "  ExecStart: $LARAVEL_SERVICE_PLANE_LAUNCHER (runtime-only, init-free, hot-reload default)"
+
+    # Idempotent opposite-plane cleanup: remove the OTHER plane's service when
+    # registering this one (frankenphp <-> nginx, legacy main). File-state
+    # driven: no-op when the unit does not exist.
+    _opposite_service=""
+    case "$LARAVEL_SERVICE_PLANE" in
+        frankenphp) _opposite_service="${LARAVEL_SERVICE_NAME_BASE}-nginx" ;;
+        nginx)      _opposite_service="${LARAVEL_SERVICE_NAME_BASE}-frankenphp" ;;
+        *)          _opposite_service="" ;;
+    esac
+    for _old_service in "$_opposite_service" "${LARAVEL_SERVICE_NAME_BASE}-main"; do
+        [ -n "$_old_service" ] || continue
+        if [ -f "/etc/systemd/system/${_old_service}.service" ]; then
+            echo "  Removing opposite-plane service: $_old_service"
+            systemctl stop "$_old_service" 2>/dev/null || true
+            systemctl disable "$_old_service" 2>/dev/null || true
+            rm -f "/etc/systemd/system/${_old_service}.service"
         fi
-    fi
-    if [ "$AS_SERVICE" = "yes" ]; then
-        [ -n "$LARAVEL_SERVICE_MEM" ] || LARAVEL_SERVICE_MEM="$(compute_mem_limit "$LARAVEL_SERVICE_MEM_CAP_MB")"
-        echo "Registering systemd service $LARAVEL_SERVICE_NAME (CPU=$LARAVEL_SERVICE_CPU, Memory=$LARAVEL_SERVICE_MEM, cap ${LARAVEL_SERVICE_MEM_CAP_MB}M)..."
-        SERVICE_EXEC_CMD="LARAVEL_SERVICE_RUN=1 PORT=${PORT} bash ${SELF}"
-        if register_laravel_service "$SERVICE_EXEC_CMD"; then
-            echo "Service $LARAVEL_SERVICE_NAME registered and started."
-            echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_NAME"
-            echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_NAME"
-            echo "  Logs:    journalctl -u $LARAVEL_SERVICE_NAME -f"
+    done
+    systemctl daemon-reload 2>/dev/null || true
+
+    # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
+    # TASK_WORKERS are NOT passed - the launcher defaults (4/2) apply.
+    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
+    if register_laravel_service "$SERVICE_EXEC_CMD"; then
+        echo "Service $LARAVEL_SERVICE_PLANE_NAME registered and started."
+        echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"
+        echo "  Boot:    systemctl is-enabled $LARAVEL_SERVICE_PLANE_NAME"
+        echo "  Logs:    journalctl -u $LARAVEL_SERVICE_PLANE_NAME -f"
 
             # --- Optional: also bring the nexus-dash UI up as its own background service ---
             if [ -z "$INCLUDE_UI" ]; then
@@ -1179,7 +1249,6 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
             echo "Service registration failed; continuing in the foreground."
         fi
     fi
-fi
 
 # --- Start runtime ---
 # Plane dispatch (php_runtime_plane, octane_service_manager.sh): the
