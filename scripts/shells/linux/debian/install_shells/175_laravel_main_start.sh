@@ -10,33 +10,37 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Canonical laravel_main start script (Debian/Ubuntu/WSL). This is the single
-# entry point merged from poly_apps/laravel_main/scripts/start.sh plus the old
-# 132_prepare_domain_setup.sh / 133_setup_domain_ssl.sh pair (both deleted -
-# no thin wrappers; the menu runs this file directly):
-#   - full toolchain ensure (php / composer / node / swoole / p7zip / postgres)
+# Canonical laravel_main start script (Debian/Ubuntu/WSL) - the ORCHESTRATOR.
+# Single entry point merged from poly_apps/laravel_main/scripts/start.sh plus
+# the old 132_prepare_domain_setup.sh / 133_setup_domain_ssl.sh pair (both
+# deleted - no thin wrappers; the menu runs this file directly):
+#   - full toolchain ensure (php / composer / node / swoole [nginx plane] /
+#     p7zip / postgres)
 #   - vendor/ integrity ensure driven by the shared composer-lock contract
 #     (common/composer_vendor_common.sh): install / repair / rebuild from
 #     composer.lock, verified by a clean autoloader load
 #   - SSH server ensure (via 23_setup_ssh_remote.sh, itself idempotent)
-#   - nginx ensure driven by the shared management architecture
-#     (common/nginx_manager.sh): install / in-place upgrade / idempotent
-#     repair / per-file HTTP/3 + 301 + early-data stanza migration
-#   - certbot ensure (via 35_install_certbot.sh) + certificate auto-renewal
-#   - domain install from decrypted DNSPod secrets: api.<region>.<domain>
-#     sites rendered natively with HTTP/3, reverse-proxied to the canonical
-#     API backend (service contract ports.laravel_api_backend on loopback)
-#     with plain HTTP on :80 proxying DIRECTLY
-#     (no 301 - works even while the cloud security group blocks 443); apex
-#     domains keep the 301 -> https pair. The region prefix (si/sh/sz/hk or
-#     custom) is persisted in the file-backed global-var store, so later
-#     runs only ask whether to modify it
+#   - per-plane phases dispatched to the debian_com sub-scripts (all
+#     constants and components are shared: web_server_plane /
+#     php_runtime_plane, service contract ports, domain_setup_common,
+#     nginx_manager, cert_selfheal_common, frankenphp_manager - nothing
+#     plane- or path-specific is redefined here):
+#       domains phase : 175_laravel_main_start_nginx.sh domains
+#                       (nginx_manager ensure + certbot + DNSPod domain
+#                       sites and certificates)
+#                     | 175_laravel_main_start_frankenphp.sh domains
+#                       (DNSPod secrets + region prefix + token mirror +
+#                       DNS-01 readiness; nginx/certbot never touched)
+#       runtime phase : 175_laravel_main_start_nginx.sh runtime
+#                       (Octane swoole, node / php-serve fallbacks)
+#                     | 175_laravel_main_start_frankenphp.sh runtime
+#                       (plane stack convergence -> octane:frankenphp)
 # poly_apps/laravel_main/scripts/start.sh delegates here; every phase is
 # independently idempotent and safe to re-run.
 #
-# SYNC CONTRACT: nginx behavior here is the shell end of the contract declared
-# in common/nginx_manager.sh; the Laravel end is ServerManagerV1 under
-# poly_apps/laravel_main. Change both ends together.
+# SYNC CONTRACT: nginx behavior lives in the nginx plane branch; the shell
+# end of the contract is common/nginx_manager.sh, the Laravel end is
+# ServerManagerV1 under poly_apps/laravel_main. Change both ends together.
 
 # --- All variables and file references (declared at top) ---
 ORIGINAL_DIR=$(pwd)
@@ -58,31 +62,30 @@ CORE_NODE_DIR="${CORE_NODE_DIR:-$REPO_ROOT}"
 PORT="${PORT:-}"
 LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_frankenphp.sh"
 LARAVEL_RUNTIME_NGINX_SCRIPT="${DEBIAN_COM_DIR}/laravel_runtime_nginx.sh"
+LARAVEL_START_FRANKENPHP_SUB="${DEBIAN_COM_DIR}/175_laravel_main_start_frankenphp.sh"
+LARAVEL_START_NGINX_SUB="${DEBIAN_COM_DIR}/175_laravel_main_start_nginx.sh"
 RUNTIME_CONFIG_COMMON="${COMMON_DIR}/runtime_config_common.sh"
 LARAVEL_13_UPGRADE_SCRIPT="${DEBIAN_COM_DIR}/laravel_upgrade_13.sh"
 DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
-NGINX_MANAGER_SCRIPT="${COMMON_DIR}/nginx_manager.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
 
 # Canonical init-ensure installer scripts
-PHP_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/43_ensure_php85_intelligent.sh"
+PHP_ENSURE_SCRIPT=""
+PHP_ENSURE_SCRIPT_FRANKENPHP="${INSTALL_SHELLS_DIR}/93_install_frankenphp.sh"
+PHP_ENSURE_SCRIPT_SYSTEM=""
 COMPOSER_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/94_install_composer.sh"
-NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_24.sh"
-SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/33_install_swoole.sh"
+NODE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/17_install_node_toolchain_24.sh"
+SWOOLE_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/53_install_swoole.sh"
 P7ZIP_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/69_install_p7zip.sh"
 POSTGRES_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/75_install_postgresql.sh"
 PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
-NGINX_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/33_install_nginx.sh"
-CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/35_install_certbot.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
-CERT_SELFHEAL_COMMON="${COMMON_DIR}/cert_selfheal_common.sh"
 OCTANE_SERVICE_MANAGER_SCRIPT="${COMMON_DIR}/octane_service_manager.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
-SECRETS_DIR="${REPO_ROOT}/.secret_keys/.secret_ignore"
 
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
 # $polyConnection(... , pgDatabase) targets). Created idempotently before migrate.
@@ -167,10 +170,10 @@ init_global_vars >/dev/null 2>&1 || true
 FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 
 # domain_setup_common pulls in the canonical file_ops_common.sh writer
-# (write_file_if_changed + lazy_sudo); source it before cert_selfheal_common.
+# (write_file_if_changed + lazy_sudo) and stays sourced here: the UI domain
+# binding (service-registration branch) renders through it.
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
-. "$CERT_SELFHEAL_COMMON"
 source "$OCTANE_SERVICE_MANAGER_SCRIPT"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 
@@ -205,8 +208,8 @@ print_usage() {
     echo "  --no-service        Run without registering the background service."
     echo "  --with-ui           Include the dashboard background service."
     echo "  --no-ui             Do not include the dashboard background service."
-    echo "  --domains-only      Run prerequisites + domain/SSL/nginx setup, no runtime start."
-    echo "  --ssl-only          Run prerequisites + SSL certificates only, no runtime start."
+    echo "  --domains-only      Run prerequisites + the plane's domain/web phase, no runtime start."
+    echo "  --ssl-only          Run prerequisites + certificates only, no runtime start."
     echo "  --no-domains        Skip the domain/SSL/nginx phases entirely."
     echo "  --skip-ssh          Skip the SSH server ensure phase."
 }
@@ -466,7 +469,7 @@ resolve_npx() {
         NPX_BIN="$(command -v npx)"
         return 0
     fi
-    # 17_install_node_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
+    # 17_install_node_toolchain_24.sh symlinks into /usr/local/bin; also probe nvm-style dirs.
     for NPX_CANDIDATE in "/usr/local/bin/npx" "/usr/bin/npx" "$HOME/.local/bin/npx"; do
         if [ -x "$NPX_CANDIDATE" ]; then
             NPX_BIN="$NPX_CANDIDATE"
@@ -688,155 +691,6 @@ ensure_ssh_server() {
     return 0
 }
 
-# Ensure nginx with HTTP/3 + 301 + early-data support, driven by the shared
-# management architecture (common/nginx_manager.sh). Fine-grained idempotent:
-# missing -> canonical installer; outdated -> upgrade prompt (in-place, sites
-# preserved); broken config -> repair prompt; healthy -> silent repair sweep
-# plus the per-file HTTP/3 stanza migration.
-ensure_nginx_stack() {
-    local current_version=""
-
-    # shellcheck source=/dev/null
-    source "$NGINX_MANAGER_SCRIPT"
-
-    # Edge-port guard (80/TCP, 443/TCP, 443/UDP for QUIC): stop foreign
-    # occupiers (e.g. hysteria on UDP/443) and offer their uninstall (y/N,
-    # default No) BEFORE any install/upgrade/repair below - every reload or
-    # restart downstream can only take effect when nginx can actually bind.
-    # Self-detecting: no-op when the ports are free; nginx's own sockets are
-    # never touched.
-    nm_edge_ports_ensure
-
-    current_version=$(nginx_get_version)
-    if [ -z "$current_version" ]; then
-        echo "nginx not found. Setting START_WEB_SERVER=nginx and invoking the canonical installer:"
-        echo "  $NGINX_INSTALL_SCRIPT"
-        persist_global_var_file_value "START_WEB_SERVER" "nginx"
-        if [ -f "$NGINX_INSTALL_SCRIPT" ]; then
-            bash "$NGINX_INSTALL_SCRIPT" || echo "  Warning: nginx installer reported failure (continuing)."
-        else
-            echo "  *** ACTION REQUIRED: nginx installer missing: $NGINX_INSTALL_SCRIPT"
-        fi
-        return 0
-    fi
-
-    echo "nginx present: nginx/$current_version (HTTP/3: $(nginx_has_http3 && echo yes || echo no))"
-
-    # Binary/link unification is self-detecting (every alias check no-ops when
-    # correct); run it every time so link drift (loops, dangling aliases) is
-    # repaired on every start.
-    nginx_unify_binaries || echo "  Warning: nginx binary unify reported issues (continuing)."
-
-    if ! nginx_version_ge "$current_version" "$NGINX_MAINLINE_VERSION"; then
-        echo "  nginx $current_version is older than the reference mainline $NGINX_MAINLINE_VERSION."
-        if ask_default_yes "  Upgrade nginx to the official mainline build? Sites and certificates are preserved and repaired idempotently."; then
-            nm_install_or_upgrade || echo "  Warning: nginx upgrade reported failure (continuing)."
-            nm_http3_migrate || true
-            nginx_repair_sites || echo "  Warning: post-upgrade repair reported issues (continuing)."
-            return 0
-        fi
-    fi
-
-    if ! $USE_SUDO nginx -t -c "$NGINX_MAIN_CONF" >/dev/null 2>&1; then
-        echo "  nginx configuration test FAILED."
-        if ask_default_yes "  Run the idempotent site repair now (quarantines broken managed sites, reloads on success)?"; then
-            nginx_repair_sites || bash "$NGINX_INSTALL_SCRIPT" || echo "  Warning: nginx repair reported failure (continuing)."
-        fi
-    else
-        # Healthy config: guarantee the main conf includes the mapped
-        # sites-enabled (content-hash idempotent, no-op when current), an
-        # explicit default_server exists (without one, the first site file
-        # silently becomes the default and answers every unmatched host),
-        # then the fine-grained repair sweep and the HTTP/3 stanza migration.
-        nm_main_config
-        nm_default_vhost
-        nginx_repair_sites || echo "  Warning: site repair sweep reported issues (continuing)."
-        nm_http3_migrate || echo "  Warning: HTTP/3 migration sweep reported issues (continuing)."
-    fi
-
-    # Service state ensure (fine-grained idempotent): a configured but
-    # STOPPED nginx serves nothing - the repair/reload paths above never
-    # start it ("service not active, reload skipped"). nm_service_state
-    # self-gates on nginx -t and is effect-idempotent when already active
-    # (systemctl enable/start on a running unit is a no-op).
-    nm_service_state "start" || echo "  Warning: nginx service start reported issues (continuing)."
-    nginx_serve_truth_report
-    return 0
-}
-
-# Ensure certbot tooling when domain setup is in scope (27 self-skips without nginx).
-# Ensure certbot tooling when domain setup is in scope. Detection is
-# file-based and flavor-aware: /usr/local/bin/certbot must resolve INTO the
-# pipx venv (35_install_certbot.sh owns that link). A stale real file (old
-# system-pip/apt console script at the same path) passes a bare -x check but
-# is NOT the managed install -> invoke the canonical installer to re-link.
-ensure_certbot_stack() {
-    local certbot_resolved=""
-    certbot_resolved="$(readlink -f /usr/local/bin/certbot 2>/dev/null || true)"
-    if [ -n "$certbot_resolved" ] && [ -x "$certbot_resolved" ]; then
-        case "$certbot_resolved" in
-            *"/venvs/certbot/bin/certbot")
-                # The venv must also carry the WORKING DNSPod authenticator
-                # (the zope-era dns-dnspod plugin cannot load on modern
-                # certbot). Functional probe: plugins listing.
-                if /usr/local/bin/certbot plugins 2>/dev/null | grep -q "certbot-dnspod"; then
-                    echo "certbot present: $(/usr/local/bin/certbot --version 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-                    return 0
-                fi
-                echo "certbot venv lacks the working certbot-dnspod plugin. Re-provisioning via the canonical installer:"
-                echo "  $CERTBOT_INSTALL_SCRIPT"
-                if [ -f "$CERTBOT_INSTALL_SCRIPT" ]; then
-                    bash "$CERTBOT_INSTALL_SCRIPT" || echo "  Warning: certbot installer reported failure (continuing)."
-                fi
-                return 0
-                ;;
-        esac
-    fi
-    if [ -e /usr/local/bin/certbot ]; then
-        echo "certbot at /usr/local/bin/certbot is stale (not the pipx-isolated venv build). Re-linking via the canonical installer:"
-    else
-        echo "certbot not found. Invoking the canonical installer:"
-    fi
-    echo "  $CERTBOT_INSTALL_SCRIPT"
-    if [ -f "$CERTBOT_INSTALL_SCRIPT" ]; then
-        bash "$CERTBOT_INSTALL_SCRIPT" || echo "  Warning: certbot installer reported failure (continuing)."
-    else
-        echo "  Warning: certbot installer missing: $CERTBOT_INSTALL_SCRIPT"
-    fi
-    return 0
-}
-
-# Domain install from decrypted DNSPod secrets: api.<region>.<domain> nginx
-# sites (HTTP/3 + 301) plus idempotent certificate issuance. The region prefix
-# is stored in the global-var store; re-runs only ask whether to modify it.
-run_domain_setup_phase() {
-    if [ ! -d "$SECRETS_DIR" ]; then
-        echo "Domain setup skipped: secrets not decrypted ($SECRETS_DIR missing; run dd.sh first)."
-        return 0
-    fi
-    if [ "$(id -u)" -ne 0 ] && ! sudo -n true 2>/dev/null; then
-        echo "Domain setup needs root privileges; re-run when convenient:"
-        echo "  sudo bash $SELF --domains-only"
-        return 0
-    fi
-    # shellcheck source=/dev/null
-    # (domain_setup_common already sourced at file top; it provides the
-    # canonical file_ops_common.sh writer)
-    if [ "$DOMAIN_SCOPE" = "certs" ]; then
-        domain_setup_certificates_only "$LARAVEL_DIR" || echo "  Warning: certificate phase reported issues (continuing)."
-    else
-        domain_setup_install_all "http://127.0.0.1:$PORT" "$LARAVEL_DIR" || echo "  Warning: domain phase reported issues (continuing)."
-    fi
-    # Certificate self-heal (independent fine-grained steps): deploy hooks that
-    # reload nginx only after an actual renewal, the twice-daily renewal timer,
-    # and a startup renewal pass (certbot renews only near-expiry certificates;
-    # the artisan end reconciles stale renewal configs first).
-    cert_selfheal_run_once "$LARAVEL_DIR" || echo "  Warning: certificate self-heal reported issues (continuing)."
-    # Detail: what is actually serving now (binary, master, includes, sites).
-    nginx_serve_truth_report
-    return 0
-}
-
 # --show-super-code runs HERE: it needs resolve_php + runtime_config_get,
 # which are defined in the function section above. Cleanup trap is skipped
 # for this read-only query.
@@ -871,16 +725,25 @@ cd "$LARAVEL_DIR" || exit 1
 GENERATED_ACCESS_CODE="$(new_installation_access_code)"
 
 if ! resolve_php; then
+    # Plane-aware init-ensure: the frankenphp plane provisions php through
+    # the frankenphp pipeline (php-cli shims ship with the binary); the
+    # nginx plane has no canonical system-PHP installer -> apt hint.
+    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_FRANKENPHP"
+    else
+        PHP_ENSURE_SCRIPT="$PHP_ENSURE_SCRIPT_SYSTEM"
+    fi
     echo "php not found. Invoking init-ensure installer:"
     echo "  $PHP_ENSURE_SCRIPT"
-    if [ -f "$PHP_ENSURE_SCRIPT" ]; then
+    if [ -n "$PHP_ENSURE_SCRIPT" ] && [ -f "$PHP_ENSURE_SCRIPT" ]; then
         bash "$PHP_ENSURE_SCRIPT" || true
         if ! resolve_php; then
             echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_ENSURE_SCRIPT)"
             exit 1
         fi
     else
-        echo "ERROR: php not found and installer missing: $PHP_ENSURE_SCRIPT"
+        echo "ERROR: php not found and no canonical system-PHP installer on this plane"
         echo "  Manual (Debian/Ubuntu/WSL): sudo apt update && sudo apt install -y php-cli php-xml php-mbstring php-sqlite3"
         exit 1
     fi
@@ -1080,8 +943,12 @@ echo "Listing routes..."
 # Runtime credentials must never be serialized into Laravel's configuration cache.
 "$PHP_BIN" artisan config:clear >/dev/null 2>&1 || true
 
-# --- Ensure Swoole (Octane is the PREFERRED task-system tick source on Linux/WSL) ---
-if "$PHP_BIN" -m 2>/dev/null | grep -qi '^swoole$'; then
+# --- Ensure Swoole (nginx plane ONLY: the Octane swoole driver; the
+# frankenphp plane embeds its app server in the static binary - Swoole is
+# never probed, installed or required there) ---
+if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+    echo "frankenphp plane -> Swoole not required (octane:frankenphp embeds the app server)."
+elif "$PHP_BIN" -m 2>/dev/null | grep -qi '^swoole$'; then
     OCTANE_AVAILABLE=1
     echo "Swoole extension present -> Octane runtime available."
 else
@@ -1157,16 +1024,23 @@ if ! "$PHP_BIN" artisan sys:init; then
     exit 1
 fi
 
-# --- nginx / certbot / domain phases (merged 132_prepare_domain_setup +
-# 133_setup_domain_ssl): idempotent, prompt-driven repair and upgrade ---
+# --- Plane-specific web/domain phases (merged 132_prepare_domain_setup +
+# 133_setup_domain_ssl behaviour): dispatched per plane, idempotent and
+# prompt-driven repair/upgrade on the nginx plane; DNS-01 readiness (no
+# nginx, no certbot - Caddy ACME owns TLS) on the frankenphp plane ---
 if [ "$DOMAIN_SCOPE" != "none" ]; then
     echo ""
-    echo "Ensuring nginx (HTTP/3 + 301 + early data, idempotent repair/upgrade)..."
-    ensure_nginx_stack
-    echo "Ensuring certbot tooling..."
-    ensure_certbot_stack
-    echo "Installing domains from decrypted DNSPod secrets (api.<region>.<domain>)..."
-    run_domain_setup_phase
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        echo "Converging frankenphp plane domains (DNSPod secrets + DNS-01 readiness; nginx/certbot skipped)..."
+        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+            DOMAIN_SCOPE="$DOMAIN_SCOPE" \
+            /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" domains
+    else
+        echo "Converging nginx plane domains (nginx + certbot + DNSPod sites)..."
+        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+            DOMAIN_SCOPE="$DOMAIN_SCOPE" \
+            /bin/bash "$LARAVEL_START_NGINX_SUB" domains
+    fi
 fi
 
 if [ "$RUNTIME_START" != "yes" ]; then
@@ -1292,7 +1166,7 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
                     # www.<prefix>.<domain> reverse-proxy to the UI backend
                     # (certificates reused; each site is content-hash
                     # idempotent; the stored region prefix is reused).
-                    if ask_default_yes "Bind <domain>, www.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
+                    if [ "$CURRENT_WEB_SERVER_PLANE" != "frankenphp" ] && ask_default_yes "Bind <domain>, www.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
                         domain_setup_enable_ui_binding || echo "  Warning: UI domain binding reported issues (continuing)."
                     fi
                 else
@@ -1308,41 +1182,23 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
 fi
 
 # --- Start runtime ---
-# Plane dispatch (php_runtime_plane, octane_service_manager.sh): frankenphp plane runs
-# the single octane:frankenphp branch (HTTPS 443/h3 + Mercure hub); the
-# nginx plane keeps the system-PHP Swoole branch on the loopback backend.
-# FALLBACK (nginx plane, Swoole unavailable): node 'composer dev:win' or a
-# node-free serve + queue:listen + schedule:work. In every mode
-# OctaneTimerServiceProvider drives the SAME TimerTasks/* through a single,
-# never duplicated tick source.
-if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ] && [ -n "$OCTANE_AVAILABLE" ]; then
-    # Site host = first configured api.<region>.<domain>; the Mercure trusted
-    # issuer (token `iss`) mirrors the same value through the runtime branch.
-    FRANKENPHP_SITE_HOST="localhost"
-    if [ "$DOMAIN_SCOPE" != "none" ] && [ -n "${DOMAIN_API_PREFIX:-}" ] && [ -n "${DOMAIN_DOMAINS_LIST:-}" ]; then
-        FRANKENPHP_FIRST_DOMAIN="$(printf '%s\n' "$DOMAIN_DOMAINS_LIST" | head -n1)"
-        if [ -n "$FRANKENPHP_FIRST_DOMAIN" ]; then
-            FRANKENPHP_SITE_HOST="api.${DOMAIN_API_PREFIX}.${FRANKENPHP_FIRST_DOMAIN}"
-        fi
-    fi
-    echo "Starting headless API runtime (frankenphp plane -> octane:frankenphp on :$(sc_get ports.frankenphp_https) h2/h3, Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
+# Plane dispatch (php_runtime_plane, octane_service_manager.sh): the
+# frankenphp plane runs the single octane:frankenphp branch (HTTPS 443/h3 +
+# Mercure hub, NO Swoole - the app server is embedded in the binary); the
+# nginx plane keeps the system-PHP Swoole branch on the loopback backend
+# (node 'composer dev:win' / node-free serve fallbacks when Swoole is
+# unavailable). In every mode OctaneTimerServiceProvider drives the SAME
+# TimerTasks/* through a single, never duplicated tick source.
+if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
     PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
-        FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \
-        OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
-        /bin/bash "$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT"
-elif [ -n "$OCTANE_AVAILABLE" ]; then
-    echo "Starting headless API runtime (nginx plane -> Octane swoole on server 0.0.0.0:${PORT}, single timer driver)"
-    PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
-        OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \
-        /bin/bash "$LARAVEL_RUNTIME_NGINX_SCRIPT"
-elif [ -n "$NPX_BIN" ]; then
-    echo "WARNING: Swoole unavailable -> Octane HTTP server disabled, using node-based fallback."
-    echo "Starting fallback (composer dev:win -> server 0.0.0.0:${PORT} + queue + timer)"
-    $COMPOSER_CMD dev:win
+        DOMAIN_SCOPE="$DOMAIN_SCOPE" \
+        LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="$LARAVEL_RUNTIME_FRANKENPHP_SCRIPT" \
+        OCTANE_RUNTIME_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_RUNTIME_POLL="$OCTANE_RUNTIME_POLL" \
+        /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" runtime
 else
-    echo "WARNING: Swoole unavailable and no node -> using node-free fallback."
-    echo "node-free fallback: php artisan serve + queue:listen + schedule:work (sub-minute timer tasks still run via Laravel Schedule)"
-    "$PHP_BIN" artisan queue:listen --tries=1 --timeout=0 &
-    "$PHP_BIN" artisan schedule:work &
-    "$PHP_BIN" artisan serve --host=0.0.0.0 --port="$PORT"
+    PORT="$PORT" PHP_BIN="$PHP_BIN" COMPOSER_CMD="$COMPOSER_CMD" NPX_BIN="$NPX_BIN" \
+        LARAVEL_DIR="$LARAVEL_DIR" \
+        LARAVEL_RUNTIME_NGINX_SCRIPT="$LARAVEL_RUNTIME_NGINX_SCRIPT" \
+        OCTANE_RUNTIME_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_RUNTIME_POLL="$OCTANE_RUNTIME_POLL" \
+        /bin/bash "$LARAVEL_START_NGINX_SUB" runtime
 fi

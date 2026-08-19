@@ -489,16 +489,29 @@ fm_dnspod_token_ensure() {
     return 0
 }
 
-# Shared site host - single source for the 93 pipeline, the 175 dispatch and
-# the Mercure issuer wiring: first configured api.<region>.<domain>, else
-# localhost. An already-set FRANKENPHP_SITE_HOST env wins over the resolver.
+# Shared site host - single source for the 93 pipeline, the 175 plane
+# branches and the Mercure issuer wiring: first configured
+# api.<region>.<domain>, else localhost. An already-set FRANKENPHP_SITE_HOST
+# env wins over the resolver. The region prefix and domain list self-resolve
+# from the shared file-backed store (DOMAIN_API_REGION_PREFIX /
+# DOMAINS_LISTS_CONTENT, written by domain_setup_persist_state on BOTH
+# planes), so callers in separate processes never re-pass them as env.
 fm_site_host() {
     local first_domain=""
-    if [ "${DOMAIN_SCOPE:-none}" != "none" ] \
-        && [ -n "${DOMAIN_API_PREFIX:-}" ] && [ -n "${DOMAIN_DOMAINS_LIST:-}" ]; then
-        first_domain="$(printf '%s\n' "$DOMAIN_DOMAINS_LIST" | head -n1)"
+    local prefix="${DOMAIN_API_PREFIX:-}"
+    local domains="${DOMAIN_DOMAINS_LIST:-}"
+
+    if [ -z "$prefix" ]; then
+        prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
+    fi
+    if [ -z "$domains" ]; then
+        domains="$(get_global_var "DOMAINS_LISTS_CONTENT" "")"
+    fi
+
+    if [ "${DOMAIN_SCOPE:-none}" != "none" ] && [ -n "$prefix" ] && [ -n "$domains" ]; then
+        first_domain="$(printf '%s\n' "$domains" | head -n1)"
         if [ -n "$first_domain" ]; then
-            echo "api.${DOMAIN_API_PREFIX}.${first_domain}"
+            echo "api.${prefix}.${first_domain}"
             return 0
         fi
     fi
@@ -510,7 +523,11 @@ fm_site_host() {
 # Empty string when the apex cannot be derived.
 fm_acme_cert_dir_for_host() {
     local apex=""
-    apex="${1#api.${DOMAIN_API_PREFIX:-}.}"
+    local prefix="${DOMAIN_API_PREFIX:-}"
+    if [ -z "$prefix" ]; then
+        prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
+    fi
+    apex="${1#api.${prefix}.}"
     [ -n "$apex" ] || return 0
     echo "${FRANKENPHP_ACME_CERT_DIR}/${apex}"
 }
