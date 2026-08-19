@@ -19,8 +19,9 @@
 # the build systems some source libs fall back to). Idempotent: a
 # satisfied system no-ops without touching apt at all.
 #
-# STDOUT CONTRACT: all logs go to stderr - fm_static_build captures
-# stdout as the candidate binary path (frankenphp_static_builder.sh).
+# STDOUT CONTRACT: all logs go to stderr; fm_static_prereq_ensure
+# echoes ONLY "ok" / "failed" on stdout (string contract, never an exit
+# code) so fm_static_build can capture it safely.
 # Sourced by frankenphp_static_builder.sh; standalone: ensure | check.
 
 FM_STATIC_PREREQ_TAG="frankenphp-static-prereq"
@@ -63,7 +64,8 @@ fm_static_prereq_no_candidate() {
     done
 }
 
-# Converge the full static-build toolchain. Fast path: everything
+# Converge the full static-build toolchain (string contract: ok/failed on
+# stdout, logs on stderr, exit code always 0). Fast path: everything
 # installed -> no apt invocation at all. Repair path: native sources
 # heal (apt_sources_restore) -> apt-get update when lists changed or
 # candidates are missing -> install only the missing subset -> verify.
@@ -78,23 +80,26 @@ fm_static_prereq_ensure() {
         debian|ubuntu|kali) ;;
         *)
             echo "[$FM_STATIC_PREREQ_TAG] [ERROR] unsupported OS id '${os_id:-unknown}' (need debian/ubuntu/kali)" >&2
-            return 1
+            echo "failed"
+            return 0
             ;;
     esac
     codename="$(apt_sources_restore_codename)"
     if [ -z "$codename" ]; then
         echo "[$FM_STATIC_PREREQ_TAG] [ERROR] cannot resolve the ${os_id} release codename" >&2
-        return 1
+        echo "failed"
+        return 0
     fi
 
     missing="$(fm_static_prereq_missing "$FM_STATIC_PREREQ_PKGS")"
     if [ -z "$missing" ]; then
         echo "[$FM_STATIC_PREREQ_TAG] prerequisites already satisfied (no apt action)" >&2
+        echo "ok"
         return 0
     fi
     echo "[$FM_STATIC_PREREQ_TAG] missing packages: $(echo "$missing" | tr '\n' ' ')" >&2
 
-    apt_sources_restore_ensure || return 1
+    apt_sources_restore_ensure 1>&2 || true
     no_cand="$(fm_static_prereq_no_candidate "$missing")"
     if [ -n "$no_cand" ] || [ "$APT_SOURCES_RESTORE_CHANGED" = "true" ]; then
         if [ -n "$no_cand" ]; then
@@ -107,24 +112,29 @@ fm_static_prereq_ensure() {
         no_cand="$(fm_static_prereq_no_candidate "$missing")"
         if [ -n "$no_cand" ]; then
             echo "[$FM_STATIC_PREREQ_TAG] [ERROR] still no installation candidate after sources heal: $(echo "$no_cand" | tr '\n' ' ')" >&2
-            return 1
+            echo "failed"
+            return 0
         fi
     fi
 
     # shellcheck disable=SC2086
     if ! $USE_SUDO apt-get install -y $missing 1>&2; then
         echo "[$FM_STATIC_PREREQ_TAG] [ERROR] apt-get install failed" >&2
-        return 1
+        echo "failed"
+        return 0
     fi
 
     missing="$(fm_static_prereq_missing "$FM_STATIC_PREREQ_PKGS")"
     if [ -n "$missing" ]; then
         echo "[$FM_STATIC_PREREQ_TAG] [ERROR] packages still missing after install: $(echo "$missing" | tr '\n' ' ')" >&2
-        return 1
+        echo "failed"
+        return 0
     fi
     echo "[$FM_STATIC_PREREQ_TAG] prerequisites satisfied (spc doctor --auto-fix will find a ready host)" >&2
+    echo "ok"
     return 0
 }
+
 
 # Read-only report: distro, missing packages, candidate gaps, sources state.
 fm_static_prereq_check() {

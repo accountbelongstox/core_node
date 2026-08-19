@@ -127,6 +127,7 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
 
 # Source PHP common variables and functions
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
@@ -144,8 +145,9 @@ fi
 # mutex constant (legacy INSTALL_NGINX key is retired; frankenphp plane
 # never configures the nginx frontend).
 INSTALL_NGINX="false"
-[ "$(web_server_plane)" = "nginx" ] && INSTALL_NGINX="true"
-echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX (plane: $(web_server_plane))${NC}"
+RUNTIME_PLANE_FOR_CONFIG="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+[ "$RUNTIME_PLANE_FOR_CONFIG" = "system" ] && INSTALL_NGINX="true"
+echo -e "${CYAN}$SCRIPT_INDEX INSTALL_NGINX: $INSTALL_NGINX (plane: $RUNTIME_PLANE_FOR_CONFIG)${NC}"
 
 # Configuration variables are now sourced from php_common_vars.sh
 
@@ -371,8 +373,6 @@ main() {
 # keeps the plane-invariant Laravel directory permissions - NO /etc/php
 # edits, NO alternatives. The system plane keeps the classic flow below.
 CONFIG_RUNTIME_PLANE=""
-# shellcheck source=/dev/null
-source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
 # shellcheck source=/dev/null
 source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
 CONFIG_RUNTIME_PLANE="$(php_runtime_plane)"

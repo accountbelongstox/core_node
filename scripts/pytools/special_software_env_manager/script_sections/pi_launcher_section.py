@@ -2,14 +2,32 @@
 Pi Launcher Generator.
 
 Generates standalone piark${index}.ps1 / piark${index}.sh launchers by using
-piyolo.sh and piyolo.ps1 as templates.
+piyolo.sh and piyolo.ps1 as templates. The piyolo mode argument parser is
+stripped so every piark launcher can only run Pi with the Volcengine coding
+plan provider; passing a mode name such as 'claude' never switches harness.
 """
 
-import os
-from pathlib import Path
+import re
 from typing import List, Dict, Any
 
 from utils.common_utils import get_linuxenvs_dir, get_winenvs_dir
+
+SH_MODE_ARG_PARSER = re.compile(
+    r'if \[ "\$#" -gt 0 \]; then\n'
+    r'[ \t]*case "\$1" in\n'
+    r'[ \t]*[^)\n]*\)\n'
+    r'[ \t]*MODE="\$1"\n'
+    r'[ \t]*shift\n'
+    r'[ \t]*;;\n'
+    r'[ \t]*esac\n'
+    r'fi\n'
+)
+
+PS1_MODE_ARG_PARSER = re.compile(
+    r'if \(\$args\.Count -gt 0 -and \$supportedModes -contains '
+    r'\$args\[0\]\.ToLowerInvariant\(\)\) \{.*?\}\s*else \{.*?\}',
+    re.DOTALL,
+)
 
 
 class PiLauncherSectionGenerator:
@@ -25,23 +43,21 @@ class PiLauncherSectionGenerator:
             raise FileNotFoundError(f"Template not found: {piyolo_sh_path}")
             
         content = piyolo_sh_path.read_text(encoding='utf-8')
-        
-        # Replace default mode
+
+        if 'MODE="auto"' not in content:
+            raise ValueError('piyolo.sh no longer defines the default MODE; update the piark generator')
+
+        # Pin the mode: piark always runs Pi on the Volcengine coding plan.
         content = content.replace('MODE="auto"', 'MODE="volc-coding"')
-        
-        # Remove argument parsing for mode
-        arg_parsing_block = """if [ "$#" -gt 0 ]; then
-    case "$1" in
-        auto|codex|claude|kimi|volc-agent|volc-coding)
-            MODE="$1"
-            shift
-            ;;
-    esac
-fi"""
-        content = content.replace(arg_parsing_block, "")
-        
+
+        # Remove argument parsing so the mode can never be overridden.
+        content = SH_MODE_ARG_PARSER.sub('', content, count=1)
+        if 'MODE="$1"' in content:
+            raise ValueError('piyolo.sh mode argument parser was not stripped; update SH_MODE_ARG_PARSER')
+
         # Replace secrets index
         content = content.replace('ARK_API_KEY_1', f'ARK_API_KEY_{file_number}')
+        content = content.replace('ARKCLI_API_KEY_1', f'ARKCLI_API_KEY_{file_number}')
         content = content.replace('ARKCLI_API_1', f'ARKCLI_API_{file_number}')
         content = content.replace('ARKCLI_MODEL_1', f'ARKCLI_MODEL_{file_number}')
         
@@ -76,23 +92,21 @@ fi"""
             raise FileNotFoundError(f"Template not found: {piyolo_ps1_path}")
             
         content = piyolo_ps1_path.read_text(encoding='utf-8')
-        
-        # Replace default mode
+
+        if "$mode = 'auto'" not in content:
+            raise ValueError('piyolo.ps1 no longer defines the default $mode; update the piark generator')
+
+        # Pin the mode: piark always runs Pi on the Volcengine coding plan.
         content = content.replace("$mode = 'auto'", "$mode = 'volc-coding'")
-        
-        # Remove argument parsing for mode
-        arg_parsing_block = """if ($args.Count -gt 0 -and $supportedModes -contains $args[0].ToLowerInvariant()) {
-    $mode = $args[0].ToLowerInvariant()
-    if ($args.Count -gt 1) {
-        $forwardArgs = @($args[1..($args.Count - 1)])
-    }
-} else {
-    $forwardArgs = @($args)
-}"""
-        content = content.replace(arg_parsing_block, "$forwardArgs = @($args)")
-        
+
+        # Remove argument parsing so the mode can never be overridden.
+        content = PS1_MODE_ARG_PARSER.sub('$forwardArgs = @($args)', content, count=1)
+        if '$mode = $args[0]' in content:
+            raise ValueError('piyolo.ps1 mode argument parser was not stripped; update PS1_MODE_ARG_PARSER')
+
         # Replace secrets index
         content = content.replace('ARK_API_KEY_1', f'ARK_API_KEY_{file_number}')
+        content = content.replace('ARKCLI_API_KEY_1', f'ARKCLI_API_KEY_{file_number}')
         content = content.replace('ARKCLI_API_1', f'ARKCLI_API_{file_number}')
         content = content.replace('ARKCLI_MODEL_1', f'ARKCLI_MODEL_{file_number}')
         

@@ -51,8 +51,12 @@ source "$PARENT_DIR_LEVEL_2/common/port_guard_common.sh"
 # the nginx plane (the frankenphp plane runs ACME inside Caddy); when nginx
 # is not the selected web server this step logs the skip and installs
 # nothing (DESIGN_20260817_2115 PART_0 P0-A3).
-CERTBOT_START_WEB_SERVER=""
-CERTBOT_START_WEB_SERVER=$(get_global_var "START_WEB_SERVER" "frankenphp")
+CERTBOT_START_WEB_SERVER="frankenphp"
+if declare -F web_server_plane >/dev/null 2>&1; then
+    CERTBOT_START_WEB_SERVER="$(web_server_plane 2>/dev/null || echo frankenphp)"
+else
+    CERTBOT_START_WEB_SERVER="$(get_global_var "START_WEB_SERVER" "frankenphp")"
+fi
 if [ "$CERTBOT_START_WEB_SERVER" != "nginx" ]; then
     echo "[$SCRIPT_INDEX] SKIP: START_WEB_SERVER=${CERTBOT_START_WEB_SERVER} (frankenphp plane active); certbot not installed"
     exit 0

@@ -11,13 +11,31 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # FrankenPHP Manager (common area; the frankenphp-plane analog of
-# nginx_manager.sh). Every primitive is idempotent and self-probing:
-#   fm_get_binary / fm_version                       binary file probes
-#   fm_install                                       official installer
+# nginx_manager.sh). Every primitive is idempotent and self-probing with
+# STRING contracts only ("yes"/"no"/path/"" - functions never signal via
+# exit codes; callers trust the run result and re-probe files):
+#   fm_get_binary / fm_binary_usable / fm_version   binary file probes
+#   fm_version_tag_of / fm_version_tag              frankenphp release tag
 #   fm_list_modules / fm_has_module                  embedded Caddy modules
-#   fm_ensure_dnspod_module                          official static build w/ dnspod
+#   fm_embedded_extension_loaded                     embedded PHP extension
+#   fm_binary_compile_complete                       module + extension floor
+#   fm_variant / fm_variant_set                      variant record
+#   fm_install                                       baseline binary ensure
+#   fm_ensure_dnspod_module                          compile-variant convergence
+#   fm_dnspod_candidate_install                      staged candidate install
 #   fm_caddyfile_ensure                              canonical Caddyfile render
 #   fm_store_info / fm_verify                        state + verification
+#
+# VARIANT MODEL: one packaging strategy owns the plane at a time:
+#   compiled = official build-static.sh binaries (runtime/compiled) with
+#              the dnspod DNS-01 module embedded (93 --compile intent)
+#   prebuilt = GitHub release binaries (runtime/prebuilt) + acme.sh DNS-01
+#              (93 --prebuilt intent)
+# The record (FRANKENPHP_VARIANT global var) is written ONLY by the 93
+# pipeline dispatch and the manual `dnspod` CLI (explicit intent);
+# fm_variant falls back to canonical-link inference for unrecorded hosts.
+# A baseline binary (official installer deb at /usr/bin/frankenphp) is a
+# shared version-pin/fallback source - it is never a variant itself.
 #
 # PLANE MODEL (DESIGN_20260817_2115 PART_0): one octane:frankenphp process
 # on 443 (h2/h3) with the built-in Mercure hub; nginx/certbot are disabled
@@ -43,6 +61,7 @@ source "$SCRIPT_CURRENT_DIR/frankenphp_static_builder.sh"
 
 FRANKENPHP_LINK_PATH="/usr/local/bin/frankenphp"
 FRANKENPHP_INSTALL_URL="https://frankenphp.dev/install.sh"
+FRANKENPHP_VARIANT_KEY="FRANKENPHP_VARIANT"
 # Pin rationale: the newest caddy-dns/dnspod TAG (v0.0.4, 2022) still
 # targets libdns v0, which no longer compiles against the libdns v1 API
 # required by Caddy v2.11.4 (frankenphp v1.12.7); the master-branch
@@ -70,6 +89,10 @@ FRANKENPHP_STATIC_XCADDY_ARGS="--with ${FRANKENPHP_DNSPOD_IMPORT} --with github.
 FRANKENPHP_STATIC_REPO="https://github.com/php/frankenphp"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
 FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
+FRANKENPHP_PHP_SHIM_PATH="${FRANKENPHP_PHP_SHIM_DIR}/php"
+FRANKENPHP_PHP_CLI_SHIM_PATH="${FRANKENPHP_PHP_SHIM_DIR}/php-cli"
+FRANKENPHP_COMPOSER_RUNTIME_SHIM="${FRANKENPHP_PHP_SHIM_DIR}/composer-php-runtime"
+FRANKENPHP_PHP_RUNTIME_SUBCMD="php-cli"
 FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
 FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBUILT_BINARY_PATH} /usr/bin/frankenphp"
 
@@ -127,7 +150,7 @@ fm_ensure_local_bin_link() {
     binary="$(fm_resolve_binary_path "${1:-$(fm_get_binary)}")"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; ${FRANKENPHP_LINK_PATH} link not created"
-        return 1
+        return 0
     fi
     canonical_target="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
     if [ -n "$canonical_target" ] && [ "$canonical_target" = "$binary" ]; then
@@ -136,6 +159,54 @@ fm_ensure_local_bin_link() {
     $USE_SUDO ln -sf "$binary" "$FRANKENPHP_LINK_PATH"
     echo "[$SCRIPT_INDEX] linked ${FRANKENPHP_LINK_PATH} -> ${binary}"
     return 0
+}
+
+# Health probe for one candidate binary (string contract: yes/no) - the
+# file must exist, be executable and answer its embedded `version`
+# command. This is the ONLY usability gate; presence alone is not enough.
+fm_binary_usable() {
+    local candidate="$1"
+
+    if [ -n "$candidate" ] && [ -x "$candidate" ] \
+        && "$candidate" version >/dev/null 2>&1; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+# Active variant (string contract: compiled|prebuilt|""). Record first, then
+# canonical-link inference (compiled/prebuilt path targets). Empty when
+# unrecorded AND the link points elsewhere (baseline deb or nothing) -
+# such a host never surprises a service start with a static build.
+fm_variant() {
+    local variant=""
+    local resolved=""
+
+    variant="$(get_global_var "$FRANKENPHP_VARIANT_KEY" "")"
+    case "$variant" in
+        compiled|prebuilt) echo "$variant" ;;
+        *)
+            resolved="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
+            if [ -n "$resolved" ] \
+                && [ "$resolved" = "$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")" ]; then
+                echo "compiled"
+            elif [ -n "$resolved" ] \
+                && [ "$resolved" = "$(fm_resolve_binary_path "$FRANKENPHP_PREBUILT_BINARY_PATH")" ]; then
+                echo "prebuilt"
+            else
+                echo ""
+            fi
+            ;;
+    esac
+}
+
+# Record the plane-owning variant (single writer: the 93 pipeline dispatch
+# and the manual `dnspod` CLI; silent, idempotent).
+fm_variant_set() {
+    case "$1" in
+        compiled|prebuilt) set_global_var "$FRANKENPHP_VARIANT_KEY" "$1" 'false' ;;
+    esac
 }
 
 fm_version() {
@@ -174,7 +245,7 @@ fm_ensure_php_cli_shim() {
     binary="$(fm_get_binary)"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [WARN] no frankenphp binary; php-cli shim not created (run fm_install first)"
-        return 1
+        return 0
     fi
     for shim in php php-cli; do
         wanted="#!/usr/bin/env bash
@@ -253,42 +324,55 @@ opcache.enable_cli = 1
     echo "[$SCRIPT_INDEX] PHP ini rendered: ${ini_dir}/99-core-node.ini"
 }
 
-# Official installer (frankenphp.dev); idempotent via the binary probe,
-# and the canonical /usr/local/bin link is re-ensured on every pass.
+# Baseline binary ensure - the frankenphp plane needs ONE usable binary
+# (any variant) before anything else can converge. Fine-grained probes,
+# each an independent step:
+#   1) compiled-variant binary usable -> link ensure, done
+#   2) ANY candidate usable (link/prebuilt/deb) -> link ensure, done
+#      (the official installer never runs when a baseline already exists)
+#   3) nothing usable -> official installer bootstrap, then re-probe by
+#      FILE state only (on debian/ubuntu/kali it installs the static-php
+#      deb - the binary is /usr/bin/frankenphp, NEVER a cwd file)
+#   4) the deb-enabled frankenphp.service gets retired right after the
+#      installer (the plane runtime is the 175-supervised octane process)
 fm_install() {
     local binary=""
     local installed_version=""
-    binary="$FRANKENPHP_COMPILED_BINARY_PATH"
 
-    binary="$(fm_resolve_binary_path "$binary")"
-    if [ -n "$binary" ]; then
+    binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")"
+    if [ "$(fm_binary_usable "$binary")" = "yes" ]; then
         installed_version="$("$binary" version 2>/dev/null | sed -n '1p')"
         echo "[$SCRIPT_INDEX] frankenphp already installed: $binary (${installed_version})"
         fm_ensure_local_bin_link "$binary"
         return 0
     fi
 
-    if ! command -v curl >/dev/null 2>&1; then
-        echo "[$SCRIPT_INDEX] [ERROR] curl is required for the frankenphp installer"
-        return 1
-    fi
-    echo "[$SCRIPT_INDEX] Installing frankenphp (official installer)"
-    curl -fsSL "$FRANKENPHP_INSTALL_URL" | $USE_SUDO sh
-    if [ -f "frankenphp" ]; then
-        binary="$FRANKENPHP_COMPILED_BINARY_PATH"
-        $USE_SUDO mkdir -p "$(dirname "$binary")"
-        $USE_SUDO mv frankenphp "$binary"
-        $USE_SUDO chmod +x "$binary"
-    fi
-    binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")"
-    if [ -n "$binary" ]; then
+    binary="$(fm_get_binary)"
+    if [ "$(fm_binary_usable "$binary")" = "yes" ]; then
         installed_version="$("$binary" version 2>/dev/null | sed -n '1p')"
-        echo "[$SCRIPT_INDEX] frankenphp installed: $binary (${installed_version})"
+        echo "[$SCRIPT_INDEX] frankenphp baseline binary present: $binary (${installed_version})"
         fm_ensure_local_bin_link "$binary"
         return 0
     fi
-    echo "[$SCRIPT_INDEX] [ERROR] frankenphp binary not found after install"
-    return 1
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "[$SCRIPT_INDEX] [ERROR] curl is required for the frankenphp installer"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] Installing frankenphp (official installer)"
+    curl -fsSL "$FRANKENPHP_INSTALL_URL" | $USE_SUDO sh
+    binary="$(fm_get_binary)"
+    if [ "$(fm_binary_usable "$binary")" = "yes" ]; then
+        installed_version="$("$binary" version 2>/dev/null | sed -n '1p')"
+        echo "[$SCRIPT_INDEX] frankenphp installed: $binary (${installed_version})"
+        # The deb-enabled frankenphp.service runs its own Caddyfile on the
+        # HTTP(S) ports - retire it so the plane's octane runtime owns them.
+        fm_unlink_frankenphp_runtime
+        fm_ensure_local_bin_link "$binary"
+        return 0
+    fi
+    echo "[$SCRIPT_INDEX] [ERROR] no usable frankenphp binary after the official installer"
+    return 0
 }
 
 # Embedded Caddy module list (caddy standard module enumeration).
@@ -300,28 +384,41 @@ fm_list_modules() {
     fi
 }
 
+# Module probe against the LIVE binary (string contract: yes/no).
 fm_has_module() {
-    local module_name="$1"
-    local binary=""
-    binary="$(fm_get_binary)"
-    fm_module_in_bin "$binary" "$module_name"
+    fm_module_in_bin "$(fm_get_binary)" "$1"
 }
 
 # Module probe against an explicit binary (fm_has_module targets the live
 # one; rebuild verification targets the candidate before it is installed).
+# String contract: yes/no.
 fm_module_in_bin() {
     local binary="$1"
     local module_name="$2"
-    [ -n "$binary" ] && [ -x "$binary" ] \
-        && "$binary" list-modules 2>/dev/null | grep -q "^${module_name}\$"
+
+    if [ -n "$binary" ] && [ -x "$binary" ] \
+        && "$binary" list-modules 2>/dev/null | grep -q "^${module_name}$"; then
+        echo "yes"
+    else
+        echo "no"
+    fi
 }
 
-# Version tag of the running binary ("v1.12.7"; empty when unparsable) -
-# pins rebuilds to the SAME frankenphp release. Anchored at the line
-# start so the frankenphp tag wins over the Caddy vX.Y.Z that also
-# appears later in the version string.
+# Version tag of an arbitrary binary ("v1.12.7"; empty when unparsable) -
+# anchored at the line start so the frankenphp tag wins over the Caddy
+# vX.Y.Z that also appears later in the version string.
+fm_version_tag_of() {
+    local binary="$1"
+
+    if [ -n "$binary" ] && [ -x "$binary" ]; then
+        "$binary" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1
+    fi
+}
+
+# Version tag of the RUNNING binary - pins rebuilds to the SAME frankenphp
+# release.
 fm_version_tag() {
-    fm_version | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1
+    fm_version_tag_of "$(fm_get_binary)"
 }
 
 # Official static rebuild via ./build-static.sh - the docker-LESS primary
@@ -361,11 +458,11 @@ fm_dnspod_token_put() {
     local token="$1"
     if [ -z "$token" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] token value required (format: id,token)"
-        return 1
+        return 0
     fi
     if [ -z "$PHP_BIN" ] || [ -z "$VENDOR_AUTOLOAD" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] runtime store context required (PHP_BIN, VENDOR_AUTOLOAD)"
-        return 1
+        return 0
     fi
     runtime_config_put "$FRANKENPHP_DNSPOD_TOKEN_KEY" "$token"
     echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
@@ -453,7 +550,7 @@ fm_disable_legacy_php_runtime() {
         echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: web server plane is not frankenphp"
         return 0
     fi
-    if [ -z "$binary" ] || ! "$binary" version >/dev/null 2>&1; then
+    if [ "$(fm_binary_usable "$binary")" != "yes" ]; then
         echo "[$SCRIPT_INDEX] legacy-runtime disable skipped: no usable frankenphp binary yet"
         return 0
     fi
@@ -518,34 +615,52 @@ fm_disable_legacy_php_runtime() {
 
     if pgrep -f 'swoole_http_server' >/dev/null 2>&1; then
         echo "[$SCRIPT_INDEX] [WARN] swoole_http_server still present after mutex disable"
-        return 1
+    else
+        echo "[$SCRIPT_INDEX] legacy swoole/php runtime disabled (frankenphp plane mutex)"
     fi
-    echo "[$SCRIPT_INDEX] legacy swoole/php runtime disabled (frankenphp plane mutex)"
     return 0
 }
 
-# Ensure the dnspod ACME DNS-01 module is embedded in the frankenphp
-# binary. Order (each step its own idempotent probe): already embedded ->
-# official static rebuild (./build-static.sh, docker-LESS). A failed build
-# defers with a warning - the built-in ACME (TLS-ALPN-01/HTTP-01) keeps
-# issuing certificates meanwhile. Once the module has converged, the apt
-# PHP stack is purged (fm_static_apt_php_cleanup): the static binary is
-# the frankenphp plane's ONLY PHP runtime.
 # Probe a runtime extension inside a frankenphp binary's embedded PHP
 # (script-file mode: the embedded php-cli accepts no -r/-d flags).
+# String contract: yes/no.
 fm_embedded_extension_loaded() {
     local binary="$1"
     local extension="$2"
     local probe=""
     local rc=""
 
-    [ -n "$binary" ] && [ -x "$binary" ] || return 1
+    if [ -z "$binary" ] || [ ! -x "$binary" ]; then
+        echo "no"
+        return 0
+    fi
     probe="$(mktemp)"
     printf '<?php exit(extension_loaded(getenv("FM_PROBE_EXTENSION")) ? 0 : 1);' > "$probe"
     FM_PROBE_EXTENSION="$extension" "$binary" php-cli "$probe" >/dev/null 2>&1
     rc=$?
     rm -f "$probe"
-    return $rc
+    if [ "$rc" -eq 0 ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
+# Embedded-runtime completeness floor for a compile-variant binary (string
+# contract: yes/no): the dnspod DNS-01 module plus the extensions the
+# operating scripts depend on (phar+simplexml: composer, pcntl: worker
+# control). A binary missing any of them is a rebuild trigger.
+fm_binary_compile_complete() {
+    local binary="$1"
+
+    if [ "$(fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+        && [ "$(fm_embedded_extension_loaded "$binary" phar)" = "yes" ] \
+        && [ "$(fm_embedded_extension_loaded "$binary" simplexml)" = "yes" ] \
+        && [ "$(fm_embedded_extension_loaded "$binary" pcntl)" = "yes" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
 }
 
 # Idempotent unlink of a live FrankenPHP runtime BEFORE the central binary
@@ -560,8 +675,16 @@ fm_unlink_frankenphp_runtime() {
     for unit in $(systemctl list-unit-files --type=service --no-legend 2>/dev/null \
         | awk '{print $1}' | grep -Ei 'frankenphp|octane|app-manager' | grep -v '@'); do
         unit_cmd="$(systemctl show -p ExecStart "$unit" 2>/dev/null || true)"
+        # Discriminator (judged by the EXECUTED command, NEVER by unit
+        # name): only a unit EXECUTING a frankenphp binary directly (the
+        # deb's own `frankenphp run` Caddy server) is retired. The plane's
+        # own runtime - artisan `octane:start --server=frankenphp` - merely
+        # NAMES frankenphp as a flag; those units stay untouched.
         case "$unit_cmd" in
             *frankenphp*)
+                if echo "$unit_cmd" | grep -qiE 'octane|artisan'; then
+                    continue
+                fi
                 echo "[$SCRIPT_INDEX] unlink: disabling frankenphp unit ${unit}"
                 $USE_SUDO systemctl disable --now "$unit" >/dev/null 2>&1 || true
                 if systemctl list-unit-files --type=timer --no-legend 2>/dev/null \
@@ -575,30 +698,87 @@ fm_unlink_frankenphp_runtime() {
     return 0
 }
 
+# Staged candidate install (compile variant): build the dnspod binary via
+# the official static builder, verify the candidate, then atomically
+# install it at the compiled-variant path. Echoes the installed binary
+# path on success (empty on failure); every failure path keeps the live
+# binary untouched. On a fresh host (no compiled path yet) the baseline
+# is ANY usable binary - the official installer deb or the prebuilt
+# cache - and the compiled path is created on first install.
+fm_dnspod_candidate_install() {
+    local binary=""
+    local candidate=""
+    local target=""
+
+    target="$FRANKENPHP_COMPILED_BINARY_PATH"
+    binary="$(fm_resolve_binary_path "$target")"
+    [ -n "$binary" ] || binary="$(fm_get_binary)"
+
+    candidate="$(fm_dnspod_build_static)"
+    if [ -z "$candidate" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (official static build failed; the stderr log above carries the kept workdir path)"
+        echo ""
+        return 0
+    fi
+
+    # Candidate sanity BEFORE touching the live runtime: must execute and
+    # carry the module + the phar floor.
+    if ! "$candidate" version >/dev/null 2>&1 \
+        || [ "$(fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE")" != "yes" ] \
+        || [ "$(fm_embedded_extension_loaded "$candidate" phar)" != "yes" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module/phar probe; keeping $binary"
+        rm -rf "$(dirname "$candidate")"
+        echo ""
+        return 0
+    fi
+
+    # One-time backup of the pre-dnspod binary; atomic replace via mv (a
+    # running octane keeps its old mapping - no ETXTBSY).
+    $USE_SUDO mkdir -p "$(dirname "$target")"
+    if [ -f "$target" ] && [ ! -f "${target}${FRANKENPHP_BACKUP_SUFFIX}" ]; then
+        $USE_SUDO cp "$target" "${target}${FRANKENPHP_BACKUP_SUFFIX}"
+    fi
+    $USE_SUDO cp "$candidate" "${target}.dnspod-new"
+    $USE_SUDO chmod 755 "${target}.dnspod-new"
+    $USE_SUDO mv -f "${target}.dnspod-new" "$target"
+    rm -rf "$(dirname "$candidate")"
+    echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${target}${FRANKENPHP_BACKUP_SUFFIX}) ($("$target" version 2>/dev/null | sed -n '1p'))"
+    # Variant mutex: the compiled variant now owns the plane - remove stale
+    # prebuilt variant backup artifacts to keep one active runtime contract.
+    rm -f "${FRANKENPHP_PREBUILT_BINARY_PATH}${FRANKENPHP_BACKUP_SUFFIX}"
+    echo "$target"
+}
+
+# Ensure the dnspod ACME DNS-01 module is embedded in the frankenphp
+# binary (compile-variant convergence; the prebuilt variant converges via
+# acme.sh DNS-01 instead and never rebuilds). Order (each step its own
+# idempotent probe): prebuilt guard -> token mirror -> baseline ensure
+# (fm_install) -> completeness probe -> engagement gate -> staged rebuild
+# + install. A failed build defers with a warning - the built-in ACME
+# (TLS-ALPN-01/HTTP-01) keeps issuing certificates meanwhile. Once the
+# module has converged, the apt PHP stack is purged
+# (fm_static_apt_php_cleanup): the static binary is the frankenphp
+# plane's ONLY PHP runtime.
 fm_ensure_dnspod_module() {
     local binary=""
     local candidate=""
 
+    # Prebuilt guard (record OR link inference): the prebuilt variant owns
+    # the plane via acme.sh DNS-01 (93 --prebuilt intent) - a runtime start
+    # on a prebuilt host must NEVER trigger a static rebuild, and a
+    # leftover compiled binary must not take the plane back through the
+    # satisfied probe below.
+    if [ "$(fm_variant)" = "prebuilt" ]; then
+        echo "[$SCRIPT_INDEX] dnspod module convergence skipped: prebuilt variant owns the plane (acme.sh DNS-01)"
+        return 0
+    fi
+
     # Mirror the shared secret-file token into the runtime store first
     # (idempotent; covers the 93 compile path, 175 re-uses fm_dns01_ensure).
     fm_dnspod_token_ensure
-    binary="$FRANKENPHP_COMPILED_BINARY_PATH"
-    if [ ! -x "$binary" ]; then
-        fm_install
-    fi
-    binary="$(fm_resolve_binary_path "$binary")"
-    if [ -z "$binary" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] no compiled frankenphp binary; run fm_install first"
-        return 1
-    fi
-    # Embedded-runtime completeness floor: dnspod module (DNS-01) plus the
-    # extensions the operating scripts depend on (phar+simplexml: composer,
-    # pcntl: worker control). A binary missing any of them is a rebuild
-    # trigger.
-    if fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE" \
-        && fm_embedded_extension_loaded "$binary" phar \
-        && fm_embedded_extension_loaded "$binary" simplexml \
-        && fm_embedded_extension_loaded "$binary" pcntl; then
+    fm_install
+    binary="$(fm_resolve_binary_path "$FRANKENPHP_COMPILED_BINARY_PATH")"
+    if [ -n "$binary" ] && [ "$(fm_binary_compile_complete "$binary")" = "yes" ]; then
         echo "[$SCRIPT_INDEX] dnspod module already embedded (phar/pcntl present)"
         fm_ensure_local_bin_link "$binary"
         fm_disable_legacy_php_runtime
@@ -606,43 +786,31 @@ fm_ensure_dnspod_module() {
         return 0
     fi
 
-    candidate="$(fm_dnspod_build_static)"
+    # Engagement gate (explicit intent): ONLY the compiled variant converges
+    # via rebuild. An UNRECORDED host (baseline deb via the official
+    # installer, no 93 intent recorded yet) defers instead of surprising a
+    # service start with a multi-minute static build (systemd would kill it
+    # at its start timeout). The explicit `dnspod` CLI re-records the
+    # variant to compiled before calling here, so manual convergence still
+    # works.
+    if [ "$(fm_variant)" != "compiled" ]; then
+        echo "[$SCRIPT_INDEX] dnspod module not embedded; no rebuild on variant '$(fm_variant)' (prebuilt keeps acme.sh DNS-01; run 93_install_frankenphp.sh --compile or frankenphp_manager.sh dnspod for the static build)"
+        return 0
+    fi
+
+    candidate="$(fm_dnspod_candidate_install)"
     if [ -z "$candidate" ]; then
-        echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (official static build failed; the stderr log above carries the kept workdir path)"
-        return 1
+        return 0
     fi
 
-    # Candidate sanity BEFORE replacing the live binary: must execute and
-    # carry the module.
-    if ! "$candidate" version >/dev/null 2>&1 \
-        || ! fm_module_in_bin "$candidate" "$FRANKENPHP_DNSPOD_MODULE" \
-        || ! fm_embedded_extension_loaded "$candidate" phar; then
-        echo "[$SCRIPT_INDEX] [ERROR] rebuilt binary failed the version/module/phar probe; keeping $binary"
-        rm -rf "$(dirname "$candidate")"
-        return 1
-    fi
-
-    # One-time backup of the pre-dnspod binary; atomic replace via mv (a
-    # running octane keeps its old mapping - no ETXTBSY).
-    if [ ! -f "${binary}${FRANKENPHP_BACKUP_SUFFIX}" ]; then
-        $USE_SUDO cp "$binary" "${binary}${FRANKENPHP_BACKUP_SUFFIX}"
-    fi
-    $USE_SUDO cp "$candidate" "${binary}.dnspod-new"
-    $USE_SUDO chmod 755 "${binary}.dnspod-new"
-    $USE_SUDO mv -f "${binary}.dnspod-new" "$binary"
-    rm -rf "$(dirname "$candidate")"
-    echo "[$SCRIPT_INDEX] dnspod module embedded (backup: ${binary}${FRANKENPHP_BACKUP_SUFFIX}) ($("$binary" version 2>/dev/null | sed -n '1p'))"
-    # Variant mutex: the compiled variant now owns the link - remove stale
-    # prebuilt variant backup artifacts to keep one active runtime contract.
-    rm -f "${FRANKENPHP_PREBUILT_BINARY_PATH}${FRANKENPHP_BACKUP_SUFFIX}"
-    fm_ensure_local_bin_link "$binary"
+    fm_ensure_local_bin_link "$candidate"
     # The binary identity changed - the php/php-cli shims must re-target it
     # (a stale shim keeps exec'ing the previous binary path, which the apt
     # purge may remove altogether).
     fm_ensure_php_cli_shim
-    fm_store_info
     fm_disable_legacy_php_runtime
     fm_static_apt_php_cleanup
+    return 0
 }
 
 # Canonical Caddyfile render (content-hash idempotent). Mercure JWT values
@@ -671,7 +839,7 @@ fm_caddyfile_ensure() {
     # only - the token itself never enters the file). Sync contract: the
     # Laravel builder renders the identical gate.
     dnspod_tls=""
-    if fm_has_module "$FRANKENPHP_DNSPOD_MODULE" && [ -n "$(fm_dnspod_token_value)" ]; then
+    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] && [ -n "$(fm_dnspod_token_value)" ]; then
         dnspod_tls="	tls {
 		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
 	}
@@ -745,7 +913,7 @@ fm_store_info() {
 
 # DNS-01 readiness summary (booleans only - never the token value).
 fm_dns01_status() {
-    if ! fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
+    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" != "yes" ]; then
         echo "module missing (run: frankenphp_manager.sh dnspod)"
         return 0
     fi
@@ -762,7 +930,7 @@ fm_dns01_status() {
 # manual credential and is normally seeded from the secret file.
 fm_dns01_ensure() {
     fm_dnspod_token_ensure
-    if ! fm_has_module "$FRANKENPHP_DNSPOD_MODULE"; then
+    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" != "yes" ]; then
         echo "[$SCRIPT_INDEX] DNS-01 deferred: dnspod module not embedded yet (built-in HTTP-01/TLS-ALPN-01 stays active)"
         return 0
     fi
@@ -780,11 +948,12 @@ fm_verify() {
     binary="$(fm_get_binary)"
     if [ -z "$binary" ]; then
         echo "[$SCRIPT_INDEX] [VERIFY] frankenphp binary: MISSING"
-        return 1
+        return 0
     fi
     echo "[$SCRIPT_INDEX] [VERIFY] binary: $binary ($(fm_version))"
     echo "[$SCRIPT_INDEX] [VERIFY] embedded PHP: $(fm_php_version)"
-    echo "[$SCRIPT_INDEX] [VERIFY] dnspod module: $(fm_has_module "$FRANKENPHP_DNSPOD_MODULE" && echo embedded || echo missing)"
+    echo "[$SCRIPT_INDEX] [VERIFY] variant: $(fm_variant)"
+    echo "[$SCRIPT_INDEX] [VERIFY] dnspod module: $([ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] && echo embedded || echo missing)"
     echo "[$SCRIPT_INDEX] [VERIFY] DNS-01 (dnspod): $(fm_dns01_status)"
     echo "[$SCRIPT_INDEX] [VERIFY] php-cli shim: $([ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ] && echo present || echo missing)"
     echo "[$SCRIPT_INDEX] [VERIFY] plane: $(web_server_plane)"
@@ -798,7 +967,9 @@ if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
             fm_install
             ;;
         dnspod)
+            fm_variant_set compiled
             fm_ensure_dnspod_module
+            fm_store_info
             ;;
         dnspod-token)
             if [ -z "${2:-}" ]; then

@@ -133,12 +133,16 @@ frankenphp_install_pipeline_run_binary() {
     # binary can be replaced safely; caches and build intermediates are
     # intentionally kept (replace-only semantics).
     fm_unlink_frankenphp_runtime
+    # Variant record (single writer): the dispatch intent itself - the
+    # selected packaging strategy owns the plane from here on.
     if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ]; then
+        fm_variant_set prebuilt
         source "$SCRIPT_CURRENT_DIR/frankenphp_install_prebuilt.sh"
         frankenphp_install_prebuilt
         return
     fi
 
+    fm_variant_set compiled
     source "$SCRIPT_CURRENT_DIR/frankenphp_install_compile.sh"
     frankenphp_install_compile
 }

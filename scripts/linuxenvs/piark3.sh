@@ -17,6 +17,8 @@ MODE="volc-coding"
 PROVIDER="openai-codex"
 MODEL="gpt-5.6-sol"
 THINKING="high"
+THINKING_SET_BY_USER="false"
+PARSED_ARGS=()
 PI_BIN_PATH=""
 PI_USER_DIR=""
 PI_AGENT_DIR=""
@@ -128,8 +130,36 @@ UVX_BIN_PATH="$(command -v uvx 2>/dev/null || true)"
 
 PI_BIN_PATH="$PNPM_GLOBAL_BIN_DIR/pi"
 if [ ! -x "$PI_BIN_PATH" ] && [ -x /usr/local/bin/pi ]; then
+    PI_BIN_PATH="/usr/local/bin/pi"
+fi
 
-FORWARD_ARGS=("$@")
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --thinking)
+            if [ -z "${2:-}" ]; then
+                echo "[ERROR] --thinking requires a value."
+                echo "[INFO] Supported levels: off, minimal, low, medium, high, xhigh, max"
+                exit 1
+            fi
+            THINKING="$2"
+            THINKING_SET_BY_USER="true"
+            shift 2
+            ;;
+        --thinking=*)
+            THINKING="${1#*=}"
+            THINKING_SET_BY_USER="true"
+            shift
+            ;;
+        *)
+            PARSED_ARGS+=("$1")
+            shift
+            ;;
+    esac
+
+done
+
+FORWARD_ARGS=("${PARSED_ARGS[@]}")
 
 if [ "$MODE" = "claude" ]; then
     PROVIDER="anthropic"
@@ -207,6 +237,23 @@ else
     fi
 fi
 
+if [ "$MODE" = "codex" ]; then
+    if [ "$THINKING_SET_BY_USER" = "false" ] && [ "$THINKING" = "high" ]; then
+        THINKING="xhigh"
+    fi
+    case "$THINKING" in
+        xhigh)
+            ;;
+        minimal|off|low|medium|high|max)
+            THINKING="xhigh"
+            ;;
+        *)
+            echo "[WARN] Unsupported thinking level '$THINKING' for codex; fallback to xhigh."
+            THINKING="xhigh"
+            ;;
+    esac
+fi
+
 if [ "${#PACKAGE_SOURCES[@]}" -gt 0 ]; then
     PACKAGE_SOURCE="$(IFS=,; echo "${PACKAGE_SOURCES[*]}")"
 fi
@@ -253,12 +300,19 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if [ "$MODE" = "volc-coding" ] && [ -z "$VOLC_API_KEY" ]; then
-            LEGACY_SECRET_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_3"
-            VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
-            if [ -n "$VOLC_API_KEY" ]; then
-                echo "[INFO] Loaded Volcengine API Key from ARK_API_KEY_3"
-            else
-                echo "[WARN] Volcengine API Key not found in ARK_API_KEY_3. A valid API key is required."
+            for LEGACY_SECRET_PATH in \
+                "$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_API_KEY_3" \
+                "$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_3"
+            do
+                if [ -z "$VOLC_API_KEY" ]; then
+                    VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
+                    if [ -n "$VOLC_API_KEY" ]; then
+                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH")"
+                    fi
+                fi
+            done
+            if [ -z "$VOLC_API_KEY" ]; then
+                echo "[WARN] Volcengine API Key not found in ARKCLI_API_KEY_3 (or ARK_API_KEY_3). A valid API key is required."
             fi
             
             LEGACY_BASE_URL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_API_3"
@@ -398,6 +452,8 @@ echo "piyolo.sh"
 echo "============================================================"
 echo "[INFO] Mode: $MODE"
 echo "[INFO] Default model: $PROVIDER/$MODEL ($THINKING)"
+echo "[TIP] Thinking levels supported by Pi: off, minimal, low, medium, high, xhigh, max (xhigh = Extra High)."
+echo "[TIP] Override temporarily with: ./piyolo.sh <mode> --thinking <level> or --thinking=<level>"
 echo "[INFO] Pi user data: $PI_USER_DIR"
 echo "[INFO] Project trust: approved; provider model cycling enabled"
 echo "============================================================"

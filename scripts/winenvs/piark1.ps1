@@ -19,12 +19,16 @@ $harnessSettingsScriptPath = Join-Path $shellsCommonPath 'pi_harness_settings.js
 $mode = 'volc-coding'
 $supportedModes = @('auto', 'codex', 'claude', 'kimi', 'volc-agent', 'volc-coding')
 $forwardArgs = @()
+$parsedArgs = @()
+$currentArg = $null
+$argIndex = 0
 $piCandidates = @()
 $piPath = $null
 $candidatePath = $null
 $provider = 'openai-codex'
 $model = 'gpt-5.6-sol'
 $thinking = 'high'
+$thinkingSetByUser = $false
 $codexModels = @(
     'openai-codex/gpt-5.3-codex-spark',
     'openai-codex/gpt-5.4',
@@ -168,15 +172,33 @@ $volcAgentMcpCandidates = @(
 )
 $uvxExePath = Join-Path $Global:PYTHON_SCRIPTS_DIR 'uvx.exe'
 
-if ($args.Count -gt 0 -and $supportedModes -contains $args[0].ToLowerInvariant()) {
-    $mode = $args[0].ToLowerInvariant()
-    if ($args.Count -gt 1) {
-        $forwardArgs = @($args[1..($args.Count - 1)])
+$forwardArgs = @($args)
+
+$argIndex = 0
+while ($argIndex -lt $forwardArgs.Count) {
+    $currentArg = $forwardArgs[$argIndex]
+    if ($currentArg -eq '--thinking') {
+        if ($argIndex + 1 -ge $forwardArgs.Count) {
+            Write-Host '[ERROR] --thinking requires a value.' -ForegroundColor Red
+            Write-Host '[INFO] Supported levels: off, minimal, low, medium, high, xhigh, max' -ForegroundColor Yellow
+            exit 1
+        }
+        $thinking = $forwardArgs[$argIndex + 1]
+        $thinkingSetByUser = $true
+        $argIndex = $argIndex + 2
+        continue
     }
+    if ($currentArg -like '--thinking=*') {
+        $thinking = $currentArg.Substring('--thinking='.Length)
+        $thinkingSetByUser = $true
+        $argIndex++
+        continue
+    }
+    $parsedArgs = @($parsedArgs + @($currentArg))
+    $argIndex++
 }
-else {
-    $forwardArgs = @($args)
-}
+
+$forwardArgs = @($parsedArgs)
 
 foreach ($candidatePath in $piCandidates) {
     if (-not $piPath -and (Test-Path -LiteralPath $candidatePath -PathType Leaf)) {
@@ -261,6 +283,19 @@ else {
     }
 }
 
+if ($mode -eq 'codex') {
+    if (-not $thinkingSetByUser -and $thinking -eq 'high') {
+        $thinking = 'xhigh'
+    }
+    if ($thinking -eq 'minimal' -or $thinking -eq 'off' -or $thinking -eq 'low' -or $thinking -eq 'medium' -or $thinking -eq 'high' -or $thinking -eq 'max') {
+        $thinking = 'xhigh'
+    }
+    elseif ($thinking -ne 'xhigh') {
+        Write-Host "[WARN] Unsupported thinking level '$thinking' for codex; fallback to xhigh." -ForegroundColor Yellow
+        $thinking = 'xhigh'
+    }
+}
+
 $packageSource = if ($packageSources.Count -gt 0) { $packageSources -join ',' } else { '-' }
 
 $piSettingsPath = Join-Path $piAgentDir 'settings.json'
@@ -314,13 +349,21 @@ if ($piPath -and
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if ($mode -eq 'volc-coding' -and -not $volcApiKey) {
-            $legacySecretPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_1"
-            $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
-            if ($volcApiKey) {
-                Write-Host "[INFO] Loaded Volcengine API Key from ARK_API_KEY_1" -ForegroundColor Green
+            $legacySecretPathCandidates = @(
+                (Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_KEY_1"),
+                (Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_1")
+            )
+            foreach ($candidatePath in @($legacySecretPathCandidates)) {
+                if (-not $volcApiKey) {
+                    $legacySecretPath = $candidatePath
+                    $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
+                    if ($volcApiKey) {
+                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath))" -ForegroundColor Green
+                    }
+                }
             }
-            else {
-                Write-Host "[WARN] Volcengine API Key not found in ARK_API_KEY_1. A valid API key is required." -ForegroundColor Yellow
+            if (-not $volcApiKey) {
+                Write-Host "[WARN] Volcengine API Key not found in ARKCLI_API_KEY_1 (or ARK_API_KEY_1). A valid API key is required." -ForegroundColor Yellow
             }
             
             $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_1"
@@ -472,6 +515,8 @@ Write-Host 'piyolo.ps1' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Cyan
 Write-Host "[INFO] Mode: $mode" -ForegroundColor Green
 Write-Host "[INFO] Default model: $provider/$model ($thinking)" -ForegroundColor Green
+Write-Host "[TIP] Thinking levels supported by Pi: off, minimal, low, medium, high, xhigh, max (xhigh = Extra High)." -ForegroundColor Green
+Write-Host "[TIP] Override temporarily with: .\piyolo.ps1 <mode> --thinking <level> or --thinking=<level>" -ForegroundColor Green
 if ($mode -eq 'volc-coding') {
     Write-Host "[INFO] Model selection: $volcCodingModelHint" -ForegroundColor Green
 }

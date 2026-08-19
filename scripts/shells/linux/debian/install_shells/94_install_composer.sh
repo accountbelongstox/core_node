@@ -28,6 +28,8 @@ LARAVEL_INSTALLER_LINK_PATH="/usr/local/bin/$LARAVEL_INSTALLER_BINARY_NAME"
 LARAVEL_INSTALLER_UPDATE_STAMP="/usr/local/etc/.laravel_installer_update_stamp"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
+source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
 
 # Source PHP common variables and functions
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
@@ -40,7 +42,7 @@ COMPOSER_RUNTIME_SUBCMD=""
 COMPOSER_RUNTIME_PLANE=""
 COMPOSER_RUNTIME_CANDIDATES_LOG=""
 COMPOSER_RUNTIME_PHAR_STATUS="unknown"
-COMPOSER_RUNTIME_PHP_WRAPPER="/usr/local/bin/composer-php-runtime"
+COMPOSER_RUNTIME_PHP_WRAPPER="${FRANKENPHP_COMPOSER_RUNTIME_SHIM}"
 COMPOSER_PATH_DIR="$(dirname "$COMPOSER_TARGET_PATH")"
 
 # Version requirements
@@ -62,30 +64,6 @@ else
     # Ensure non-interactive mode for consistency
     export COMPOSER_NO_INTERACTION=1
 fi
-
-# Resolve PHP runtime plane from shared constants:
-#  - explicit global PHP_RUNTIME_PLANE always wins
-#  - otherwise derived from web_server_plane
-# In frankenphp plane, use embedded frankenphp php-cli as the primary runtime and
-# ignore system php8.5 binaries by design (they are intentionally not the execution
-# path for Composer in this plane; use only as fallback when embedding is unavailable).
-composer_php_runtime_plane() {
-    local runtime=""
-    runtime="$(get_global_var PHP_RUNTIME_PLANE '')"
-    if [ -n "$runtime" ]; then
-        case "$runtime" in
-            system) echo "system" ;;
-            *) echo "frankenphp" ;;
-        esac
-        return 0
-    fi
-
-    if [ "$(web_server_plane)" = "nginx" ]; then
-        echo "system"
-    else
-        echo "frankenphp"
-    fi
-}
 
 # Execute with the selected composer runtime form.
 # For frankenPHP plane this becomes `frankenphp php-cli`.
@@ -278,49 +256,45 @@ resolve_composer_runtime_php() {
     COMPOSER_RUNTIME_CANDIDATES_LOG=""
     COMPOSER_RUNTIME_PHAR_STATUS="unknown"
 
-    runtime_plane="$(composer_php_runtime_plane)"
+    runtime_plane="$(php_runtime_plane)"
     COMPOSER_RUNTIME_PLANE="$runtime_plane"
 
     if [ "$runtime_plane" = "frankenphp" ]; then
-        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: frankenphp - use embedded 'frankenphp php-cli' runtime per official docs, ignoring direct system php8.5 binaries unless embedding is unavailable.${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: frankenphp - use embedded frankenPHP CLI runtime per official docs and keep the PHP_BINARY shim contract for Composer.${NC}"
+        fm_ensure_php_cli_shim
 
-        # Official docs: https://raw.githubusercontent.com/dunglas/frankenphp/main/README.md
-        # Example: frankenphp php-cli /path/to/your/script.php
-        # Primary: official FrankenPHP binary + php-cli subcommand.
-        candidate="/usr/local/bin/frankenphp"
-        candidate_subcmd="php-cli"
-        if [ -x "$candidate" ]; then
-            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
-            if [ -z "$fallback_candidate" ]; then
-                fallback_candidate="$candidate"
-                fallback_subcmd="$candidate_subcmd"
-            fi
-            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
-                COMPOSER_RUNTIME_PHP="$candidate"
-                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
-            fi
-        fi
-
-        candidate="/usr/bin/frankenphp"
-        candidate_subcmd="php-cli"
-        if [ -x "$candidate" ]; then
-            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
-            if [ -z "$fallback_candidate" ]; then
-                fallback_candidate="$candidate"
-                fallback_subcmd="$candidate_subcmd"
-            fi
-            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
-                COMPOSER_RUNTIME_PHP="$candidate"
-                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
-            fi
-        fi
-
-        # Compatibility fallback only when embedded CLI is unavailable.
-        # These system PHP candidates are not preferred in frankenphp plane.
-        candidate="/usr/local/bin/php"
+        candidate="$FRANKENPHP_PHP_CLI_SHIM_PATH"
         candidate_subcmd=""
         if [ -x "$candidate" ]; then
-            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="$FRANKENPHP_PHP_SHIM_PATH"
+        candidate_subcmd=""
+        if [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
+            if [ -z "$fallback_candidate" ]; then
+                fallback_candidate="$candidate"
+                fallback_subcmd="$candidate_subcmd"
+            fi
+            if [ -z "$COMPOSER_RUNTIME_PHP" ] && [ "$(composer_runtime_supports_phar "$candidate" "$candidate_subcmd")" = "yes" ]; then
+                COMPOSER_RUNTIME_PHP="$candidate"
+                COMPOSER_RUNTIME_SUBCMD="$candidate_subcmd"
+            fi
+        fi
+
+        candidate="$(fm_get_binary)"
+        candidate_subcmd="$FRANKENPHP_PHP_RUNTIME_SUBCMD"
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            candidate_log="${candidate_log}${candidate_log:+ }${candidate}(${candidate_subcmd})"
             if [ -z "$fallback_candidate" ]; then
                 fallback_candidate="$candidate"
                 fallback_subcmd="$candidate_subcmd"
@@ -361,7 +335,7 @@ resolve_composer_runtime_php() {
             fi
         fi
 
-        candidate="/usr/local/bin/php"
+        candidate="$FRANKENPHP_PHP_SHIM_PATH"
         candidate_subcmd=""
         if [ -x "$candidate" ]; then
             candidate_log="${candidate_log}${candidate_log:+ }${candidate}(direct)"
@@ -1065,9 +1039,7 @@ main() {
 
 # Execute main function
 # Keep plane resolution explicit here and do not load octane command-mode scripts in this Composer-only path.
-# shellcheck source=/dev/null
-source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
-if [ "$(composer_php_runtime_plane)" = "frankenphp" ]; then
+if [ "$(php_runtime_plane)" = "frankenphp" ]; then
     echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp - enabling php-cli shim for embedded runtime integration${NC}"
     fm_ensure_php_cli_shim
 fi

@@ -80,6 +80,7 @@ CERTBOT_INSTALL_SCRIPT="${INSTALL_SHELLS_DIR}/35_install_certbot.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
 CERT_SELFHEAL_COMMON="${COMMON_DIR}/cert_selfheal_common.sh"
+OCTANE_SERVICE_MANAGER_SCRIPT="${COMMON_DIR}/octane_service_manager.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 SECRETS_DIR="${REPO_ROOT}/.secret_keys/.secret_ignore"
 
@@ -170,6 +171,7 @@ FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
 . "$CERT_SELFHEAL_COMMON"
+source "$OCTANE_SERVICE_MANAGER_SCRIPT"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 
 # Runtime port: central service contract (config/service_contract.json), with
@@ -261,29 +263,6 @@ new_installation_access_code() {
     printf 'NEXU-%s-%s-%s-%s' "$segment_one" "$segment_two" "$segment_three" "$segment_four"
 }
 
-resolve_runtime_plane_for_start() {
-    local plane=""
-    local global_var_dir="${GLOBAL_VAR_DIR:-${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var}"
-
-    if declare -F web_server_plane >/dev/null 2>&1; then
-        plane="$(web_server_plane 2>/dev/null || true)"
-    fi
-    if [ -z "$plane" ] && [ -f "$global_var_dir/START_WEB_SERVER" ]; then
-        plane="$(tr -d '[:space:]' < "$global_var_dir/START_WEB_SERVER" 2>/dev/null | head -n 1 || true)"
-    fi
-    if [ -z "$plane" ] && [ -f "$global_var_dir/WEB_SERVER_PLANE" ]; then
-        plane="$(tr -d '[:space:]' < "$global_var_dir/WEB_SERVER_PLANE" 2>/dev/null | head -n 1 || true)"
-    fi
-    if [ -z "$plane" ] && declare -F get_global_var >/dev/null 2>&1; then
-        plane="$(get_global_var START_WEB_SERVER '' 2>/dev/null || true)"
-    fi
-
-    case "$plane" in
-        nginx) echo nginx ;;
-        *) echo frankenphp ;;
-    esac
-}
-
 persist_global_var_file_value() {
     local key="$1"
     local value="$2"
@@ -305,42 +284,48 @@ persist_global_var_file_value() {
 }
 
 # Resolve php into PHP_BIN: PATH -> known bin locations.
-# In frankenphp plane, ignore old system PHP and use the frankenphp shim only.
+# In frankenphp plane, use shared frankenPHP shims first, then other known candidates.
 resolve_php() {
     local runtime_plane=""
     local resolved_php=""
+    local candidate=""
+    local candidate_subcmd=""
     local probe_file=""
 
     PHP_BIN=""
-    runtime_plane="$(resolve_runtime_plane_for_start)"
+    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
 
     if [ "$runtime_plane" = "frankenphp" ]; then
-        if [ -x "/usr/local/bin/php" ]; then
+        fm_ensure_php_cli_shim
+        for candidate in \
+            "$FRANKENPHP_PHP_CLI_SHIM_PATH" \
+            "$FRANKENPHP_PHP_SHIM_PATH" \
+            "$(fm_get_binary)"; do
+            candidate_subcmd=""
+            if [ ! -x "$candidate" ]; then
+                continue
+            fi
+            if [ "$candidate" != "$FRANKENPHP_PHP_CLI_SHIM_PATH" ] && [ "$candidate" != "$FRANKENPHP_PHP_SHIM_PATH" ]; then
+                candidate_subcmd="$FRANKENPHP_PHP_RUNTIME_SUBCMD"
+            fi
             probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-resolve.XXXXXX.php")"
             printf '<?php echo 1;' > "$probe_file"
-            if /usr/local/bin/php "$probe_file" >/dev/null 2>&1; then
-                rm -f "$probe_file"
-                PHP_BIN="/usr/local/bin/php"
-                return 0
-            fi
-            rm -f "$probe_file"
-        fi
-
-        # On first-run or after bad manual edits (for example "/usr/local/bin/php"
-        # containing unsupported argument forwarding), rebuild the shim and retry once.
-        if declare -F fm_ensure_php_cli_shim >/dev/null 2>&1; then
-            echo "[175] Rebuild PHP CLI shim for FrankenPHP."
-            if fm_ensure_php_cli_shim; then
-                probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-resolve.XXXXXX.php")"
-                printf '<?php echo 1;' > "$probe_file"
-                if /usr/local/bin/php "$probe_file" >/dev/null 2>&1; then
+            if [ "$candidate_subcmd" = "$FRANKENPHP_PHP_RUNTIME_SUBCMD" ]; then
+                if "$candidate" "$candidate_subcmd" "$probe_file" >/dev/null 2>&1; then
                     rm -f "$probe_file"
-                    PHP_BIN="/usr/local/bin/php"
+                    PHP_BIN="$candidate"
                     return 0
                 fi
-                rm -f "$probe_file"
+            else
+                if "$candidate" "$probe_file" >/dev/null 2>&1; then
+                    rm -f "$probe_file"
+                    PHP_BIN="$candidate"
+                    return 0
+                fi
             fi
-        fi
+            rm -f "$probe_file"
+        done
+        echo "WARNING: frankenphp plane detected but no executable php candidate passed probe."
         return 1
     fi
 
@@ -351,9 +336,12 @@ resolve_php() {
             return 0
         fi
     fi
-    for PHP_CANDIDATE in "/usr/local/bin/php" "/usr/bin/php" "$HOME/.local/bin/php"; do
-        if [ -x "$PHP_CANDIDATE" ]; then
-            PHP_BIN="$PHP_CANDIDATE"
+    for resolved_php in \
+        "$HOME/.local/bin/php" \
+        "/usr/local/bin/php" \
+        "/usr/bin/php"; do
+        if [ -x "$resolved_php" ]; then
+            PHP_BIN="$resolved_php"
             return 0
         fi
     done
@@ -365,7 +353,12 @@ resolve_composer() {
     local runtime_plane=""
 
     COMPOSER_CMD=""
-    runtime_plane="$(resolve_runtime_plane_for_start)"
+    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+
+    if [ "$runtime_plane" = "frankenphp" ] && [ -x "/usr/local/bin/composer" ]; then
+        COMPOSER_CMD="/usr/local/bin/composer"
+        return 0
+    fi
 
     if [ -n "$PHP_BIN" ] && [ -f "${LARAVEL_DIR}/composer.phar" ]; then
         COMPOSER_CMD="${PHP_BIN} ${LARAVEL_DIR}/composer.phar"
@@ -405,12 +398,12 @@ composer_command_healthy() {
         return 1
     fi
 
-    runtime_plane="$(resolve_runtime_plane_for_start)"
+    runtime_plane="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
     if [ "${cmd[0]}" = "/usr/local/bin/composer" ] && [ "$runtime_plane" = "frankenphp" ]; then
-        if [ ! -x /usr/local/bin/composer-php-runtime ]; then
+        if [ ! -x "$FRANKENPHP_COMPOSER_RUNTIME_SHIM" ]; then
             return 1
         fi
-        if ! grep -Fq 'export PHP_BINARY="/usr/local/bin/composer-php-runtime"' /usr/local/bin/composer 2>/dev/null; then
+        if ! grep -Fq "export PHP_BINARY=\"${FRANKENPHP_COMPOSER_RUNTIME_SHIM}\"" /usr/local/bin/composer 2>/dev/null; then
             return 1
         fi
     fi
@@ -881,13 +874,9 @@ if ! resolve_php; then
     echo "php not found. Invoking init-ensure installer:"
     echo "  $PHP_ENSURE_SCRIPT"
     if [ -f "$PHP_ENSURE_SCRIPT" ]; then
-        bash "$PHP_ENSURE_SCRIPT"
-        if [ $? -ne 0 ]; then
-            echo "ERROR: PHP init-ensure installer failed ($PHP_ENSURE_SCRIPT)"
-            exit 1
-        fi
+        bash "$PHP_ENSURE_SCRIPT" || true
         if ! resolve_php; then
-            echo "ERROR: php still not found after running $PHP_ENSURE_SCRIPT"
+            echo "ERROR: PHP init-ensure installer failed or left php missing ($PHP_ENSURE_SCRIPT)"
             exit 1
         fi
     else
@@ -902,13 +891,9 @@ if ! resolve_composer; then
     echo "composer not found. Invoking init-ensure installer:"
     echo "  $COMPOSER_INSTALL_SCRIPT"
     if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
-        bash "$COMPOSER_INSTALL_SCRIPT"
-        if [ $? -ne 0 ]; then
-            echo "ERROR: Composer init-ensure installer failed ($COMPOSER_INSTALL_SCRIPT)"
-            exit 1
-        fi
+        bash "$COMPOSER_INSTALL_SCRIPT" || true
         if ! resolve_composer; then
-            echo "ERROR: composer still not found after running $COMPOSER_INSTALL_SCRIPT"
+            echo "ERROR: Composer init-ensure installer failed or left composer missing ($COMPOSER_INSTALL_SCRIPT)"
             exit 1
         fi
     else
@@ -920,17 +905,9 @@ elif ! composer_command_healthy "$COMPOSER_CMD"; then
     echo "composer command found but not runnable. Re-running init-ensure installer for repair:"
     echo "  $COMPOSER_INSTALL_SCRIPT"
     if [ -f "$COMPOSER_INSTALL_SCRIPT" ]; then
-        bash "$COMPOSER_INSTALL_SCRIPT"
-        if [ $? -ne 0 ]; then
+        bash "$COMPOSER_INSTALL_SCRIPT" || true
+        if ! resolve_composer || ! composer_command_healthy "$COMPOSER_CMD"; then
             echo "ERROR: Composer init-ensure installer failed while repairing wrapper ($COMPOSER_INSTALL_SCRIPT)"
-            exit 1
-        fi
-        if ! resolve_composer; then
-            echo "ERROR: composer still not found after repair run"
-            exit 1
-        fi
-        if ! composer_command_healthy "$COMPOSER_CMD"; then
-            echo "ERROR: composer wrapper appears still broken after repair: $COMPOSER_CMD"
             exit 1
         fi
     else
@@ -940,7 +917,7 @@ elif ! composer_command_healthy "$COMPOSER_CMD"; then
     fi
 fi
 
-CURRENT_WEB_SERVER_PLANE="$(resolve_runtime_plane_for_start)"
+CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
 echo "Using php:      $PHP_BIN"
 echo "Using composer: $COMPOSER_CMD"
 echo "Web server plane: $CURRENT_WEB_SERVER_PLANE"
@@ -986,18 +963,24 @@ fi
 if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
     echo "PHP pdo_pgsql extension present."
 else
-    echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
-    echo "  $PHP_PGSQL_ENSURE_SCRIPT"
-    if [ -f "$PHP_PGSQL_ENSURE_SCRIPT" ]; then
-        bash "$PHP_PGSQL_ENSURE_SCRIPT" || echo "  Warning: pdo_pgsql installer reported failure."
-        if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
-            echo "pdo_pgsql installed -> PostgreSQL driver available."
-        else
-            echo "  *** ACTION REQUIRED: pdo_pgsql still missing -> all DB access will fail."
-            echo "  *** Build manually: bash $PHP_PGSQL_ENSURE_SCRIPT"
-        fi
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        echo "PHP pdo_pgsql extension not found under frankenphp runtime."
+        echo "This plane uses the embedded FrankenPHP PHP binary; apt-based installer is intentionally skipped."
+        echo "  Action: rebuild FrankenPHP with PostgreSQL extension when START_POSTGRESQL=true."
     else
-        echo "  Warning: pdo_pgsql installer missing: $PHP_PGSQL_ENSURE_SCRIPT"
+        echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
+        echo "  $PHP_PGSQL_ENSURE_SCRIPT"
+        if [ -f "$PHP_PGSQL_ENSURE_SCRIPT" ]; then
+            bash "$PHP_PGSQL_ENSURE_SCRIPT" || echo "  Warning: pdo_pgsql installer reported failure."
+            if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+                echo "pdo_pgsql installed -> PostgreSQL driver available."
+            else
+                echo "  *** ACTION REQUIRED: pdo_pgsql still missing -> all DB access will fail."
+                echo "  *** Build manually: bash $PHP_PGSQL_ENSURE_SCRIPT"
+            fi
+        else
+            echo "  Warning: pdo_pgsql installer missing: $PHP_PGSQL_ENSURE_SCRIPT"
+        fi
     fi
 fi
 
@@ -1325,14 +1308,14 @@ if [ "${LARAVEL_SERVICE_RUN:-}" != "1" ]; then
 fi
 
 # --- Start runtime ---
-# Plane dispatch (web_server_plane, gvar_common.sh): frankenphp plane runs
+# Plane dispatch (php_runtime_plane, octane_service_manager.sh): frankenphp plane runs
 # the single octane:frankenphp branch (HTTPS 443/h3 + Mercure hub); the
 # nginx plane keeps the system-PHP Swoole branch on the loopback backend.
 # FALLBACK (nginx plane, Swoole unavailable): node 'composer dev:win' or a
 # node-free serve + queue:listen + schedule:work. In every mode
 # OctaneTimerServiceProvider drives the SAME TimerTasks/* through a single,
 # never duplicated tick source.
-if [ "$(web_server_plane)" = "frankenphp" ] && [ -n "$OCTANE_AVAILABLE" ]; then
+if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ] && [ -n "$OCTANE_AVAILABLE" ]; then
     # Site host = first configured api.<region>.<domain>; the Mercure trusted
     # issuer (token `iss`) mirrors the same value through the runtime branch.
     FRANKENPHP_SITE_HOST="localhost"
