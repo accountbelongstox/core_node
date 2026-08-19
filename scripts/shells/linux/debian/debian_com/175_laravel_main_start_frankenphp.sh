@@ -49,7 +49,7 @@ fm_install
 fm_ensure_local_bin_link
 fm_ensure_php_cli_shim
 fm_php_ini_ensure
-fm_ensure_dnspod_module || echo "[$SCRIPT_INDEX] [WARN] dnspod module deferred (static build continues in the background flow)"
+fm_ensure_dnspod_module
 
 # STEP 2: idempotent certificate readiness - the wildcard certificate is
 # issued/renewed by Caddy's ACME at launch once module + token both hold;

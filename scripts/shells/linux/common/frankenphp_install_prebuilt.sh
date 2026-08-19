@@ -358,6 +358,26 @@ frankenphp_prebuilt_install_binary() {
     return 0
 }
 
+# Keep the live /usr/local/bin/frankenphp pointer and shims aligned with the
+# prebuilt payload even when the binary install step itself is skipped by
+# fingerprint matching (for example: mode switch from compile back to prebuilt).
+frankenphp_prebuilt_ensure_link() {
+    local target_binary=""
+    local current_link=""
+
+    target_binary="$(fm_resolve_binary_path "$FRANKENPHP_PREBUILT_INSTALL_BIN")"
+    if [ -z "$target_binary" ]; then
+        echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt binary missing; skipping runtime link repair"
+        return 0
+    fi
+    current_link="$(readlink -f "$FRANKENPHP_LINK_PATH" 2>/dev/null || true)"
+    fm_ensure_local_bin_link "$target_binary"
+    fm_ensure_php_cli_shim
+    if [ "$current_link" = "$target_binary" ] && [ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ]; then
+        echo "[$FRANKENPHP_PREBUILT_INDEX] prebuilt runtime link already converged: ${FRANKENPHP_LINK_PATH} -> ${target_binary}"
+    fi
+}
+
 frankenphp_prebuilt_step_fingerprint() {
     local current_version=""
 
@@ -374,6 +394,8 @@ frankenphp_install_prebuilt() {
 
     step_run "$FRANKENPHP_PREBUILT_NAMESPACE" "prebuilt-binary" "$prebuilt_fingerprint" \
         frankenphp_prebuilt_install_binary
+
+    frankenphp_prebuilt_ensure_link
 
     if [ -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ]; then
         source "$FRANKENPHP_PREBUILT_ACME_INSTALL_SCRIPT"

@@ -363,13 +363,21 @@ if ($piPath -and
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if ($mode -eq 'volc-coding' -and -not $volcApiKey) {
-            $legacySecretPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_1"
-            $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
-            if ($volcApiKey) {
-                Write-Host "[INFO] Loaded Volcengine API Key from ARK_API_KEY_1" -ForegroundColor Green
+            $legacySecretPathCandidates = @(
+                (Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_KEY_1"),
+                (Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARK_API_KEY_1")
+            )
+            foreach ($candidatePath in @($legacySecretPathCandidates)) {
+                if (-not $volcApiKey) {
+                    $legacySecretPath = $candidatePath
+                    $volcApiKey = & $nodeExePath $harnessSettingsScriptPath secret-file $legacySecretPath
+                    if ($volcApiKey) {
+                        Write-Host "[INFO] Loaded Volcengine API Key from $([System.IO.Path]::GetFileName($legacySecretPath))" -ForegroundColor Green
+                    }
+                }
             }
-            else {
-                Write-Host "[WARN] Volcengine API Key not found in ARK_API_KEY_1. A valid API key is required." -ForegroundColor Yellow
+            if (-not $volcApiKey) {
+                Write-Host "[WARN] Volcengine API Key not found in ARKCLI_API_KEY_1 (or ARK_API_KEY_1). A valid API key is required." -ForegroundColor Yellow
             }
             
             $legacyBaseUrlPath = Join-Path $coreNodePath ".secret_keys\.secret_ignore\ARKCLI_API_1"

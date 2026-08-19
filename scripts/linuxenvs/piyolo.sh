@@ -314,12 +314,19 @@ if [ -x "$PI_BIN_PATH" ] && [ -x "$NODE_BIN" ] && [ -x "$PNPM_BIN" ] && [ -f "$H
         # claudevolc predates arkcli profiles. Preserve its Coding Plan files as
         # a fallback, but never mix that key into the Agent Plan provider.
         if [ "$MODE" = "volc-coding" ] && [ -z "$VOLC_API_KEY" ]; then
-            LEGACY_SECRET_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_1"
-            VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
-            if [ -n "$VOLC_API_KEY" ]; then
-                echo "[INFO] Loaded Volcengine API Key from ARK_API_KEY_1"
-            else
-                echo "[WARN] Volcengine API Key not found in ARK_API_KEY_1. A valid API key is required."
+            for LEGACY_SECRET_PATH in \
+                "$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_API_KEY_1" \
+                "$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARK_API_KEY_1"
+            do
+                if [ -z "$VOLC_API_KEY" ]; then
+                    VOLC_API_KEY="$("$NODE_BIN" "$HARNESS_SETTINGS_SCRIPT" secret-file "$LEGACY_SECRET_PATH")"
+                    if [ -n "$VOLC_API_KEY" ]; then
+                        echo "[INFO] Loaded Volcengine API Key from $(basename "$LEGACY_SECRET_PATH")"
+                    fi
+                fi
+            done
+            if [ -z "$VOLC_API_KEY" ]; then
+                echo "[WARN] Volcengine API Key not found in ARKCLI_API_KEY_1 (or ARK_API_KEY_1). A valid API key is required."
             fi
             
             LEGACY_BASE_URL_PATH="$CORE_NODE_DIR/.secret_keys/.secret_ignore/ARKCLI_API_1"

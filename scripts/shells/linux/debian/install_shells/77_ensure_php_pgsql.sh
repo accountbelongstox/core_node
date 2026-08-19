@@ -40,10 +40,20 @@ CANDIDATE=""
 OS_ID_LOCAL=""
 OS_CODENAME_LOCAL=""
 REPO_MANAGER=""
+RUNTIME_PLANE=""
 
 # Source global variables (provides USE_SUDO) and shared print helpers
 source "$GVAR_COMMON"
 source "$COMMON_FUNCTIONS"
+
+RUNTIME_PLANE="$(get_global_var PHP_RUNTIME_PLANE "")"
+if [ -z "$RUNTIME_PLANE" ]; then
+    RUNTIME_PLANE="$(web_server_plane 2>/dev/null || echo frankenphp)"
+fi
+if [ "$RUNTIME_PLANE" = "frankenphp" ]; then
+    print_step_from_common_functions "ensure_php_pgsql: skipped (embedded frankenphp runtime does not use apt php modules)"
+    exit 0
+fi
 
 print_step_from_common_functions "48_ensure_php_pgsql: ensuring pdo_pgsql / pgsql for PHP"
 
