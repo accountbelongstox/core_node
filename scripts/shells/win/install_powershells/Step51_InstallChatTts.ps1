@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     ChatTTS prerequisite — dialogue TTS (official PyPI + local OpenAI-compatible api).
 

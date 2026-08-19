@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     F5-TTS prerequisite (flow-matching fast clone TTS), auto-run by PreparePycorePrerequisites.ps1.
     Clones SWivid/F5-TTS into staging and copies a minimal HTTP /process wrapper.

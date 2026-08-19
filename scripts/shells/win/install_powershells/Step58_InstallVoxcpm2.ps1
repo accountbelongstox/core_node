@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     VoxCPM2 prerequisite (OpenBMB in-process TTS).
 

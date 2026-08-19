@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Dedicated prerequisite installer for OpenAI Whisper (speech-to-text).
 

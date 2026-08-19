@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     CosyVoice prerequisite (Alibaba multilingual clone TTS), auto-run by PreparePycorePrerequisites.ps1.
     Clones FunAudioLLM/CosyVoice into staging idempotently. pycore's cosyvoice engine
