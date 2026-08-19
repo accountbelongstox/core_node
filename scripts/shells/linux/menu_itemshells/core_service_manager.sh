@@ -101,7 +101,7 @@ detect_core_services() {
 categorize_service() {
     local service="$1"
     case "$service" in
-        ncore-laravel-main)   echo "NCORE/Laravel" ;;
+        ncore-laravel-main|ncore-laravel-frankenphp|ncore-laravel-nginx) echo "NCORE/Laravel" ;;
         pycore-module-caller) echo "PYCORE/HTTP" ;;
         pycore)               echo "PYCORE" ;;
         codesync)             echo "CODESYNC" ;;
@@ -425,7 +425,7 @@ show_main_menu() {
             echo -e "${YELLOW}No core_node services found${NC}"
             echo ""
             echo "Services are auto-discovered by unit-name prefix:"
-            echo "  - ncore-*            (incl. ncore-laravel-main)"
+            echo "  - ncore-*            (incl. ncore-laravel-frankenphp, ncore-laravel-nginx)"
             echo "  - pycore / pycore-module-caller"
             echo "  - codesync"
             echo "  - octane-*"
