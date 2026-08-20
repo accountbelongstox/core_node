@@ -1279,6 +1279,10 @@ import ${routes_dir}/*.caddy"
 {
 	admin localhost:${admin_port}
 	auto_https disable_redirects
+	grace_period 10s
+	servers :${backend_port} {
+		protocols h1
+	}
 
 	frankenphp {
 		worker {

@@ -705,8 +705,8 @@ _resolve_laravel_service_plane() {
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-frankenphp"
             LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_FRANKENPHP"
             LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_FRANKENPHP_LAUNCHER"
-            LARAVEL_SERVICE_EXEC_STOP="-/usr/bin/curl -sS --max-time 15 -X POST http://127.0.0.1:2019/stop"
-            LARAVEL_SERVICE_TIMEOUT_STOP="45s"
+            LARAVEL_SERVICE_EXEC_STOP=""
+            LARAVEL_SERVICE_TIMEOUT_STOP="15s"
             ;;
         nginx)
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-nginx"
