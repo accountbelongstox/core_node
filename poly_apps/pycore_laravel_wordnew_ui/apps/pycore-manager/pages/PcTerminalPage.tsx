@@ -32,10 +32,13 @@ import {
 import { useTranslation } from 'react-i18next';
 
 import {
+  completeTerminalScheduleClearAll,
   createTerminalScheduleEntryId,
+  isTerminalScheduleClearAllPending,
   onHttpStatus,
   pycoreApi,
   readTerminalScheduleBackup,
+  stageTerminalScheduleClearAll,
   terminalScheduleDefinitionMetadata,
   writeTerminalScheduleBackup,
 } from '@/apps/pycore-manager/api';
@@ -53,6 +56,7 @@ import type {
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
+const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Height reserved above the mobile terminal grid (top bar + page header). */
 const MOBILE_GRID_OFFSET_REM = 15.5;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
@@ -403,7 +407,11 @@ const PcTerminalPage: React.FC = () => {
   const dirtyDraftsRef = useRef<Set<number>>(new Set());
   const draftTimersRef = useRef<Record<string, number>>({});
   const loadedDraftsRef = useRef<Set<number>>(new Set());
-  const scheduleSyncInFlightRef = useRef<Set<number>>(new Set());
+  const scheduleSyncInFlightRef = useRef<Map<
+    number,
+    ReturnType<typeof pycoreApi.syncTerminalScheduleEntries>
+  >>(new Map());
+  const scheduleClearAllInProgressRef = useRef(false);
 
   const errorTranslationKey = useCallback((errorCode?: string | null) => (
     ERROR_TRANSLATION_KEYS[String(errorCode || '')] || 'terminal.errors.unknown'
@@ -460,7 +468,9 @@ const PcTerminalPage: React.FC = () => {
       (windowInfo.schedule_queue || []).map(async (entry) => ({
         id: entry.id,
         mode: entry.mode,
-        run_at: entry.mode === 'once' ? Number(entry.next_run_at || 0) : 0,
+        run_at: entry.mode === 'once'
+          ? Number(entry.run_at || entry.next_run_at || 0)
+          : 0,
         interval_seconds: entry.mode === 'interval' ? entry.interval_seconds : 0,
         message: await pycoreApi.getTerminalContent(
           terminalNumber,
@@ -479,13 +489,18 @@ const PcTerminalPage: React.FC = () => {
     terminalNumber: number,
   ) => {
     const backup = readTerminalScheduleBackup(terminalNumber);
-    if (!backup || scheduleSyncInFlightRef.current.has(terminalNumber)) return null;
-    scheduleSyncInFlightRef.current.add(terminalNumber);
+    if (
+      !backup
+      || scheduleClearAllInProgressRef.current
+      || scheduleSyncInFlightRef.current.has(terminalNumber)
+    ) return null;
+    const request = pycoreApi.syncTerminalScheduleEntries(
+      terminalNumber,
+      backup.entries,
+    );
+    scheduleSyncInFlightRef.current.set(terminalNumber, request);
     try {
-      const result = await pycoreApi.syncTerminalScheduleEntries(
-        terminalNumber,
-        backup.entries,
-      );
+      const result = await request;
       const currentBackup = readTerminalScheduleBackup(terminalNumber);
       if (
         result.success
@@ -501,13 +516,25 @@ const PcTerminalPage: React.FC = () => {
       }
       return result;
     } finally {
-      scheduleSyncInFlightRef.current.delete(terminalNumber);
+      if (scheduleSyncInFlightRef.current.get(terminalNumber) === request) {
+        scheduleSyncInFlightRef.current.delete(terminalNumber);
+      }
     }
   }, []);
 
   const reconcileScheduleBackups = useCallback(async (
     windows: TerminalWindowInfo[],
   ) => {
+    if (isTerminalScheduleClearAllPending()) {
+      windows.forEach((windowInfo) => {
+        if (!readTerminalScheduleBackup(windowInfo.terminal_number)) {
+          writeTerminalScheduleBackup(windowInfo.terminal_number, []);
+        }
+      });
+      const clearResult = await pycoreApi.clearTerminalScheduleEntries()
+        .catch(() => null);
+      if (clearResult?.success) completeTerminalScheduleClearAll();
+    }
     await Promise.all(windows.map((windowInfo) => (
       initializeTerminalScheduleBackup(windowInfo).catch(() => undefined)
     )));
@@ -838,6 +865,48 @@ const PcTerminalPage: React.FC = () => {
       setActionWindowId('');
     }
   }, [errorTranslationKey, syncTerminalScheduleBackup]);
+
+  const clearAllScheduleEntries = useCallback(async () => {
+    const terminalNumbers = (snapshot?.windows || []).map(
+      (windowInfo) => windowInfo.terminal_number,
+    );
+    scheduleClearAllInProgressRef.current = true;
+    stageTerminalScheduleClearAll(terminalNumbers);
+    setSnapshot((current) => current ? {
+      ...current,
+      windows: current.windows.map((windowInfo) => ({
+        ...windowInfo,
+        schedule_queue: [],
+      })),
+    } : current);
+    setEditingSchedule(null);
+    setActionWindowId(ALL_SCHEDULES_ACTION_ID);
+    setActionNotice(null);
+    try {
+      await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
+      const result = await pycoreApi.clearTerminalScheduleEntries();
+      if (result.success) {
+        completeTerminalScheduleClearAll();
+        setActionNotice({
+          kind: 'success',
+          translationKey: 'terminal.scheduleAllCleared',
+        });
+      } else {
+        setActionNotice({
+          kind: 'success',
+          translationKey: 'terminal.scheduleClearSavedLocally',
+        });
+      }
+    } catch {
+      setActionNotice({
+        kind: 'success',
+        translationKey: 'terminal.scheduleClearSavedLocally',
+      });
+    } finally {
+      scheduleClearAllInProgressRef.current = false;
+      setActionWindowId('');
+    }
+  }, [snapshot?.windows]);
 
   const activate = useCallback((windowId: string) => runAction(
     windowId,
@@ -1619,15 +1688,29 @@ const PcTerminalPage: React.FC = () => {
             {t('terminal.subtitle')}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh(true)}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {t('common.refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void clearAllScheduleEntries()}
+            disabled={Boolean(actionWindowId)}
+            title={t('terminal.scheduleClearAllHint')}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {actionWindowId === ALL_SCHEDULES_ACTION_ID
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <TimerOff className="h-4 w-4" />}
+            {t('terminal.scheduleClearAll')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh(true)}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh')}
+          </button>
+        </div>
       </header>
 
       <section className="pc-glass px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">

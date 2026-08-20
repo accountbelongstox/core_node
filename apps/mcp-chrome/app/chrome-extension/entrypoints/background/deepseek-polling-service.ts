@@ -11,35 +11,10 @@ import {
 } from '@/utils/deepseek-task-queue';
 import { AsyncOperationController } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
+import { inspectDeepSeekPage, type DeepSeekPageObservation } from '@/utils/deepseek-page';
 
-/**
- * DeepSeek UI selectors
- */
-const DEEPSEEK_SELECTORS = {
-  // Text input area (supports both Chinese and English interfaces)
-  INPUT: 'textarea[placeholder*="输入"], textarea[placeholder*="Ask"], textarea[data-id="chat-input"]',
-
-  // Send button
-  SEND_BUTTON: 'button[type="submit"], button[aria-label*="Send"]',
-
-  // Stop generating button (indicates response is being generated, supports Chinese and English).
-  // Only the valid CSS clause is kept; :has-text() is a Playwright-only pseudo-selector that is
-  // invalid in native querySelector (throws SyntaxError, fails the whole selector list), so text
-  // matching for "Stop"/"停止" is done in JS (see checkTaskStatus).
-  STOP_BUTTON: 'button[aria-label*="Stop"]',
-
-  // Response container
-  RESPONSE: '.ds-markdown, [class*="markdown"], [class*="message-content"]',
-
-  // Last message from assistant
-  LAST_MESSAGE: '.ds-markdown:last-of-type, [class*="markdown"]:last-of-type, [class*="assistant-message"]:last-of-type',
-
-  // Error indicators
-  ERROR: '[class*="error"], [class*="failed"], [role="alert"]',
-
-  // Loading/thinking indicators
-  LOADING: '[class*="loading"], [class*="thinking"], [class*="generating"]',
-};
+const DEEPSEEK_POLL_ALARM = 'mcp_deepseek_poll_watchdog';
+const DEEPSEEK_POLL_ALARM_MINUTES = 0.5;
 
 /**
  * Polling state for a task
@@ -54,6 +29,7 @@ interface PollingState {
   // Prevents the very first poll(s) from declaring "complete" on a stale
   // response that was already on screen before the new prompt was submitted.
   sawGenerating: boolean;
+  checking: boolean;
 }
 
 /**
@@ -70,6 +46,14 @@ export class DeepSeekPollingService {
   private initialized = false;
   private readonly initialization = new AsyncOperationController<void>();
 
+  constructor() {
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      if (alarm.name === DEEPSEEK_POLL_ALARM) {
+        void this.recoverPersistedTasks();
+      }
+    });
+  }
+
   /**
    * Initialize the polling service
    */
@@ -80,6 +64,10 @@ export class DeepSeekPollingService {
 
   private async _doInitialize(): Promise<void> {
     if (this.initialized) return;
+
+    await chrome.alarms.create(DEEPSEEK_POLL_ALARM, {
+      periodInMinutes: DEEPSEEK_POLL_ALARM_MINUTES,
+    });
 
     // Initialize task queue manager
     await this.taskQueueManager.initialize();
@@ -136,6 +124,7 @@ export class DeepSeekPollingService {
       lastCheck: Date.now(),
       currentBackoff: 1000, // Start with 1 second
       sawGenerating: false,
+      checking: false,
     };
 
     this.pollingStates.set(taskId, state);
@@ -196,6 +185,7 @@ export class DeepSeekPollingService {
     // Schedule next check with exponential backoff (capped at 10 seconds)
     const nextBackoff = Math.min(state.currentBackoff * 1.5, 10000);
 
+    if (state.intervalId) clearTimeout(state.intervalId);
     state.intervalId = setTimeout(async () => {
       await this.pollTask(taskId);
     }, state.currentBackoff) as unknown as number;
@@ -210,6 +200,11 @@ export class DeepSeekPollingService {
   private async pollTask(taskId: string): Promise<void> {
     const state = this.pollingStates.get(taskId);
     if (!state) return;
+    if (state.checking) {
+      this.scheduleNextPoll(taskId);
+      return;
+    }
+    state.checking = true;
 
     try {
       const task = await this.taskQueueManager.getTask(taskId);
@@ -269,7 +264,6 @@ export class DeepSeekPollingService {
         this.scheduleNextPoll(taskId);
       }
 
-      state.lastCheck = Date.now();
     } catch (error) {
       console.error(`Error polling task ${taskId}:`, error);
       const msg = toErrorMessage(error);
@@ -286,6 +280,27 @@ export class DeepSeekPollingService {
         // Transient error — continue polling
         this.scheduleNextPoll(taskId);
       }
+    } finally {
+      state.checking = false;
+      state.lastCheck = Date.now();
+    }
+  }
+
+  private async recoverPersistedTasks(): Promise<void> {
+    const listing = await this.taskQueueManager.listTasks({
+      status: [TaskStatus.PENDING, TaskStatus.GENERATING],
+    });
+    const now = Date.now();
+
+    for (const task of listing.tasks) {
+      const state = this.pollingStates.get(task.id);
+      if (!state) {
+        if (task.tabId) this.startPolling(task.id);
+        continue;
+      }
+      if (!state.checking && now - state.lastCheck >= 20_000) {
+        void this.pollTask(task.id);
+      }
     }
   }
 
@@ -298,60 +313,24 @@ export class DeepSeekPollingService {
     isError: boolean;
     result?: DeepSeekTaskResult;
     error?: string;
+    messageCount?: number;
+    responseCandidates?: Array<Record<string, unknown>>;
   }> {
     if (!task.tabId) {
       return { isCompleted: false, isGenerating: false, isError: true, error: 'No tab ID' };
     }
 
     try {
-      // Execute script in tab to check UI state
       const results = await chrome.scripting.executeScript({
         target: { tabId: task.tabId },
-        func: () => {
-          // Stop button indicates generating. :has-text() is a Playwright-only pseudo-selector
-          // that is invalid in native querySelector (it throws SyntaxError and fails the whole
-          // non-forgiving selector list), so query the valid CSS clause and fall back to in-JS
-          // text matching for "Stop"/"停止".
-          let stopButton = document.querySelector('button[aria-label*="Stop"]');
-          if (!stopButton) {
-            stopButton =
-              Array.from(document.querySelectorAll('button')).find(
-                (b) => /Stop|停止/.test(b.textContent || '')
-              ) || null;
-          }
-          const isGenerating = stopButton !== null && !stopButton.hasAttribute('disabled');
-
-          // Check for error
-          const errorElement = document.querySelector('[class*="error"], [class*="failed"], [role="alert"]');
-          const hasError = errorElement !== null;
-          const errorText = errorElement?.textContent || '';
-
-          const messageElements = document.querySelectorAll('.ds-markdown, [class*="markdown"], [class*="message-content"]');
-          const lastMessage = messageElements[messageElements.length - 1];
-          const lastMessageText = lastMessage?.textContent || '';
-          const lastMessageHTML = lastMessage?.innerHTML || '';
-
-          // Check if response is complete (no stop button and has content)
-          const isCompleted = !isGenerating && lastMessageText.length > 0;
-
-          return {
-            isGenerating,
-            hasError,
-            errorText,
-            isCompleted,
-            lastMessageText,
-            lastMessageHTML,
-            messageCount: messageElements.length,
-            conversationUrl: window.location.href,
-          };
-        },
+        func: inspectDeepSeekPage,
       });
 
       if (!results || results.length === 0) {
         return { isCompleted: false, isGenerating: false, isError: true, error: 'Failed to execute script' };
       }
 
-      const result = results[0].result;
+      const result = results[0].result as DeepSeekPageObservation | undefined;
 
       if (!result) {
         return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
@@ -366,9 +345,12 @@ export class DeepSeekPollingService {
         };
       }
 
-      const hasNewResponse = typeof task.responseBaseline === 'number'
-        ? result.messageCount > task.responseBaseline
-        : result.isCompleted;
+      const hasFingerprintBaseline = typeof task.responseBaselineKey === 'string';
+      const hasNewResponse = hasFingerprintBaseline
+        ? result.lastResponseKey.length > 0 && result.lastResponseKey !== task.responseBaselineKey
+        : typeof task.responseBaseline === 'number'
+          ? result.assistantMessageCount > task.responseBaseline
+          : result.isCompleted;
 
       if (result.isCompleted && hasNewResponse) {
         return {
@@ -376,7 +358,7 @@ export class DeepSeekPollingService {
           isGenerating: false,
           isError: false,
           result: {
-            content: result.lastMessageText,
+            content: result.lastResponseText,
             conversationUrl: result.conversationUrl,
             extractedAt: Date.now(),
           },
@@ -387,6 +369,8 @@ export class DeepSeekPollingService {
         isCompleted: false,
         isGenerating: result.isGenerating,
         isError: false,
+        messageCount: result.assistantMessageCount,
+        responseCandidates: result.responseCandidates,
       };
     } catch (error) {
       console.error(`Error checking task status for ${task.id}:`, error);
@@ -452,6 +436,25 @@ export class DeepSeekPollingService {
       activePolling: this.pollingStates.size,
       pollingTasks: Array.from(this.pollingStates.keys()),
     };
+  }
+
+  async pollNow(taskId: string): Promise<void> {
+    await this.initialize();
+    const task = await this.taskQueueManager.getTask(taskId);
+    if (!task || [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED].includes(task.status)) {
+      return;
+    }
+    if (!this.pollingStates.has(taskId)) {
+      this.startPolling(taskId);
+    }
+    await this.pollTask(taskId);
+  }
+
+  async inspectTask(taskId: string): Promise<Record<string, unknown> | null> {
+    await this.initialize();
+    const task = await this.taskQueueManager.getTask(taskId);
+    if (!task) return null;
+    return this.checkTaskStatus(task);
   }
 }
 

@@ -28,7 +28,7 @@ LOG_KEY_PATTERN = re.compile(r"^log\.(\d+)\.(content|date|error_code|status|titl
 LOG_ENTRY_FIELDS = ("content", "date", "error_code", "status", "title")
 QUEUE_KEY_PATTERN = re.compile(
     r"^queue\.(\d+)\.(created_at|fire_count|interval_seconds|last_run_at"
-    r"|message|mode|next_run_at|preview)$"
+    r"|message|mode|next_run_at|preview|run_at)$"
 )
 QUEUE_ENTRY_FIELDS = (
     "created_at",
@@ -39,6 +39,7 @@ QUEUE_ENTRY_FIELDS = (
     "mode",
     "next_run_at",
     "preview",
+    "run_at",
 )
 QUEUE_SORT_FAR_FUTURE_MS = 2**62
 SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
@@ -402,10 +403,12 @@ class TerminalStateRepository:
             existing = existing_entries.get(entry_id)
             message = str(entry.get("message") or "")
             mode = str(entry["mode"])
+            run_at = int(entry["run_at"])
             next_run_at = int(entry["next_run_at"])
             interval_seconds = int(entry["interval_seconds"])
             definition_values = self._schedule_definition_values(
                 mode,
+                run_at,
                 next_run_at,
                 interval_seconds,
                 message,
@@ -448,6 +451,35 @@ class TerminalStateRepository:
             "success": True,
             "terminal_number": terminal_number,
             "entries": list(updated_record.get("queue") or []),
+        }
+
+    @serialized_method
+    @_transactional_store_method
+    def clear_schedule_entries(self) -> Dict[str, Any]:
+        values, records, _next_number = self._scan_records()
+        cleared_terminal_numbers: List[int] = []
+        cleared_entry_count = 0
+        now = _now_iso()
+
+        for terminal_number in sorted(records):
+            queue_by_id = records[terminal_number].get("queue_by_id") or {}
+            entry_ids = list(queue_by_id)
+            if not entry_ids:
+                continue
+            for entry_id in entry_ids:
+                self._delete_schedule_entry(values, terminal_number, entry_id)
+            self._write_value(
+                values,
+                self._terminal_key(terminal_number, "updated_at"),
+                now,
+            )
+            cleared_terminal_numbers.append(terminal_number)
+            cleared_entry_count += len(entry_ids)
+
+        return {
+            "success": True,
+            "cleared_entry_count": cleared_entry_count,
+            "terminal_numbers": cleared_terminal_numbers,
         }
 
     @serialized_method
@@ -530,6 +562,35 @@ class TerminalStateRepository:
             values,
             self._terminal_key(terminal_number, "updated_at"),
             now,
+        )
+
+    @serialized_method
+    @_transactional_store_method
+    def defer_schedule(
+        self,
+        terminal_number: int,
+        entry_id: str,
+        next_run_at_ms: int,
+    ) -> None:
+        values, records, _next_number = self._scan_records()
+        record = records.get(terminal_number)
+        if record is None:
+            return
+        entry_values = (record.get("queue_by_id") or {}).get(entry_id)
+        if entry_values is None:
+            return
+        self._write_value(
+            values,
+            self._terminal_key(
+                terminal_number,
+                f"queue.{entry_id}.next_run_at",
+            ),
+            str(int(next_run_at_ms)),
+        )
+        self._write_value(
+            values,
+            self._terminal_key(terminal_number, "updated_at"),
+            _now_iso(),
         )
 
     @serialized_method
@@ -756,6 +817,7 @@ class TerminalStateRepository:
     @staticmethod
     def _schedule_definition_values(
         mode: str,
+        run_at_ms: int,
         next_run_at_ms: int,
         interval_seconds: int,
         message: str,
@@ -766,6 +828,7 @@ class TerminalStateRepository:
             "mode": mode,
             "next_run_at": str(int(next_run_at_ms)),
             "preview": " ".join(message.split())[:SCHEDULE_PREVIEW_MAX_LENGTH],
+            "run_at": str(int(run_at_ms)),
         }
 
     def _schedule_definition_matches(
@@ -787,16 +850,14 @@ class TerminalStateRepository:
             "interval_seconds",
             "mode",
             "preview",
+            "run_at",
         )
         if any(
             str(existing.get(field) or "") != desired[field]
             for field in definition_fields
         ):
             return False
-        return (
-            desired["mode"] == "interval"
-            or str(existing.get("next_run_at") or "") == desired["next_run_at"]
-        )
+        return True
 
     def _write_schedule_entry(
         self,
@@ -995,6 +1056,7 @@ class TerminalStateRepository:
         values: Dict[str, Any],
     ) -> Dict[str, Any]:
         next_run_raw = str(values.get("next_run_at") or "")
+        run_at_raw = str(values.get("run_at") or "")
         interval_raw = str(values.get("interval_seconds") or "")
         fire_count_raw = str(values.get("fire_count") or "")
         last_run_raw = str(values.get("last_run_at") or "")
@@ -1005,6 +1067,7 @@ class TerminalStateRepository:
             "next_run_at": (
                 int(next_run_raw) if next_run_raw.isdigit() else None
             ),
+            "run_at": int(run_at_raw) if run_at_raw.isdigit() else None,
             "interval_seconds": (
                 int(interval_raw) if interval_raw.isdigit() else 0
             ),

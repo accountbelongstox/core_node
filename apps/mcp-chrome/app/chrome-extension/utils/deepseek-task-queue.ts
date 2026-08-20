@@ -54,6 +54,7 @@ export interface DeepSeekTask {
   tabId?: number; // Chrome tab ID where task is running
   conversationId?: string; // DeepSeek conversation ID
   responseBaseline?: number; // Assistant response count before this prompt
+  responseBaselineKey?: string; // Last assistant response fingerprint before this prompt
   result?: DeepSeekTaskResult; // Result data when completed
   error?: string; // Error message if failed
   metadata?: {

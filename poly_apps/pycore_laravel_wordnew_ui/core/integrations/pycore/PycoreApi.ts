@@ -58,6 +58,7 @@ export type {
   TerminalActionResult,
   TerminalDraftResult,
   TerminalLogEntry,
+  TerminalScheduleClearResult,
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalScheduleMode,

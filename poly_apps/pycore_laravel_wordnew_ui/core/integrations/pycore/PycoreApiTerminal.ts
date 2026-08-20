@@ -41,6 +41,7 @@ export type TerminalScheduleMode = 'once' | 'interval';
 export interface TerminalScheduleEntry {
   id: string;
   mode: TerminalScheduleMode;
+  run_at: number | null;
   next_run_at: number | null;
   interval_seconds: number;
   has_message: boolean;
@@ -124,6 +125,13 @@ export interface TerminalScheduleSyncResult {
   entries?: TerminalScheduleEntry[];
 }
 
+export interface TerminalScheduleClearResult {
+  success: boolean;
+  error_code?: string | null;
+  cleared_entry_count?: number;
+  terminal_numbers?: number[];
+}
+
 export const pycoreApiTerminal = {
   getTerminalWindows: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {}) as Promise<TerminalSnapshot>,
@@ -167,6 +175,10 @@ export const pycoreApiTerminal = {
       expanded ? '1' : '0',
       { terminal_number: terminalNumber },
     ) as Promise<TerminalViewResult>,
+  clearTerminalScheduleEntries: () => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalScheduleQueueClear,
+    {},
+  ) as Promise<TerminalScheduleClearResult>,
   syncTerminalScheduleEntries: (
     terminalNumber: number,
     entries: TerminalScheduleDefinition[],

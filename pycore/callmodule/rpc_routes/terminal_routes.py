@@ -8,6 +8,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_CONTENT,
     UI_TERMINAL_DRAFT,
     UI_TERMINAL_INPUT,
+    UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
     UI_TERMINAL_SCROLL,
     UI_TERMINAL_VIEW,
@@ -91,6 +92,9 @@ def register_terminal_routes(server) -> None:
         entries = params.get("entries") if isinstance(params, dict) else None
         return terminal_scheduler.sync_entries(terminal_number, entries)
 
+    def schedule_queue_clear_handler(_params, _request_id, _context):
+        return terminal_scheduler.clear_entries()
+
     def content_handler(params, _request_id, _context):
         terminal_number = _integer_param(params, "terminal_number")
         content_kind = str(params.get("kind") or "")
@@ -119,6 +123,10 @@ def register_terminal_routes(server) -> None:
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)
+    server.post(
+        path=UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
+        handler=schedule_queue_clear_handler,
+    )
     server.post(
         path=UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
         handler=schedule_queue_sync_handler,

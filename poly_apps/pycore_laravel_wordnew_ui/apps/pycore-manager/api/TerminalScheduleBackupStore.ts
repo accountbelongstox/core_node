@@ -154,7 +154,9 @@ export function stageTerminalScheduleClearAll(
   const state = readState();
   const terminalKeys = new Set([
     ...Object.keys(state.terminals),
-    ...terminalNumbers.filter((value) => value > 0).map(String),
+    ...terminalNumbers
+      .filter((value) => value > 0)
+      .map((value) => String(value)),
   ]);
   terminalKeys.forEach((key) => {
     const current = state.terminals[key];
@@ -202,6 +204,7 @@ export function terminalScheduleDefinitionMetadata(
   return {
     id: definition.id,
     mode: definition.mode,
+    run_at: definition.mode === 'once' ? definition.run_at : 0,
     next_run_at: nextRunAt,
     interval_seconds: definition.interval_seconds,
     has_message: Boolean(definition.message),
