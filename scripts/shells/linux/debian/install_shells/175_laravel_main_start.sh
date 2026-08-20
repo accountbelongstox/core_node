@@ -157,6 +157,8 @@ SERVICE_EXEC_CMD=""
 LARAVEL_SERVICE_PLANE=""
 LARAVEL_SERVICE_PLANE_NAME=""
 LARAVEL_SERVICE_PLANE_LAUNCHER=""
+LARAVEL_SERVICE_EXEC_STOP=""
+LARAVEL_SERVICE_TIMEOUT_STOP=""
 _opposite_service=""
 _old_service=""
 ARG=""
@@ -703,16 +705,22 @@ _resolve_laravel_service_plane() {
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-frankenphp"
             LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_FRANKENPHP"
             LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_FRANKENPHP_LAUNCHER"
+            LARAVEL_SERVICE_EXEC_STOP="/usr/bin/curl -sS --max-time 15 -X POST http://127.0.0.1:2019/stop"
+            LARAVEL_SERVICE_TIMEOUT_STOP="45s"
             ;;
         nginx)
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-nginx"
             LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_NGINX"
             LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_NGINX_LAUNCHER"
+            LARAVEL_SERVICE_EXEC_STOP=""
+            LARAVEL_SERVICE_TIMEOUT_STOP=""
             ;;
         *)
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-main"
             LARAVEL_SERVICE_PLANE_DESC="laravel_main backend (Octane)"
             LARAVEL_SERVICE_PLANE_LAUNCHER="$SELF"
+            LARAVEL_SERVICE_EXEC_STOP=""
+            LARAVEL_SERVICE_TIMEOUT_STOP=""
             ;;
     esac
 }
@@ -729,7 +737,7 @@ register_laravel_service() {
         (
             # shellcheck disable=SC1090
             source "$SERVICE_MANAGER"
-            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "" "900s"
+            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "" "900s" "no" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
         ) || return 1
         systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1 || true
         systemctl restart "$LARAVEL_SERVICE_PLANE_NAME" || return 1
@@ -739,11 +747,11 @@ register_laravel_service() {
     if command -v sudo >/dev/null 2>&1; then
         sudo bash -c '
             source "$1"
-            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "900s"
+            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "900s" no "$8" "$9"
             systemctl enable "$2" >/dev/null 2>&1 || true
             systemctl restart "$2"
             systemctl status "$2" --no-pager -l || true
-        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+        ' _ "$SERVICE_MANAGER" "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "$LARAVEL_SERVICE_EXEC_STOP" "$LARAVEL_SERVICE_TIMEOUT_STOP"
         return $?
     fi
     echo "ERROR: Need root (or sudo) to register a systemd service. Re-run as root."
