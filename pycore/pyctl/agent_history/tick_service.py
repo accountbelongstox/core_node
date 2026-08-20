@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""PyHeartbeat tick service for serialized extraction and single-flight articles."""
+"""PyHeartbeat service for extraction, local generation, and remote delivery."""
 
 from __future__ import annotations
 
@@ -9,16 +9,20 @@ from typing import Any, Dict, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.serialized_worker import init_serialized_owner, serialized_method, start_bus_task
-from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyctl.agent_history.agent_history_service import agent_history_service
-from pycore.pyctl.agent_history.pipeline.worker import tick_pipeline as pipeline_tick
+from pycore.pyctl.agent_history.pipeline.worker import (
+    tick_pipeline as pipeline_tick,
+    tick_upload as upload_tick,
+)
 
 DEFAULT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_INTERVAL", "10"))
 EXTRACT_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_EXTRACT_INTERVAL", str(DEFAULT_INTERVAL)))
 PIPELINE_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_PIPELINE_INTERVAL", str(DEFAULT_INTERVAL)))
+UPLOAD_INTERVAL = int(os.environ.get("PYCORE_AGENT_HISTORY_UPLOAD_INTERVAL", str(DEFAULT_INTERVAL)))
 
 CALLBACK_EXTRACT = "agent_history_extraction"
 CALLBACK_PIPELINE = "agent_history_pipeline"
+CALLBACK_UPLOAD = "agent_history_upload"
 
 
 class _ExtractGate:
@@ -39,35 +43,40 @@ class _ExtractGate:
 
 
 class AgentHistoryTickService:
-    """Singleton: extract and pipeline heartbeats with a lock-free status snapshot."""
+    """Independent heartbeats with a lock-free status snapshot."""
 
     def __init__(self) -> None:
         self._extract_count = 0
         self._pipeline_count = 0
+        self._upload_count = 0
         self._last_summary: Dict[str, Any] = {}
         # Coordinates heartbeat extraction with UI-requested extraction.
         self._extract_busy = threading.Event()
-        # Snapshot for UI polls — plain attribute reads, never waits on extract/pipeline.
+        # Snapshot for UI polls — plain attribute reads never wait on a lane.
         self._snapshot: Dict[str, Any] = {
             "tick_count": 0,
             "extract_count": 0,
             "pipeline_count": 0,
+            "upload_count": 0,
             "last": {},
             "interval": DEFAULT_INTERVAL,
             "extract_interval": EXTRACT_INTERVAL,
             "pipeline_interval": PIPELINE_INTERVAL,
+            "upload_interval": UPLOAD_INTERVAL,
         }
         self._extract_gate = _ExtractGate(self)
 
     def _publish_snapshot(self) -> None:
         self._snapshot = {
-            "tick_count": int(self._extract_count) + int(self._pipeline_count),
+            "tick_count": int(self._extract_count) + int(self._pipeline_count) + int(self._upload_count),
             "extract_count": int(self._extract_count),
             "pipeline_count": int(self._pipeline_count),
+            "upload_count": int(self._upload_count),
             "last": dict(self._last_summary) if isinstance(self._last_summary, dict) else {},
             "interval": DEFAULT_INTERVAL,
             "extract_interval": EXTRACT_INTERVAL,
             "pipeline_interval": PIPELINE_INTERVAL,
+            "upload_interval": UPLOAD_INTERVAL,
         }
 
     def get_status_snapshot(self) -> Dict[str, Any]:
@@ -77,8 +86,12 @@ class AgentHistoryTickService:
             "tick_count": 0,
             "extract_count": 0,
             "pipeline_count": 0,
+            "upload_count": 0,
             "last": {},
             "interval": DEFAULT_INTERVAL,
+            "extract_interval": EXTRACT_INTERVAL,
+            "pipeline_interval": PIPELINE_INTERVAL,
+            "upload_interval": UPLOAD_INTERVAL,
         }
 
     def tick_extract(self) -> None:
@@ -113,10 +126,15 @@ class AgentHistoryTickService:
         """Heartbeat: run one article stage on the callback's single-flight thread."""
         self._run_pipeline()
 
+    def tick_upload(self) -> None:
+        """Heartbeat: retry Laravel delivery without gating local generation."""
+        self._run_upload()
+
     def tick(self) -> None:
-        """Compatibility: run serialized extraction then the article pipeline."""
+        """Compatibility: advance each independent lane once."""
         self.tick_extract()
         self.tick_pipeline()
+        self.tick_upload()
 
     def _run_extract(self, force: bool = False) -> None:
         self._extract_count += 1
@@ -139,6 +157,15 @@ class AgentHistoryTickService:
             pipeline_tick()
         except Exception as art_err:  # noqa: BLE001
             ColorPrint.yellow(f"[AgentHistoryArticle] pipeline tick error: {art_err}")
+        finally:
+            self._publish_snapshot()
+
+    def _run_upload(self) -> None:
+        self._upload_count += 1
+        try:
+            upload_tick()
+        except Exception as upload_err:  # noqa: BLE001
+            ColorPrint.yellow(f"[AgentHistoryArticle] upload tick error: {upload_err}")
         finally:
             self._publish_snapshot()
 

@@ -17,8 +17,8 @@ export const TOOL_LABELS: Record<string, string> = {
   kimi: 'Kimi',
   antigravity: 'Antigravity',
   cline: 'Cline',
-  agent: 'Local Agent'
-  ,pi: 'Pi'
+  agent: 'Local Agent',
+  pi: 'Pi',
 };
 
 export const TOOL_BADGE: Record<string, string> = {
@@ -29,8 +29,8 @@ export const TOOL_BADGE: Record<string, string> = {
   kimi: 'bg-pink-500/15 text-pink-600 dark:text-pink-300 border-pink-500/30',
   antigravity: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30',
   cline: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30',
-  agent: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30'
-  ,pi: 'bg-lime-500/15 text-lime-700 dark:text-lime-300 border-lime-500/30'
+  agent: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30',
+  pi: 'bg-lime-500/15 text-lime-700 dark:text-lime-300 border-lime-500/30',
 };
 
 export const ROLE_STYLE: Record<string, { ring: string; label: string; icon: React.ReactNode }> = {

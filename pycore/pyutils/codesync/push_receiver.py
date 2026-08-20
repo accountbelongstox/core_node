@@ -18,6 +18,11 @@ import time
 import hashlib
 from pathlib import Path
 
+from pycore.pyutils.codesync.file_operations import (
+    atomic_write_bytes,
+    normalize_relative_path,
+    restore_executable_bit,
+)
 from pycore.pyutils.codesync.textnorm import normalized_md5
 from pycore.pyutils.codesync.wire_codec import (
     FRAME_FULL_SYNC_COMPLETE,
@@ -28,30 +33,7 @@ from pycore.pyutils.codesync.wire_codec import (
 from pycore.pyutils.codesync.runtime import get_local_data_dir, log as ColorPrint
 
 
-# Shell/script extensions that should be executable on Linux/macOS.
-_EXEC_EXTS = (".sh", ".bash", ".zsh", ".ksh", ".command")
 _PENDING_UPDATE_VERSION = 1
-
-
-def _restore_exec_bit(target, content: bytes) -> None:
-    """Linux/macOS only: a file received over Code Sync is written fresh, so its
-    executable bit is lost. Restore +x for shell scripts (by extension) and for
-    any file beginning with a shebang ('#!'), so it can be run directly. The exec
-    bit is added only where the read bit is already set (mirrors `chmod +x`'s
-    umask-respecting behavior); no-op on Windows."""
-    if os.name != "posix":
-        return
-    name = target.name.lower()
-    is_exec = name.endswith(_EXEC_EXTS) or content[:2] == b"#!"
-    if not is_exec:
-        return
-    try:
-        mode = os.stat(target).st_mode
-        new_mode = mode | ((mode & 0o444) >> 2)  # r -> x for each of u/g/o
-        if new_mode != mode:
-            os.chmod(target, new_mode)
-    except Exception:
-        pass
 
 
 def _safe_cache_segment(segment: str) -> str:
@@ -184,7 +166,7 @@ class PushReceiver:
                 # Update-only: a written/skipped real file records its hash; a delete
                 # entry is IGNORED (file kept), so we never drop it from the table.
                 if r.get("status") in ("written", "skipped") and not f.get("deleted"):
-                    rel_norm = self._normalize_rel(rel)
+                    rel_norm = normalize_relative_path(rel)
                     target = (root / rel_norm).resolve()
                     if target == root or root not in target.parents:
                         continue
@@ -195,10 +177,6 @@ class PushReceiver:
                               direction="receive")
 
     # ----- pending cache ---------------------------------------------------- #
-    @staticmethod
-    def _normalize_rel(rel) -> str:
-        return str(rel).replace("\\", "/").strip().strip("/")
-
     def _prune_synced_pending_updates(self) -> None:
         """Drop deferred entries whose local file already matches the cached hash."""
         root = self.m.sync_target_root().resolve()
@@ -258,7 +236,7 @@ class PushReceiver:
         return self._pending_updates_dir / "files"
 
     def _cache_file_path(self, rel: str) -> Path:
-        normalized = self._normalize_rel(rel)
+        normalized = normalize_relative_path(rel)
         if not normalized:
             normalized = "_root"
         digest = hashlib.sha256(normalized.encode("utf-8", errors="ignore")).hexdigest()
@@ -278,29 +256,6 @@ class PushReceiver:
         tmp.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         os.replace(str(tmp), str(path))
 
-    @staticmethod
-    def _atomic_write_bytes(path: Path, content: bytes, *, allow_fallback: bool = False) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_name(f"{path.name}.cs_tmp")
-        try:
-            tmp.write_bytes(content)
-            os.replace(str(tmp), str(path))
-        except PermissionError:
-            try:
-                tmp.unlink()
-            except Exception:
-                pass
-            if allow_fallback:
-                path.write_bytes(content)
-                return
-            raise
-        except Exception:
-            try:
-                tmp.unlink()
-            except Exception:
-                pass
-            raise
-
     def _load_pending_updates(self) -> dict:
         try:
             p = self._pending_updates_file()
@@ -318,7 +273,7 @@ class PushReceiver:
                 file_hash = str(raw.get("hash") or "")
                 if not file_hash:
                     continue
-                normalized = self._normalize_rel(rel)
+                normalized = normalize_relative_path(rel)
                 cache_path = Path(str(raw.get("cache_path") or ""))
                 if not cache_path.is_absolute():
                     cache_path = self._cache_file_path(normalized)
@@ -356,7 +311,7 @@ class PushReceiver:
         peer_id: str,
         peer_name: str,
     ) -> bool:
-        normalized = self._normalize_rel(rel)
+        normalized = normalize_relative_path(rel)
         cache_path = self._cache_file_path(normalized)
         cache_entry = {
             "hash": str(file_hash or ""),
@@ -378,7 +333,7 @@ class PushReceiver:
             ):
                 return False
 
-        self._atomic_write_bytes(cache_path, content)
+        atomic_write_bytes(cache_path, content)
 
         with self._pending_updates_lock:
             self._pending_updates[normalized] = cache_entry
@@ -386,7 +341,7 @@ class PushReceiver:
         return True
 
     def _remove_pending_update(self, rel: str) -> bool:
-        normalized = self._normalize_rel(rel)
+        normalized = normalize_relative_path(rel)
         entry = None
         with self._pending_updates_lock:
             entry = self._pending_updates.pop(normalized, None)
@@ -427,7 +382,7 @@ class PushReceiver:
         return resolved_text.startswith(f"{root_text}{os.sep}")
 
     def apply_pending_update(self, rel: str) -> dict:
-        normalized = self._normalize_rel(rel)
+        normalized = normalize_relative_path(rel)
         if not normalized:
             return {"success": False, "error": "missing rel"}
 
@@ -459,14 +414,14 @@ class PushReceiver:
         old_size = target.stat().st_size if target.exists() else 0
         new_size = len(content)
         try:
-            self._atomic_write_bytes(target, content, allow_fallback=True)
+            atomic_write_bytes(target, content, allow_fallback=True)
             server_mtime = self._coerce_float(entry.get("server_mtime"))
             if server_mtime is not None:
                 try:
                     os.utime(target, (server_mtime, server_mtime))
                 except Exception:
                     pass
-            _restore_exec_bit(target, content)
+            restore_executable_bit(target, content)
         except Exception as exc:  # noqa: BLE001
             return {"success": False, "error": f"failed to apply payload: {exc}"}
 
@@ -493,7 +448,7 @@ class PushReceiver:
         }
 
     def clear_pending_update(self, rel: str) -> dict:
-        normalized = self._normalize_rel(rel)
+        normalized = normalize_relative_path(rel)
         if not normalized:
             return {"success": False, "error": "missing rel"}
         removed = self._remove_pending_update(normalized)
@@ -603,7 +558,7 @@ class PushReceiver:
             if index % 250 == 0:
                 self.m.set_sync_phase("scanning", total - index, channel=dev_id,
                                       name=dev_name, direction="receive")
-            srel = self._normalize_rel(rel)
+            srel = normalize_relative_path(rel)
             try:
                 target = (root / srel).resolve()
             except Exception:
@@ -636,7 +591,7 @@ class PushReceiver:
         for rel, record in received.items():
             if rel in new_table or rel in files:
                 continue
-            srel = self._normalize_rel(rel)
+            srel = normalize_relative_path(rel)
             try:
                 target = (root / srel).resolve()
             except Exception:
@@ -675,7 +630,7 @@ class PushReceiver:
         if not rel or (b64 is None and not deleted):
             result["error"] = "missing rel/b64"
             return result
-        rel = self._normalize_rel(rel)
+        rel = normalize_relative_path(rel)
         result["rel"] = rel
         # Contain every write/delete strictly under the sync root: reject path
         # traversal ("../") and absolute rels that would escape it (resolve() also
@@ -766,7 +721,7 @@ class PushReceiver:
             else:
                 reason = "new file"
 
-            self._atomic_write_bytes(target, content, allow_fallback=True)
+            atomic_write_bytes(target, content, allow_fallback=True)
             server_mtime = self._coerce_float(msg.get("mtime"))
             if server_mtime is not None:
                 try:
@@ -776,7 +731,7 @@ class PushReceiver:
             # The exec bit is lost in transfer (a fresh file is written), so on
             # Linux/macOS restore +x for shell scripts and any shebang file so
             # `./x.sh` works, not just `bash x.sh`.
-            _restore_exec_bit(target, content)
+            restore_executable_bit(target, content)
             self._remove_pending_update(rel)
             result["status"] = "written"
             self.m.log_sync("received", rel, reason, details=details,

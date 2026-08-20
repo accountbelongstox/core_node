@@ -311,13 +311,14 @@ def mark_rebuild_uploaded(
 
 
 def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
-    """Count one failed rebuild attempt (bounded by the rebuild lane)."""
+    """Count one failed step and defer that record with bounded backoff."""
     rec = get_record(record_id)
     if rec is None:
         return None
-    rec["rebuild_attempts"] = int(rec.get("rebuild_attempts") or 0) + 1
+    attempts = int(rec.get("rebuild_attempts") or 0) + 1
+    rec["rebuild_attempts"] = attempts
     rec["rebuild_audio_job"] = None
-    rec["rebuild_not_before"] = 0.0
+    rec["rebuild_not_before"] = time.time() + min(300.0, float(2 ** min(attempts, 8)))
     return _commit_record(
         rec,
         ["rebuild_attempts", "rebuild_audio_job", "rebuild_not_before"],

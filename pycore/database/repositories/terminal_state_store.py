@@ -42,17 +42,30 @@ class TerminalStateStore:
         self,
         size_only_key_suffixes: Tuple[str, ...] = (),
     ) -> Dict[str, str]:
-        rows = self._connection.execute(
-            f"SELECT key, value FROM {TERMINAL_STATE_TABLE}"
-        ).fetchall()
         values: Dict[str, str] = {}
-        for key, value in rows:
-            text_value = str(value)
-            values[str(key)] = (
-                str(len(text_value.encode("utf-8")))
-                if str(key).endswith(size_only_key_suffixes)
-                else text_value
-            )
+        if not size_only_key_suffixes:
+            rows = self._connection.execute(
+                f"SELECT key, value FROM {TERMINAL_STATE_TABLE}"
+            ).fetchall()
+            return {str(key): str(value) for key, value in rows}
+        size_patterns = tuple(f"%{suffix}" for suffix in size_only_key_suffixes)
+        size_predicate = " OR ".join("key LIKE ?" for _suffix in size_patterns)
+        value_rows = self._connection.execute(
+            f"""
+            SELECT key, value FROM {TERMINAL_STATE_TABLE}
+            WHERE NOT ({size_predicate})
+            """,
+            size_patterns,
+        ).fetchall()
+        size_rows = self._connection.execute(
+            f"""
+            SELECT key, length(CAST(value AS BLOB)) FROM {TERMINAL_STATE_TABLE}
+            WHERE {size_predicate}
+            """,
+            size_patterns,
+        ).fetchall()
+        values.update((str(key), str(value)) for key, value in value_rows)
+        values.update((str(key), str(size)) for key, size in size_rows)
         return values
 
     def read(self, key: str) -> Optional[str]:

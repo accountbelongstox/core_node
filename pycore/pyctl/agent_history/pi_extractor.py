@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import os
-import re
 from glob import glob
 from typing import Any, Dict, List, Optional
 
 from pycore.pyctl.agent_history.base_extractor import BaseExtractor
+from pycore.pyfoundations.text_parsing import split_by_word_count
 
 
 ASSISTANT_ARTICLE_WORDS = 600
@@ -16,7 +16,6 @@ DEFAULT_SESSION_DIRECTORY = "sessions"
 PI_AGENT_DIRECTORY = os.path.join(".pi", "agent")
 PI_SESSION_ENV = "PI_CODING_AGENT_SESSION_DIR"
 PI_SETTINGS_FILE = "settings.json"
-_WORD_RE = re.compile(r"\S+")
 
 
 class PiExtractor(BaseExtractor):
@@ -166,7 +165,7 @@ class PiExtractor(BaseExtractor):
         text = "\n\n".join(part.strip() for part in parts if part.strip()).strip()
         if not text:
             return
-        for chunk in self._split_words(text, ASSISTANT_ARTICLE_WORDS):
+        for chunk in split_by_word_count(text, ASSISTANT_ARTICLE_WORDS):
             turn = self.turn(timestamp, "assistant", chunk, model=model)
             turn["article_boundary"] = True
             turn["direct_text"] = True
@@ -187,18 +186,5 @@ class PiExtractor(BaseExtractor):
             if isinstance(block, dict) and block.get("type") == "text"
         ]
         return "\n".join(part for part in parts if part).strip()
-
-    @staticmethod
-    def _split_words(text: str, limit: int) -> List[str]:
-        matches = list(_WORD_RE.finditer(text))
-        if not matches:
-            return []
-        chunks: List[str] = []
-        for index in range(0, len(matches), max(1, limit)):
-            first = matches[index]
-            last = matches[min(index + limit, len(matches)) - 1]
-            chunks.append(text[first.start():last.end()].strip())
-        return chunks
-
 
 __all__ = ["ASSISTANT_ARTICLE_WORDS", "PiExtractor"]
