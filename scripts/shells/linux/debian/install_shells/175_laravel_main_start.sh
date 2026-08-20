@@ -1276,7 +1276,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
     fi
 
 # --- Start runtime ---
-# Plane dispatch (php_runtime_plane, octane_service_manager.sh): the
+# Plane dispatch (shared php_runtime_plane from gvar_common.sh): the
 # frankenphp plane runs the single octane:frankenphp branch (HTTPS 443/h3 +
 # Mercure hub, NO Swoole - the app server is embedded in the binary); the
 # nginx plane keeps the system-PHP Swoole branch on the loopback backend

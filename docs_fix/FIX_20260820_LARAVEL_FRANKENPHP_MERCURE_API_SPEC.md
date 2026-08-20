@@ -43,6 +43,8 @@ HTTP API clients ────┘                              ├─ Mercure /.w
 
 The Mercure stream is only the control plane. Relay request bodies, responses, and blobs remain in the Laravel HTTP data plane. Mercure updates carry wake-up metadata and identifiers, not large payloads.
 
+Port `9000` remains a loopback-only HTTP listener for local Pycore clients. It is not bound to external interfaces.
+
 The canonical Octane launch is equivalent to:
 
 ```text

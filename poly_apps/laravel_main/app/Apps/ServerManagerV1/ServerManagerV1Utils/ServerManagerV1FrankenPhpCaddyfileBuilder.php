@@ -69,6 +69,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
         $backend = ServiceContract::port('laravel_api_backend');
+        $backendHost = ServiceContract::string('hosts.loopback');
 
         // Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk
         // are pinned explicitly (the service-start pre-flight provisions
@@ -131,8 +132,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . self::octanePhpServerStanza()
             . "}\n"
             . "\n"
-            . "# Direct HTTP backend (nginx-plane contract port, binds all interfaces)\n"
-            . ":{$backend} {\n"
+            . "# Direct loopback HTTP backend (local machine clients only)\n"
+            . "{$backendHost}:{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
             . self::octanePhpServerStanza()
@@ -175,6 +176,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         $path = self::caddyfilePath();
         RelayHubKeyProvisioner::ensure();
+        if (!RelayHubKeyProvisioner::provisioned()) {
+            return [
+                'path' => $path,
+                'rendered' => false,
+                'canonical' => false,
+                'error' => 'Mercure hub keys are not provisioned',
+            ];
+        }
         $rendered = self::render();
 
         $dir = dirname($path);
@@ -185,6 +194,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         $existing = FileSystemManager::readFile($path, false);
         if (is_string($existing) && rtrim($existing) === rtrim($rendered)) {
+            if (!FileSystemManager::ensureFileMode($path, 0600)) {
+                return ['path' => $path, 'rendered' => false, 'canonical' => true,
+                    'error' => "unable to set private permissions on {$path}"];
+            }
+
             return ['path' => $path, 'rendered' => false, 'canonical' => true];
         }
 

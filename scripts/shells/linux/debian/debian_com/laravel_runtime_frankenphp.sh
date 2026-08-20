@@ -18,8 +18,7 @@
 # process exists on this plane.
 #
 # Mercure hub material (the pinned embedded Mercure runtime): the HMAC keys
-# are provisioned (never
-# rotated) by the laravel_main RelayHubKeyProvisioner into the
+# are provisioned (never rotated) by the laravel_main RelayHubKeyProvisioner into the
 # RuntimeConfigurationStore constant directory (outside the repo - git
 # safe) and embedded as LITERAL publisher_jwt/subscriber_jwt values in the
 # canonical Caddyfile (0600) before launch - no process env, no .env. The
@@ -132,6 +131,10 @@ fm_caddyfile_ensure \
     "$FRANKENPHP_HTTPS_PORT" \
     "$FRANKENPHP_ADMIN_PORT" \
     "$FRANKENPHP_CADDYFILE"
+if [ "$FM_CADDYFILE_READY" != "yes" ]; then
+    echo "[laravel-runtime-frankenphp] [ERROR] Canonical Caddyfile convergence failed"
+    exit 1
+fi
 
 # DNSPod DNS-01 token (only when stored AND a module-capable variant; the
 # Caddyfile gate renders the tls stanza only when module + token both

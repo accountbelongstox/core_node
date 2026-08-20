@@ -110,6 +110,7 @@ FM_RUNTIME_BINARY=""
 FM_MERCURE_STANZA=""
 FM_OCTANE_PHP_SERVER_STANZA=""
 FM_CADDYFILE_RENDERED=""
+FM_CADDYFILE_READY="no"
 
 # Resolve one binary path to its real executable target.
 fm_resolve_binary_path() {
@@ -1215,6 +1216,7 @@ fm_caddyfile_render() {
     local mercure_stanza=""
     local routes_dir=""
     local backend_port=""
+    local backend_host=""
     local import_stanza=""
     local octane_php_server_stanza=""
 
@@ -1264,12 +1266,13 @@ fm_caddyfile_render() {
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 
-    # Direct HTTP backend block (nginx-plane contract port on all
-    # interfaces) + the per-domain route import (same routes dir the domain
+    # Direct loopback HTTP backend block for local machine clients + the
+    # per-domain route import (same routes dir the domain
     # renderer writes; gated on file presence - caddy errors on an
     # unmatched import glob). Byte-synced with the Laravel builder.
     routes_dir="${caddyfile_dir}/routes"
     backend_port="$(sc_require ports.laravel_api_backend)"
+    backend_host="$(sc_require hosts.loopback)"
     import_stanza=""
     if compgen -G "${routes_dir}/*.caddy" > /dev/null 2>&1; then
         import_stanza="
@@ -1305,8 +1308,8 @@ https://${site_host}:${https_port} {
 
 ${dnspod_tls}${acme_tls}${mercure_stanza}${octane_php_server_stanza}}
 
-# Direct HTTP backend (nginx-plane contract port, binds all interfaces)
-:${backend_port} {
+# Direct loopback HTTP backend (local machine clients only)
+${backend_host}:${backend_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 ${octane_php_server_stanza}}${import_stanza}"
@@ -1325,22 +1328,37 @@ fm_caddyfile_ensure() {
     local caddyfile_dir=""
     local rendered=""
     local existing=""
+    local file_mode=""
 
+    FM_CADDYFILE_READY="no"
     caddyfile_dir="$(dirname "$caddyfile_path")"
     if [ ! -d "$caddyfile_dir" ]; then
         mkdir -p "$caddyfile_dir"
     fi
-    fm_caddyfile_render "$laravel_public_dir" "$site_host" "$https_port" "$admin_port" "$caddyfile_path"
-    rendered="$FM_CADDYFILE_RENDERED"
-    [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"
-    if [ "$existing" = "$rendered" ]; then
-        echo "[$SCRIPT_INDEX] Caddyfile already canonical: $caddyfile_path"
-        return 0
-    fi
+    if [ ! -d "$caddyfile_dir" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] Caddyfile directory was not created: $caddyfile_dir"
+    else
+        fm_caddyfile_render "$laravel_public_dir" "$site_host" "$https_port" "$admin_port" "$caddyfile_path"
+        rendered="$FM_CADDYFILE_RENDERED"
+        [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"
+        if [ "$existing" != "$rendered" ]; then
+            printf '%s\n' "$rendered" > "$caddyfile_path"
+        fi
 
-    printf '%s\n' "$rendered" > "$caddyfile_path"
-    chmod 600 "$caddyfile_path"
-    echo "[$SCRIPT_INDEX] Caddyfile rendered: $caddyfile_path (Mercure keys embedded as literal directives, caddy-fmt clean)"
+        # File permission is an independent idempotent step: canonical
+        # content never suppresses repair of a drifted secret-file mode.
+        if [ -f "$caddyfile_path" ]; then
+            chmod 600 "$caddyfile_path"
+            existing="$(cat "$caddyfile_path")"
+            file_mode="$(stat -c '%a' "$caddyfile_path" 2>/dev/null)"
+        fi
+        if [ "$existing" = "$rendered" ] && [ "$file_mode" = "600" ]; then
+            FM_CADDYFILE_READY="yes"
+            echo "[$SCRIPT_INDEX] Caddyfile canonical with private permissions: $caddyfile_path"
+        else
+            echo "[$SCRIPT_INDEX] [ERROR] Caddyfile convergence failed: $caddyfile_path"
+        fi
+    fi
 }
 
 # Persist state for downstream consumers (Laravel ServerManager, 132).

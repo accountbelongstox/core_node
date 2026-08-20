@@ -132,11 +132,23 @@ class FileSystemManager
     {
         $result = self::writeFile($path, $content);
 
-        if ($result) {
-            @chmod($path, 0600);
+        return $result && self::ensureFileMode($path, 0600);
+    }
+
+    public static function ensureFileMode(string $path, int $mode): bool
+    {
+        $resolvedPath = file_exists($path) ? $path : self::mapExternalPath($path);
+
+        if (!self::isFile($resolvedPath)) {
+            return false;
+        }
+        if (\App\Providers\PathMapper::isWindows()) {
+            return true;
         }
 
-        return $result;
+        @chmod($resolvedPath, $mode);
+
+        return (fileperms($resolvedPath) & 0777) === $mode;
     }
 
     public static function readFile(string $path, bool $fixPermissions = true): string|false

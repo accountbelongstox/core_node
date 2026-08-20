@@ -91,7 +91,7 @@ ensure_runtime_config_value() {
 # laravel_main provisioner (App\Services\Relay\RelayHubKeyProvisioner) -
 # idempotent, present keys are never rotated. Same caller contract as
 # runtime_config_get/put (PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP).
-# Non-zero when the provisioner cannot run; silent on success.
+# Callers invoke the provisioner and then re-probe the persisted keys.
 runtime_config_ensure_mercure_keys() {
     RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" \
         php_script_run '

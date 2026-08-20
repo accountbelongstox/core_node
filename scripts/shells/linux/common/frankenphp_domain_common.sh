@@ -166,6 +166,9 @@ fm_domain_ensure_main_caddyfile() {
     fi
 
     fm_caddyfile_ensure "$laravel_public" "$site_host" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
+    if [ "$FM_CADDYFILE_READY" != "yes" ]; then
+        echo "[fm-domain] [FAIL] Main Caddyfile convergence failed"
+    fi
 }
 
 # Clean up stale route files for domains that are no longer in the secrets
