@@ -258,6 +258,7 @@ class HttpEventService:
         fastapi_module: Any,
         title: str = "HTTP Event Service",
         version: str = "1.0.0",
+        lifespan: Optional[Any] = None,
         event_path: str = HTTP_EVENTS_PATH,
         event_max: int = SSE_EVENT_JOURNAL_MAX,
         event_max_age_seconds: float = SSE_EVENT_MAX_AGE_SECONDS,
@@ -270,6 +271,7 @@ class HttpEventService:
             version=version,
             docs_url=None,
             redoc_url=None,
+            lifespan=lifespan,
         )
         self.event_path = "/" + str(event_path or "").strip("/")
         self.events = SseEventJournal(

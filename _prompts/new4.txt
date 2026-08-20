@@ -1,404 +1,239 @@
+› e# journalctl -u ncore-laravel-frankenphp -f
+  Aug 20 19:08:27 VM-0-2-debian bash[1068750]:   - frankenphp variant: apt (DNS-01 owner:
+  acme-sh)
+  Aug 20 19:08:27 VM-0-2-debian bash[1068750]:   - acme.sh: installed (/www/programing/
+  frankenphp/acme.sh/home)
+  Aug 20 19:08:27 VM-0-2-debian bash[1068750]:   - renewal timer: active / enabled: enabled
+  Aug 20 19:08:27 VM-0-2-debian bash[1068750]: [STEP:acme-repo] already satisfied, skipping
+  Aug 20 19:08:28 VM-0-2-debian bash[1068750]: [STEP:acme-paths] already satisfied, skipping
+  Aug 20 19:08:28 VM-0-2-debian bash[1068750]: [STEP:acme-install] already satisfied, skipping
+  Aug 20 19:08:28 VM-0-2-debian bash[1068750]: /usr/local/bin/acme.sh
+  Aug 20 19:08:28 VM-0-2-debian bash[1068750]: [STEP:acme-verify] already satisfied, skipping
+  Aug 20 19:08:28 VM-0-2-debian bash[1068750]: [acme-sh-install] pre-flight: ensuring DNS-01
+  certificates for: gm15.com 12gm.com
+  Aug 20 19:09:05 VM-0-2-debian bash[1068750]: [acme-sh-install] DNS-01 certificate ready: /
+  www/programing/frankenphp/certs/gm15.com (gm15.com, *.gm15.com, *.si.gm15.com)
+  Aug 20 19:09:44 VM-0-2-debian bash[1068750]: [acme-sh-install] DNS-01 certificate ready: /
+  www/programing/frankenphp/certs/12gm.com (12gm.com, *.12gm.com, *.si.12gm.com)
+  Aug 20 19:09:44 VM-0-2-debian bash[1068750]: [acme-sh-install] acme.sh managed certificates:
+  Aug 20 19:09:45 VM-0-2-debian bash[1072663]: Main_Domain  KeyLength  SAN_Domains  Profile
+  CA  Created  Renew
+  Aug 20 19:09:45 VM-0-2-debian bash[1068750]: [acme-sh-install] renewal service unit
+  written: /etc/systemd/system/ncore-acme-cert.service
+  Aug 20 19:09:45 VM-0-2-debian bash[1068750]: [acme-sh-install] renewal timer unit written: /
+  etc/systemd/system/ncore-acme-cert.timer
+  Aug 20 19:09:45 VM-0-2-debian bash[1068750]: [acme-sh-install] renewal timer active: ncore-
+  acme-cert.timer (next: Fri 2026-08-21 00:00:00)
+  Aug 20 19:09:46 VM-0-2-debian bash[1068750]: [laravel-runtime-frankenphp] variant: apt
+  (acme.sh DNS-01 certificates only)
+  Aug 20 19:09:47 VM-0-2-debian bash[1068750]: [frankenphp-mgr] Caddyfile already canonical: /
+  www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/Caddyfile
+  Aug 20 19:09:47 VM-0-2-debian bash[1068750]: [laravel-runtime-frankenphp] Starting
+  octane:frankenphp (https :443 h2/h3, admin :2019, Mercure hub on plane)
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:    Error
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:   Class "PDO" not found
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:   at vendor/laravel/framework/src/Illuminate/
+  Database/Connection.php:141
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     137▕      * The default fetch mode of the
+  connection.
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     138▕      *
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     139▕      * @var int
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     140▕      */
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:   ➜ 141▕     protected $fetchMode =
+  PDO::FETCH_OBJ;
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     142▕
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     143▕     /**
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     144▕      * The number of active
+  transactions.
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:     145▕      *
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:       +7 vendor frames
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:   8   app/Support/DatabaseQueryMonitor.php:23
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:
+  Illuminate\Support\Facades\Facade::__callStatic()
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:   9   app/Providers/AppServiceProvider.php:53
+  Aug 20 19:09:49 VM-0-2-debian bash[1068750]:
+  App\Support\DatabaseQueryMonitor::register()
+  Aug 20 19:09:49 VM-0-2-debian systemd[1]: ncore-laravel-frankenphp.service: Main process
+  exited, code=exited, status=1/FAILURE
+  Aug 20 19:09:49 VM-0-2-debian systemd[1]: ncore-laravel-frankenphp.service: Failed with
+  result 'exit-code'.
+  Aug 20 19:09:49 VM-0-2-debian systemd[1]: ncore-laravel-frankenphp.service: Consumed 20.010s
+  CPU time, 48.4M memory peak.
 
-  用任何返回值退出码，信任上一个函数的运行结果，二进制直接对文件检测。
-  搜索官方文档，以官方文档为准。搜索官方文档，以官方文档为准。
+  root@VM-0-2-debian:/www/programing/core_node# journalctl -u ncore-laravel-frankenphp -f
+  Converging frankenphp plane domains (DNSPod secrets + DNS-01 readiness; nginx/certbot
+  skipped)...
+  [domain] [OK] Secrets loaded (domains: 2)
+  [domain] Stored API region prefix: si
+  [domain] Modify the API region prefix (current: si)? [y/N]
+  [fm-domain] Installing domains (Caddy routes, DNS-01 ACME via Caddy, no nginx/certbot):
+  [fm-domain]   - gm15.com -> api.si.gm15.com
+  [fm-domain]   - 12gm.com -> api.si.12gm.com
+  [frankenphp-mgr] [SKIP] /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/
+  routes/gm15.com.caddy already up to date
+  [fm-domain] [OK] Route file:
+  /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/routes/gm15.com.caddy
+  (gm15.com -> api.si.gm15.com -> http://127.0.0.1:9000)
+  [frankenphp-mgr] [SKIP] /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/
+  routes/12gm.com.caddy already up to date
+  [fm-domain] [OK] Route file:
+  /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/routes/12gm.com.caddy
+  (12gm.com -> api.si.12gm.com -> http://127.0.0.1:9000)
+  [frankenphp-mgr] [OK] /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/
+  Caddyfile written
+  [fm-domain] [OK] Main Caddyfile: /www/programing/core_node/poly_apps/laravel_main/storage/
+  frankenphp/Caddyfile
+  [frankenphp-mgr] DNS-01: acme.sh dns_dp pre-flight owns issuance/renewal (apt variant)
+  [fm-domain] [OK] All domains installed (Caddy-native, DNS-01 ACME, no nginx/certbot)
+  [frankenphp-mgr] frankenphp plane: nginx/certbot phases skipped (Caddy ACME DNS-01 owns TLS,
+  per-domain Caddy routes created)
+  [frankenphp-mgr] site host: api.si.gm15.com
+  [frankenphp-mgr] DNS-01: acme.sh dns_dp pre-flight (apt variant; embedded module not
+  applicable)
+  [frankenphp-mgr] Caddy routes: 2 file(s) in /www/programing/core_node/poly_apps/
+  laravel_main/storage/frankenphp/routes
+  Detecting local IPs (excluding loopback)...
+  Accessible URLs (ready to copy):
+    http://10.3.0.2:9000
+  Starting Laravel development environment with hot reload...
+  Note: Running in headless API mode - web.php serves only API debug interface
+  Press Ctrl+C to stop all services
+  Ensuring port 9000 is free...
+  Prerequisites ready. Add laravel_main to a background systemd service (ncore-laravel-
+  frankenphp, via systemd_service_manager)? [Y/n]
+  Registering systemd service ncore-laravel-frankenphp (plane=frankenphp, CPU=25%,
+  Memory=1861M, cap 2048M)...
+    ExecStart: /www/programing/core_node/scripts/shells/linux/debian/
+  debian_com/175_laravel_main_service_frankenphp.sh (runtime-only, init-free, hot-reload
+  default)
+  [INFO] Creating generic systemd service: ncore-laravel-frankenphp
+  [INFO] Description: laravel_main backend (octane:frankenphp, h2/h3)
+  [INFO] Exec: bash /www/programing/core_node/scripts/shells/linux/debian/
+  debian_com/175_laravel_main_service_frankenphp.sh
+  [INFO] Environment variables extracted from command
+  [INFO] Working Directory: /www/programing/core_node/poly_apps/laravel_main
+  [INFO] User: root
+  [INFO] TimeoutStartSec: 900s
+  [INFO] CPU limit: 25%
+  [INFO] Memory limit: 1861M (high: 1488M)
+  [SUCCESS] Service file created: /etc/systemd/system/ncore-laravel-frankenphp.service
+  [INFO] Restarting existing service: ncore-laravel-frankenphp
+  ● ncore-laravel-frankenphp.service - laravel_main backend (octane:frankenphp, h2/h3)
+       Loaded: loaded (/etc/systemd/system/ncore-laravel-frankenphp.service; enabled; preset:
+  enabled)
+       Active: active (running) since Thu 2026-08-20 19:04:38 CST; 22ms ago
+     Main PID: 1064464 (bash)
+        Tasks: 3 (limit: 4404)
+       Memory: 680.0K (high: 1.4G max: 1.8G available: 1.4G peak: 932.0K)
+          CPU: 4ms
+       CGroup: /system.slice/ncore-laravel-frankenphp.service
+               ├─1064464 bash /www/programing/core_node/scripts/shells/linux/debian/
+  debian_com/175_laravel_main_service_frankenphp.sh
+               ├─1064467 bash /www/programing/core_node/scripts/shells/linux/debian/
+  debian_com/175_laravel_main_service_frankenphp.sh
+               └─1064468 dirname /www/programing/core_node/scripts/shells/linux/debian/
+  debian_com/175_laravel_main_service_frankenphp.sh
 
+  Aug 20 19:04:38 VM-0-2-debian systemd[1]: Started ncore-laravel-frankenphp.service -
+  laravel_main backend (octane:frankenphp, h2/h3).
+  Service ncore-laravel-frankenphp registered and started.
+    Manage:  systemctl {status|restart|stop} ncore-laravel-frankenphp
+    Boot:    systemctl is-enabled ncore-laravel-frankenphp
+    Logs:    journalctl -u ncore-laravel-frankenphp -f
+  Also add the pycore_laravel_wordnew_ui dashboard to a background service? [y/N]
 
-• 我先确认当前 93 流程里“1”和“3”是否能直接映射到现有分支，再加一个独立的 apt 分支脚
-  本，且只在 93_install_frankenphp.sh 里接入三选项菜单，不改其它现有脚本。现在先快速
-  定位现有常量/分支。
+  Restored to initial directory: /www/programing/core_node
 
-• Explored
-  └ Read frankenphp_install_pipeline.sh, frankenphp_install_prebuilt.sh
-    Read frankenphp_install_compile.sh
+  Installation access value: NEXU-2A1B-3DED-5990-15CC
+   93_install_frankenphp.sh...
+  [93] Select FrankenPHP installation mode:
+  [93]   [1] apt install - official deb repo + php-zts extensions incl. PostgreSQL (default)
+  [93]   [2] Compile (dnspod DNS-01 module embedded)
+  [93]   [3] GitHub prebuilt binary
+  [93] Choose mode (1/2/3, default 1): 1
+  [93] lifecycle: prepare -> probe -> commit -> support -> retire -> finalize
+  [93] requested: apt | current: apt
+  [93-install-system] FrankenPHP apt variant (official deb repo, PHP 85):
+    - packages: frankenphp php-zts-pgsql php-zts-pdo-pgsql php-zts-zip php-zts-bcmath php-zts-
+  intl php-zts-sqlite3
+  [93-install-system] repo key ready: /etc/apt/keyrings/static-php85.asc
+  [93-install-system] repo source ready: /etc/apt/sources.list.d/static-php85.list
+  [93-install-system] packaged service runtime-masked for package preparation
+  [93-install-system] package ready: frankenphp
+  [93-install-system] package ready: php-zts-pgsql
+  [93-install-system] package ready: php-zts-pdo-pgsql
+  [93-install-system] package ready: php-zts-zip
+  [93-install-system] package ready: php-zts-bcmath
+  [93-install-system] package ready: php-zts-intl
+  [93-install-system] package ready: php-zts-sqlite3
+  [93-install-system] packaged service inactive
+  [93-install-system] packaged service runtime mask cleared
+  [93-install-system] packaged service boot activation absent (disabled)
+  [93-install-system] packaged service inactive
+  [93-install-system] apt candidate ready: /usr/bin/frankenphp
+  [frankenphp-mgr] unlink: disabling frankenphp unit frankenphp.service
+  [frankenphp-mgr] unlink: disabling frankenphp unit ncore-laravel-frankenphp.service
+  [frankenphp-mgr] php-cli shim installed: /usr/local/bin/php -> /usr/bin/frankenphp php-cli
+  [frankenphp-mgr] php-cli shim installed: /usr/local/bin/php-cli -> /usr/bin/frankenphp php-
+  cli
+  [frankenphp-mgr] PHP ini rendered: /etc/frankenphp/php-conf.d/99-core-node.ini
+  [frankenphp-mgr] variant committed: apt -> /usr/bin/frankenphp
+  [nginx-plane] Nginx plane-disable (idempotent, service stop + record only)
+  [nginx-plane] nginx already inactive
+  [nginx-plane] nginx already disabled
+  [nginx-plane] nginx plane-disabled (packages, configs and certificates preserved)
+  [certbot-plane] Certbot plane-disable (idempotent, timers stop + record only)
+  The unit files have no installation config (WantedBy=, RequiredBy=, UpheldBy=,
+  Also=, or Alias= settings in the [Install] section, and DefaultInstance= for
+  template units). This means they are not meant to be enabled or disabled using systemctl.
 
-  │ head -n 200
-  └ (no output)
-  └ Search php-zts-dev|php-zts-pgsql|php-zts-pdo-pgsql|prebuilt|build-static|
-           download.*git|git.*compile|compiled in common
+  Possible reasons for having these kinds of units are:
+  • A unit may be statically enabled by being symlinked from another unit's
+    .wants/, .requires/, or .upholds/ directory.
+  • A unit's purpose may be to act as a helper for some other unit which has
+    a requirement dependency on it.
+  • A unit may be started when needed via activation (socket, path, timer,
+    D-Bus, udev, scripted systemctl call, ...).
+  • In case of template units, the unit is meant to be enabled with some
+  [certbot-plane] No systemd unit certbot.service present
+  [certbot-plane] No systemd unit certbot.timer present
+  [certbot-plane] certbot plane-disabled (binary, venv and /etc/letsencrypt preserved)
+  [STEP:acme-repo] already satisfied, skipping
+  [STEP:acme-paths] already satisfied, skipping
+  [STEP:acme-install] already satisfied, skipping
+  /usr/local/bin/acme.sh
+  [STEP:acme-verify] already satisfied, skipping
+  [acme-sh-install] no DOMAIN_DOMAINS_LIST configured; certificate issuance skipped
+  [frankenphp-mgr] legacy swoole/php runtime disabled (frankenphp plane mutex)
+  [93-install-cleanup-compile] retired compiled artifact: /www/programing/frankenphp/runtime/
+  compiled/frankenphp
+  [93-install-cleanup-compile] compiled runtime payload absent
+  [93-install-cleanup-prebuilt] retired prebuilt artifact: /www/programing/frankenphp/runtime/
+  prebuilt/frankenphp
+  [93-install-cleanup-prebuilt] prebuilt runtime payload absent
+  [frankenphp-mgr] Caddyfile rendered: + (Mercure keys embedded as literal directives, caddy-
+  fmt clean)
+  [frankenphp-mgr] [VERIFY] binary: /usr/bin/frankenphp (FrankenPHP v1.12.7 PHP 8.5 Caddy
+  v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=)
+  [frankenphp-mgr] [VERIFY] embedded PHP: 8.5
+  [frankenphp-mgr] [VERIFY] variant: apt
+  [frankenphp-mgr] [VERIFY] dnspod module: not applicable (apt variant)
+  [frankenphp-mgr] [VERIFY] DNS-01: acme.sh dns_dp pre-flight owns issuance/renewal (prebuilt
+  certs pinned via tls-file gate)
+  [frankenphp-mgr] [VERIFY] php-cli shim: present
+  [frankenphp-mgr] [VERIFY] plane: frankenphp
+  [93] ==============================================
+  [93] FRANKENPHP PLANE READY: FrankenPHP v1.12.7 PHP 8.5 Caddy v2.11.4
+  h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0=
+  [93] Caddyfile: /www/programing/core_node/poly_apps/laravel_main/storage/frankenphp/
+  Caddyfile (Mercure hub: /.well-known/mercure on :443)
+  [93] Runtime entry: 175_laravel_main_start.sh (frankenphp branch)
+  [93] ==============================================
 
-────────────────────────────────────────────────────────────────────────────────────
-  再只改安装链路相关脚本和新增两个文件，不碰其他脚本。
+  Script execution completed with exit code: 0
+  Press any key to return to test scripts menu...
 
-    Search frankenphp_install|93_install_frankenphp|shell|pipeline|compile|prebuilt|
-           caddy|constant
-    List debian
-    List scripts
-    Search install_shells/93_install_frankenphp.sh|93_install_frankenphp.sh
-    Read 93_install_frankenphp.sh
-
-• 我这边先做官方文档确认：FrankenPHP 静态构建是否支持 pgsql/pdo_pgsql 扩展、以及你要
-  的 Debian/Ubuntu 直接包名是否是官方发布形态。
-
-◦ Searching the web
-
-• Searched the web for PHP manual pgsql extension --with-pgsql module php-pgsql
-  pdo_pgsql documentation
-
-◦ Searching the web
-
-• Searched the web for https://frankenphp.dev/docs/
-
-◦ Searching the web
-
-• Searched the web for php-zts-pgsql package static-php debian
-
-• Searching the web
-
-• Searched the web for frankenphp docs php-zts-dev package
-
-◦ Searching the web
-
-• Searched the web for site:packages.debian.org php-zts-pgsql
-
-◦ Searching the web
-
-• Searched the web for https://debs.henderkes.com/
-
-• Searching the web
-
-• Searched the web for site:pkg.henderkes.com php-zts-pdo-pgsql
-
-• Explored
-  └ Search _MODE_.*=|MODE_GIT|mode constants|read_mode\(|selected_mode in *.sh
-    Search apt update|apt install|apt-get in *.sh
-
-────────────────────────────────────────────────────────────────────────────────────
-
-• 我查到官方文档里 deb 扩展安装是 php-zts-<extension> 模式，apt 模式我会按你给的命令
-  直接实现，并且放到独立脚本；接下来我先补常量库和分发逻辑。
-
-• Explored
-  └ Read gvar_common.sh
-    Search fm_verify|fm_store_info|fm_binary_compile_complete|
-           fm_embedded_extension_loaded in frankenphp_manager.sh
-    Read frankenphp_manager.sh
-    Search 93_install_frankenphp|--mode=|--prebuilt|prebuilt in debian
-    Search echo -n \"\[.*\] [0-9]+\) in frankenphp*
-    Search 1)\)|2)\)|3)\)|Please choose|Please select|Which in *.sh
-    Search Please select|Please choose|Select|(1|2|3) in *.sh
-    Search read -r in 93*
-    Read 97_install_tailscale.sh
-    Search set_global_var\( in common_functions.sh
-    Read gvar_common.sh
-
-• Added scripts/shells/linux/common/frankenphp_install_modes.sh (+66 -0)
-     1 +#!/bin/bash
-     2 +# ### AI SPECIAL ATTENTION RULES START ###
-     3 +# 1. Write all code in English only.
-     4 +# 2. Never execute, create, or modify test code.
-     5 +# 3. Never create or update documentation (*.md).
-     6 +# 4. Never write summaries during development or thinking process.
-     7 +# 5. Declare all variables at the beginning of the file.
-     8 +# 6. Do not modify these rules.
-     9 +# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-    10 +# ### AI SPECIAL ATTENTION RULES END ###
-    11 +
-    12 +FRANKENPHP_INSTALL_MODE_COMPILE="compile"
-    13 +FRANKENPHP_INSTALL_MODE_GIT="git"
-    14 +FRANKENPHP_INSTALL_MODE_APT="apt"
-    15 +FRANKENPHP_INSTALL_MODE_PREBUILT="prebuilt"
-    16 +
-    17 +FRANKENPHP_INSTALL_MODE_DEFAULT="$FRANKENPHP_INSTALL_MODE_COMPILE"
-    18 +FRANKENPHP_INSTALL_MODE_MENU_COMPILE="1"
-    19 +FRANKENPHP_INSTALL_MODE_MENU_APT="2"
-    20 +FRANKENPHP_INSTALL_MODE_MENU_GIT="3"
-    21 +
-    22 +FRANKENPHP_APT_PACKAGES=("php-zts-dev" "php-zts-pgsql" "php-zts-pdo-pgsql")
-    23 +
-    24 +frankenphp_install_mode_normalize() {
-    25 +    local raw_mode=""
-    26 +    local normalized_mode=""
-    27 +
-    28 +    raw_mode="$1"
-    29 +    case "$raw_mode" in
-    30 +        "$FRANKENPHP_INSTALL_MODE_COMPILE"|$FRANKENPHP_INSTALL_MODE_MENU_COM
-        PILE|compile|1)
-    31 +            normalized_mode="$FRANKENPHP_INSTALL_MODE_COMPILE"
-    32 +            ;;
-    33 +        "$FRANKENPHP_INSTALL_MODE_APT"|$FRANKENPHP_INSTALL_MODE_MENU_APT|apt
-        |2)
-    34 +            normalized_mode="$FRANKENPHP_INSTALL_MODE_APT"
-    35 +            ;;
-    36 +        "$FRANKENPHP_INSTALL_MODE_PREBUILT"|$FRANKENPHP_INSTALL_MODE_GIT|$FR
-        ANKENPHP_INSTALL_MODE_MENU_GIT|git|3)
-    37 +            normalized_mode="$FRANKENPHP_INSTALL_MODE_GIT"
-    38 +            ;;
-    39 +        *)
-    40 +            normalized_mode=""
-    41 +            ;;
-    42 +    esac
-    43 +    printf '%s' "$normalized_mode"
-    44 +}
-    45 +
-    46 +frankenphp_install_mode_label() {
-    47 +    local mode=""
-    48 +    local label=""
-    49 +
-    50 +    mode="$1"
-    51 +    case "$mode" in
-    52 +        "$FRANKENPHP_INSTALL_MODE_COMPILE")
-    53 +            label="compile"
-    54 +            ;;
-    55 +        "$FRANKENPHP_INSTALL_MODE_APT")
-    56 +            label="apt"
-    57 +            ;;
-    58 +        "$FRANKENPHP_INSTALL_MODE_GIT")
-    59 +            label="git"
-    60 +            ;;
-    61 +        *)
-    62 +            label="unknown"
-    63 +            ;;
-    64 +    esac
-    65 +    printf '%s' "$label"
-    66 +}
-
-• Added scripts/shells/linux/common/frankenphp_install_apt.sh (+69 -0)
-     1 +#!/bin/bash
-     2 +# ### AI SPECIAL ATTENTION RULES START ###
-     3 +# 1. Write all code in English only.
-     4 +# 2. Never execute, create, or modify test code.
-     5 +# 3. Never create or update documentation (*.md).
-     6 +# 4. Never write summaries during development or thinking process.
-     7 +# 5. Declare all variables at the beginning of the file.
-     8 +# 6. Do not modify these rules.
-     9 +# VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
-    10 +# ### AI SPECIAL ATTENTION RULES END ###
-    11 +
-    12 +FRANKENPHP_INSTALL_APT_INDEX="93-install-apt"
-    13 +SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    14 +
-    15 +source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-    16 +source "$SCRIPT_CURRENT_DIR/frankenphp_install_modes.sh"
-    17 +
-    18 +frankenphp_install_apt_package_missing() {
-    19 +    local package=""
-    20 +    local package_check=""
-    21 +
-    22 +    package="$1"
-    23 +    package_check="$(dpkg -s "$package" 2>/dev/null | awk '/^Status: / {prin
-        t $4}')"
-    24 +    if [ "$package_check" = "installed" ]; then
-    28 +    fi
-    29 +}
-    30 +
-    31 +frankenphp_install_apt_update() {
-    32 +    $USE_SUDO apt update
-    33 +}
-    34 +
-    35 +frankenphp_install_apt_install() {
-    36 +    $USE_SUDO apt install -y "${FRANKENPHP_APT_PACKAGES[@]}"
-    37 +}
-    38 +
-    39 +frankenphp_install_apt_refresh_report() {
-    40 +    local package=""
-    41 +    local installed="no"
-    42 +
-    43 +    installed="yes"
-    44 +    for package in "${FRANKENPHP_APT_PACKAGES[@]}"; do
-    45 +        if [ "$(frankenphp_install_apt_package_missing "$package")" = "yes"
-        ]; then
-    46 +            installed="no"
-    47 +            break
-    48 +        fi
-    49 +    done
-    50 +
-    51 +    if [ "$installed" = "yes" ]; then
-    52 +        echo "[${FRANKENPHP_INSTALL_APT_INDEX}] apt packages already present
-        : ${FRANKENPHP_APT_PACKAGES[*]}"
-    53 +    else
-    54 +        echo "[${FRANKENPHP_INSTALL_APT_INDEX}] apt package check: missing p
-        ackage detected"
-    55 +    fi
-    56 +}
-    57 +
-    58 +frankenphp_install_apt() {
-    59 +    echo "[${FRANKENPHP_INSTALL_APT_INDEX}] Installing FrankenPHP PHP-ZTS pa
-        ckages:"
-    60 +    echo "  - ${FRANKENPHP_APT_PACKAGES[*]}"
-    61 +
-    62 +    frankenphp_install_apt_update
-    63 +    frankenphp_install_apt_install
-    64 +    frankenphp_install_apt_refresh_report
-    65 +}
-    66 +
-    67 +if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then
-    68 +    frankenphp_install_apt "$@"
-    69 +fi
-
-────────────────────────────────────────────────────────────────────────────────────
-
-• 我已按需新增了两个新文件：常量库+APT安装脚本。接下来我会把 93 的主流程改成三选项并
-  挂接新模式，保持现有编译+Git逻辑不破坏。
-
-• Explored
-  └ Read frankenphp_install_pipeline.sh
-
-• Edited scripts/shells/linux/common/frankenphp_install_pipeline.sh (+2 -0)
-    32  FRANKENPHP_NO_MUTEX="false"
-    33 +FRANKENPHP_INSTALL_APT_SCRIPT="${SCRIPT_CURRENT_DIR}/frankenphp_install_apt.
-        sh"
-    34
-    35 +source "$SCRIPT_CURRENT_DIR/frankenphp_install_modes.sh"
-    36  source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-
-• Edited scripts/shells/linux/common/frankenphp_install_pipeline.sh (+31 -31)
-     61                  ;;
-     62 -            --compile)
-     63 -                FRANKENPHP_INSTALL_MODE="compile"
-     62 +            --compile|--mode=compile|--mode="$FRANKENPHP_INSTALL_MODE_MENU_
-         COMPILE"|--mode=1)
-     63 +                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_COMPILE"
-     64 +                ;;
-     65 +            --apt|--mode=apt|--mode="$FRANKENPHP_INSTALL_MODE_MENU_APT"|--m
-         ode=2)
-     66 +                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_APT"
-     67 +                ;;
-     68 +            --git|--mode=git|--mode="$FRANKENPHP_INSTALL_MODE_MENU_GIT"|--m
-         ode=3)
-     69 +                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_GIT"
-     70                  ;;
-     71              --prebuilt|--binary=prebuilt|--source=prebuilt)
-     66 -                FRANKENPHP_INSTALL_MODE="prebuilt"
-     72 +                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_GIT"
-     73                  ;;
-        ⋮
-     75                  FRANKENPHP_PREBUILT_VERSION="${arg#*=}"
-     70 -                FRANKENPHP_INSTALL_MODE="prebuilt"
-     76 +                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_GIT"
-     77                  ;;
-        ⋮
-     79                  parsed_mode="${arg#*=}"
-     74 -                case "$parsed_mode" in
-     75 -                    compile|prebuilt)
-     76 -                        FRANKENPHP_INSTALL_MODE="$parsed_mode"
-     77 -                        ;;
-     78 -                esac
-     80 +                FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normaliz
-         e "$parsed_mode")"
-     81                  ;;
-        ⋮
-     84
-     83 -    selected_mode="$FRANKENPHP_INSTALL_MODE"
-     84 -    if [ -z "$selected_mode" ]; then
-     85 -        if [ -t 0 ] && [ -r /dev/tty ]; then
-     86 -            echo -n "[${FRANKENPHP_INSTALL_INDEX}] Use prebuilt FrankenPHP
-         binary install? (Y/n): "
-     87 -            read -r tty_choice < /dev/tty || tty_choice=""
-     88 -        else
-     89 -            tty_choice=""
-     90 -        fi
-     93 -            n|no)
-     94 -                FRANKENPHP_INSTALL_MODE="compile"
-     95 -                ;;
-     96 -            y|yes|"")
-     97 -                FRANKENPHP_INSTALL_MODE="prebuilt"
-     98 -                ;;
-     99 -            *)
-    100 -                FRANKENPHP_INSTALL_MODE="compile"
-    101 -                ;;
-    102 -        esac
-     85 +    selected_mode="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL
-         _MODE")"
-     86 +    if [ -z "$selected_mode" ] && [ -t 0 ] && [ -r /dev/tty ]; then
-     87 +        echo "[${FRANKENPHP_INSTALL_INDEX}] Select FrankenPHP installation
-         mode:"
-     88 +        echo "[${FRANKENPHP_INSTALL_INDEX}]   [${FRANKENPHP_INSTALL_MODE_ME
-         NU_COMPILE}] Compile"
-     89 +        echo "[${FRANKENPHP_INSTALL_INDEX}]   [${FRANKENPHP_INSTALL_MODE_ME
-         NU_APT}] apt install php-zts-dev php-zts-pgsql php-zts-pdo-pgsql"
-     90 +        echo "[${FRANKENPHP_INSTALL_INDEX}]   [${FRANKENPHP_INSTALL_MODE_ME
-         NU_GIT}] GitHub prebuilt binary (default)"
-     91 +        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default
-         1): "
-     92 +        read -r tty_choice < /dev/tty || tty_choice=""
-     93 +        selected_mode="$(frankenphp_install_mode_normalize "$tty_choice")"
-     94 +    fi
-     95 +
-     96 +    FRANKENPHP_INSTALL_MODE="${selected_mode:-$FRANKENPHP_INSTALL_MODE_DEFA
-         ULT}"
-     97 +
-     98 +    if [ -z "$selected_mode" ] && [ -t 0 ] && [ -r /dev/tty ]; then
-     99 +        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default
-         ${FRANKENPHP_INSTALL_MODE_DEFAULT}): "
-    100 +        read -r tty_choice < /dev/tty || tty_choice=""
-    101 +        selected_mode="$(frankenphp_install_mode_normalize "$tty_choice")"
-    102      fi
-    103
-    105 -    if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ] && [ -t 0 ] && [ -r /dev
-         /tty ]; then
-    104 +    if [ "$FRANKENPHP_INSTALL_MODE" = "$FRANKENPHP_INSTALL_MODE_GIT" ] && [
-          -t 0 ] && [ -r /dev/tty ]; then
-    105          echo -n "[${FRANKENPHP_INSTALL_INDEX}] Use default prebuilt version
-          ${FRANKENPHP_PREBUILT_VERSION:-latest}? (Y/n): "
-        ⋮
-    116
-    118 -    FRANKENPHP_INSTALL_MODE="${FRANKENPHP_INSTALL_MODE:-prebuilt}"
-    117 +    FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENP
-         HP_INSTALL_MODE")"
-    118 +    FRANKENPHP_INSTALL_MODE="${FRANKENPHP_INSTALL_MODE:-$FRANKENPHP_INSTALL
-         _MODE_DEFAULT}"
-
-• Edited scripts/shells/linux/common/frankenphp_install_pipeline.sh (+0 -6)
-     97
-     98 -    if [ -z "$selected_mode" ] && [ -t 0 ] && [ -r /dev/tty ]; then
-     99 -        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default
-         ${FRANKENPHP_INSTALL_MODE_DEFAULT}): "
-          -t 0 ] && [ -r /dev/tty ]; then
-
-• Edited scripts/shells/linux/common/frankenphp_install_pipeline.sh (+8 -1)
-    133      # selected packaging strategy owns the plane from here on.
-    134 -    if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ]; then
-    134 +    if [ "$FRANKENPHP_INSTALL_MODE" = "$FRANKENPHP_INSTALL_MODE_APT" ]; the
-         n
-    135 +        set_global_var "$FRANKENPHP_VARIANT_KEY" "runtime" "false"
-    136 +        source "$FRANKENPHP_INSTALL_APT_SCRIPT"
-    137 +        frankenphp_install_apt
-    138 +        return
-    139 +    fi
-    140 +
-    141 +    if [ "$FRANKENPHP_INSTALL_MODE" = "$FRANKENPHP_INSTALL_MODE_GIT" ]; the
-         n
-    142          fm_variant_set prebuilt
-
-• Edited scripts/shells/linux/common/frankenphp_install_pipeline.sh (+2 -2)
-    170
-    171 -    if [ "$FRANKENPHP_INSTALL_MODE" = "compile" ]; then
-    171 +    if [ "$FRANKENPHP_INSTALL_MODE" = "$FRANKENPHP_INSTALL_MODE_COMPILE" ];
-          then
-    172          if [ "$(fm_embedded_extension_loaded "$(fm_get_binary)" "pgsql")" =
-          "yes" ] \
-        ⋮
-    194      echo "[$FRANKENPHP_INSTALL_INDEX] FrankenPHP Installation Script (Mercu
-         re plane, HTTP/3 ready)"
-    195 -    echo "[$FRANKENPHP_INSTALL_INDEX] Web server choice: $start_web_server
-         | mode: ${FRANKENPHP_INSTALL_MODE:-prebuilt} | no-mutex: ${FRANKENPHP_NO_MU
-         TEX:-false}"
-    195 +    echo "[$FRANKENPHP_INSTALL_INDEX] Web server choice: $start_web_server
-         | mode: $(frankenphp_install_mode_label "$FRANKENPHP_INSTALL_MODE") | no-mu
-         tex: ${FRANKENPHP_NO_MUTEX:-false}"
-    196
-
-────────────────────────────────────────────────────────────────────────────────────
-
-• 我把主逻辑改成了3种模式并接入常量文件；现在复查一次完整脚本，确保没有语法/逻辑冗
-  余。
-
-• Explored
-  └ Read frankenphp_install_pipeline.sh, frankenphp_install_apt.sh,
-         frankenphp_install_modes.sh
-
-• Ran cd /www/programing/core_node && bash -n scripts/shells/linux/common/
-  │ frankenphp_install_pipeline.sh scripts/shells/linux/common/
-  │ frankenphp_install_apt.sh scripts/shells/linux/common/
-  │ … +1 lines
-  └ (no output)
-
-• Explored
-  └ Search FRANKENPHP_INSTALL_MODE_MENU|Select FrankenPHP installation mode|Choose
-mode|
-           frankenphp_install_apt|mode.*git|Mode in frankenphp_install_pipeline.sh
-
-◦ Working (9s • esc to interrupt)
-
-
-› client_loop: send disconnect: Connection rese
+  注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方文档，按规范修改，shell不要使用返回
+  码退出值、信任上一个函数的运行结果。同时需要有幂等性，幂等需要拆为最小步、而不是从一大个入口
+  就幂等跳过。
+  搜索官方文档，搜索官方文档。搜索官方文档，搜索官方文档。查看问题还存不存在。

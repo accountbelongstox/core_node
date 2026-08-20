@@ -88,6 +88,7 @@ import random
 import sys
 import threading
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, Optional
@@ -98,6 +99,7 @@ import fastapi.responses
 import pydantic
 import qwen_tts
 import torch
+import transformers
 import uvicorn
 
 from qwen3tts_gpu import detect_model_variant, estimate_max_parallel, query_gpu_snapshot
@@ -170,19 +172,55 @@ _network_constants = _load_source_module(
 )
 http_sse = _load_source_module(_HTTP_SSE_MODULE_NAME, _HTTP_SSE_MODULE_PATH)
 http_event = _load_source_module(_HTTP_EVENT_MODULE_NAME, _HTTP_EVENT_MODULE_PATH)
-http_service = http_event.HttpEventService(
-    fastapi_module=fastapi,
-    title="Qwen3-TTS HTTP Service",
-    version="1.0.0",
-    event_path="/queue/events",
-)
-app: FastAPI = http_service.app
 _model = None
 _model_lock = threading.Lock()
 _device: Optional[str] = None
 _load_error: Optional[str] = None
 _QUEUE: Optional[QwenQueue] = None
 _SYNTHESIS: Optional[QwenSynthesis] = None
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    loop: Optional[asyncio.AbstractEventLoop] = None
+    previous = None
+
+    await _get_queue().start()
+    if os.name == "nt":
+        loop = asyncio.get_running_loop()
+        previous = loop.get_exception_handler()
+
+        def _handler(
+            active_loop: asyncio.AbstractEventLoop,
+            context: Dict[str, Any],
+        ) -> None:
+            exc = context.get("exception")
+            handle = str(context.get("handle") or "")
+            if isinstance(exc, ConnectionResetError) and "_call_connection_lost" in handle:
+                return
+            if previous is not None:
+                previous(active_loop, context)
+            else:
+                active_loop.default_exception_handler(context)
+
+        loop.set_exception_handler(_handler)
+    try:
+        yield
+    finally:
+        if _QUEUE is not None:
+            await _QUEUE.stop()
+        if loop is not None:
+            loop.set_exception_handler(previous)
+
+
+http_service = http_event.HttpEventService(
+    fastapi_module=fastapi,
+    title="Qwen3-TTS HTTP Service",
+    version="1.0.0",
+    lifespan=_lifespan,
+    event_path="/queue/events",
+)
+app: FastAPI = http_service.app
 
 
 def _log(msg: str) -> None:
@@ -301,21 +339,35 @@ def _model_ready(model) -> bool:
     return model is not None
 
 
+def _attention_implementation(device: str, dtype) -> Optional[str]:
+    if (
+        device.startswith("cuda")
+        and dtype in (torch.float16, torch.bfloat16)
+        and transformers.utils.is_flash_attn_2_available()
+    ):
+        return "flash_attention_2"
+    return None
+
+
 def _load_model():
     global _device, _load_error
 
     _device = _resolve_device()
     model_id = _model_id()
     dtype = torch.float32 if _device == "cpu" else torch.bfloat16
+    attention_implementation = _attention_implementation(_device, dtype)
     _log(f"[api] loading Qwen3-TTS model: {model_id}")
     _log(f"[api] device={_device} dtype={dtype} "
+         f"attention={attention_implementation or 'default'} "
          f"(cuda_available={torch.cuda.is_available()})")
     t0 = time.time()
     try:
-        try:
-            model = Qwen3TTSModel.from_pretrained(model_id, device_map=_device, dtype=dtype)
-        except TypeError:
-            model = Qwen3TTSModel.from_pretrained(model_id, device_map=_device)
+        model = Qwen3TTSModel.from_pretrained(
+            model_id,
+            device_map=_device,
+            dtype=dtype,
+            attn_implementation=attention_implementation,
+        )
         _log(f"[api] model loaded in {time.time() - t0:.1f}s")
         _refresh_capabilities(model)
         return model
@@ -718,7 +770,7 @@ def synthesize(req: SynthRequest):
     _log(f"[api] /synthesize lang={req.language} speaker={req.speaker or 'auto'} "
          f"fmt={fmt} chars={len(text)}")
     try:
-        result = _get_synthesis().generate_one(req.dict())
+        result = _get_synthesis().generate_one(req.model_dump())
         _log(
             f"[api] synthesized {len(result['audio'])} bytes ({fmt}) "
             f"@ {result['sample_rate']}Hz in {result['elapsed_ms'] / 1000:.2f}s"
@@ -744,7 +796,7 @@ def synthesize_batch(req: BatchSynthRequest):
         return _get_synthesis().generate_variants({
             "text": text,
             "language": req.language,
-            "variants": [variant.dict() for variant in variants],
+            "variants": [variant.model_dump() for variant in variants],
             "format": fmt,
         })
     except Exception as exc:  # noqa: BLE001
@@ -754,7 +806,7 @@ def synthesize_batch(req: BatchSynthRequest):
 @app.post("/queue/submit")
 async def queue_submit(req: QueueSubmitRequest):
     try:
-        job = await _get_queue().submit(req.dict())
+        job = await _get_queue().submit(req.model_dump())
         return {
             "ok": True,
             "event_instance_id": http_service.events.instance_id,
@@ -793,37 +845,6 @@ async def queue_result(job_id: str):
         media_type=str(job.get("_media_type") or "application/octet-stream"),
         headers={"Content-Disposition": f'inline; filename="qwen3tts-{job_id}.{fmt}"'},
     )
-
-
-@app.on_event("startup")
-async def _suppress_windows_pipe_reset_noise() -> None:
-    """On Windows, pydub's ffmpeg subprocess pipe teardown makes the proactor
-    loop log 'Exception in callback _ProactorBasePipeTransport._call_connection_lost'
-    (ConnectionResetError 10054) after every mp3 encode. It is harmless noise —
-    swallow just that callback, keep every other loop exception visible."""
-    await _get_queue().start()
-    if os.name != "nt":
-        return
-    loop = asyncio.get_running_loop()
-    previous = loop.get_exception_handler()
-
-    def _handler(_loop: asyncio.AbstractEventLoop, context: Dict[str, Any]) -> None:
-        exc = context.get("exception")
-        handle = str(context.get("handle") or "")
-        if isinstance(exc, ConnectionResetError) and "_call_connection_lost" in handle:
-            return
-        if previous is not None:
-            previous(_loop, context)
-        else:
-            _loop.default_exception_handler(context)
-
-    loop.set_exception_handler(_handler)
-
-
-@app.on_event("shutdown")
-async def _stop_queue() -> None:
-    if _QUEUE is not None:
-        await _QUEUE.stop()
 
 
 class _ReadyServer(uvicorn.Server):

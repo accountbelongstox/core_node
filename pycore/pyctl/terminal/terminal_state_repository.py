@@ -18,10 +18,12 @@ from pycore.pyutils.common.flat_text_store import FlatTextStore
 
 TERMINAL_DATA_DIR = APP_DATA_DIR / "terminal_windows"
 NEXT_NUMBER_KEY = "next_number"
+SLOT_VERSION = "2"
 DEFAULT_TERMINAL_NUMBER = 1
 MAX_VISIBLE_LOG_ENTRIES = 200
 TERMINAL_KEY_PATTERN = re.compile(r"^terminal\.(\d+)\.(.+)$")
 LOG_KEY_PATTERN = re.compile(r"^log\.(\d+)\.(content|date|error_code|status|title)$")
+LOG_ENTRY_FIELDS = ("content", "date", "error_code", "status", "title")
 QUEUE_KEY_PATTERN = re.compile(
     r"^queue\.(\d+)\.(created_at|fire_count|interval_seconds|last_run_at"
     r"|message|mode|next_run_at|preview)$"
@@ -61,23 +63,42 @@ class TerminalStateRepository:
         platform_name: str,
         windows: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        values, records, next_number = self._scan_records()
+        values, records, _next_number = self._scan_records()
         records_by_window_key = {
             str(record.get("window_key") or ""): record
             for record in records.values()
             if record.get("window_key")
         }
-        current_window_keys = set()
+        reserved_terminal_numbers = self._stored_terminal_numbers(values)
+        claimed_terminal_numbers = set()
+        assignments: List[Tuple[Dict[str, Any], int, str]] = []
         reconciled_windows: List[Dict[str, Any]] = []
         now = _now_iso()
 
         for window in windows:
             live_window = copy.deepcopy(window)
             window_key = self._window_key(platform_name, live_window)
-            record = records_by_window_key.get(window_key)
+            source_record = records_by_window_key.get(window_key)
+            record = (
+                source_record
+                if source_record is not None
+                and str(source_record.get("slot_version") or "") == SLOT_VERSION
+                else None
+            )
+            if (
+                record is None
+                or int(record["terminal_number"]) in claimed_terminal_numbers
+            ):
+                terminal_number = self._next_slot_number(
+                    records,
+                    claimed_terminal_numbers,
+                    reserved_terminal_numbers,
+                    platform_name,
+                )
+                record = records.get(terminal_number)
+            else:
+                terminal_number = int(record["terminal_number"])
             if record is None:
-                terminal_number = next_number
-                next_number += 1
                 record = self._new_record(
                     terminal_number,
                     platform_name,
@@ -86,23 +107,91 @@ class TerminalStateRepository:
                     now,
                 )
                 records[terminal_number] = record
-                records_by_window_key[window_key] = record
+                reserved_terminal_numbers.add(terminal_number)
                 self._write_record_fields(values, record)
-                self._write_value(values, NEXT_NUMBER_KEY, str(next_number))
+            if (
+                source_record is not None
+                and int(source_record["terminal_number"]) != terminal_number
+            ):
+                self._merge_record_state(
+                    values,
+                    record,
+                    source_record,
+                    now,
+                )
+            record["slot_version"] = SLOT_VERSION
+            self._write_value(
+                values,
+                self._terminal_key(terminal_number, "slot_version"),
+                SLOT_VERSION,
+            )
+            claimed_terminal_numbers.add(terminal_number)
+            assignments.append((live_window, terminal_number, window_key))
+
+        self._write_value(
+            values,
+            NEXT_NUMBER_KEY,
+            str(max(reserved_terminal_numbers, default=0) + 1),
+        )
+        values, records, _next_number = self._scan_records()
+        for live_window, terminal_number, window_key in assignments:
+            record = records[terminal_number]
+            record["window_key"] = window_key
+            self._write_value(
+                values,
+                self._terminal_key(terminal_number, "window_key"),
+                window_key,
+            )
             self._update_live_record(values, record, live_window, now)
-            current_window_keys.add(window_key)
-            reconciled_windows.append(self._decorate_live_window(live_window, record))
+            reconciled_windows.append(
+                self._decorate_live_window(live_window, record)
+            )
 
         for terminal_number in sorted(records):
             record = records[terminal_number]
             if str(record.get("platform") or "") != platform_name:
                 continue
-            if str(record.get("window_key") or "") in current_window_keys:
+            if terminal_number in claimed_terminal_numbers:
                 continue
             if not self._has_retained_state(record):
                 continue
             reconciled_windows.append(self._build_offline_window(record))
+        reconciled_windows.sort(
+            key=lambda window: int(window["terminal_number"]),
+        )
         return reconciled_windows
+
+    @staticmethod
+    def _next_slot_number(
+        records: Dict[int, Dict[str, Any]],
+        claimed_terminal_numbers: set[int],
+        reserved_terminal_numbers: set[int],
+        platform_name: str,
+    ) -> int:
+        reusable_numbers = sorted(
+            terminal_number
+            for terminal_number, record in records.items()
+            if terminal_number not in claimed_terminal_numbers
+            and str(record.get("platform") or "") == platform_name
+        )
+        if reusable_numbers:
+            return reusable_numbers[0]
+        terminal_number = DEFAULT_TERMINAL_NUMBER
+        while (
+            terminal_number in reserved_terminal_numbers
+            or terminal_number in claimed_terminal_numbers
+        ):
+            terminal_number += 1
+        return terminal_number
+
+    @staticmethod
+    def _stored_terminal_numbers(values: Dict[str, str]) -> set[int]:
+        terminal_numbers = set()
+        for key in values:
+            key_match = TERMINAL_KEY_PATTERN.match(key)
+            if key_match is not None:
+                terminal_numbers.add(int(key_match.group(1)))
+        return terminal_numbers
 
     @serialized_method
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
@@ -492,6 +581,102 @@ class TerminalStateRepository:
                     candidates.append(int(next_run_raw))
         return min(candidates) if candidates else None
 
+    def _merge_record_state(
+        self,
+        values: Dict[str, str],
+        target: Dict[str, Any],
+        source: Dict[str, Any],
+        now: str,
+    ) -> None:
+        target_number = int(target["terminal_number"])
+        source_number = int(source["terminal_number"])
+        target_draft_size = int(target.get("draft") or 0)
+        source_draft_size = int(source.get("draft") or 0)
+        target_logs = target.get("logs_by_id") or {}
+        source_logs = source.get("logs_by_id") or {}
+        target_queue = target.get("queue_by_id") or {}
+        source_queue = source.get("queue_by_id") or {}
+
+        if target_draft_size == 0 and source_draft_size > 0:
+            source_draft = self._store.read(
+                self._terminal_key(source_number, "draft"),
+            ) or ""
+            self._write_value(
+                values,
+                self._terminal_key(target_number, "draft"),
+                source_draft,
+            )
+
+        if str(source.get("preview_expanded") or "0") == "1":
+            self._write_value(
+                values,
+                self._terminal_key(target_number, "preview_expanded"),
+                "1",
+            )
+
+        self._merge_nested_entries(
+            values,
+            target_number,
+            source_number,
+            "log",
+            LOG_ENTRY_FIELDS,
+            target_logs,
+            source_logs,
+        )
+        self._merge_nested_entries(
+            values,
+            target_number,
+            source_number,
+            "queue",
+            QUEUE_ENTRY_FIELDS,
+            target_queue,
+            source_queue,
+        )
+        self._write_value(
+            values,
+            self._terminal_key(target_number, "updated_at"),
+            now,
+        )
+        self._write_value(
+            values,
+            self._terminal_key(source_number, "merged_into"),
+            str(target_number),
+        )
+
+    def _merge_nested_entries(
+        self,
+        values: Dict[str, str],
+        target_number: int,
+        source_number: int,
+        entry_kind: str,
+        entry_fields: Tuple[str, ...],
+        target_entries: Dict[str, Dict[str, str]],
+        source_entries: Dict[str, Dict[str, str]],
+    ) -> None:
+        for entry_id, entry_values in source_entries.items():
+            if entry_id in target_entries:
+                continue
+            for field in entry_fields:
+                source_key = self._terminal_key(
+                    source_number,
+                    f"{entry_kind}.{entry_id}.{field}",
+                )
+                value = (
+                    self._store.read(source_key)
+                    if source_key.endswith(SIZE_ONLY_KEY_SUFFIXES)
+                    else entry_values.get(field)
+                )
+                if value is None:
+                    continue
+                self._write_value(
+                    values,
+                    self._terminal_key(
+                        target_number,
+                        f"{entry_kind}.{entry_id}.{field}",
+                    ),
+                    str(value),
+                )
+
     def _scan_records(
         self,
     ) -> Tuple[Dict[str, str], Dict[int, Dict[str, Any]], int]:
@@ -556,6 +741,15 @@ class TerminalStateRepository:
                     int(entry["id"]),
                 ),
             )
+        records = {
+            terminal_number: record
+            for terminal_number, record in records.items()
+            if not (
+                str(record.get("merged_into") or "").isdigit()
+                and int(record["merged_into"]) != terminal_number
+                and int(record["merged_into"]) in records
+            )
+        }
         return values, records, next_number
 
     def _scan_values(self) -> Dict[str, str]:
@@ -670,6 +864,7 @@ class TerminalStateRepository:
             "updated_at": now,
             "last_seen_at": now,
             "preview_expanded": "0",
+            "slot_version": SLOT_VERSION,
             "logs": [],
             "logs_by_id": {},
             "queue": [],
