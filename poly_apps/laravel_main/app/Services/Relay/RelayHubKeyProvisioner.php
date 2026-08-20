@@ -54,12 +54,18 @@ final class RelayHubKeyProvisioner
     private static function ensureKey(string $key): bool
     {
         $existing = RuntimeConfigurationStore::get($key);
+        $generated = '';
+        $stored = null;
 
         if ($existing !== null && trim($existing) !== '') {
             return false;
         }
 
-        return RuntimeConfigurationStore::put($key, base64_encode(random_bytes(self::KEY_BYTES)));
+        $generated = base64_encode(random_bytes(self::KEY_BYTES));
+        RuntimeConfigurationStore::put($key, $generated);
+        $stored = RuntimeConfigurationStore::get($key);
+
+        return is_string($stored) && hash_equals($generated, $stored);
     }
 
     private function __construct()

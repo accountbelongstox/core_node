@@ -93,7 +93,7 @@ FRANKENPHP_MERCURE_VERSION="$(sc_require versions.mercure)"
 # XCADDY_ARGS must re-include the modules the Caddyfile relies on - the
 # mercure hub directive and the official build's vulcain + cbrotli set -
 # plus the dnspod DNS-01 provider.
-FRANKENPHP_STATIC_XCADDY_ARGS="--with ${FRANKENPHP_DNSPOD_IMPORT} --with github.com/dunglas/mercure/caddy --with github.com/dunglas/vulcain/caddy --with github.com/dunglas/caddy-cbrotli"
+FRANKENPHP_STATIC_XCADDY_ARGS="--with ${FRANKENPHP_DNSPOD_IMPORT} --with github.com/dunglas/mercure/caddy@${FRANKENPHP_MERCURE_VERSION} --with github.com/dunglas/vulcain/caddy --with github.com/dunglas/caddy-cbrotli"
 FRANKENPHP_STATIC_REPO="https://github.com/php/frankenphp"
 FRANKENPHP_BACKUP_SUFFIX=".pre-dnspod"
 FRANKENPHP_PHP_SHIM_DIR="/usr/local/bin"
@@ -603,8 +603,7 @@ while [ \"\$#\" -gt 0 ]; do
     esac
 done
 
-exec ${binary} php-cli \"\${args[@]}\"
-"
+exec ${binary} php-cli \"\${args[@]}\""
         existing=""
         if [ -f "${FRANKENPHP_PHP_SHIM_DIR}/${shim}" ]; then
             # Only read if it's a small file (likely our shim) to avoid null byte warnings from binaries
@@ -676,8 +675,7 @@ memory_limit = 512M
 upload_max_filesize = 64M
 post_max_size = 64M
 max_execution_time = 300
-opcache.enable_cli = 1
-"
+opcache.enable_cli = 1"
     existing=""
     [ -f "${ini_dir}/99-core-node.ini" ] && existing="$(cat "${ini_dir}/99-core-node.ini")"
     if [ "$existing" = "$rendered" ]; then
@@ -1065,7 +1063,7 @@ fm_unlink_frankenphp_runtime() {
         # Discriminator (judged by the EXECUTED command, NEVER by unit
         # name): only a unit EXECUTING a frankenphp binary directly (the
         # deb's own `frankenphp run` Caddy server) is retired. The plane's
-        # own runtime - artisan `octane:start --server=frankenphp` - merely
+        # own runtime - artisan `octane:frankenphp` - merely
         # NAMES frankenphp as a flag; those units stay untouched.
         case "$unit_cmd" in
             *frankenphp*)

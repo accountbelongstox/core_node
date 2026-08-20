@@ -54,7 +54,9 @@ def _session_events(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
     events: List[Dict[str, Any]] = []
     seen_prompt_text: set = set()
     for p in detail.get("prompts") or []:
-        body = sanitize_fragment_text(str(p.get("text") or ""))
+        direct_text = bool(p.get("direct_text"))
+        raw_body = str(p.get("text") or "").strip()
+        body = raw_body if direct_text else sanitize_fragment_text(raw_body)
         if not body:
             continue
         key = body[:200]
@@ -65,12 +67,16 @@ def _session_events(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
             "ts": int(p.get("ts") or 0),
             "session_id": detail.get("id") or "",
             "fragment_id": p.get("id") or "",
+            "article_boundary": bool(p.get("article_boundary")),
+            "direct_text": direct_text,
         })
     for turn_index, t in enumerate(detail.get("turns") or []):
         role = str(t.get("role") or "").lower()
         if role not in ("assistant", "user"):
             continue
-        body = sanitize_fragment_text(str(t.get("text") or ""))
+        direct_text = bool(t.get("direct_text"))
+        raw_body = str(t.get("text") or "").strip()
+        body = raw_body if direct_text else sanitize_fragment_text(raw_body)
         if not body:
             continue
         if role == "user" and body[:200] in seen_prompt_text:
@@ -82,6 +88,8 @@ def _session_events(detail: Dict[str, Any]) -> List[Dict[str, Any]]:
             "ts": int(t.get("ts") or 0),
             "session_id": detail.get("id") or "",
             "fragment_id": f"{detail.get('id') or ''}#turn-{turn_index}-{t.get('ts') or 0}",
+            "article_boundary": bool(t.get("article_boundary")),
+            "direct_text": direct_text,
         })
     events.sort(key=lambda e: (e.get("ts") or 0, e.get("fragment_id") or ""))
     return events
@@ -249,11 +257,33 @@ def build_raw_batches(
     idx = max(0, int(start_index or 0))
     n = len(fragments)
     while idx < n:
+        first_fragment = fragments[idx]
+        if bool(first_fragment.get("article_boundary")):
+            idx += 1
+            direct_text = bool(first_fragment.get("direct_text"))
+            raw_value = str(first_fragment.get("text") or "").strip()
+            raw_text = raw_value if direct_text else sanitize_fragment_text(raw_value)
+            words = count_words(raw_text)
+            if not raw_text:
+                continue
+            batches.append({
+                "raw_text": raw_text,
+                "word_count": words,
+                "fragment_count": 1,
+                "first_ts": int(first_fragment.get("ts") or 0),
+                "last_ts": int(first_fragment.get("ts") or 0),
+                "last_fragment_id": str(first_fragment.get("fragment_id") or ""),
+                "next_fragment_index": idx,
+                "fragments": [first_fragment],
+            })
+            continue
         parts: List[str] = []
         used: List[Dict[str, Any]] = []
         words = 0
         while idx < n and words < min_words:
             frag = fragments[idx]
+            if bool(frag.get("article_boundary")):
+                break
             idx += 1
             text = sanitize_fragment_text(str(frag.get("text") or ""))
             if not text:

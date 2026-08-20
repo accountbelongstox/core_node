@@ -12,9 +12,11 @@ use App\Services\Relay\RelayMachineRegistry;
 use App\Services\Relay\RelayPairRegistry;
 use App\Services\Relay\RelayRequestStore;
 use App\Traits\ApiResponse;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Relay controller: the 12 contract endpoints under /api/relay/*.
@@ -28,7 +30,7 @@ class RelayController extends Controller
 {
     use ApiResponse;
 
-    private const WAIT_STEP_SECONDS = 250000;
+    private const WAIT_STEP_MICROSECONDS = 250000;
     private const WAIT_MAX_SECONDS = 25;
 
     public function machines(): JsonResponse
@@ -96,6 +98,9 @@ class RelayController extends Controller
         $token = null;
 
         if ($mode === 'machine') {
+            if (!PycoreClientOnly::isMachineCall($request)) {
+                return $this->forbidden();
+            }
             $machineId = (string) $request->json('machine_id', '');
             if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
                 return $this->conflict('Machine is not online.', ['machine_id' => $machineId]);
@@ -104,6 +109,9 @@ class RelayController extends Controller
             return $this->success($token);
         }
 
+        if (!self::isSessionCall($request)) {
+            return $this->unauthorized();
+        }
         $session = self::resolveSession($request);
         $token = RelayHubAuthService::issueForSession(
             $request->filled('machine_id') ? (string) $request->json('machine_id') : null,
@@ -124,14 +132,14 @@ class RelayController extends Controller
 
         return $this->success([
             'pair' => $record,
-            'hub' => RelayHubAuthService::issueForSession($machineId),
+            'hub' => RelayHubAuthService::issueForSession($machineId, $session['id']),
         ]);
     }
 
     public function createRequest(Request $request, string $machineId): JsonResponse
     {
         $session = self::resolveSession($request);
-        if (!RelayDispatcher::gate($machineId, RelayPairRegistry::sessionFor($machineId))) {
+        if (!RelayDispatcher::gate($machineId, $session['id'])) {
             return $this->conflict('peer-offline', ['machine_id' => $machineId]);
         }
 
@@ -168,7 +176,7 @@ class RelayController extends Controller
             'body_ref' => $bodyRef !== '' ? $bodyRef : null,
         ]);
         RelayDispatcher::dispatchRequest($machineId, $frame);
-        RelayPairRegistry::refresh($machineId, (string) RelayPairRegistry::sessionFor($machineId));
+        RelayPairRegistry::refresh($machineId, $session['id']);
 
         return $this->created(['request' => $frame, 'poll_interval_ms' => \App\Support\QueueCenterContract::relayInt('response_poll_interval_ms')]);
     }
@@ -218,14 +226,18 @@ class RelayController extends Controller
     {
         $deadline = time() + self::WAIT_MAX_SECONDS;
         $response = null;
+        $session = self::resolveSession($request);
         $wait = $request->boolean('wait');
 
+        if (!RelayDispatcher::gate($machineId, $session['id'])) {
+            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+        }
         while (true) {
             $response = RelayRequestStore::getResponse($machineId, $requestId);
             if ($response !== null || !$wait || time() >= $deadline) {
                 break;
             }
-            usleep(self::WAIT_STEP_SECONDS);
+            usleep(self::WAIT_STEP_MICROSECONDS);
         }
 
         if ($response === null) {
@@ -237,10 +249,31 @@ class RelayController extends Controller
 
     public function createBlob(Request $request, string $machineId): JsonResponse
     {
+        $chunkCap = \App\Support\QueueCenterContract::relayCap('blob_chunk_bytes');
+        $maxChunkIndex = (int) ceil(
+            \App\Support\QueueCenterContract::relayCap('request_total_bytes') / $chunkCap
+        ) - 1;
+
+        if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
+            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+        }
+        if (!PycoreClientOnly::isMachineCall($request)) {
+            if (!self::isSessionCall($request)) {
+                return $this->unauthorized();
+            }
+            $session = self::resolveSession($request);
+            if (!RelayDispatcher::gate($machineId, $session['id'])) {
+                return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            }
+        }
+
         $blobId = (string) $request->query('blob_id', '');
         $chunkIndex = (int) $request->query('chunk_index', 0);
         $last = $request->boolean('chunk_last');
         $bytes = (string) $request->getContent();
+        if ($chunkIndex < 0 || $chunkIndex > $maxChunkIndex) {
+            return $this->validationError(['chunk_index' => ['Blob chunk index exceeds the contract range.']]);
+        }
 
         $meta = RelayBlobStore::create(
             $machineId,
@@ -257,9 +290,14 @@ class RelayController extends Controller
     {
         // Dual identity: machines read their request bodies, the paired UI
         // session reads its response bodies - the pair gate is the boundary.
-        if (!PycoreClientOnly::isMachineCall($request)
-            && !RelayDispatcher::gate($machineId, RelayPairRegistry::sessionFor($machineId))) {
-            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+        if (!PycoreClientOnly::isMachineCall($request)) {
+            if (!self::isSessionCall($request)) {
+                return $this->unauthorized();
+            }
+            $session = self::resolveSession($request);
+            if (!RelayDispatcher::gate($machineId, $session['id'])) {
+                return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            }
         }
         $bytes = RelayBlobStore::read($machineId, $blobId);
         if ($bytes === null) {
@@ -280,14 +318,24 @@ class RelayController extends Controller
      */
     private static function resolveSession(Request $request): array
     {
-        $user = $request->user();
+        $user = self::sessionUser($request);
         if ($user !== null) {
             return ['kind' => 'user', 'id' => 'user:'.(string) $user->getAuthIdentifier()];
         }
-        if (DebugAuthService::isLoopback($request)) {
+        if (DebugAuthService::isDebugBypass($request)) {
             return ['kind' => 'debug', 'id' => 'debug:'.(string) $request->ip()];
         }
 
-        return ['kind' => 'anonymous', 'id' => 'anonymous:'.(string) $request->ip()];
+        throw new AuthenticationException();
+    }
+
+    private static function isSessionCall(Request $request): bool
+    {
+        return self::sessionUser($request) !== null || DebugAuthService::isDebugBypass($request);
+    }
+
+    private static function sessionUser(Request $request): ?Authenticatable
+    {
+        return $request->user() ?? auth('sanctum')->user();
     }
 }

@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Route;
 // session-side endpoints resolve the UI identity in the controller.
 
 Route::prefix('relay')->group(function (): void {
-    Route::get('machines', [RelayController::class, 'machines']);
     Route::post('hub-auth', [RelayController::class, 'hubAuth']);
 
     Route::middleware(PycoreClientOnly::class)->group(function (): void {
@@ -29,11 +28,19 @@ Route::prefix('relay')->group(function (): void {
         Route::post('machine/unregister', [RelayController::class, 'unregisterMachine']);
     });
 
-    Route::prefix('{machineId}')->group(function (): void {
-        Route::post('pair', [RelayController::class, 'pair']);
+    Route::middleware('dashboard.auth')->group(function (): void {
+        Route::get('machines', [RelayController::class, 'machines']);
 
-        Route::post('requests', [RelayController::class, 'createRequest']);
-        Route::get('responses/{requestId}', [RelayController::class, 'fetchResponse']);
+        Route::prefix('{machineId}')->group(function (): void {
+            Route::post('pair', [RelayController::class, 'pair']);
+            Route::post('requests', [RelayController::class, 'createRequest']);
+            Route::get('responses/{requestId}', [RelayController::class, 'fetchResponse']);
+        });
+    });
+
+    Route::prefix('{machineId}')->group(function (): void {
+        // Blob transfer is dual identity and therefore uses the controller's
+        // shared session-or-machine gate.
         Route::post('blobs', [RelayController::class, 'createBlob']);
 
         Route::middleware(PycoreClientOnly::class)->group(function (): void {
@@ -41,8 +48,6 @@ Route::prefix('relay')->group(function (): void {
             Route::post('responses', [RelayController::class, 'createResponse']);
         });
 
-        // Blob reads are dual identity (machine request bodies / paired UI
-        // session response bodies) - gated in the controller, not by header.
         Route::get('blobs/{blobId}', [RelayController::class, 'fetchBlob']);
     });
 });

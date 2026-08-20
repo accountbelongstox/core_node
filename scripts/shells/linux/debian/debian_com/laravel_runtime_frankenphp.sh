@@ -12,12 +12,13 @@
 
 # laravel_main runtime - FRANKENPHP PLANE branch (referenced by
 # 175_laravel_main_start.sh and the plane-aware laravel service).
-# Single supervised `octane:start --server=frankenphp` process: HTTPS on
+# Single supervised `octane:frankenphp` process: HTTPS on
 # the contract frankenphp_https port (h2/h3), admin API on frankenphp_admin
 # (loopback), built-in Mercure hub at /.well-known/mercure. NO Reverb
 # process exists on this plane.
 #
-# Mercure hub material (Mercure 1.0): the HMAC keys are provisioned (never
+# Mercure hub material (the pinned embedded Mercure runtime): the HMAC keys
+# are provisioned (never
 # rotated) by the laravel_main RelayHubKeyProvisioner into the
 # RuntimeConfigurationStore constant directory (outside the repo - git
 # safe) and embedded as LITERAL publisher_jwt/subscriber_jwt values in the
@@ -84,6 +85,11 @@ MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
 if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
     MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
     runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS" >/dev/null
+    MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
+fi
+if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
+    echo "[laravel-runtime-frankenphp] [ERROR] Mercure trusted issuer provisioning failed"
+    exit 1
 fi
 DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
 

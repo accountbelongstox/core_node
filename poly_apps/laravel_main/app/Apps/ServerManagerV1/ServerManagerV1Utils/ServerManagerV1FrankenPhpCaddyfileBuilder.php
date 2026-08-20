@@ -21,7 +21,7 @@ use App\Utils\FileSystemManager;
  *   scripts/shells/linux/common/frankenphp_manager.sh
  *     (fm_caddyfile_ensure / fm_caddyfile_path defaults / fm_php_ini_dir)
  *   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
- *     (launch: octane:start --server=frankenphp --caddyfile=... --admin-port=...)
+ *     (launch: octane:frankenphp --caddyfile=... --admin-port=...)
  * Any change to the global admin block, the https site block, the Mercure
  * publisher_jwt/subscriber_jwt stanza, the php_server/file_server pair, or
  * the env placeholder names MUST be applied to both ends in the same
@@ -315,10 +315,16 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function storeDnsPodToken(string $token): array
     {
+        $stored = null;
+
         if (trim($token) === '') {
             return ['stored' => false, 'error' => 'token value required (format: id,token)'];
         }
         RuntimeConfigurationStore::put('DNSPOD_TOKEN', trim($token));
+        $stored = RuntimeConfigurationStore::get('DNSPOD_TOKEN');
+        if (!is_string($stored) || !hash_equals(trim($token), $stored)) {
+            return ['stored' => false, 'error' => 'token value was not persisted'];
+        }
 
         return ['stored' => true] + self::ensure();
     }

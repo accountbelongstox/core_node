@@ -24,7 +24,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
     // of the frankenphp web-server plane (binary + Caddyfile + plane record).
     // The shell end is:
     //   scripts/shells/linux/common/frankenphp_manager.sh (fm_* primitives)
-    //   scripts/shells/linux/debian/install_shells/49_install_frankenphp.sh
+    //   scripts/shells/linux/debian/install_shells/93_install_frankenphp.sh
     //   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
     // Any change to probe fields, canonical Caddyfile semantics, or plane
     // adoption MUST be applied to both ends in the same change. The UI
@@ -46,42 +46,41 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $binary = ServerManagerV1FrankenPhpCaddyfileBuilder::binary();
-            $installed = $binary !== null;
-            $caddyfile = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();
-            $caddyfileExists = FileSystemManager::isFile($caddyfile);
+        $installed = $binary !== null;
+        $caddyfile = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();
+        $caddyfileExists = FileSystemManager::isFile($caddyfile);
+        $pgrepResult = ServerManagerV1Utils::executeCommand('pgrep', ['-f', 'artisan octane:frankenphp']);
+        $running = trim((string) ($pgrepResult['output'] ?? '')) !== '';
 
-            $pgrepResult = ServerManagerV1Utils::executeCommand('pgrep', ['-f', 'artisan octane:frankenphp']);
-            $running = trim((string) ($pgrepResult['output'] ?? '')) !== '';
-
-            return $this->success([
-                'plane' => WebServerPlane::current(),
-                'plane_default' => ServiceContract::string('planes.web_server_default'),
-                'installed' => $installed,
-                'binary' => $binary,
-                'version' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::version() : null,
-                'embedded_php' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::embeddedPhpVersion() : null,
-                'dnspod_module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
-                'dns01' => [
-                    'module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
-                    'token_configured' => ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
-                    'ready' => $installed
-                        && ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule()
-                        && ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
-                ],
-                'running' => $running,
-                'caddyfile' => [
-                    'path' => $caddyfile,
-                    'exists' => $caddyfileExists,
-                    'canonical' => $caddyfileExists && $this->caddyfileIsCanonical(),
-                ],
-                'mercure' => [
-                    'publisher_key_provisioned' => RuntimeConfigurationStore::get(\App\Services\Relay\RelayHubJwt::PUBLISHER_KEY) !== null,
-                    'subscriber_key_provisioned' => RuntimeConfigurationStore::get(\App\Services\Relay\RelayHubJwt::SUBSCRIBER_KEY) !== null,
-                    'trusted_issuers_provisioned' => RuntimeConfigurationStore::get('MERCURE_TRUSTED_ISSUERS') !== null,
-                    'hub_path' => '/.well-known/mercure',
-                ],
-                'install_hint' => $installed ? null : self::FRANKENPHP_INSTALL_HINT,
-            ], 'FrankenPHP plane status retrieved successfully');
+        return $this->success([
+            'plane' => WebServerPlane::current(),
+            'plane_default' => ServiceContract::string('planes.web_server_default'),
+            'installed' => $installed,
+            'binary' => $binary,
+            'version' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::version() : null,
+            'embedded_php' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::embeddedPhpVersion() : null,
+            'dnspod_module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
+            'dns01' => [
+                'module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
+                'token_configured' => ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
+                'ready' => $installed
+                    && ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule()
+                    && ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
+            ],
+            'running' => $running,
+            'caddyfile' => [
+                'path' => $caddyfile,
+                'exists' => $caddyfileExists,
+                'canonical' => $caddyfileExists && $this->caddyfileIsCanonical(),
+            ],
+            'mercure' => [
+                'publisher_key_provisioned' => RuntimeConfigurationStore::get(\App\Services\Relay\RelayHubJwt::PUBLISHER_KEY) !== null,
+                'subscriber_key_provisioned' => RuntimeConfigurationStore::get(\App\Services\Relay\RelayHubJwt::SUBSCRIBER_KEY) !== null,
+                'trusted_issuers_provisioned' => RuntimeConfigurationStore::get('MERCURE_TRUSTED_ISSUERS') !== null,
+                'hub_path' => '/.well-known/mercure',
+            ],
+            'install_hint' => $installed ? null : self::FRANKENPHP_INSTALL_HINT,
+        ], 'FrankenPHP plane status retrieved successfully');
     }
 
     /**
@@ -97,31 +96,31 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         if (ServerManagerV1FrankenPhpCaddyfileBuilder::binary() === null) {
-                return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
-            }
+            return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+        }
 
-            $report = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
-            if (($report['error'] ?? '') !== '') {
-                return $this->error(
-                    'Caddyfile ensure failed: ' . $report['error'],
-                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
-                );
-            }
+        $report = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
+        if (($report['error'] ?? '') !== '') {
+            return $this->error(
+                'Caddyfile ensure failed: ' . $report['error'],
+                ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
+            );
+        }
 
-            Log::info('ServerManagerV1: FrankenPHP Caddyfile ensured', [
-                'path' => $report['path'],
-                'rendered' => $report['rendered'],
-                'ip' => $request->ip(),
-            ]);
+        Log::info('ServerManagerV1: FrankenPHP Caddyfile ensured', [
+            'path' => $report['path'],
+            'rendered' => $report['rendered'],
+            'ip' => $request->ip(),
+        ]);
 
-            return $this->success([
-                'path' => $report['path'],
-                'rendered' => $report['rendered'],
-                'canonical' => $report['canonical'],
-                'content' => $this->readCaddyfile(),
-            ], $report['rendered']
-                ? 'Caddyfile rendered (canonical)'
-                : 'Caddyfile already canonical');
+        return $this->success([
+            'path' => $report['path'],
+            'rendered' => $report['rendered'],
+            'canonical' => $report['canonical'],
+            'content' => $this->readCaddyfile(),
+        ], $report['rendered']
+            ? 'Caddyfile rendered (canonical)'
+            : 'Caddyfile already canonical');
     }
 
     /**
@@ -135,18 +134,18 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $path = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();
-            if (!FileSystemManager::isFile($path)) {
-                return $this->error(
-                    "Caddyfile not found at {$path}; call ensure first",
-                    ServerManagerV1Constants::RESPONSE_NOT_FOUND
-                );
-            }
+        if (!FileSystemManager::isFile($path)) {
+            return $this->error(
+                "Caddyfile not found at {$path}; call ensure first",
+                ServerManagerV1Constants::RESPONSE_NOT_FOUND
+            );
+        }
 
-            return $this->success([
-                'path' => $path,
-                'canonical' => $this->caddyfileIsCanonical(),
-                'content' => $this->readCaddyfile(),
-            ], 'Caddyfile retrieved');
+        return $this->success([
+            'path' => $path,
+            'canonical' => $this->caddyfileIsCanonical(),
+            'content' => $this->readCaddyfile(),
+        ], 'Caddyfile retrieved');
     }
 
     /**
@@ -160,21 +159,21 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         if (ServerManagerV1FrankenPhpCaddyfileBuilder::binary() === null) {
-                return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
-            }
+            return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+        }
 
-            $result = ServerManagerV1FrankenPhpCaddyfileBuilder::validate();
+        $result = ServerManagerV1FrankenPhpCaddyfileBuilder::validate();
 
-            return $this->success([
-                'valid' => $result['success'],
-                'output' => $result['output'],
-            ], $result['success'] ? 'Caddyfile is valid' : 'Caddyfile validation failed');
+        return $this->success([
+            'valid' => $result['success'],
+            'output' => $result['output'],
+        ], $result['success'] ? 'Caddyfile is valid' : 'Caddyfile validation failed');
     }
 
     /**
      * Adopt a web-server plane (record-only plane switch). Runtime adoption
      * (counterpart service disable, config provisioning, restart) stays with
-     * the shell installers: 26/27 (nginx plane) and 28 (frankenphp plane).
+     * the shell installers: 33 (nginx plane) and 93 (frankenphp plane).
      */
     public function adoptPlane(Request $request): JsonResponse
     {
@@ -184,37 +183,33 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $plane = (string) $request->input('plane', '');
-            if (!in_array($plane, WebServerPlane::PLANES, true)) {
-                return $this->error(
-                    'Invalid plane. Allowed values: ' . implode(', ', WebServerPlane::PLANES),
-                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
-                );
-            }
+        if (!in_array($plane, WebServerPlane::PLANES, true)) {
+            return $this->error(
+                'Invalid plane. Allowed values: ' . implode(', ', WebServerPlane::PLANES),
+                ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+            );
+        }
 
-            if (!WebServerPlane::adopt($plane)) {
-                return $this->error(
-                    'Unable to write the WEB_SERVER_PLANE record',
-                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
-                );
-            }
+        if (!WebServerPlane::adopt($plane)) {
+            return $this->error(
+                'Unable to write the WEB_SERVER_PLANE record',
+                ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
+            );
+        }
 
-            Log::info('ServerManagerV1: web-server plane adopted', [
-                'plane' => $plane,
-                'ip' => $request->ip(),
-            ]);
+        Log::info('ServerManagerV1: web-server plane adopted', [
+            'plane' => $plane,
+            'ip' => $request->ip(),
+        ]);
 
-            return $this->success([
-                'plane' => WebServerPlane::current(),
-                'runtime_hint' => $plane === WebServerPlane::NGINX
-                    ? 'Record adopted. Run 33_install_nginx.sh to provision + disable the frankenphp runtime.'
-                    : 'Record adopted. Run 93_install_frankenphp.sh to provision the frankenphp plane.',
-            ], "Web-server plane record set to '{$plane}'");
+        return $this->success([
+            'plane' => WebServerPlane::current(),
+            'runtime_hint' => $plane === WebServerPlane::NGINX
+                ? 'Record adopted. Run 33_install_nginx.sh to provision + disable the frankenphp runtime.'
+                : 'Record adopted. Run 93_install_frankenphp.sh to provision the frankenphp plane.',
+        ], "Web-server plane record set to '{$plane}'");
     }
 
-    /**
-     * True when the on-disk Caddyfile matches the canonical render
-     * (whitespace-tolerant compare, mirroring fm_caddyfile_ensure).
-     */
     /**
      * Store the DNSPod API token (format "id,token") in the shared
      * RuntimeConfigurationStore and re-render the canonical Caddyfile so
@@ -230,38 +225,38 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $token = trim((string) $request->input('token', ''));
-            if ($token === '') {
-                return $this->error(
-                    'token value required (format: id,token)',
-                    ServerManagerV1Constants::RESPONSE_BAD_REQUEST
-                );
-            }
-            if (ServerManagerV1FrankenPhpCaddyfileBuilder::binary() === null) {
-                return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
-            }
+        if ($token === '') {
+            return $this->error(
+                'token value required (format: id,token)',
+                ServerManagerV1Constants::RESPONSE_BAD_REQUEST
+            );
+        }
+        if (ServerManagerV1FrankenPhpCaddyfileBuilder::binary() === null) {
+            return $this->error(self::FRANKENPHP_INSTALL_HINT, ServerManagerV1Constants::RESPONSE_BAD_REQUEST);
+        }
 
-            $report = ServerManagerV1FrankenPhpCaddyfileBuilder::storeDnsPodToken($token);
-            if (($report['stored'] ?? false) !== true) {
-                return $this->error(
-                    'DNSPod token store failed: ' . ($report['error'] ?? 'unknown'),
-                    ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
-                );
-            }
+        $report = ServerManagerV1FrankenPhpCaddyfileBuilder::storeDnsPodToken($token);
+        if (($report['stored'] ?? false) !== true) {
+            return $this->error(
+                'DNSPod token store failed: ' . ($report['error'] ?? 'unknown'),
+                ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR
+            );
+        }
 
-            Log::info('ServerManagerV1: DNSPod token stored, Caddyfile re-rendered', [
-                'caddyfile' => $report['path'] ?? null,
-                'rendered' => $report['rendered'] ?? false,
-            ]);
+        Log::info('ServerManagerV1: DNSPod token stored, Caddyfile re-rendered', [
+            'caddyfile' => $report['path'] ?? null,
+            'rendered' => $report['rendered'] ?? false,
+        ]);
 
-            return $this->success([
-                'stored' => true,
-                'dns01' => [
-                    'module' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
-                    'token_configured' => true,
-                    'ready' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
-                ],
-                'caddyfile' => $report,
-            ], 'DNSPod token stored; the frankenphp plane picks it up on the next restart');
+        return $this->success([
+            'stored' => true,
+            'dns01' => [
+                'module' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
+                'token_configured' => true,
+                'ready' => ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule(),
+            ],
+            'caddyfile' => $report,
+        ], 'DNSPod token stored; the frankenphp plane picks it up on the next restart');
     }
 
     private function caddyfileIsCanonical(): bool

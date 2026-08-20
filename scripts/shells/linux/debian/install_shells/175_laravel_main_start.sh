@@ -70,6 +70,7 @@ DOMAIN_SETUP_COMMON="${COMMON_DIR}/domain_setup_common.sh"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
+RUNTIME_CONFIGURATION_READY="no"
 
 # Canonical init-ensure installer scripts
 PHP_ENSURE_SCRIPT=""
@@ -476,42 +477,36 @@ initialize_runtime_configuration_store() {
     local generated_value=""
     local config_state=""
 
+    RUNTIME_CONFIGURATION_READY="no"
     RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
     if [ -z "$RUNTIME_CONFIG_DIR" ]; then
         echo "ERROR: Runtime configuration store directory could not be resolved."
-        return 1
+    else
+        generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo "base64:".base64_encode(random_bytes(32));')"
+        if [ -z "$generated_value" ]; then
+            echo "ERROR: Failed to generate APP_KEY."
+        else
+            config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
+            if [ "$config_state" != "ready" ]; then
+                echo "ERROR: Failed to provision APP_KEY."
+            else
+                # Mercure keys are converged independently and then re-probed.
+                runtime_config_ensure_mercure_keys
+                if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
+                    echo "ERROR: Failed to provision Mercure hub keys (RelayHubKeyProvisioner)."
+                else
+                    # Installation access code is its own idempotent step.
+                    config_state="$(ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE")"
+                    if [ "$config_state" != "ready" ]; then
+                        echo "ERROR: Failed to provision the installation access code."
+                    else
+                        RUNTIME_CONFIGURATION_READY="yes"
+                        echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
+                    fi
+                fi
+            fi
+        fi
     fi
-
-    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo "base64:".base64_encode(random_bytes(32));')"
-    if [ -z "$generated_value" ]; then
-        echo "ERROR: Failed to generate APP_KEY."
-        return 1
-    fi
-    config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
-    if [ "$config_state" != "ready" ]; then
-        echo "ERROR: Failed to provision APP_KEY."
-        return 1
-    fi
-    # Mercure hub keys (HS256 secrets, server-side only - never shipped to
-    # pycore, the browser UI or the extension; provisioned once by the
-    # laravel_main RelayHubKeyProvisioner into the constant store directory
-    # outside the repo, then embedded as literal Caddyfile directives at
-    # every render; the trusted issuer is derived per launch by the runtime
-    # branch).
-    runtime_config_ensure_mercure_keys
-    if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
-        echo "ERROR: Failed to provision Mercure hub keys (RelayHubKeyProvisioner)."
-        return 1
-    fi
-    # Installation access (super) code: provisioned once into the external
-    # store, stable across runs; InstallationAccessCode.php only reads it.
-    config_state="$(ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE")"
-    if [ "$config_state" != "ready" ]; then
-        echo "ERROR: Failed to provision the installation access code."
-        return 1
-    fi
-
-    echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
 
 # Resolve npx into NPX_BIN (needed by composer dev / dev:win).
@@ -906,8 +901,10 @@ if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
     exit 1
 fi
 
-# Initialize the canonical runtime store before any Artisan command.
-if ! initialize_runtime_configuration_store; then
+# Initialize each canonical runtime-store value and probe the resulting state
+# before any Artisan command. Function status is not used as business data.
+initialize_runtime_configuration_store
+if [ "$RUNTIME_CONFIGURATION_READY" != "yes" ]; then
     echo "ERROR: Runtime configuration store initialization failed."
     exit 1
 fi
@@ -1235,7 +1232,7 @@ if [ "$AS_SERVICE" = "yes" ]; then
     systemctl daemon-reload 2>/dev/null || true
 
     # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
-    # TASK_WORKERS are NOT passed - the launcher defaults (4/2) apply.
+    # MAX_REQUESTS use the runtime launcher's own defaults.
     # FRANKENPHP_SITE_HOST is pinned at registration time: the systemd unit
     # carries no DOMAIN_SCOPE, so fm_site_host inside the unit would always
     # fall back to localhost (breaking DNS-01 and ACME - certmagic rejects

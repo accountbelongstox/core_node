@@ -71,7 +71,6 @@ ensure_runtime_config_value() {
     local key="$1"
     local value="$2"
     local current=""
-    local write_state=""
 
     current="$(runtime_config_get "$key")"
     if [ -n "$current" ]; then
@@ -79,9 +78,9 @@ ensure_runtime_config_value() {
         return
     fi
 
-    write_state="$(runtime_config_put "$key" "$value")"
+    runtime_config_put "$key" "$value" >/dev/null
     current="$(runtime_config_get "$key")"
-    if [ "$write_state" = "stored" ] && [ -n "$current" ]; then
+    if [ "$current" = "$value" ]; then
         echo "ready"
     else
         echo "failed"

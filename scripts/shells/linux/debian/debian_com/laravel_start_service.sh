@@ -29,6 +29,7 @@ PHP_BIN="${PHP_BIN:-$(command -v php)}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 RUNTIME_CONFIG_DIR=""
+RUNTIME_CONFIGURATION_READY="no"
 COMPOSER_VENDOR_COMMON="${LARAVEL_SERVICE_COMMON_DIR}/../../common/composer_vendor_common.sh"
 RUNTIME_CONFIG_COMMON="${LARAVEL_SERVICE_COMMON_DIR}/../../common/runtime_config_common.sh"
 GVAR_COMMON_SCRIPT="${LARAVEL_SERVICE_COMMON_DIR}/../../common/gvar_common.sh"
@@ -62,28 +63,27 @@ initialize_runtime_configuration_store() {
     local generated_value=""
     local config_state=""
 
+    RUNTIME_CONFIGURATION_READY="no"
     RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
     if [ -z "$RUNTIME_CONFIG_DIR" ]; then
         echo "ERROR: Runtime configuration store directory could not be resolved."
-        return 1
+    else
+        generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo "base64:".base64_encode(random_bytes(32));')"
+        config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
+        if [ "$config_state" != "ready" ]; then
+            echo "ERROR: Failed to provision APP_KEY."
+        else
+            # Mercure hub keys are provisioned independently and then
+            # re-probed from the canonical store.
+            runtime_config_ensure_mercure_keys
+            if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
+                echo "ERROR: Failed to provision Mercure hub keys."
+            else
+                RUNTIME_CONFIGURATION_READY="yes"
+                echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
+            fi
+        fi
     fi
-
-    generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
-    config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
-    if [ "$config_state" != "ready" ]; then
-        echo "ERROR: Failed to provision APP_KEY."
-        return 1
-    fi
-    # Mercure hub keys (HS256 secrets, server-side only; provisioned once
-    # by the laravel_main RelayHubKeyProvisioner into the constant store
-    # directory, then embedded as literal Caddyfile directives).
-    runtime_config_ensure_mercure_keys
-    if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
-        echo "ERROR: Failed to provision Mercure hub keys."
-        return 1
-    fi
-
-    echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
 
 echo "=== Laravel Production Service ==="
@@ -103,8 +103,10 @@ if [ "$COMPOSER_VENDOR_AUTOLOAD_OK" != "yes" ]; then
     exit 1
 fi
 
-# Initialize the canonical runtime store before any Artisan command.
-if ! initialize_runtime_configuration_store; then
+# Initialize each canonical runtime-store value and probe the resulting state
+# before any Artisan command. Function status is not used as business data.
+initialize_runtime_configuration_store
+if [ "$RUNTIME_CONFIGURATION_READY" != "yes" ]; then
     echo "ERROR: Runtime configuration store initialization failed."
     exit 1
 fi

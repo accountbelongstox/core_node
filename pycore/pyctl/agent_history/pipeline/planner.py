@@ -7,6 +7,7 @@ from pycore.pyctl.agent_history.agent_history_fragments import (
     collect_fragments,
 )
 from pycore.pyctl.agent_history.pipeline.config import (
+    advance_tool_live_cursor,
     get_config,
     get_tool_backfill_target,
     get_tool_cursor,
@@ -14,6 +15,47 @@ from pycore.pyctl.agent_history.pipeline.config import (
     initialize_tool_lanes,
     save_config,
 )
+
+
+def _completed_live_items(cfg: Dict[str, Any], tool: str) -> Dict[str, Dict[str, Any]]:
+    completed = cfg.get("live_completed")
+    if not isinstance(completed, dict):
+        return {}
+    tool_items = completed.get(tool)
+    return tool_items if isinstance(tool_items, dict) else {}
+
+
+def _flush_completed_live_items(
+    cfg: Dict[str, Any],
+    tool: str,
+    items: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], bool]:
+    """Hide completed live batches and commit their cursor only as one set.
+
+    Newest-first execution cannot advance a monotonic cursor per item because
+    doing so would drop older live batches. Completed item keys are therefore
+    persisted independently; once every currently buildable batch is done,
+    the cursor advances to the newest completed source position atomically.
+    """
+    completed = _completed_live_items(cfg, tool)
+    if not completed:
+        return items, False
+    remaining = [item for item in items if item.get("item_key") not in completed]
+    if remaining:
+        return remaining, False
+    positions = [
+        (
+            int(value.get("after_ts") or 0),
+            str(value.get("after_fragment_id") or ""),
+        )
+        for value in completed.values()
+        if isinstance(value, dict)
+    ]
+    if positions:
+        after_ts, after_fragment_id = max(positions)
+        advance_tool_live_cursor(cfg, tool, after_ts, after_fragment_id)
+    cfg.setdefault("live_completed", {}).pop(tool, None)
+    return [], True
 
 
 def _rotation_order(tools: List[str], last_tool: str) -> List[str]:
@@ -112,6 +154,9 @@ def plan_batches() -> Tuple[List[Dict[str, Any]], int]:
         pending_count += len(backfill_fragments) + len(live_fragments)
         backfill_items = _build_items(tool, backfill_fragments, min_words, "backfill")
         live_items = _build_items(tool, live_fragments, min_words, "live")
+        live_items, live_flushed = _flush_completed_live_items(cfg, tool, live_items)
+        if live_flushed:
+            config_changed = True
         if backfill_items:
             backfill_by_tool[tool] = backfill_items
         if live_items:
@@ -120,7 +165,7 @@ def plan_batches() -> Tuple[List[Dict[str, Any]], int]:
     if config_changed:
         save_config(cfg)
 
-    live_heads = [items[0] for items in live_by_tool.values() if items]
+    live_heads = [items[-1] for items in live_by_tool.values() if items]
     if live_heads:
         live_heads.sort(key=lambda item: int(item.get("last_ts") or 0), reverse=True)
         return live_heads, pending_count

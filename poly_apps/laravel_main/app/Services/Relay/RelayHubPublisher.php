@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\Http;
  * On the frankenphp plane mercure_publish() exists inside the Octane worker
  * - zero network hop, no JWT handling. Every other runtime (queues, CLI,
  * the nginx compat plane) signs a short-lived publisher JWT with the
- * server-side key and POSTs the hub. The publisher key NEVER leaves this
- * process boundary.
+ * server-side key and POSTs the same hub. This is the native Mercure path
+ * for queue and CLI contexts; the publisher key never leaves the process
+ * boundary.
  */
 final class RelayHubPublisher
 {
