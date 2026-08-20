@@ -138,7 +138,11 @@ export interface TerminalScheduleClearResult {
     terminal_number: number;
     cleared_entry_count: number;
     entry_ids: string[];
+    json_entry_count?: number;
+    remaining_entry_count?: number;
   }>;
+  runtime_terminal_numbers?: number[];
+  json_terminal_numbers?: number[];
   source?: string;
   source_revision?: number;
   source_updated_at?: string;

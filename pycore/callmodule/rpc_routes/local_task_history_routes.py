@@ -6,6 +6,7 @@ HTTP Routes for task_history
 from pycore.callmodule.rpc_routes.route_names import (
     UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE,
     UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE,
+    UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE,
     UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS,
     UI_TASK_HISTORY_SEARCH_TASKS,
     UI_TASK_HISTORY_CLEAR_RECENT_TASKS
@@ -14,6 +15,7 @@ from pycore.callmodule.rpc_routes.route_names import (
 from pycore.pyctl.task_history.service import (
     get_completed_archive,
     completed_archive_resource,
+    cached_audio_resource,
     get_recent_tasks,
     search_tasks,
     clear_recent_tasks,
@@ -35,6 +37,11 @@ def register_local_task_history_routes(server):
         return completed_archive_resource(cache_key=cache_key)
         
     server.post(path=UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE, handler=completed_archive_resource_handler)
+
+    def cached_audio_resource_handler(params, request_id, context):
+        return cached_audio_resource(path=str(params.get("path") or ""))
+
+    server.post(path=UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE, handler=cached_audio_resource_handler)
 
     def get_recent_tasks_handler(params, request_id, context):
         limit = params.get("limit", 200)

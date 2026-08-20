@@ -23,6 +23,7 @@ DEPENDENCY_MAP: Dict[str, str] = {
     "uvicorn": "uvicorn[standard]",
     "websockets": "websockets",
     "requests": "requests>=2,<3",
+    "curl_cffi": "curl_cffi>=0.12,<1",
     "urllib3": "urllib3>=2,<3",
     "idna": "idna>=3,<4",
     "chardet": "chardet>=5,<6",

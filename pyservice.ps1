@@ -360,20 +360,16 @@ try {
     if (-not $NoUi) {
         $uiDir = Join-Path $PSScriptRoot 'poly_apps\pycore_laravel_wordnew_ui'
         $uiStartPath = Join-Path (Join-Path $uiDir 'scripts') 'start.ps1'
-        if (-not (Test-Path -LiteralPath $uiStartPath)) {
-            Write-Host '[i] dashboard start.ps1 not found; using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
-        } else {
-            $env:PORT = "$UiPort"
-            $env:PYCORE_UI_PORT = "$UiPort"
-            $env:PYCORE_API_BASE = "http://localhost:$Port"
-            $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
-            $powerShellPath = (Get-Process -Id $PID).Path
-            $uiStartArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uiStartPath, '-NoBackend', '-NonInteractive', '-Port', "$UiPort")
-            if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
-            Write-Host ("[..] Starting dashboard through {0} ..." -f $uiStartPath) -ForegroundColor Yellow
-            Start-Process -FilePath $powerShellPath -ArgumentList $uiStartArguments -WorkingDirectory $uiDir -WindowStyle Hidden | Out-Null
-            Write-Host ("[i] Dashboard start dispatched asynchronously: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkGray
-        }
+        $env:PORT = "$UiPort"
+        $env:PYCORE_UI_PORT = "$UiPort"
+        $env:PYCORE_API_BASE = "http://localhost:$Port"
+        $env:PYCORE_UI_URL = "http://localhost:$UiPort/pycore-manager"
+        $powerShellPath = (Get-Process -Id $PID).Path
+        $uiStartArguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $uiStartPath, '-NoBackend', '-NonInteractive', '-Port', "$UiPort")
+        if ($UiBuild) { $uiStartArguments = @($uiStartArguments; '-Dist') }
+        Write-Host ("[..] Starting dashboard through {0} ..." -f $uiStartPath) -ForegroundColor Yellow
+        $uiProc = Start-Process -FilePath $powerShellPath -ArgumentList $uiStartArguments -WorkingDirectory $uiDir -WindowStyle Hidden -PassThru
+        Write-Host ("[i] Dashboard start dispatched asynchronously: {0}" -f $env:PYCORE_UI_URL) -ForegroundColor DarkGray
     } else {
         Write-Host '[i] -NoUi: using legacy /web/subtitle UI.' -ForegroundColor DarkYellow
     }

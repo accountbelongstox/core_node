@@ -25,8 +25,6 @@ export interface CapabilityDef {
   hintKey: string;
   /** TaskCenter processorTypes this capability enables. */
   processors: string[];
-  /** True when this capability also drives the client-side validity runner. */
-  usesValidityRunner: boolean;
 }
 
 export const CAPABILITIES: CapabilityDef[] = Object.entries(
@@ -37,7 +35,6 @@ export const CAPABILITIES: CapabilityDef[] = Object.entries(
   labelKey: `taskCenterCapability_${key}_label`,
   hintKey: `taskCenterCapability_${key}_hint`,
   processors: [...definition.processors],
-  usesValidityRunner: definition.uses_validity_runner,
 }));
 
 // Audio generation remains implemented by the Qwen TTS processor but is not a

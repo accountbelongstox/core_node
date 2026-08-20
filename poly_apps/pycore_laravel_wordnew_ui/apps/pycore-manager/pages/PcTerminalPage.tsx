@@ -506,9 +506,13 @@ const PcTerminalPage: React.FC = () => {
       windows.forEach((windowInfo) => {
         ensureTerminalScheduleQueue(windowInfo.terminal_number);
       });
-      const clearResult = await pycoreApi.clearTerminalScheduleEntries()
+      const clearResult = await pycoreManagerUiStateSync.clearTerminalSchedules()
         .catch(() => null);
-      if (clearResult?.success) completeTerminalScheduleClearAll();
+      if (clearResult?.success) {
+        completeTerminalScheduleClearAll();
+        void pycoreManagerUiStateSync.pushTerminalScheduleJson()
+          .catch(() => undefined);
+      }
     }
     windows.forEach((windowInfo) => {
       const terminalNumber = windowInfo.terminal_number;
@@ -853,8 +857,7 @@ const PcTerminalPage: React.FC = () => {
     setActionNotice(null);
     try {
       await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
-      await pycoreManagerUiStateSync.pushTerminalScheduleJson();
-      const result = await pycoreApi.clearTerminalScheduleEntries();
+      const result = await pycoreManagerUiStateSync.clearTerminalSchedules();
       const pycoreTerminalNumbers = (result.terminal_numbers || []).join(', ')
         || t('terminal.scheduleNoTerminals');
       if (result.success) {

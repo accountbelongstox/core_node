@@ -209,7 +209,10 @@ class TerminalScheduler:
             ):
                 expired_entry_ids.append(entry_id)
                 continue
-            if existing is not None and self._definition_matches(existing, definition):
+            if (
+                existing is not None
+                and self._definition_matches(existing, definition)
+            ):
                 next_entries[entry_id] = existing
                 unchanged_entry_ids.append(entry_id)
                 continue
@@ -219,7 +222,10 @@ class TerminalScheduler:
             else:
                 updated_entry_ids.append(entry_id)
 
-        removed_entry_ids = sorted(set(current_entries) - set(next_entries), key=int)
+        removed_entry_ids = sorted(
+            set(current_entries) - set(next_entries),
+            key=int,
+        )
         if next_entries:
             self._entries_by_terminal[terminal_number] = next_entries
         else:
@@ -237,7 +243,7 @@ class TerminalScheduler:
 
     @serialized_method
     def clear_entries(self) -> Dict[str, Any]:
-        terminal_results: List[Dict[str, Any]] = []
+        runtime_results: Dict[int, Dict[str, Any]] = {}
         cleared_entry_count = 0
         for terminal_number in sorted(self._entries_by_terminal):
             entry_ids = sorted(
@@ -247,22 +253,46 @@ class TerminalScheduler:
             if not entry_ids:
                 continue
             cleared_entry_count += len(entry_ids)
-            terminal_results.append({
+            runtime_results[terminal_number] = {
                 "terminal_number": terminal_number,
                 "cleared_entry_count": len(entry_ids),
                 "entry_ids": entry_ids,
-            })
+            }
         self._entries_by_terminal.clear()
         THREAD_BUS.signal(WAKEUP_SIGNAL, True)
 
         source = self._json_repository.read()
         source_terminals = source.get("terminals") or {}
-        json_entry_count = sum(
-            len(entries)
-            for entries in source_terminals.values()
+        source_terminal_counts = {
+            int(terminal_number): len(entries)
+            for terminal_number, entries in source_terminals.items()
             if isinstance(entries, list)
-        ) if isinstance(source_terminals, dict) else -1
+        } if isinstance(source_terminals, dict) else {}
+        json_entry_count = (
+            sum(source_terminal_counts.values())
+            if isinstance(source_terminals, dict)
+            else -1
+        )
         json_cleared = bool(source.get("success", True)) and json_entry_count == 0
+        terminal_numbers = sorted(runtime_results)
+        json_terminal_numbers = sorted(source_terminal_counts)
+        terminal_results = [
+            {
+                **runtime_results.get(current_terminal, {
+                    "terminal_number": current_terminal,
+                    "cleared_entry_count": 0,
+                    "entry_ids": [],
+                }),
+                "json_entry_count": source_terminal_counts.get(
+                    current_terminal,
+                    0,
+                ),
+                "remaining_entry_count": 0,
+            }
+            for current_terminal in sorted(
+                set(terminal_numbers) | set(json_terminal_numbers)
+            )
+        ]
         return {
             "success": json_cleared,
             "error_code": (
@@ -278,9 +308,9 @@ class TerminalScheduler:
             "json_clear_all_pending": bool(source.get("clear_all_pending")),
             "cleared_entry_count": cleared_entry_count,
             "remaining_entry_count": 0,
-            "terminal_numbers": [
-                result["terminal_number"] for result in terminal_results
-            ],
+            "terminal_numbers": terminal_numbers,
+            "runtime_terminal_numbers": terminal_numbers,
+            "json_terminal_numbers": json_terminal_numbers,
             "terminal_results": terminal_results,
         }
 

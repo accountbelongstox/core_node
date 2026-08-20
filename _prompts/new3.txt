@@ -30,5 +30,35 @@
   有没重复，并复用。如果已经全部为复用代码，忽略本条提示。加入API https://api.si.12gm.com 无端口为默认API，并直接测试，我已经运行了  .\apps\mcp-chrome\scripts\start.ps1
  实时编译，codex只需要 访问  MCP Tools并验证所有功能，同时laravel main的代码会实时同步到服务器，可能 会2分钟生效-中间服务器可能 重启暂时中断1-2分钟，要求测试所能功能可用，如果不可用立即搜索官方文档并底层构架修复，1：单词有效性任务，单词翻译任务，这两个是同一个mcp-chrome开关，2：图书封面搜索及回传，3：单词组封面gemini生成以及回传，4：验证其他功能，注意，如果codex无法验证，就先给mcp-chrome加上可调试的接口或MCP TOOLS供AI调用。除非以上全部验证完才可忽略本条提示，否则将底层重构，搜索官方文档。
 
-
-继续实现PART 0 -4，按规范，搜索官方文档，如果已经全部完成，则不必再继续。注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类
+继续实现、如果以下都全部实现了，跳过本次提示词。
+继续实现、注意要看实际代码，而不是看文档，文档只是参考，同时要根据代码来更新文档，搜索官方文档
+docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_0.md
+docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_1.md
+docs_fix\DESIGN_20260817_2115_PYCORE_UI_RELAY_GROUPS_HTTP3_PART_3.md
+，按规范，搜索官方文档，如果已经全部完成，则不必再继续。注意需要从底层构架，而不是写补丁，更不能薄兼容、要按最新的规范。注意合并公共类
+注意，
+1：注意frankenPHP安装部署，以及UI管理已经完成，根据代码直接更新文档。不要再修改相关代码，
+2：pycore端和laravemain端，根据当前代码全面升级为HTTP3 / 103 early等。并对接新的API，搜索代码，而不是.md，更新.md，如果完成了跳过。
+3：pycore UI / pycore UI / pycore-manager / laravel-manager / wordnew 全面升级为支持http3 / 103early，重构底层类库，在现在的代码的基础上，搜索代码，而不是.md，更新.md，如果完成了跳过。
+wordnew 要capacitor搜索官方文档，在编译为安卓时支持http3 / 103early。
+同时：完成以下，如果完成了，跳过。
+···
+据diff的API实时调整队列首。
+  11： http://127.0.0.1:13054/pycore-manager/queue-center 增
+  加更详细的日志历史 记录，可以使用sqlite，生成的音频本地要缓
+  存，并记录是由那个引擎生成，并能播放，是否是multe句子合成，
+  laravel main是否接收上传成功，
+  12：pycore保存一组任务，在laravel main离线时继续生成，当在
+  线时捎带上传没有上传的记录。
+  13：pycore去掉冗余代码，合并必要的类库，并实时的显示后端的
+  进度状态，前端的进度状态。
+  以上需要调整pycore / pycore UI / laravel main / wordnew的底
+  层类库，注意支持HTTP3 FRANKENPHP ERRLY 301 ，
+  如果codex无法验证上面的功能，就先给pycore加上可调试的接口或
+  探测API调用。除非以上全部验证完才可忽略本条提示，否则将底层
+  重构，搜索官方文档。
+  注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方文
+  档，按规范修改，shell不要使用返回码退出值、信任上一个函数的
+  运行结果。同时需要有幂等性，幂等需要拆为最小步、而不是从一
+  大个入口就幂等跳过。
+  复用重复实现类库。同时搜索官方文档，搜索官方文档。···

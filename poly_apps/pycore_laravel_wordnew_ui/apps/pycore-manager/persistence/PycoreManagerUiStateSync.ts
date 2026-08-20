@@ -119,6 +119,12 @@ class PycoreManagerUiStateSync {
     return result;
   }
 
+  async clearTerminalSchedules() {
+    this.cancelScheduledPush();
+    await this.replica.push();
+    return pycoreApi.clearTerminalScheduleEntries();
+  }
+
   private schedulePush(): void {
     if (this.replica.isApplyingRemote()) return;
     if (this.pushTimer !== null) clearTimeout(this.pushTimer);

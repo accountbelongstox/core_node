@@ -17,7 +17,7 @@ import { TASK_LIMITS } from './queue-center-contract';
 // background listener both reference these so a rename can't desync them.
 
 export const TASK_CENTER_MSG = 'task_center' as const;
-export const VALIDITY_RUNNER_MSG = 'validity_runner' as const;
+export const VALIDITY_TEST_MSG = 'validity_test' as const;
 /** Popup -> background: read persistent retry-outbox status ({pending,oldestAt}). */
 export const SUBMIT_OUTBOX_MSG = 'submit_outbox' as const;
 
@@ -45,8 +45,6 @@ export type TaskCenterAction =
   | 'disable_processor'
   | 'start_processor'
   | 'stop_processor';
-
-export type ValidityRunnerAction = 'start' | 'stop' | 'status' | 'test';
 
 // ─────────────────────────── Processor-level shapes ───────────────────────
 // Canonical (moved here from ITaskProcessor.ts, which now re-exports them).
@@ -117,25 +115,11 @@ export interface BackendHealth {
   consecutiveFailures: number;
 }
 
-/** Client-driven word-validity runner progress. */
-export interface ValidityStatus {
-  running: boolean;
-  done: boolean;
-  /** True while the backlog is drained and the runner is idle-polling for new unchecked words. */
-  idle: boolean;
-  rounds: number;
-  totalValid: number;
-  totalInvalid: number;
-  lastError: string | null;
-  language?: string;
-}
-
 /** The full status object every task_center response returns. */
 export interface FullTaskCenterStatus {
   isRunning: boolean;
   activeApiUrl: string | null;
   stats: TaskCenterStats;
   backend: BackendHealth;
-  validity: ValidityStatus;
   activeCapabilities: CapabilityKey[];
 }

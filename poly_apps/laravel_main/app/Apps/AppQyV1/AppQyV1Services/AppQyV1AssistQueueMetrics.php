@@ -96,32 +96,6 @@ trait AppQyV1AssistQueueMetrics
     }
 
     /**
-     * word_media counts split by language. global_tasks
-     * task_type='word_media' pending/processing PLUS translated dictionary rows
-     * that have not received an mcp-chrome image submission per language.
-     *
-     * @return array{pending:int,processing:int,leased:int,total:int,
-     *               by_language:array<string,int>,sample:array<int,array<string,mixed>>}
-     */
-    public function wordImageCounts(): array
-    {
-        $task = $this->globalTaskStatusCounts('word_media');
-        $byLanguage = $this->dictionaryByLanguage(
-            'has_translation = true AND is_valid = true AND image_mcp_submitted_at IS NULL',
-            ['has_translation', 'is_valid', 'image_mcp_submitted_at']
-        );
-
-        return [
-            'pending' => $task['pending'],
-            'processing' => $task['processing'],
-            'leased' => $task['leased'],
-            'total' => $task['total'],
-            'by_language' => $byLanguage,
-            'sample' => $this->wordTaskSample('word_media'),
-        ];
-    }
-
-    /**
      * word_audio (pycore lane) counts split by language. global_tasks
      * task_type='word_audio' pending/processing PLUS dictionary rows missing
      * audio (has_audio=false OR tts_status='pending') per language.

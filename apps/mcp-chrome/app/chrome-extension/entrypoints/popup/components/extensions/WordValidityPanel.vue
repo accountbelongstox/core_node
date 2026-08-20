@@ -26,7 +26,7 @@
 import { computed, ref } from 'vue';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { sendWithWake } from '@/utils/sendWithWake';
-import { VALIDITY_RUNNER_MSG } from '@/utils/task-center-types';
+import { VALIDITY_TEST_MSG } from '@/utils/task-center-types';
 import { getMessage } from '@/utils/i18n';
 
 interface ValidityTestResult {
@@ -53,8 +53,7 @@ const runTest = async () => {
   try {
     const response = await sendWithWake(
       () => chrome.runtime.sendMessage({
-        type: VALIDITY_RUNNER_MSG,
-        action: 'test',
+        type: VALIDITY_TEST_MSG,
         words: words.value,
       }),
       'Word Validity UI',

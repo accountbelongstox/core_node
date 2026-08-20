@@ -10,6 +10,7 @@ import {
   parseValidityClassification,
   type ClassifierWord,
 } from './word-validity-classifier';
+import { WORD_VALIDITY_CONFIG } from '@/utils/queue-center-contract';
 let classificationQueue: Promise<void> = Promise.resolve();
 
 export interface WordValidityRuntimeResult {
@@ -59,6 +60,8 @@ async function sendPrompt(provider: AiWebProvider, prompt: string): Promise<stri
     const toolResult = await deepseekSendPromptTool.execute({
       prompt,
       waitForCompletion: true,
+      timeout: WORD_VALIDITY_CONFIG.request_timeout_ms,
+      autoRetry: false,
     });
     return extractDeepSeekText(toolResult);
   }

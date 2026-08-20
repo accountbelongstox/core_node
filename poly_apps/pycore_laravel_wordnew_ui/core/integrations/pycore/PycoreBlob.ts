@@ -21,7 +21,7 @@ function toPycorePath(url: string): string {
   return url.startsWith('/') ? url : `/${url}`;
 }
 
-function resourceCall(path: string): Promise<unknown> {
+function resourceCall(path: string, source: string): Promise<unknown> {
   const speechMatch = path.match(/^\/api\/local\/speech\/history\/file\/([^?]+)/);
   if (speechMatch) {
     return requestPycoreHttp(PYCORE_HTTP_ROUTES.speechHistoryHistoryFile, {
@@ -38,6 +38,11 @@ function resourceCall(path: string): Promise<unknown> {
     const query = new URL(path, 'http://pycore.local').searchParams;
     return requestPycoreHttp(PYCORE_HTTP_ROUTES.voiceSubtitleGetAudioFile, {
       path: query.get('path') || '',
+    });
+  }
+  if (/^[A-Za-z]:[\\/]/.test(source) || source.startsWith('/')) {
+    return requestPycoreHttp(PYCORE_HTTP_ROUTES.taskHistoryCachedAudioResource, {
+      path: source,
     });
   }
   return Promise.resolve({ success: false });
@@ -60,7 +65,7 @@ export async function fetchPycoreBlobUrl(url: string): Promise<string> {
   const path = toPycorePath(url);
   const p = (async (): Promise<string> => {
     try {
-      const r: any = await resourceCall(path);
+      const r: any = await resourceCall(path, url);
       const content = r?.content_base64 || r?.base64;
       if (r && r.success && typeof content === 'string') {
         const dataUrl = `data:${r.mime || 'application/octet-stream'};base64,${content}`;

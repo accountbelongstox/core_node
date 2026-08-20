@@ -4,10 +4,6 @@
  */
 
 import { taskCenter, type TaskCenterConfig } from './services/task-center/TaskCenter';
-import {
-  wordValidityRunnerService,
-  type ValidityRunnerConfig,
-} from './services/word-validity/word-validity-runner-service';
 import { bingDictionaryWorkerService } from './services/bing-dictionary-worker-service';
 import {
   getRunIntent,
@@ -23,7 +19,7 @@ import {
 } from '@/utils/task-capabilities';
 import {
   TASK_CENTER_MSG,
-  VALIDITY_RUNNER_MSG,
+  VALIDITY_TEST_MSG,
   SUBMIT_OUTBOX_MSG,
   DEFAULT_TARGET_LANG,
   type FullTaskCenterStatus,
@@ -45,7 +41,6 @@ const TASK_CENTER_RUNTIME_KEY = STORAGE_KEYS.TASK_CENTER_RUNTIME;
 const TASK_CENTER_WATCHDOG_ALARM = STORAGE_KEYS.TASK_CENTER_WATCHDOG_ALARM;
 const BING_WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
 const WATCHDOG_PERIOD_MINUTES = 1;
-const TASK_VALIDITY_PROVIDER: AiWebProvider = 'deepseek';
 const runtimeRestore = new AsyncOperationController<void>();
 
 /**
@@ -65,8 +60,8 @@ export function initTaskCenterListener() {
       handleTaskCenterMessage(message, sendResponse);
       return true; // Keep message channel open for async response
     }
-    if (message.type === VALIDITY_RUNNER_MSG) {
-      handleValidityRunnerMessage(message, sendResponse);
+    if (message.type === VALIDITY_TEST_MSG) {
+      handleValidityTestMessage(message, sendResponse);
       return true; // Keep message channel open for async response
     }
     if (message.type === SUBMIT_OUTBOX_MSG) {
@@ -93,17 +88,14 @@ export function initTaskCenterListener() {
 /**
  * Compose the full Task Center status the popup consumes: the base
  * isRunning/stats + the aggregated backend health (from TaskCenter) + the
- * validity runner status + the persisted active capabilities (run-intent).
+ * persisted active capabilities (run-intent).
  */
 async function buildFullStatus(): Promise<FullTaskCenterStatus> {
   const status = taskCenter.getStatus(); // { isRunning, stats, backend }
   const intent = await getRunIntent();
-  const validity = wordValidityRunnerService.getStatus();
   return {
     ...status,
-    isRunning: status.isRunning || validity.running,
     activeApiUrl: lastStartConfig?.apiUrl || null,
-    validity,
     activeCapabilities: intent.activeCapabilities,
   };
 }
@@ -154,8 +146,6 @@ async function performRuntimeRestore(): Promise<void> {
         enabledProcessors,
       };
 
-  const usesValidity = activeCapabilities.some((key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner);
-
   const processors = { ...(runtimeConfig.processors || {}) };
   if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
     processors[LANES.BING_DICTIONARY] = {
@@ -171,9 +161,7 @@ async function performRuntimeRestore(): Promise<void> {
     enabledProcessors,
   };
   const centerWasRunning = taskCenter.isTaskCenterRunning();
-  const validityWasRunning = wordValidityRunnerService.getStatus().running;
   let centerStarted = false;
-  let validityStarted = false;
 
   try {
     if (!centerWasRunning) {
@@ -184,29 +172,15 @@ async function performRuntimeRestore(): Promise<void> {
       if (centerStarted) taskCenter.stopAll();
       return;
     }
-    if (usesValidity && !validityWasRunning) {
-      await wordValidityRunnerService.start({
-        apiUrl: config.apiUrl,
-        provider: TASK_VALIDITY_PROVIDER,
-      });
-      validityStarted = true;
-    }
-    if (restoreEpoch !== runtimeEpoch) {
-      if (validityStarted) wordValidityRunnerService.stop();
-      if (centerStarted) taskCenter.stopAll();
-      return;
-    }
     lastStartConfig = config;
     await persistTaskCenterRuntime(true, config);
     if (restoreEpoch !== runtimeEpoch) {
-      if (validityStarted) wordValidityRunnerService.stop();
       if (centerStarted) taskCenter.stopAll();
       if (lastStartConfig === config) lastStartConfig = null;
       return;
     }
     console.log('[Task Center] Restored runtime after service-worker restart');
   } catch (error) {
-    if (validityStarted) wordValidityRunnerService.stop();
     if (centerStarted) taskCenter.stopAll();
     console.error('[Task Center] Runtime restore failed:', error);
   }
@@ -246,7 +220,6 @@ async function runLifecycleAction(action: () => Promise<void>): Promise<void> {
 async function runStopAction(sendResponse: (response: any) => void): Promise<void> {
   runtimeEpoch++;
   taskCenter.stopAll();
-  wordValidityRunnerService.stop();
   // Belt-and-suspenders: force-clear the Bing watchdog + session run-intent
   // so the crawler can NEVER resurrect after Stop (even if its processor
   // was not running in this SW instance).
@@ -262,14 +235,12 @@ async function runStopAction(sendResponse: (response: any) => void): Promise<voi
 }
 
 /**
- * Handle client-driven Word-Validity Runner messages (independent of the
- * global-task lane). Actions: start / stop / status.
+ * Handle the single-feature validity diagnostic. Production validity work is
+ * owned exclusively by the word_validity_web global-task processor.
  */
-async function handleValidityRunnerMessage(
+async function handleValidityTestMessage(
   message: {
     type: string;
-    action: string;
-    config?: ValidityRunnerConfig;
     words?: string[];
     provider?: AiWebProvider;
     targetLanguage?: string;
@@ -277,60 +248,36 @@ async function handleValidityRunnerMessage(
   sendResponse: (response: any) => void,
 ) {
   try {
-    switch (message.action) {
-      case 'start': {
-        await wordValidityRunnerService.start(message.config || {});
-        sendResponse({ success: true, status: wordValidityRunnerService.getStatus() });
-        break;
-      }
-      case 'stop': {
-        wordValidityRunnerService.stop();
-        sendResponse({ success: true, status: wordValidityRunnerService.getStatus() });
-        break;
-      }
-      case 'status': {
-        sendResponse({ success: true, status: wordValidityRunnerService.getStatus() });
-        break;
-      }
-      case 'test': {
-        const words = Array.isArray(message.words)
-          ? message.words
-              .map((word) => String(word).trim())
-              .filter(Boolean)
-              .map((word) => ({ word }))
-          : [];
-        if (words.length === 0) {
-          sendResponse({ success: false, error: 'Enter at least one word' });
-          break;
-        }
-        const result = await runWordValidityClassification(
-          words,
-          message.provider,
-          message.targetLanguage || DEFAULT_TARGET_LANG,
-        );
-        sendResponse({ success: true, result });
-        break;
-      }
-      default: {
-        sendResponse({ success: false, error: `Unknown action: ${message.action}` });
-      }
+    const words = Array.isArray(message.words)
+      ? message.words
+          .map((word) => String(word).trim())
+          .filter(Boolean)
+          .map((word) => ({ word }))
+      : [];
+    if (words.length === 0) {
+      sendResponse({ success: false, error: 'Enter at least one word' });
+      return;
     }
+    const result = await runWordValidityClassification(
+      words,
+      message.provider,
+      message.targetLanguage || DEFAULT_TARGET_LANG,
+    );
+    sendResponse({ success: true, result });
   } catch (error: any) {
-    console.error('[Validity Runner] Error:', error);
+    console.error('[Validity Test] Error:', error);
     sendResponse({ success: false, error: error?.message || 'Unknown error' });
   }
 }
 
-export function executeValidityRunnerCommand(message: {
-  action: string;
-  config?: ValidityRunnerConfig;
+export function executeValidityTestCommand(message: {
   words?: string[];
   provider?: AiWebProvider;
   targetLanguage?: string;
 }): Promise<any> {
   return new Promise((resolve) => {
-    void handleValidityRunnerMessage(
-      { type: VALIDITY_RUNNER_MSG, ...message },
+    void handleValidityTestMessage(
+      { type: VALIDITY_TEST_MSG, ...message },
       resolve,
     );
   });
@@ -485,13 +432,10 @@ async function handleStart(
   config.activeCapabilities = activeCapabilities;
   config.enabledProcessors = enabledProcessors;
 
-  const usesValidity = activeCapabilities.some((k) => CAPABILITY_BY_KEY[k]?.usesValidityRunner);
-
   // The center itself always starts. Capabilities only control execution lanes.
   const centerWasRunning = taskCenter.isTaskCenterRunning();
-  const validityWasRunning = wordValidityRunnerService.getStatus().running;
   try {
-    if (usesValidity && !enabledProcessors.includes(LANES.BING_DICTIONARY)) {
+    if (activeCapabilities.includes('validity') && !enabledProcessors.includes(LANES.BING_DICTIONARY)) {
       await bingDictionaryWorkerService.stopAndClear(true);
     }
     await taskCenter.startAll(config);
@@ -501,17 +445,7 @@ async function handleStart(
       sendResponse({ success: false, error: 'Start superseded by Stop' });
       return;
     }
-
-    // Start the client-driven validity runner when a validity-runner capability is
-    // active (independent of the global-task lane).
-    if (usesValidity) {
-      await wordValidityRunnerService.start({
-        apiUrl: config.apiUrl,
-        provider: TASK_VALIDITY_PROVIDER,
-      });
-    }
   } catch (error) {
-    if (!validityWasRunning) wordValidityRunnerService.stop();
     if (!centerWasRunning) taskCenter.stopAll();
     throw error;
   }
@@ -519,7 +453,6 @@ async function handleStart(
   // A Stop landed while the lanes were starting — roll back instead of
   // resurrecting a running state the user already cancelled (d.txt 6.2.2).
   if (startEpoch !== runtimeEpoch) {
-    wordValidityRunnerService.stop();
     taskCenter.stopAll();
     sendResponse({ success: false, error: 'Start superseded by Stop' });
     return;
@@ -562,7 +495,6 @@ async function handleReconfigure(
     : null;
 
   taskCenter.stopAll();
-  wordValidityRunnerService.stop();
 
   try {
     await handleStart(config, sendResponse);
@@ -616,10 +548,6 @@ async function handleSetCapability(
 
   const previousProcessors = processorsForCapabilities(intent.activeCapabilities);
   const enabledProcessors = processorsForCapabilities(activeCapabilities);
-  const previousValidityRunning = wordValidityRunnerService.getStatus().running;
-  const usesValidity = activeCapabilities.some(
-    (key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner,
-  );
   const baseConfig = lastStartConfig || effectiveConfig || { apiUrl };
   const previousConfig: TaskCenterConfig = {
     ...baseConfig,
@@ -644,23 +572,12 @@ async function handleSetCapability(
     await taskCenter.syncProcessors(enabledProcessors, nextConfig);
     if (capEpoch !== runtimeEpoch) {
       taskCenter.stopAll();
-      wordValidityRunnerService.stop();
       sendResponse({ success: false, error: 'Capability change superseded by Stop' });
       return;
-    }
-    if (usesValidity && !previousValidityRunning) {
-      await wordValidityRunnerService.start({ apiUrl, provider: TASK_VALIDITY_PROVIDER });
-    } else if (!usesValidity && previousValidityRunning) {
-      wordValidityRunnerService.stop();
     }
   } catch (error: any) {
     try {
       await taskCenter.syncProcessors(previousProcessors, previousConfig);
-      if (previousValidityRunning && !wordValidityRunnerService.getStatus().running) {
-        await wordValidityRunnerService.start({ apiUrl, provider: TASK_VALIDITY_PROVIDER });
-      } else if (!previousValidityRunning) {
-        wordValidityRunnerService.stop();
-      }
     } catch (rollbackError) {
       console.error('[Task Center] Failed to roll back capability change:', rollbackError);
     }
@@ -682,7 +599,6 @@ async function handleSetCapability(
   // A Stop landed mid-toggle — do not resurrect run-intent (d.txt 6.2.2).
   if (capEpoch !== runtimeEpoch) {
     taskCenter.stopAll();
-    wordValidityRunnerService.stop();
     sendResponse({ success: false, error: 'Capability change superseded by Stop' });
     return;
   }

@@ -98,15 +98,10 @@ function uniqueWords(words: string[]): string[] {
     .filter((word) => word.trim() !== '');
 }
 
-export interface WordNewSentenceWordTableOptions {
-  prioritizeImages?: boolean;
-}
-
 function prioritizeMissing(
   rows: WordNewSentenceWordRow[],
   language: string,
   targetLanguage: string,
-  options: WordNewSentenceWordTableOptions,
 ): void {
   const translationWords = uniqueWords(rows
     .filter((row) => !Array.isArray(row.translations) || row.translations.length === 0)
@@ -114,21 +109,12 @@ function prioritizeMissing(
   const audioWords = uniqueWords(rows
     .filter((row) => !row.audio_url || row.audio_status !== 'ready')
     .map((row) => row.word));
-  const imageItems = options.prioritizeImages === false
-    ? []
-    : rows
-      .filter((row) => Array.isArray(row.translations) && row.translations.length > 0
-        && (!row.image_url || row.image_status !== 'ready'))
-      .map((row) => ({ word: row.word, language }));
   const requests: Promise<unknown>[] = [];
   if (translationWords.length > 0) {
     requests.push(wordNewQueueCenter.prioritizeTranslations(translationWords, language, targetLanguage));
   }
   if (audioWords.length > 0) {
     requests.push(wordNewQueueCenter.moveWordsToHead(audioWords, language));
-  }
-  if (imageItems.length > 0) {
-    requests.push(wordNewQueueCenter.prioritizeWordImages(imageItems));
   }
   if (requests.length > 0) void Promise.allSettled(requests);
 }
@@ -139,7 +125,6 @@ export async function getSentenceWordTable(
   targetLanguage = 'zh',
   maxReadCount = 0,
   groupId: string | null = null,
-  options: WordNewSentenceWordTableOptions = {},
 ): Promise<WordNewSentenceWordRow[]> {
   const payload = await post(WfNewApiPaths.sentenceWords, {
     sentence,
@@ -162,7 +147,7 @@ export async function getSentenceWordTable(
       added_to_default_group: addedToTargetGroup,
     };
   });
-  prioritizeMissing(normalized, language, targetLanguage, options);
+  prioritizeMissing(normalized, language, targetLanguage);
   return normalized;
 }
 

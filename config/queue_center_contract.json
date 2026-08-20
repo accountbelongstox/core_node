@@ -1,9 +1,10 @@
 {
-  "schema_version": 25,
+  "schema_version": 26,
   "contract": "queue_center",
   "source_path": "config/queue_center_contract.json",
   "word_validity": {
-    "batch_size": 150,
+    "batch_size": 20,
+    "request_timeout_ms": 120000,
     "default_languages": ["en"],
     "source_marker": "ai_ensure",
     "idle_poll_seconds": 60
@@ -216,7 +217,7 @@
     },
     "media_image": {
       "category": "media_image",
-      "category_keys": ["word_media", "cover", "poster", "gemini_image"],
+      "category_keys": ["cover", "poster", "gemini_image"],
       "queue_metrics": true
     }
   },
@@ -327,36 +328,31 @@
         "storage_key": "tkCapImage",
         "label": "Cover and poster search",
         "hint": "Search and write back book covers and media posters through the shared browser worker",
-        "processors": ["media_image"],
-        "uses_validity_runner": false
+        "processors": ["media_image"]
       },
       "gemini_image": {
         "storage_key": "tkCapGeminiImage",
         "label": "AI word-group cover generation",
         "hint": "Generate vocabulary-library covers with Gemini and write them back to Laravel",
-        "processors": ["remote_gemini"],
-        "uses_validity_runner": false
+        "processors": ["remote_gemini"]
       },
       "validity": {
         "storage_key": "tkCapValidity",
         "label": "Word validity and translation",
         "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
-        "processors": [],
-        "uses_validity_runner": true
+        "processors": ["word_validity_web"]
       },
       "notebooklm": {
         "storage_key": "tkCapNotebooklm",
         "label": "执行 NotebookLM 生成任务",
         "hint": "Laravel NotebookLM queue to shared browser runtime with result write-back",
-        "processors": ["remote_notebooklm"],
-        "uses_validity_runner": false
+        "processors": ["remote_notebooklm"]
       },
       "chatgpt": {
         "storage_key": "tkCapChatgpt",
         "label": "执行 ChatGPT 长语音任务",
         "hint": "ChatGPT web conversations with read-aloud audio capture and Laravel write-back",
-        "processors": ["chatgpt_web"],
-        "uses_validity_runner": false
+        "processors": ["chatgpt_web"]
       }
     },
     "wire_shapes": {
@@ -443,22 +439,11 @@
         "ui": {"icon": "🌐", "badge": "PROMPT", "summary_label": "待提示词翻译", "color": "#06b6d4"}
       },
       {
-        "key": "word_media",
-        "label": "Word Image",
-        "execution_type": "remote_fast",
-        "capability": "image",
-        "ordering": "priority",
-        "interactive": false,
-        "fast_promotable": true,
-        "pycore_local_label": "remote_image",
-        "ui": {"icon": "🖼️", "badge": "WORD IMAGE", "summary_label": "待搜索单词图片", "color": "#a78bfa"}
-      },
-      {
         "key": "word_audio",
         "label": "Word Audio",
         "execution_type": "remote_audio",
         "capability": "audio",
-        "claimants": ["pycore", "chrome"],
+        "claimants": ["pycore"],
         "aliases": ["word"],
         "ordering": "queue_position",
         "interactive": true,
@@ -599,7 +584,6 @@
         "google_translate": "translation",
         "word-translation": "translation",
         "ai_translate": "translation",
-        "word_media": "media_image",
         "gemini_image": "media_image",
         "poster": "media_image"
       },
@@ -629,14 +613,6 @@
       "laravel_task_type": "word_translation",
       "summary_task_type": "word_translation",
       "capability": "ai_translate",
-      "primary_handler": "chrome"
-    },
-    {
-      "key": "word_media",
-      "label": "Word Media",
-      "laravel_task_type": "word_media",
-      "summary_task_type": "word_media",
-      "capability": "image",
       "primary_handler": "chrome"
     },
     {

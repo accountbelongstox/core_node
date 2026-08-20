@@ -2,7 +2,7 @@ import { createErrorResponse, createJsonResponse, type ToolResult } from '@/comm
 import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 import {
   executeTaskCenterCommand,
-  executeValidityRunnerCommand,
+  executeValidityTestCommand,
 } from '@/entrypoints/background/task-center-listener';
 import type { CapabilityKey } from '@/utils/task-capabilities';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
@@ -54,8 +54,7 @@ class TaskCenterTool {
         });
         break;
       case 'test_validity':
-        response = await executeValidityRunnerCommand({
-          action: 'test',
+        response = await executeValidityTestCommand({
           words: args.words,
           provider: args.provider,
           targetLanguage: args.targetLanguage,

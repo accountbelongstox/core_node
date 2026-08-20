@@ -169,7 +169,6 @@ trait AppQyV1AssistOverview
         $metricsByKey = [
             'word_translation' => $this->wordTranslationCounts(),
             'ai_translate' => $this->aiTranslateCounts(),
-            'word_media' => $this->wordImageCounts(),
             'word_audio' => $this->wordAudioCounts(),
             'sentence_audio' => $this->sentenceCounts(),
             'subtitle_search' => $this->subtitleSearchCounts(),

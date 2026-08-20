@@ -25,13 +25,11 @@ import { AsyncOperationController, fetchWithTimeout, IntervalController } from '
 // Canonical control-protocol types + message constants (shared with background).
 import {
   TASK_CENTER_MSG,
-  VALIDITY_RUNNER_MSG,
   TASK_CENTER_DEFAULTS,
   type TaskCenterConfig,
   type TaskCenterStats,
   type ProcessorStatus,
   type BackendHealth,
-  type ValidityStatus,
   type FullTaskCenterStatus,
 } from '@/utils/task-center-types';
 
@@ -108,13 +106,6 @@ export function subscribeToTaskStream(taskId: string, handlers: TaskStreamHandle
   };
 }
 
-/** Config forwarded to the background client-driven validity runner. */
-export interface ValidityRunnerConfig {
-  apiUrl?: string;
-  language?: string;
-  limit?: number;
-}
-
 interface StoredBingWorkerConfig {
   fetchInterval?: number;
   batchSize?: number;
@@ -123,9 +114,9 @@ interface StoredBingWorkerConfig {
   targetLanguage?: string;
 }
 
-// TaskCenterConfig / TaskCenterStats / ProcessorStatus / BackendHealth /
-// ValidityStatus are imported from the shared canonical module — no local copies.
-export type { TaskCenterConfig, TaskCenterStats, ProcessorStatus, ValidityStatus };
+// TaskCenterConfig / TaskCenterStats / ProcessorStatus / BackendHealth are
+// imported from the shared canonical module — no local copies.
+export type { TaskCenterConfig, TaskCenterStats, ProcessorStatus };
 
 /** Popup-local reactive state, built from the shared status shapes. */
 export interface TaskCenterState {
@@ -133,7 +124,6 @@ export interface TaskCenterState {
   activeApiUrl: string | null;
   stats: TaskCenterStats | null;
   backend: BackendHealth | null;
-  validity: ValidityStatus | null;
   activeCapabilities: CapabilityKey[];
 }
 
@@ -157,7 +147,6 @@ export function useTaskCenter() {
     activeApiUrl: null,
     stats: null,
     backend: null,
-    validity: null,
     activeCapabilities: [],
   });
   const error = ref('');
@@ -384,32 +373,6 @@ export function useTaskCenter() {
     });
   });
 
-  const startValidityRunner = async (runnerConfig?: ValidityRunnerConfig) => {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: VALIDITY_RUNNER_MSG,
-        action: 'start',
-        config: { apiUrl: config.value.apiUrl, ...(runnerConfig || {}) },
-      });
-      if (response && response.success) {
-        logger.info(LOG, 'Validity runner started');
-      } else {
-        logger.error(LOG, 'Failed to start validity runner', response?.error);
-      }
-    } catch (err: any) {
-      logger.error(LOG, 'Validity runner start error', err);
-    }
-  };
-
-  const stopValidityRunner = async () => {
-    try {
-      await chrome.runtime.sendMessage({ type: VALIDITY_RUNNER_MSG, action: 'stop' });
-      logger.info(LOG, 'Validity runner stopped');
-    } catch (err: any) {
-      logger.error(LOG, 'Validity runner stop error', err);
-    }
-  };
-
   const loadState = async () => {
     try {
       const response = await chrome.runtime.sendMessage({
@@ -423,7 +386,6 @@ export function useTaskCenter() {
         state.value.activeApiUrl = status.activeApiUrl ?? null;
         state.value.stats = status.stats;
         state.value.backend = status.backend ?? null;
-        state.value.validity = status.validity ?? null;
         state.value.activeCapabilities = Array.isArray(status.activeCapabilities)
           ? status.activeCapabilities
           : [];
@@ -480,8 +442,6 @@ export function useTaskCenter() {
     startTaskCenter,
     stopTaskCenter,
     setCapability,
-    startValidityRunner,
-    stopValidityRunner,
     formatTimestamp,
     initialize,
   };
