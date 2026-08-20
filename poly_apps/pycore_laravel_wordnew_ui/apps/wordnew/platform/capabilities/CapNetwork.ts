@@ -37,6 +37,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Network } from '@capacitor/network';
 import { TypedEventEmitter } from '../../../../core/events/TypedEventEmitter';
+import { protocolFetch } from '../../../../core/network/ProtocolFetch';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -651,7 +652,7 @@ export async function probeReachability(
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   const startedAt = nowMs();
   try {
-    await fetch(cacheBust(url), {
+    await protocolFetch(cacheBust(url), {
       method: 'GET',
       mode: noCors ? 'no-cors' : 'cors',
       cache: 'no-store',

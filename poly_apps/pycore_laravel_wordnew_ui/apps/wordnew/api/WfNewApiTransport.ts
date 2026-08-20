@@ -16,6 +16,7 @@ import { coordinateRequest } from '../../../core/network/RequestCoordinator';
 import { unwrapLaravelData } from '../../../core/integrations/laravel/transport/LaravelEnvelope';
 import { getAuthToken, setAuthToken } from '../../../core/auth/AuthSession';
 import { requestAuthLogin } from '../../../core/auth/AuthRequestCenter';
+import { protocolFetch } from '../../../core/network/ProtocolFetch';
 
 // --- auth token ------------------------------------------------------------ #
 
@@ -162,7 +163,7 @@ async function requestJSON<T>(path: string, authenticated: boolean): Promise<T> 
     const headers = requestToken
       ? { Accept: 'application/json', Authorization: `Bearer ${requestToken}` }
       : { Accept: 'application/json' };
-    const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    const res = await protocolFetch(wfNewEndpoints.buildUrl(path), {
       method: 'GET',
       headers,
     });
@@ -275,7 +276,7 @@ async function requestPostJSON<T>(path: string, body: Record<string, any>, local
     const headers = requestToken
       ? { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${requestToken}` }
       : { Accept: 'application/json', 'Content-Type': 'application/json' };
-    const res = await fetch(wfNewEndpoints.buildUrl(path), {
+    const res = await protocolFetch(wfNewEndpoints.buildUrl(path), {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -317,7 +318,7 @@ async function requestPostJSON<T>(path: string, body: Record<string, any>, local
 export async function postMultipart<T>(path: string, form: FormData): Promise<T> {
   await wfNewEndpoints.whenReady();
   const requestToken = authToken;
-  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+  const res = await protocolFetch(wfNewEndpoints.buildUrl(path), {
     method: 'POST',
     headers: requestToken
       ? { Accept: 'application/json', Authorization: `Bearer ${requestToken}` }
@@ -346,7 +347,7 @@ export async function postMultipart<T>(path: string, form: FormData): Promise<T>
  * DELETE <currentEndpoint>/path. Same 401 self-heal as the other transports. */
 export async function deleteJSON(path: string): Promise<void> {
   await wfNewEndpoints.whenReady();
-  const res = await fetch(wfNewEndpoints.buildUrl(path), {
+  const res = await protocolFetch(wfNewEndpoints.buildUrl(path), {
     method: 'DELETE',
     headers: authHeaders({ Accept: 'application/json' }),
   });

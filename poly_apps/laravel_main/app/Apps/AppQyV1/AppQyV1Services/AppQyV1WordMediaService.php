@@ -18,47 +18,30 @@ use App\Services\TaskManagerService;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Word-media on-demand resolution + assist-queue prioritization.
+ * Word resource resolution and queue prioritization.
  *
- * Single source of truth for the "resolve a word's media, enqueue what is
- * missing, and bump it to the front" behavior shared by the resolve endpoint
- * (GET /word/{lang}/{word}/media), the smart image-serve route, and the
- * on-query prioritization hooks (words/search, words/public, vocabulary library
- * words, the resolve endpoint itself).
+ * Single source of truth for resolving historical word resources and enqueuing
+ * missing translation or pronunciation work.
  *
- * FILE-FIRST: image_url / audio_url are reported only when the file is on disk.
- * When media is missing the word becomes a 'word_media' global task (pulled via
- * the existing worker channel GET /api/worker/tasks/pull -> POST
- * /api/worker/tasks/result -> AppQyV1WordTranslationWriteback::apply) AND is
- * enqueued onto the per-language image queue and canonical audio gateway. A
- * query moves missing word audio to the global queue head.
+ * FILE-FIRST: historical image_url and current audio_url values are reported
+ * only when their files exist. Single words never create image work.
  *
  * PRIORITY model:
  *   - global_tasks.priority (higher = sooner): PRIORITY_FRONT on bump.
- *   - dictionary image_priority: PRIORITY_FRONT on bump.
  *   - word_audio: global_tasks.queue_position head ticket.
  */
 class AppQyV1WordMediaService
 {
-    /** word_media global_tasks.priority used when bumping a queried word. */
-    const TASK_PRIORITY_FRONT = 100;
+    const TRANSLATION_PRIORITY_FRONT = 100;
 
-    /** Default word_media global_tasks.priority for a backfill enqueue. */
-    const TASK_PRIORITY_DEFAULT = 30;
+    const TRANSLATION_PRIORITY_DEFAULT = 30;
 
-    /** Per-repeat escalation step for a word_media task that is
-     *  already at the front and gets requested again (visible-page re-request).
-     *  Lets repeated/visible requests outrank one-shot page bumps (target #2)
-     *  without unbounded growth. */
-    const TASK_PRIORITY_REPEAT_STEP = 5;
+    const TRANSLATION_PRIORITY_REPEAT_STEP = 5;
 
     /** Ceiling for the repeat-escalation ladder. Stays under the hard 1000 cap
      *  in bumpTaskPriority; pending_urgent (count of priority >= 100) semantics
      *  are unchanged since every escalated task is already >= FRONT. */
-    const TASK_PRIORITY_REPEAT_CAP = 500;
-
-    /** Max words bundled into one word_media global task. */
-    const MAX_WORDS_PER_TASK = 40;
+    const TRANSLATION_PRIORITY_REPEAT_CAP = 500;
 
     /**
      * Legacy metadata keys inside the translations json that are NOT target
@@ -80,13 +63,11 @@ class AppQyV1WordMediaService
     ];
 
     protected TaskManagerService $taskManager;
-    protected AppQyV1WordImageQueueService $imageQueue;
     protected AppQyV1AudioGateway $audioGateway;
 
     public function __construct()
     {
         $this->taskManager = app(TaskManagerService::class);
-        $this->imageQueue = new AppQyV1WordImageQueueService();
         $this->audioGateway = new AppQyV1AudioGateway();
     }
 
@@ -214,32 +195,16 @@ class AppQyV1WordMediaService
 
         $hasImage = $imageUrl !== null;
         $hasAudio = $audioUrl !== null;
-        $mcpImageSubmitted = $row
-            && $row->getAttribute('image_mcp_submitted_at') !== null;
-
         // Translation presence for the requested target (when one is supplied).
         $translations = $this->extractTranslations($row);
         $hasTranslation = $this->hasTranslationFor($row, $targetLang);
 
-        $needsImage = false;
-
-        $needsMedia = $needsImage || !$hasAudio || !$hasTranslation;
+        $needsMedia = !$hasAudio || !$hasTranslation;
 
         if ($needsMedia && $enqueueMissing) {
-            // Enqueue the per-resource queues (idempotent; bump to front on query).
-            $position = $bumpFront ? 'beginning' : 'end';
-
-            // Single words do not own image tasks. Translation and pronunciation
-            // remain independent lanes.
-            $this->ensureWordMediaTask(
-                $word,
-                $md5,
-                $langCode,
-                $targetLang,
-                $bumpFront,
-                $needsImage,
-                !$hasTranslation
-            );
+            if (!$hasTranslation) {
+                $this->ensureWordTranslationTask($word, $md5, $langCode, $targetLang, $bumpFront);
+            }
 
             // Re-read the row (a queue add may have just created it) so the
             // returned md5/phonetics reflect the canonical row.
@@ -303,25 +268,17 @@ class AppQyV1WordMediaService
 
             $hasAudio = $row ? ($this->resolveAudioUrl($row) !== null) : false;
             $hasTranslation = $this->hasTranslationFor($row, $targetLanguage);
-            $needsImage = false;
-
-            if (!$needsImage && $hasAudio && $hasTranslation) {
-                return; // Nothing left to prioritize (image settled or present).
+            if ($hasAudio && $hasTranslation) {
+                return;
             }
 
             if (!$hasAudio) {
                 $this->audioGateway->request($word, $langCode, null, true, true);
             }
 
-            $this->ensureWordMediaTask(
-                $word,
-                $md5,
-                $langCode,
-                $targetLanguage,
-                true,
-                $needsImage,
-                !$hasTranslation
-            );
+            if (!$hasTranslation) {
+                $this->ensureWordTranslationTask($word, $md5, $langCode, $targetLanguage, true);
+            }
         } catch (\Throwable $e) {
             // Non-blocking: never let a media bump break a lookup.
             Log::warning('[AppQyV1WordMedia] query bump failed', [

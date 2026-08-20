@@ -33,6 +33,7 @@
 import { WfNewAdminPaths, WFNEW_ADMIN_DEBUG_STATUS_PATH } from './WfNewApiPaths';
 import { WFNEW_API_PORT } from './WfNewEndpoints';
 import { loadToken } from './WfNewApiTransport';
+import { protocolFetch } from '../../../core/network/ProtocolFetch';
 
 // --- super-admin status ------------------------------------------------------ #
 
@@ -244,7 +245,7 @@ function stripBom(text: string): string {
  * backend `message` and `.status` (401 → callers show the needLogin toast).
  */
 async function request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${adminBase()}${path}`, {
+  const res = await protocolFetch(`${adminBase()}${path}`, {
     method,
     headers: headers(body !== undefined),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -296,7 +297,7 @@ export const wfNewAdminApi = {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 4000);
-      const res = await fetch(`${adminBase()}${WFNEW_ADMIN_DEBUG_STATUS_PATH}`, {
+      const res = await protocolFetch(`${adminBase()}${WFNEW_ADMIN_DEBUG_STATUS_PATH}`, {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: ctrl.signal,

@@ -124,6 +124,8 @@ export function PcLiveProvider({ children }: { children: React.ReactNode }) {
         status: Number(data?.status) || 0,
         ms: Number(data?.ms) || 0,
         error: data?.error ? String(data.error) : null,
+        transport: typeof data?.transport === 'string' ? data.transport : undefined,
+        httpVersion: typeof data?.http_version === 'string' ? data.http_version : undefined,
       });
     });
 

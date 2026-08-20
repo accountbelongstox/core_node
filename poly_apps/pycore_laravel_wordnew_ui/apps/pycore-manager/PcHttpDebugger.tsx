@@ -69,7 +69,7 @@ export const PcHttpDebugger: React.FC = () => {
     if (dir !== 'all') list = list.filter((r) => r.direction === dir);
     if (needle) {
       list = list.filter((r) =>
-        `${r.path} ${r.method} ${r.route || ''} ${r.paramsSummary} ${r.status} ${r.error || ''}`.toLowerCase().includes(needle),
+        `${r.path} ${r.method} ${r.route || ''} ${r.paramsSummary} ${r.status} ${r.transport || ''} ${r.httpVersion || ''} ${r.error || ''}`.toLowerCase().includes(needle),
       );
     }
     return [...list].reverse(); // newest first
@@ -187,6 +187,9 @@ export const PcHttpDebugger: React.FC = () => {
                             <td className="px-1.5 py-1 whitespace-nowrap text-right" style={{ color: statusColor(r.status) }}>
                               {r.status || 'ERR'}
                             </td>
+                            <td className="px-1.5 py-1 whitespace-nowrap text-right text-cyan-400">
+                              {r.httpVersion || r.transport || '—'}
+                            </td>
                             <td className={`px-1.5 py-1 whitespace-nowrap text-right ${r.ms > 1000 ? 'text-amber-400' : 'text-slate-400'}`}>
                               {Math.round(r.ms)}ms
                             </td>
@@ -194,7 +197,7 @@ export const PcHttpDebugger: React.FC = () => {
                           </tr>
                           {isExp && (
                             <tr className="border-b border-white/5 bg-white/5">
-                              <td colSpan={6} className="px-2 py-1.5">
+                              <td colSpan={7} className="px-2 py-1.5">
                                 {r.error && (
                                   <div className="text-rose-400 break-all mb-1">err: {r.error}</div>
                                 )}
@@ -203,6 +206,11 @@ export const PcHttpDebugger: React.FC = () => {
                                 </div>
                                 {r.fullUrl && r.fullUrl !== r.path && (
                                   <div className="text-slate-500 break-all mt-1">{r.fullUrl}</div>
+                                )}
+                                {(r.transport || r.httpVersion) && (
+                                  <div className="text-cyan-500 break-all mt-1">
+                                    {[r.transport, r.httpVersion].filter(Boolean).join(' / ')}
+                                  </div>
                                 )}
                               </td>
                             </tr>

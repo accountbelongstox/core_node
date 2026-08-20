@@ -6,6 +6,8 @@
  * stays scoped to this connection and cross-origin cookies are unnecessary.
  */
 
+import { protocolFetch } from '../../network/ProtocolFetch';
+
 export interface LaravelMercureHubConfig {
   hub_url: string;
   topics: string[];
@@ -74,7 +76,7 @@ export class LaravelMercureConnection {
     if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
     this.controller = controller;
 
-    const response = await fetch(authorization.subscribe_url || this.subscribeUrl(config), {
+    const response = await protocolFetch(authorization.subscribe_url || this.subscribeUrl(config), {
       headers,
       signal: controller.signal,
     });

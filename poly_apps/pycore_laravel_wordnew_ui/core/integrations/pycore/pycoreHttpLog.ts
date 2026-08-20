@@ -33,6 +33,8 @@ export interface HttpDebugRecord {
   /** Round-trip duration (ms). */
   ms: number;
   error?: string | null;
+  transport?: string;
+  httpVersion?: string;
 }
 
 export const MAX_HTTP_ENTRIES = 500;

@@ -37,6 +37,7 @@
  */
 
 import { RequestQueue, QueuedRequestEntry } from './RequestQueue';
+import { protocolFetch } from '../ProtocolFetch';
 
 /** Default dead-socket ceiling: 30 minutes ("一般30分钟"). 0 = wait forever. */
 export const DEFAULT_CEILING_MS = 30 * 60 * 1000;
@@ -318,7 +319,7 @@ export abstract class MasterApiClient {
    * then apply unchanged on top of the overridden leg.
    */
   protected deliver(url: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
-    return fetch(url, { ...init, ...(signal ? { signal } : {}) });
+    return protocolFetch(url, { ...init, ...(signal ? { signal } : {}) });
   }
 
   /** One fetch with live base URL + auth headers and the abort ceiling. */

@@ -24,12 +24,14 @@ LOCK_FILE_NAME = "core-node-mcp-chrome-supervisor.lock"
 RECOVERY_REQUEST_FILE_NAME = "core-node-mcp-chrome-recovery.request"
 WATCH_MODE_REQUEST_FILE_NAME = "core-node-mcp-chrome-watch-mode.request"
 TAKEOVER_REQUEST_FILE_NAME = "core-node-mcp-chrome-takeover.request"
+WAKE_STATE_FILE_NAME = "core-node-mcp-chrome-last-wake.state"
 NATIVE_HOST_NAME = "com.chromemcp.nativehost.json"
 MCP_PORT = 12306
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
 RECOVERY_DEBOUNCE_SECONDS = 2.0
-RECOVERY_COOLDOWN_SECONDS = 20.0
+RECOVERY_COOLDOWN_SECONDS = 60.0
+WAKE_MIN_INTERVAL_SECONDS = 60.0
 RECOVERY_MAX_ATTEMPTS = 5
 TAKEOVER_WAIT_SECONDS = 30.0
 WINDOWS_ALREADY_EXISTS = 183
@@ -214,6 +216,22 @@ def windows_app_executable(executable_name: str) -> Optional[str]:
     if os.name != "nt":
         return None
 
+
+def wake_state_path() -> Path:
+    return Path(tempfile.gettempdir()) / WAKE_STATE_FILE_NAME
+
+
+def wake_interval_remaining(now: float) -> float:
+    try:
+        last_wake_at = float(wake_state_path().read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0.0
+    return max(0.0, WAKE_MIN_INTERVAL_SECONDS - (now - last_wake_at))
+
+
+def record_wake(now: float) -> None:
+    wake_state_path().write_text(str(now), encoding="utf-8")
+
     import winreg
 
     registry_roots = [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
@@ -261,6 +279,15 @@ def wake_extension(reload_extension: bool = True) -> None:
     chrome_path = chrome_executable()
     reload_url: Optional[str] = None
     reconnect_url: Optional[str] = None
+    now = time.time()
+    remaining = wake_interval_remaining(now)
+
+    if remaining > 0:
+        print(
+            f"[Supervisor] Chrome extension wake deferred for {remaining:.0f}s.",
+            flush=True,
+        )
+        return
 
     if not recovery_url:
         print("[Supervisor] Native host manifest has no Chrome extension origin.", flush=True)
@@ -286,6 +313,7 @@ def wake_extension(reload_extension: bool = True) -> None:
                 webbrowser.open(reload_url, new=0, autoraise=False)
                 time.sleep(1.5)
             webbrowser.open(reconnect_url, new=0, autoraise=False)
+        record_wake(now)
         recovery_mode = "reload and reconnect" if reload_extension else "reconnect"
         print(f"[Supervisor] Requested Chrome extension {recovery_mode}.", flush=True)
     except OSError as error:
