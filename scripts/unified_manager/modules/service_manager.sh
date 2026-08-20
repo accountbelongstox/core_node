@@ -191,7 +191,7 @@ create_daemon_service() {
     # Check if daemon service already exists (idempotent operation)
     if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
         echo ""
-        echo -e "\033[33m⚠ Daemon service already exists: $daemon_service_name\033[0m"
+        echo -e "\033[33m[WARN] Daemon service already exists: $daemon_service_name\033[0m"
         echo -e "\033[90mRemoving existing daemon service for rebuild...\033[0m"
 
         # Stop daemon service if running
@@ -212,7 +212,7 @@ create_daemon_service() {
         sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
         sudo systemctl daemon-reload
 
-        echo -e "\033[32m✓ Existing daemon service cleaned up\033[0m"
+        echo -e "\033[32m[OK] Existing daemon service cleaned up\033[0m"
     fi
 
     # Calculate daemon resources (1/4 of main)
@@ -246,12 +246,12 @@ print(launcher_path)
     local gen_result=$?
 
     if [ $gen_result -ne 0 ] || [ -z "$daemon_launcher_script" ] || [ ! -f "$daemon_launcher_script" ]; then
-        echo -e "\033[31m✗ Failed to generate daemon launcher script\033[0m"
+        echo -e "\033[31m[ERROR] Failed to generate daemon launcher script\033[0m"
         echo -e "\033[90mError: $daemon_launcher_script\033[0m"
         return 1
     fi
 
-    echo -e "\033[32m✓ Daemon launcher script generated\033[0m"
+    echo -e "\033[32m[OK] Daemon launcher script generated\033[0m"
     echo -e "\033[90m$daemon_launcher_script\033[0m"
 
     # Fix permissions for daemon access using permissions_fixer_lib
@@ -302,7 +302,7 @@ WantedBy=multi-user.target
 EOF
 
     if [ $? -eq 0 ]; then
-        echo -e "\033[32m✓ Daemon service file created\033[0m"
+        echo -e "\033[32m[OK] Daemon service file created\033[0m"
         systemctl daemon-reload
 
         # Enable and start daemon service
@@ -316,7 +316,7 @@ EOF
 
         # Check daemon service status
         if systemctl is-active "$daemon_service_name" >/dev/null 2>&1; then
-            echo -e "\033[32m✓ Daemon service is running\033[0m"
+            echo -e "\033[32m[OK] Daemon service is running\033[0m"
             local daemon_status=$(systemctl status "$daemon_service_name" --no-pager -l | head -8)
             echo -e "\033[90m$daemon_status\033[0m"
 
@@ -327,16 +327,16 @@ EOF
             echo -e "  Stop:    sudo systemctl stop $daemon_service_name"
             echo -e "  Restart: sudo systemctl restart $daemon_service_name"
         else
-            echo -e "\033[31m✗ Daemon service failed to start\033[0m"
+            echo -e "\033[31m[ERROR] Daemon service failed to start\033[0m"
             local daemon_logs=$(sudo journalctl -u "$daemon_service_name" --no-pager -l --since="1 minute ago" | tail -10)
             echo -e "\033[90m$daemon_logs\033[0m"
             echo ""
-            echo -e "\033[33m💡 Check daemon script: $daemon_script_path\033[0m"
+            echo -e "\033[33m Check daemon script: $daemon_script_path\033[0m"
         fi
 
         return 0
     else
-        echo -e "\033[31m✗ Failed to create daemon service file\033[0m"
+        echo -e "\033[31m[ERROR] Failed to create daemon service file\033[0m"
         return 1
     fi
 }
@@ -394,7 +394,7 @@ delete_unified_service() {
         echo -e "\033[90mRemoving daemon service file...\033[0m"
         sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
 
-        echo -e "\033[32m✓ Daemon service deleted\033[0m"
+        echo -e "\033[32m[OK] Daemon service deleted\033[0m"
         services_deleted=$((services_deleted + 1))
     fi
 
@@ -420,7 +420,7 @@ delete_unified_service() {
         echo -e "\033[90mRemoving main service file...\033[0m"
         sudo rm -f "/etc/systemd/system/$main_service_name.service"
 
-        echo -e "\033[32m✓ Main service deleted\033[0m"
+        echo -e "\033[32m[OK] Main service deleted\033[0m"
         services_deleted=$((services_deleted + 1))
     fi
 
@@ -429,11 +429,11 @@ delete_unified_service() {
         echo ""
         echo -e "\033[90mReloading systemd daemon...\033[0m"
         sudo systemctl daemon-reload
-        echo -e "\033[32m✓ Total services deleted: $services_deleted\033[0m"
+        echo -e "\033[32m[OK] Total services deleted: $services_deleted\033[0m"
         return 0
     else
         echo ""
-        echo -e "\033[33m⚠ No services found for $app_name\033[0m"
+        echo -e "\033[33m[WARN] No services found for $app_name\033[0m"
         return 1
     fi
 }
@@ -472,7 +472,7 @@ auto_replace_debug_service() {
 
     echo -e "\033[33mFound existing compiled services:\033[0m"
     for service in "${found_services[@]}"; do
-        echo -e "  \033[90m�?$service.service\033[0m"
+        echo -e "  \033[90m$service.service\033[0m"
     done
 
     # Automatically stop and replace with debug version
@@ -490,7 +490,7 @@ auto_replace_debug_service() {
         fi
     done
 
-    echo -e "\033[32m�?Compiled services stopped\033[0m"
+    echo -e "\033[32mCompiled services stopped\033[0m"
     echo -e "\033[32mCreating debug service replacement...\033[0m"
 
     return 0
@@ -517,7 +517,7 @@ create_nginx_config() {
 
     if [ -f "$ssl_cert_path" ] && [ -f "$ssl_key_path" ]; then
         ssl_available=true
-        echo -e "\033[32m�?SSL certificate found for $domain\033[0m"
+        echo -e "\033[32mSSL certificate found for $domain\033[0m"
     else
         echo -e "\033[33m! No SSL certificate found, creating HTTP-only configuration\033[0m"
         echo -e "\033[90m  SSL files would be: $ssl_cert_path, $ssl_key_path\033[0m"
@@ -675,22 +675,22 @@ EOF
         # Test nginx configuration
         if sudo nginx -t 2>/dev/null; then
             sudo systemctl reload nginx
-            echo -e "\033[32m�?Nginx configuration created and loaded\033[0m"
+            echo -e "\033[32mNginx configuration created and loaded\033[0m"
 
             if [ "$ssl_available" = true ]; then
-                echo -e "\033[36m🔒 HTTPS: https://$domain\033[0m"
-                echo -e "\033[36m📄 HTTP: http://$domain (redirects to HTTPS)\033[0m"
+                echo -e "\033[36m HTTPS: https://$domain\033[0m"
+                echo -e "\033[36m HTTP: http://$domain (redirects to HTTPS)\033[0m"
             else
-                echo -e "\033[36m📄 HTTP: http://$domain\033[0m"
-                echo -e "\033[33m💡 Tip: Install SSL certificate for HTTPS support\033[0m"
+                echo -e "\033[36m HTTP: http://$domain\033[0m"
+                echo -e "\033[33m Tip: Install SSL certificate for HTTPS support\033[0m"
             fi
-            echo -e "\033[90m📁 Config: $nginx_config\033[0m"
+            echo -e "\033[90m Config: $nginx_config\033[0m"
         else
-            echo -e "\033[31m�?Nginx configuration test failed\033[0m"
+            echo -e "\033[31mNginx configuration test failed\033[0m"
             sudo rm -f "$nginx_config" "$nginx_enabled"
         fi
     else
-        echo -e "\033[33m�?Could not create nginx configuration (permissions?)\033[0m"
+        echo -e "\033[33mCould not create nginx configuration (permissions?)\033[0m"
     fi
 
     rm -f "/tmp/$domain.conf"
@@ -750,25 +750,25 @@ create_unified_service() {
         
         # Install Laravel service using poly app method
         if install_laravel_service "$app_name"; then
-            echo -e "\033[32m✓ Laravel service installed successfully (poly app method)\033[0m"
+            echo -e "\033[32m[OK] Laravel service installed successfully (poly app method)\033[0m"
             local _lport
             _lport=$(get_laravel_port "$app_name" 2>/dev/null || echo "9000")
-            echo -e "\033[32m✓ Service name: app-manager-$app_name (port $_lport)\033[0m"
+            echo -e "\033[32m[OK] Service name: app-manager-$app_name (port $_lport)\033[0m"
 
             # If domain is provided, also add website configuration
             if [ -n "$domain" ]; then
                 echo ""
                 echo -e "\033[36m=== Adding Laravel Website Configuration ===\033[0m"
                 if add_laravel_website "$app_name" "$domain" "auto"; then
-                    echo -e "\033[32m✓ Laravel website added successfully: $domain\033[0m"
+                    echo -e "\033[32m[OK] Laravel website added successfully: $domain\033[0m"
                 else
-                    echo -e "\033[33m⚠ Laravel website addition failed (service is still installed)\033[0m"
+                    echo -e "\033[33m[WARN] Laravel website addition failed (service is still installed)\033[0m"
                 fi
             fi
             
             return 0
         else
-            echo -e "\033[31m✗ Laravel service installation failed\033[0m"
+            echo -e "\033[31m[ERROR] Laravel service installation failed\033[0m"
             return 1
         fi
     fi
@@ -801,7 +801,7 @@ create_unified_service() {
     # Check if service already exists and handle it
     if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
         echo ""
-        echo -e "\033[33m�?Service $service_name already exists\033[0m"
+        echo -e "\033[33mService $service_name already exists\033[0m"
         echo -ne "\033[36mReplace existing service? (Y/n): \033[0m"
         read replace_choice
 
@@ -813,7 +813,7 @@ create_unified_service() {
             echo -e "\033[90mRemoving existing service file...\033[0m"
             sudo rm -f "/etc/systemd/system/$service_name.service"
             sudo systemctl daemon-reload
-            echo -e "\033[32m�?Existing service cleaned up\033[0m"
+            echo -e "\033[32mExisting service cleaned up\033[0m"
         else
             echo -e "\033[33mKeeping existing service, operation cancelled\033[0m"
             return 0
@@ -832,7 +832,7 @@ create_unified_service() {
     if [ -z "$daemon_script_path" ] || [ ! -f "$daemon_script_path" ]; then
         if systemctl list-unit-files "$daemon_service_name.service" >/dev/null 2>&1; then
             echo ""
-            echo -e "\033[33m⚠ Daemon script not found, but daemon service exists\033[0m"
+            echo -e "\033[33m[WARN] Daemon script not found, but daemon service exists\033[0m"
             echo -e "\033[90mCleaning up orphaned daemon service: $daemon_service_name\033[0m"
 
             # Stop and remove orphaned daemon service
@@ -847,7 +847,7 @@ create_unified_service() {
             sudo rm -f "/etc/systemd/system/$daemon_service_name.service"
             sudo systemctl daemon-reload
 
-            echo -e "\033[32m✓ Orphaned daemon service removed\033[0m"
+            echo -e "\033[32m[OK] Orphaned daemon service removed\033[0m"
         fi
     fi
 
@@ -906,7 +906,7 @@ print(launcher_path)
         return 1
     fi
 
-    echo -e "\033[32m�?Launcher script generated\033[0m"
+    echo -e "\033[32mLauncher script generated\033[0m"
     echo -e "\033[90mService Name: $service_name\033[0m"
     echo -e "\033[90mLauncher Script: $launcher_script\033[0m"
     echo ""
@@ -932,7 +932,7 @@ print(launcher_path)
     echo ""
     echo -e "\033[36m=== Service Creation Status ===\033[0m"
     if [ $result -eq 0 ]; then
-        echo -e "\033[32m�?Service created successfully\033[0m"
+        echo -e "\033[32mService created successfully\033[0m"
 
         # Display service file content
         local service_file="/etc/systemd/system/$service_name.service"
@@ -947,9 +947,9 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Registration Check ===\033[0m"
         if systemctl list-unit-files "$service_name.service" >/dev/null 2>&1; then
-            echo -e "\033[32m�?Service registered in systemd\033[0m"
+            echo -e "\033[32mService registered in systemd\033[0m"
         else
-            echo -e "\033[31m�?Service not found in systemd\033[0m"
+            echo -e "\033[31mService not found in systemd\033[0m"
         fi
 
         # Add firewall rule for port
@@ -958,10 +958,10 @@ print(launcher_path)
             echo -e "\033[36m=== Configuring Firewall ===\033[0m"
             echo -e "\033[90mOpening port $port for $app_name service...\033[0m"
             firewall_allow_port "$port" "tcp" "$app_name service"
-            echo -e "\033[32m�?Firewall rule configured\033[0m"
+            echo -e "\033[32mFirewall rule configured\033[0m"
         else
             echo ""
-            echo -e "\033[33m�?Firewall manager function not available\033[0m"
+            echo -e "\033[33mFirewall manager function not available\033[0m"
             echo -e "\033[90mManual firewall configuration may be required for port $port\033[0m"
         fi
 
@@ -985,11 +985,11 @@ print(launcher_path)
         echo ""
         echo -e "\033[36m=== Service Status Check ===\033[0m"
         if systemctl is-active "$service_name" >/dev/null 2>&1; then
-            echo -e "\033[32m�?Service is running\033[0m"
+            echo -e "\033[32mService is running\033[0m"
             local status_output=$(systemctl status "$service_name" --no-pager -l | head -10)
             echo -e "\033[90m$status_output\033[0m"
         else
-            echo -e "\033[31m�?Service failed to start\033[0m"
+            echo -e "\033[31mService failed to start\033[0m"
             echo -e "\033[33mChecking logs...\033[0m"
             local error_logs=$(sudo journalctl -u "$service_name" --no-pager -l --since="1 minute ago" | tail -5)
             echo -e "\033[90m$error_logs\033[0m"
@@ -1004,8 +1004,8 @@ print(launcher_path)
 
         if [ -n "$domain" ]; then
             echo ""
-            echo -e "\033[36m🌐 Domain Access: http://$domain\033[0m"
-            echo -e "\033[36m🔗 Direct Access: http://localhost:$port\033[0m"
+            echo -e "\033[36m Domain Access: http://$domain\033[0m"
+            echo -e "\033[36m Direct Access: http://localhost:$port\033[0m"
         else
             echo ""
             echo -e "\033[36mDirect Access: http://localhost:$port\033[0m"
@@ -1014,16 +1014,16 @@ print(launcher_path)
         # Create daemon service if daemon script exists
         if [ -n "$daemon_script_path" ] && [ -f "$daemon_script_path" ]; then
             echo ""
-            echo -e "\033[33m📦 Found daemon script: $(basename $daemon_script_path)\033[0m"
+            echo -e "\033[33m Found daemon script: $(basename $daemon_script_path)\033[0m"
             create_daemon_service "$app_name" "$app_path" "$daemon_script_path" "$service_name" "50%" "1G" "$debug_mode"
         else
             echo ""
-            echo -e "\033[90m💡 No daemon script found (checked: scripts/daemon.{sh,py,js})\033[0m"
+            echo -e "\033[90m No daemon script found (checked: scripts/daemon.{sh,py,js})\033[0m"
         fi
 
         return 0
     else
-        echo -e "\033[31m�?Failed to create service\033[0m"
+        echo -e "\033[31mFailed to create service\033[0m"
         return 1
     fi
 }

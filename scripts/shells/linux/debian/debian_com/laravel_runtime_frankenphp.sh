@@ -17,10 +17,13 @@
 # (loopback), built-in Mercure hub at /.well-known/mercure. NO Reverb
 # process exists on this plane.
 #
-# Mercure hub material (Mercure 1.0): HMAC keys + the trusted issuer (the
-# `iss` the app signs with) are read from the RuntimeConfigurationStore and
-# injected as PROCESS ENV ({env...} Caddyfile references) - they never
-# appear in the Caddyfile, logs or URLs.
+# Mercure hub material (Mercure 1.0): the HMAC keys are provisioned (never
+# rotated) by the laravel_main RelayHubKeyProvisioner into the
+# RuntimeConfigurationStore constant directory (outside the repo - git
+# safe) and embedded as LITERAL publisher_jwt/subscriber_jwt values in the
+# canonical Caddyfile (0600) before launch - no process env, no .env. The
+# trusted issuer (the `iss` the app signs with) is store-only material for
+# the app-side signer.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_SERVICE_COMMON_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -29,19 +32,22 @@ LINUX_COMMON_DIR="$(dirname "$LARAVEL_SERVICE_COMMON_DIR")/common"
 PHP_BIN="${PHP_BIN:-php}"
 LARAVEL_DIR="${LARAVEL_DIR:-}"
 WORKERS="${WORKERS:-4}"
-TASK_WORKERS="${TASK_WORKERS:-2}"
+MAX_REQUESTS="${MAX_REQUESTS:-500}"
 OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 FRANKENPHP_CADDYFILE="${LARAVEL_DIR}/storage/frankenphp/Caddyfile"
+FRANKENPHP_ROUTES_DIR="$(dirname "$FRANKENPHP_CADDYFILE")/routes"
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-localhost}"
-MERCURE_PUBLISHER_JWT=""
-MERCURE_SUBSCRIBER_JWT=""
 MERCURE_TRUSTED_ISSUERS=""
 DNSPOD_TOKEN=""
 FRANKENPHP_HTTPS_PORT=""
 FRANKENPHP_ADMIN_PORT=""
+FRANKENPHP_ACME_RELOAD_CMD=""
+FM_VARIANT=""
+FM_DNS01_MODE=""
+FM_BINARY=""
 OCTANE_ARGS=()
 
 # shellcheck source=/dev/null
@@ -49,14 +55,71 @@ OCTANE_ARGS=()
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/gvar_common.sh"
 # shellcheck source=/dev/null
+. "$LINUX_COMMON_DIR/common_functions.sh"
+# shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/runtime_config_common.sh"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/frankenphp_manager.sh"
+# shellcheck source=/dev/null
+. "$LINUX_COMMON_DIR/frankenphp_acme_sh_install.sh"
 
 FRANKENPHP_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FRANKENPHP_ADMIN_PORT="$(sc_get ports.frankenphp_admin)"
+# Renewal reload hook baked into the acme.sh renewal conf: renewed certs go
+# live through the caddy admin /load endpoint without a service restart
+# (fails harmlessly while the server is not up yet).
+FRANKENPHP_ACME_RELOAD_CMD="curl -fsS -m 5 -X POST -H 'Content-Type: text/caddyfile' --data-binary @${FRANKENPHP_CADDYFILE} http://127.0.0.1:${FRANKENPHP_ADMIN_PORT}/load || true"
 
-# Canonical Caddyfile before launch (content-hash idempotent).
+# Mercure hub keys: provisioned (never rotated) BEFORE the canonical
+# Caddyfile render so the literal publisher_jwt/subscriber_jwt values are
+# always present at render time. The trusted issuer self-bootstraps from
+# the site host when absent (single source: the store, mirrored back on
+# derivation) for the app-side token signer.
+runtime_config_ensure_mercure_keys
+if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
+    echo "[laravel-runtime-frankenphp] [ERROR] Mercure key provisioning failed (RelayHubKeyProvisioner); check the PHP runtime"
+    exit 1
+fi
+MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
+if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
+    MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
+    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS" >/dev/null
+fi
+DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
+
+# Certificate pre-flight (issue first, start after): acquire/renew the
+# acme.sh DNS-01 prebuilt certificates BEFORE the Caddyfile renders and
+# the server binds the HTTPS port - the prebuilt-tls gate pins them; the
+# embedded dnspod module path stays a fallback. Issuance failures only
+# warn: the renderers keep their fallback gates and the server starts.
+fm_cert_status "$FRANKENPHP_SITE_HOST" "$FRANKENPHP_ROUTES_DIR"
+acme_sh_preflight_for_service "$FRANKENPHP_SITE_HOST" "$FRANKENPHP_ROUTES_DIR" "$FRANKENPHP_ACME_RELOAD_CMD"
+
+# Variant branch (175SF contract, one launcher / two flows):
+#   compiled | prebuilt - acme.sh DNS-01 certificates FIRST (prebuilt-tls
+#     gate), the embedded dnspod module stays a TLS fallback (module
+#     variant carries it; official builds do not);
+#   apt - official deb build has NO dnspod module: certificates come
+#     exclusively from the acme.sh dns_dp pre-flight (issue-before-start).
+# Both flows share the pre-flight above (initial install / renewal check)
+# and the persistent ncore-acme-cert renewal timer it registers.
+FM_VARIANT="$(fm_variant)"
+FM_DNS01_MODE="$(fm_variant_dns01_mode "$FM_VARIANT")"
+FM_BINARY="$(fm_variant_binary)"
+export FRANKENPHP_VARIANT="$FM_VARIANT"
+export FRANKENPHP_DNS01_MODE="$FM_DNS01_MODE"
+export FRANKENPHP_BINARY_PATH="$FM_BINARY"
+case "$FM_DNS01_MODE" in
+    "$FRANKENPHP_DNS01_MODE_ACME_SH")
+        echo "[laravel-runtime-frankenphp] variant: ${FM_VARIANT} (acme.sh DNS-01 certificates only)"
+        ;;
+    *)
+        echo "[laravel-runtime-frankenphp] variant: ${FM_VARIANT:-unrecorded} (acme.sh DNS-01 first; dnspod module fallback)"
+        ;;
+esac
+
+# Canonical Caddyfile before launch (content-hash idempotent; literal
+# Mercure keys from the store).
 fm_caddyfile_ensure \
     "${LARAVEL_DIR}/public" \
     "$FRANKENPHP_SITE_HOST" \
@@ -64,43 +127,28 @@ fm_caddyfile_ensure \
     "$FRANKENPHP_ADMIN_PORT" \
     "$FRANKENPHP_CADDYFILE"
 
-# Mercure hub keys + trusted issuer: keys provisioned once by 132; the
-# issuer self-bootstraps from the site host when absent (single source:
-# the store, mirrored back on derivation).
-MERCURE_PUBLISHER_JWT="$(runtime_config_get "MERCURE_PUBLISHER_JWT")"
-MERCURE_SUBSCRIBER_JWT="$(runtime_config_get "MERCURE_SUBSCRIBER_JWT")"
-MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
-DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
-if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
-    MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
-    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS"
+# DNSPod DNS-01 token (only when stored AND a module-capable variant; the
+# Caddyfile gate renders the tls stanza only when module + token both
+# exist). Stays env-based by design: the token itself never enters the
+# file.
+if [ "$FM_DNS01_MODE" = "$FRANKENPHP_DNS01_MODE_EMBEDDED" ] && [ -n "$DNSPOD_TOKEN" ]; then
+    export DNSPOD_TOKEN
 fi
-if [ -z "$MERCURE_PUBLISHER_JWT" ] || [ -z "$MERCURE_SUBSCRIBER_JWT" ]; then
-    echo "[laravel-runtime-frankenphp] [ERROR] Mercure keys missing in RuntimeConfigurationStore; run 175_laravel_main_start.sh provisioning first"
-    exit 1
-fi
-export MERCURE_PUBLISHER_JWT_KEY="$MERCURE_PUBLISHER_JWT"
-export MERCURE_PUBLISHER_JWT_ALG="HS256"
-export MERCURE_SUBSCRIBER_JWT_KEY="$MERCURE_SUBSCRIBER_JWT"
-export MERCURE_SUBSCRIBER_JWT_ALG="HS256"
-export MERCURE_TRUSTED_ISSUERS
-# DNSPod DNS-01 token (only when stored; the Caddyfile gate renders the tls
-# stanza only when module + token both exist).
-[ -n "$DNSPOD_TOKEN" ] && export DNSPOD_TOKEN
 # Embedded PHP ini scan dir (96_configure_php85.sh frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
-export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"
+export PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)"
 
 cd "$LARAVEL_DIR" || exit 1
 
 OCTANE_ARGS=(
-    artisan octane:start
-    "--server=frankenphp"
+    artisan octane:frankenphp
+    "--host=0.0.0.0"
+    "--port=${FRANKENPHP_HTTPS_PORT}"
     "--https"
     "--caddyfile=${FRANKENPHP_CADDYFILE}"
     "--admin-port=${FRANKENPHP_ADMIN_PORT}"
     "--workers=${WORKERS}"
-    "--task-workers=${TASK_WORKERS}"
+    "--max-requests=${MAX_REQUESTS}"
 )
 
 if [ "$OCTANE_WATCH" = "1" ]; then

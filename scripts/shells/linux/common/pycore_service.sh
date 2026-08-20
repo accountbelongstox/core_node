@@ -19,7 +19,7 @@
 # headless (no UI, no prereq install) in the foreground. It REUSES the existing
 # infrastructure:
 #   - common/gvar_common.sh        -> detect_system_user(), USE_SUDO
-#   - common/debian_service_manager.sh -> create_systemd_service(),
+#   - common/systemd_service_manager.sh -> create_systemd_service(),
 #                                         remove_ncore_service(),
 #                                         check_service_status()
 #
@@ -45,7 +45,7 @@ PYCORE_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev
 PYCORE_REPO_ROOT="$(cd "$PYCORE_SVC_SCRIPT_DIR/../../../.." && pwd)"
 PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no-install --no-reload"
 PYCORE_SVC_USER=""
-PYCORE_DEBIAN_MGR="$PYCORE_SVC_SCRIPT_DIR/debian_service_manager.sh"
+PYCORE_DEBIAN_MGR="$PYCORE_SVC_SCRIPT_DIR/systemd_service_manager.sh"
 PYCORE_GVAR_COMMON="$PYCORE_SVC_SCRIPT_DIR/gvar_common.sh"
 
 # --- Source reusable infrastructure -------------------------------------- #
@@ -58,7 +58,7 @@ if ! type detect_system_user >/dev/null 2>&1; then
     fi
 fi
 
-# debian_service_manager.sh provides create_systemd_service / remove_ncore_service
+# systemd_service_manager.sh provides create_systemd_service / remove_ncore_service
 # / check_service_status. It sources gvar_common.sh itself if needed.
 if ! type create_systemd_service >/dev/null 2>&1; then
     if [ -f "$PYCORE_DEBIAN_MGR" ]; then

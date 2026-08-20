@@ -423,7 +423,7 @@ ensure_ssh_keys_installed() {
     found_key_path=$(find "$HOME/.ssh" "/root/.ssh" "/etc/ssh/keys" -maxdepth 1 -name "id_*" -type f ! -name "*.pub" 2>/dev/null | head -n 1)
 
     if [ -n "$found_key_path" ] && [ -s "$found_key_path" ]; then
-        write_color_text "[SSH] Key found: $found_key_path — verifying auth..." "DarkGray" >&2
+        write_color_text "[SSH] Key found: $found_key_path - verifying auth..." "DarkGray" >&2
 
         # Test if the existing key works against github.com
         local ssh_test_output=""
@@ -433,7 +433,7 @@ ensure_ssh_keys_installed() {
             write_color_text "[SSH] Key verified OK (GitHub auth success)" "Green" >&2
             need_decrypt=false
         elif echo "$ssh_test_output" | grep -qi "permission denied"; then
-            write_color_text "[SSH] Key exists but GitHub rejected it — replacing with project key" "Yellow" >&2
+            write_color_text "[SSH] Key exists but GitHub rejected it - replacing with project key" "Yellow" >&2
             # Backup the old key before overwriting
             local backup_suffix="backup_$(date +%Y%m%d%H%M%S)"
             cp "$found_key_path" "${found_key_path}.${backup_suffix}" 2>/dev/null
@@ -442,7 +442,7 @@ ensure_ssh_keys_installed() {
             fi
             write_color_text "[SSH] Old key backed up as ${found_key_path}.${backup_suffix}" "DarkGray" >&2
         else
-            # Network error or timeout — cannot verify, try decrypt anyway
+            # Network error or timeout - cannot verify, try decrypt anyway
             write_color_text "[SSH] Cannot verify key (network issue), will ensure project key" "Yellow" >&2
         fi
     else
@@ -510,24 +510,24 @@ ensure_ssh_keys_installed() {
         decrypt_output=$("$node_cmd" "$LOCAL_SSH_PUB_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
         local pub_exit=$?
         if [ $pub_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
-            write_color_text "[SSH] ✗ Public key decrypt FAILED (wrong password?)" "Red" >&2
+            write_color_text "[SSH] [ERROR] Public key decrypt FAILED (wrong password?)" "Red" >&2
             write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
             password=""
             return 1
         fi
-        write_color_text "[SSH] ✓ Public key decrypted" "Green" >&2
+        write_color_text "[SSH] [OK] Public key decrypted" "Green" >&2
 
         # Decrypt private key (--force to overwrite existing file)
         write_color_text "[SSH] Decrypting private key..." "DarkGray" >&2
         decrypt_output=$("$node_cmd" "$LOCAL_SSH_KEY_JS" pwd "$password" "$SSH_DIR" --force 2>&1)
         local key_exit=$?
         if [ $key_exit -ne 0 ] || echo "$decrypt_output" | grep -qi "error\|failed\|wrong\|invalid"; then
-            write_color_text "[SSH] ✗ Private key decrypt FAILED" "Red" >&2
+            write_color_text "[SSH] [ERROR] Private key decrypt FAILED" "Red" >&2
             write_color_text "[SSH]   Output: $decrypt_output" "DarkGray" >&2
             password=""
             return 1
         fi
-        write_color_text "[SSH] ✓ Private key decrypted" "Green" >&2
+        write_color_text "[SSH] [OK] Private key decrypted" "Green" >&2
 
         password=""
 
@@ -546,7 +546,7 @@ ensure_ssh_keys_installed() {
                 write_color_text "[SSH] Fingerprint: $fingerprint" "Cyan" >&2
             fi
         else
-            write_color_text "[SSH] ✗ Decryption produced no key file" "Red" >&2
+            write_color_text "[SSH] [ERROR] Decryption produced no key file" "Red" >&2
             return 1
         fi
 
@@ -555,9 +555,9 @@ ensure_ssh_keys_installed() {
         local verify_output=""
         verify_output=$(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -i "$found_key_path" -T git@github.com 2>&1 || true)
         if echo "$verify_output" | grep -qi "successfully authenticated\|Hi "; then
-            write_color_text "[SSH] ✓ GitHub authentication SUCCESS" "Green" >&2
+            write_color_text "[SSH] [OK] GitHub authentication SUCCESS" "Green" >&2
         elif echo "$verify_output" | grep -qi "permission denied"; then
-            write_color_text "[SSH] ✗ GitHub authentication FAILED — key not recognized" "Red" >&2
+            write_color_text "[SSH] [ERROR] GitHub authentication FAILED - key not recognized" "Red" >&2
             write_color_text "[SSH]   Response: $verify_output" "DarkGray" >&2
             write_color_text "[SSH]   The decrypted key may not match the key registered on GitHub" "Yellow" >&2
         else
@@ -1299,9 +1299,9 @@ invoke_force_overwrite() {
         return 0
     fi
 
-    write_color_text "══════════════════════════════════════════════════════════════" "Yellow"
+    write_color_text "--------------------------------------------------------------" "Yellow"
     write_color_text "FORCE OVERWRITE - DISCARDING LOCAL CHANGES" "Red"
-    write_color_text "══════════════════════════════════════════════════════════════" "Yellow"
+    write_color_text "--------------------------------------------------------------" "Yellow"
     write_color_text "Project: $PROJECT_NAME" "Green"
     write_color_text "Timestamp: $TIMESTAMP" "Green"
 
@@ -1320,7 +1320,7 @@ invoke_force_overwrite() {
     write_color_text "Step 1: Creating backup branch..." "Cyan"
     write_color_text "Executing: git branch $backup_branch" "DarkGray"
     if git branch "$backup_branch" 2>/dev/null; then
-        write_color_text "✓ Backup branch created: $backup_branch" "Green"
+        write_color_text "[OK] Backup branch created: $backup_branch" "Green"
     else
         write_color_text "Warning: Could not create backup branch (may already exist)" "Yellow"
     fi
@@ -1335,13 +1335,13 @@ invoke_force_overwrite() {
         local backup_commit_msg="Backup before force overwrite - $TIMESTAMP"
         write_color_text "Executing: git commit -m '$backup_commit_msg'" "DarkGray"
         if git commit -m "$backup_commit_msg" 2>/dev/null; then
-            write_color_text "✓ Local changes committed to $ORIGINAL_BRANCH" "Green"
+            write_color_text "[OK] Local changes committed to $ORIGINAL_BRANCH" "Green"
         fi
 
         # Update backup branch to include these changes
         write_color_text "Executing: git branch -f $backup_branch" "DarkGray"
         git branch -f "$backup_branch"
-        write_color_text "✓ Backup branch updated with local changes" "Green"
+        write_color_text "[OK] Backup branch updated with local changes" "Green"
     else
         write_color_text "No uncommitted changes found" "Green"
     fi
@@ -1349,7 +1349,7 @@ invoke_force_overwrite() {
     # Step 3: Set target remote
     write_color_text "Step 3: Configuring remote..." "Cyan"
     if ! set_remote_url "$target_url"; then
-        write_color_text "�?Failed to set remote URL" "Red"
+        write_color_text "Failed to set remote URL" "Red"
         return 1
     fi
 
@@ -1366,11 +1366,11 @@ invoke_force_overwrite() {
         write_color_text "Executing: git checkout main" "DarkGray"
         # Force checkout even if there are local changes (they're already backed up)
         if ! git checkout -f main 2>/dev/null; then
-            write_color_text "�?Failed to checkout main branch" "Red"
+            write_color_text "Failed to checkout main branch" "Red"
             return 1
         fi
     fi
-    write_color_text "�?On main branch" "Green"
+    write_color_text "On main branch" "Green"
 
     # Step 4.5: Abort any ongoing merge or rebase (CRITICAL for avoiding conflicts)
     write_color_text "Step 4.5: Clearing any merge/rebase state..." "Cyan"
@@ -1379,32 +1379,32 @@ invoke_force_overwrite() {
         write_color_text "Detected ongoing merge. Aborting..." "Yellow"
         write_color_text "Executing: git merge --abort" "DarkGray"
         git merge --abort 2>/dev/null || true
-        write_color_text "�?Merge aborted" "Green"
+        write_color_text "Merge aborted" "Green"
     fi
     # Check if rebase is in progress
     if [ -d "$CORE_NODE_DIR/.git/rebase-merge" ] || [ -d "$CORE_NODE_DIR/.git/rebase-apply" ]; then
         write_color_text "Detected ongoing rebase. Aborting..." "Yellow"
         write_color_text "Executing: git rebase --abort" "DarkGray"
         git rebase --abort 2>/dev/null || true
-        write_color_text "�?Rebase aborted" "Green"
+        write_color_text "Rebase aborted" "Green"
     fi
     # Force clean any remaining merge state
     write_color_text "Executing: git reset --hard HEAD" "DarkGray"
     git reset --hard HEAD 2>/dev/null || true
-    write_color_text "�?Repository state cleared" "Green"
+    write_color_text "Repository state cleared" "Green"
 
     # Step 5: Fetch latest from remote (using --all for comprehensive fetch)
     write_color_text "Step 5: Fetching latest from remote..." "Cyan"
     write_color_text "Executing: git fetch --all --prune" "DarkGray"
     if ! git fetch --all --prune 2>&1; then
-        write_color_text "�?Failed to fetch from remote" "Red"
+        write_color_text "Failed to fetch from remote" "Red"
         return 1
     fi
-    write_color_text "�?Fetch completed successfully" "Green"
+    write_color_text "Fetch completed successfully" "Green"
 
     # Step 6: Force reset to match remote (GUARANTEED SUCCESS - no merge conflicts possible)
     write_color_text "Step 6: Force resetting to remote state..." "Cyan"
-    write_color_text "⚠️  WARNING: Executing destructive command (100% success guaranteed)..." "Red"
+    write_color_text "[WARN]  WARNING: Executing destructive command (100% success guaranteed)..." "Red"
     write_color_text "Executing: git reset --hard origin/main" "DarkGray"
     # This ALWAYS succeeds because:
     # 1. We've aborted any merge/rebase
@@ -1413,13 +1413,13 @@ invoke_force_overwrite() {
     git reset --hard origin/main 2>&1
     local reset_exit=$?
     if [ $reset_exit -eq 0 ]; then
-        write_color_text "�?Local branch reset to match remote (100% synchronized)" "Green"
+        write_color_text "Local branch reset to match remote (100% synchronized)" "Green"
     else
         # This should never happen, but handle it anyway
         write_color_text "Reset returned non-zero, but forcing completion..." "Yellow"
         # Try one more time with force
         git reset --hard origin/main 2>&1 || true
-        write_color_text "�?Reset forced to completion" "Green"
+        write_color_text "Reset forced to completion" "Green"
     fi
 
     # Step 7: Final verification - ensure tracked files match remote
@@ -1427,17 +1427,17 @@ invoke_force_overwrite() {
     write_color_text "Executing: git status --porcelain" "DarkGray"
     local status_output=$(git status --porcelain)
     if [ -z "$status_output" ]; then
-        write_color_text "�?All tracked files match remote exactly" "Green"
+        write_color_text "All tracked files match remote exactly" "Green"
     else
         write_color_text "Note: Untracked files preserved (node_modules, .secret_keys, etc.)" "Cyan"
         write_color_text "$status_output" "DarkGray"
     fi
 
     # Summary
-    write_color_text "══════════════════════════════════════════════════════════════" "Green"
-    write_color_text "✓ FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
-    write_color_text "✓ NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
-    write_color_text "══════════════════════════════════════════════════════════════" "Green"
+    write_color_text "--------------------------------------------------------------" "Green"
+    write_color_text "[OK] FORCE OVERWRITE COMPLETED SUCCESSFULLY" "Green"
+    write_color_text "[OK] NO MERGE CONFLICTS - 100% GUARANTEED SUCCESS" "Green"
+    write_color_text "--------------------------------------------------------------" "Green"
     write_color_text "" "White"
     write_color_text "Your local changes have been backed up to:" "Cyan"
     write_color_text "  Branch: $backup_branch" "White"
@@ -1449,7 +1449,7 @@ invoke_force_overwrite() {
     write_color_text "" "White"
     write_color_text "To delete the backup branch:" "Cyan"
     write_color_text "  git branch -D $backup_branch" "White"
-    write_color_text "══════════════════════════════════════════════════════════════" "Green"
+    write_color_text "--------------------------------------------------------------" "Green"
 
     return 0
 }
@@ -1472,7 +1472,7 @@ _tcp_probe() {
 }
 
 # Function to check if a git remote host is reachable for SSH/HTTPS.
-# IMPORTANT: this checks the actual TCP SERVICE PORT, never ICMP ping —
+# IMPORTANT: this checks the actual TCP SERVICE PORT, never ICMP ping -
 # github.com and gitee.com BLOCK ping, so the old `ping` check always reported
 # "not reachable" and silently skipped every push.
 check_host_reachable() {
@@ -1502,7 +1502,7 @@ check_host_reachable() {
     write_color_text "Checking connectivity to: $host:$port (TCP)" "DarkGray"
 
     if _tcp_probe "$host" "$port"; then
-        write_color_text "✓ Host $host:$port is reachable" "Green"
+        write_color_text "[OK] Host $host:$port is reachable" "Green"
         return 0
     fi
 
@@ -1513,11 +1513,11 @@ check_host_reachable() {
         alt_host="ssh.github.com"
     fi
     if _tcp_probe "$alt_host" 443; then
-        write_color_text "✓ Host reachable via $alt_host:443 (SSH/HTTPS over 443)" "Green"
+        write_color_text "[OK] Host reachable via $alt_host:443 (SSH/HTTPS over 443)" "Green"
         return 0
     fi
 
-    write_color_text "✗ Host $host is NOT reachable on port $port (and 443)" "Red"
+    write_color_text "[ERROR] Host $host is NOT reachable on port $port (and 443)" "Red"
     return 1
 }
 
@@ -2002,11 +2002,11 @@ main() {
     if [ ${#targets[@]} -eq 1 ]; then
         write_color_text "" "White"
         if [ "$PULL_MODE" = true ]; then
-            write_color_text "⚠️  WARNING: Pulling from ONE remote repository only." "Red"
+            write_color_text "[WARN]  WARNING: Pulling from ONE remote repository only." "Red"
         elif [ "$FORCE_OVERWRITE_MODE" = true ]; then
-            write_color_text "⚠️  WARNING: Force overwrite will run for ONE remote only." "Red"
+            write_color_text "[WARN]  WARNING: Force overwrite will run for ONE remote only." "Red"
         else
-            write_color_text "⚠️  WARNING: Only pushing to ONE remote repository!" "Red"
+            write_color_text "[WARN]  WARNING: Only pushing to ONE remote repository!" "Red"
             write_color_text "    To push to all remotes, select 'all' in the menu" "Yellow"
         fi
     fi
@@ -2033,9 +2033,9 @@ main() {
         read -r force_push_choice
         if [[ "$force_push_choice" =~ ^[Yy]$ ]]; then
             force_push_mode="yes"
-            write_color_text "✓ Force push enabled for ALL targets" "Red"
+            write_color_text "[OK] Force push enabled for ALL targets" "Red"
         else
-            write_color_text "✓ Normal push mode (with pull) for ALL targets" "Green"
+            write_color_text "[OK] Normal push mode (with pull) for ALL targets" "Green"
         fi
         write_color_text "" "White"
 
@@ -2093,10 +2093,10 @@ main() {
                 if [ $push_rc -eq 0 ]; then
                     write_color_text "Successfully pushed to $target" "Green"
                 elif [ $push_rc -eq 2 ]; then
-                    # Skipped (host unreachable) — NOT a success and NOT counted as
+                    # Skipped (host unreachable) - NOT a success and NOT counted as
                     # pushed; mark the run as not fully successful so the summary is honest.
                     all_success=false
-                    write_color_text "⊘ Skipped $target (host not reachable — nothing pushed)" "Yellow"
+                    write_color_text " Skipped $target (host not reachable - nothing pushed)" "Yellow"
                 else
                     all_success=false
                     write_color_text "Failed to push to $target" "Red"

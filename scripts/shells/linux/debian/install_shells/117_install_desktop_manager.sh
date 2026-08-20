@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
 # install_desktop_manager.sh - Prerequisite installer for the UNIFIED dashboard
-#   UI (poly_apps/pycore_laravel_wordnew_ui — its pycore-manager end is what the PySide6
+#   UI (poly_apps/pycore_laravel_wordnew_ui - its pycore-manager end is what the PySide6
 #   webview loads via PYCORE_UI_URL). Runs `pnpm install` once (idempotent) to
 #   pre-warm deps before the run step starts the Vite dev server.
 #

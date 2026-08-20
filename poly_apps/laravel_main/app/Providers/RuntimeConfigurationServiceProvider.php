@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Constants\LaravelConfig;
+use App\Services\Relay\RelayHubKeyProvisioner;
 use App\Support\RuntimeConfigurationStore;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Support\Facades\Event;
@@ -118,11 +119,7 @@ class RuntimeConfigurationServiceProvider extends ServiceProvider
      */
     private function injectMercureKeys(): void
     {
-        foreach (['MERCURE_PUBLISHER_JWT', 'MERCURE_SUBSCRIBER_JWT'] as $mercureKey) {
-            if (RuntimeConfigurationStore::get($mercureKey) === null) {
-                RuntimeConfigurationStore::put($mercureKey, base64_encode(random_bytes(48)));
-            }
-        }
+        RelayHubKeyProvisioner::ensure();
     }
 
     private function injectAuthenticationTokens(): void

@@ -13,18 +13,19 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # ============================================================================
-# AI DIRECT CALL INTERFACE - READ THIS FIRST 
+# AI DIRECT CALL INTERFACE - READ THIS FIRST
 # ============================================================================
-# 
-# This script provides a service manager for creating and managing systemd
-# services with ncore-* naming convention. AI can directly call functions
-# or use the command-line interface WITHOUT modifying the code.
+#
+# Universal systemd service manager for core_node (Ubuntu / Debian / Kali).
+# Creates and manages systemd services with the ncore-* naming convention.
+# AI can directly call functions or use the command-line interface WITHOUT
+# modifying the code.
 #
 # USAGE METHODS:
 # --------------
 #
 # METHOD 1: Source and Call Functions Directly (Recommended for AI)
-#   source /path/to/debian_service_manager.sh
+#   source /path/to/systemd_service_manager.sh
 #   create_ncore_service "/path/to/script.sh" "service_name" "Description" "20%" "200M"
 #   remove_ncore_service "service_name"
 #   check_service_status "service_name"
@@ -32,13 +33,13 @@
 #   update_service_resources "service_name"
 #
 # METHOD 2: Execute as Command-Line Script
-#   bash debian_service_manager.sh create /path/to/script.sh
-#   bash debian_service_manager.sh create /path/to/script.sh myapp "My App" "50%" "1G"
-#   bash debian_service_manager.sh remove myapp
-#   bash debian_service_manager.sh status myapp
-#   bash debian_service_manager.sh list
-#   bash debian_service_manager.sh update
-#   bash debian_service_manager.sh update myapp
+#   bash systemd_service_manager.sh create /path/to/script.sh
+#   bash systemd_service_manager.sh create /path/to/script.sh myapp "My App" "50%" "1G"
+#   bash systemd_service_manager.sh remove myapp
+#   bash systemd_service_manager.sh status myapp
+#   bash systemd_service_manager.sh list
+#   bash systemd_service_manager.sh update
+#   bash systemd_service_manager.sh update myapp
 #
 # AVAILABLE FUNCTIONS (Can be called directly after sourcing):
 # -----------------------------------------------------------
@@ -141,8 +142,9 @@
 #
 # ============================================================================
 
-# Debian Service Manager for NCore Applications
-# Manages systemd services with ncore-* naming convention
+# Universal systemd Service Manager for core_node applications.
+# Supports Ubuntu / Debian / Kali (any systemd-based distro).
+# Manages systemd services with ncore-* naming convention.
 
 # Source gvar_common.sh for path mapping functions (trust-based coding)
 # Only source if not already sourced (check for map_web_path function)
@@ -488,6 +490,7 @@ create_systemd_service() {
     local cpu_limit="${8:-}"
     local memory_limit="${9:-}"
     local log_file="${10:-}"
+    local timeout_start="${11:-}"
 
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
         echo "[ERROR] service_name, description, and exec_command are required"
@@ -519,6 +522,13 @@ create_systemd_service() {
     fi
 
     local service_file="$SYSTEMD_DIR/${service_name}.service"
+    # Capture pre-write existence: an already-known unit gets replace+restart
+    # semantics below; a freshly-created unit is left for the caller's
+    # enable/start flow.
+    local unit_preexisted="no"
+    if [ -f "$service_file" ] || systemctl cat "$service_name" >/dev/null 2>&1; then
+        unit_preexisted="yes"
+    fi
 
     echo "[INFO] Creating generic systemd service: $service_name"
     echo "[INFO] Description: $description"
@@ -550,6 +560,13 @@ Restart=$restart_policy
 RestartSec=$restart_sec
 EOF
 
+    # Optional start timeout (e.g. certificate pre-flight issuance before
+    # the server binds its ports can take minutes; systemd default is 90s).
+    if [ -n "$timeout_start" ]; then
+        echo "TimeoutStartSec=$timeout_start" >> "$service_file"
+        echo "[INFO] TimeoutStartSec: $timeout_start"
+    fi
+
     if [ -n "$log_file" ]; then
         printf 'StandardOutput=append:%s\nStandardError=append:%s\n' "$log_file" "$log_file" >> "$service_file"
     else
@@ -576,6 +593,12 @@ EOF
     if [ $? -eq 0 ]; then
         echo "[SUCCESS] Service file created: $service_file"
         systemctl daemon-reload
+        # Existing-service semantics: ALWAYS rewrite (done above) + restart,
+        # so the new definition takes effect immediately.
+        if [ "$unit_preexisted" = "yes" ]; then
+            echo "[INFO] Restarting existing service: $service_name"
+            systemctl restart "$service_name" || echo "[WARNING] restart reported failure: $service_name"
+        fi
         return 0
     else
         echo "[ERROR] Failed to create service file"
@@ -979,7 +1002,7 @@ WantedBy=timers.target
 # Function to show help
 show_help() {
     cat << EOF
-NCore Debian Service Manager
+NCore Systemd Service Manager (Ubuntu / Debian / Kali)
 
 Usage: $0 COMMAND [OPTIONS]
 

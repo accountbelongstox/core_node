@@ -4,7 +4,7 @@
 # CONVERGENCE: this previously created a SECOND systemd unit ("pycore-module-caller",
 # User=root, ExecStart=`python pycore/pycore_module_caller.py` directly) that competed with
 # the canonical "pycore" unit from common/pycore_service.sh for port 59000 AND ran the worker
-# with a different user + Python env (no PYTHONUSERBASE/PIP policy, no prepare step) — so
+# with a different user + Python env (no PYTHONUSERBASE/PIP policy, no prepare step) - so
 # which torch the worker imported and where packages installed depended on which installer
 # was used. There must be ONE service definition, so this now DELEGATES to
 # common/pycore_service.sh (unit: "pycore", ExecStart=`pyservice.sh run --no-ui --no-install`,

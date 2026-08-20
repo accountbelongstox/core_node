@@ -43,9 +43,8 @@ final class RelayHubPublisher
     private static function postToHub(array $topics, string $data, bool $private, ?string $type, ?string $id): ?string
     {
         $hubUrl = RelayHubJwt::hubUrl();
-        $form = [
-            'data' => $data,
-        ];
+        $form = ['data' => $data];
+        $parts = [];
         if ($private) {
             $form['private'] = '1';
         }
@@ -55,11 +54,15 @@ final class RelayHubPublisher
         if ($id !== null && $id !== '') {
             $form['id'] = $id;
         }
-        foreach ($topics as $topic) {
-            $form['topic'][] = $topic;
+        $parts[] = http_build_query($form, '', '&', PHP_QUERY_RFC3986);
+        foreach (array_values(array_unique($topics)) as $topic) {
+            $parts[] = 'topic='.rawurlencode($topic);
         }
 
-        $response = Http::asForm()->withToken(self::publisherJwt())->timeout(5)->post($hubUrl, $form);
+        $response = Http::withToken(self::publisherJwt())
+            ->withBody(implode('&', $parts), 'application/x-www-form-urlencoded')
+            ->timeout(5)
+            ->post($hubUrl);
         if (!$response->successful()) {
             return null;
         }

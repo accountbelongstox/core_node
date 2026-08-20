@@ -21,14 +21,14 @@ get_all_ips() {
     echo "=== Available Network Addresses ==="
 
     # Get localhost
-    echo "  �? Local:    http://localhost:$port/"
-    echo "  �? Local:    http://127.0.0.1:$port/"
+    echo "   Local:    http://localhost:$port/"
+    echo "   Local:    http://127.0.0.1:$port/"
 
     # Get all network interfaces
     local ips=$(ip route get 1.1.1.1 2>/dev/null | grep -oE 'src [0-9.]+' | cut -d' ' -f2)
     if [ -n "$ips" ]; then
         for ip in $ips; do
-            echo "  �? Network:  http://$ip:$port/"
+            echo "   Network:  http://$ip:$port/"
         done
     fi
 
@@ -37,7 +37,7 @@ get_all_ips() {
     if [ -n "$all_ips" ]; then
         for ip in $all_ips; do
             if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                echo "  �? Interface: http://$ip:$port/"
+                echo "   Interface: http://$ip:$port/"
             fi
         done
     fi
@@ -45,7 +45,7 @@ get_all_ips() {
     # Try to get public IP
     local public_ip=$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || curl -s --connect-timeout 3 ipinfo.io/ip 2>/dev/null)
     if [ -n "$public_ip" ] && [[ "$public_ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        echo "  �? Public:   http://$public_ip:$port/"
+        echo "   Public:   http://$public_ip:$port/"
     fi
 
     echo "========================================"

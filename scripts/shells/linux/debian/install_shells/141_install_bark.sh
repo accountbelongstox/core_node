@@ -1,16 +1,16 @@
 #!/bin/bash
-# Bark TTS prerequisite (Linux) — Suno via Hugging Face transformers.
+# Bark TTS prerequisite (Linux) - Suno via Hugging Face transformers.
 # Category 1 / Bucket A: Python 3.x native, in-process local model that SHARES the
 # main interpreter's single pinned transformers with deepseek/qwen25/nllb.
 #
 # Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7, Bucket A): Bark installs transformers
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 7, Bucket A): Bark installs transformers
 # at the SHARED pin $LLM_TRANSFORMERS_SPEC, version-idempotently (only when absent) and
 # NEVER with --upgrade. --upgrade is the race that clobbers the pinned stack the parallel
 # LLM installers share, so it is forbidden here.
 #
 # Official: https://huggingface.co/docs/transformers/model_doc/bark
-#   pip install transformers scipy   (Do NOT pip install bark — wrong PyPI package.)
+#   pip install transformers scipy   (Do NOT pip install bark - wrong PyPI package.)
 #
 # Invocation: 141_install_bark.sh --python <py> [--full] [--force]
 # Env: BARK_SKIP=1, BARK_INSTALL=1, NEURAL_TTS_INSTALL=1, BARK_DIR, BARK_MODEL

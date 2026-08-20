@@ -26,7 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR="$(dirname "$SCRIPT_DIR")"
 GRANDPARENT_DIR="$(dirname "$PARENT_DIR")"
 COMMON_DIR="$GRANDPARENT_DIR/common"
-SERVICE_MANAGER="$COMMON_DIR/debian_service_manager.sh"
+SERVICE_MANAGER="$COMMON_DIR/systemd_service_manager.sh"
 
 # XRDP configuration
 XRDP_LOG="/var/log/xrdp.log"

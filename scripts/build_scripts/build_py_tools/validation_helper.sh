@@ -30,13 +30,13 @@ validate_project() {
 
     if [ $VALIDATION_RESULT -ne 0 ]; then
         echo ""
-        echo -e "${COLOR_RED}�?Project validation failed${COLOR_RESET}"
+        echo -e "${COLOR_RED}Project validation failed${COLOR_RESET}"
         echo -e "${COLOR_YELLOW}Please fix the issues above before proceeding${COLOR_RESET}"
         return 1
     fi
 
     echo ""
-    echo -e "${COLOR_GREEN}�?Project validation passed${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}Project validation passed${COLOR_RESET}"
     return 0
 }
 
@@ -59,7 +59,7 @@ check_and_install_dependencies() {
     local VALIDATION_JSON=$(get_global_var "POLY_APP_VALIDATION_${PROJECT_NAME^^}" "")
 
     if [ -z "$VALIDATION_JSON" ]; then
-        echo -e "${COLOR_YELLOW}�?Could not read validation info, proceeding with basic checks${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}Could not read validation info, proceeding with basic checks${COLOR_RESET}"
         VALIDATION_JSON='{"info":{"package_manager":"npm","lock_files":[]}}'
     fi
 
@@ -72,7 +72,7 @@ check_and_install_dependencies() {
 
     if [ $DEPS_RESULT -ne 0 ]; then
         echo ""
-        echo -e "${COLOR_YELLOW}�?Dependencies are missing or incomplete${COLOR_RESET}"
+        echo -e "${COLOR_YELLOW}Dependencies are missing or incomplete${COLOR_RESET}"
 
         # Try to get dependency status from file variable
         local DEPS_JSON=$(get_global_var "POLY_APP_DEPENDENCY_${PROJECT_NAME^^}" "")
@@ -93,11 +93,11 @@ check_and_install_dependencies() {
 
                     if [ $? -eq 0 ]; then
                         echo ""
-                        echo -e "${COLOR_GREEN}�?Dependencies installed successfully${COLOR_RESET}"
+                        echo -e "${COLOR_GREEN}Dependencies installed successfully${COLOR_RESET}"
                         return 0
                     else
                         echo ""
-                        echo -e "${COLOR_RED}�?Failed to install dependencies${COLOR_RESET}"
+                        echo -e "${COLOR_RED}Failed to install dependencies${COLOR_RESET}"
                         return 1
                     fi
                 else
@@ -116,7 +116,7 @@ check_and_install_dependencies() {
     fi
 
     echo ""
-    echo -e "${COLOR_GREEN}�?Dependencies are installed${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}Dependencies are installed${COLOR_RESET}"
     return 0
 }
 
@@ -141,12 +141,12 @@ validate_build_requirements() {
 
     if [ $BUILD_REQ_RESULT -ne 0 ]; then
         echo ""
-        echo -e "${COLOR_RED}�?Build requirements not met${COLOR_RESET}"
+        echo -e "${COLOR_RED}Build requirements not met${COLOR_RESET}"
         return 1
     fi
 
     echo ""
-    echo -e "${COLOR_GREEN}�?Build requirements satisfied${COLOR_RESET}"
+    echo -e "${COLOR_GREEN}Build requirements satisfied${COLOR_RESET}"
     return 0
 }
 
@@ -168,14 +168,14 @@ validate_build_output() {
         "nuxt")
             if [ -d "$PROJECT_PATH/.output" ]; then
                 if [ -f "$PROJECT_PATH/.output/server/index.mjs" ]; then
-                    echo -e "${COLOR_GREEN}�?Nuxt build output validated${COLOR_RESET}"
+                    echo -e "${COLOR_GREEN}Nuxt build output validated${COLOR_RESET}"
                     return 0
                 else
-                    echo -e "${COLOR_RED}�?Missing critical file: .output/server/index.mjs${COLOR_RESET}"
+                    echo -e "${COLOR_RED}Missing critical file: .output/server/index.mjs${COLOR_RESET}"
                     return 1
                 fi
             else
-                echo -e "${COLOR_RED}�?Build output directory not found: .output${COLOR_RESET}"
+                echo -e "${COLOR_RED}Build output directory not found: .output${COLOR_RESET}"
                 return 1
             fi
             ;;
@@ -184,31 +184,31 @@ validate_build_output() {
             # Check for dist, build, or .output/public
             if [ -d "$PROJECT_PATH/dist" ]; then
                 if [ -f "$PROJECT_PATH/dist/index.html" ]; then
-                    echo -e "${COLOR_GREEN}�?Build output validated: dist/index.html exists${COLOR_RESET}"
+                    echo -e "${COLOR_GREEN}Build output validated: dist/index.html exists${COLOR_RESET}"
                     return 0
                 else
-                    echo -e "${COLOR_YELLOW}�?Build output found but missing index.html${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}Build output found but missing index.html${COLOR_RESET}"
                     return 0  # May not be critical for all projects
                 fi
             elif [ -d "$PROJECT_PATH/build" ]; then
                 if [ -f "$PROJECT_PATH/build/index.html" ]; then
-                    echo -e "${COLOR_GREEN}�?Build output validated: build/index.html exists${COLOR_RESET}"
+                    echo -e "${COLOR_GREEN}Build output validated: build/index.html exists${COLOR_RESET}"
                     return 0
                 else
-                    echo -e "${COLOR_YELLOW}�?Build output found but missing index.html${COLOR_RESET}"
+                    echo -e "${COLOR_YELLOW}Build output found but missing index.html${COLOR_RESET}"
                     return 0
                 fi
             elif [ -d "$PROJECT_PATH/.output/public" ]; then
-                echo -e "${COLOR_GREEN}�?Build output validated: .output/public exists${COLOR_RESET}"
+                echo -e "${COLOR_GREEN}Build output validated: .output/public exists${COLOR_RESET}"
                 return 0
             else
-                echo -e "${COLOR_RED}�?Build output directory not found (checked: dist/, build/, .output/public/)${COLOR_RESET}"
+                echo -e "${COLOR_RED}Build output directory not found (checked: dist/, build/, .output/public/)${COLOR_RESET}"
                 return 1
             fi
             ;;
 
         *)
-            echo -e "${COLOR_YELLOW}�?No validation rules for project type: $PROJECT_TYPE${COLOR_RESET}"
+            echo -e "${COLOR_YELLOW}No validation rules for project type: $PROJECT_TYPE${COLOR_RESET}"
             return 0
             ;;
     esac
@@ -222,9 +222,9 @@ run_full_validation() {
     local AUTO_INSTALL="${5:-false}"
 
     echo ""
-    echo -e "${COLOR_CYAN}╔═══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
-    echo -e "${COLOR_CYAN}�?                   COMPREHENSIVE VALIDATION SYSTEM                        �?{COLOR_RESET}"
-    echo -e "${COLOR_CYAN}╚═══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+    echo -e "${COLOR_CYAN}+---------------------------------------------------------------------------{COLOR_RESET}"
+    echo -e "${COLOR_CYAN}                   COMPREHENSIVE VALIDATION SYSTEM                        {COLOR_RESET}"
+    echo -e "${COLOR_CYAN}+---------------------------------------------------------------------------{COLOR_RESET}"
     echo ""
     echo -e "${COLOR_BLUE}Project: $PROJECT_NAME${COLOR_RESET}"
     echo -e "${COLOR_BLUE}Type: $PROJECT_TYPE${COLOR_RESET}"
@@ -235,18 +235,18 @@ run_full_validation() {
     # Step 1: Validate project structure
     if ! validate_project "$PROJECT_PATH" "$PROJECT_TYPE" "$PROJECT_NAME"; then
         echo ""
-        echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+        echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
         echo -e "${COLOR_RED}  VALIDATION FAILED: Project structure issues${COLOR_RESET}"
-        echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+        echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
         return 1
     fi
 
     # Step 2: Check dependencies
     if ! check_and_install_dependencies "$PROJECT_PATH" "$PROJECT_TYPE" "$PROJECT_NAME" "$AUTO_INSTALL"; then
         echo ""
-        echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+        echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
         echo -e "${COLOR_RED}  VALIDATION FAILED: Dependency issues${COLOR_RESET}"
-        echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+        echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
         return 1
     fi
 
@@ -254,17 +254,17 @@ run_full_validation() {
     if [[ "$ACTION" == "build" || "$ACTION" == "generate" ]]; then
         if ! validate_build_requirements "$PROJECT_PATH" "$PROJECT_TYPE" "$PROJECT_NAME" "$ACTION"; then
             echo ""
-            echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+            echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
             echo -e "${COLOR_RED}  VALIDATION FAILED: Build requirements not met${COLOR_RESET}"
-            echo -e "${COLOR_RED}══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+            echo -e "${COLOR_RED}--------------------------------------------------------------------------{COLOR_RESET}"
             return 1
         fi
     fi
 
     echo ""
-    echo -e "${COLOR_GREEN}╔═══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
-    echo -e "${COLOR_GREEN}�?                   �?ALL VALIDATIONS PASSED                               �?{COLOR_RESET}"
-    echo -e "${COLOR_GREEN}╚═══════════════════════════════════════════════════════════════════════════�?{COLOR_RESET}"
+    echo -e "${COLOR_GREEN}+---------------------------------------------------------------------------{COLOR_RESET}"
+    echo -e "${COLOR_GREEN}                   ALL VALIDATIONS PASSED                               {COLOR_RESET}"
+    echo -e "${COLOR_GREEN}+---------------------------------------------------------------------------{COLOR_RESET}"
     echo ""
 
     return 0

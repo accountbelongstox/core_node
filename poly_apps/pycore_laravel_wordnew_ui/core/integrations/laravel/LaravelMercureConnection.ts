@@ -1,10 +1,10 @@
 /**
- * Dependency-free Mercure 1.0 SSE transport shared by Laravel clients.
+ * Dependency-free Mercure SSE transport shared by Laravel clients.
  *
- * Speaks the latest Mercure specification directly (no compatibility mode):
- * one exact `match` query parameter per topic, session auth through the
- * hub-path cookie issued by /api/relay/hub-auth (the spec default
- * `__Secure-mercure_access_token`), native EventSource auto-reconnect with
+ * Speaks the protocol implemented by the hub embedded in the pinned
+ * FrankenPHP runtime: one `topic` query parameter per selector, session
+ * auth through the configured hub-path cookie issued by /api/relay/hub-auth,
+ * native EventSource auto-reconnect with
  * Last-Event-ID resume, and a background re-auth timer that keeps the
  * cookie fresh across reconnects (the hub closes streams at token exp).
  */
@@ -122,7 +122,7 @@ export class LaravelMercureConnection {
   private subscribeUrl(config: LaravelMercureHubConfig): string {
     const url = new URL(config.hub_url);
     for (const topic of config.topics) {
-      url.searchParams.append('match', topic);
+      url.searchParams.append('topic', topic);
     }
     return url.toString();
   }

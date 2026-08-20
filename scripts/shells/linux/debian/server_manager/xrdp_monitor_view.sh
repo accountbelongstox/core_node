@@ -76,9 +76,9 @@ show_summary() {
     # Service status
     echo -e "${CYAN}Service Status:${NC}"
     if systemctl is-active --quiet ncore-xrdp-monitor; then
-        echo -e "  ${GREEN}�?Running${NC}"
+        echo -e "  ${GREEN}Running${NC}"
     else
-        echo -e "  ${RED}�?Stopped${NC}"
+        echo -e "  ${RED}Stopped${NC}"
     fi
 
     echo ""
@@ -174,9 +174,9 @@ view_analysis_live() {
 # Show interactive menu
 show_menu() {
     clear
-    echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}�?  XRDP Monitor Log Viewer             �?{NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+    echo -e "${BLUE}+----------------------------------------+${NC}"
+    echo -e "${BLUE}  XRDP Monitor Log Viewer             {NC}"
+    echo -e "${BLUE}+----------------------------------------+${NC}"
     echo ""
     show_summary
     echo ""

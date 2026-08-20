@@ -21,9 +21,9 @@ echo ">>> Updating desktop databases..."
 if command -v update-desktop-database >/dev/null 2>&1; then
     update-desktop-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
     sudo update-desktop-database /usr/share/applications 2>/dev/null
-    echo "  �?Desktop database updated"
+    echo "  Desktop database updated"
 else
-    echo "  �?update-desktop-database not found"
+    echo "  update-desktop-database not found"
 fi
 
 # Clear GTK icon cache
@@ -46,18 +46,18 @@ if command -v gtk-update-icon-cache >/dev/null 2>&1; then
             fi
         done
     fi
-    echo "  �?Icon cache updated"
+    echo "  Icon cache updated"
 else
-    echo "  �?gtk-update-icon-cache not found"
+    echo "  gtk-update-icon-cache not found"
 fi
 
 # Update MIME database
 echo ">>> Updating MIME database..."
 if command -v update-mime-database >/dev/null 2>&1; then
     update-mime-database "$DESKTOP_HOME/.local/share/applications" 2>/dev/null
-    echo "  �?MIME database updated"
+    echo "  MIME database updated"
 else
-    echo "  �?update-mime-database not found"
+    echo "  update-mime-database not found"
 fi
 
 # Check desktop environment and provide instructions

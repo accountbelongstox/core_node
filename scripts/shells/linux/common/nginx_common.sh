@@ -48,11 +48,11 @@ NGINX_KNOWN_ALIAS_PATHS=(
     "/usr/local/sbin/nginx"
 )
 
-# Canonical filesystem constants — the single shell-side source, shared by
+# Canonical filesystem constants - the single shell-side source, shared by
 # nginx_manager.sh / domain_setup_common.sh / cert_selfheal_common.sh /
 # 33_install_nginx.sh / 35_install_certbot.sh / 175_laravel_main_start.sh.
 # The Laravel end mirrors the same paths through PathMapper::mapWebPath()
-# (ServerManagerV1PathConfig) — the cross-language SYNC CONTRACT. Paths are
+# (ServerManagerV1PathConfig) - the cross-language SYNC CONTRACT. Paths are
 # identical on Ubuntu / Debian / Kali.
 NGINX_MAIN_CONF="${NGINX_MAIN_CONF:-/etc/nginx/nginx.conf}"
 NGINX_LOG_DIR="${NGINX_LOG_DIR:-/var/log/nginx}"
@@ -109,7 +109,7 @@ nginx_resolve_canonical_binary() {
         # Only OUR managed source build wins by default: the marker file, or a
         # compile-time conf-path pointing at the canonical main config. A
         # foreign vanilla build at the same prefix defaults to
-        # <prefix>/conf/nginx.conf — letting it become canonical would strand
+        # <prefix>/conf/nginx.conf - letting it become canonical would strand
         # every managed site write in /etc/nginx while the master keeps
         # serving the foreign world. Foreign builds go through migrate-legacy.
         if [ -f "$NGINX_SOURCE_PREFIX/.core_node_source_build" ] || \
@@ -768,7 +768,7 @@ nginx_ensure_quic_host_key() {
 
 # Canonical placeholder (snakeoil) certificate: guarantees every TLS vhost is
 # renderable and `nginx -t`-valid EVEN before/without a real certificate, so a
-# site's proxy shape (HTTP/3 + 301 + upstream) is INVARIANT — certificate
+# site's proxy shape (HTTP/3 + 301 + upstream) is INVARIANT - certificate
 # state never changes the vhost type. Real Let's Encrypt material always wins
 # the probe in nginx_le_cert_path/nginx_le_key_path; the content-hash writer
 # swaps the vhost to the real cert on the next sweep.
@@ -1078,7 +1078,7 @@ nginx_get_sites_enabled() {
 # A symlink that already resolves to a directory is kept (writes flow through
 # to its target). The repair commands are trusted to run; the outcome is then
 # verified by direct filesystem detection and published in
-# NGINX_ENSURE_DIR_READY ("yes"/"no") — never inferred from an exit code.
+# NGINX_ENSURE_DIR_READY ("yes"/"no") - never inferred from an exit code.
 # Usage: nginx_ensure_directory <path>; then read NGINX_ENSURE_DIR_READY.
 NGINX_ENSURE_DIR_READY="no"
 nginx_ensure_directory() {
@@ -1171,7 +1171,7 @@ nginx_quarantine_duplicate_server_names() {
 # Verify the :80/:443 listeners belong to the systemd-managed nginx master.
 # A foreign nginx master (source build / manual start, e.g. an old duplicate
 # install) keeps serving the OLD config no matter how often the unit is
-# reloaded. Foreign masters are stopped and the unit restarted — this is the
+# reloaded. Foreign masters are stopped and the unit restarted - this is the
 # nginx twin of the stale-certbot detection. Result is re-verified from the
 # process table after the stop.
 nginx_single_instance_ensure() {
@@ -1462,7 +1462,7 @@ nginx_serve_truth_report() {
     enabled_count=$(find "$sites_enabled" -maxdepth 1 \( -type f -o -type l \) 2>/dev/null | wc -l | tr -d ' ')
     echo "[nginx]   site files: $available_count available, $enabled_count enabled"
 
-    # Content class per enabled site (proxy vhost vs stale bootstrap stub) —
+    # Content class per enabled site (proxy vhost vs stale bootstrap stub) -
     # this is the truth that decides what a request actually gets.
     local site=""
     local site_target=""

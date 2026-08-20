@@ -181,9 +181,9 @@ echo -e "Failed: ${RED}${FAIL}${NC}"
 echo ""
 
 if [ $FAIL -eq 0 ]; then
-    echo -e "${GREEN}✅ All tests passed! TODO fixes verified successfully.${NC}"
+    echo -e "${GREEN}[OK] All tests passed! TODO fixes verified successfully.${NC}"
     exit 0
 else
-    echo -e "${RED}❌ Some tests failed. Please review the failures above.${NC}"
+    echo -e "${RED}[ERROR] Some tests failed. Please review the failures above.${NC}"
     exit 1
 fi

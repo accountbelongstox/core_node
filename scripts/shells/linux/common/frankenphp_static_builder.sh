@@ -20,11 +20,8 @@
 # REUSED when the build tuple still matches (fm_static_dist_reusable) -
 # pipeline reruns skip the multi-minute rebuild. EMBED is intentionally
 # NOT used: the Caddyfile serves the app from disk, so baking the
-# Laravel app into the binary would only add dead weight. Also carries
-# the post-build system cleanup that reverses
-# 43_ensure_php85_intelligent.sh / 77_ensure_php_pgsql.sh: the
-# frankenphp plane's PHP runtime is the single static binary - no apt
-# PHP, no frankenphp deb, no php-zts third-party repo.
+# Laravel app into the binary would only add dead weight. Package ownership
+# and retirement belong exclusively to the central installation lifecycle.
 # Sourced by frankenphp_manager.sh; every primitive is idempotent.
 #
 # STDOUT CONTRACT: fm_static_build echoes ONLY the candidate binary path
@@ -43,11 +40,10 @@ source "${FM_STATIC_CURRENT_DIR}/frankenphp_static_prereq.sh"
 # Base extension set for the static build (spc names; covers the Laravel
 # main app needs - Laravel 13 included). The official default list is
 # intentionally overridden for a deterministic, minimal binary.
-FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
-# Service-selector driven additions (get_var START_*): only the database
-# backends this host actually starts are baked into the binary.
+FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,openssl,opcache,pcntl,pdo,pdo_pgsql,pdo_sqlite,pgsql,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
+# PostgreSQL is part of the Laravel runtime floor. Selectors add only optional
+# backends beyond that invariant baseline.
 FRANKENPHP_STATIC_DB_EXT_MYSQL="mysqli,pdo_mysql"
-FRANKENPHP_STATIC_DB_EXT_POSTGRESQL="pdo_pgsql,pgsql"
 FRANKENPHP_STATIC_DB_EXT_REDIS="redis"
 # Persistent build root (NOT /tmp): the git tree, spc source cache and
 # build outputs are KEPT so every later run upgrades in place
@@ -59,10 +55,6 @@ FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
 FRANKENPHP_STATIC_BUILD_STATE="${FRANKENPHP_STATIC_BUILD_ROOT}/build-state.env"
 # Canonical Go toolchain installer (single source of truth for the pin).
 FRANKENPHP_STATIC_GOLANG_SCRIPT="${FM_STATIC_CURRENT_DIR}/../debian/install_shells/91_install_golang.sh"
-# Third-party php-zts apt repo + keyring of the frankenphp baseline deb
-# (henderkes static-php85); retired together with the deb.
-FRANKENPHP_STATIC_PHPZTS_REPO_FILE="/etc/apt/sources.list.d/static-php85.list"
-FRANKENPHP_STATIC_PHPZTS_KEYRING="/etc/apt/keyrings/static-php85.asc"
 FRANKENPHP_STATIC_SRC_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/src"
 FRANKENPHP_STATIC_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/candidate"
 # Runtime binary roots separate by packaging strategy: compiled static builds
@@ -73,6 +65,10 @@ FRANKENPHP_COMPILED_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/compiled"
 FRANKENPHP_PREBUILT_RUNTIME_DIR="${FRANKENPHP_RUNTIME_ROOT_DIR}/prebuilt"
 FRANKENPHP_COMPILED_BINARY_PATH="${FRANKENPHP_COMPILED_RUNTIME_DIR}/frankenphp"
 FRANKENPHP_PREBUILT_BINARY_PATH="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/frankenphp"
+FRANKENPHP_COMPILED_CANDIDATE_PATH="${FRANKENPHP_COMPILED_RUNTIME_DIR}/frankenphp.candidate"
+FRANKENPHP_PREBUILT_CANDIDATE_PATH="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/frankenphp.candidate"
+FRANKENPHP_PREBUILT_REQUEST_STATE="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/requested-version"
+FRANKENPHP_PREBUILT_READY_STATE="${FRANKENPHP_PREBUILT_RUNTIME_DIR}/prepared-version"
 # Shared install-root path family (single source for the manager, the
 # prebuilt installer and the acme.sh helper): every FrankenPHP artifact
 # lives under the same persistent root so upgrades stay incremental.
@@ -81,7 +77,7 @@ FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt-stagin
 FRANKENPHP_ACME_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/acme.sh"
 FRANKENPHP_ACME_CERT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/certs"
 
-# Effective PHP_EXTENSIONS list: base + selector-driven database sets,
+# Effective PHP_EXTENSIONS list: invariant base + optional selector sets,
 # de-duplicated preserving order.
 fm_static_php_extensions() {
     local exts=""
@@ -89,9 +85,6 @@ fm_static_php_extensions() {
     exts="$FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE"
     if [ "$(get_var "START_MYSQL" "false")" = "true" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_MYSQL}"
-    fi
-    if [ "$(get_var "START_POSTGRESQL" "false")" = "true" ]; then
-        exts="${exts},${FRANKENPHP_STATIC_DB_EXT_POSTGRESQL}"
     fi
     if [ "$(get_var "START_REDIS" "false")" = "true" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_REDIS}"
@@ -241,6 +234,7 @@ fm_static_git_ensure() {
 # tree at $FRANKENPHP_STATIC_SRC_DIR is always kept (log: build.log) for
 # debugging and for the next incremental run.
 fm_static_build() {
+    local baseline_binary=""
     local version_tag=""
     local php_ver=""
     local extensions=""
@@ -258,13 +252,14 @@ fm_static_build() {
         return 0
     fi
 
-    version_tag="$(fm_version_tag)"
+    baseline_binary="$(fm_get_bootstrap_binary)"
+    version_tag="$(fm_version_tag_of "$baseline_binary")"
     if [ -z "$version_tag" ]; then
         echo "[$FM_STATIC_LOG_TAG] cannot parse the running frankenphp version; static build aborted" >&2
         echo ""
         return 0
     fi
-    php_ver="$(fm_php_version)"
+    php_ver="$(fm_php_version_of "$baseline_binary")"
     if [ -z "$php_ver" ]; then
         echo "[$FM_STATIC_LOG_TAG] cannot parse the embedded PHP version; static build aborted" >&2
         echo ""
@@ -335,80 +330,4 @@ fm_static_build() {
     cp "$built_bin" "${FRANKENPHP_STATIC_STAGING_DIR}/frankenphp"
     chmod 755 "${FRANKENPHP_STATIC_STAGING_DIR}/frankenphp"
     echo "${FRANKENPHP_STATIC_STAGING_DIR}/frankenphp"
-}
-
-# Post-build system cleanup - reverses the apt PHP stack installed by
-# 43_ensure_php85_intelligent.sh / 77_ensure_php_pgsql.sh once the static
-# frankenphp binary is the verified PHP runtime (the frankenphp plane
-# keeps NO apt PHP). Idempotent: nothing to purge -> no-op. Also retires
-# the xcaddy binary of the abandoned native-build path (build-static.sh
-# ships its own xcaddy via spc install-pkg go-xcaddy).
-fm_static_apt_php_cleanup() {
-    local binary=""
-    local pkgs=""
-    local fpm_pkg=""
-    local held_pkg=""
-
-    binary="$(fm_get_binary)"
-    if [ "$(fm_binary_usable "$binary")" != "yes" ]; then
-        echo "[$FM_STATIC_LOG_TAG] cleanup skipped: no healthy frankenphp binary"
-        return 0
-    fi
-    # INSTALLED (ii-state) php runtime set only: the php* glob also matches
-    # deinstalled config leftovers (rc) which would poison the purge command;
-    # the set additionally owns the apache mod_php modules + pkg-php-tools
-    # (the only non-php* reverse dependency).
-    pkgs="$(dpkg -l 2>/dev/null | awk '$1=="ii" && $2 ~ /^(php|libapache2-mod-php|pkg-php-tools)/ {print $2}' || true)"
-    if [ -z "$pkgs" ]; then
-        echo "[$FM_STATIC_LOG_TAG] apt PHP already clean (no installed packages to purge)"
-    else
-        # Held php-runtime packages freeze the dependency resolver (a hold
-        # blocks removal too - pkgProblemResolver "breaks"). Release ONLY
-        # php-related holds one by one; unrelated holds stay.
-        for held_pkg in $(apt-mark showhold 2>/dev/null | grep -E '^(php|libapache2-mod-php|pkg-php-tools)' || true); do
-            $USE_SUDO apt-mark unhold "$held_pkg" >/dev/null 2>&1 || true
-        done
-
-        for fpm_pkg in $(echo "$pkgs" | grep -E 'php.*fpm' || true); do
-            $USE_SUDO systemctl disable --now "$fpm_pkg" >/dev/null 2>&1 || true
-        done
-        echo "[$FM_STATIC_LOG_TAG] purging apt PHP (the static frankenphp binary is the only PHP runtime): $(echo "$pkgs" | tr '\n' ' ')"
-        # shellcheck disable=SC2086
-        $USE_SUDO apt-get purge -y $pkgs >/dev/null
-        $USE_SUDO apt-get autoremove -y -qq >/dev/null
-    fi
-
-    # Explicit frankenphp deb purge (henderkes php-zts baseline): the php
-    # purge cascade removes it only IMPLICITLY - probe and purge it
-    # explicitly so the state never depends on cascade side effects. The
-    # deb binary is NEVER purged while it is the live runtime (the
-    # link-first binary probe above resolves the plane's own binary).
-    if dpkg-query -W -f='${Status}' frankenphp 2>/dev/null | grep -q '^install ok installed$' \
-        && [ "$binary" != "/usr/bin/frankenphp" ]; then
-        $USE_SUDO systemctl disable --now frankenphp.service >/dev/null 2>&1 || true
-        $USE_SUDO apt-get purge -y frankenphp >/dev/null
-        echo "[$FM_STATIC_LOG_TAG] purged the frankenphp baseline deb (/usr/bin/frankenphp)"
-    fi
-    # Retire the third-party php-zts apt repo + keyring: their only purpose
-    # was the baseline deb; the plane runtime is the static binary.
-    if [ -f "$FRANKENPHP_STATIC_PHPZTS_REPO_FILE" ]; then
-        $USE_SUDO rm -f "$FRANKENPHP_STATIC_PHPZTS_REPO_FILE"
-        echo "[$FM_STATIC_LOG_TAG] retired the php-zts apt repo (${FRANKENPHP_STATIC_PHPZTS_REPO_FILE})"
-    fi
-    if [ -f "$FRANKENPHP_STATIC_PHPZTS_KEYRING" ]; then
-        $USE_SUDO rm -f "$FRANKENPHP_STATIC_PHPZTS_KEYRING"
-        echo "[$FM_STATIC_LOG_TAG] removed the php-zts repo keyring (${FRANKENPHP_STATIC_PHPZTS_KEYRING})"
-    fi
-
-    if [ -x /usr/local/bin/xcaddy ]; then
-        $USE_SUDO rm -f /usr/local/bin/xcaddy
-        echo "[$FM_STATIC_LOG_TAG] removed stale xcaddy binary (/usr/local/bin/xcaddy)"
-    fi
-
-    pkgs="$(dpkg -l 2>/dev/null | awk '$1=="ii" && $2 ~ /^(php|libapache2-mod-php|pkg-php-tools)/ {print $2}' || true)"
-    if [ -z "$pkgs" ]; then
-        echo "[$FM_STATIC_LOG_TAG] apt PHP purged; php runtime: ${FRANKENPHP_PHP_SHIM_DIR}/php -> ${binary} php-cli"
-    else
-        echo "[$FM_STATIC_LOG_TAG] [WARN] apt PHP packages remain after purge: $(echo "$pkgs" | tr '\n' ' ')"
-    fi
 }

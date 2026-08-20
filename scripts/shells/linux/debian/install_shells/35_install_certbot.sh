@@ -374,7 +374,7 @@ EOF
 
 # Renewal self-heal via the shared layer (cert_selfheal_common.sh): deploy
 # hooks (nginx reload only after an actual renewal) + renewal wrapper +
-# twice-daily systemd timer registered through debian_service_manager's
+# twice-daily systemd timer registered through systemd_service_manager's
 # oneshot/timer primitives. Replaces the legacy hand-rolled units and cron.
 ensure_renewal_timer() {
     # shellcheck source=/dev/null

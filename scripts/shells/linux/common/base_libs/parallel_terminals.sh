@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# parallel_terminals.sh — reusable engine to run a GROUP of installers, each in its OWN
+# parallel_terminals.sh - reusable engine to run a GROUP of installers, each in its OWN
 # live terminal (tmux pane / pop-up window / bg+tail), so their model DOWNLOADS overlap.
-# Completion is detected by per-task `.done` SENTINEL files, NEVER by exit codes — every
+# Completion is detected by per-task `.done` SENTINEL files, NEVER by exit codes - every
 # task streams its own log and is judged visually. The shared pip lock (pip_lock.sh, wired
 # into the installers) serializes their pip steps into the one venv.
 #
-# Reused by both parallel groups (TTS/STT and the LLM stack) — no duplicated machinery.
+# Reused by both parallel groups (TTS/STT and the LLM stack) - no duplicated machinery.
 #
 # Caller contract: set GROUP (human label), GROUP_SLUG (path/session slug), PT_PYTHON,
 # PT_MODE (auto|windows|tmux|bg), PT_COMMON_DIR, PT_RUN_GUARDS (0/1), PT_DRY_RUN (0/1);
@@ -44,7 +44,7 @@ pt_write_task_scripts() {
             echo "  $cmd"
             echo "  rc=\$?"
             echo "  echo"
-            echo "  echo \"[$label] DONE (exit \$rc) — independent task; see the driver summary.\""
+            echo "  echo \"[$label] DONE (exit \$rc) - independent task; see the driver summary.\""
             echo "} 2>&1 | tee \"\$LOG\""
             echo ": > \"\$DONE\""
         } > "$path"
@@ -162,7 +162,7 @@ pt_run() {
     mkdir -p "$PT_LOGDIR" "$PT_DONEDIR" 2>/dev/null || true
 
     echo "============================================================"
-    echo " Parallel install driver — ${GROUP:-parallel}"
+    echo " Parallel install driver - ${GROUP:-parallel}"
     echo "============================================================"
     echo "  python   : $PT_PYTHON"
     echo "  tasks    : ${PT_LABELS[*]}"

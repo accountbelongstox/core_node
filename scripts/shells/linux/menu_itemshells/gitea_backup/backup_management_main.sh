@@ -24,7 +24,7 @@ show_backup_menu() {
         print_header_from_common_functions "Backup Management"
 
         echo ""
-        echo "───────────────────────────────────────────────────────────────────────────────"
+        echo "-------------------------------------------------------------------------------"
         echo "Gitea Backup:"
         echo "  1) Backup Gitea"
         echo "  2) Restore Gitea from Backup"
@@ -56,7 +56,7 @@ show_backup_menu() {
         echo " 24) Start Download Server for Core_node Backup"
         echo ""
         echo "  0) Return to Main Menu"
-        echo "───────────────────────────────────────────────────────────────────────────────"
+        echo "-------------------------------------------------------------------------------"
         echo ""
         echo -n "Select an option [0-24]: "
 

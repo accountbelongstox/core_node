@@ -119,21 +119,9 @@ restore_laravel() {
         print_success_from_common_functions "external_data directory restored"
     fi
 
-    # Restore .env file if exists
-    if [[ -f "$backup_data_dir/.env" ]]; then
-        print_info_from_common_functions "Backup contains .env file"
-        echo -n "Do you want to restore .env file? (y/N): "
-        read -r restore_env
-        if [[ "$restore_env" =~ ^[yY] ]]; then
-            if [[ -f "$LARAVEL_PROJECT_DIR/.env" ]]; then
-                print_info_from_common_functions "Backing up current .env file..."
-                $USE_SUDO cp "$LARAVEL_PROJECT_DIR/.env" "$LARAVEL_PROJECT_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
-            fi
-            $USE_SUDO cp "$backup_data_dir/.env" "$LARAVEL_PROJECT_DIR/.env"
-            $USE_SUDO chown "$REAL_USER:$REAL_USER" "$LARAVEL_PROJECT_DIR/.env" 2>/dev/null || true
-            print_success_from_common_functions ".env file restored"
-        fi
-    fi
+    # NOTE: .env files are intentionally NOT restored - this repository's
+    # Laravel apps do not use .env (configuration lives in the
+    # RuntimeConfigurationStore; secrets in the global_var store).
 
     # Cleanup
     rm -rf "$restore_tmp_dir"

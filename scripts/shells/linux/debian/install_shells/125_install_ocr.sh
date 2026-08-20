@@ -34,7 +34,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Shared torch CPU/GPU guard ("外挂"): used to GPU-gate easyocr below. easyocr
+# Shared torch CPU/GPU guard ("wai gua"): used to GPU-gate easyocr below. easyocr
 # depends on torch; on a GPU-less host plain install pulls the default CUDA torch +
 # ~4.3G nvidia-*, so we ensure the CPU build first (and repair after). Idempotent.
 source "$COMMON_DIR/pycore_package_policy_install.sh"

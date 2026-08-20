@@ -1,0 +1,28 @@
+# Managed by frankenphp_manager.sh (SYNC: ServerManagerV1FrankenPhpManagerCtl)
+{
+	admin localhost:localhost
+	auto_https disable_redirects
+
+	# Explicit protocol set (official servers option): h2/h3 negotiate on
+	# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default
+	# (disable only through an explicit "0rtt off").
+	servers {
+		protocols h1 h2 h3
+	}
+}
+
+https:///www/programing/core_node/poly_apps/laravel_main/public:+ {
+	root * +
+	encode zstd gzip
+
+	php_server
+	file_server
+}
+
+# Direct HTTP backend (nginx-plane contract port, binds all interfaces)
+:9000 {
+	root * +
+	encode zstd gzip
+	php_server
+	file_server
+}

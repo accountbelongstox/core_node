@@ -191,7 +191,7 @@ ensure_sox_on_path() {
         echo "${prefix}[OK] SoX on PATH: $(command -v sox)"
         return 0
     fi
-    echo "${prefix}[!] SoX NOT on PATH — pysox (qwen-tts tokenizer) warns at import. Install: apt install sox" >&2
+    echo "${prefix}[!] SoX NOT on PATH - pysox (qwen-tts tokenizer) warns at import. Install: apt install sox" >&2
     return 1
 }
 
@@ -312,7 +312,7 @@ def walk(base):
             if not name:
                 continue
             # The HF tree API always returns repo-root-relative paths, also for
-            # subdirectory queries — never re-prefix them with the subpath.
+            # subdirectory queries - never re-prefix them with the subpath.
             if entry.get("type") == "directory":
                 pending.append(name)
                 continue

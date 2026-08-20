@@ -278,7 +278,7 @@ configure_pnpm_global_dirs() {
         run_pnpm_with_absolute_path config set store-dir "$pnpm_global_dir_target/store" || true
     fi
     # enable-pre-post-scripts is TRUE by default (pnpm 7+) and is workspace-level in
-    # pnpm 10+ — a GLOBAL `pnpm config set` errors (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY).
+    # pnpm 10+ - a GLOBAL `pnpm config set` errors (ERR_PNPM_CONFIG_SET_UNSUPPORTED_YAML_CONFIG_KEY).
     # It's the default, so we don't set it globally. Docs: https://pnpm.io/settings
 
     $USE_SUDO mkdir -p "$pnpm_global_dir_target" "$pnpm_global_bin_target"

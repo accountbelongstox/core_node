@@ -11,39 +11,43 @@
 
 # Public prebuilt installer for FrankenPHP.
 # It downloads a Linux binary from GitHub release assets and installs it to the
-# dedicated prebuilt-runtime path. Prebuilt mode intentionally skips dnspod
-# module rebuilds and executes the shared acme.sh installer after installation.
+# dedicated prebuilt candidate path. The central lifecycle promotes it only
+# after validation; this preparer never changes owner, links or packages.
 
 FRANKENPHP_PREBUILT_INDEX="93-install-prebuilt"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FRANKENPHP_PREBUILT_NAMESPACE="93_install_frankenphp"
 FRANKENPHP_PREBUILT_PROJECT="php/frankenphp"
 FRANKENPHP_PREBUILT_DEFAULT_VERSION="latest"
-FRANKENPHP_PREBUILT_BACKUP_SUFFIX=".prebuilt"
-FRANKENPHP_PREBUILT_ACME_INSTALL_SCRIPT="${SCRIPT_CURRENT_DIR}/frankenphp_acme_sh_install.sh"
 FRANKENPHP_PREBUILT_GITHUB_REPO="https://github.com/${FRANKENPHP_PREBUILT_PROJECT}"
 FRANKENPHP_PREBUILT_RELEASE_TAG=""
 FRANKENPHP_PREBUILT_RELEASE_CHANNEL=""
 FRANKENPHP_PREBUILT_RELEASE_URL=""
 FRANKENPHP_PREBUILT_ARCH=""
 FRANKENPHP_PREBUILT_ARCH_NAMES=()
+FRANKENPHP_PREBUILT_INSTALL_BIN=""
+FRANKENPHP_PREBUILT_CANDIDATE_BIN=""
 
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-source "$SCRIPT_CURRENT_DIR/common_functions.sh"
-source "$SCRIPT_CURRENT_DIR/file_ops_common.sh"
-source "$SCRIPT_CURRENT_DIR/step_state.sh"
 source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
 
 # Prebuilt binary lives in its own runtime directory; only the canonical link is
 # shared.
 FRANKENPHP_PREBUILT_INSTALL_BIN="${FRANKENPHP_PREBUILT_BINARY_PATH}"
+FRANKENPHP_PREBUILT_CANDIDATE_BIN="${FRANKENPHP_PREBUILT_CANDIDATE_PATH}"
 
 frankenphp_prebuilt_set_release_tag() {
     local normalized_version=""
+    local effective_url=""
+    local resolved_tag=""
 
     normalized_version="$(printf '%s' "${FRANKENPHP_PREBUILT_VERSION:-$FRANKENPHP_PREBUILT_DEFAULT_VERSION}" | tr -d '[:space:]')"
     if [ "$normalized_version" = "latest" ]; then
-        FRANKENPHP_PREBUILT_RELEASE_TAG="latest"
+        effective_url="$(curl -Ls -o /dev/null -w '%{url_effective}' "${FRANKENPHP_PREBUILT_GITHUB_REPO}/releases/latest" 2>/dev/null)"
+        resolved_tag="${effective_url##*/}"
+        case "$resolved_tag" in
+            v[0-9]*) FRANKENPHP_PREBUILT_RELEASE_TAG="$resolved_tag" ;;
+            *) FRANKENPHP_PREBUILT_RELEASE_TAG="latest" ;;
+        esac
     else
         normalized_version="${normalized_version#v}"
         normalized_version="$(printf '%s' "$normalized_version" | sed -e 's/[^0-9.].*$//')"
@@ -110,6 +114,15 @@ frankenphp_prebuilt_existing_version() {
         version="$("$FRANKENPHP_PREBUILT_INSTALL_BIN" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)"
         printf '%s' "$version"
     fi
+}
+
+frankenphp_prebuilt_candidate_version() {
+    local version=""
+
+    if [ -x "$FRANKENPHP_PREBUILT_CANDIDATE_BIN" ]; then
+        version="$("$FRANKENPHP_PREBUILT_CANDIDATE_BIN" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p' | head -n 1)"
+    fi
+    printf '%s' "$version"
 }
 
 frankenphp_prebuilt_is_expected_binary() {
@@ -285,11 +298,10 @@ frankenphp_prebuilt_validate_binary() {
 
     binary_path="$1"
     requested_tag="$(frankenphp_prebuilt_expected_tag)"
-    if [ ! -f "$binary_path" ]; then
+    if [ ! -x "$binary_path" ]; then
         echo "no"
         return 0
     fi
-    chmod +x "$binary_path" 2>/dev/null || true
     candidate_tag="$("$binary_path" version 2>/dev/null | sed -n 's/^FrankenPHP \(v[0-9][^ ]*\).*/\1/p' | head -n 1)"
     if [ "$requested_tag" = "latest" ]; then
         if [ -n "$candidate_tag" ]; then
@@ -306,107 +318,92 @@ frankenphp_prebuilt_validate_binary() {
     fi
 }
 
+frankenphp_prebuilt_executable_ensure() {
+    local binary_path=""
+
+    binary_path="$1"
+    if [ -f "$binary_path" ] && [ ! -x "$binary_path" ]; then
+        chmod 755 "$binary_path" 2>/dev/null
+    fi
+    if [ -x "$binary_path" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
 frankenphp_prebuilt_install_binary() {
     local asset_info=""
     local cache_path=""
     local unpack_dir=""
     local extracted_binary=""
+    local staged_binary=""
 
+    if [ "$(frankenphp_prebuilt_validate_binary "$FRANKENPHP_PREBUILT_CANDIDATE_BIN")" = "yes" ]; then
+        echo "[$FRANKENPHP_PREBUILT_INDEX] prebuilt candidate already ready: $(frankenphp_prebuilt_candidate_version)"
+        return
+    fi
     if [ "$(frankenphp_prebuilt_is_expected_binary)" = "yes" ]; then
-        echo "[$FRANKENPHP_PREBUILT_INDEX] [SKIP] prebuilt FrankenPHP already installed: $(frankenphp_prebuilt_existing_version) at ${FRANKENPHP_PREBUILT_INSTALL_BIN}"
-        return 0
+        echo "[$FRANKENPHP_PREBUILT_INDEX] canonical prebuilt payload already matches: $(frankenphp_prebuilt_existing_version)"
+        return
     fi
 
     asset_info="$(frankenphp_prebuilt_select_asset_url)"
     if [ -z "$asset_info" ] || [ "$asset_info" = "${asset_info#*|}" ]; then
         echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] no prebuilt asset could be selected for $FRANKENPHP_PREBUILT_RELEASE_TAG ($FRANKENPHP_PREBUILT_ARCH)"
-        return 1
+        return
     fi
 
     cache_path="$(frankenphp_prebuilt_download_asset "$asset_info")"
     if [ ! -s "$cache_path" ]; then
         echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt asset download failed: $asset_info"
-        return 1
+        return
     fi
 
     unpack_dir="${FRANKENPHP_PREBUILT_STAGING_DIR}/${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}-${FRANKENPHP_PREBUILT_ARCH}"
     extracted_binary="$(frankenphp_prebuilt_unpack "$cache_path" "$unpack_dir")"
     if [ -z "$extracted_binary" ] || [ ! -f "$extracted_binary" ]; then
         echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt asset unpack did not produce a binary"
-        return 1
+        return
     fi
 
+    frankenphp_prebuilt_executable_ensure "$extracted_binary" >/dev/null
     if [ "$(frankenphp_prebuilt_validate_binary "$extracted_binary")" != "yes" ]; then
         echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt binary version does not match requested release: $(frankenphp_prebuilt_expected_tag)"
-        return 1
+        return
     fi
 
-    chmod +x "$extracted_binary"
-    if [ -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ] && [ ! -f "${FRANKENPHP_PREBUILT_INSTALL_BIN}${FRANKENPHP_PREBUILT_BACKUP_SUFFIX}" ]; then
-        $USE_SUDO cp "$FRANKENPHP_PREBUILT_INSTALL_BIN" "${FRANKENPHP_PREBUILT_INSTALL_BIN}${FRANKENPHP_PREBUILT_BACKUP_SUFFIX}" || return 1
+    $USE_SUDO mkdir -p "$(dirname "$FRANKENPHP_PREBUILT_CANDIDATE_BIN")"
+    staged_binary="${FRANKENPHP_PREBUILT_CANDIDATE_BIN}.new"
+    $USE_SUDO cp "$extracted_binary" "$staged_binary"
+    $USE_SUDO chmod 755 "$staged_binary"
+    if [ "$(frankenphp_prebuilt_validate_binary "$staged_binary")" = "yes" ]; then
+        $USE_SUDO mv -f "$staged_binary" "$FRANKENPHP_PREBUILT_CANDIDATE_BIN"
     fi
-    $USE_SUDO mkdir -p "$(dirname "$FRANKENPHP_PREBUILT_INSTALL_BIN")" || return 1
-    $USE_SUDO cp "$extracted_binary" "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
-    $USE_SUDO chmod 755 "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
-    fm_ensure_local_bin_link "$FRANKENPHP_PREBUILT_INSTALL_BIN" || return 1
-    fm_ensure_php_cli_shim || return 1
-    echo "[$FRANKENPHP_PREBUILT_INDEX] installed prebuilt FrankenPHP: $(frankenphp_prebuilt_expected_tag) from ${cache_path}"
-    # Variant mutex: the prebuilt variant now owns the link - drop a stale
-    # compiled-variant backup left behind by an earlier dnspod rebuild.
-    rm -f "${FRANKENPHP_COMPILED_BINARY_PATH}${FRANKENPHP_BACKUP_SUFFIX}"
-    fm_store_info
-    return 0
-}
-
-# Keep the live /usr/local/bin/frankenphp pointer and shims aligned with the
-# prebuilt payload even when the binary install step itself is skipped by
-# fingerprint matching (for example: mode switch from compile back to prebuilt).
-frankenphp_prebuilt_ensure_link() {
-    local target_binary=""
-    local current_link=""
-
-    target_binary="$(fm_resolve_binary_path "$FRANKENPHP_PREBUILT_INSTALL_BIN")"
-    if [ -z "$target_binary" ]; then
-        echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt binary missing; skipping runtime link repair"
-        return 0
+    if [ "$(frankenphp_prebuilt_validate_binary "$FRANKENPHP_PREBUILT_CANDIDATE_BIN")" = "yes" ]; then
+        echo "[$FRANKENPHP_PREBUILT_INDEX] prebuilt candidate staged: $(frankenphp_prebuilt_expected_tag) from ${cache_path}"
+    else
+        echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] prebuilt candidate staging did not converge"
     fi
-    current_link="$(readlink -f "$FRANKENPHP_LINK_PATH" 2>/dev/null || true)"
-    fm_ensure_local_bin_link "$target_binary"
-    fm_ensure_php_cli_shim
-    if [ "$current_link" = "$target_binary" ] && [ -x "${FRANKENPHP_PHP_SHIM_DIR}/php" ]; then
-        echo "[$FRANKENPHP_PREBUILT_INDEX] prebuilt runtime link already converged: ${FRANKENPHP_LINK_PATH} -> ${target_binary}"
-    fi
-}
-
-frankenphp_prebuilt_step_fingerprint() {
-    local current_version=""
-
-    current_version="$(frankenphp_prebuilt_existing_version)"
-    echo "${FRANKENPHP_PREBUILT_RELEASE_CHANNEL}-${FRANKENPHP_PREBUILT_ARCH}-${current_version}"
 }
 
 frankenphp_install_prebuilt() {
-    local prebuilt_fingerprint=""
+    local prepared_binary=""
 
     frankenphp_prebuilt_set_release_tag
     frankenphp_prebuilt_detect_arch
-    prebuilt_fingerprint="$(frankenphp_prebuilt_step_fingerprint)"
+    $USE_SUDO mkdir -p "$FRANKENPHP_PREBUILT_RUNTIME_DIR"
+    printf '%s\n' "$FRANKENPHP_PREBUILT_RELEASE_TAG" | $USE_SUDO tee "$FRANKENPHP_PREBUILT_REQUEST_STATE" >/dev/null
+    frankenphp_prebuilt_install_binary
 
-    step_run "$FRANKENPHP_PREBUILT_NAMESPACE" "prebuilt-binary" "$prebuilt_fingerprint" \
-        frankenphp_prebuilt_install_binary
-
-    frankenphp_prebuilt_ensure_link
-
-    if [ -x "$FRANKENPHP_PREBUILT_INSTALL_BIN" ]; then
-        source "$FRANKENPHP_PREBUILT_ACME_INSTALL_SCRIPT"
-        acme_sh_ensure_install
-        acme_sh_ensure_domains
-        # Plane mutex + apt PHP cleanup behind a healthy binary - identical
-        # gates to the compiled variant.
-        fm_disable_legacy_php_runtime
-        fm_static_apt_php_cleanup
+    prepared_binary="$(fm_variant_prepared_binary "$FRANKENPHP_INSTALL_MODE_PREBUILT")"
+    if [ "$(frankenphp_prebuilt_validate_binary "$prepared_binary")" = "yes" ]; then
+        printf '%s\n' "$FRANKENPHP_PREBUILT_RELEASE_TAG" | $USE_SUDO tee "$FRANKENPHP_PREBUILT_READY_STATE" >/dev/null
+    fi
+    if [ "$(fm_variant_ready "$FRANKENPHP_INSTALL_MODE_PREBUILT")" = "yes" ]; then
+        echo "[$FRANKENPHP_PREBUILT_INDEX] prebuilt candidate ready: ${prepared_binary}"
     else
-        echo "[$FRANKENPHP_PREBUILT_INDEX] [WARN] skip acme.sh install because $FRANKENPHP_PREBUILT_INSTALL_BIN is missing"
+        echo "[$FRANKENPHP_PREBUILT_INDEX] [ERROR] prebuilt candidate incomplete; active owner was not changed"
     fi
 }
 

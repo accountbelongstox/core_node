@@ -11,13 +11,13 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Sherpa-ONNX offline TTS (Kokoro zh/en model) — self-contained, no sibling installers.
+# Sherpa-ONNX offline TTS (Kokoro zh/en model) - self-contained, no sibling installers.
 # Other TTS/STT engines are separate numbered scripts; the caller (dd.sh sweep or
 # prepare_pycore_prerequisites.sh) runs them in order.
 #
 # Invocation:
 #   31_install_tts_offline.sh [--python <py>] [--force]
-#   Legacy flags (--core-only, --melotts, --parallel, …) are ignored with a hint.
+#   Legacy flags (--core-only, --melotts, --parallel, ...) are ignored with a hint.
 
 PYTHON="python3"
 FORCE=0

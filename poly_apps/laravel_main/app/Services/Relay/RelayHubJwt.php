@@ -9,26 +9,24 @@ use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
 
 /**
- * Shared Mercure JWT facility (Mercure 1.0, RFC 9068 access tokens).
+ * Shared JWT facility for the Mercure hub embedded in FrankenPHP.
  *
- * Publisher and subscriber tokens are RFC 9068 JWTs ("at+jwt") carrying an
- * RFC 9396 authorization_details claim - the 1.0 shape the hub validates
- * natively. One HS256 signer, one key source (RuntimeConfigurationStore),
- * no hand-rolled cryptography anywhere in the relay.
+ * FrankenPHP v1.12.7 embeds dunglas/mercure v0.24.2, whose native grant is
+ * the `mercure.publish` / `mercure.subscribe` claim. One HS256 signer and one
+ * key source are shared by every relay publisher and subscriber.
  */
 final class RelayHubJwt
 {
     public const PUBLISHER_KEY = 'MERCURE_PUBLISHER_JWT';
     public const SUBSCRIBER_KEY = 'MERCURE_SUBSCRIBER_JWT';
     public const TRUSTED_ISSUER_KEY = 'MERCURE_TRUSTED_ISSUERS';
-    public const AUTH_DETAIL_TYPE = 'https://mercure.rocks/authorization-detail';
     private const PUBLISHER_TTL_SECONDS = 300;
 
     public static function publisherToken(): string
     {
         return self::build(
             'publisher',
-            self::detail(['publish'], [['match' => '*']]),
+            ['publish' => ['*']],
             self::PUBLISHER_TTL_SECONDS,
             self::PUBLISHER_KEY
         );
@@ -39,12 +37,12 @@ final class RelayHubJwt
      */
     public static function subscriberToken(string $subject, array $topics): string
     {
-        $matchers = [];
-        foreach (array_values(array_unique($topics)) as $topic) {
-            $matchers[] = ['match' => $topic];
-        }
-
-        return self::build($subject, self::detail(['subscribe'], $matchers), QueueCenterContract::relayHubInt('token_ttl_seconds'), self::SUBSCRIBER_KEY);
+        return self::build(
+            $subject,
+            ['subscribe' => array_values(array_unique($topics))],
+            QueueCenterContract::relayHubInt('token_ttl_seconds'),
+            self::SUBSCRIBER_KEY
+        );
     }
 
     public static function hubUrl(): string
@@ -75,22 +73,9 @@ final class RelayHubJwt
     }
 
     /**
-     * @param array<int, array<string, mixed>> $topics
-     * @return array<string, mixed>
+     * @param array{publish?: array<int, string>, subscribe?: array<int, string>} $grant
      */
-    private static function detail(array $actions, array $topics): array
-    {
-        return [
-            'type' => self::AUTH_DETAIL_TYPE,
-            'actions' => $actions,
-            'topics' => $topics,
-        ];
-    }
-
-    /**
-     * @param array<int, array<string, mixed>> $authorizationDetails
-     */
-    private static function build(string $subject, array $authorizationDetails, int $ttlSeconds, string $keyName): string
+    private static function build(string $subject, array $grant, int $ttlSeconds, string $keyName): string
     {
         $now = new \DateTimeImmutable();
         $issuer = self::trustedIssuer();
@@ -109,7 +94,7 @@ final class RelayHubJwt
             ->issuedAt($now)
             ->expiresAt($now->modify('+'.$ttlSeconds.' seconds'))
             ->withClaim('client_id', $issuer)
-            ->withClaim('authorization_details', $authorizationDetails)
+            ->withClaim('mercure', $grant)
             ->getToken($configuration->signer(), $configuration->signingKey());
 
         return $token->toString();

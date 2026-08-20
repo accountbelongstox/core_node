@@ -44,7 +44,7 @@ ENABLE_SERVICE=0
 # Service management variables
 SERVICE_NAME="network-bridge-router"
 SERVICE_DESCRIPTION="Network Bridge Router Service"
-DEBIAN_SERVICE_MANAGER="$SCRIPT_DIR/debian_service_manager.sh"
+DEBIAN_SERVICE_MANAGER="$SCRIPT_DIR/systemd_service_manager.sh"
 
 # Runtime state variables
 RUNNING=0
@@ -567,7 +567,7 @@ exec "$0" -i "$INPUT_INTERFACE" -o "$OUTPUT_INTERFACE" -r "$ROUTER_IP" --daemon
 EOF
     chmod +x "$service_script"
 
-    # Install service using debian_service_manager
+    # Install service using systemd_service_manager
     "$DEBIAN_SERVICE_MANAGER" install "$SERVICE_NAME" "$service_script" "$SERVICE_DESCRIPTION" || {
         log_message "ERROR" "Failed to install service"
         return 1

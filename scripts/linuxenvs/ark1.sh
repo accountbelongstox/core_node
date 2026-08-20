@@ -311,7 +311,7 @@ fi
 echo "claude: $(claude --version 2>/dev/null | head -1)"
 echo "Isolated user dir: $ark_user_dir (Claude data/config for this slot)"
 if [ "$use_plain_claude" -eq 1 ]; then
-    echo "Mode: plain Claude (ARKCLI_API_KEY set — skip arkcli)"
+    echo "Mode: plain Claude (ARKCLI_API_KEY set - skip arkcli)"
     echo "  Purpose: use Claude under Ark custom user dir without arkcli."
     if [ -z "$arkcli_api" ]; then
         echo "[ERROR] ARKCLI_API_KEY is set but ARKCLI_API (BASE_URL) is empty." >&2
@@ -334,12 +334,12 @@ else
 fi
 [ -n "$arkcli_profile" ] && echo "ARKCLI_PROFILE: $arkcli_profile"
 [ -n "$arkcli_model" ] && echo "ARKCLI_MODEL: $arkcli_model (Use model? [Y/n]; N -> auto ark-code-latest)"
-[ -z "$arkcli_model" ] && echo "ARKCLI_MODEL: (empty — Use model kimi-k3? [Y/n]; N -> auto ark-code-latest)"
+[ -z "$arkcli_model" ] && echo "ARKCLI_MODEL: (empty - Use model kimi-k3? [Y/n]; N -> auto ark-code-latest)"
 [ -n "$arkcli_mcp_profile" ] && echo "ARKCLI_MCP_PROFILE: $arkcli_mcp_profile"
 if [ -n "$arkcli_api" ]; then
     echo "ARKCLI_API: $arkcli_api (ANTHROPIC_BASE_URL)"
 elif [ "$use_plain_claude" -eq 1 ]; then
-    echo "ARKCLI_API: (empty — set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)"
+    echo "ARKCLI_API: (empty - set with ARKCLI_API_KEY for Anthropic-compatible BASE_URL)"
 fi
 if [ "$enable_team" -eq 1 ]; then
     echo "Agent Teams: ON (-team) CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 --teammate-mode in-process"
@@ -428,7 +428,7 @@ mcp_output="$(arkcli "${mcp_args[@]}" 2>&1)"
 mcp_exit=$?
 set -e
 if [ "$mcp_exit" -ne 0 ]; then
-    if echo "$mcp_output" | grep -Eiq 'agent[- ]?plan|no agent plan|未找到.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|已跳过'; then
+    if echo "$mcp_output" | grep -Eiq 'agent[- ]?plan|no agent plan|weizhaodao.*[Aa]gent|[Aa]gent.*not found|not found.*profile|openviking|yi tiao guo'; then
         echo "[WARN] Agent Plan MCP incomplete or unavailable; continuing so Claude can still start."
         [ -n "$mcp_output" ] && echo "$mcp_output"
     else
@@ -438,7 +438,7 @@ if [ "$mcp_exit" -ne 0 ]; then
     fi
 else
     echo "[OK] Agent Plan MCP configured."
-    if echo "$mcp_output" | grep -Eiq 'openviking|已跳过'; then
+    if echo "$mcp_output" | grep -Eiq 'openviking|yi tiao guo'; then
         echo "[INFO] arkcli note (non-fatal):"
         echo "$mcp_output"
     fi

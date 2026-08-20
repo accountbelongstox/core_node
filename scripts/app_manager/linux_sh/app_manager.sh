@@ -19,7 +19,7 @@ source "$SCRIPT_DIR/utils/log_budget.sh"
 
 # State + logs (foreground.log, service.log) live under APP_MANAGER_DATA_DIR/logs/namespaces/apps/<name>/
 # ONE unified dir for all users (canonical path-map key 'app_manager_logs' parent).
-# Not under $HOME (root would use /root/.local/... — other users cannot read).
+# Not under $HOME (root would use /root/.local/... - other users cannot read).
 # Created world-accessible (0777) so any user can read/write; override only via
 # CORE_NODE_APP_MANAGER_DATA. Old/scattered dirs are purged by cleanup_old_log_dirs().
 resolve_app_manager_data_dir() {
@@ -334,7 +334,7 @@ print_post_install_log_preview() {
         st="$(systemctl is-active "$svc" 2>/dev/null || true)"
         print_info "systemctl is-active: ${st:-unknown}"
         systemctl show "$svc" -p ActiveState,SubState,ExecMainStatus,Result --no-pager 2>/dev/null \
-            | sed '/^$/d' || print_info "(systemctl show failed — need root?)"
+            | sed '/^$/d' || print_info "(systemctl show failed - need root?)"
     else
         print_info "systemctl not in PATH"
     fi
@@ -344,7 +344,7 @@ print_post_install_log_preview() {
         if [[ -s "$slog" ]]; then
             tail -n 120 "$slog" 2>/dev/null || print_err "Cannot read $slog"
         else
-            print_info "(still empty: unit not started yet, or process writes nowhere, or still starting — see journal above)"
+            print_info "(still empty: unit not started yet, or process writes nowhere, or still starting - see journal above)"
         fi
     else
         print_info "(no service.log file yet)"
@@ -445,7 +445,7 @@ install_service_at_index() {
         ensure_log_budget_timer
         print_info "Service log file: $slog"
         print_info "Log budget: folder capped at ${APP_MANAGER_LOG_TOTAL_BYTES} bytes (trim timer: app-manager-log-trim.timer)"
-        # Unit file alone does not run ExecStart — service.log stays empty until the unit is started.
+        # Unit file alone does not run ExecStart - service.log stays empty until the unit is started.
         if command -v systemctl >/dev/null 2>&1; then
             if systemctl enable --now "${service_name}.service" 2>/dev/null; then
                 print_ok "Started unit: ${service_name}.service (stdout/stderr -> service.log)"
@@ -492,7 +492,7 @@ show_logs_at_index() {
     if [[ -f "$svc" ]]; then
         tail -n 120 "$svc" 2>/dev/null || print_err "Cannot read $svc"
     else
-        print_info "(no service file log yet — reinstall service to enable append logging)"
+        print_info "(no service file log yet - reinstall service to enable append logging)"
     fi
     echo ""
     echo "--- journalctl -u $svc (last 40) ---"

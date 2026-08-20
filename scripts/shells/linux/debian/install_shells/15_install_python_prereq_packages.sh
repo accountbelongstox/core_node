@@ -11,17 +11,17 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Python prerequisite packages installer (Linux — Debian/Ubuntu/Kali).
+# Python prerequisite packages installer (Linux - Debian/Ubuntu/Kali).
 #
 # Runs immediately AFTER 13_ensure_python.sh (pip confirmed) and 11_cuda_nvidia_prereq.sh
 # (CUDA/driver when GPU present). Installs captcha/AI backend deps into $VENV_PYTHON3:
-#   - torch + torchvision + torchaudio + ultralytics (YOLO) — one resolver pass
+#   - torch + torchvision + torchaudio + ultralytics (YOLO) - one resolver pass
 #   - paddlepaddle (CPU or GPU, driver-matched) + paddleocr + paddlex
-#   - shared backend deps (fastapi, opencv, numpy, …)
+#   - shared backend deps (fastapi, opencv, numpy, ...)
 #
 # GPU/CPU: torch_cpu_guard.sh and paddle_cpu_guard.sh auto-select the correct wheel
 # index from nvidia-smi; CPU-only hosts never pull CUDA/nvidia-* stacks.
-# Python: 3.12 or 3.13 — whichever the system / venv provides (13_ensure_python).
+# Python: 3.12 or 3.13 - whichever the system / venv provides (13_ensure_python).
 # Idempotent: each bundle skips when imports already succeed.
 
 SCRIPT_INDEX="14"
@@ -113,14 +113,14 @@ ipp_report_cuda_state() {
         [[ -n "$cuda_ver" ]] && cuda_ver="CUDA Version: $cuda_ver"
         policy_tag="$(cuda_policy_tag)"
         if [[ -n "$policy_tag" ]]; then
-            echo "[$SCRIPT_INDEX] NVIDIA GPU detected ${cuda_ver:+($cuda_ver)} — unified $policy_tag policy."
+            echo "[$SCRIPT_INDEX] NVIDIA GPU detected ${cuda_ver:+($cuda_ver)} - unified $policy_tag policy."
             echo "[$SCRIPT_INDEX]   torch  -> $(torch_cuda_index_url)"
             echo "[$SCRIPT_INDEX]   paddle -> $(paddle_cuda_index_url)"
         else
             echo "[$SCRIPT_INDEX] NVIDIA GPU detected but no common CUDA tier supports this driver; incompatible GPU packages are skipped."
         fi
     else
-        echo "[$SCRIPT_INDEX] No NVIDIA GPU — CPU wheels for torch and paddle."
+        echo "[$SCRIPT_INDEX] No NVIDIA GPU - CPU wheels for torch and paddle."
     fi
 }
 

@@ -198,7 +198,7 @@ resolve_port_conflict() {
 }
 
 # Function to check if the PostgreSQL SERVER is already installed.
-# IMPORTANT: psql is the CLIENT (package postgresql-client) — its presence does
+# IMPORTANT: psql is the CLIENT (package postgresql-client) - its presence does
 # NOT mean the server is installed. A client-only box has NO `postgres` OS user,
 # NO cluster tools (pg_createcluster/pg_ctlcluster from postgresql-common) and NO
 # server daemon, so the old `command_exists psql` check wrongly took the "already
@@ -302,8 +302,9 @@ create_app_databases() {
 
 # Resolve (or generate + persist) the postgres superuser password via the shared
 # global-var store, mirroring the MySQL pattern (85_install_mysql.sh). The same
-# value is read by start.sh and written into the Laravel .env, so dd.sh and
-# start.sh stay aligned. A fresh (re)install with no stored value regenerates it.
+# value is read by Laravel via App\Support\CoreNodeSecrets (never written into
+# any .env file), so dd.sh and the runtime stay aligned. A fresh (re)install
+# with no stored value regenerates it.
 get_postgresql_password() {
     local pw="" mirror=""
     pw=$(get_global_var "POSTGRES_PASSWORD" "")

@@ -1,5 +1,5 @@
 #!/bin/bash
-# CosyVoice prerequisite (Linux) — FunAudioLLM FastAPI server on :50000.
+# CosyVoice prerequisite (Linux) - FunAudioLLM FastAPI server on :50000.
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice). Clones FunAudioLLM/CosyVoice idempotently.
 # pycore's cosyvoice engine is an HTTP CLIENT to runtime/python/fastapi/server.py.
 #

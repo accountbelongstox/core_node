@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # =============================================================================
-# Backup All Projects — One-click archive of all code projects on this machine
+# Backup All Projects - One-click archive of all code projects on this machine
 # =============================================================================
 # Scans all user homes and common locations for project indicators (.git,
 # package.json, requirements.txt, Cargo.toml, etc.), then archives each
@@ -44,6 +44,7 @@ TAR_EXCLUDES=(
     --exclude='.venv'
     --exclude='venv'
     --exclude='env'
+    --exclude='.env'
     --exclude='.env.local'
     --exclude='target'
     --exclude='dist'
@@ -123,7 +124,7 @@ build_scan_dirs() {
     fi
 }
 
-# Noise path patterns — tool caches, SDKs, extensions, not real user projects
+# Noise path patterns - tool caches, SDKs, extensions, not real user projects
 is_noise_path() {
     local p="$1"
     case "$p" in
@@ -152,7 +153,7 @@ is_noise_path() {
     if [[ "$p" =~ ^/home/[^/]+$ ]] || [[ "$p" == "/root" ]]; then
         return 0
     fi
-    # Path is only 1 component under .local (e.g. /home/user/.local) — not a project
+    # Path is only 1 component under .local (e.g. /home/user/.local) - not a project
     if [[ "$p" =~ ^/home/[^/]+/\.local$ ]]; then
         return 0
     fi

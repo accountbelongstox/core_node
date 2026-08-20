@@ -47,7 +47,7 @@ print_warning_from_common_functions "Found ${#CIRCULAR_SYMLINKS[@]} circular sym
 echo ""
 for link in "${CIRCULAR_SYMLINKS[@]}"; do
     target=$(readlink "$link" 2>/dev/null)
-    echo "  ✗ $(basename "$link") → $target"
+    echo "  [ERROR] $(basename "$link") -> $target"
 done
 echo ""
 
@@ -75,9 +75,9 @@ if [[ "$FIX_MODE" == true ]]; then
 
     for tool in "${CRITICAL_TOOLS[@]}"; do
         if command -v "$tool" >/dev/null 2>&1; then
-            print_info_from_common_functions "✓ $tool: $(which "$tool")"
+            print_info_from_common_functions "[OK] $tool: $(which "$tool")"
         else
-            print_warning_from_common_functions "✗ $tool: not found"
+            print_warning_from_common_functions "[ERROR] $tool: not found"
             all_working=false
         fi
     done

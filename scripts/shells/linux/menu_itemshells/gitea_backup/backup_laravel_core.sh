@@ -145,11 +145,9 @@ backup_laravel() {
             }
         done
         
-        # Copy .env file if exists
-        if [[ -f "$LARAVEL_PROJECT_DIR/.env" ]]; then
-            print_info_from_common_functions "Copying .env file..."
-            $USE_SUDO cp "$LARAVEL_PROJECT_DIR/.env" "$backup_data_dir/" 2>/dev/null || true
-        fi
+        # NOTE: .env files are intentionally NOT backed up - this repository's
+        # Laravel apps do not use .env (configuration lives in the
+        # RuntimeConfigurationStore; secrets in the global_var store).
         
         # Create archive
         print_step_from_common_functions "Creating backup archive..."
@@ -204,7 +202,7 @@ list_laravel_backups() {
     print_info_from_common_functions "Found ${#backups[@]} backup(s):"
     echo ""
     printf "%-4s %-30s %-12s %-20s\n" "No." "Filename" "Size" "Modified"
-    echo "────────────────────────────────────────────────────────────────────────────"
+    echo "----------------------------------------------------------------------------"
     
     local index=1
     for backup in "${backups[@]}"; do

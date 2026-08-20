@@ -1082,7 +1082,7 @@ d['port'] = $RUSTDESK_DASHBOARD_PORT
 with open(p, 'w') as f: json.dump(d, f, indent=2)
 " 2>/dev/null || true
     fi
-    source "$PARENT_DIR_LEVEL_2/common/debian_service_manager.sh"
+    source "$PARENT_DIR_LEVEL_2/common/systemd_service_manager.sh"
     if create_ncore_service "$RUSTDESK_DASHBOARD_APP" "rustdesk-dashboard" "RustDesk OSS Dashboard (client IDs)" "20%" "128M"; then
         $USE_SUDO systemctl enable "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true
         $USE_SUDO systemctl start "$RUSTDESK_DASHBOARD_SERVICE_NAME" 2>/dev/null || true

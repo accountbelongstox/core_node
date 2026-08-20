@@ -121,7 +121,7 @@ cci_others_can_access() {
 # Locate the claude binary on this machine. PATH first, then EVERY user's native
 # per-user install location (root AND all regular users), then the shared /usr/local/bin
 # copy LAST. Searching other users' homes is essential when 129 runs as root but claude
-# was installed by a regular user under /home/<user>/.local/bin — otherwise the install is
+# was installed by a regular user under /home/<user>/.local/bin - otherwise the install is
 # not detected (re-runs the installer) and there is no source to sync to all users.
 cci_find_claude() {
     local c candidate
@@ -148,7 +148,7 @@ cci_find_claude() {
 
 # Run the official native installer, unless claude already works (idempotent). "Installed"
 # means a working claude found ANYWHERE (current PATH, the shared bin, or ANY user's native
-# home) — not just the running user's PATH; otherwise running as root re-installs even when
+# home) - not just the running user's PATH; otherwise running as root re-installs even when
 # a regular user already has it. When skipped, the caller still syncs the bin to all users.
 cci_install_native() {
     local existing

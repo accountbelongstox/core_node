@@ -53,7 +53,7 @@ android_build_java_major_of() {
 android_build_valid_java_home() { [ -n "$1" ] && [ -x "$1/bin/java" ]; }
 
 # Fill ANDROID_BUILD_JAVA_HOME by BINARY EXISTENCE: env JAVA_HOME ->
-# /etc/environment JAVA_HOME (written by 93_install_java.sh) -> PATH java ->
+# /etc/environment JAVA_HOME (written by 92_install_java.sh) -> PATH java ->
 # compile-dir JDKs (dd constant COMPILE_DIR + conventional mirrors) -> distro JVMs.
 android_build_resolve_java_home() {
     ANDROID_BUILD_JAVA_HOME="${JAVA_HOME:-}"

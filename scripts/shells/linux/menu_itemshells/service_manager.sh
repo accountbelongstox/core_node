@@ -367,11 +367,11 @@ start_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl start "$octane_service"; then
-                    echo -e "${GREEN}�?Started $octane_service${NC}"
+                    echo -e "${GREEN}Started $octane_service${NC}"
                     $USE_SUDO systemctl enable "$octane_service" 2>/dev/null
                     ((success_count++))
                 else
-                    echo -e "${RED}�?Failed to start $octane_service${NC}"
+                    echo -e "${RED}Failed to start $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -436,10 +436,10 @@ stop_service() {
                 ((success_count++))
             else
                 if $USE_SUDO systemctl stop "$octane_service"; then
-                    echo -e "${GREEN}�?Stopped $octane_service${NC}"
+                    echo -e "${GREEN}Stopped $octane_service${NC}"
                     ((success_count++))
                 else
-                    echo -e "${RED}�?Failed to stop $octane_service${NC}"
+                    echo -e "${RED}Failed to stop $octane_service${NC}"
                     ((fail_count++))
                 fi
             fi
@@ -488,10 +488,10 @@ restart_service() {
 
         for octane_service in $octane_services; do
             if $USE_SUDO systemctl restart "$octane_service"; then
-                echo -e "${GREEN}�?Restarted $octane_service${NC}"
+                echo -e "${GREEN}Restarted $octane_service${NC}"
                 ((success_count++))
             else
-                echo -e "${RED}�?Failed to restart $octane_service${NC}"
+                echo -e "${RED}Failed to restart $octane_service${NC}"
                 ((fail_count++))
             fi
         done

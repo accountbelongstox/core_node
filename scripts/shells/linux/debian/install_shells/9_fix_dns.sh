@@ -482,9 +482,9 @@ main() {
         log_info "====================================================="
         log_info "No DNS fix needed. System can access:"
         if [ "$SELECTED_REGION" = "China" ]; then
-            log_info "  �?baidu.com (China test site)"
+            log_info "  baidu.com (China test site)"
         else
-            log_info "  �?google.com (Global test site)"
+            log_info "  google.com (Global test site)"
         fi
         log_info ""
         log_info "Skipping DNS modifications to avoid breaking working configuration."
@@ -565,10 +565,10 @@ main() {
             log_info "  - Network download: Working"
             echo ""
             log_info "Your system can now:"
-            log_info "  �?Resolve domain names"
-            log_info "  �?Download files from npm registry"
-            log_info "  �?Access Ubuntu package repositories"
-            log_info "  �?Connect to external services"
+            log_info "  Resolve domain names"
+            log_info "  Download files from npm registry"
+            log_info "  Access Ubuntu package repositories"
+            log_info "  Connect to external services"
             return 0
         else
             log_warning "DNS works but actual downloads failed"

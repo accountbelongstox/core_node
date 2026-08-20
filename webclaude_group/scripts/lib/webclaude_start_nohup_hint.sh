@@ -55,7 +55,7 @@ webclaude_print_nohup_and_hot_reload() {
 
   echo ""
   echo "============================================================"
-  echo "  ${title} — background run (nohup)"
+  echo "  ${title} - background run (nohup)"
   echo "  This script path: ${start_sh}"
   echo "============================================================"
   echo "  Copy-paste to run detached (stdout/stderr -> log file):"

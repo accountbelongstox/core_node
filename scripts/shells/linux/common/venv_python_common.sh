@@ -101,12 +101,12 @@ venv_pip_install_from_common() {
 
 # SINGLE SOURCE OF TRUTH for the runtime Python environment (where pip installs land and
 # which site the worker imports from). Every entry point that launches or installs for the
-# pycore worker — pyservice.sh, iniscripts/prepare.sh, the 150/152 installers — MUST call
+# pycore worker - pyservice.sh, iniscripts/prepare.sh, the 150/152 installers - MUST call
 # this with the resolved interpreter so they all produce an IDENTICAL environment; a
 # divergence here is what let a stale /usr/local torch shadow the worker's real install.
 #
 #   VENV interpreter -> PIP_USER=0 only. A venv is self-contained: pip targets the venv
-#                       itself, never a user site. Do NOT export PYTHONUSERBASE for a venv —
+#                       itself, never a user site. Do NOT export PYTHONUSERBASE for a venv -
 #                       that redirects the venv's user-site to an empty shared dir and makes
 #                       `import torch` fall through to /usr/local (the re-download-loop bug);
 #                       and PIP_USER=1 here makes pip refuse to UPGRADE a venv-resident

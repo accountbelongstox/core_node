@@ -9,184 +9,198 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Public orchestrator for FrankenPHP installation in 93_install_frankenphp.
-# It keeps the old skip/plane behavior and dispatches either:
-# - compile mode: existing official installer + static build flow (dnspod rebuild path)
-# - prebuilt mode: release asset install + acme.sh installation
+# Canonical three-variant lifecycle. Preparation repairs only the requested
+# candidate. The file-backed owner is committed after an independent readiness
+# probe, and non-owner payloads retire only after the runtime contract is
+# re-probed. No phase consumes a command or function exit status as state.
 
 FRANKENPHP_INSTALL_INDEX="93"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 REPO_ROOT="$(cd "$SCRIPT_CURRENT_DIR/../../../.." && pwd)"
-SCRIPT_INDEX="93"
-FRANKENPHP_INSTALL_NAMESPACE="93_install_frankenphp"
-
-FRANKENPHP_STEP_NAMESPACE="93_install_frankenphp"
+FRANKENPHP_INSTALL_MODE=""
+FRANKENPHP_INSTALL_SELECTION=""
+FRANKENPHP_INSTALL_OPTION=""
+FRANKENPHP_INSTALL_NO_MUTEX="false"
+FRANKENPHP_INSTALL_PREBUILT_VERSION=""
 FRANKENPHP_CADDYFILE_DIR="${REPO_ROOT}/poly_apps/laravel_main/storage/frankenphp"
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-}"
 FRANKENPHP_SITE_PORT=""
 FRANKENPHP_ADMIN_PORT=""
 FRANKENPHP_LARAVEL_PUBLIC_DIR="${REPO_ROOT}/poly_apps/laravel_main/public"
-FRANKENPHP_PREBUILT_VERSION="${FRANKENPHP_PREBUILT_VERSION:-latest}"
-FRANKENPHP_INSTALL_MODE="${FRANKENPHP_INSTALL_MODE:-}"
-FRANKENPHP_NO_MUTEX="false"
-
-source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-source "$SCRIPT_CURRENT_DIR/common_functions.sh"
-source "$SCRIPT_CURRENT_DIR/step_state.sh"
-source "$SCRIPT_CURRENT_DIR/service_contract_common.sh"
-source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
-
-FRANKENPHP_SITE_PORT="${FRANKENPHP_SITE_PORT:-$(sc_get ports.frankenphp_https)}"
-FRANKENPHP_ADMIN_PORT="${FRANKENPHP_ADMIN_PORT:-$(sc_get ports.frankenphp_admin)}"
-# Shared site-host resolver (manager single source; env FRANKENPHP_SITE_HOST wins).
-FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
-
+FRANKENPHP_INSTALL_COMPILE_SCRIPT=""
+FRANKENPHP_INSTALL_APT_SCRIPT=""
+FRANKENPHP_INSTALL_PREBUILT_SCRIPT=""
+FRANKENPHP_INSTALL_CLEANUP_COMPILE_SCRIPT=""
+FRANKENPHP_INSTALL_CLEANUP_APT_SCRIPT=""
+FRANKENPHP_INSTALL_CLEANUP_PREBUILT_SCRIPT=""
+FRANKENPHP_ACME_INSTALL_SCRIPT="${SCRIPT_CURRENT_DIR}/frankenphp_acme_sh_install.sh"
 NGINX_PLANE_DISABLE_SCRIPT="${SCRIPT_CURRENT_DIR}/nginx_plane_disable.sh"
 CERTBOT_PLANE_DISABLE_SCRIPT="${SCRIPT_CURRENT_DIR}/certbot_plane_disable.sh"
 
+source "$SCRIPT_CURRENT_DIR/frankenphp_install_modes.sh"
+source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
+source "$SCRIPT_CURRENT_DIR/common_functions.sh"
+source "$SCRIPT_CURRENT_DIR/service_contract_common.sh"
+source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
+
+FRANKENPHP_INSTALL_COMPILE_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_COMPILE_SCRIPT_NAME}"
+FRANKENPHP_INSTALL_APT_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_SYSTEM_SCRIPT_NAME}"
+FRANKENPHP_INSTALL_PREBUILT_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_PREBUILT_SCRIPT_NAME}"
+FRANKENPHP_INSTALL_CLEANUP_COMPILE_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_CLEANUP_COMPILE_SCRIPT_NAME}"
+FRANKENPHP_INSTALL_CLEANUP_APT_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_CLEANUP_SYSTEM_SCRIPT_NAME}"
+FRANKENPHP_INSTALL_CLEANUP_PREBUILT_SCRIPT="${SCRIPT_CURRENT_DIR}/${FRANKENPHP_INSTALL_PIPELINE_CLEANUP_PREBUILT_SCRIPT_NAME}"
+FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
+FRANKENPHP_SITE_PORT="$(sc_get ports.frankenphp_https)"
+FRANKENPHP_ADMIN_PORT="$(sc_get ports.frankenphp_admin)"
+
 frankenphp_install_pipeline_read_mode() {
     local arg=""
-    local selected_mode=""
-    local parsed_mode=""
-    local tty_choice=""
-    local version_input=""
 
     for arg in "$@"; do
         case "$arg" in
-            --no-mutex)
-                FRANKENPHP_NO_MUTEX="true"
+            --apt|--mode=apt|1|apt)
+                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_APT"
                 ;;
-            --compile)
-                FRANKENPHP_INSTALL_MODE="compile"
+            --compile|--mode=compile|2|compile)
+                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_COMPILE"
                 ;;
-            --prebuilt|--binary=prebuilt|--source=prebuilt)
-                FRANKENPHP_INSTALL_MODE="prebuilt"
-                ;;
-            --prebuilt-version=*)
-                FRANKENPHP_PREBUILT_VERSION="${arg#*=}"
-                FRANKENPHP_INSTALL_MODE="prebuilt"
+            --git|--prebuilt|--mode=prebuilt|--mode=git|3|git|prebuilt)
+                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_PREBUILT"
                 ;;
             --mode=*)
-                parsed_mode="${arg#*=}"
-                case "$parsed_mode" in
-                    compile|prebuilt)
-                        FRANKENPHP_INSTALL_MODE="$parsed_mode"
-                        ;;
-                esac
+                FRANKENPHP_INSTALL_OPTION="${arg#*=}"
+                FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL_OPTION")"
+                ;;
+            --prebuilt-version=*)
+                FRANKENPHP_INSTALL_MODE="$FRANKENPHP_INSTALL_MODE_PREBUILT"
+                FRANKENPHP_INSTALL_PREBUILT_VERSION="${arg#*=}"
+                ;;
+            --no-mutex)
+                FRANKENPHP_INSTALL_NO_MUTEX="true"
                 ;;
         esac
     done
 
-    selected_mode="$FRANKENPHP_INSTALL_MODE"
-    if [ -z "$selected_mode" ]; then
-        if [ -t 0 ] && [ -r /dev/tty ]; then
-            echo -n "[${FRANKENPHP_INSTALL_INDEX}] Use prebuilt FrankenPHP binary install? (Y/n): "
-            read -r tty_choice < /dev/tty || tty_choice=""
-        else
-            tty_choice=""
-        fi
-        selected_mode="$(printf '%s' "$tty_choice" | tr '[:upper:]' '[:lower:]')"
-        case "$selected_mode" in
-            n|no)
-                FRANKENPHP_INSTALL_MODE="compile"
-                ;;
-            y|yes|"")
-                FRANKENPHP_INSTALL_MODE="prebuilt"
-                ;;
-            *)
-                FRANKENPHP_INSTALL_MODE="compile"
-                ;;
-        esac
+    if [ -z "$FRANKENPHP_INSTALL_MODE" ] && [ -t 0 ] && [ -r /dev/tty ]; then
+        echo "[${FRANKENPHP_INSTALL_INDEX}] Select FrankenPHP installation mode:"
+        echo "[${FRANKENPHP_INSTALL_INDEX}]   [1] apt install - official deb repo + php-zts extensions incl. PostgreSQL (default)"
+        echo "[${FRANKENPHP_INSTALL_INDEX}]   [2] Compile (dnspod DNS-01 module embedded)"
+        echo "[${FRANKENPHP_INSTALL_INDEX}]   [3] GitHub prebuilt binary"
+        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Choose mode (1/2/3, default 1): "
+        read -r FRANKENPHP_INSTALL_SELECTION < /dev/tty
+        FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL_SELECTION")"
     fi
-
-    if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ] && [ -t 0 ] && [ -r /dev/tty ]; then
-        echo -n "[${FRANKENPHP_INSTALL_INDEX}] Use default prebuilt version ${FRANKENPHP_PREBUILT_VERSION:-latest}? (Y/n): "
-        read -r tty_choice < /dev/tty || tty_choice=""
-        selected_mode="$(printf '%s' "$tty_choice" | tr '[:upper:]' '[:lower:]')"
-        if [ "$selected_mode" = "n" ] || [ "$selected_mode" = "no" ]; then
-            echo -n "[${FRANKENPHP_INSTALL_INDEX}] Enter prebuilt version (e.g. latest or 1.12.7): "
-            read -r version_input < /dev/tty || version_input=""
-            if [ -n "$version_input" ]; then
-                FRANKENPHP_PREBUILT_VERSION="$version_input"
-            fi
-        fi
-    fi
-
-    FRANKENPHP_INSTALL_MODE="${FRANKENPHP_INSTALL_MODE:-prebuilt}"
-    export FRANKENPHP_INSTALL_MODE
-    export FRANKENPHP_PREBUILT_VERSION
+    FRANKENPHP_INSTALL_MODE="$(frankenphp_install_mode_normalize "$FRANKENPHP_INSTALL_MODE")"
+    FRANKENPHP_INSTALL_MODE="${FRANKENPHP_INSTALL_MODE:-$FRANKENPHP_INSTALL_MODE_DEFAULT}"
 }
 
-frankenphp_install_pipeline_planes() {
-    if [ "$FRANKENPHP_NO_MUTEX" != "true" ]; then
-        bash "$NGINX_PLANE_DISABLE_SCRIPT"
-        bash "$CERTBOT_PLANE_DISABLE_SCRIPT"
-        set_web_server_plane "frankenphp"
-    else
+frankenphp_install_pipeline_prepare() {
+    case "$FRANKENPHP_INSTALL_MODE" in
+        "$FRANKENPHP_INSTALL_MODE_APT")
+            bash "$FRANKENPHP_INSTALL_APT_SCRIPT" "$@"
+            ;;
+        "$FRANKENPHP_INSTALL_MODE_COMPILE")
+            bash "$FRANKENPHP_INSTALL_COMPILE_SCRIPT" "$@"
+            ;;
+        "$FRANKENPHP_INSTALL_MODE_PREBUILT")
+            bash "$FRANKENPHP_INSTALL_PREBUILT_SCRIPT" "$@"
+            ;;
+    esac
+}
+
+frankenphp_install_pipeline_planes_ensure() {
+    if [ "$FRANKENPHP_INSTALL_NO_MUTEX" = "true" ]; then
         echo "[$FRANKENPHP_INSTALL_INDEX] [WARN] --no-mutex: nginx/certbot left untouched; manage the plane manually"
-    fi
-}
-
-frankenphp_install_pipeline_run_binary() {
-    # Idempotent unlink first: retire any live frankenphp units so the central
-    # binary can be replaced safely; caches and build intermediates are
-    # intentionally kept (replace-only semantics).
-    fm_unlink_frankenphp_runtime
-    # Variant record (single writer): the dispatch intent itself - the
-    # selected packaging strategy owns the plane from here on.
-    if [ "$FRANKENPHP_INSTALL_MODE" = "prebuilt" ]; then
-        fm_variant_set prebuilt
-        source "$SCRIPT_CURRENT_DIR/frankenphp_install_prebuilt.sh"
-        frankenphp_install_prebuilt
         return
     fi
-
-    fm_variant_set compiled
-    source "$SCRIPT_CURRENT_DIR/frankenphp_install_compile.sh"
-    frankenphp_install_compile
+    bash "$NGINX_PLANE_DISABLE_SCRIPT"
+    bash "$CERTBOT_PLANE_DISABLE_SCRIPT"
+    set_web_server_plane "frankenphp"
 }
 
-frankenphp_install_pipeline_run_caddyfile() {
-    # Direct self-probing call: fm_caddyfile_ensure compares rendered content
-    # every run (no stale step-state layer can hide a deleted Caddyfile).
+frankenphp_install_pipeline_mode_support_ensure() {
+    case "$FRANKENPHP_INSTALL_MODE" in
+        "$FRANKENPHP_INSTALL_MODE_APT"|"$FRANKENPHP_INSTALL_MODE_PREBUILT")
+            source "$FRANKENPHP_ACME_INSTALL_SCRIPT"
+            acme_sh_ensure_install
+            acme_sh_ensure_domains
+            ;;
+        "$FRANKENPHP_INSTALL_MODE_COMPILE")
+            fm_dnspod_token_ensure
+            ;;
+    esac
+    fm_disable_legacy_php_runtime
+}
+
+frankenphp_install_pipeline_retire_nonowners() {
+    case "$FRANKENPHP_INSTALL_MODE" in
+        "$FRANKENPHP_INSTALL_MODE_APT")
+            bash "$FRANKENPHP_INSTALL_CLEANUP_COMPILE_SCRIPT"
+            bash "$FRANKENPHP_INSTALL_CLEANUP_PREBUILT_SCRIPT"
+            ;;
+        "$FRANKENPHP_INSTALL_MODE_COMPILE")
+            bash "$FRANKENPHP_INSTALL_CLEANUP_APT_SCRIPT"
+            bash "$FRANKENPHP_INSTALL_CLEANUP_PREBUILT_SCRIPT"
+            ;;
+        "$FRANKENPHP_INSTALL_MODE_PREBUILT")
+            bash "$FRANKENPHP_INSTALL_CLEANUP_APT_SCRIPT"
+            bash "$FRANKENPHP_INSTALL_CLEANUP_COMPILE_SCRIPT"
+            ;;
+    esac
+}
+
+frankenphp_install_pipeline_finalize() {
     fm_caddyfile_ensure \
         "$FRANKENPHP_LARAVEL_PUBLIC_DIR" \
         "$FRANKENPHP_SITE_HOST" \
         "$FRANKENPHP_SITE_PORT" \
         "$FRANKENPHP_ADMIN_PORT" \
         "${FRANKENPHP_CADDYFILE_DIR}/Caddyfile"
-}
-
-frankenphp_install_pipeline_finalize() {
     fm_store_info
     fm_verify
-}
-
-frankenphp_install_pipeline() {
-    local start_web_server=""
-
-    start_web_server="$(get_global_var "START_WEB_SERVER" "frankenphp")"
-    if [ "$start_web_server" != "frankenphp" ]; then
-        echo "[$FRANKENPHP_INSTALL_INDEX] SKIP: START_WEB_SERVER=${start_web_server} (nginx plane active); frankenphp not installed"
-        return 0
-    fi
-
-    frankenphp_install_pipeline_read_mode "$@"
-
-    echo "[$FRANKENPHP_INSTALL_INDEX] FrankenPHP Installation Script (Mercure plane, HTTP/3 ready)"
-    echo "[$FRANKENPHP_INSTALL_INDEX] Web server choice: $start_web_server | mode: ${FRANKENPHP_INSTALL_MODE:-prebuilt} | no-mutex: ${FRANKENPHP_NO_MUTEX:-false}"
-
-    frankenphp_install_pipeline_planes
-    frankenphp_install_pipeline_run_binary
-    frankenphp_install_pipeline_run_caddyfile
-    frankenphp_install_pipeline_finalize
 
     echo "[$FRANKENPHP_INSTALL_INDEX] =============================================="
     echo "[$FRANKENPHP_INSTALL_INDEX] FRANKENPHP PLANE READY: $(fm_version)"
     echo "[$FRANKENPHP_INSTALL_INDEX] Caddyfile: ${FRANKENPHP_CADDYFILE_DIR}/Caddyfile (Mercure hub: /.well-known/mercure on :${FRANKENPHP_SITE_PORT})"
     echo "[$FRANKENPHP_INSTALL_INDEX] Runtime entry: 175_laravel_main_start.sh (frankenphp branch)"
     echo "[$FRANKENPHP_INSTALL_INDEX] =============================================="
+}
+
+frankenphp_install_pipeline() {
+    local start_web_server=""
+    local previous_variant=""
+
+    start_web_server="$(get_global_var "START_WEB_SERVER" "frankenphp")"
+    if [ "$start_web_server" != "frankenphp" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] SKIP: START_WEB_SERVER=${start_web_server} (nginx plane active); frankenphp not installed"
+        return
+    fi
+
+    frankenphp_install_pipeline_read_mode "$@"
+    previous_variant="$(fm_variant)"
+    echo "[$FRANKENPHP_INSTALL_INDEX] lifecycle: prepare -> probe -> commit -> support -> retire -> finalize"
+    echo "[$FRANKENPHP_INSTALL_INDEX] requested: $(frankenphp_install_mode_label "$FRANKENPHP_INSTALL_MODE") | current: ${previous_variant:-unrecorded}"
+
+    frankenphp_install_pipeline_prepare "$@"
+    if [ "$(fm_variant_ready "$FRANKENPHP_INSTALL_MODE")" != "yes" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] candidate preparation incomplete; owner remains ${previous_variant:-unrecorded}"
+        return
+    fi
+
+    fm_variant_commit "$FRANKENPHP_INSTALL_MODE"
+    if [ "$(fm_runtime_contract_ready "$FRANKENPHP_INSTALL_MODE")" != "yes" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] commit incomplete; non-owner cleanup and finalization skipped"
+        return
+    fi
+
+    frankenphp_install_pipeline_planes_ensure
+    frankenphp_install_pipeline_mode_support_ensure
+    frankenphp_install_pipeline_retire_nonowners
+    if [ "$(fm_runtime_contract_ready "$FRANKENPHP_INSTALL_MODE")" != "yes" ]; then
+        echo "[$FRANKENPHP_INSTALL_INDEX] [ERROR] runtime contract changed during retirement; finalization skipped"
+        return
+    fi
+    frankenphp_install_pipeline_finalize
 }
 
 if [[ "${BASH_SOURCE[0]}" = "${0}" ]]; then

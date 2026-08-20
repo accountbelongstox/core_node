@@ -88,7 +88,7 @@ open_rdp_settings_ui() {
         sleep 2
         if pgrep -u "$TARGET_USER" gnome-settings >/dev/null || pgrep -u "$TARGET_USER" gnome-control-center >/dev/null; then
             print_success_from_common_functions "GNOME Settings opened"
-            print_info_from_common_functions "Please navigate to: Settings → Sharing → Remote Desktop"
+            print_info_from_common_functions "Please navigate to: Settings -> Sharing -> Remote Desktop"
             return 0
         fi
     fi
@@ -111,7 +111,7 @@ open_rdp_settings_ui() {
     print_info_from_common_functions "Please manually open GNOME Settings:"
     echo "  1. Press Super key (Windows key) or click Activities"
     echo "  2. Search for 'Settings' or 'Sharing'"
-    echo "  3. Open 'Settings' → 'Sharing' → 'Remote Desktop'"
+    echo "  3. Open 'Settings' -> 'Sharing' -> 'Remote Desktop'"
     echo ""
     print_info_from_common_functions "Or run from terminal (as user $TARGET_USER):"
     echo "  gnome-control-center sharing"

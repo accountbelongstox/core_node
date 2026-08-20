@@ -86,7 +86,7 @@ fi
 # ---- functions --------------------------------------------------------------
 
 # Install grid shortcut prerequisites inline (launcher is a separate script in the
-# numbered sweep / prepare_pycore_prerequisites.sh — do not call it from here).
+# numbered sweep / prepare_pycore_prerequisites.sh - do not call it from here).
 ensure_launcher_prerequisites() {
     if command -v wt.exe >/dev/null 2>&1 || command -v wt >/dev/null 2>&1; then
         echo "[grid] Windows Terminal (wt) present."
@@ -204,7 +204,7 @@ else
     cd "$CORE_NODE_ROOT" 2>/dev/null || true
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore triggers third_party.py's import-time
     # dependency check (which can kick off the multi-GB torch (re)install). The launcher only
-    # opens terminal windows and needs no heavy deps, so skip that here — it must never run
+    # opens terminal windows and needs no heavy deps, so skip that here - it must never run
     # the package installer against this user's site as a side effect of launching a grid.
     PYCORE_SKIP_DEP_CHECK=1 PYTHONPATH="$CORE_NODE_ROOT${PYTHONPATH:+:$PYTHONPATH}" "$PYTHON_BIN" -c \
         "from pycore.pyutils.launcher.launcher import WindowLauncher; WindowLauncher(grid_columns=$GRID_COLUMNS, grid_rows=$GRID_ROWS).launch_windows(limit=$deficit)" \

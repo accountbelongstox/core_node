@@ -84,7 +84,6 @@ PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
-OCTANE_SERVICE_MANAGER_SCRIPT="${COMMON_DIR}/octane_service_manager.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
@@ -106,6 +105,7 @@ LARAVEL_RUNTIME_DIRS=(
 
 # Tool resolution state
 PHP_BIN=""
+PHP_PDO_PGSQL_READY="no"
 COMPOSER_CMD=""
 NPX_BIN=""
 PHP_CANDIDATE=""
@@ -132,7 +132,7 @@ GENERATED_ACCESS_CODE=""
 OCTANE_RUNTIME_WATCH="0"
 OCTANE_RUNTIME_POLL="0"
 
-# Background systemd service options (idempotent registration via debian_service_manager).
+# Background systemd service options (idempotent registration via systemd_service_manager).
 # AS_SERVICE: yes|no|empty(ask). The service exec is a plane-specific runtime
 # launcher (175_laravel_main_service_{frankenphp,nginx}.sh) that skips ALL init
 # (domain setup, certs, installers) and only runs minimal convergence + octane.
@@ -142,10 +142,13 @@ AS_SERVICE="${AS_SERVICE:-}"
 LARAVEL_SERVICE_NAME_BASE="ncore-laravel"
 LARAVEL_SERVICE_DESC_FRANKENPHP="laravel_main backend (octane:frankenphp, h2/h3)"
 LARAVEL_SERVICE_DESC_NGINX="laravel_main backend (octane:swoole, nginx proxy)"
-LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-100%}"
+# Laravel service resource policy (Laravel-specific; the manager's own
+# defaults stay 20% + tiered memory): CPU 25%, memory = 50% of total RAM
+# floored at 200M, capped by LARAVEL_SERVICE_MEM_CAP_MB.
+LARAVEL_SERVICE_CPU="${LARAVEL_SERVICE_CPU:-25%}"
 LARAVEL_SERVICE_MEM="${LARAVEL_SERVICE_MEM:-}"
 LARAVEL_SERVICE_MEM_CAP_MB="${LARAVEL_SERVICE_MEM_CAP_MB:-2048}"
-SERVICE_MANAGER="${COMMON_DIR}/debian_service_manager.sh"
+SERVICE_MANAGER="${COMMON_DIR}/systemd_service_manager.sh"
 SELF="${SCRIPT_CURRENT_DIR}/175_laravel_main_start.sh"
 SERVICE_FRANKENPHP_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_frankenphp.sh"
 SERVICE_NGINX_LAUNCHER="${DEBIAN_COM_DIR}/175_laravel_main_service_nginx.sh"
@@ -185,7 +188,6 @@ FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 # binding (service-registration branch) renders through it.
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
-source "$OCTANE_SERVICE_MANAGER_SCRIPT"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 
 # Runtime port: central service contract (config/service_contract.json), with
@@ -362,6 +364,43 @@ resolve_php() {
     return 1
 }
 
+# Converge the PostgreSQL PDO contract before Composer or Laravel bootstrap.
+# FrankenPHP variants are prepared by step 93 and are only re-probed here;
+# system PHP delegates installation to its canonical package ensurer.
+ensure_php_pdo_pgsql() {
+    local runtime_binary=""
+
+    PHP_PDO_PGSQL_READY="no"
+    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        runtime_binary="$(fm_variant_binary)"
+        if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" = "yes" ]; then
+            PHP_PDO_PGSQL_READY="yes"
+            echo "FrankenPHP runtime extension contract ready."
+        else
+            echo "ERROR: The selected FrankenPHP variant does not satisfy the required PHP extension contract."
+            echo "  Repair: run $PHP_ENSURE_SCRIPT_FRANKENPHP and select the intended variant."
+        fi
+        return
+    fi
+
+    if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+        PHP_PDO_PGSQL_READY="yes"
+        echo "PHP pdo_pgsql extension present."
+        return
+    fi
+
+    echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
+    echo "  $PHP_PGSQL_ENSURE_SCRIPT"
+    bash "$PHP_PGSQL_ENSURE_SCRIPT"
+    if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+        PHP_PDO_PGSQL_READY="yes"
+        echo "pdo_pgsql installed -> PostgreSQL driver available."
+    else
+        echo "ERROR: pdo_pgsql remains unavailable after package convergence."
+    fi
+}
+
 # Resolve composer into COMPOSER_CMD: prefer frankenphp shim/installed wrapper on frankenphp plane.
 resolve_composer() {
     local runtime_plane=""
@@ -435,6 +474,7 @@ source "$RUNTIME_CONFIG_COMMON"
 
 initialize_runtime_configuration_store() {
     local generated_value=""
+    local config_state=""
 
     RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
     if [ -z "$RUNTIME_CONFIG_DIR" ]; then
@@ -447,26 +487,29 @@ initialize_runtime_configuration_store() {
         echo "ERROR: Failed to generate APP_KEY."
         return 1
     fi
-    ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
+    config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
+    if [ "$config_state" != "ready" ]; then
+        echo "ERROR: Failed to provision APP_KEY."
+        return 1
+    fi
     # Mercure hub keys (HS256 secrets, server-side only - never shipped to
-    # pycore, the browser UI or the extension; the runtime injects them as
-    # process env for Caddy's {env...} references; the trusted issuer is
-    # derived per launch by the runtime branch). Provisioned once.
-    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
-    if [ -z "$generated_value" ]; then
-        echo "ERROR: Failed to generate MERCURE_PUBLISHER_JWT."
+    # pycore, the browser UI or the extension; provisioned once by the
+    # laravel_main RelayHubKeyProvisioner into the constant store directory
+    # outside the repo, then embedded as literal Caddyfile directives at
+    # every render; the trusted issuer is derived per launch by the runtime
+    # branch).
+    runtime_config_ensure_mercure_keys
+    if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
+        echo "ERROR: Failed to provision Mercure hub keys (RelayHubKeyProvisioner)."
         return 1
     fi
-    ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
-    generated_value="$(RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" php_script_run 'require getenv("RC_ARG_AUTOLOAD"); require getenv("RC_ARG_BOOTSTRAP"); echo base64_encode(random_bytes(48));')"
-    if [ -z "$generated_value" ]; then
-        echo "ERROR: Failed to generate MERCURE_SUBSCRIBER_JWT."
-        return 1
-    fi
-    ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
     # Installation access (super) code: provisioned once into the external
     # store, stable across runs; InstallationAccessCode.php only reads it.
-    ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE" || return 1
+    config_state="$(ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE")"
+    if [ "$config_state" != "ready" ]; then
+        echo "ERROR: Failed to provision the installation access code."
+        return 1
+    fi
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
@@ -629,15 +672,16 @@ ask_default_no() {
 }
 
 # Echo a systemd memory limit "<n>M" = min(total RAM / 4, cap_mb), floored at 128M.
+# Laravel memory limit: 50% of total RAM, floored at 200M, capped at cap_mb.
 compute_mem_limit() {
     local cap_mb="$1"
-    local total_kb total_mb quarter
+    local total_kb total_mb half
     total_kb=$(grep -m1 MemTotal /proc/meminfo 2>/dev/null | awk '{print $2}')
     [ -n "$total_kb" ] || total_kb=0
     total_mb=$(( total_kb / 1024 ))
-    quarter=$(( total_mb / 4 ))
-    [ "$quarter" -lt 128 ] && quarter=128
-    if [ "$quarter" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${quarter}M"; fi
+    half=$(( total_mb / 2 ))
+    [ "$half" -lt 200 ] && half=200
+    if [ "$half" -gt "$cap_mb" ]; then echo "${cap_mb}M"; else echo "${half}M"; fi
 }
 
 # True (0) when this distro is running under WSL (any of the standard markers).
@@ -678,19 +722,19 @@ _resolve_laravel_service_plane() {
     esac
 }
 
-# Register (or refresh) the laravel_main systemd service via debian_service_manager.
+# Register (or refresh) the laravel_main systemd service via systemd_service_manager.
 # The ExecStart is a plane-specific runtime launcher (175SF/175SN) that does
-# minimal convergence + octane — NO init, NO domain setup, NO installers.
+# minimal convergence + octane - NO init, NO domain setup, NO installers.
 # Default: hot-reload (OCTANE_WATCH=1).
 register_laravel_service() {
     local exec_cmd="$1"
-    if [ ! -f "$SERVICE_MANAGER" ]; then echo "ERROR: debian_service_manager not found: $SERVICE_MANAGER"; return 1; fi
+    if [ ! -f "$SERVICE_MANAGER" ]; then echo "ERROR: systemd_service_manager not found: $SERVICE_MANAGER"; return 1; fi
     if [ ! -f "$LARAVEL_SERVICE_PLANE_LAUNCHER" ]; then echo "ERROR: service launcher missing: $LARAVEL_SERVICE_PLANE_LAUNCHER"; return 1; fi
     if [ "$(id -u)" -eq 0 ]; then
         (
             # shellcheck disable=SC1090
             source "$SERVICE_MANAGER"
-            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM"
+            create_systemd_service "$LARAVEL_SERVICE_PLANE_NAME" "$LARAVEL_SERVICE_PLANE_DESC" "$exec_cmd" "$LARAVEL_DIR" "root" "always" "10s" "$LARAVEL_SERVICE_CPU" "$LARAVEL_SERVICE_MEM" "" "900s"
         ) || return 1
         systemctl enable "$LARAVEL_SERVICE_PLANE_NAME" >/dev/null 2>&1 || true
         systemctl restart "$LARAVEL_SERVICE_PLANE_NAME" || return 1
@@ -700,7 +744,7 @@ register_laravel_service() {
     if command -v sudo >/dev/null 2>&1; then
         sudo bash -c '
             source "$1"
-            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7"
+            create_systemd_service "$2" "$3" "$4" "$5" root always 10s "$6" "$7" "" "900s"
             systemctl enable "$2" >/dev/null 2>&1 || true
             systemctl restart "$2"
             systemctl status "$2" --no-pager -l || true
@@ -791,6 +835,11 @@ if ! resolve_php; then
     fi
 fi
 
+ensure_php_pdo_pgsql
+if [ "$PHP_PDO_PGSQL_READY" != "yes" ]; then
+    exit 1
+fi
+
 # --- Ensure composer (auto-install via init-ensure script if missing or wrapper broken) ---
 if ! resolve_composer; then
     echo "composer not found. Invoking init-ensure installer:"
@@ -822,7 +871,6 @@ elif ! composer_command_healthy "$COMPOSER_CMD"; then
     fi
 fi
 
-CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
 echo "Using php:      $PHP_BIN"
 echo "Using composer: $COMPOSER_CMD"
 echo "Web server plane: $CURRENT_WEB_SERVER_PLANE"
@@ -862,31 +910,6 @@ fi
 if ! initialize_runtime_configuration_store; then
     echo "ERROR: Runtime configuration store initialization failed."
     exit 1
-fi
-
-# --- Ensure the PHP pdo_pgsql extension (the app uses PostgreSQL on Linux) ---
-if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
-    echo "PHP pdo_pgsql extension present."
-else
-    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-        echo "PHP pdo_pgsql extension not found under frankenphp runtime."
-        echo "This plane uses the embedded FrankenPHP PHP binary; apt-based installer is intentionally skipped."
-        echo "  Action: rebuild FrankenPHP with PostgreSQL extension when START_POSTGRESQL=true."
-    else
-        echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
-        echo "  $PHP_PGSQL_ENSURE_SCRIPT"
-        if [ -f "$PHP_PGSQL_ENSURE_SCRIPT" ]; then
-            bash "$PHP_PGSQL_ENSURE_SCRIPT" || echo "  Warning: pdo_pgsql installer reported failure."
-            if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
-                echo "pdo_pgsql installed -> PostgreSQL driver available."
-            else
-                echo "  *** ACTION REQUIRED: pdo_pgsql still missing -> all DB access will fail."
-                echo "  *** Build manually: bash $PHP_PGSQL_ENSURE_SCRIPT"
-            fi
-        else
-            echo "  Warning: pdo_pgsql installer missing: $PHP_PGSQL_ENSURE_SCRIPT"
-        fi
-    fi
 fi
 
 # --- PostgreSQL cross-environment sync adapter ---
@@ -1179,7 +1202,7 @@ if [ "$AS_SERVICE" != "no" ] && ! systemd_available; then
 fi
 if [ -z "$AS_SERVICE" ]; then
     _resolve_laravel_service_plane
-    if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (${LARAVEL_SERVICE_PLANE_NAME}, via debian_service_manager)?"; then
+    if ask_default_yes "Prerequisites ready. Add laravel_main to a background systemd service (${LARAVEL_SERVICE_PLANE_NAME}, via systemd_service_manager)?"; then
         AS_SERVICE="yes"
     else
         AS_SERVICE="no"
@@ -1213,7 +1236,12 @@ if [ "$AS_SERVICE" = "yes" ]; then
 
     # PHP_BIN defaults to "php" (the frankenphp php-cli shim); WORKERS and
     # TASK_WORKERS are NOT passed - the launcher defaults (4/2) apply.
-    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
+    # FRANKENPHP_SITE_HOST is pinned at registration time: the systemd unit
+    # carries no DOMAIN_SCOPE, so fm_site_host inside the unit would always
+    # fall back to localhost (breaking DNS-01 and ACME - certmagic rejects
+    # localhost for public certs). Resolved here, where the domain phase's
+    # scope + persisted gvar state are live.
+    SERVICE_EXEC_CMD="PHP_BIN=${PHP_BIN} PORT=${PORT} LARAVEL_DIR=${LARAVEL_DIR} FRANKENPHP_SITE_HOST=$(fm_site_host) bash ${LARAVEL_SERVICE_PLANE_LAUNCHER}"
     if register_laravel_service "$SERVICE_EXEC_CMD"; then
         echo "Service $LARAVEL_SERVICE_PLANE_NAME registered and started."
         echo "  Manage:  systemctl {status|restart|stop} $LARAVEL_SERVICE_PLANE_NAME"

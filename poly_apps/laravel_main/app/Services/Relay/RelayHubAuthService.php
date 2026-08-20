@@ -2,15 +2,16 @@
 
 namespace App\Services\Relay;
 
+use App\Support\ServiceContract;
+
 /**
- * Relay hub auth: short-lived, topic-scoped Mercure 1.0 subscriber tokens.
+ * Relay hub auth: short-lived, topic-scoped Mercure subscriber tokens.
  *
  * Identity resolves once (UI session or machine); the granted topic set is
  * computed server-side from that identity - never echoed from the request.
  * Non-browser clients (pycore) present the token as an Authorization Bearer
  * header; browsers additionally receive the hub-path cookie so a native
- * EventSource can subscribe (the cookie name is the hub default
- * __Secure-mercure_access_token).
+ * EventSource can subscribe through the configured secure cookie.
  */
 final class RelayHubAuthService
 {
@@ -89,8 +90,7 @@ final class RelayHubAuthService
     }
 
     /**
-     * Mercure 1.0 subscription URL: one `match` (exact) query parameter per
-     * topic - matchers route only; the token governs private updates.
+     * Mercure subscription URL: one `topic` query parameter per selector.
      *
      * @param array<string, mixed> $token
      */
@@ -114,7 +114,7 @@ final class RelayHubAuthService
             'topics' => $topics,
             'token' => $token,
             'token_ttl_seconds' => \App\Support\QueueCenterContract::relayHubInt('token_ttl_seconds'),
-            'cookie' => \App\Support\QueueCenterContract::relayHubString('cookie'),
+            'cookie' => ServiceContract::string('realtime.mercure_cookie'),
             'subscribe_url' => self::buildSubscribeUrl($hubUrl, $topics),
         ];
     }
@@ -124,6 +124,8 @@ final class RelayHubAuthService
      */
     private static function buildSubscribeUrl(string $hubUrl, array $topics): string
     {
-        return $hubUrl.'?match='.implode('&match=', array_map('rawurlencode', $topics));
+        $query = http_build_query(['topic' => $topics], '', '&', PHP_QUERY_RFC3986);
+
+        return $hubUrl.'?'.preg_replace('/topic%5B\d+%5D=/', 'topic=', $query);
     }
 }

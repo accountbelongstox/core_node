@@ -511,9 +511,9 @@ verify_php_access() {
     for bin in "${test_bins[@]}"; do
         if command -v "$bin" >/dev/null 2>&1; then
             local bin_path=$(command -v "$bin")
-            echo "[$SCRIPT_INDEX] �?$bin accessible at: $bin_path"
+            echo "[$SCRIPT_INDEX] $bin accessible at: $bin_path"
         else
-            echo "[$SCRIPT_INDEX] �?$bin NOT accessible"
+            echo "[$SCRIPT_INDEX] $bin NOT accessible"
         fi
     done
 }

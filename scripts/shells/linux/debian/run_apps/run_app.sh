@@ -501,22 +501,11 @@ run_laravel_app() {
         return 1
     fi
     log_success "Dependencies ready"
-    
-    # Check if .env file exists
-    if [ ! -f ".env" ] && [ -f ".env.example" ]; then
-        log_warning ".env file not found. Copying from .env.example..."
-        cp .env.example .env
-        log_info "Please configure your .env file with proper database settings"
-    fi
-    
-    # Generate app key if needed
-    if [ -f "artisan" ]; then
-        log_info "Checking application key..."
-        if ! grep -q "APP_KEY=.*[a-zA-Z0-9]" .env 2>/dev/null; then
-            log_info "Generating application key..."
-            php artisan key:generate
-        fi
-    fi
+
+    # Configuration convention: Laravel apps in this repository do NOT use a
+    # .env file - configuration is supplied by the app itself (laravel_main:
+    # RuntimeConfigurationStore via RuntimeConfigurationServiceProvider).
+    # Scripts never create, copy, or read .env files.
     
     # Try to start Laravel development server
     log_info "Starting Laravel development server..."

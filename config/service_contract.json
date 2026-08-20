@@ -14,6 +14,13 @@
         "web_server_default": "frankenphp",
         "nginx_plane_only_ports": ["laravel_api_backend"]
     },
+    "versions": {
+        "frankenphp": "v1.12.7",
+        "mercure": "v0.24.2"
+    },
+    "realtime": {
+        "mercure_cookie": "__Secure-mercure_access_token"
+    },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",
         "core_node_data_dir_windows_subpath": "var/_core_node",

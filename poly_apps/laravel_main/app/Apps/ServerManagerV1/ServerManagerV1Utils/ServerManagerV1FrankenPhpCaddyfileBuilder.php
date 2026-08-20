@@ -2,8 +2,12 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
+use App\Services\Relay\RelayHubKeyProvisioner;
+use App\Services\Relay\RelayHubJwt;
+use App\Providers\PathMapper;
 use App\Support\RuntimeConfigurationStore;
 use App\Support\ServiceContract;
+use App\Utils\FileSystemManager;
 
 /**
  * Single source of truth for the frankenphp-plane Caddyfile generation (one
@@ -19,16 +23,21 @@ use App\Support\ServiceContract;
  *   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
  *     (launch: octane:start --server=frankenphp --caddyfile=... --admin-port=...)
  * Any change to the global admin block, the https site block, the Mercure
- * issuer stanza, the php_server/file_server pair, or the env placeholder
- * names MUST be applied to both ends in the same change (byte-identical
- * semantics; only the managed-by comment names its owning end). Initial
- * provisioning renders through the shell end; afterwards the UI
- * (http://127.0.0.1:13054/laravel-manager#/server) manages the plane
- * through this builder via the laravel_main API.
+ * publisher_jwt/subscriber_jwt stanza, the php_server/file_server pair, or
+ * the env placeholder names MUST be applied to both ends in the same
+ * change (byte-identical semantics; only the managed-by comment names its
+ * owning end). Initial provisioning renders through the shell end;
+ * afterwards the UI (http://127.0.0.1:13054/laravel-manager#/server)
+ * manages the plane through this builder via the laravel_main API.
  */
 class ServerManagerV1FrankenPhpCaddyfileBuilder
 {
-    /** Binary probe order (mirrors fm_get_binary candidates). */
+    private const DNS01_MODE_EMBEDDED = 'embedded';
+    private const ENV_BINARY_PATH = 'FRANKENPHP_BINARY_PATH';
+    private const ENV_DNS01_MODE = 'FRANKENPHP_DNS01_MODE';
+    private const ENV_VARIANT = 'FRANKENPHP_VARIANT';
+
+    /** Bootstrap probe order for an unrecorded runtime only. */
     private const BINARY_CANDIDATES = ['/usr/local/bin/frankenphp', '/usr/bin/frankenphp'];
 
     /**
@@ -37,13 +46,17 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function caddyfilePath(): string
     {
-        return storage_path('frankenphp/Caddyfile');
+        return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'storage'
+            .DIRECTORY_SEPARATOR.'frankenphp'.DIRECTORY_SEPARATOR.'Caddyfile';
     }
 
     /**
-     * Render the canonical Caddyfile. Secrets stay env placeholders - keys
-     * are provisioned once (132) and exported by the runtime branch as
-     * process environment, never embedded in the file.
+     * Render the canonical Caddyfile. The Mercure HS256 keys are embedded
+     * as literal publisher_jwt/subscriber_jwt values (single source: the
+     * private RuntimeConfigurationStore; the file is 0600) - no process
+     * env and no .env anywhere. The DNSPod token stays an env placeholder.
+     * Site block + direct HTTP backend block + per-domain route import
+     * mirror the shell end (fm_caddyfile_ensure) byte-identically.
      */
     public static function render(
         ?string $laravelPublicDir = null,
@@ -55,18 +68,57 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $host = $siteHost ?? self::defaultSiteHost();
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
+        $backend = ServiceContract::port('laravel_api_backend');
 
-        // DNS-01 stanza renders ONLY when both truths hold (module embedded
-        // + token stored); token value stays a {env.*} placeholder. Mirrors
-        // the shell end's fm_caddyfile_ensure gate byte-identically.
-        $dnspodTls = self::hasDnsPodModule() && self::dnspodTokenConfigured()
+        // Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk
+        // are pinned explicitly (the service-start pre-flight provisions
+        // them BEFORE the server binds the HTTPS port). Mirrors the shell
+        // end's fm_caddyfile_ensure gate byte-identically.
+        $certDir = self::acmeCertDirForHost($host);
+        $acmeTls = ($certDir !== ''
+            && FileSystemManager::isFile($certDir.'/fullchain.pem')
+            && FileSystemManager::isFile($certDir.'/key.pem'))
+            ? "\ttls {$certDir}/fullchain.pem {$certDir}/key.pem\n\n"
+            : '';
+
+        // DNS-01 fallback stanza renders ONLY when no prebuilt cert holds
+        // and all truths hold (public site host - NOT the localhost
+        // fallback: certmagic rejects localhost for public certs and would
+        // loop ACME retries forever; a localhost site falls back to Caddy's
+        // internal CA - module embedded + token stored); token value stays
+        // a {env.*} placeholder. Mirrors the shell end's gate
+        // byte-identically.
+        $dnspodTls = ($acmeTls === '' && $host !== 'localhost' && self::hasDnsPodModule() && self::dnspodTokenConfigured())
             ? "\ttls {\n\t\tdns dnspod {env.DNSPOD_TOKEN}\n\t}\n\n"
             : '';
+
+        $mercureStanza = self::mercureStanza();
+
+        // Per-domain route import, gated on file presence (caddy errors on
+        // an unmatched import glob). Mirrors the shell end.
+        $routesDir = dirname(self::caddyfilePath()).DIRECTORY_SEPARATOR.'routes';
+        $importStanza = !self::hasRouteFiles($routesDir)
+            ? ''
+            : "\n# Per-domain route files (managed by fm_domain_ensure_route_file)\nimport {$routesDir}/*.caddy\n";
 
         return "# Managed by ServerManagerV1FrankenPhpCaddyfileBuilder (SYNC: frankenphp_manager.sh)\n"
             . "{\n"
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
+            . "\n"
+            . "\t# Explicit protocol set (official servers option): h2/h3 negotiate on\n"
+            . "\t# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.\n"
+            . "\tservers {\n"
+            . "\t\tprotocols h1 h2 h3\n"
+            . "\t}\n"
+            . "\n"
+            . "\tfrankenphp {\n"
+            . "\t\tworker {\n"
+            . "\t\t\tfile \"{$publicDir}/frankenphp-worker.php\"\n"
+            . "\t\t\t{\$CADDY_SERVER_WORKER_DIRECTIVE}\n"
+            . "\t\t\t{\$CADDY_SERVER_WATCH_DIRECTIVES}\n"
+            . "\t\t}\n"
+            . "\t}\n"
             . "}\n"
             . "\n"
             . "https://{$host}:{$https} {\n"
@@ -74,20 +126,42 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tencode zstd gzip\n"
             . "\n"
             . $dnspodTls
-            . "\tmercure {\n"
-            . "\t\tissuer {env.MERCURE_TRUSTED_ISSUERS} {\n"
-            . "\t\t\tpublisher {\n"
-            . "\t\t\t\tjwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}\n"
-            . "\t\t\t}\n"
-            . "\t\t\tsubscriber {\n"
-            . "\t\t\t\tjwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}\n"
-            . "\t\t\t}\n"
-            . "\t\t}\n"
-            . "\t}\n"
+            . $acmeTls
+            . $mercureStanza
+            . self::octanePhpServerStanza()
+            . "}\n"
             . "\n"
-            . "\tphp_server\n"
-            . "\tfile_server\n"
-            . "}\n";
+            . "# Direct HTTP backend (nginx-plane contract port, binds all interfaces)\n"
+            . ":{$backend} {\n"
+            . "\troot * {$publicDir}\n"
+            . "\tencode zstd gzip\n"
+            . self::octanePhpServerStanza()
+            . "}\n"
+            . $importStanza;
+    }
+
+    /**
+     * Mercure hub stanza - the official flat syntax of the embedded
+     * mercure/caddy module (v0.24.x): literal HS256 keys from the private
+     * store. Empty when the keys are not provisioned yet. Mirrors the shell
+     * end's fm_mercure_stanza byte-identically.
+     */
+    private static function mercureStanza(): string
+    {
+        $publisherKey = RuntimeConfigurationStore::get(RelayHubJwt::PUBLISHER_KEY);
+        $subscriberKey = RuntimeConfigurationStore::get(RelayHubJwt::SUBSCRIBER_KEY);
+
+        if ($publisherKey === null || $subscriberKey === null
+            || trim($publisherKey) === '' || trim($subscriberKey) === '') {
+            return '';
+        }
+
+        return "\tmercure {\n"
+            . "\t\tpublisher_jwt {$publisherKey} HS256\n"
+            . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
+            . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
+            . "\t}\n"
+            . "\n";
     }
 
     /**
@@ -100,24 +174,24 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     public static function ensure(): array
     {
         $path = self::caddyfilePath();
+        RelayHubKeyProvisioner::ensure();
         $rendered = self::render();
 
         $dir = dirname($path);
-        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        if (!FileSystemManager::ensureDirectoryExists($dir)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
                 'error' => "unable to create {$dir}"];
         }
 
-        if (is_file($path) && is_readable($path)
-            && rtrim((string) @file_get_contents($path)) === rtrim($rendered)) {
+        $existing = FileSystemManager::readFile($path, false);
+        if (is_string($existing) && rtrim($existing) === rtrim($rendered)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => true];
         }
 
-        if (@file_put_contents($path, $rendered) === false) {
+        if (!FileSystemManager::writePrivateFile($path, $rendered)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
                 'error' => "unable to write {$path}"];
         }
-        @chmod($path, 0600);
 
         return ['path' => $path, 'rendered' => true, 'canonical' => true];
     }
@@ -143,10 +217,20 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     }
 
     /**
-     * Detect the frankenphp binary (file-probe, mirrors fm_get_binary).
+     * Resolve the exact binary selected by the shell variant policy. A
+     * recorded runtime fails closed when its payload is missing; candidate
+     * probing is limited to processes without a variant contract.
      */
     public static function binary(): ?string
     {
+        $selectedBinary = getenv(self::ENV_BINARY_PATH);
+        if ($selectedBinary !== false && $selectedBinary !== '') {
+            return is_executable($selectedBinary) ? $selectedBinary : null;
+        }
+        if (getenv(self::ENV_VARIANT) !== false) {
+            return null;
+        }
+
         foreach (self::BINARY_CANDIDATES as $candidate) {
             if (is_executable($candidate)) {
                 return $candidate;
@@ -197,6 +281,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function hasDnsPodModule(): bool
     {
+        $dns01Mode = getenv(self::ENV_DNS01_MODE);
+        if ($dns01Mode !== false && $dns01Mode !== self::DNS01_MODE_EMBEDDED) {
+            return false;
+        }
+
         $binary = self::binary();
         if ($binary === null) {
             return false;
@@ -244,11 +333,68 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     }
 
     /**
+     * Certificate directory (prebuilt acme.sh variant) serving the given
+     * site host, keyed by the registrable apex - mirrors the shell end's
+     * fm_acme_cert_dir_for_host: strip a leading "api.<region>.", where
+     * the region prefix comes from the DOMAIN_API_PREFIX env when set and
+     * otherwise from the 4-label heuristic ("api.si.gm15.com" ->
+     * "gm15.com"). Empty string when the apex cannot be derived.
+     */
+    private static function acmeCertDirForHost(string $host): string
+    {
+        $prefix = (string) (getenv('DOMAIN_API_PREFIX') ?: '');
+        $apex = '';
+
+        if ($host === '' || $host === 'localhost') {
+            return '';
+        }
+        if ($prefix !== '' && str_starts_with($host, "api.{$prefix}.")) {
+            $apex = substr($host, strlen("api.{$prefix}."));
+        } elseif (str_starts_with($host, 'api.') && substr_count($host, '.') >= 3) {
+            $apex = preg_replace('/^[^.]+\.[^.]+\./', '', $host) ?? $host;
+        } else {
+            $apex = $host;
+        }
+
+        if ($apex === '' || strpos($apex, '.') === false) {
+            return '';
+        }
+
+        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs/'.$apex);
+    }
+
+    /**
      * Contract Laravel public dir - the laravel_main checkout this app runs
      * from (base_path is <checkout>/poly_apps/laravel_main).
      */
     private static function defaultPublicDir(): string
     {
-        return base_path('public');
+        return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'public';
+    }
+
+    private static function octanePhpServerStanza(): string
+    {
+        return "\tphp_server {\n"
+            . "\t\tindex frankenphp-worker.php\n"
+            . "\t\ttry_files {path} frankenphp-worker.php\n"
+            . "\t\tresolve_root_symlink\n"
+            . "\t}\n";
+    }
+
+    private static function hasRouteFiles(string $routesDir): bool
+    {
+        $entries = FileSystemManager::scandir($routesDir);
+        if (!is_array($entries)) {
+            return false;
+        }
+
+        foreach ($entries as $entry) {
+            if (str_ends_with($entry, '.caddy')
+                && FileSystemManager::isFile($routesDir.DIRECTORY_SEPARATOR.$entry)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

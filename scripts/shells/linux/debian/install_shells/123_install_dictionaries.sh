@@ -1,16 +1,16 @@
 #!/bin/bash
-# Offline word-dictionary prerequisite (Linux) — auto-run by prepare_pycore_prerequisites.sh
+# Offline word-dictionary prerequisite (Linux) - auto-run by prepare_pycore_prerequisites.sh
 # (pyservice), which passes the resolved Python path. Provides the FREE, offline
 # word-translation data the pycore translator uses ALONGSIDE Google:
 #
 #   ECDICT  : skywind3000/ECDICT SQLite (stardict.db, 770k+ EN<->ZH entries with
 #             translation/phonetic/definition/frequency/exam tags). Placed at
-#             <pycore_db>/dictionaries/stardict.db — exactly where
+#             <pycore_db>/dictionaries/stardict.db - exactly where
 #             pycore.pyutils.translator.dictionary looks.
 #   WordNet : NLTK corpus (wordnet + omw-1.4) for English glosses/synonyms.
 #
 # Idempotent + resumable: skips a step whose data is already present (unless
-# --force). Never fails the sweep fatally — a download hiccup leaves pycore on
+# --force). Never fails the sweep fatally - a download hiccup leaves pycore on
 # Google-only translation (the dictionary degrades gracefully).
 #
 # Invocation (prepare_pycore_prerequisites.sh):  install_dictionaries.sh --python <py> [--force]
@@ -90,7 +90,7 @@ else
     fi
 
     if [[ -f "$ARCHIVE" ]]; then
-        echo "[dictionaries] extracting…"
+        echo "[dictionaries] extracting..."
         TMP_EXTRACT="$DICT_DIR/.ecdict_extract"
         rm -rf "$TMP_EXTRACT"; mkdir -p "$TMP_EXTRACT"
         if command -v unzip >/dev/null 2>&1; then
@@ -109,7 +109,7 @@ else
     if verify_db "$DB_PATH"; then
         echo "[dictionaries] ECDICT installed OK -> $DB_PATH"
     else
-        echo "[dictionaries] WARN: ECDICT db missing/invalid — pycore will use Google-only word translation."
+        echo "[dictionaries] WARN: ECDICT db missing/invalid - pycore will use Google-only word translation."
         echo "[dictionaries]       set ECDICT_SQLITE_URL to a reachable mirror and re-run with --force."
     fi
 fi
@@ -118,12 +118,12 @@ fi
 # nltk.downloader is idempotent (skips already-present packages). The 'nltk'
 # package itself is ensured by pyfoundations/third_party.py at worker import.
 if "$PYTHON" -c "import nltk" >/dev/null 2>&1; then
-    echo "[dictionaries] ensuring WordNet corpus (wordnet + omw-1.4)…"
+    echo "[dictionaries] ensuring WordNet corpus (wordnet + omw-1.4)..."
     "$PYTHON" -m nltk.downloader wordnet omw-1.4 >/dev/null 2>&1 \
         && echo "[dictionaries] WordNet corpus ready" \
         || echo "[dictionaries] WARN: WordNet download failed (English defs/synonyms disabled; ECDICT still works)."
 else
-    echo "[dictionaries] nltk not importable yet — WordNet skipped (third_party will install nltk on first worker import)."
+    echo "[dictionaries] nltk not importable yet - WordNet skipped (third_party will install nltk on first worker import)."
 fi
 
 echo "[dictionaries] done."

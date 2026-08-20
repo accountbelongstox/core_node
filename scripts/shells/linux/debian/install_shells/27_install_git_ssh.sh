@@ -101,12 +101,12 @@ validate_ssh_key_content() {
     # Check public key
     print_step_from_common_functions "  Public key: $pub_file"
     if [[ ! -f "$pub_file" ]]; then
-        print_error_from_common_functions "    �?File does not exist"
+        print_error_from_common_functions "    File does not exist"
         return 1
     fi
 
     if [[ ! -s "$pub_file" ]]; then
-        print_error_from_common_functions "    �?File is empty"
+        print_error_from_common_functions "    File is empty"
         return 1
     fi
 
@@ -114,33 +114,33 @@ validate_ssh_key_content() {
     if [[ "$pub_content" =~ ^ssh-(rsa|dss|ed25519|ecdsa) ]]; then
         local key_type=$(echo "$pub_content" | awk '{print $1}')
         local key_comment=$(echo "$pub_content" | awk '{print $3}')
-        print_success_from_common_functions "    �?Valid format: $key_type"
+        print_success_from_common_functions "    Valid format: $key_type"
         if [[ -n "$key_comment" ]]; then
             print_step_from_common_functions "    Comment: $key_comment"
         fi
         print_step_from_common_functions "    Preview: ${pub_content:0:50}..."
     else
-        print_error_from_common_functions "    �?Invalid SSH public key format"
+        print_error_from_common_functions "    Invalid SSH public key format"
         return 1
     fi
 
     # Check private key
     print_step_from_common_functions "  Private key: $priv_file"
     if [[ ! -f "$priv_file" ]]; then
-        print_error_from_common_functions "    �?File does not exist"
+        print_error_from_common_functions "    File does not exist"
         return 1
     fi
 
     if [[ ! -s "$priv_file" ]]; then
-        print_error_from_common_functions "    �?File is empty"
+        print_error_from_common_functions "    File is empty"
         return 1
     fi
 
     local priv_header=$(head -n 1 "$priv_file" 2>/dev/null)
     if [[ "$priv_header" =~ ^-----BEGIN.*PRIVATE\ KEY----- ]]; then
-        print_success_from_common_functions "    �?Valid format: $priv_header"
+        print_success_from_common_functions "    Valid format: $priv_header"
     else
-        print_error_from_common_functions "    �?Invalid private key format"
+        print_error_from_common_functions "    Invalid private key format"
         print_step_from_common_functions "    Header: $priv_header"
         return 1
     fi
@@ -154,7 +154,7 @@ validate_ssh_key_content() {
     print_step_from_common_functions "    Private key: $priv_perms (should be 600)"
 
     if [[ "$priv_perms" != "600" && "$priv_perms" != "400" ]]; then
-        print_error_from_common_functions "    �?Private key permissions too open (should be 600)"
+        print_error_from_common_functions "    Private key permissions too open (should be 600)"
     fi
 
     return 0
