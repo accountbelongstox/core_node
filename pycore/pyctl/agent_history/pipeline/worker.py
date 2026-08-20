@@ -13,6 +13,7 @@ from pycore.pyctl.agent_history.pipeline.config import (
     advance_tool_cursor,
     advance_tool_live_cursor,
     get_config,
+    mark_tool_live_item_completed,
     save_config,
 )
 from pycore.pyctl.agent_history.pipeline.planner import plan_batches
@@ -234,8 +235,18 @@ def _advance_cursor_for_input(input_data: Dict[str, Any]) -> None:
         return
     cfg = get_config()
     lane = str(input_data.get("lane") or "backfill")
-    advance = advance_tool_live_cursor if lane == "live" else advance_tool_cursor
-    advance(cfg, tool, int(input_data.get("last_ts") or 0), str(input_data.get("last_fragment_id") or ""))
+    after_ts = int(input_data.get("last_ts") or 0)
+    after_fragment_id = str(input_data.get("last_fragment_id") or "")
+    if lane == "live":
+        mark_tool_live_item_completed(
+            cfg,
+            tool,
+            str(input_data.get("item_key") or ""),
+            after_ts,
+            after_fragment_id,
+        )
+    else:
+        advance_tool_cursor(cfg, tool, after_ts, after_fragment_id)
     cfg["last_tool"] = tool
     save_config(cfg)
 

@@ -37,6 +37,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -270,12 +271,14 @@ def mark_audio_rebuilt(
     rec["tts_model"] = tts_model
     rec["tts_chunked"] = bool(tts_chunked)
     rec["rebuild_attempts"] = 0
+    rec["rebuild_audio_job"] = None
+    rec["rebuild_not_before"] = 0.0
     rec["audio_rebuilt_at"] = datetime.now(timezone.utc).isoformat()
     rec["rebuild_uploaded"] = False
     rec["rebuild_uploaded_at"] = None
     return _commit_record(rec, [
         "audio_file", "audio_status", "tts_engine", "tts_model",
-        "tts_chunked", "rebuild_attempts", "audio_rebuilt_at",
+        "tts_chunked", "rebuild_attempts", "rebuild_audio_job", "rebuild_not_before", "audio_rebuilt_at",
         "rebuild_uploaded", "rebuild_uploaded_at",
     ])
 
@@ -313,7 +316,26 @@ def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
     if rec is None:
         return None
     rec["rebuild_attempts"] = int(rec.get("rebuild_attempts") or 0) + 1
-    return _commit_record(rec, ["rebuild_attempts"])
+    rec["rebuild_audio_job"] = None
+    rec["rebuild_not_before"] = 0.0
+    return _commit_record(
+        rec,
+        ["rebuild_attempts", "rebuild_audio_job", "rebuild_not_before"],
+    )
+
+
+def mark_audio_rebuild_waiting(
+    record_id: str,
+    job: Dict[str, Any],
+    poll_after_s: float,
+) -> Optional[Dict[str, Any]]:
+    """Persist one submitted/polled rebuild job as its own idempotent step."""
+    rec = get_record(record_id)
+    if rec is None:
+        return None
+    rec["rebuild_audio_job"] = dict(job or {})
+    rec["rebuild_not_before"] = time.time() + max(0.0, float(poll_after_s or 0.0))
+    return _commit_record(rec, ["rebuild_audio_job", "rebuild_not_before"])
 
 
 def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:

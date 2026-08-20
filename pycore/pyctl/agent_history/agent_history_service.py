@@ -35,6 +35,7 @@ from pycore.pyctl.agent_history.cursor_extractor import CursorExtractor
 from pycore.pyctl.agent_history.gemini_extractor import GeminiExtractor
 from pycore.pyctl.agent_history.generic_agent_extractor import GenericAgentExtractor
 from pycore.pyctl.agent_history.kimi_extractor import KimiExtractor
+from pycore.pyctl.agent_history.pi_extractor import PiExtractor
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pyfoundations.thread_bus_constants import BusSignals
 from pycore.pyfoundations.serialized_worker import (
@@ -47,7 +48,7 @@ PROMPTS_CAP = 8000
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
 EXTRACT_PROBE_SOURCE_CAP = 25
-EXTRACTOR_SCHEMA_REVISION = "2026-08-17.1"
+EXTRACTOR_SCHEMA_REVISION = "2026-08-20.1"
 TOOL_SOURCE_REVISIONS_CACHE_KEY = "agent_history.tool_source_revisions"
 TOOL_STATISTICS_CACHE_PREFIX = "agent_history.tool_statistics."
 TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
@@ -62,7 +63,7 @@ SESSION_ID_FIELDS = (
 )
 TOOL_MARKERS = (
     ".claude", ".codex", ".gemini", ".cursor", ".kimi-code", ".kimi",
-    ".agent", ".openclaw", ".cline", ".antigravity",
+    ".agent", ".openclaw", ".cline", ".antigravity", ".pi",
 )
 STORE_TIMESTAMP_RE = re.compile(
     r"^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$"
@@ -127,6 +128,7 @@ class AgentHistoryService:
         self._extractors = [
             ClaudeCodeExtractor(),
             CodexExtractor(),
+            PiExtractor(),
             GeminiExtractor(),
             CursorExtractor(),
             KimiExtractor(),

@@ -9,7 +9,7 @@ _SECTION = "agent_history_article"
 # Supported tool keys (extractor tool() values). The UI renders checkboxes in
 # this order; only checked tools are planned into the article pipeline.
 SUPPORTED_TOOLS: List[str] = [
-    "agent", "claude", "codex", "cursor", "gemini",
+    "agent", "pi", "claude", "codex", "cursor", "gemini",
     "kimi", "antigravity", "cline",
 ]
 
@@ -39,6 +39,8 @@ def get_config() -> Dict[str, Any]:
         out["cursors"] = {}
     if not isinstance(out.get("live_cursors"), dict):
         out["live_cursors"] = {}
+    if not isinstance(out.get("live_completed"), dict):
+        out["live_completed"] = {}
     if not isinstance(out.get("backfill_targets"), dict):
         out["backfill_targets"] = {}
     out["enabled_tools"] = normalize_enabled_tools(out.get("enabled_tools"))
@@ -116,6 +118,27 @@ def advance_tool_live_cursor(cfg: Dict[str, Any], tool: str, after_ts: int, afte
     """Advance only the live priority lane for one tool."""
     _advance_cursor_map(cfg, "live_cursors", tool, after_ts, after_fragment_id)
 
+def mark_tool_live_item_completed(
+    cfg: Dict[str, Any],
+    tool: str,
+    item_key: str,
+    after_ts: int,
+    after_fragment_id: str,
+) -> None:
+    """Persist one live batch completion without skipping older live batches."""
+    completed = cfg.setdefault("live_completed", {})
+    if not isinstance(completed, dict):
+        completed = {}
+        cfg["live_completed"] = completed
+    tool_items = completed.get(tool)
+    if not isinstance(tool_items, dict):
+        tool_items = {}
+        completed[tool] = tool_items
+    tool_items[str(item_key)] = {
+        "after_ts": int(after_ts or 0),
+        "after_fragment_id": str(after_fragment_id or ""),
+    }
+
 def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     cfg = get_config()
     for key in (
@@ -136,6 +159,8 @@ def save_config(patch: Dict[str, Any]) -> Dict[str, Any]:
         cfg["cursors"] = patch["cursors"]
     if isinstance(patch.get("live_cursors"), dict):
         cfg["live_cursors"] = patch["live_cursors"]
+    if isinstance(patch.get("live_completed"), dict):
+        cfg["live_completed"] = patch["live_completed"]
     if isinstance(patch.get("backfill_targets"), dict):
         cfg["backfill_targets"] = patch["backfill_targets"]
     if "last_tool" in patch:
