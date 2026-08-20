@@ -33,9 +33,10 @@ async function reconnectNativeAfterBuild(): Promise<void> {
 if (shouldReloadExtension) {
   chrome.runtime.reload();
   window.close();
+} else if (shouldReconnectNative) {
+  void reconnectNativeAfterBuild();
 } else {
   loadUserLocale().finally(() => {
     createApp(App).mount('#app');
-    void reconnectNativeAfterBuild();
   });
 }

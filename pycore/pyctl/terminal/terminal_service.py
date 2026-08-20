@@ -71,6 +71,11 @@ class TerminalService:
         snapshot["refreshed_at"] = int(time.time() * 1000)
         return snapshot
 
+    def resolve_window_id(self, terminal_number: int) -> str:
+        if terminal_number <= 0:
+            return ""
+        return self._state_repository.resolve_window_id(terminal_number)
+
     def activate(self, window_id: str) -> Dict[str, Any]:
         if self._backend is None:
             return self._failure("unsupported_platform")

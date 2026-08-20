@@ -27,11 +27,9 @@ export function buildPosterQuery(
   return parts.join(' ').trim();
 }
 
-export function buildVocabCoverQuery(name: string, prompt?: string): string {
-  const label = String(name || '').trim();
-  if (label) return `${label} vocabulary book cover`;
-  const hint = String(prompt || '').trim().slice(0, 80);
-  return hint ? `${hint} book cover` : 'vocabulary book cover';
+export function buildWordImageQuery(word: string): string {
+  const clean = String(word || '').trim().replace(/"/g, '');
+  return clean ? `"${clean}" meaning illustration` : '';
 }
 
 async function fetchImageUrlAsBase64(url: string): Promise<{ imageBase64: string; mime: string } | null> {

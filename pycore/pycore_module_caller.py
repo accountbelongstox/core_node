@@ -58,6 +58,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from pycore.pylauncher.platform.startup_manager import refresh_startup_launcher
 from pycore.pyutils.common.dev_reload import start_reload_watcher
+from pycore.pyutils.common.process_restart import restart_current_process
 
 from pycore.pyfoundations.system_paths import apply_shared_cache_env
 
@@ -236,9 +237,12 @@ if __name__ == '__main__':
         time.sleep(0.5)  # let the OS release sockets/handles from stopped services
         _script = str(Path(__file__).resolve())          # cwd-independent
         try:
-            os.execv(sys.executable, [sys.executable, _script] + sys.argv[1:])
+            restart_current_process(
+                [_script, *sys.argv[1:]],
+                cwd=PROJECT_ROOT,
+            )
         except Exception as e:  # noqa: BLE001 - fall back to a hard exit
-            ColorPrint.yellow(f"[Main] os.execv failed ({e}); exiting instead. Please restart manually.")
+            ColorPrint.yellow(f"[Main] process restart failed ({e}); exiting instead. Please restart manually.")
             os._exit(1)
     else:
         # Superseded by a newer instance (singleton takeover): exit 3 so

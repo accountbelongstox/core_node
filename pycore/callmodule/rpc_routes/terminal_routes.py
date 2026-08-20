@@ -38,7 +38,7 @@ def _ratio_param(params, key: str) -> float:
 
 def register_terminal_routes(server) -> None:
     def windows_handler(_params, _request_id, _context):
-        return terminal_service.snapshot()
+        return terminal_scheduler.decorate_snapshot(terminal_service.snapshot())
 
     def activate_handler(params, _request_id, _context):
         window_id = str(params.get("window_id") or "")
@@ -95,8 +95,7 @@ def register_terminal_routes(server) -> None:
 
     def schedule_queue_sync_handler(params, _request_id, _context):
         terminal_number = _integer_param(params, "terminal_number")
-        entries = params.get("entries") if isinstance(params, dict) else None
-        return terminal_scheduler.sync_entries(terminal_number, entries)
+        return terminal_scheduler.sync_from_json(terminal_number)
 
     def schedule_queue_clear_handler(_params, _request_id, _context):
         return terminal_scheduler.clear_entries()
@@ -107,10 +106,14 @@ def register_terminal_routes(server) -> None:
         item_id = str(params.get("log_id") or "") or str(
             params.get("entry_id") or ""
         )
-        content = terminal_service.read_text(
-            terminal_number,
-            content_kind,
-            item_id,
+        content = (
+            terminal_scheduler.read_message(terminal_number, item_id)
+            if content_kind == "schedule"
+            else terminal_service.read_text(
+                terminal_number,
+                content_kind,
+                item_id,
+            )
         )
         return Response(
             content=content or "",

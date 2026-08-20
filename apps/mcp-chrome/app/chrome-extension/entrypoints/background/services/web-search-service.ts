@@ -26,7 +26,13 @@ import {
   bookCoverQuery,
   buildSearchUrl,
   emptyWebSearchProgress,
+  filterBookCoverImageResults,
 } from '@/utils/web-search-core';
+import {
+  blockSearchEngineForVerification,
+  clearSearchEngineCircuit,
+  getSearchEngineAvailability,
+} from '@/utils/web-search-engine-circuit';
 
 const LOG = 'Web Search';
 const webSearchProgressStorage = createProgressStorage<WebSearchProgress>(
@@ -136,7 +142,15 @@ export async function runWebSearch(request: WebSearchRequest): Promise<WebSearch
     });
 
     const text = toolResult.content?.[0]?.type === 'text' ? toolResult.content[0].text : '';
-    let parsed = text ? JSON.parse(text) as WebSearchResult : null;
+    if (toolResult.isError) {
+      throw new Error(text || 'Web search tool failed');
+    }
+    let parsed: WebSearchResult | null = null;
+    try {
+      parsed = text ? JSON.parse(text) as WebSearchResult : null;
+    } catch {
+      throw new Error(text || 'Invalid web search tool response');
+    }
     if (!parsed) {
       throw new Error('Empty tool response');
     }
@@ -224,6 +238,21 @@ export async function searchBookCoverUrls(
       };
     }
 
+    const availability = await getSearchEngineAvailability(engine);
+    if (!availability.available) {
+      const retryAt = availability.blockedUntil
+        ? new Date(availability.blockedUntil).toISOString()
+        : 'later';
+      attempts.push({
+        engine,
+        status: 'verification_required',
+        resultCount: 0,
+        message: `${engine} verification circuit open until ${retryAt}`,
+      });
+      logger.info(LOG, `Skipping ${engine}; verification circuit open until ${retryAt}`);
+      continue;
+    }
+
     const result = await runWebSearch({
       query,
       engine,
@@ -234,29 +263,25 @@ export async function searchBookCoverUrls(
       openInNewTab: false,
       skipCoverCache: true,
     });
+    const coverResults = filterBookCoverImageResults(result.imageResults, title, author);
     attempts.push({
       engine,
       status: result.status,
-      resultCount: result.imageResults.length,
+      resultCount: coverResults.length,
       message: result.message,
     });
 
     if (result.status === 'verification_required' || result.status === 'verification_timeout') {
-      if (engine === engines[engines.length - 1]) {
-        return {
-          ok: false,
-          coverUrls: [],
-          coverUrl: '',
-          sourceEngine: engine,
-          status: result.status,
-          message: result.message,
-          attempts,
-        };
-      }
+      const blockedUntil = await blockSearchEngineForVerification(engine, result.message);
+      logger.warn(LOG, `${engine} verification detected; circuit open until ${new Date(blockedUntil).toISOString()}`);
       continue;
     }
 
-    const remoteUrls = result.imageResults
+    if (result.ok) {
+      await clearSearchEngineCircuit(engine);
+    }
+
+    const remoteUrls = coverResults
       .map((hit) => hit.imageUrl)
       .filter(Boolean)
       .slice(0, COVER_SEARCH_MAX);
@@ -284,8 +309,12 @@ export async function searchBookCoverUrls(
     coverUrls: [],
     coverUrl: '',
     sourceEngine: '',
-    status: 'no_results',
-    message: 'No cover images found',
+    status: attempts.some((attempt) => (
+      attempt.status === 'verification_required' || attempt.status === 'verification_timeout'
+    )) ? 'verification_required' : 'no_results',
+    message: attempts.some((attempt) => (
+      attempt.status === 'verification_required' || attempt.status === 'verification_timeout'
+    )) ? 'Search providers are temporarily unavailable after verification challenges' : 'No cover images found',
     attempts,
   };
 }

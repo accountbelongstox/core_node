@@ -123,6 +123,10 @@ export interface TerminalScheduleSyncResult {
   error_code?: string | null;
   terminal_number?: number;
   entries?: TerminalScheduleEntry[];
+  source?: string;
+  source_revision?: number;
+  runtime_entry_count?: number;
+  terminal_results?: Array<Record<string, unknown>>;
 }
 
 export interface TerminalScheduleClearResult {
@@ -135,6 +139,12 @@ export interface TerminalScheduleClearResult {
     cleared_entry_count: number;
     entry_ids: string[];
   }>;
+  source?: string;
+  source_revision?: number;
+  source_updated_at?: string;
+  json_entry_count?: number;
+  json_clear_all_pending?: boolean;
+  remaining_entry_count?: number;
 }
 
 export const pycoreApiTerminal = {
@@ -190,11 +200,9 @@ export const pycoreApiTerminal = {
     {},
   ) as Promise<TerminalScheduleClearResult>,
   syncTerminalScheduleEntries: (
-    terminalNumber: number,
-    entries: TerminalScheduleDefinition[],
+    terminalNumber = 0,
   ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
     terminal_number: terminalNumber,
-    entries,
   }) as Promise<TerminalScheduleSyncResult>,
   getTerminalContent: (
     terminalNumber: number,

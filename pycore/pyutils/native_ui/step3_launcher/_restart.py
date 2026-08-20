@@ -12,8 +12,9 @@ import time
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 
-import os
 import sys
+
+from pycore.pyutils.common.process_restart import restart_current_process
 
 
 
@@ -41,15 +42,12 @@ def restart_process() -> None:
     # Small delay to ensure all resources are released
     time.sleep(0.5)
 
-    # Restart process using os.execv()
-    # This replaces the current process with a new one (works in low privilege)
-    python = sys.executable
-    args = [python] + sys.argv
+    args = list(sys.argv)
 
-    ColorPrint.green(f"[NativeLauncher] Restarting with: {' '.join(args)}")
+    ColorPrint.green(f"[NativeLauncher] Restarting with: {sys.executable} {' '.join(args)}")
 
     try:
-        os.execv(python, args)
+        restart_current_process(args)
     except Exception as e:
         ColorPrint.print_error(f"[NativeLauncher] Failed to restart process: {e}")
         ColorPrint.yellow("[NativeLauncher] Please restart manually")

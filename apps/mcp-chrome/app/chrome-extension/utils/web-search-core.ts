@@ -110,10 +110,31 @@ export interface BookCoverSearchResult {
 }
 
 function searchTokens(query: string): string[] {
-  return String(query || '')
+  return Array.from(new Set(String(query || '')
     .toLowerCase()
     .split(/[^\p{L}\p{N}]+/u)
-    .filter((token) => token.length >= SEARCH_TOKEN_MIN_LENGTH && !SEARCH_STOP_WORDS.has(token));
+    .filter((token) => token.length >= SEARCH_TOKEN_MIN_LENGTH && !SEARCH_STOP_WORDS.has(token))));
+}
+
+function searchableCandidateText(hit: WebSearchImageHit): string {
+  const urls = [hit.pageUrl, hit.imageUrl];
+  const parts = [hit.title];
+
+  for (const rawUrl of urls) {
+    try {
+      const parsed = new URL(rawUrl);
+      if (rawUrl === hit.pageUrl && isEngineSearchUrl(rawUrl, hit.engine)) continue;
+      parts.push(parsed.hostname, decodeURIComponent(parsed.pathname));
+    } catch {
+      parts.push(rawUrl);
+    }
+  }
+
+  return parts.join(' ').toLowerCase();
+}
+
+function countMatchingTokens(tokens: string[], searchable: string): number {
+  return tokens.reduce((count, token) => count + (searchable.includes(token) ? 1 : 0), 0);
 }
 
 export function isSearchImageCandidate(
@@ -129,7 +150,7 @@ export function isSearchImageCandidate(
 
   const tokens = searchTokens(query);
   if (tokens.length === 0) return true;
-  const searchable = `${hit.title} ${hit.pageUrl} ${hit.imageUrl}`.toLowerCase();
+  const searchable = searchableCandidateText(hit);
   return tokens.some((token) => searchable.includes(token));
 }
 
@@ -138,6 +159,28 @@ export function filterSearchImageResults(
   query: string,
 ): WebSearchImageHit[] {
   return hits.filter((hit) => isSearchImageCandidate(hit, query));
+}
+
+export function filterBookCoverImageResults(
+  hits: WebSearchImageHit[],
+  title: string,
+  author: string,
+): WebSearchImageHit[] {
+  const titleTokens = searchTokens(title);
+  const authorTokens = searchTokens(author);
+
+  return hits.filter((hit) => {
+    const searchable = searchableCandidateText(hit);
+    const titleMatches = countMatchingTokens(titleTokens, searchable);
+    const authorMatches = countMatchingTokens(authorTokens, searchable);
+
+    if (titleTokens.length === 0) {
+      return authorTokens.length > 0 && authorMatches > 0;
+    }
+
+    const requiredTitleMatches = titleTokens.length === 1 ? 1 : 2;
+    return titleMatches >= requiredTitleMatches;
+  });
 }
 
 export const WEB_SEARCH_PROGRESS_KEY = STORAGE_KEYS.WEB_SEARCH_PROGRESS;
@@ -193,7 +236,13 @@ export function buildSearchUrl(
 }
 
 export function bookCoverQuery(title: string, author: string): string {
-  const parts = [title, author, 'book cover'].filter((p) => String(p || '').trim());
+  const titlePart = String(title || '').trim();
+  const authorPart = String(author || '').trim();
+  const parts = [
+    titlePart ? `"${titlePart.replace(/"/g, '')}"` : '',
+    authorPart.replace(/"/g, ''),
+    'book cover',
+  ].filter(Boolean);
   return parts.join(' ').trim();
 }
 

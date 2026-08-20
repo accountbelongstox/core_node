@@ -44,6 +44,7 @@ import {
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
+import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import type {
   TerminalActionResult,
   TerminalScheduleDefinition,
@@ -107,6 +108,8 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
 interface ActionNotice {
   kind: 'success' | 'error';
   translationKey: string;
+  translationValues?: Record<string, string | number>;
+  responseJson?: string;
 }
 
 interface CanvasSize {
@@ -408,7 +411,7 @@ const PcTerminalPage: React.FC = () => {
   const loadedDraftsRef = useRef<Set<number>>(new Set());
   const scheduleSyncInFlightRef = useRef<Map<
     number,
-    ReturnType<typeof pycoreApi.syncTerminalScheduleEntries>
+    ReturnType<typeof pycoreManagerUiStateSync.synchronizeTerminalSchedules>
   >>(new Map());
   const scheduleClearAllInProgressRef = useRef(false);
 
@@ -467,9 +470,8 @@ const PcTerminalPage: React.FC = () => {
       || scheduleClearAllInProgressRef.current
       || scheduleSyncInFlightRef.current.has(terminalNumber)
     ) return null;
-    const request = pycoreApi.syncTerminalScheduleEntries(
+    const request = pycoreManagerUiStateSync.synchronizeTerminalSchedules(
       terminalNumber,
-      schedule.entries,
     );
     scheduleSyncInFlightRef.current.set(terminalNumber, request);
     try {
@@ -515,9 +517,8 @@ const PcTerminalPage: React.FC = () => {
       if (activeEntries.length !== schedule.entries.length) {
         writeTerminalScheduleQueue(terminalNumber, activeEntries);
       }
-      void syncTerminalScheduleQueue(terminalNumber).catch(() => undefined);
     });
-  }, [syncTerminalScheduleQueue]);
+  }, []);
 
   const refresh = useCallback(async (showLoading = false) => {
     if (refreshInFlightRef.current) return;
@@ -838,7 +839,9 @@ const PcTerminalPage: React.FC = () => {
       (windowInfo) => windowInfo.terminal_number,
     );
     scheduleClearAllInProgressRef.current = true;
-    stageTerminalScheduleClearAll(terminalNumbers);
+    const localResult = stageTerminalScheduleClearAll(terminalNumbers);
+    const localTerminalNumbers = localResult.terminal_numbers.join(', ')
+      || t('terminal.scheduleNoTerminals');
     setSnapshot((current) => current ? {
       ...current,
       windows: current.windows.map((windowInfo) => ({
@@ -851,29 +854,51 @@ const PcTerminalPage: React.FC = () => {
     setActionNotice(null);
     try {
       await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
+      await pycoreManagerUiStateSync.pushTerminalScheduleJson();
       const result = await pycoreApi.clearTerminalScheduleEntries();
+      const pycoreTerminalNumbers = (result.terminal_numbers || []).join(', ')
+        || t('terminal.scheduleNoTerminals');
       if (result.success) {
         completeTerminalScheduleClearAll();
+        await pycoreManagerUiStateSync.pushTerminalScheduleJson();
         setActionNotice({
           kind: 'success',
-          translationKey: 'terminal.scheduleAllCleared',
+          translationKey: 'terminal.scheduleClearResult',
+          translationValues: {
+            frontendCount: localResult.cleared_entry_count,
+            frontendTerminals: localTerminalNumbers,
+            pycoreCount: Number(result.cleared_entry_count || 0),
+            pycoreTerminals: pycoreTerminalNumbers,
+          },
+          responseJson: JSON.stringify(result, null, 2),
         });
       } else {
         setActionNotice({
-          kind: 'success',
-          translationKey: 'terminal.scheduleClearSavedLocally',
+          kind: 'error',
+          translationKey: 'terminal.scheduleClearPendingResult',
+          translationValues: {
+            frontendCount: localResult.cleared_entry_count,
+            frontendTerminals: localTerminalNumbers,
+            errorCode: String(result.error_code || 'request_failed'),
+          },
+          responseJson: JSON.stringify(result, null, 2),
         });
       }
     } catch {
       setActionNotice({
-        kind: 'success',
-        translationKey: 'terminal.scheduleClearSavedLocally',
+        kind: 'error',
+        translationKey: 'terminal.scheduleClearPendingResult',
+        translationValues: {
+          frontendCount: localResult.cleared_entry_count,
+          frontendTerminals: localTerminalNumbers,
+          errorCode: 'request_failed',
+        },
       });
     } finally {
       scheduleClearAllInProgressRef.current = false;
       setActionWindowId('');
     }
-  }, [snapshot?.windows]);
+  }, [snapshot?.windows, t]);
 
   const activate = useCallback((windowId: string) => runAction(
     windowId,
@@ -1698,7 +1723,7 @@ const PcTerminalPage: React.FC = () => {
       )}
 
       {actionNotice && (
-        <div className={`flex items-center gap-2 text-xs rounded-2xl p-3 border ${
+        <div className={`flex items-start gap-2 text-xs rounded-2xl p-3 border ${
           actionNotice.kind === 'success'
             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
             : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
@@ -1706,7 +1731,14 @@ const PcTerminalPage: React.FC = () => {
           {actionNotice.kind === 'success'
             ? <CheckCircle2 className="w-4 h-4 shrink-0" />
             : <AlertTriangle className="w-4 h-4 shrink-0" />}
-          <span>{t(actionNotice.translationKey)}</span>
+          <div className="min-w-0 flex-1">
+            <span>{t(actionNotice.translationKey, actionNotice.translationValues)}</span>
+            {actionNotice.responseJson && (
+              <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950/10 p-2 font-mono text-[10px] text-slate-700 dark:bg-black/20 dark:text-slate-200">
+                {actionNotice.responseJson}
+              </pre>
+            )}
+          </div>
         </div>
       )}
 
