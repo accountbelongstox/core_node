@@ -728,7 +728,7 @@ export const pcEn = {
     platform: 'Platform',
     session: 'Desktop session',
     windowsTitle: 'Terminal windows',
-    windowsHint: 'Windows keep their real desktop coordinates and proportions. Titles stay above the 2-second native preview; saved offline windows use dashed borders.',
+    windowsHint: 'Live windows keep their real desktop coordinates and proportions. Saved offline windows stay in the bottom grid until the same numbered terminal reclaims them.',
     empty: 'No live or saved terminal windows detected.',
     untitled: 'Untitled terminal',
     active: 'Active',
