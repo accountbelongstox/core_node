@@ -15,6 +15,8 @@ interface TaskCenterToolParams {
   enabled?: boolean;
   words?: string[];
   provider?: 'deepseek' | 'gemini' | 'chatgpt';
+  targetLanguage?: string;
+  timeoutMs?: number;
 }
 
 class TaskCenterTool {
@@ -56,6 +58,7 @@ class TaskCenterTool {
           action: 'test',
           words: args.words,
           provider: args.provider,
+          targetLanguage: args.targetLanguage,
         });
         break;
       default:

@@ -112,6 +112,28 @@ export class TimeoutController {
   }
 }
 
+export class AsyncMutex {
+  private tail: Promise<void> = Promise.resolve();
+
+  async acquire(): Promise<() => void> {
+    let releaseCurrent!: () => void;
+    let released = false;
+    const previous = this.tail;
+    const current = new Promise<void>((resolve) => {
+      releaseCurrent = resolve;
+    });
+
+    this.tail = previous.then(() => current, () => current);
+    await previous.catch(() => undefined);
+
+    return () => {
+      if (released) return;
+      released = true;
+      releaseCurrent();
+    };
+  }
+}
+
 abstract class PromiseController<T> {
   private operation: Promise<T> | null = null;
   private running = false;

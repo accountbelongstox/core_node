@@ -338,7 +338,7 @@
       },
       "validity": {
         "storage_key": "tkCapValidity",
-        "label": "执行单词有效性与翻译任务",
+        "label": "Word validity and translation",
         "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
         "processors": [],
         "uses_validity_runner": true

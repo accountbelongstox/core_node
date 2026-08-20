@@ -1,6 +1,7 @@
 import { getQwenTtsProgress, runQwenTts } from './services/qwen-tts-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Qwen TTS Listener';
 

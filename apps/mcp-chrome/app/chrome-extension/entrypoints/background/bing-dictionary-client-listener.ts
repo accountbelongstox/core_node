@@ -9,7 +9,8 @@
 import { bingDictionaryWorkerService, type WorkerConfig } from './services/bing-dictionary-worker-service';
 import { logger } from '@/utils/logger';
 import { BING_DICT_MSG, FEATURE_MESSAGE_TYPES } from '@/common/message-types';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Bing Listener';
 

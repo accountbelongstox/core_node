@@ -9,7 +9,8 @@ import {
   unpackPzMessageBytes,
 } from './services/duoreader-importer-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Duoreader Listener';
 

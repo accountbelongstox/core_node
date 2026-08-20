@@ -14,6 +14,7 @@ interface TerminalScheduleBackupRecord {
 interface TerminalScheduleBackupState {
   version: 3;
   terminals: Record<string, TerminalScheduleBackupRecord>;
+  clear_all_pending: boolean;
 }
 
 interface LegacyTerminalScheduleBackupEntry {
@@ -25,10 +26,15 @@ interface LegacyTerminalScheduleBackupEntry {
 }
 
 const LEGACY_STORAGE_KEY = 'pc.terminal.scheduleBackup.v2';
-const EMPTY_STATE: TerminalScheduleBackupState = {
-  version: 3,
-  terminals: {},
-};
+const EMPTY_STATE_VERSION = 3;
+
+function emptyState(): TerminalScheduleBackupState {
+  return {
+    version: EMPTY_STATE_VERSION,
+    terminals: {},
+    clear_all_pending: false,
+  };
+}
 
 function normalizeDefinition(value: unknown): TerminalScheduleDefinition | null {
   const candidate = value as Partial<TerminalScheduleDefinition> | null;
@@ -56,17 +62,23 @@ function normalizeDefinition(value: unknown): TerminalScheduleDefinition | null 
 function normalizeState(value: unknown): TerminalScheduleBackupState {
   const candidate = value as Partial<TerminalScheduleBackupState> | null;
   const terminals: Record<string, TerminalScheduleBackupRecord> = {};
-  if (candidate?.version !== 3 || !candidate.terminals) return EMPTY_STATE;
+  if (candidate?.version !== EMPTY_STATE_VERSION || !candidate.terminals) {
+    return emptyState();
+  }
   Object.entries(candidate.terminals).forEach(([key, record]) => {
     if (!/^\d+$/.test(key) || !record || !Array.isArray(record.entries)) return;
     terminals[key] = {
       entries: record.entries
         .map(normalizeDefinition)
         .filter((entry): entry is TerminalScheduleDefinition => entry !== null),
-      updated_at: Number(record.updated_at || 0),
+      updated_at: Math.max(0, Number(record.updated_at) || 0),
     };
   });
-  return { version: 3, terminals };
+  return {
+    version: EMPTY_STATE_VERSION,
+    terminals,
+    clear_all_pending: Boolean(candidate.clear_all_pending),
+  };
 }
 
 function migrateLegacyState(): TerminalScheduleBackupState {
@@ -88,7 +100,11 @@ function migrateLegacyState(): TerminalScheduleBackupState {
       .filter((entry): entry is TerminalScheduleDefinition => entry !== null);
     terminals[key] = { entries: normalizedEntries, updated_at: Date.now() };
   });
-  const state: TerminalScheduleBackupState = { version: 3, terminals };
+  const state: TerminalScheduleBackupState = {
+    version: EMPTY_STATE_VERSION,
+    terminals,
+    clear_all_pending: false,
+  };
   StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
   return state;
 }
@@ -99,7 +115,7 @@ function readState(): TerminalScheduleBackupState {
   }
   return normalizeState(StorageManager.get(
     PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS,
-    EMPTY_STATE,
+    emptyState(),
   ));
 }
 
@@ -118,15 +134,51 @@ export function writeTerminalScheduleBackup(
   entries: TerminalScheduleDefinition[],
 ): TerminalScheduleBackupRecord {
   const state = readState();
+  const previousUpdatedAt = Number(
+    state.terminals[String(terminalNumber)]?.updated_at || 0,
+  );
   const record: TerminalScheduleBackupRecord = {
     entries: entries
       .map(normalizeDefinition)
       .filter((entry): entry is TerminalScheduleDefinition => entry !== null),
-    updated_at: Date.now(),
+    updated_at: Math.max(Date.now(), previousUpdatedAt + 1),
   };
   state.terminals[String(terminalNumber)] = record;
   StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
   return { ...record, entries: record.entries.map((entry) => ({ ...entry })) };
+}
+
+export function stageTerminalScheduleClearAll(
+  terminalNumbers: number[],
+): void {
+  const state = readState();
+  const terminalKeys = new Set([
+    ...Object.keys(state.terminals),
+    ...terminalNumbers
+      .filter((value) => value > 0)
+      .map((value) => String(value)),
+  ]);
+  terminalKeys.forEach((key) => {
+    const current = state.terminals[key];
+    if (current && current.entries.length === 0) return;
+    state.terminals[key] = {
+      entries: [],
+      updated_at: Math.max(Date.now(), Number(current?.updated_at || 0) + 1),
+    };
+  });
+  state.clear_all_pending = true;
+  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
+}
+
+export function isTerminalScheduleClearAllPending(): boolean {
+  return readState().clear_all_pending;
+}
+
+export function completeTerminalScheduleClearAll(): void {
+  const state = readState();
+  if (!state.clear_all_pending) return;
+  state.clear_all_pending = false;
+  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
 }
 
 export function createTerminalScheduleEntryId(): string {
@@ -152,6 +204,7 @@ export function terminalScheduleDefinitionMetadata(
   return {
     id: definition.id,
     mode: definition.mode,
+    run_at: definition.mode === 'once' ? definition.run_at : 0,
     next_run_at: nextRunAt,
     interval_seconds: definition.interval_seconds,
     has_message: Boolean(definition.message),

@@ -5,7 +5,8 @@
  * factory bound to its own message `type` and WebChatJobToolBase instance.
  */
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 export interface WebChatJobTool {
   start(prompt: string, timeoutMs?: number): Promise<{ ok: boolean; jobId?: string; [key: string]: any }>;

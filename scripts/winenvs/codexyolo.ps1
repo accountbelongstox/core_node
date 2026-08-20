@@ -65,6 +65,11 @@ $model = "gpt-5.6-sol"
 $reasoningEffort = "high"
 $codexArgs = @()
 $displayArgs = $null
+$resumeRequested = $false
+$resumeArgument = $null
+$codexHomePath = $null
+$threadWriterLocksPath = $null
+$threadWriterLockFiles = @()
 
 $scriptPath = $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($scriptPath)) {
@@ -97,6 +102,27 @@ $mcpChromeRegisterScriptPath = Join-Path $mcpChromeRegisterScriptPath "register-
 . $windowsPathFunctionScript
 Set-CoreNodePaths
 $mcpChromePython = (Resolve-Path -LiteralPath $Global:PYTHON_EXE_PATH).Path
+foreach ($resumeArgument in $args) {
+    if (($resumeArgument -eq "resume") -or ($resumeArgument -eq "--resume")) {
+        $resumeRequested = $true
+        break
+    }
+}
+if ($resumeRequested) {
+    if ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
+        $codexHomePath = Join-Path ([Environment]::GetFolderPath("UserProfile")) ".codex"
+    } else {
+        $codexHomePath = (Resolve-Path -LiteralPath $env:CODEX_HOME).Path
+    }
+    $threadWriterLocksPath = Join-Path $codexHomePath "thread-writer-locks"
+    if (Test-Path -LiteralPath $threadWriterLocksPath) {
+        $threadWriterLockFiles = @(Get-ChildItem -LiteralPath $threadWriterLocksPath -Filter "*.lock" -File | Where-Object { $_.Name -ne ".coordination.lock" })
+        if ($threadWriterLockFiles.Count -gt 0) {
+            $threadWriterLockFiles | Remove-Item -Force
+            Write-Host "[INFO] Cleared $($threadWriterLockFiles.Count) Codex thread writer lock file(s) before resume." -ForegroundColor Green
+        }
+    }
+}
 
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan

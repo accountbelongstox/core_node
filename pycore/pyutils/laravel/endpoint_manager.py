@@ -72,7 +72,7 @@ from pycore.pyutils.laravel.identity import (
 # Cache section this manager owns.
 ENDPOINT_CACHE_SECTION = "laravel_api"
 ENDPOINT_CACHE_FILE_NAME = "laravel_endpoint_cache.json"
-FALLBACK_ENDPOINT = "http://127.0.0.1:9000"
+FALLBACK_ENDPOINT = LARAVEL_WORKER_API_URL
 # laravel_main's cheap liveness route (no DB, no auth — see routes/api.php).
 HEALTH_PATH = "/api/health"
 # Probe timeout (seconds) — load-bearing, mirrors the dashboard's probe cap.

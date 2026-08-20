@@ -7,7 +7,7 @@ import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } f
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { ERROR_MESSAGES } from '@/common/constants';
-import { delay as waitForDelay } from '@/utils/async';
+import { AsyncMutex, delay as waitForDelay } from '@/utils/async';
 import {
   getTaskQueueManager,
   TaskStatus,
@@ -17,8 +17,10 @@ import {
 } from '@/utils/deepseek-task-queue';
 import { getDeepSeekPollingService } from '../../deepseek-polling-service';
 import { tabController } from '../../services/tab-controller';
+import { inspectDeepSeekPage, type DeepSeekPageObservation } from '@/utils/deepseek-page';
 
 const DEEPSEEK_URL = 'https://chat.deepseek.com/';
+const deepSeekConversationMutex = new AsyncMutex();
 
 /**
  * Helper to wait for task completion
@@ -82,6 +84,9 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       return createErrorResponse('Prompt is required');
     }
 
+    const releaseConversation = await deepSeekConversationMutex.acquire();
+    let ownsConversation = true;
+
     try {
       const taskManager = getTaskQueueManager();
       const pollingService = getDeepSeekPollingService();
@@ -133,6 +138,11 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
 
       // Send the prompt
       try {
+        const baselineResult = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: inspectDeepSeekPage,
+        });
+        const baseline = baselineResult[0]?.result as DeepSeekPageObservation | undefined;
         const result = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           // Runs in the page. Kept resilient to DeepSeek UI drift: broad input
@@ -165,7 +175,6 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               '[role="textbox"]',
             ]);
             if (!input) return { success: false, reason: 'input control not found' };
-
             const tag = input.tagName;
             if (tag === 'TEXTAREA' || tag === 'INPUT') {
               // React overrides the value setter — go through the native one so
@@ -185,19 +194,30 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
             input.dispatchEvent(new Event('change', { bubbles: true }));
 
             // Let the framework react (enable the send button) before sending.
-            await waitForDelay(200);
+            await new Promise((resolve) => window.setTimeout(resolve, 200));
 
             const sendBtn: any = pick(
               [
                 'button[type="submit"]',
+                'button[data-testid*="send" i]',
+                '[data-testid*="send-button" i]',
                 'button[aria-label*="Send" i]',
                 'button[aria-label*="发送"]',
                 'div[role="button"][aria-label*="Send" i]',
               ],
               (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true',
             );
-            if (sendBtn) {
-              sendBtn.click();
+            const inputContainer = input.closest('form') || input.parentElement?.parentElement;
+            const containerButtons = inputContainer
+              ? Array.from(inputContainer.querySelectorAll('button,[role="button"]')).filter(
+                  (el: any) => isVisible(el)
+                    && !el.disabled
+                    && el.getAttribute('aria-disabled') !== 'true',
+                )
+              : [];
+            const resolvedSendBtn: any = sendBtn || containerButtons[containerButtons.length - 1] || null;
+            if (resolvedSendBtn) {
+              resolvedSendBtn.click();
             } else {
               const opts: any = {
                 key: 'Enter',
@@ -212,10 +232,18 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               input.dispatchEvent(new KeyboardEvent('keyup', opts));
             }
 
+            await new Promise((resolve) => window.setTimeout(resolve, 400));
+            const remainingValue = tag === 'TEXTAREA' || tag === 'INPUT'
+              ? String(input.value || '').trim()
+              : String(input.textContent || '').trim();
+            if (remainingValue === promptText.trim()) {
+              return { success: false, reason: 'send action did not submit the prompt' };
+            }
+
             return {
               success: true,
               conversationUrl: window.location.href,
-              sentVia: sendBtn ? 'button' : 'enter',
+              sentVia: resolvedSendBtn ? 'button' : 'enter',
             };
           },
           args: [prompt],
@@ -227,7 +255,11 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         // message thrown here must NOT include that prefix (avoids doubling).
         const frame = result && result.length > 0 ? result[0] : null;
         const injected = frame
-          ? (frame.result as { success?: boolean; conversationUrl?: string; reason?: string } | null)
+          ? (frame.result as {
+              success?: boolean;
+              conversationUrl?: string;
+              reason?: string;
+            } | null)
           : null;
         if (!injected || !injected.success) {
           const reason = injected && injected.reason ? injected.reason : 'input/send controls not found';
@@ -240,6 +272,8 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         await taskManager.updateTask(task.id, {
           status: TaskStatus.PENDING,
           conversationId: conversationUrl,
+          responseBaseline: baseline?.assistantMessageCount ?? 0,
+          responseBaselineKey: baseline?.lastResponseKey ?? '',
         });
 
         // Start polling
@@ -248,6 +282,8 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         // If waitForCompletion, wait for result
         if (waitForCompletion) {
           const completedTask = await waitForTaskCompletion(task.id, timeout);
+          releaseConversation();
+          ownsConversation = false;
 
           return createJsonResponse({
             taskId: completedTask.id,
@@ -256,6 +292,11 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
             result: completedTask.result,
           });
         }
+
+        void waitForTaskCompletion(task.id, timeout)
+          .catch(() => undefined)
+          .finally(releaseConversation);
+        ownsConversation = false;
 
         // Return task ID immediately
         return createJsonResponse({
@@ -275,6 +316,8 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
       return createErrorResponse(
         `Failed to send prompt: ${toErrorMessage(error)}`
       );
+    } finally {
+      if (ownsConversation) releaseConversation();
     }
   }
 }
@@ -295,15 +338,18 @@ class DeepSeekGetTaskStatusTool extends BaseBrowserToolExecutor {
 
     try {
       const taskManager = getTaskQueueManager();
+      const pollingService = getDeepSeekPollingService();
       await taskManager.initialize();
+      await pollingService.pollNow(taskId);
 
       const task = await taskManager.getTask(taskId);
+      const observation = task ? await pollingService.inspectTask(taskId) : null;
 
       if (!task) {
         return createErrorResponse(`Task ${taskId} not found`);
       }
 
-      return createJsonResponse({ task });
+      return createJsonResponse({ task, observation });
     } catch (error) {
       console.error('Error in deepseek_get_task_status:', error);
       return createErrorResponse(

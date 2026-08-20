@@ -57,6 +57,9 @@ class TerminalWindowBackend(Protocol):
     ) -> Dict[str, Any]:
         ...
 
+    def press_enter(self, window_id: str) -> Dict[str, Any]:
+        ...
+
     def scroll(
         self,
         window_id: str,

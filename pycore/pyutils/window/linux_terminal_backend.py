@@ -136,6 +136,24 @@ class LinuxTerminalBackend:
             return self._failure("terminal_history_key_failed")
         return {"success": True, "error_code": None, "window": window}
 
+    def press_enter(self, window_id: str) -> Dict[str, Any]:
+        capability = self._capability()
+        if not capability["supported"]:
+            return self._failure(str(capability["error_code"]))
+        window = self._find_terminal_window(window_id)
+        if window is None:
+            return self._failure("terminal_window_not_found")
+        time.sleep(FOCUS_DELAY_SECONDS)
+        entered = exec_silent([
+            str(capability["xdotool_path"]),
+            "key",
+            "--clearmodifiers",
+            "Return",
+        ])
+        if not entered.success:
+            return self._failure("terminal_enter_failed")
+        return {"success": True, "error_code": None, "window": window}
+
     def scroll(
         self,
         window_id: str,
@@ -201,10 +219,7 @@ class LinuxTerminalBackend:
         if not clicked.success:
             return self._failure("terminal_right_click_failed")
         time.sleep(PASTE_DELAY_SECONDS)
-        entered = exec_silent([xdotool_path, "key", "Return"])
-        if not entered.success:
-            return self._failure("terminal_enter_failed")
-        return {"success": True, "error_code": None, "window": window}
+        return self.press_enter(window_id)
 
     def _prepare_window(self, window_id: str) -> Dict[str, Any]:
         capability = self._capability()

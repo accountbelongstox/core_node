@@ -17,7 +17,8 @@
     GPU: Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice; CPU: 0.6B-CustomVoice.
     Runtime: SoX binary on PATH (pysox; winget ChrisBagwell.SoX).
     Idempotent + self-repairing by default (no switches required): builds/verifies the venv
-    (ensure_venv re-imports qwen_tts and repairs it in place if broken), downloads or repairs HF
+    (ensure_venv checks persisted dependency states independently and performs full imports only
+    after a repair), downloads or repairs HF
     weights (curl resume + size verification). Skip with QWEN3TTS_SKIP=1.
     -Force rebuilds the venv from scratch and re-validates every weight file.
 #>
@@ -130,9 +131,9 @@ if (-not $soxReady) {
 #     potentially incompatible with the main interpreter's shared stack, so it is never
 #     installed here. Build the dedicated dependency overlay (ensure_venv;
 #     --system-site-packages exposes the managed CUDA torch group) instead.
-#     Self-repairing: ensure_venv re-imports
-#     qwen_tts and repairs a broken venv in place. See lifecycle doc §5. --- #
-Write-Host "$SCRIPT_INDEX [..] building/verifying isolated qwen-tts venv (ensure_venv; first build takes minutes) ..." -ForegroundColor Yellow
+#     Self-repairing: ensure_venv checks policy, module discovery, package metadata,
+#     and CUDA state independently, then runs full import validation after repair. --- #
+Write-Host "$SCRIPT_INDEX [..] converging isolated qwen-tts venv (first build takes minutes) ..." -ForegroundColor Yellow
 $venvReady = Invoke-IsolatedTtsVenvEnsure -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts' -Force:$Force
 if ($venvReady) {
     Set-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel | Out-Null

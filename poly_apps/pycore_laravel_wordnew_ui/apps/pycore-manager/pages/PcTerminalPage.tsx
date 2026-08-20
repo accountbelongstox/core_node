@@ -31,10 +31,21 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import { pycoreApi } from '@/apps/pycore-manager/api';
+import {
+  completeTerminalScheduleClearAll,
+  createTerminalScheduleEntryId,
+  isTerminalScheduleClearAllPending,
+  onHttpStatus,
+  pycoreApi,
+  readTerminalScheduleBackup,
+  stageTerminalScheduleClearAll,
+  terminalScheduleDefinitionMetadata,
+  writeTerminalScheduleBackup,
+} from '@/apps/pycore-manager/api';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
 import type {
   TerminalActionResult,
+  TerminalScheduleDefinition,
   TerminalScheduleEntry,
   TerminalSnapshot,
   TerminalWindowScreenshot,
@@ -45,6 +56,7 @@ import type {
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
+const ALL_SCHEDULES_ACTION_ID = 'terminal:schedules:all';
 /** Height reserved above the mobile terminal grid (top bar + page header). */
 const MOBILE_GRID_OFFSET_REM = 15.5;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
@@ -128,53 +140,6 @@ function terminalDraftKey(terminalNumber: number): string {
 }
 
 type TerminalScheduleEditorMode = 'once' | 'interval';
-
-interface TerminalScheduleBackupEntry {
-  backend_id: string;
-  mode: TerminalScheduleEditorMode;
-  run_at: number;
-  interval_seconds: number;
-  message: string;
-}
-
-const SCHEDULE_BACKUP_STORAGE_KEY = 'pc.terminal.scheduleBackup.v2';
-
-function readScheduleBackups(): Record<string, TerminalScheduleBackupEntry[]> {
-  try {
-    const raw = window.localStorage.getItem(SCHEDULE_BACKUP_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return {};
-    const backups: Record<string, TerminalScheduleBackupEntry[]> = {};
-    Object.entries(parsed).forEach(([key, entries]) => {
-      if (Array.isArray(entries)) backups[key] = entries;
-    });
-    return backups;
-  } catch {
-    return {};
-  }
-}
-
-function updateScheduleBackup(
-  terminalNumber: number,
-  updater: (
-    entries: TerminalScheduleBackupEntry[],
-  ) => TerminalScheduleBackupEntry[],
-): void {
-  try {
-    const backups = readScheduleBackups();
-    const key = String(terminalNumber);
-    const nextEntries = updater(backups[key] || []);
-    if (nextEntries.length) {
-      backups[key] = nextEntries;
-    } else {
-      delete backups[key];
-    }
-    window.localStorage.setItem(SCHEDULE_BACKUP_STORAGE_KEY, JSON.stringify(backups));
-  } catch {
-    // localStorage unavailable; pycore still persists the queue on disk.
-  }
-}
 
 function formatScheduleTime(value: number | null | undefined): string {
   if (!value) return '';
@@ -277,6 +242,58 @@ function replaceTerminalScreenshot(
         : windowInfo
     )),
   };
+}
+
+function replaceTerminalScheduleQueue(
+  snapshot: TerminalSnapshot | null,
+  terminalNumber: number,
+  definitions: TerminalScheduleDefinition[],
+  backendEntries: TerminalScheduleEntry[] = [],
+): TerminalSnapshot | null {
+  if (!snapshot) return snapshot;
+  const targetWindow = snapshot.windows.find(
+    (windowInfo) => windowInfo.terminal_number === terminalNumber,
+  );
+  const backendById = new Map(backendEntries.map((entry) => [entry.id, entry]));
+  const currentById = new Map(
+    (targetWindow?.schedule_queue || []).map((entry) => [entry.id, entry]),
+  );
+  const scheduleQueue = definitions.map((definition) => (
+    backendById.get(definition.id)
+    || terminalScheduleDefinitionMetadata(
+      definition,
+      currentById.get(definition.id),
+    )
+  )).sort((left, right) => (
+    Number(left.next_run_at || Number.MAX_SAFE_INTEGER)
+    - Number(right.next_run_at || Number.MAX_SAFE_INTEGER)
+    || left.id.localeCompare(right.id)
+  ));
+  return {
+    ...snapshot,
+    windows: snapshot.windows.map((windowInfo) => {
+      if (windowInfo.terminal_number !== terminalNumber) return windowInfo;
+      return {
+        ...windowInfo,
+        schedule_queue: scheduleQueue,
+      };
+    }),
+  };
+}
+
+function overlayTerminalScheduleBackups(snapshot: TerminalSnapshot): TerminalSnapshot {
+  let nextSnapshot: TerminalSnapshot | null = snapshot;
+  snapshot.windows.forEach((windowInfo) => {
+    const backup = readTerminalScheduleBackup(windowInfo.terminal_number);
+    if (!backup) return;
+    nextSnapshot = replaceTerminalScheduleQueue(
+      nextSnapshot,
+      windowInfo.terminal_number,
+      backup.entries,
+      windowInfo.schedule_queue || [],
+    );
+  });
+  return nextSnapshot || snapshot;
 }
 
 function formatLogDate(value: string): string {
@@ -390,7 +407,11 @@ const PcTerminalPage: React.FC = () => {
   const dirtyDraftsRef = useRef<Set<number>>(new Set());
   const draftTimersRef = useRef<Record<string, number>>({});
   const loadedDraftsRef = useRef<Set<number>>(new Set());
-  const scheduleResyncAttemptsRef = useRef<Set<number>>(new Set());
+  const scheduleSyncInFlightRef = useRef<Map<
+    number,
+    ReturnType<typeof pycoreApi.syncTerminalScheduleEntries>
+  >>(new Map());
+  const scheduleClearAllInProgressRef = useRef(false);
 
   const errorTranslationKey = useCallback((errorCode?: string | null) => (
     ERROR_TRANSLATION_KEYS[String(errorCode || '')] || 'terminal.errors.unknown'
@@ -438,57 +459,98 @@ const PcTerminalPage: React.FC = () => {
     void persistDraft(terminalNumber, draftsRef.current[key] || '');
   }, [persistDraft]);
 
-  // Re-adds one terminal's backed-up entries sequentially so the queue order
-  // matches the backup; the backup is rewritten with the new backend ids.
-  const resyncTerminalScheduleBackup = useCallback(async (
-    terminalNumber: number,
-    entries: TerminalScheduleBackupEntry[],
+  const initializeTerminalScheduleBackup = useCallback(async (
+    windowInfo: TerminalWindowInfo,
   ) => {
-    const nextEntries: TerminalScheduleBackupEntry[] = [];
-    for (const entry of entries) {
-      const result = await pycoreApi.addTerminalScheduleEntry(terminalNumber, {
+    const terminalNumber = windowInfo.terminal_number;
+    if (readTerminalScheduleBackup(terminalNumber)) return;
+    const definitions = await Promise.all(
+      (windowInfo.schedule_queue || []).map(async (entry) => ({
+        id: entry.id,
         mode: entry.mode,
-        runAt: entry.mode === 'once' ? entry.run_at : 0,
-        intervalSeconds: entry.mode === 'interval' ? entry.interval_seconds : 0,
-        message: entry.message,
-      }).catch(() => null);
-      if (!result?.success) {
-        scheduleResyncAttemptsRef.current.delete(terminalNumber);
-        return;
-      }
-      nextEntries.push({
-        ...entry,
-        backend_id: String(result.entry?.id || ''),
-      });
+        run_at: entry.mode === 'once'
+          ? Number(entry.run_at || entry.next_run_at || 0)
+          : 0,
+        interval_seconds: entry.mode === 'interval' ? entry.interval_seconds : 0,
+        message: await pycoreApi.getTerminalContent(
+          terminalNumber,
+          'schedule',
+          '',
+          entry.id,
+        ),
+      })),
+    );
+    if (!readTerminalScheduleBackup(terminalNumber)) {
+      writeTerminalScheduleBackup(terminalNumber, definitions);
     }
-    updateScheduleBackup(terminalNumber, () => nextEntries);
   }, []);
 
-  // Restore queued schedules from the page-side backup when pycore restarted
-  // and lost its own persisted state; expired one-shot backups are dropped
-  // instead of firing late.
-  const resyncScheduleBackups = useCallback((windows: TerminalWindowInfo[]) => {
-    const backups = readScheduleBackups();
+  const syncTerminalScheduleBackup = useCallback(async (
+    terminalNumber: number,
+  ) => {
+    const backup = readTerminalScheduleBackup(terminalNumber);
+    if (
+      !backup
+      || scheduleClearAllInProgressRef.current
+      || scheduleSyncInFlightRef.current.has(terminalNumber)
+    ) return null;
+    const request = pycoreApi.syncTerminalScheduleEntries(
+      terminalNumber,
+      backup.entries,
+    );
+    scheduleSyncInFlightRef.current.set(terminalNumber, request);
+    try {
+      const result = await request;
+      const currentBackup = readTerminalScheduleBackup(terminalNumber);
+      if (
+        result.success
+        && currentBackup?.updated_at === backup.updated_at
+        && mountedRef.current
+      ) {
+        setSnapshot((current) => replaceTerminalScheduleQueue(
+          current,
+          terminalNumber,
+          currentBackup.entries,
+          result.entries || [],
+        ));
+      }
+      return result;
+    } finally {
+      if (scheduleSyncInFlightRef.current.get(terminalNumber) === request) {
+        scheduleSyncInFlightRef.current.delete(terminalNumber);
+      }
+    }
+  }, []);
+
+  const reconcileScheduleBackups = useCallback(async (
+    windows: TerminalWindowInfo[],
+  ) => {
+    if (isTerminalScheduleClearAllPending()) {
+      windows.forEach((windowInfo) => {
+        if (!readTerminalScheduleBackup(windowInfo.terminal_number)) {
+          writeTerminalScheduleBackup(windowInfo.terminal_number, []);
+        }
+      });
+      const clearResult = await pycoreApi.clearTerminalScheduleEntries()
+        .catch(() => null);
+      if (clearResult?.success) completeTerminalScheduleClearAll();
+    }
+    await Promise.all(windows.map((windowInfo) => (
+      initializeTerminalScheduleBackup(windowInfo).catch(() => undefined)
+    )));
     windows.forEach((windowInfo) => {
       const terminalNumber = windowInfo.terminal_number;
-      const entries = backups[String(terminalNumber)];
-      if (!entries?.length) return;
-      const validEntries = entries.filter(
+      const backup = readTerminalScheduleBackup(terminalNumber);
+      if (!backup) return;
+      const activeEntries = backup.entries.filter(
         (entry) => entry.mode === 'interval' || entry.run_at > Date.now(),
       );
-      if (validEntries.length !== entries.length) {
-        updateScheduleBackup(terminalNumber, () => validEntries);
+      if (activeEntries.length !== backup.entries.length) {
+        writeTerminalScheduleBackup(terminalNumber, activeEntries);
       }
-      if (!validEntries.length) return;
-      if ((windowInfo.schedule_queue || []).length) {
-        scheduleResyncAttemptsRef.current.delete(terminalNumber);
-        return;
-      }
-      if (scheduleResyncAttemptsRef.current.has(terminalNumber)) return;
-      scheduleResyncAttemptsRef.current.add(terminalNumber);
-      void resyncTerminalScheduleBackup(terminalNumber, validEntries);
+      void syncTerminalScheduleBackup(terminalNumber).catch(() => undefined);
     });
-  }, [resyncTerminalScheduleBackup]);
+  }, [initializeTerminalScheduleBackup, syncTerminalScheduleBackup]);
 
   const refresh = useCallback(async (showLoading = false) => {
     if (refreshInFlightRef.current) return;
@@ -497,8 +559,9 @@ const PcTerminalPage: React.FC = () => {
     try {
       const nextSnapshot = await pycoreApi.getTerminalWindows();
       if (!mountedRef.current) return;
-      setSnapshot(nextSnapshot);
-      resyncScheduleBackups(nextSnapshot.windows);
+      await reconcileScheduleBackups(nextSnapshot.windows);
+      if (!mountedRef.current) return;
+      setSnapshot(overlayTerminalScheduleBackups(nextSnapshot));
       setSelectedTerminalNumber((current) => (
         nextSnapshot.windows.some(
           (windowInfo) => windowInfo.terminal_number === current,
@@ -528,7 +591,7 @@ const PcTerminalPage: React.FC = () => {
       refreshInFlightRef.current = false;
       if (mountedRef.current) setLoading(false);
     }
-  }, [resyncScheduleBackups]);
+  }, [reconcileScheduleBackups]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -546,6 +609,10 @@ const PcTerminalPage: React.FC = () => {
       window.clearInterval(pollTimer);
     };
   }, [refresh]);
+
+  useEffect(() => onHttpStatus((connected) => {
+    if (connected) void refresh(false);
+  }), [refresh]);
 
   useEffect(() => {
     const clockTimer = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -760,6 +827,87 @@ const PcTerminalPage: React.FC = () => {
     }
   }, [errorTranslationKey, refresh]);
 
+  const commitTerminalScheduleDefinitions = useCallback(async (
+    windowInfo: TerminalWindowInfo,
+    definitions: TerminalScheduleDefinition[],
+    successTranslationKey: string,
+  ) => {
+    const terminalNumber = windowInfo.terminal_number;
+    writeTerminalScheduleBackup(terminalNumber, definitions);
+    setSnapshot((current) => replaceTerminalScheduleQueue(
+      current,
+      terminalNumber,
+      definitions,
+    ));
+    setActionWindowId(windowInfo.id);
+    setActionNotice(null);
+    try {
+      const result = await syncTerminalScheduleBackup(terminalNumber);
+      if (result?.success) {
+        setActionNotice({ kind: 'success', translationKey: successTranslationKey });
+      } else if (result) {
+        setActionNotice({
+          kind: 'error',
+          translationKey: errorTranslationKey(result.error_code),
+        });
+      } else {
+        setActionNotice({
+          kind: 'success',
+          translationKey: 'terminal.scheduleSavedLocally',
+        });
+      }
+    } catch {
+      setActionNotice({
+        kind: 'success',
+        translationKey: 'terminal.scheduleSavedLocally',
+      });
+    } finally {
+      setActionWindowId('');
+    }
+  }, [errorTranslationKey, syncTerminalScheduleBackup]);
+
+  const clearAllScheduleEntries = useCallback(async () => {
+    const terminalNumbers = (snapshot?.windows || []).map(
+      (windowInfo) => windowInfo.terminal_number,
+    );
+    scheduleClearAllInProgressRef.current = true;
+    stageTerminalScheduleClearAll(terminalNumbers);
+    setSnapshot((current) => current ? {
+      ...current,
+      windows: current.windows.map((windowInfo) => ({
+        ...windowInfo,
+        schedule_queue: [],
+      })),
+    } : current);
+    setEditingSchedule(null);
+    setActionWindowId(ALL_SCHEDULES_ACTION_ID);
+    setActionNotice(null);
+    try {
+      await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
+      const result = await pycoreApi.clearTerminalScheduleEntries();
+      if (result.success) {
+        completeTerminalScheduleClearAll();
+        setActionNotice({
+          kind: 'success',
+          translationKey: 'terminal.scheduleAllCleared',
+        });
+      } else {
+        setActionNotice({
+          kind: 'success',
+          translationKey: 'terminal.scheduleClearSavedLocally',
+        });
+      }
+    } catch {
+      setActionNotice({
+        kind: 'success',
+        translationKey: 'terminal.scheduleClearSavedLocally',
+      });
+    } finally {
+      scheduleClearAllInProgressRef.current = false;
+      setActionWindowId('');
+    }
+  }, [snapshot?.windows]);
+
   const activate = useCallback((windowId: string) => runAction(
     windowId,
     () => pycoreApi.activateTerminal(windowId),
@@ -858,8 +1006,7 @@ const PcTerminalPage: React.FC = () => {
     scheduleDraftSave(terminalNumber, text);
   }, [scheduleDraftSave, selectedWindow]);
 
-  // Sends the current draft (or an explicit override such as '' for an
-  // Enter-only submission); empty text is valid and presses Enter remotely.
+  // Sends the current draft or an explicit text override through clipboard paste.
   const sendInput = useCallback(async (textOverride?: string) => {
     if (!selectedWindow || !selectedWindow.online) return;
     const payload = textOverride === undefined ? selectedDraft : textOverride;
@@ -893,6 +1040,19 @@ const PcTerminalPage: React.FC = () => {
     }
   }, [persistDraft, runAction, selectedDraft, selectedWindow]);
 
+  const sendEnter = useCallback(async () => {
+    if (!selectedWindow || !selectedWindow.online) return;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.pressTerminalEnter(
+        selectedWindow.id,
+        selectedWindow.terminal_number,
+      ),
+      'terminal.sent',
+    );
+    if (result?.log?.id) setSelectedLogId(result.log.id);
+  }, [runAction, selectedWindow]);
+
   const addScheduleEntry = useCallback(async () => {
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
@@ -914,50 +1074,34 @@ const PcTerminalPage: React.FC = () => {
       : '';
     const isUpdate = Boolean(editingEntryId);
     const message = selectedDraft;
-    const entryPayload = {
+    await initializeTerminalScheduleBackup(selectedWindow).catch(() => undefined);
+    const backup = readTerminalScheduleBackup(terminalNumber);
+    if (!backup) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.errors.request' });
+      return;
+    }
+    const entryPayload: TerminalScheduleDefinition = {
+      id: isUpdate ? editingEntryId : createTerminalScheduleEntryId(),
       mode: scheduleMode,
       run_at: scheduleMode === 'once' ? runAt : 0,
       interval_seconds: scheduleMode === 'interval' ? intervalSeconds : 0,
       message,
     };
-    const result = await runAction(
-      selectedWindow.id,
-      () => (
-        isUpdate
-          ? pycoreApi.updateTerminalScheduleEntry(terminalNumber, editingEntryId, {
-            mode: entryPayload.mode,
-            runAt: entryPayload.run_at,
-            intervalSeconds: entryPayload.interval_seconds,
-            message,
-          })
-          : pycoreApi.addTerminalScheduleEntry(terminalNumber, {
-            mode: entryPayload.mode,
-            runAt: entryPayload.run_at,
-            intervalSeconds: entryPayload.interval_seconds,
-            message,
-          })
-      ),
+    const definitions = isUpdate
+      ? backup.entries.map((entry) => (
+        entry.id === editingEntryId ? entryPayload : entry
+      ))
+      : [...backup.entries, entryPayload];
+    await commitTerminalScheduleDefinitions(
+      selectedWindow,
+      definitions,
       isUpdate ? 'terminal.scheduleEntryUpdated' : 'terminal.scheduleEntryAdded',
     );
-    if (result?.success) {
-      if (isUpdate) {
-        updateScheduleBackup(terminalNumber, (entries) => entries.map((entry) => (
-          entry.backend_id === editingEntryId
-            ? { ...entry, ...entryPayload }
-            : entry
-        )));
-      } else {
-        const backendId = String(result.entry?.id || '');
-        updateScheduleBackup(terminalNumber, (entries) => [
-          ...entries,
-          { backend_id: backendId, ...entryPayload },
-        ]);
-      }
-      setEditingSchedule(null);
-    }
+    setEditingSchedule(null);
   }, [
+    commitTerminalScheduleDefinitions,
     editingSchedule,
-    runAction,
+    initializeTerminalScheduleBackup,
     scheduleIntervalText,
     scheduleMode,
     scheduleTimeText,
@@ -968,17 +1112,22 @@ const PcTerminalPage: React.FC = () => {
   const removeScheduleEntry = useCallback(async (entryId: string) => {
     if (!selectedWindow) return;
     const terminalNumber = selectedWindow.terminal_number;
-    const result = await runAction(
-      selectedWindow.id,
-      () => pycoreApi.removeTerminalScheduleEntry(terminalNumber, entryId),
+    await initializeTerminalScheduleBackup(selectedWindow).catch(() => undefined);
+    const backup = readTerminalScheduleBackup(terminalNumber);
+    if (!backup) {
+      setActionNotice({ kind: 'error', translationKey: 'terminal.errors.request' });
+      return;
+    }
+    await commitTerminalScheduleDefinitions(
+      selectedWindow,
+      backup.entries.filter((entry) => entry.id !== entryId),
       'terminal.scheduleEntryRemoved',
     );
-    if (result?.success) {
-      updateScheduleBackup(terminalNumber, (entries) => entries.filter(
-        (entry) => entry.backend_id !== entryId,
-      ));
-    }
-  }, [runAction, selectedWindow]);
+  }, [
+    commitTerminalScheduleDefinitions,
+    initializeTerminalScheduleBackup,
+    selectedWindow,
+  ]);
 
   const applyQuickScheduleDelay = useCallback((seconds: number) => {
     if (scheduleMode === 'once') {
@@ -1152,7 +1301,7 @@ const PcTerminalPage: React.FC = () => {
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => void sendInput('')}
+          onClick={() => void sendEnter()}
           disabled={
             !selectedWindow?.online
             || Boolean(actionWindowId)
@@ -1551,15 +1700,29 @@ const PcTerminalPage: React.FC = () => {
             {t('terminal.subtitle')}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refresh(true)}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {t('common.refresh')}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void clearAllScheduleEntries()}
+            disabled={Boolean(actionWindowId)}
+            title={t('terminal.scheduleClearAllHint')}
+            className="inline-flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-500 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            {actionWindowId === ALL_SCHEDULES_ACTION_ID
+              ? <Loader2 className="h-4 w-4 animate-spin" />
+              : <TimerOff className="h-4 w-4" />}
+            {t('terminal.scheduleClearAll')}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refresh(true)}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/20 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            {t('common.refresh')}
+          </button>
+        </div>
       </header>
 
       <section className="pc-glass px-4 py-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">

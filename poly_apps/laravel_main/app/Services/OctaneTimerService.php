@@ -29,6 +29,7 @@ use Laravel\Octane\Facades\Octane;
 class OctaneTimerService
 {
     private const TASK_LEASE_SECONDS = 900;
+    private const STATE_CACHE_PREFIX = 'octane_timer:state:';
 
     /**
      * Registered tasks (callback storage - cannot be shared across workers)
@@ -54,6 +55,8 @@ class OctaneTimerService
      */
     protected static function stateGet(string $table, string $key): ?array
     {
+        $shared = null;
+
         if (config('octane.server') === 'swoole') {
             try {
                 $value = Octane::table($table)->get($key);
@@ -62,6 +65,16 @@ class OctaneTimerService
                 }
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- fall through to the store below.
+            }
+        } else {
+            try {
+                $shared = Cache::store('file')->get(self::STATE_CACHE_PREFIX . $table . ':' . $key);
+                if (is_array($shared)) {
+                    self::$fallbackStore["{$table}:{$key}"] = $shared;
+                    return $shared;
+                }
+            } catch (\Throwable $e) {
+                // The heartbeat file below remains the cross-process fallback.
             }
         }
 
@@ -87,6 +100,12 @@ class OctaneTimerService
                 Octane::table($table)->set($key, $value);
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- the store above already holds it.
+            }
+        } else {
+            try {
+                Cache::store('file')->forever(self::STATE_CACHE_PREFIX . $table . ':' . $key, $value);
+            } catch (\Throwable $e) {
+                // The heartbeat file below remains the cross-process fallback.
             }
         }
 

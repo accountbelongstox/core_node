@@ -101,6 +101,12 @@ export interface BookCoverSearchResult {
   message: string;
   fromCache?: boolean;
   cacheKey?: string;
+  attempts?: Array<{
+    engine: WebSearchEngine;
+    status: WebSearchStatus;
+    resultCount: number;
+    message: string;
+  }>;
 }
 
 function searchTokens(query: string): string[] {
@@ -205,4 +211,39 @@ export function isVerificationUrl(url: string): boolean {
 
 export function engineHost(engine: WebSearchEngine): string {
   return engine === 'google' ? 'google.com' : 'bing.com';
+}
+
+export function isEngineSearchUrl(url: string, engine: WebSearchEngine): boolean {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const expectedHost = engineHost(engine);
+  const hostMatches = host === expectedHost || host.endsWith(`.${expectedHost}`);
+  if (!hostMatches) return false;
+
+  return engine === 'google'
+    ? parsed.pathname === '/search'
+    : parsed.pathname === '/search' || parsed.pathname === '/images/search' || parsed.pathname === '/news/search';
+}
+
+export function matchesSearchUrl(actualUrl: string, expectedUrl: string): boolean {
+  let actual: URL;
+  let expected: URL;
+
+  try {
+    actual = new URL(actualUrl);
+    expected = new URL(expectedUrl);
+  } catch {
+    return actualUrl === expectedUrl;
+  }
+
+  return actual.origin === expected.origin
+    && actual.pathname === expected.pathname
+    && actual.searchParams.get('q') === expected.searchParams.get('q');
 }

@@ -21,10 +21,11 @@
 #   - Caddy-managed DNS-01 ACME certificates (no certbot - Caddy is the
 #     ACME client; the module + token gate is shared with the manager)
 #
-# Every managed domain gets a Caddy route file that reverse-proxies to the
-# Laravel API backend (service contract ports.laravel_api_backend on
-# loopback) - the same contract the nginx plane sites use. Apex and www
-# variants redirect to the canonical api.${prefix}.${domain} host.
+# Every managed domain gets one Caddy route file with two independent,
+# contract-owned planes: api.${prefix}.${domain} proxies to Laravel, while
+# the apex and UI aliases proxy to Nexus Dash. UI routing never depends on
+# service readiness; an unavailable UI returns an upstream error instead of
+# installing a cacheable redirect to the API plane.
 # Content-hash idempotent via the shared write_file_if_changed.
 #
 # SYNC CONTRACT: Caddy route semantics are shared with the Laravel end
@@ -51,10 +52,15 @@ FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FM_DOMAIN_MARKER="managed-by: frankenphp_domain_common"
 FM_DOMAIN_UI_BINDING_READY="no"
 FM_DOMAIN_CADDY_RELOAD_READY="no"
+FM_DOMAIN_ROUTES_READY="no"
+FM_DOMAIN_ROUTE_FILE_READY="no"
+FM_DOMAIN_INSTALL_READY="no"
 
 # Ensure the Caddy routes directory exists (lazy sudo, symlink-aware).
 fm_domain_ensure_routes_dir() {
     local sudo_cmd
+
+    FM_DOMAIN_ROUTES_READY="no"
     sudo_cmd=$(lazy_sudo)
     if [ ! -d "$FM_DOMAIN_ROUTES_DIR" ]; then
         if [ -e "$FM_DOMAIN_ROUTES_DIR" ] || [ -L "$FM_DOMAIN_ROUTES_DIR" ]; then
@@ -63,17 +69,16 @@ fm_domain_ensure_routes_dir() {
         $sudo_cmd mkdir -p "$FM_DOMAIN_ROUTES_DIR"
     fi
     if [ -d "$FM_DOMAIN_ROUTES_DIR" ]; then
-        return 0
+        FM_DOMAIN_ROUTES_READY="yes"
+        return
     fi
     echo "[fm-domain] [FAIL] routes directory could not be ensured: $FM_DOMAIN_ROUTES_DIR"
-    return 1
 }
 
-# Render ONE Caddy route file for a domain. Maps api.${prefix}.${domain}
-# (reverse proxy -> backend), ${domain} (apex, 301 -> api host), and
-# www.${domain} (301 -> api host). The tls stanza is rendered ONLY when
-# the dnspod module + token both hold (DNS-01); otherwise Caddy built-in
-# ACME (HTTP-01/TLS-ALPN-01) stays in charge.
+# Render ONE Caddy route file for a domain. The API host always maps to the
+# Laravel backend. Apex, www, regional, and regional-www hosts always map to
+# the UI backend. TLS is rendered only when a prebuilt certificate or the
+# DNSPod module gate is ready; otherwise Caddy built-in ACME remains active.
 # Usage: fm_domain_render_route <domain> <prefix>
 fm_domain_render_route() {
     local domain="$1"
@@ -83,7 +88,6 @@ fm_domain_render_route() {
     local acme_tls=""
     local tls_directive=""
     local acme_cert_dir=""
-    local ui_binding=""
     local ui_addresses=""
 
     # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
@@ -115,10 +119,8 @@ fm_domain_render_route() {
 "
     fi
 
-    ui_binding="$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")"
-    if [ "$ui_binding" = "yes" ]; then
-        ui_addresses="${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${domain}:${FM_DOMAIN_HTTPS_PORT}, ${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}"
-        cat <<EOF
+    ui_addresses="${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${domain}:${FM_DOMAIN_HTTPS_PORT}, ${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}"
+    cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
 
 ${api_host}:${FM_DOMAIN_HTTPS_PORT} {
@@ -129,24 +131,20 @@ ${ui_addresses} {
 ${tls_directive}	reverse_proxy ${FM_DOMAIN_UI_BACKEND_URL}
 }
 EOF
-        return
-    fi
-
-    cat <<EOF
-# ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
-
-${api_host}:${FM_DOMAIN_HTTPS_PORT} {
-${tls_directive}	reverse_proxy ${FM_DOMAIN_BACKEND_URL}
 }
 
-${domain}:${FM_DOMAIN_HTTPS_PORT} {
-${tls_directive}	redir https://${api_host}{uri} permanent
-}
+# Log the same two-plane topology rendered above. Keeping this in the shared
+# domain library prevents callers from presenting the legacy apex-to-API
+# redirect as the active route.
+fm_domain_log_route_topology() {
+    local domain="$1"
+    local prefix="$2"
+    local indentation="${3:-}"
+    local api_host="api.${prefix}.${domain}"
+    local ui_hosts="${domain}, www.${domain}, ${prefix}.${domain}, www.${prefix}.${domain}"
 
-www.${domain}:${FM_DOMAIN_HTTPS_PORT} {
-${tls_directive}	redir https://${api_host}{uri} permanent
-}
-EOF
+    echo "[fm-domain] ${indentation}API: ${api_host} -> ${FM_DOMAIN_BACKEND_URL}"
+    echo "[fm-domain] ${indentation}UI: ${ui_hosts} -> ${FM_DOMAIN_UI_BACKEND_URL}"
 }
 
 # Enable and render the dashboard aliases on the FrankenPHP plane. Shared
@@ -155,9 +153,6 @@ EOF
 fm_domain_enable_ui_binding() {
     local domain=""
     local prefix=""
-    local route_file=""
-    local rendered=""
-    local existing=""
     local route_drift="no"
     local admin_port=""
     local reload_code=""
@@ -175,11 +170,7 @@ fm_domain_enable_ui_binding() {
     while IFS= read -r domain; do
         [ -z "$domain" ] && continue
         fm_domain_ensure_route_file "$domain" "$prefix"
-        route_file="${FM_DOMAIN_ROUTES_DIR}/${domain}.caddy"
-        rendered="$(fm_domain_render_route "$domain" "$prefix")"
-        existing=""
-        [ -f "$route_file" ] && existing="$(cat "$route_file")"
-        if [ "$existing" != "$rendered" ]; then
+        if [ "$FM_DOMAIN_ROUTE_FILE_READY" != "yes" ]; then
             route_drift="yes"
         fi
     done <<< "$DOMAIN_DOMAINS_LIST"
@@ -210,13 +201,27 @@ fm_domain_ensure_route_file() {
     local prefix="$2"
     local route_file="${FM_DOMAIN_ROUTES_DIR}/${domain}.caddy"
     local rendered=""
+    local existing=""
 
-    fm_domain_ensure_routes_dir || return 1
+    FM_DOMAIN_ROUTE_FILE_READY="no"
+    fm_domain_ensure_routes_dir
+    if [ "$FM_DOMAIN_ROUTES_READY" != "yes" ]; then
+        echo "[fm-domain] [FAIL] Route file deferred because the routes directory is unavailable: $route_file"
+        return
+    fi
 
     rendered="$(fm_domain_render_route "$domain" "$prefix")"
     echo "$rendered" | write_file_if_changed "$route_file"
-    echo "[fm-domain] [OK] Route file: $route_file (${domain} -> api.${prefix}.${domain} -> ${FM_DOMAIN_BACKEND_URL})"
-    return 0
+    if [ -f "$route_file" ]; then
+        existing="$(cat "$route_file")"
+    fi
+    if [ "$existing" = "$rendered" ]; then
+        FM_DOMAIN_ROUTE_FILE_READY="yes"
+        echo "[fm-domain] [OK] Route file: $route_file"
+        fm_domain_log_route_topology "$domain" "$prefix" "    "
+    else
+        echo "[fm-domain] [FAIL] Route file postcondition failed: $route_file"
+    fi
 }
 
 # Render the canonical main Caddyfile through the manager-owned renderer.
@@ -236,7 +241,7 @@ fm_domain_ensure_main_caddyfile() {
     local laravel_public="${3:-${FM_DOMAIN_LARAVEL_DIR}/public}"
 
     fm_domain_ensure_routes_dir
-    if [ ! -d "$FM_DOMAIN_ROUTES_DIR" ]; then
+    if [ "$FM_DOMAIN_ROUTES_READY" != "yes" ]; then
         echo "[fm-domain] [FAIL] Main Caddyfile deferred because the routes directory is unavailable"
         return
     fi
@@ -292,16 +297,30 @@ fm_domain_install_all() {
     local domain=""
     local prefix=""
     local failures=0
+    local site_host=""
 
-    domain_setup_load_secrets || return 1
-    domain_setup_ensure_prefix || return 1
-    domain_setup_persist_state || true
+    FM_DOMAIN_INSTALL_READY="no"
+    domain_setup_load_secrets
+    if [ -z "$DOMAIN_DNSPOD_EMAIL" ] || [ -z "$DOMAIN_DNSPOD_TOKEN" ] || [ -z "$DOMAIN_DOMAINS_LIST" ]; then
+        echo "[fm-domain] [WARN] Domain installation deferred because the secret postcondition is incomplete"
+        return
+    fi
+    domain_setup_ensure_prefix
+    if [ -z "$DOMAIN_API_PREFIX" ]; then
+        echo "[fm-domain] [WARN] Domain installation deferred because the API prefix postcondition is incomplete"
+        return
+    fi
+    domain_setup_persist_state
 
     prefix="$(domain_state_get "$DOMAIN_API_PREFIX_KEY" "si")"
+    if [ -z "$prefix" ]; then
+        echo "[fm-domain] [WARN] Domain installation deferred because the persisted API prefix is empty"
+        return
+    fi
 
-    echo "[fm-domain] Installing domains (Caddy routes, DNS-01 ACME via Caddy, no nginx/certbot):"
+    echo "[fm-domain] Installing domain route topology (Caddy + DNS-01 ACME, no nginx/certbot):"
     while IFS= read -r domain; do
-        [ -n "$domain" ] && echo "[fm-domain]   - ${domain} -> api.${prefix}.${domain}"
+        [ -n "$domain" ] && fm_domain_log_route_topology "$domain" "$prefix" "  - "
     done <<< "$DOMAIN_DOMAINS_LIST"
 
     # Mirror the DNSPod token into the runtime store (Caddyfile env-read).
@@ -309,26 +328,30 @@ fm_domain_install_all() {
 
     while IFS= read -r domain; do
         [ -z "$domain" ] && continue
-        fm_domain_ensure_route_file "$domain" "$prefix" || failures=$((failures + 1))
+        fm_domain_ensure_route_file "$domain" "$prefix"
+        if [ "$FM_DOMAIN_ROUTE_FILE_READY" != "yes" ]; then
+            failures=$((failures + 1))
+        fi
     done <<< "$DOMAIN_DOMAINS_LIST"
 
     fm_domain_cleanup_stale_routes "$DOMAIN_DOMAINS_LIST"
 
     # Main Caddyfile: site host = first api.${prefix}.${domain}
-    local site_host=""
     site_host="$(fm_site_host)"
-    fm_domain_ensure_main_caddyfile "$(sc_get ports.frankenphp_admin)" "$site_host" "${laravel_dir}/public" \
-        || failures=$((failures + 1))
+    fm_domain_ensure_main_caddyfile "$(sc_get ports.frankenphp_admin)" "$site_host" "${laravel_dir}/public"
+    if [ "$FM_CADDYFILE_READY" != "yes" ]; then
+        failures=$((failures + 1))
+    fi
 
     # DNS-01 readiness (module + token; Caddy issues wildcard at launch)
     fm_dns01_ensure
 
     if [ $failures -eq 0 ]; then
+        FM_DOMAIN_INSTALL_READY="yes"
         echo "[fm-domain] [OK] All domains installed (Caddy-native, DNS-01 ACME, no nginx/certbot)"
-        return 0
+        return
     fi
     echo "[fm-domain] [WARN] Domain installation completed with $failures warning(s)"
-    return 1
 }
 
 # Certificates only (the frankenphp plane equivalent of

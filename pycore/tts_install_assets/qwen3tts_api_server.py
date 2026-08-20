@@ -339,14 +339,14 @@ def _model_ready(model) -> bool:
     return model is not None
 
 
-def _attention_implementation(device: str, dtype) -> Optional[str]:
+def _attention_implementation(device: str, dtype) -> str:
     if (
         device.startswith("cuda")
         and dtype in (torch.float16, torch.bfloat16)
         and transformers.utils.is_flash_attn_2_available()
     ):
         return "flash_attention_2"
-    return None
+    return "sdpa"
 
 
 def _load_model():
@@ -358,7 +358,7 @@ def _load_model():
     attention_implementation = _attention_implementation(_device, dtype)
     _log(f"[api] loading Qwen3-TTS model: {model_id}")
     _log(f"[api] device={_device} dtype={dtype} "
-         f"attention={attention_implementation or 'default'} "
+         f"attention={attention_implementation} "
          f"(cuda_available={torch.cuda.is_available()})")
     t0 = time.time()
     try:

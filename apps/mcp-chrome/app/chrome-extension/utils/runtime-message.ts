@@ -1,7 +1,5 @@
 import { toErrorMessage } from './errors';
 
-export { toErrorMessage } from './errors';
-
 export type RuntimeSendResponse = (response?: any) => void;
 export type RuntimeMessageHandler<TMessage, TResponse> = (
   message: TMessage,

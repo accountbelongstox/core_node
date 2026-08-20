@@ -2,26 +2,28 @@
  * JavaScript Tool - Execute JavaScript in browser tab
  *
  * Execute JavaScript in the browser tab and return the result.
- * Uses chrome.scripting.executeScript with ISOLATED world.
+ * Uses Chrome DevTools Protocol Runtime.evaluate.
  */
 
 import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } from '@/common/tool-handler';
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { withTimeout } from '@/utils/async';
+import { withDebuggerSession } from '@/utils/debugger-session';
 
 interface JavaScriptToolParams {
   code: string;
   tabId?: number;
   windowId?: number;
   timeoutMs?: number;
+  maxOutputBytes?: number;
 }
 
 class JavaScriptTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.JAVASCRIPT;
 
   async execute(args: JavaScriptToolParams): Promise<ToolResult> {
-    const { code, tabId, windowId, timeoutMs = 15000 } = args || {};
+    const { code, tabId, windowId, timeoutMs = 15000, maxOutputBytes = 51200 } = args || {};
 
     if (!code || typeof code !== 'string' || code.trim().length === 0) {
       return createErrorResponse('Parameter [code] is required');
@@ -44,68 +46,57 @@ class JavaScriptTool extends BaseBrowserToolExecutor {
 
       const finalTabId = targetTab.id;
 
-      // Execute script with timeout
-      const executePromise = chrome.scripting.executeScript({
-        target: { tabId: finalTabId },
-        world: 'ISOLATED',
-        func: (userCode: string) => {
-          try {
-            // Use AsyncFunction constructor to support top-level await
-            const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-            const fn = new AsyncFunction(userCode);
-            return fn().then(
-              (value: any) => ({ success: true, result: value }),
-              (error: any) => ({
-                success: false,
-                error: {
-                  name: error?.name || 'Error',
-                  message: error?.message || String(error),
-                },
-              }),
-            );
-          } catch (err: any) {
-            return {
-              success: false,
-              error: {
-                name: err?.name || 'Error',
-                message: err?.message || String(err),
-              },
-            };
-          }
-        },
-        args: [code],
-      });
-
-      const results = await withTimeout(
-        executePromise,
+      const expression = `(async () => {\n${code}\n})()`;
+      const evaluation = await withTimeout(
+        withDebuggerSession(finalTabId, async (target) => chrome.debugger.sendCommand(
+          target,
+          'Runtime.evaluate',
+          {
+            expression,
+            awaitPromise: true,
+            returnByValue: true,
+            userGesture: true,
+          },
+        )),
         timeoutMs,
         `Execution timed out after ${timeoutMs}ms`,
       );
-      const firstFrame = results?.[0];
-      const result = (firstFrame as { result?: any })?.result;
-
-      if (!result || typeof result !== 'object') {
+      const response = evaluation as {
+        exceptionDetails?: { exception?: { description?: string }; text?: string };
+        result?: {
+          description?: string;
+          unserializableValue?: string;
+          value?: unknown;
+        };
+      };
+      if (response.exceptionDetails) {
+        const details = response.exceptionDetails.exception?.description
+          || response.exceptionDetails.text
+          || 'Unknown error';
+        return createErrorResponse(`JavaScript execution failed: ${details}`);
+      }
+      if (!response.result) {
         return createErrorResponse('No result returned from script execution');
       }
-
-      if (!result.success) {
-        return createErrorResponse(
-          `JavaScript execution failed: ${result.error?.message || 'Unknown error'}`,
-        );
-      }
-
-      // Serialize result
+      const value = Object.prototype.hasOwnProperty.call(response.result, 'value')
+        ? response.result.value
+        : response.result.unserializableValue ?? response.result.description ?? null;
       let resultText: string;
       try {
-        resultText = JSON.stringify(result.result, null, 2);
+        resultText = JSON.stringify(value, null, 2);
       } catch {
-        resultText = String(result.result);
+        resultText = String(value);
       }
+      const outputLimit = Math.max(1, Math.floor(maxOutputBytes));
+      const encoded = new TextEncoder().encode(resultText);
+      const truncated = encoded.byteLength > outputLimit;
+      if (truncated) resultText = `${new TextDecoder().decode(encoded.slice(0, outputLimit))}…`;
 
       return createJsonResponse({
         success: true,
         tabId: finalTabId,
         result: resultText,
+        truncated,
       });
     } catch (error) {
       console.error('JavaScriptTool.execute error:', error);

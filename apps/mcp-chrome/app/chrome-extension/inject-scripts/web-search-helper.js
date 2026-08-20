@@ -216,6 +216,9 @@
       }
       return;
     }
+    if (!message || !['webSearchDetectVerification', 'webSearchExtract'].includes(message.action)) {
+      return false;
+    }
 
     const run = async () => {
       switch (message.action) {
@@ -228,8 +231,6 @@
           sendResponse(extract(mode, maxResults));
           break;
         }
-        default:
-          sendResponse({ ok: false, error: `Unknown action: ${message.action}` });
       }
     };
 

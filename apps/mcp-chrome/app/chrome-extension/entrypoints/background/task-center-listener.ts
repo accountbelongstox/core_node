@@ -25,6 +25,7 @@ import {
   TASK_CENTER_MSG,
   VALIDITY_RUNNER_MSG,
   SUBMIT_OUTBOX_MSG,
+  DEFAULT_TARGET_LANG,
   type FullTaskCenterStatus,
 } from '@/utils/task-center-types';
 import { submitOutbox } from './services/outbox/submit-outbox';
@@ -271,6 +272,7 @@ async function handleValidityRunnerMessage(
     config?: ValidityRunnerConfig;
     words?: string[];
     provider?: AiWebProvider;
+    targetLanguage?: string;
   },
   sendResponse: (response: any) => void,
 ) {
@@ -301,7 +303,11 @@ async function handleValidityRunnerMessage(
           sendResponse({ success: false, error: 'Enter at least one word' });
           break;
         }
-        const result = await runWordValidityClassification(words, message.provider);
+        const result = await runWordValidityClassification(
+          words,
+          message.provider,
+          message.targetLanguage || DEFAULT_TARGET_LANG,
+        );
         sendResponse({ success: true, result });
         break;
       }
@@ -320,6 +326,7 @@ export function executeValidityRunnerCommand(message: {
   config?: ValidityRunnerConfig;
   words?: string[];
   provider?: AiWebProvider;
+  targetLanguage?: string;
 }): Promise<any> {
   return new Promise((resolve) => {
     void handleValidityRunnerMessage(

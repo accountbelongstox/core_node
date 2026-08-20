@@ -41,6 +41,7 @@ export type TerminalScheduleMode = 'once' | 'interval';
 export interface TerminalScheduleEntry {
   id: string;
   mode: TerminalScheduleMode;
+  run_at: number | null;
   next_run_at: number | null;
   interval_seconds: number;
   has_message: boolean;
@@ -109,14 +110,6 @@ export interface TerminalViewResult {
   preview_expanded?: boolean;
 }
 
-export interface TerminalScheduleEntryResult {
-  success: boolean;
-  error_code?: string | null;
-  terminal_number?: number;
-  entry?: TerminalScheduleEntry | null;
-  entry_id?: string;
-}
-
 export interface TerminalScheduleDefinition {
   id: string;
   mode: TerminalScheduleMode;
@@ -130,6 +123,13 @@ export interface TerminalScheduleSyncResult {
   error_code?: string | null;
   terminal_number?: number;
   entries?: TerminalScheduleEntry[];
+}
+
+export interface TerminalScheduleClearResult {
+  success: boolean;
+  error_code?: string | null;
+  cleared_entry_count?: number;
+  terminal_numbers?: number[];
 }
 
 export const pycoreApiTerminal = {
@@ -164,6 +164,11 @@ export const pycoreApiTerminal = {
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
       terminal_number: terminalNumber,
     }) as Promise<TerminalDraftResult>,
+  pressTerminalEnter: (windowId: string, terminalNumber: number) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalEnter, {
+      window_id: windowId,
+      terminal_number: terminalNumber,
+    }) as Promise<TerminalActionResult>,
   inputTerminalText: (windowId: string, terminalNumber: number, text: string) =>
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,
@@ -175,29 +180,10 @@ export const pycoreApiTerminal = {
       expanded ? '1' : '0',
       { terminal_number: terminalNumber },
     ) as Promise<TerminalViewResult>,
-  addTerminalScheduleEntry: (
-    terminalNumber: number,
-    options: {
-      mode: TerminalScheduleMode;
-      runAt?: number;
-      intervalSeconds?: number;
-      message?: string;
-    },
-  ) => requestPycoreHttpText(
-    PYCORE_HTTP_ROUTES.terminalScheduleQueueAdd,
-    options.message || '',
-    {
-      terminal_number: terminalNumber,
-      mode: options.mode,
-      run_at: options.runAt || 0,
-      interval_seconds: options.intervalSeconds || 0,
-    },
-  ) as Promise<TerminalScheduleEntryResult>,
-  removeTerminalScheduleEntry: (terminalNumber: number, entryId: string) =>
-    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueRemove, {
-      terminal_number: terminalNumber,
-      entry_id: entryId,
-    }) as Promise<TerminalScheduleEntryResult>,
+  clearTerminalScheduleEntries: () => requestPycoreHttp(
+    PYCORE_HTTP_ROUTES.terminalScheduleQueueClear,
+    {},
+  ) as Promise<TerminalScheduleClearResult>,
   syncTerminalScheduleEntries: (
     terminalNumber: number,
     entries: TerminalScheduleDefinition[],
@@ -205,26 +191,6 @@ export const pycoreApiTerminal = {
     terminal_number: terminalNumber,
     entries,
   }) as Promise<TerminalScheduleSyncResult>,
-  updateTerminalScheduleEntry: (
-    terminalNumber: number,
-    entryId: string,
-    options: {
-      mode: TerminalScheduleMode;
-      runAt?: number;
-      intervalSeconds?: number;
-      message?: string;
-    },
-  ) => requestPycoreHttpText(
-    PYCORE_HTTP_ROUTES.terminalScheduleQueueUpdate,
-    options.message || '',
-    {
-      terminal_number: terminalNumber,
-      entry_id: entryId,
-      mode: options.mode,
-      run_at: options.runAt || 0,
-      interval_seconds: options.intervalSeconds || 0,
-    },
-  ) as Promise<TerminalScheduleEntryResult>,
   getTerminalContent: (
     terminalNumber: number,
     kind: 'draft' | 'log' | 'schedule',

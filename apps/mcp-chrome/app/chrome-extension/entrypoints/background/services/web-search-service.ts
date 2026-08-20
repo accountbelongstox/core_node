@@ -206,6 +206,7 @@ export async function searchBookCoverUrls(
   const query = bookCoverQuery(title, author);
   const prefer = options.preferEngine || 'google';
   const engines: WebSearchEngine[] = prefer === 'google' ? ['google', 'bing'] : ['bing', 'google'];
+  const attempts: NonNullable<BookCoverSearchResult['attempts']> = [];
 
   for (const engine of engines) {
     const cached = await peekCoverSearchCache(query, engine);
@@ -233,6 +234,12 @@ export async function searchBookCoverUrls(
       openInNewTab: false,
       skipCoverCache: true,
     });
+    attempts.push({
+      engine,
+      status: result.status,
+      resultCount: result.imageResults.length,
+      message: result.message,
+    });
 
     if (result.status === 'verification_required' || result.status === 'verification_timeout') {
       if (engine === engines[engines.length - 1]) {
@@ -243,6 +250,7 @@ export async function searchBookCoverUrls(
           sourceEngine: engine,
           status: result.status,
           message: result.message,
+          attempts,
         };
       }
       continue;
@@ -278,6 +286,7 @@ export async function searchBookCoverUrls(
     sourceEngine: '',
     status: 'no_results',
     message: 'No cover images found',
+    attempts,
   };
 }
 

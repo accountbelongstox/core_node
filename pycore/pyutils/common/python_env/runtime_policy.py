@@ -159,6 +159,9 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
             "import torch, torchaudio; "
             "from qwen_tts import Qwen3TTSModel",
         ),
+        "provision_modules": policy_csv(
+            "AI_QWEN_TTS_PROVISION_MODULES"
+        ),
         "accelerator_packages": policy_csv(
             "AI_QWEN_TTS_ACCELERATOR_PACKAGES"
         ),
@@ -200,6 +203,7 @@ def engine_spec(engine: str) -> Dict[str, Any]:
     result["packages"] = list(result.get("packages", ()))
     result["pins"] = list(result.get("pins", ()))
     for sequence_key in (
+        "provision_modules",
         "accelerator_packages",
         "accelerator_build_packages",
         "accelerator_pip_args",
