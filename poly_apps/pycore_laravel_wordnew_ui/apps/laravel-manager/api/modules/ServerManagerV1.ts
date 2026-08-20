@@ -1,6 +1,6 @@
 import { BaseAPI } from '../../../../core/integrations/laravel/transport/BaseAPI';
 import { APIResponse } from '../../types';
-import type { NginxSite } from '../../uiTypes';
+import type { FrankenPhpSiteRequest, NginxSite } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 type NginxSiteType = NginxSite['site_type'];
@@ -314,6 +314,51 @@ export class ServerManagerV1API extends BaseAPI {
     return this.post('/nginx/sites/batch', { action, sites });
   }
 
+  // ========== FrankenPHP Management ==========
+  async getFrankenPhpStatus(): Promise<APIResponse> {
+    return this.get('/frankenphp/status');
+  }
+
+  async listFrankenPhpSites(): Promise<APIResponse> {
+    return this.get('/frankenphp/sites');
+  }
+
+  async getFrankenPhpSite(siteName: string): Promise<APIResponse> {
+    return this.get(`/frankenphp/sites/${encodeURIComponent(siteName)}`);
+  }
+
+  async createFrankenPhpSite(data: FrankenPhpSiteRequest): Promise<APIResponse> {
+    return this.post('/frankenphp/sites', data);
+  }
+
+  async updateFrankenPhpSite(siteName: string, data: Partial<FrankenPhpSiteRequest>): Promise<APIResponse> {
+    return this.put(`/frankenphp/sites/${encodeURIComponent(siteName)}`, data);
+  }
+
+  async deleteFrankenPhpSite(siteName: string): Promise<APIResponse> {
+    return this.delete(`/frankenphp/sites/${encodeURIComponent(siteName)}`);
+  }
+
+  async enableFrankenPhpSite(siteName: string): Promise<APIResponse> {
+    return this.post(`/frankenphp/sites/${encodeURIComponent(siteName)}/enable`);
+  }
+
+  async disableFrankenPhpSite(siteName: string): Promise<APIResponse> {
+    return this.post(`/frankenphp/sites/${encodeURIComponent(siteName)}/disable`);
+  }
+
+  async testFrankenPhpConfig(): Promise<APIResponse> {
+    return this.post('/frankenphp/test');
+  }
+
+  async reloadFrankenPhp(): Promise<APIResponse> {
+    return this.post('/frankenphp/reload');
+  }
+
+  async frankenPhpService(action: 'start' | 'stop' | 'restart' | 'reload'): Promise<APIResponse> {
+    return this.post('/frankenphp/service', { action });
+  }
+
   // ========== Unified Manager ==========
   async listApps(): Promise<APIResponse> {
     const response = await this.get('/unified/apps');
@@ -363,7 +408,13 @@ export class ServerManagerV1API extends BaseAPI {
    * background; returns a request_id to poll via certificateProgress().
    */
   async ensureCertificate(data: { domain: string; provider?: string; staging?: boolean }): Promise<APIResponse> {
-    return this.post('/certificates/ensure', data);
+    return this.request({
+      url: '/certificates/ensure',
+      method: 'POST',
+      data,
+      timeout: 15 * 60 * 1000,
+      retry: false,
+    });
   }
 
   /**

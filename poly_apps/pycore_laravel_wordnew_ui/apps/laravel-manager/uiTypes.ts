@@ -740,6 +740,60 @@ export interface NginxSiteConfig {
   content?: string;
 }
 
+export interface FrankenPhpSite {
+  site_name: string;
+  domain: string;
+  hosts: string[];
+  upstreams: string[];
+  upstream?: string | null;
+  certificate_domain?: string | null;
+  enabled: boolean;
+  managed_by: string;
+  config_path: string;
+  content: string;
+  size: number;
+  updated_at?: string | null;
+}
+
+export interface FrankenPhpSiteRequest {
+  site_name: string;
+  hosts: string[];
+  upstream: string;
+  certificate_domain: string;
+  enabled?: boolean;
+  site_config?: string;
+}
+
+export interface FrankenPhpStatusOverview {
+  installed: boolean;
+  binary: string | null;
+  version: string | null;
+  embedded_php: string | null;
+  running: boolean;
+  runtime: {
+    service: string;
+    active_state: string;
+    sub_state: string;
+    main_pid: number;
+    running: boolean;
+  };
+  sites: { directory: string; total: number; enabled: number };
+  dns01: {
+    manager: string;
+    module: boolean;
+    token_configured: boolean;
+    ready: boolean;
+  };
+  certificate_manager: CertbotStatus;
+  caddyfile: { path: string; exists: boolean; canonical: boolean };
+  mercure: {
+    publisher_key_provisioned: boolean;
+    subscriber_key_provisioned: boolean;
+    trusted_issuers_provisioned: boolean;
+    hub_path: string;
+  };
+}
+
 export interface NginxSiteCreateRequest {
   site_name: string;
   domain: string;
@@ -888,6 +942,7 @@ export interface SSLCertificate {
 
 export interface DnsProviderStatus {
   provider: string;
+  manager?: 'certbot' | 'acme.sh';
   configured: boolean;
   email?: string | null;
   api_id?: string | null;
@@ -1129,6 +1184,12 @@ export interface CertbotStatus {
   installed: boolean;
   version?: string;
   path?: string;
+  manager?: 'certbot' | 'acme.sh';
+  timer?: {
+    unit: string;
+    active: boolean;
+    enabled: boolean;
+  };
 }
 
 export interface ApiInfoEndpoint {
@@ -1190,4 +1251,3 @@ export interface FullApiInfo {
     [appName: string]: ApiInfo;
   };
 }
-

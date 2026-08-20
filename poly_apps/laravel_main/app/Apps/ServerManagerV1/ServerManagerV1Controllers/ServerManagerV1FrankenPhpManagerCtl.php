@@ -3,7 +3,10 @@
 namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1AcmeShCertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpRuntime;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpSiteManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Support\RuntimeConfigurationStore;
 use App\Support\ServiceContract;
@@ -49,8 +52,11 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         $installed = $binary !== null;
         $caddyfile = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();
         $caddyfileExists = FileSystemManager::isFile($caddyfile);
-        $pgrepResult = ServerManagerV1Utils::executeCommand('pgrep', ['-f', 'artisan octane:frankenphp']);
-        $running = trim((string) ($pgrepResult['output'] ?? '')) !== '';
+        $runtime = ServerManagerV1FrankenPhpRuntime::status();
+        $acme = ServerManagerV1AcmeShCertificateManager::status();
+        $sites = ServerManagerV1FrankenPhpSiteManager::list();
+        $dnsPodTokenConfigured = ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured();
+        $embeddedDnsPod = $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false;
 
         return $this->success([
             'plane' => WebServerPlane::current(),
@@ -59,15 +65,22 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
             'binary' => $binary,
             'version' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::version() : null,
             'embedded_php' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::embeddedPhpVersion() : null,
-            'dnspod_module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
+            'dnspod_module' => $embeddedDnsPod,
             'dns01' => [
-                'module' => $installed ? ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule() : false,
-                'token_configured' => ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
-                'ready' => $installed
-                    && ServerManagerV1FrankenPhpCaddyfileBuilder::hasDnsPodModule()
-                    && ServerManagerV1FrankenPhpCaddyfileBuilder::dnspodTokenConfigured(),
+                'manager' => $embeddedDnsPod ? 'caddy-dnspod' : 'acme.sh',
+                'module' => $embeddedDnsPod,
+                'token_configured' => $dnsPodTokenConfigured,
+                'ready' => $installed && $dnsPodTokenConfigured
+                    && ($embeddedDnsPod || ($acme['installed'] ?? false)),
             ],
-            'running' => $running,
+            'running' => (bool) ($runtime['running'] ?? false),
+            'runtime' => $runtime,
+            'sites' => [
+                'directory' => ServerManagerV1FrankenPhpCaddyfileBuilder::routesDirectory(),
+                'total' => count($sites),
+                'enabled' => count(array_filter($sites, static fn (array $site): bool => (bool) ($site['enabled'] ?? false))),
+            ],
+            'certificate_manager' => $acme,
             'caddyfile' => [
                 'path' => $caddyfile,
                 'exists' => $caddyfileExists,
@@ -259,6 +272,135 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         ], 'DNSPod token stored; the frankenphp plane picks it up on the next restart');
     }
 
+    public function listSites(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_list_sites');
+        $sites = [];
+
+        if ($validation) {
+            return $validation;
+        }
+        $sites = ServerManagerV1FrankenPhpSiteManager::list();
+
+        return $this->success([
+            'sites' => $sites,
+            'total' => count($sites),
+        ], 'FrankenPHP sites retrieved successfully');
+    }
+
+    public function site(Request $request, string $siteName): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_get_site');
+        $site = null;
+
+        if ($validation) {
+            return $validation;
+        }
+        $site = ServerManagerV1FrankenPhpSiteManager::find($siteName);
+        if ($site === null) {
+            return $this->error('FrankenPHP site not found.', ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+        }
+
+        return $this->success($site, 'FrankenPHP site retrieved successfully');
+    }
+
+    public function createSite(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_create_site');
+
+        if ($validation) {
+            return $validation;
+        }
+
+        return $this->siteOperationResponse(
+            ServerManagerV1FrankenPhpSiteManager::create($request->all()),
+            'FrankenPHP site created successfully'
+        );
+    }
+
+    public function updateSite(Request $request, string $siteName): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_update_site');
+
+        if ($validation) {
+            return $validation;
+        }
+
+        return $this->siteOperationResponse(
+            ServerManagerV1FrankenPhpSiteManager::update($siteName, $request->all()),
+            'FrankenPHP site updated successfully'
+        );
+    }
+
+    public function deleteSite(Request $request, string $siteName): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_delete_site');
+
+        if ($validation) {
+            return $validation;
+        }
+
+        return $this->siteOperationResponse(
+            ServerManagerV1FrankenPhpSiteManager::delete($siteName),
+            'FrankenPHP site deleted successfully'
+        );
+    }
+
+    public function enableSite(Request $request, string $siteName): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_enable_site');
+
+        if ($validation) {
+            return $validation;
+        }
+
+        return $this->siteOperationResponse(
+            ServerManagerV1FrankenPhpSiteManager::setEnabled($siteName, true),
+            'FrankenPHP site enabled successfully'
+        );
+    }
+
+    public function disableSite(Request $request, string $siteName): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_disable_site');
+
+        if ($validation) {
+            return $validation;
+        }
+
+        return $this->siteOperationResponse(
+            ServerManagerV1FrankenPhpSiteManager::setEnabled($siteName, false),
+            'FrankenPHP site disabled successfully'
+        );
+    }
+
+    public function reload(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_reload');
+        $result = [];
+
+        if ($validation) {
+            return $validation;
+        }
+        $result = ServerManagerV1FrankenPhpRuntime::reload(true);
+
+        return $this->siteOperationResponse($result, 'FrankenPHP configuration reloaded successfully');
+    }
+
+    public function serviceControl(Request $request): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_service_control');
+        $action = (string) $request->input('action', '');
+        $result = [];
+
+        if ($validation) {
+            return $validation;
+        }
+        $result = ServerManagerV1FrankenPhpRuntime::control($action);
+
+        return $this->siteOperationResponse($result, "FrankenPHP {$action} completed successfully");
+    }
+
     private function caddyfileIsCanonical(): bool
     {
         $path = ServerManagerV1FrankenPhpCaddyfileBuilder::caddyfilePath();
@@ -289,5 +431,18 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
             '$1<redacted>$2',
             $content
         );
+    }
+
+    private function siteOperationResponse(array $result, string $message): JsonResponse
+    {
+        if (($result['success'] ?? false) !== true) {
+            return $this->error(
+                (string) ($result['error'] ?? 'FrankenPHP operation failed.'),
+                (int) ($result['status'] ?? ServerManagerV1Constants::RESPONSE_INTERNAL_ERROR),
+                $result
+            );
+        }
+
+        return $this->success($result, $message);
     }
 }

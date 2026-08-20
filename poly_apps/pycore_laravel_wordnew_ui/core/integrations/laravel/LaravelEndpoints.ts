@@ -4,7 +4,7 @@
  */
 
 import { CURRENT_URL_TYPE, isCurrentUrlId } from '../../network/api-client/endpointIdentity';
-import { getApiRegionPrefix } from '../../contracts/DomainConfig';
+import { resolveApiHostname } from '../../contracts/DomainConfig';
 import { StorageManager } from '../../persistence';
 import { LaravelStorageKeys as StorageKeys } from './LaravelStorageKeys';
 
@@ -48,9 +48,7 @@ function createCurrentOriginEndpoint(
   // hostname that already is an api fqdn (persisted current-url id) is kept
   // verbatim; a leading www. folds back to the apex.
   if (protocol === 'https' && !isLocal) {
-    const apiHost = hostname.startsWith('api.')
-      ? hostname
-      : `api.${getApiRegionPrefix()}.${hostname.replace(/^www\./, '')}`;
+    const apiHost = resolveApiHostname(hostname);
     return {
       id: `${CURRENT_URL_TYPE}:${apiHost}`,
       url: apiHost,

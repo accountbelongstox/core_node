@@ -155,6 +155,15 @@ Route::prefix('servermanager/v1')->group(function () {
     // web-server plane. Octane worker lifecycle stays in unified/octane/*.
     Route::prefix('frankenphp')->group(function () {
         Route::get('status', [ServerManagerV1FrankenPhpManagerCtl::class, 'statusOverview']);
+        Route::get('sites', [ServerManagerV1FrankenPhpManagerCtl::class, 'listSites']);
+        Route::post('sites', [ServerManagerV1FrankenPhpManagerCtl::class, 'createSite']);
+        Route::get('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'site']);
+        Route::put('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'updateSite']);
+        Route::delete('sites/{site_name}', [ServerManagerV1FrankenPhpManagerCtl::class, 'deleteSite']);
+        Route::post('sites/{site_name}/enable', [ServerManagerV1FrankenPhpManagerCtl::class, 'enableSite']);
+        Route::post('sites/{site_name}/disable', [ServerManagerV1FrankenPhpManagerCtl::class, 'disableSite']);
+        Route::post('reload', [ServerManagerV1FrankenPhpManagerCtl::class, 'reload']);
+        Route::post('service', [ServerManagerV1FrankenPhpManagerCtl::class, 'serviceControl']);
         Route::post('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'ensureCaddyfile']);
         Route::get('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'caddyfile']);
         Route::post('test', [ServerManagerV1FrankenPhpManagerCtl::class, 'testConfig']);

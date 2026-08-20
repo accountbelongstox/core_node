@@ -13,11 +13,12 @@
 # Service runtime launcher - FRANKENPHP PLANE. Systemd ExecStart target.
 # Called by systemd_service_manager via 175_laravel_main_start.sh's
 # register_laravel_service. Validates and repairs runtime pointers, then
-# exec's laravel_runtime_frankenphp.sh with octane:frankenphp.
+# exec's laravel_runtime_frankenphp.sh with direct Caddy supervision.
 #
 # NO domain setup, NO nginx, NO certbot, NO 175 init - those are handled
 # by 175_laravel_main_start.sh (one-time setup). This script is the
-# "just start octane" path for every systemd restart.
+# "just start the Laravel Octane worker plane" path for every systemd
+# restart.
 #
 # Default: hot-reload (--watch). Set OCTANE_WATCH=0 to disable.
 
@@ -45,7 +46,7 @@ SCRIPT_INDEX="175SF"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/frankenphp_manager.sh"
 
-echo "[$SCRIPT_INDEX] frankenphp plane service runtime: runtime-only convergence, then octane:frankenphp (watch=${OCTANE_WATCH})"
+echo "[$SCRIPT_INDEX] frankenphp plane service runtime: runtime-only convergence, then direct FrankenPHP supervision (Octane worker, watch=${OCTANE_WATCH})"
 
 # Package installation, static builds and package cleanup are step 93
 # responsibilities. A service restart only repairs pointers for the exact
