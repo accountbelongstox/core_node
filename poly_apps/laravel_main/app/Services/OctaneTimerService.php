@@ -29,6 +29,7 @@ use Laravel\Octane\Facades\Octane;
 class OctaneTimerService
 {
     private const TASK_LEASE_SECONDS = 900;
+    private const STATE_CACHE_PREFIX = 'octane_timer:state:';
 
     /**
      * Registered tasks (callback storage - cannot be shared across workers)
@@ -54,7 +55,9 @@ class OctaneTimerService
      */
     protected static function stateGet(string $table, string $key): ?array
     {
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
+        $shared = null;
+
+        if (config('octane.server') === 'swoole') {
             try {
                 $value = Octane::table($table)->get($key);
                 if ($value !== null && $value !== false) {
@@ -62,6 +65,16 @@ class OctaneTimerService
                 }
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- fall through to the store below.
+            }
+        } else {
+            try {
+                $shared = Cache::store('file')->get(self::STATE_CACHE_PREFIX . $table . ':' . $key);
+                if (is_array($shared)) {
+                    self::$fallbackStore["{$table}:{$key}"] = $shared;
+                    return $shared;
+                }
+            } catch (\Throwable $e) {
+                // The heartbeat file below remains the cross-process fallback.
             }
         }
 
@@ -82,11 +95,17 @@ class OctaneTimerService
     {
         self::$fallbackStore["{$table}:{$key}"] = $value;
 
-        if (class_exists(\Laravel\Octane\Facades\Octane::class)) {
+        if (config('octane.server') === 'swoole') {
             try {
                 Octane::table($table)->set($key, $value);
             } catch (\Throwable $e) {
                 // Not running under Octane-Swoole -- the store above already holds it.
+            }
+        } else {
+            try {
+                Cache::store('file')->forever(self::STATE_CACHE_PREFIX . $table . ':' . $key, $value);
+            } catch (\Throwable $e) {
+                // The heartbeat file below remains the cross-process fallback.
             }
         }
 
@@ -152,6 +171,8 @@ class OctaneTimerService
      */
     public static function register(string $name, callable $callback, int $interval = 0): void
     {
+        $current = self::stateGet('timer_tasks', $name);
+
         self::$tasks[$name] = [
             'callback' => $callback,
             'interval' => $interval,
@@ -160,10 +181,10 @@ class OctaneTimerService
         self::stateSet('timer_tasks', $name, [
             'name' => $name,
             'interval' => $interval,
-            'last_run' => 0,
-            'run_count' => 0,
-            'error_count' => 0,
-            'last_duration' => 0.0,
+            'last_run' => (int) ($current['last_run'] ?? 0),
+            'run_count' => (int) ($current['run_count'] ?? 0),
+            'error_count' => (int) ($current['error_count'] ?? 0),
+            'last_duration' => (float) ($current['last_duration'] ?? 0.0),
         ]);
 
         Log::info("OctaneTimerService: Task registered", [
@@ -264,6 +285,15 @@ class OctaneTimerService
         foreach (self::$tasks as $name => $task) {
             self::executeTaskWithInterceptor($name, $task);
         }
+    }
+
+    public static function heartbeat(): void
+    {
+        if (!self::isRunning()) {
+            self::start();
+        }
+
+        self::tick();
     }
 
     /**

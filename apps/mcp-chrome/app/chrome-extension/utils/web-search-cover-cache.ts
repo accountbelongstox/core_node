@@ -244,7 +244,7 @@ export async function loadCoverSearchCache(
       if (!bytes.length) {
         return { hit: false, cacheKey };
       }
-      const blob = new Blob([bytes], { type: rec.mime || 'image/jpeg' });
+      const blob = new Blob([new Uint8Array(bytes).buffer], { type: rec.mime || 'image/jpeg' });
       remoteUrls.push(rec.remoteUrl);
       localBlobUrls.push(URL.createObjectURL(blob));
     }

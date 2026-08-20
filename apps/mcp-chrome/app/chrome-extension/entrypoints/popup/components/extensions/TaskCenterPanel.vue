@@ -86,7 +86,7 @@
           style="background: var(--surface-2); border: 1px solid var(--border)"
         >
           <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold" style="color: var(--text)">{{ getProcessorName(type) }}</span>
+            <span class="text-sm font-semibold" style="color: var(--text)">{{ getProcessorName(String(type)) }}</span>
             <span
               class="px-2.5 py-1 text-xs font-bold rounded-full"
               :style="processor.isRunning

@@ -22,7 +22,7 @@ class HandleDialogTool extends BaseBrowserToolExecutor {
     }
 
     try {
-      let targetTab: chrome.tabs.Tab | undefined;
+      let targetTab: chrome.tabs.Tab | null | undefined;
       if (tabId) {
         targetTab = await this.tryGetTab(tabId);
       } else {

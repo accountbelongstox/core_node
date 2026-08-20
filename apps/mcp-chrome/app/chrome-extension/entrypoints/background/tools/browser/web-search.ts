@@ -6,7 +6,9 @@ import { delay as waitForDelay } from '@/utils/async';
 import {
   WEB_SEARCH_LAST_VERIFIED,
   buildSearchUrl,
-  engineHost,
+  filterSearchImageResults,
+  isEngineSearchUrl,
+  matchesSearchUrl,
   isVerificationUrl,
   type WebSearchEngine,
   type WebSearchMode,
@@ -50,7 +52,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
 
     try {
       let tabId = args.tabId;
-      let tab: chrome.tabs.Tab | undefined;
+      let tab: chrome.tabs.Tab | null | undefined;
 
       if (tabId) {
         tab = await this.tryGetTab(tabId);
@@ -59,18 +61,26 @@ class WebSearchTool extends BaseBrowserToolExecutor {
       if (!tab?.id) {
         if (!args.openInNewTab) {
           const allTabs = await chrome.tabs.query({});
-          tab = allTabs.find((t) => t.url && t.url.includes(engineHost(engine)));
+          const reusableTabs = allTabs.filter((candidate) => (
+            candidate.url && isEngineSearchUrl(candidate.url, engine)
+          ));
+          tab = [...reusableTabs].reverse().find((candidate) => (
+            candidate.url && matchesSearchUrl(candidate.url, url)
+          )) || reusableTabs[reusableTabs.length - 1];
         }
         if (!tab?.id) {
           // Drive the search tab in the BACKGROUND — readPage uses sendMessage,
           // which works on an inactive tab, so the user's focus is never stolen.
           tab = await chrome.tabs.create({ url, active: false });
         } else {
-          // Reuse: navigate without foregrounding (don't force-activate).
-          await chrome.tabs.update(tab.id, { url, active: false });
+          if (!tab.url || !matchesSearchUrl(tab.url, url)) {
+            await chrome.tabs.update(tab.id, { url, active: false });
+          }
         }
       } else {
-        await chrome.tabs.update(tab.id, { url, active: false });
+        if (!tab.url || !matchesSearchUrl(tab.url, url)) {
+          await chrome.tabs.update(tab.id, { url, active: false });
+        }
       }
 
       if (!tab?.id) {
@@ -82,6 +92,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         timeoutMs: 20_000,
         settleDelayMs: 500,
         statusProbeDelayMs: 600,
+        expectedUrl: url,
       });
       let status = await this.readPage(tabId, mode, maxResults);
       let finalStatus: WebSearchStatus = status.status;
@@ -98,6 +109,20 @@ class WebSearchTool extends BaseBrowserToolExecutor {
           status: 'verification_required',
           message: 'Search engine verification detected — solve CAPTCHA in the tab',
         };
+      }
+
+      if (mode === 'images' && status.ok) {
+        const imageResults = filterSearchImageResults(status.imageResults || [], query);
+        status = {
+          ...status,
+          ok: imageResults.length > 0,
+          status: imageResults.length > 0 ? 'ok' : 'no_results',
+          message: imageResults.length > 0
+            ? status.message
+            : 'No query-matching image results found on page',
+          imageResults,
+        };
+        finalStatus = status.status;
       }
 
       const result: WebSearchResult = {

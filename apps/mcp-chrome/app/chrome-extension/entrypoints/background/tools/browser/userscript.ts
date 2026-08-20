@@ -7,6 +7,7 @@ import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } f
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { injectScriptTool } from './inject-script';
+import { ExecutionWorld } from '@/common/constants';
 
 interface UserScriptParams {
   action: 'create' | 'list' | 'get' | 'enable' | 'disable' | 'update' | 'remove' | 'send_command' | 'export';
@@ -94,7 +95,7 @@ class UserScriptTool extends BaseBrowserToolExecutor {
           }
 
           // Execute the command code in the tab
-          let targetTab: chrome.tabs.Tab | undefined;
+          let targetTab: chrome.tabs.Tab | null | undefined;
           if (tabId) {
             targetTab = await this.tryGetTab(tabId);
           } else {
@@ -106,8 +107,8 @@ class UserScriptTool extends BaseBrowserToolExecutor {
           }
 
           return await injectScriptTool.execute({
-            code,
-            tabId: targetTab.id,
+            jsScript: code,
+            type: ExecutionWorld.ISOLATED,
           });
 
         default:

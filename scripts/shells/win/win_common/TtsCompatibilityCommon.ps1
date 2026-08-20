@@ -23,7 +23,6 @@ function Invoke-TtsPolicyCommand {
     $previous = $ErrorActionPreference
     $outputItems = @()
     $output = ''
-    $exitCode = 0
     $locationPushed = $false
     $script:TtsPolicyLastError = ''
     if (-not (Test-Path -LiteralPath $PythonExe)) {
@@ -35,7 +34,6 @@ function Invoke-TtsPolicyCommand {
         Push-Location -LiteralPath $script:TtsPolicyRepoRoot
         $locationPushed = $true
         $outputItems = @(& $PythonExe -m $script:TtsPolicyPythonModule @Arguments 2>&1)
-        $exitCode = $LASTEXITCODE
     } finally {
         if ($locationPushed) {
             Pop-Location
@@ -43,8 +41,8 @@ function Invoke-TtsPolicyCommand {
         $ErrorActionPreference = $previous
     }
     $output = ([string]::Join([Environment]::NewLine, @($outputItems))).Trim()
-    if ($exitCode -ne 0) {
-        $script:TtsPolicyLastError = if ($output) { $output } else { "TTS runtime policy exited with code $exitCode" }
+    if (-not $output) {
+        $script:TtsPolicyLastError = 'TTS runtime policy returned no state'
         return ''
     }
     return ([string]$output).Trim()
@@ -109,7 +107,17 @@ function Get-TtsDependencyFingerprint {
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$Engine
     )
-    return Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('fingerprint', $Engine)
+    $fingerprint = ''
+    $valid = $true
+    $fingerprint = Invoke-TtsPolicyCommand -PythonExe $PythonExe -Arguments @('fingerprint', $Engine)
+    if ($fingerprint.Length -ne 64) { return '' }
+    foreach ($character in $fingerprint.ToCharArray()) {
+        if (-not (($character -ge '0' -and $character -le '9') -or ($character -ge 'a' -and $character -le 'f'))) {
+            $valid = $false
+        }
+    }
+    if (-not $valid) { return '' }
+    return $fingerprint
 }
 
 function Test-TtsEngineHealth {
@@ -149,11 +157,18 @@ function Set-TtsDependencyStamp {
         [Parameter(Mandatory = $true)][string]$Engine,
         [Parameter(Mandatory = $true)][string]$Path
     )
+    $fingerprint = ''
+    $actual = ''
+    $parent = ''
     $fingerprint = Get-TtsDependencyFingerprint -PythonExe $PythonExe -Engine $Engine
     if (-not $fingerprint) { return $false }
-    $parent = Split-Path $Path -Parent
+    $parent = Split-Path -Path $Path -Parent
     if (-not (Test-Path -LiteralPath $parent)) {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    if (Test-Path -LiteralPath $Path) {
+        $actual = [string](Get-Content -LiteralPath $Path -Raw -ErrorAction SilentlyContinue)
+        if ($actual.Trim().Trim([char]0xFEFF) -eq $fingerprint) { return $true }
     }
     Set-Content -LiteralPath $Path -Value $fingerprint -Encoding utf8
     return $true

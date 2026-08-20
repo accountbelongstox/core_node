@@ -142,6 +142,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
           // {success, reason?} instead of throwing so the caller can report a
           // clean message.
           func: async (promptText: string) => {
+            const responseSelector = '.ds-markdown, [class*="markdown"], [class*="message-content"]';
             const isVisible = (el: any): boolean => {
               if (!el) return false;
               const r = el.getBoundingClientRect();
@@ -165,6 +166,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               '[role="textbox"]',
             ]);
             if (!input) return { success: false, reason: 'input control not found' };
+            const responseBaseline = document.querySelectorAll(responseSelector).length;
 
             const tag = input.tagName;
             if (tag === 'TEXTAREA' || tag === 'INPUT') {
@@ -185,19 +187,30 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
             input.dispatchEvent(new Event('change', { bubbles: true }));
 
             // Let the framework react (enable the send button) before sending.
-            await waitForDelay(200);
+            await new Promise((resolve) => window.setTimeout(resolve, 200));
 
             const sendBtn: any = pick(
               [
                 'button[type="submit"]',
+                'button[data-testid*="send" i]',
+                '[data-testid*="send-button" i]',
                 'button[aria-label*="Send" i]',
                 'button[aria-label*="发送"]',
                 'div[role="button"][aria-label*="Send" i]',
               ],
               (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true',
             );
-            if (sendBtn) {
-              sendBtn.click();
+            const inputContainer = input.closest('form') || input.parentElement?.parentElement;
+            const containerButtons = inputContainer
+              ? Array.from(inputContainer.querySelectorAll('button,[role="button"]')).filter(
+                  (el: any) => isVisible(el)
+                    && !el.disabled
+                    && el.getAttribute('aria-disabled') !== 'true',
+                )
+              : [];
+            const resolvedSendBtn: any = sendBtn || containerButtons[containerButtons.length - 1] || null;
+            if (resolvedSendBtn) {
+              resolvedSendBtn.click();
             } else {
               const opts: any = {
                 key: 'Enter',
@@ -212,10 +225,19 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
               input.dispatchEvent(new KeyboardEvent('keyup', opts));
             }
 
+            await new Promise((resolve) => window.setTimeout(resolve, 400));
+            const remainingValue = tag === 'TEXTAREA' || tag === 'INPUT'
+              ? String(input.value || '').trim()
+              : String(input.textContent || '').trim();
+            if (remainingValue === promptText.trim()) {
+              return { success: false, reason: 'send action did not submit the prompt' };
+            }
+
             return {
               success: true,
               conversationUrl: window.location.href,
-              sentVia: sendBtn ? 'button' : 'enter',
+              responseBaseline,
+              sentVia: resolvedSendBtn ? 'button' : 'enter',
             };
           },
           args: [prompt],
@@ -227,7 +249,12 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         // message thrown here must NOT include that prefix (avoids doubling).
         const frame = result && result.length > 0 ? result[0] : null;
         const injected = frame
-          ? (frame.result as { success?: boolean; conversationUrl?: string; reason?: string } | null)
+          ? (frame.result as {
+              success?: boolean;
+              conversationUrl?: string;
+              responseBaseline?: number;
+              reason?: string;
+            } | null)
           : null;
         if (!injected || !injected.success) {
           const reason = injected && injected.reason ? injected.reason : 'input/send controls not found';
@@ -240,6 +267,7 @@ class DeepSeekSendPromptTool extends BaseBrowserToolExecutor {
         await taskManager.updateTask(task.id, {
           status: TaskStatus.PENDING,
           conversationId: conversationUrl,
+          responseBaseline: injected.responseBaseline ?? 0,
         });
 
         // Start polling

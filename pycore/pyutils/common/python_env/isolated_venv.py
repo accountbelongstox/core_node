@@ -9,6 +9,7 @@ artifacts are owned by their feature-specific persistent data directories.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -33,6 +34,7 @@ _VENV_PREFIX = "py_venv_"
 _STAMP_NAME = ".ai_policy_fingerprint"
 _BASE_IDENTITY_STAMP_NAME = ".base_interpreter_identity"
 _HEALTH_FAILURE_NAME = ".ai_health_failures"
+_MODULE_STATE_MARKER = "__PYCORE_MODULE_STATE__="
 MAIN_INTERPRETER = Path(
     getattr(sys, "_base_executable", None) or sys.executable
 ).resolve()
@@ -292,6 +294,28 @@ def venv_healthy(engine: str) -> bool:
     if not using_override and not _stamp_matches(engine):
         return False
     return _venv_healthy(engine, python_path, probe)
+
+
+def venv_provisioned(engine: str) -> bool:
+    """Return whether each persisted core dependency state has converged."""
+    python_path = resolve_python(engine)
+    if not python_path:
+        return False
+    spec = engine_spec(engine)
+    packages = tuple(spec.get("packages", ()))
+    pins = tuple(spec.get("pins", ()))
+    probe = spec.get("health_imports") or _default_health_imports(packages, pins)
+    override = (os.environ.get(_override_env(engine)) or "").strip()
+    using_override = bool(override and _same_interpreter(override, python_path))
+    policy_ready = using_override or _stamp_matches(engine)
+    core_ready = _core_environment_ready(
+        engine,
+        python_path,
+        packages,
+        probe,
+        spec,
+    )
+    return policy_ready and core_ready
 
 
 def _interpreter_version(python_exe: str) -> str:
@@ -564,6 +588,7 @@ def _shared_constraints(venv_python: str, package_names: Sequence[str]) -> List[
 def _broken_distribution_specs(
     venv_python: str,
     package_names: Sequence[str],
+    verify_payload: bool = True,
 ) -> List[str]:
     """Find candidate distributions with incomplete metadata or empty payloads."""
     if not package_names:
@@ -572,6 +597,7 @@ def _broken_distribution_specs(
         "from pathlib import Path\n"
         "import sys\n"
         f"names = {list(package_names)!r}\n"
+        f"verify_payload = {verify_payload!r}\n"
         "wanted = {name.lower().replace('_', '-') for name in names}\n"
         "for root in sys.path:\n"
         "    root_path = Path(root)\n"
@@ -579,16 +605,19 @@ def _broken_distribution_specs(
         "        continue\n"
         "    for path in root_path.glob('*.dist-info'):\n"
         "        stem = path.name[:-10]\n"
+        "        normalized_stem = stem.lower().replace('_', '-')\n"
         "        spec = None\n"
         "        for name in wanted:\n"
         "            prefix = name + '-'\n"
-        "            if stem.lower().startswith(prefix):\n"
+        "            if normalized_stem.startswith(prefix):\n"
         "                spec = name + '==' + stem[len(prefix):]\n"
         "                break\n"
         "        if spec is None:\n"
         "            continue\n"
         "        if not (path / 'METADATA').is_file() or not (path / 'RECORD').is_file():\n"
         "            print(spec)\n"
+        "            continue\n"
+        "        if not verify_payload:\n"
         "            continue\n"
         "        record_missing = False\n"
         "        for record_line in (path / 'RECORD').read_text(errors='replace').splitlines():\n"
@@ -620,6 +649,89 @@ def _broken_distribution_specs(
     if result.returncode != 0:
         return []
     return sorted(set(line.strip() for line in result.stdout.splitlines() if line.strip()))
+
+
+def _repair_candidates(
+    engine: str,
+    package_names: Sequence[str],
+) -> List[str]:
+    candidates = list(package_names)
+    if engine == "qwen3tts":
+        candidates.extend(
+            ("accelerate", "transformers", "qwen-tts", "tokenizers", "pip")
+        )
+    return candidates
+
+
+def _missing_module_specs(
+    venv_python: str,
+    module_names: Sequence[str],
+) -> List[str]:
+    if not module_names:
+        return []
+    code = (
+        "import importlib.util, json\n"
+        f"names = {list(module_names)!r}\n"
+        "missing = [name for name in names if importlib.util.find_spec(name) is None]\n"
+        f"print({_MODULE_STATE_MARKER!r} + json.dumps(missing))\n"
+    )
+    try:
+        result = subprocess.run(
+            [venv_python, "-c", code],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+            env=_subprocess_env(venv_python),
+        )
+    except OSError:
+        return list(module_names)
+    marker_line = next(
+        (
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith(_MODULE_STATE_MARKER)
+        ),
+        "",
+    )
+    if not marker_line:
+        return list(module_names)
+    missing = json.loads(marker_line[len(_MODULE_STATE_MARKER):])
+    return [str(name) for name in missing]
+
+
+def _core_environment_ready(
+    engine: str,
+    venv_python: str,
+    package_names: Sequence[str],
+    health_imports: str,
+    spec: dict,
+) -> bool:
+    provision_modules = tuple(spec.get("provision_modules", ()))
+    if not provision_modules:
+        return _venv_healthy(engine, venv_python, health_imports)
+    missing_modules = _missing_module_specs(venv_python, provision_modules)
+    broken_distributions = _broken_distribution_specs(
+        venv_python,
+        _repair_candidates(engine, package_names),
+        verify_payload=False,
+    )
+    cuda_ready = (
+        not _cuda_probe_required(engine)
+        or _run_cuda_probe(venv_python)
+    )
+    if missing_modules:
+        ColorPrint.yellow(
+            "[isolated-venv] missing module specs: "
+            + ", ".join(missing_modules)
+        )
+    if broken_distributions:
+        ColorPrint.yellow(
+            "[isolated-venv] incomplete package metadata: "
+            + ", ".join(broken_distributions)
+        )
+    return not missing_modules and not broken_distributions and cuda_ready
 
 
 def _repair_broken_distributions(
@@ -859,18 +971,11 @@ def _install_into(
     pip_packages: Sequence[str],
     pins: Sequence[str],
     health_imports: str,
-    install_required: bool,
     shared_packages: Sequence[str],
     managed_venv: bool,
 ) -> bool:
     constraint_path: Optional[Path] = None
-    if not install_required and _venv_healthy(engine, venv_python, health_imports):
-        return True
-    repair_candidates = list(pip_packages)
-    if engine == "qwen3tts":
-        repair_candidates.extend(
-            ("accelerate", "transformers", "qwen-tts", "tokenizers", "pip")
-        )
+    repair_candidates = _repair_candidates(engine, pip_packages)
     if not _repair_broken_distributions(venv_python, repair_candidates):
         return False
     if managed_venv and engine == "qwen3tts":
@@ -958,17 +1063,24 @@ def ensure_venv(
     if override and Path(override).is_file() and not _same_interpreter(override, sys.executable):
         if not _compatible(engine, override):
             return None
-        if not _install_into(
+        core_ready = _core_environment_ready(
             engine,
             override,
             packages,
-            resolved_pins,
             probe,
-            install_required=force,
-            shared_packages=shared_packages,
-            managed_venv=False,
-        ):
-            return None
+            spec,
+        )
+        if force or not core_ready:
+            if not _install_into(
+                engine,
+                override,
+                packages,
+                resolved_pins,
+                probe,
+                shared_packages=shared_packages,
+                managed_venv=False,
+            ):
+                return None
         accelerator_ready = _install_accelerators(override, spec)
         if not accelerator_ready:
             ColorPrint.yellow(
@@ -1000,8 +1112,15 @@ def ensure_venv(
         )
         return None
 
-    policy_changed = not _stamp_matches(engine)
-    needs_repair = force or created or policy_changed or not _venv_healthy(engine, str(python_path), probe)
+    policy_ready = _stamp_matches(engine)
+    core_ready = _core_environment_ready(
+        engine,
+        str(python_path),
+        packages,
+        probe,
+        spec,
+    )
+    needs_repair = force or created or not policy_ready or not core_ready
     if needs_repair:
         if not _install_into(
             engine,
@@ -1009,7 +1128,6 @@ def ensure_venv(
             packages,
             resolved_pins,
             probe,
-            install_required=force or created or policy_changed,
             shared_packages=shared_packages,
             managed_venv=True,
         ):
@@ -1035,5 +1153,6 @@ __all__ = [
     "resolve_python",
     "venv_dir",
     "venv_healthy",
+    "venv_provisioned",
     "venv_ready",
 ]

@@ -3,6 +3,27 @@ export interface WaitForTabCompleteOptions {
   settleDelayMs?: number;
   statusProbeDelayMs?: number;
   rejectOnTabClose?: boolean;
+  expectedUrl?: string;
+}
+
+function isExpectedUrl(actualUrl: string | undefined, expectedUrl: string | undefined): boolean {
+  let actual: URL;
+  let expected: URL;
+
+  if (!expectedUrl) return true;
+  if (!actualUrl) return false;
+
+  try {
+    actual = new URL(actualUrl);
+    expected = new URL(expectedUrl);
+  } catch {
+    return actualUrl === expectedUrl;
+  }
+
+  if (actual.origin !== expected.origin || actual.pathname !== expected.pathname) return false;
+
+  const expectedQuery = expected.searchParams.get('q');
+  return expectedQuery === null || actual.searchParams.get('q') === expectedQuery;
 }
 
 export function waitForTabComplete(
@@ -41,7 +62,7 @@ export function waitForTabComplete(
     };
     const onUpdated = (updatedTabId: number, info: chrome.tabs.TabChangeInfo): void => {
       if (updatedTabId === tabId && info.status === 'complete') {
-        finish();
+        probeStatus();
       }
     };
     const onRemoved = (removedTabId: number): void => {
@@ -52,7 +73,7 @@ export function waitForTabComplete(
     const probeStatus = (): void => {
       chrome.tabs.get(tabId).then(
         (tab) => {
-          if (tab.status === 'complete') finish();
+          if (tab.status === 'complete' && isExpectedUrl(tab.url, options.expectedUrl)) finish();
         },
         () => {
           if (options.rejectOnTabClose) {

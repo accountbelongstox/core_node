@@ -152,8 +152,15 @@ export async function handleAudioStart(params: AudioConfig): Promise<{
 
     // Get stream ID for tab capture
     console.log('[Audio Tools] Getting media stream ID for tab:', targetTab.id);
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: targetTab.id,
+    const streamId = await new Promise<string>((resolve, reject) => {
+      chrome.tabCapture.getMediaStreamId({ targetTabId: targetTab.id }, (resolvedStreamId) => {
+        const error = chrome.runtime.lastError;
+        if (error) {
+          reject(new Error(error.message));
+          return;
+        }
+        resolve(resolvedStreamId);
+      });
     });
 
     // Load audio config from storage or use defaults

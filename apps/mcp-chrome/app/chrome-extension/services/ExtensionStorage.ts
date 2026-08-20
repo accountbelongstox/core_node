@@ -20,7 +20,10 @@ export class ExtensionStorage {
   }
 
   async getMany<T extends object>(keys: readonly StorageKey[]): Promise<Partial<T>> {
-    return (await this.area.get([...keys])) as Partial<T>;
+    const getValues = this.area.get.bind(this.area) as unknown as (
+      requestedKeys: string[],
+    ) => Promise<Record<string, unknown>>;
+    return (await getValues(keys.map(String))) as Partial<T>;
   }
 
   async set<T>(key: StorageKey, value: T): Promise<void> {

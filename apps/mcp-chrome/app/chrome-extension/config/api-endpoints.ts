@@ -8,13 +8,25 @@ export interface ApiEndpoint {
   description: string;
 }
 
+export const DEFAULT_API_ENDPOINT_ID = 'production' as const;
+export const DEFAULT_API_HOST = 'api.si.12gm.com' as const;
+export const DEFAULT_API_BASE_URL = `https://${DEFAULT_API_HOST}` as const;
+
 export const API_ENDPOINTS: ApiEndpoint[] = [
+  {
+    id: DEFAULT_API_ENDPOINT_ID,
+    url: DEFAULT_API_HOST,
+    protocol: 'https',
+    priority: 1,
+    isLocal: false,
+    description: 'Production Cloud Server',
+  },
   {
     id: 'localhost',
     url: 'localhost',
     protocol: 'http',
     port: 9000,
-    priority: 1,
+    priority: 2,
     isLocal: true,
     description: 'Local Development Server',
   },
@@ -23,7 +35,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     url: '43.163.112.77',
     protocol: 'http',
     port: 9000,
-    priority: 2,
+    priority: 3,
     isLocal: false,
     description: 'Remote Laravel Main (43.163.112.77)',
   },
@@ -32,7 +44,7 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     url: '192.168.50.3',
     protocol: 'http',
     port: 9000,
-    priority: 3,
+    priority: 4,
     isLocal: true,
     description: 'LAN Primary Server',
   },
@@ -41,17 +53,9 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     url: '192.168.50.2',
     protocol: 'http',
     port: 9000,
-    priority: 4,
+    priority: 5,
     isLocal: true,
     description: 'LAN Backup Server',
-  },
-  {
-    id: 'production',
-    url: 'api.si.12gm.com',
-    protocol: 'https',
-    priority: 5,
-    isLocal: false,
-    description: 'Production Cloud Server',
   },
 ];
 

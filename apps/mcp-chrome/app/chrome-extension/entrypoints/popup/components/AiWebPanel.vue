@@ -29,7 +29,7 @@
         <span class="text-[8px] text-slate-500 uppercase font-bold">{{ getMessage('backendLabel') }}</span>
         <input
           v-model="apiUrl"
-          placeholder="http://localhost:9000"
+          :placeholder="DEFAULT_API_BASE_URL"
           class="flex-1 bg-slate-900 border border-slate-700 rounded px-1.5 py-1 text-[10px] text-slate-200 font-mono"
         />
       </div>
@@ -84,6 +84,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { useApiEndpoint } from '@/composables/useApiEndpoint';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
+import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 
 type Provider = 'chatgpt' | 'gemini';
 const providers: Provider[] = ['chatgpt', 'gemini'];

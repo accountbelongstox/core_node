@@ -1,10 +1,10 @@
 import { localStorage } from './ExtensionStorage';
-import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { STORAGE_KEYS, type StorageKey } from '@/utils/storage-keys';
 
 export type AiWebProvider = 'chatgpt' | 'gemini' | 'deepseek';
 
 interface ProviderSetting {
-  storageKey: string;
+  storageKey: StorageKey;
   providers: readonly AiWebProvider[];
   defaultValue: AiWebProvider;
   errorLabel: string;

@@ -249,7 +249,7 @@ export class DeepSeekPollingService {
         state.sawGenerating = true;
       }
 
-      if (status.isCompleted && state.sawGenerating) {
+      if (status.isCompleted && (state.sawGenerating || task.responseBaseline !== undefined)) {
         await this.handleCompletion(taskId, status.result!);
       } else if (status.isError) {
         await this.handleError(taskId, status.error || 'Unknown error');
@@ -326,7 +326,6 @@ export class DeepSeekPollingService {
           const hasError = errorElement !== null;
           const errorText = errorElement?.textContent || '';
 
-          // Get last message
           const messageElements = document.querySelectorAll('.ds-markdown, [class*="markdown"], [class*="message-content"]');
           const lastMessage = messageElements[messageElements.length - 1];
           const lastMessageText = lastMessage?.textContent || '';
@@ -342,6 +341,7 @@ export class DeepSeekPollingService {
             isCompleted,
             lastMessageText,
             lastMessageHTML,
+            messageCount: messageElements.length,
             conversationUrl: window.location.href,
           };
         },
@@ -353,6 +353,10 @@ export class DeepSeekPollingService {
 
       const result = results[0].result;
 
+      if (!result) {
+        return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
+      }
+
       if (result.hasError) {
         return {
           isCompleted: false,
@@ -362,7 +366,11 @@ export class DeepSeekPollingService {
         };
       }
 
-      if (result.isCompleted) {
+      const hasNewResponse = typeof task.responseBaseline === 'number'
+        ? result.messageCount > task.responseBaseline
+        : result.isCompleted;
+
+      if (result.isCompleted && hasNewResponse) {
         return {
           isCompleted: true,
           isGenerating: false,

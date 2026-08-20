@@ -756,6 +756,7 @@ async function uploadChapterIfNeeded(
         sentence_count: expected,
         slot_count: expected,
         complete: true,
+        text_complete: true,
       };
   ctx.ingestStatus.chapterMap.set(chapter.chapterIndex, updated);
 

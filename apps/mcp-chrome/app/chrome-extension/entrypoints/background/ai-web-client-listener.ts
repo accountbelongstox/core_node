@@ -61,14 +61,16 @@ async function handleMessage(
       logger.info(LOG, `Test via ${provider}: "${prompt.slice(0, 80)}" (audio=${withAudio})`);
       const tool = provider === 'gemini' ? geminiWebTool : chatgptWebTool;
       const result = await tool.execute({ prompt, withAudio });
+      const firstContent = result?.content?.[0];
+      const resultText = firstContent?.type === 'text' ? firstContent.text : '';
       let parsed: any = {};
       try {
-        parsed = JSON.parse(result?.content?.[0]?.text || '{}');
+        parsed = JSON.parse(resultText || '{}');
       } catch {
         parsed = {};
       }
       if (result?.isError) {
-        const error = parsed?.error || result?.content?.[0]?.text || 'error';
+        const error = parsed?.error || resultText || 'error';
         logger.warn(LOG, `Test failed: ${error}`);
         return { success: false, error };
       }

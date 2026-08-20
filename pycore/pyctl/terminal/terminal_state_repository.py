@@ -378,129 +378,76 @@ class TerminalStateRepository:
 
     @serialized_method
     @_transactional_store_method
-    def add_schedule_entry(
+    def sync_schedule_entries(
         self,
         terminal_number: int,
-        mode: str,
-        next_run_at_ms: int,
-        interval_seconds: int,
-        message: str,
-    ) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        if terminal_number not in records:
-            return {"success": False, "error_code": "terminal_state_not_found"}
-        entry_id = str(time.time_ns())
-        now = _now_iso()
-        entry_values = {
-            "created_at": now,
-            "fire_count": "0",
-            "interval_seconds": str(max(0, int(interval_seconds))),
-            "last_run_at": "",
-            "message": message,
-            "mode": mode,
-            "next_run_at": str(int(next_run_at_ms)),
-            "preview": " ".join(message.split())[:SCHEDULE_PREVIEW_MAX_LENGTH],
-        }
-        for field, value in entry_values.items():
-            self._write_value(
-                values,
-                self._terminal_key(terminal_number, f"queue.{entry_id}.{field}"),
-                value,
-            )
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "updated_at"),
-            now,
-        )
-        metadata_values = {
-            **entry_values,
-            "message": str(len(message.encode("utf-8"))),
-        }
-        return {
-            "success": True,
-            "terminal_number": terminal_number,
-            "entry": self._queue_entry_metadata(entry_id, metadata_values),
-        }
-
-    @serialized_method
-    @_transactional_store_method
-    def update_schedule_entry(
-        self,
-        terminal_number: int,
-        entry_id: str,
-        mode: str,
-        next_run_at_ms: int,
-        interval_seconds: int,
-        message: str,
+        entries: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)
         if record is None:
             return {"success": False, "error_code": "terminal_state_not_found"}
-        if entry_id not in (record.get("queue_by_id") or {}):
-            return {
-                "success": False,
-                "error_code": "terminal_schedule_entry_not_found",
-            }
+
+        existing_entries = record.get("queue_by_id") or {}
+        desired_ids = {str(entry["id"]) for entry in entries}
+        changed = False
         now = _now_iso()
-        entry_values = {
-            "interval_seconds": str(max(0, int(interval_seconds))),
-            "message": message,
-            "mode": mode,
-            "next_run_at": str(int(next_run_at_ms)),
-            "preview": " ".join(message.split())[:SCHEDULE_PREVIEW_MAX_LENGTH],
-        }
-        for field, value in entry_values.items():
+
+        for entry_id in set(existing_entries) - desired_ids:
+            self._delete_schedule_entry(values, terminal_number, entry_id)
+            changed = True
+
+        for entry in entries:
+            entry_id = str(entry["id"])
+            existing = existing_entries.get(entry_id)
+            message = str(entry.get("message") or "")
+            mode = str(entry["mode"])
+            next_run_at = int(entry["next_run_at"])
+            interval_seconds = int(entry["interval_seconds"])
+            definition_values = self._schedule_definition_values(
+                mode,
+                next_run_at,
+                interval_seconds,
+                message,
+            )
+            if existing is None:
+                entry_values = {
+                    **definition_values,
+                    "created_at": now,
+                    "fire_count": "0",
+                    "last_run_at": "",
+                }
+            elif self._schedule_definition_matches(
+                terminal_number,
+                entry_id,
+                existing,
+                definition_values,
+            ):
+                continue
+            else:
+                entry_values = definition_values
+            self._write_schedule_entry(
+                values,
+                terminal_number,
+                entry_id,
+                entry_values,
+            )
+            changed = True
+
+        if changed:
             self._write_value(
                 values,
-                self._terminal_key(terminal_number, f"queue.{entry_id}.{field}"),
-                value,
+                self._terminal_key(terminal_number, "updated_at"),
+                now,
             )
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "updated_at"),
-            now,
+        _updated_values, updated_records, _updated_next_number = (
+            self._scan_records()
         )
-        metadata_values = {
-            **(record.get("queue_by_id") or {}).get(entry_id, {}),
-            **entry_values,
-            "message": str(len(message.encode("utf-8"))),
-        }
+        updated_record = updated_records.get(terminal_number) or {}
         return {
             "success": True,
             "terminal_number": terminal_number,
-            "entry": self._queue_entry_metadata(entry_id, metadata_values),
-        }
-
-    @serialized_method
-    @_transactional_store_method
-    def remove_schedule_entry(
-        self,
-        terminal_number: int,
-        entry_id: str,
-    ) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
-        if record is None:
-            return {"success": False, "error_code": "terminal_state_not_found"}
-        if entry_id not in (record.get("queue_by_id") or {}):
-            return {
-                "success": False,
-                "error_code": "terminal_schedule_entry_not_found",
-            }
-        for field in QUEUE_ENTRY_FIELDS:
-            self._store.delete(
-                self._terminal_key(terminal_number, f"queue.{entry_id}.{field}"),
-            )
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "updated_at"),
-            _now_iso(),
-        )
-        return {
-            "success": True,
-            "terminal_number": terminal_number,
-            "entry_id": entry_id,
+            "entries": list(updated_record.get("queue") or []),
         }
 
     @serialized_method
@@ -578,13 +525,7 @@ class TerminalStateRepository:
                     value,
                 )
         else:
-            for field in QUEUE_ENTRY_FIELDS:
-                self._store.delete(
-                    self._terminal_key(
-                        terminal_number,
-                        f"queue.{entry_id}.{field}",
-                    ),
-                )
+            self._delete_schedule_entry(values, terminal_number, entry_id)
         self._write_value(
             values,
             self._terminal_key(terminal_number, "updated_at"),
@@ -811,6 +752,92 @@ class TerminalStateRepository:
             values[key] = str(len(value.encode("utf-8")))
             return
         self._store.write(key, value, values)
+
+    @staticmethod
+    def _schedule_definition_values(
+        mode: str,
+        next_run_at_ms: int,
+        interval_seconds: int,
+        message: str,
+    ) -> Dict[str, str]:
+        return {
+            "interval_seconds": str(max(0, int(interval_seconds))),
+            "message": message,
+            "mode": mode,
+            "next_run_at": str(int(next_run_at_ms)),
+            "preview": " ".join(message.split())[:SCHEDULE_PREVIEW_MAX_LENGTH],
+        }
+
+    def _schedule_definition_matches(
+        self,
+        terminal_number: int,
+        entry_id: str,
+        existing: Dict[str, Any],
+        desired: Dict[str, str],
+    ) -> bool:
+        existing_message = self._store.read(
+            self._terminal_key(
+                terminal_number,
+                f"queue.{entry_id}.message",
+            )
+        ) or ""
+        if existing_message != desired["message"]:
+            return False
+        definition_fields = (
+            "interval_seconds",
+            "mode",
+            "preview",
+        )
+        if any(
+            str(existing.get(field) or "") != desired[field]
+            for field in definition_fields
+        ):
+            return False
+        return (
+            desired["mode"] == "interval"
+            or str(existing.get("next_run_at") or "") == desired["next_run_at"]
+        )
+
+    def _write_schedule_entry(
+        self,
+        values: Dict[str, str],
+        terminal_number: int,
+        entry_id: str,
+        entry_values: Dict[str, str],
+    ) -> None:
+        for field, value in entry_values.items():
+            key = self._terminal_key(
+                terminal_number,
+                f"queue.{entry_id}.{field}",
+            )
+            current_value = (
+                self._store.read(key)
+                if key.endswith(SIZE_ONLY_KEY_SUFFIXES)
+                else values.get(key)
+            )
+            if current_value == value:
+                continue
+            self._write_value(
+                values,
+                key,
+                value,
+            )
+
+    def _delete_schedule_entry(
+        self,
+        values: Dict[str, str],
+        terminal_number: int,
+        entry_id: str,
+    ) -> None:
+        for field in QUEUE_ENTRY_FIELDS:
+            key = self._terminal_key(
+                terminal_number,
+                f"queue.{entry_id}.{field}",
+            )
+            if key not in values:
+                continue
+            self._store.delete(key)
+            values.pop(key, None)
 
     def _update_live_record(
         self,

@@ -25,6 +25,7 @@ import {
   TASK_CENTER_MSG,
   VALIDITY_RUNNER_MSG,
   SUBMIT_OUTBOX_MSG,
+  DEFAULT_TARGET_LANG,
   type FullTaskCenterStatus,
 } from '@/utils/task-center-types';
 import { submitOutbox } from './services/outbox/submit-outbox';
@@ -271,6 +272,7 @@ async function handleValidityRunnerMessage(
     config?: ValidityRunnerConfig;
     words?: string[];
     provider?: AiWebProvider;
+    targetLanguage?: string;
   },
   sendResponse: (response: any) => void,
 ) {
@@ -301,7 +303,11 @@ async function handleValidityRunnerMessage(
           sendResponse({ success: false, error: 'Enter at least one word' });
           break;
         }
-        const result = await runWordValidityClassification(words, message.provider);
+        const result = await runWordValidityClassification(
+          words,
+          message.provider,
+          message.targetLanguage || DEFAULT_TARGET_LANG,
+        );
         sendResponse({ success: true, result });
         break;
       }
@@ -313,6 +319,21 @@ async function handleValidityRunnerMessage(
     console.error('[Validity Runner] Error:', error);
     sendResponse({ success: false, error: error?.message || 'Unknown error' });
   }
+}
+
+export function executeValidityRunnerCommand(message: {
+  action: string;
+  config?: ValidityRunnerConfig;
+  words?: string[];
+  provider?: AiWebProvider;
+  targetLanguage?: string;
+}): Promise<any> {
+  return new Promise((resolve) => {
+    void handleValidityRunnerMessage(
+      { type: VALIDITY_RUNNER_MSG, ...message },
+      resolve,
+    );
+  });
 }
 
 /**
@@ -412,6 +433,21 @@ async function handleTaskCenterMessage(
     console.error('[Task Center Listener] Error:', error);
     sendResponse({ success: false, error: error.message || 'Unknown error' });
   }
+}
+
+export function executeTaskCenterCommand(message: {
+  action: string;
+  config?: TaskCenterConfig;
+  processorType?: string;
+  capability?: CapabilityKey;
+  enabled?: boolean;
+}): Promise<any> {
+  return new Promise((resolve) => {
+    void handleTaskCenterMessage(
+      { type: TASK_CENTER_MSG, ...message },
+      resolve,
+    );
+  });
 }
 
 /**

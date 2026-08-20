@@ -77,8 +77,8 @@
         imageUrl,
         thumbnailUrl: (thumb && thumb.src) || meta?.turl || imageUrl,
         pageUrl: meta?.purl || tile.href || '',
-        width: Number(meta?.exph || 0) || 0,
-        height: Number(meta?.expw || 0) || 0,
+        width: Number(meta?.expw || 0) || 0,
+        height: Number(meta?.exph || 0) || 0,
         engine: 'bing',
       });
       if (out.length >= maxResults) break;

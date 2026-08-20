@@ -172,7 +172,7 @@ tts_probe_isolated_venv_provisioned() {
     probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
-print("__VENV_READY__" if isolated_venv.venv_healthy(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+print("__VENV_READY__" if isolated_venv.venv_provisioned(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
 }

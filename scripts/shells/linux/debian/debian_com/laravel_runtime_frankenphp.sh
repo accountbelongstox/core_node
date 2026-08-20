@@ -54,6 +54,23 @@ FM_BINARY=""
 CADDY_SERVER_WORKER_DIRECTIVE=""
 CADDY_SERVER_WATCH_DIRECTIVES=""
 FRANKENPHP_RUN_ARGS=()
+SCHEDULER_PID=""
+FRANKENPHP_PID=""
+
+stop_runtime_processes() {
+    if [ -n "$SCHEDULER_PID" ]; then
+        kill "$SCHEDULER_PID" 2>/dev/null || true
+    fi
+    if [ -n "$FRANKENPHP_PID" ]; then
+        kill "$FRANKENPHP_PID" 2>/dev/null || true
+    fi
+    if [ -n "$SCHEDULER_PID" ]; then
+        wait "$SCHEDULER_PID" 2>/dev/null || true
+    fi
+    if [ -n "$FRANKENPHP_PID" ]; then
+        wait "$FRANKENPHP_PID" 2>/dev/null || true
+    fi
+}
 
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/service_contract_common.sh"
@@ -160,6 +177,7 @@ cd "$LARAVEL_DIR" || exit 1
 export APP_BASE_PATH="$LARAVEL_DIR"
 export APP_PUBLIC_PATH="${LARAVEL_DIR}/public"
 export LARAVEL_OCTANE=1
+export OCTANE_SERVER=frankenphp
 export MAX_REQUESTS
 export REQUEST_MAX_EXECUTION_TIME
 
@@ -177,5 +195,10 @@ export CADDY_SERVER_WORKER_DIRECTIVE
 export CADDY_SERVER_WATCH_DIRECTIVES
 
 FRANKENPHP_RUN_ARGS=(run -c "$FRANKENPHP_CADDYFILE")
-echo "[laravel-runtime-frankenphp] Starting direct FrankenPHP supervisor (Laravel Octane worker, https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"
-exec "$FM_BINARY" "${FRANKENPHP_RUN_ARGS[@]}"
+echo "[laravel-runtime-frankenphp] Starting Laravel scheduler and FrankenPHP supervisor (Octane worker, https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"
+trap stop_runtime_processes EXIT INT TERM
+"$PHP_BIN" artisan schedule:work &
+SCHEDULER_PID=$!
+"$FM_BINARY" "${FRANKENPHP_RUN_ARGS[@]}" &
+FRANKENPHP_PID=$!
+wait -n "$SCHEDULER_PID" "$FRANKENPHP_PID"

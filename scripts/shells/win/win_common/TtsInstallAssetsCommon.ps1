@@ -712,7 +712,7 @@ function Test-IsolatedTtsVenvProvisioned {
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyutils.common.python_env import isolated_venv
-sys.stdout.write('__VENV_READY__' if isolated_venv.venv_healthy($engineLit) else '__VENV_NOTREADY__')
+sys.stdout.write('__VENV_READY__' if isolated_venv.venv_provisioned($engineLit) else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies() (it does pip ops and throws under Stop).
@@ -768,8 +768,9 @@ function Invoke-IsolatedTtsVenvEnsure {
     # the main interpreter's site-packages or delete the model cache/weights. Reinstall
     # the Qwen requirements into the fresh venv, then report the exact failed probe if
     # health is still false so an AI operator can perform the next repair.
-    # ensure_venv() is self-repairing: it re-runs the import-health probe and repairs a
-    # broken venv in place. Mirrors Step61's helper, generalised to any engine.
+    # For policy-backed provision probes, ensure_venv() converges policy, module
+    # discovery, package metadata, and CUDA state independently. A repair is followed
+    # by the full import-health probe.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,

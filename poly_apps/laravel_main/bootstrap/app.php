@@ -20,11 +20,13 @@ use App\Http\Middleware\LocalDebugOrSanctum;
 use App\Http\Middleware\PycoreClientOnly;
 use App\Http\Middleware\RemoveFrameworkFingerprints;
 use Illuminate\Foundation\Application;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Illuminate\Http\Request;
+use App\Services\OctaneTimerService;
 
 $application = null;
 $requestForgeryExclusions = [
@@ -68,6 +70,12 @@ $application = Application::configure(basePath: dirname(__DIR__))
         __DIR__.'/../routes/channels.php',
         ['prefix' => 'api', 'middleware' => ['api', 'auth:sanctum']],
     )
+    ->withSchedule(function (Schedule $schedule) {
+        $schedule->call([OctaneTimerService::class, 'heartbeat'])
+            ->name('octane-timer-heartbeat')
+            ->everySecond()
+            ->withoutOverlapping();
+    })
     ->withMiddleware(function (Middleware $middleware) use ($requestForgeryExclusions) {
         // API-only app: never redirect unauthenticated guests to a web login
         // route (none exists). Returning null throws AuthenticationException,

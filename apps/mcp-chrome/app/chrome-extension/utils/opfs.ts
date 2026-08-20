@@ -18,7 +18,8 @@ export async function writeOpfsFile(
   let committed = false;
 
   try {
-    await writable.write(data);
+    const payload = typeof data === 'string' ? data : new Uint8Array(data).buffer;
+    await writable.write(payload);
     await writable.close();
     committed = true;
   } finally {
