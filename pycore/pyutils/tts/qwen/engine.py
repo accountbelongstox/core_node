@@ -37,7 +37,10 @@ from pycore.pyutils.tts.engine_policy import tts_rate_to_speed
 import pycore.pyutils.tts.qwen.weights as qwen_weights
 from pycore.pyutils.tts.qwen.client import (
     base_url,
+    fetch_queue_result,
+    inspect_queue_job,
     get_json as http_get_json,
+    queue_submit,
     queue_submit_and_wait,
     synthesize_batch as http_synthesize_batch,
 )
@@ -48,6 +51,7 @@ from pycore.pyutils.tts.qwen.config import (
 )
 
 _HEALTH_TIMEOUT_S = 3.0
+_RESULT_FETCH_TIMEOUT_S = 30.0
 _REQUEST_TIMEOUT_S = request_timeout_seconds()
 
 _LAST_SYNTH_ERROR = SerializedValue(None, "Qwen3TTSErrorState")
@@ -164,6 +168,108 @@ def effective_speed(rate: Optional[str]) -> Optional[float]:
     return tts_rate_to_speed(raw)
 
 
+def queued_synthesis_request(
+    text: str,
+    lang: str,
+    output_path: Path,
+    speed: Optional[float] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
+    client_job_id: Optional[str] = None,
+) -> Tuple[Dict[str, Any], str]:
+    """Build the canonical idempotent queue payload and client identity."""
+    cleaned = (text or "").strip()
+    output = Path(output_path)
+    normalized_speaker = str(speaker or "").strip()
+    normalized_instruct = str(instruct or "").strip()
+    speed_key = f"{float(speed):g}" if speed is not None else "default"
+    identity = "\x1f".join((
+        cleaned,
+        lang or "en",
+        _fmt_for(output),
+        normalized_speaker,
+        normalized_instruct,
+        speed_key,
+    ))
+    stable_id = str(client_job_id or "").strip() or (
+        f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+    )
+    payload: Dict[str, Any] = {
+        "text": cleaned,
+        "language": lang or "en",
+        "format": _fmt_for(output),
+        "speed": speed,
+    }
+    if normalized_speaker:
+        payload["speaker"] = normalized_speaker
+    if normalized_instruct:
+        payload["instruct"] = normalized_instruct
+    return payload, stable_id
+
+
+def submit_queued_synthesis(
+    text: str,
+    lang: str,
+    output_path: Path,
+    speed: Optional[float] = None,
+    speaker: Optional[str] = None,
+    instruct: Optional[str] = None,
+    client_job_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Submit one idempotent job and return immediately with queue state."""
+    payload, stable_id = queued_synthesis_request(
+        text,
+        lang,
+        output_path,
+        speed,
+        speaker,
+        instruct,
+        client_job_id,
+    )
+    if not payload["text"]:
+        return {"ok": False, "error": "empty text", "client_job_id": stable_id}
+    ok, job, error = queue_submit(payload, timeout=30.0)
+    if not ok or not isinstance(job, dict):
+        return {
+            "ok": False,
+            "error": error or "queue submit failed",
+            "client_job_id": stable_id,
+        }
+    return {"ok": True, "client_job_id": stable_id, **job}
+
+
+def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
+    """Read one queue job without waiting for it to finish."""
+    job, snapshot = inspect_queue_job(
+        job_id,
+        client_job_id,
+        timeout=_HEALTH_TIMEOUT_S,
+    )
+    if job is None:
+        return {
+            "ok": False,
+            "missing": True,
+            "job_id": job_id,
+            "client_job_id": client_job_id,
+            "error": "queued synthesis job not found",
+        }
+    counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
+    return {
+        "ok": True,
+        "client_job_id": client_job_id,
+        "queue_pending": int(counts.get("pending") or 0),
+        "queue_running": int(counts.get("running") or 0),
+        "average_elapsed_ms": int(snapshot.get("average_elapsed_ms") or 0),
+        "task_timeout_s": float(snapshot.get("task_timeout_s") or 0.0),
+        **job,
+    }
+
+
+def fetch_queued_synthesis(job_id: str) -> Tuple[bool, bytes, Optional[str]]:
+    """Fetch retained bytes after the job was observed in the done state."""
+    return fetch_queue_result(job_id, _RESULT_FETCH_TIMEOUT_S)
+
+
 def synthesize(
     text: str,
     lang: str,
@@ -211,28 +317,15 @@ def synthesize_queued(
         _LAST_SYNTH_ERROR.set("empty text")
         return False
     output = Path(output_path)
-    speed_key = f"{float(speed):g}" if speed is not None else "default"
-    identity = "\x1f".join((
+    payload, stable_id = queued_synthesis_request(
         cleaned,
-        lang or "en",
-        _fmt_for(output),
-        str(speaker or "").strip(),
-        str(instruct or "").strip(),
-        speed_key,
-    ))
-    stable_id = str(client_job_id or "").strip() or (
-        f"qwen3tts-{hashlib.sha256(identity.encode('utf-8')).hexdigest()}"
+        lang,
+        output,
+        speed,
+        speaker,
+        instruct,
+        client_job_id,
     )
-    payload: Dict[str, Any] = {
-        "text": cleaned,
-        "language": lang or "en",
-        "format": _fmt_for(output),
-        "speed": speed,
-    }
-    if (speaker or "").strip():
-        payload["speaker"] = speaker
-    if (instruct or "").strip():
-        payload["instruct"] = instruct
     ok, audio, error = queue_submit_and_wait(payload, stable_id, timeout)
     if not ok or not audio:
         _LAST_SYNTH_ERROR.set(error or "qwen3tts queued synthesis failed")
@@ -319,6 +412,10 @@ __all__ = [
     "load_model",
     "unload_model",
     "last_synth_error",
+    "fetch_queued_synthesis",
+    "poll_queued_synthesis",
+    "queued_synthesis_request",
+    "submit_queued_synthesis",
     "synthesize",
     "synthesize_queued",
     "synthesize_variants",

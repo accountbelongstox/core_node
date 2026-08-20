@@ -22,8 +22,14 @@ def connect_writable(
     row_factory: Optional[object] = None,
     timeout: float = 5.0,
     uri: bool = False,
+    check_same_thread: bool = True,
 ) -> sqlite3.Connection:
-    conn = sqlite3.connect(str(db_path), timeout=timeout, uri=uri)
+    conn = sqlite3.connect(
+        str(db_path),
+        timeout=timeout,
+        uri=uri,
+        check_same_thread=check_same_thread,
+    )
     if row_factory is not None:
         conn.row_factory = row_factory
     return conn

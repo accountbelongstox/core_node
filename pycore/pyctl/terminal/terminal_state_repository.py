@@ -5,18 +5,20 @@ import copy
 import re
 import time
 from datetime import datetime, timezone
+from functools import wraps
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from pycore.database.repositories.terminal_state_store import TerminalStateStore
 from pycore.pyfoundations.serialized_worker import (
     init_serialized_owner,
     serialized_method,
 )
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
-from pycore.pyutils.common.flat_text_store import FlatTextStore
 
 
 TERMINAL_DATA_DIR = APP_DATA_DIR / "terminal_windows"
+TERMINAL_DATABASE_NAME = "state.sqlite3"
 NEXT_NUMBER_KEY = "next_number"
 SLOT_VERSION = "2"
 DEFAULT_TERMINAL_NUMBER = 1
@@ -48,9 +50,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _transactional_store_method(
+    method: Callable[..., Any],
+) -> Callable[..., Any]:
+    @wraps(method)
+    def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
+        with owner._store.transaction():
+            return method(owner, *args, **kwargs)
+    return wrapper
+
+
 class TerminalStateRepository:
     def __init__(self, data_dir: Path = TERMINAL_DATA_DIR) -> None:
-        self._store = FlatTextStore(data_dir)
+        self._store = TerminalStateStore(
+            data_dir / TERMINAL_DATABASE_NAME,
+            data_dir,
+        )
         init_serialized_owner(
             self,
             "terminal.state",
@@ -58,6 +73,7 @@ class TerminalStateRepository:
         )
 
     @serialized_method
+    @_transactional_store_method
     def reconcile_windows(
         self,
         platform_name: str,
@@ -194,6 +210,7 @@ class TerminalStateRepository:
         return terminal_numbers
 
     @serialized_method
+    @_transactional_store_method
     def save_draft(self, terminal_number: int, text: str) -> Dict[str, Any]:
         values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)
@@ -217,6 +234,7 @@ class TerminalStateRepository:
         }
 
     @serialized_method
+    @_transactional_store_method
     def save_preview_expanded(
         self,
         terminal_number: int,
@@ -243,6 +261,7 @@ class TerminalStateRepository:
         }
 
     @serialized_method
+    @_transactional_store_method
     def begin_submission(
         self,
         terminal_number: int,
@@ -286,6 +305,7 @@ class TerminalStateRepository:
         )
 
     @serialized_method
+    @_transactional_store_method
     def complete_submission(
         self,
         terminal_number: int,
@@ -357,6 +377,7 @@ class TerminalStateRepository:
         return "" if content_kind in {"draft", "schedule"} else None
 
     @serialized_method
+    @_transactional_store_method
     def add_schedule_entry(
         self,
         terminal_number: int,
@@ -402,6 +423,7 @@ class TerminalStateRepository:
         }
 
     @serialized_method
+    @_transactional_store_method
     def update_schedule_entry(
         self,
         terminal_number: int,
@@ -451,6 +473,7 @@ class TerminalStateRepository:
         }
 
     @serialized_method
+    @_transactional_store_method
     def remove_schedule_entry(
         self,
         terminal_number: int,
@@ -520,6 +543,7 @@ class TerminalStateRepository:
         return due
 
     @serialized_method
+    @_transactional_store_method
     def advance_schedule(
         self,
         terminal_number: int,

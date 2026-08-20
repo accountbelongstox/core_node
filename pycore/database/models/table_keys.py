@@ -31,6 +31,7 @@ class TableKeys:
     # ===== Common Tables =====
     COMMON_CONFIG = f"{TableNamespaces.COMMON}.config"
     COMMON_LOGS = f"{TableNamespaces.COMMON}.logs"
+    TERMINAL_STATE = f"{TableNamespaces.COMMON}.terminal_state"
 
     # ===== Example App Tables =====
     EXAMPLE_USERS = f"{TableNamespaces.APP_EXAMPLE}.users"

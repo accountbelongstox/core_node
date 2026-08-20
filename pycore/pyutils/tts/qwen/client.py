@@ -378,7 +378,7 @@ def queue_submit_and_wait(
         if not response.get("success"):
             poll_error = str(response.get("error") or "queue event poll failed")
             last_poll_error = poll_error
-            reconciled = _find_job(
+            reconciled = find_queue_job(
                 job_id,
                 stable_id,
                 timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
@@ -407,7 +407,7 @@ def queue_submit_and_wait(
         recovery_backoff = _QUEUE_RECOVERY_INITIAL_BACKOFF_S
         next_instance = str(response.get("instance_id") or "")
         if (instance_id and next_instance != instance_id) or response.get("replay_lost"):
-            reconciled = _find_job(
+            reconciled = find_queue_job(
                 job_id,
                 stable_id,
                 timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
@@ -522,23 +522,40 @@ def fetch_queue_result(
         delay = min(_QUEUE_RECOVERY_MAX_BACKOFF_S, delay * 2.0)
 
 
-def _find_job(
+def find_queue_job(
     job_id: str,
     client_job_id: str,
     *,
     timeout: float = 10.0,
     service_base_url: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
+    job, _snapshot = inspect_queue_job(
+        job_id,
+        client_job_id,
+        timeout=timeout,
+        service_base_url=service_base_url,
+    )
+    return job
+
+
+def inspect_queue_job(
+    job_id: str,
+    client_job_id: str,
+    *,
+    timeout: float = 10.0,
+    service_base_url: Optional[str] = None,
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:
+    """Return one job and the queue snapshot used to locate it."""
     snapshot = queue_status(timeout=timeout, service_base_url=service_base_url)
     jobs = snapshot.get("jobs") if isinstance(snapshot.get("jobs"), list) else []
     for job in jobs:
         if not isinstance(job, dict):
             continue
         if str(job.get("job_id") or "") == job_id:
-            return job
+            return job, snapshot
         if str(job.get("client_job_id") or "") == client_job_id:
-            return job
-    return None
+            return job, snapshot
+    return None, snapshot
 
 
 def _submit_with_recovery(
@@ -565,7 +582,7 @@ def _submit_with_recovery(
         remaining = deadline - time.monotonic()
         if remaining <= 0 or not _is_retryable_queue_error(last_error):
             return False, None, last_error
-        reconciled = _find_job(
+        reconciled = find_queue_job(
             "",
             client_job_id,
             timeout=min(_QUEUE_RECOVERY_STATUS_TIMEOUT_S, max(0.1, remaining)),
@@ -644,6 +661,8 @@ __all__ = [
     "acknowledge_events",
     "base_url",
     "fetch_queue_result",
+    "find_queue_job",
+    "inspect_queue_job",
     "get_json",
     "post_json",
     "queue_cancel",
