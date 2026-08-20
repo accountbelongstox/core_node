@@ -126,6 +126,11 @@ class WorkspaceExchange:
             "direction": "dev-to-client",
             "workspace": "core_node",
             "documents_directory": DOCS_FIX_DIRECTORY,
+            "file_listing": {
+                "directory": DOCS_FIX_DIRECTORY,
+                "extensions": [DOCUMENT_EXTENSION],
+                "recursive": False,
+            },
             "transport_security": "tls-or-private-tunnel-required",
             "file_content_encoding": "base64",
             "file_pagination": {
@@ -138,6 +143,24 @@ class WorkspaceExchange:
                 "create": "If-None-Match: *",
             },
         }
+
+    def _document_paths(self) -> List[Path]:
+        _, documents_path = resolve_contained_path(
+            self.root,
+            DOCS_FIX_DIRECTORY,
+        )
+        if not documents_path.is_dir():
+            return []
+
+        with os.scandir(documents_path) as entries:
+            document_paths = [
+                Path(entry.path)
+                for entry in entries
+                if entry.name.lower().endswith(DOCUMENT_EXTENSION)
+                and entry.is_file(follow_symlinks=False)
+            ]
+        document_paths.sort(key=lambda path: path.name)
+        return document_paths
 
     def list_files(
         self,
@@ -157,29 +180,10 @@ class WorkspaceExchange:
             )
 
         relative_paths = []
-        for directory, directory_names, file_names in os.walk(
-            self.root,
-            topdown=True,
-            followlinks=False,
-        ):
-            directory_path = Path(directory)
-            directory_names[:] = sorted(
-                name
-                for name in directory_names
-                if not (directory_path / name).is_symlink()
-            )
-            for file_name in sorted(file_names):
-                file_path = directory_path / file_name
-                if (
-                    file_name.endswith(".codesync-tmp")
-                    or file_path.is_symlink()
-                    or not file_path.is_file()
-                ):
-                    continue
-                relative_path = file_path.relative_to(self.root).as_posix()
-                if relative_path > normalized_cursor:
-                    relative_paths.append(relative_path)
-        relative_paths.sort()
+        for document_path in self._document_paths():
+            relative_path = document_path.relative_to(self.root).as_posix()
+            if relative_path > normalized_cursor:
+                relative_paths.append(relative_path)
 
         selected_paths = relative_paths[: page_size + 1]
         has_more = len(selected_paths) > page_size
@@ -313,17 +317,7 @@ class WorkspaceExchange:
             return result
 
     def latest_document(self) -> Dict[str, Any]:
-        _, documents_path = resolve_contained_path(
-            self.root,
-            DOCS_FIX_DIRECTORY,
-        )
-        if not documents_path.is_dir():
-            raise WorkspaceExchangeError(404, "No docs_fix documents are available")
-        documents = [
-            path
-            for path in documents_path.iterdir()
-            if path.is_file() and not path.is_symlink() and path.suffix.lower() == DOCUMENT_EXTENSION
-        ]
+        documents = self._document_paths()
         if not documents:
             raise WorkspaceExchangeError(404, "No docs_fix documents are available")
         latest = max(documents, key=lambda path: (path.stat().st_mtime_ns, path.name))

@@ -21,6 +21,8 @@ export {
 } from './audio';
 export { bingDictionaryTool } from './bing-dictionary';
 export { webSearchTool } from './web-search';
+export { bookCoverSearchTool } from './book-cover-search';
+export { taskCenterTool } from './task-center';
 export { qwenTtsTool } from './qwen-tts';
 export { notebookLmTool } from './notebooklm';
 export { notebookLmCreateTool } from './notebooklm-create';

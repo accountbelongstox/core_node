@@ -2,8 +2,6 @@
 
 namespace App\Services;
 
-use App\Services\TimerTasks\OctaneTimerTaskInterface;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -16,8 +14,12 @@ use Illuminate\Support\Facades\Log;
  */
 class OctaneTaskStatusService
 {
-    private const TASKS_DIR = __DIR__ . '/TimerTasks';
-    private const TASKS_NAMESPACE = 'App\\Services\\TimerTasks\\';
+    private OctaneTimerTaskCatalog $catalog;
+
+    public function __construct(?OctaneTimerTaskCatalog $catalog = null)
+    {
+        $this->catalog = $catalog ?? app(OctaneTimerTaskCatalog::class);
+    }
 
     /**
      * Get comprehensive status of all timer tasks
@@ -97,56 +99,7 @@ class OctaneTaskStatusService
      */
     private function discoverTaskClasses(): array
     {
-        $tasks = [];
-
-        if (!is_dir(self::TASKS_DIR)) {
-            return $tasks;
-        }
-
-        $files = File::glob(self::TASKS_DIR . '/*.php');
-
-        foreach ($files as $file) {
-            $className = basename($file, '.php');
-
-            if (in_array($className, ['OctaneTimerTaskInterface', 'OctaneTimerTaskAbstract'])) {
-                continue;
-            }
-
-            $fullClassName = self::TASKS_NAMESPACE . $className;
-
-            if (!class_exists($fullClassName)) {
-                continue;
-            }
-
-            $implements = class_implements($fullClassName);
-            if (!isset($implements[OctaneTimerTaskInterface::class])) {
-                continue;
-            }
-
-            try {
-                $instance = new $fullClassName();
-                $tasks[] = [
-                    'class' => $className,
-                    'full_class' => $fullClassName,
-                    'name' => $instance->getName(),
-                    'interval' => $instance->getInterval(),
-                    'enabled' => $instance->isEnabled(),
-                    'file' => basename($file),
-                ];
-            } catch (\Throwable $e) {
-                $tasks[] = [
-                    'class' => $className,
-                    'full_class' => $fullClassName,
-                    'name' => null,
-                    'interval' => null,
-                    'enabled' => false,
-                    'error' => $e->getMessage(),
-                    'file' => basename($file),
-                ];
-            }
-        }
-
-        return $tasks;
+        return $this->catalog->descriptions();
     }
 
     /**
@@ -218,7 +171,7 @@ class OctaneTaskStatusService
      * Get heartbeat status.
      *
      * Sourced from OctaneTimerService's cross-process heartbeat file. The
-     * `last_alive` timestamp is written by the sole Octane::tick() driver and
+     * `last_alive` timestamp is written by the active runtime's sole driver and
      * remains readable by console inspection processes outside the Swoole
      * worker tree.
      */

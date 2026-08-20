@@ -75,7 +75,9 @@ export abstract class BaseBrowserToolExecutor implements ToolExecutor {
    */
   protected async sendMessageToTab(tabId: number, message: any, frameId?: number): Promise<any> {
     try {
-      const response = await chrome.tabs.sendMessage(tabId, message, frameId !== undefined ? { frameId } : undefined);
+      const response: any = frameId === undefined
+        ? await chrome.tabs.sendMessage(tabId, message)
+        : await chrome.tabs.sendMessage(tabId, message, { frameId });
 
       if (response && response.error) {
         throw new Error(String(response.error));

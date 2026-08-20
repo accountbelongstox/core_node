@@ -72,6 +72,16 @@ final class ServiceContract
         return $files[$name];
     }
 
+    public static function path(string $name): string
+    {
+        $paths = self::document()['paths'] ?? [];
+        if (!isset($paths[$name]) || !is_string($paths[$name]) || $paths[$name] === '') {
+            throw new RuntimeException("Unknown service contract path: {$name}");
+        }
+
+        return $paths[$name];
+    }
+
     public static function string(string $path): string
     {
         $value = self::document();

@@ -315,6 +315,20 @@ async function handleValidityRunnerMessage(
   }
 }
 
+export function executeValidityRunnerCommand(message: {
+  action: string;
+  config?: ValidityRunnerConfig;
+  words?: string[];
+  provider?: AiWebProvider;
+}): Promise<any> {
+  return new Promise((resolve) => {
+    void handleValidityRunnerMessage(
+      { type: VALIDITY_RUNNER_MSG, ...message },
+      resolve,
+    );
+  });
+}
+
 /**
  * Handle Task Center messages
  */
@@ -412,6 +426,21 @@ async function handleTaskCenterMessage(
     console.error('[Task Center Listener] Error:', error);
     sendResponse({ success: false, error: error.message || 'Unknown error' });
   }
+}
+
+export function executeTaskCenterCommand(message: {
+  action: string;
+  config?: TaskCenterConfig;
+  processorType?: string;
+  capability?: CapabilityKey;
+  enabled?: boolean;
+}): Promise<any> {
+  return new Promise((resolve) => {
+    void handleTaskCenterMessage(
+      { type: TASK_CENTER_MSG, ...message },
+      resolve,
+    );
+  });
 }
 
 /**

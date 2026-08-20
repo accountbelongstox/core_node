@@ -36,7 +36,7 @@ class GifRecorderTool extends BaseBrowserToolExecutor {
     const { action, tabId, fps = 5, durationMs = 5000, maxFrames = 50, width = 800, height = 600 } = args || {};
 
     try {
-      let targetTab: chrome.tabs.Tab | undefined;
+      let targetTab: chrome.tabs.Tab | null | undefined;
       if (tabId) {
         targetTab = await this.tryGetTab(tabId);
       } else {

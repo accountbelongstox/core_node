@@ -4,6 +4,9 @@ import type { FrankenPhpSiteRequest, NginxSite } from '../../uiTypes';
 import { LARAVEL_API_ROUTE } from '../../../../core/integrations/laravel/transport/ApiContract';
 
 type NginxSiteType = NginxSite['site_type'];
+const FRANKENPHP_CONFIG_TIMEOUT_MS = 3 * 60 * 1000;
+const FRANKENPHP_RELOAD_POLL_INTERVAL_MS = 1000;
+const FRANKENPHP_RELOAD_POLL_LIMIT = 180;
 
 /** Map backend listSites fields (`name`, `root_directory`, `config_type`) to UI shape. */
 const normalizeNginxSite = (site: Record<string, unknown>): NginxSite => {
@@ -328,23 +331,50 @@ export class ServerManagerV1API extends BaseAPI {
   }
 
   async createFrankenPhpSite(data: FrankenPhpSiteRequest): Promise<APIResponse> {
-    return this.post('/frankenphp/sites', data);
+    return this.request({
+      url: '/frankenphp/sites',
+      method: 'POST',
+      data,
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
   }
 
   async updateFrankenPhpSite(siteName: string, data: Partial<FrankenPhpSiteRequest>): Promise<APIResponse> {
-    return this.put(`/frankenphp/sites/${encodeURIComponent(siteName)}`, data);
+    return this.request({
+      url: `/frankenphp/sites/${encodeURIComponent(siteName)}`,
+      method: 'PUT',
+      data,
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
   }
 
   async deleteFrankenPhpSite(siteName: string): Promise<APIResponse> {
-    return this.delete(`/frankenphp/sites/${encodeURIComponent(siteName)}`);
+    return this.request({
+      url: `/frankenphp/sites/${encodeURIComponent(siteName)}`,
+      method: 'DELETE',
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
   }
 
   async enableFrankenPhpSite(siteName: string): Promise<APIResponse> {
-    return this.post(`/frankenphp/sites/${encodeURIComponent(siteName)}/enable`);
+    return this.request({
+      url: `/frankenphp/sites/${encodeURIComponent(siteName)}/enable`,
+      method: 'POST',
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
   }
 
   async disableFrankenPhpSite(siteName: string): Promise<APIResponse> {
-    return this.post(`/frankenphp/sites/${encodeURIComponent(siteName)}/disable`);
+    return this.request({
+      url: `/frankenphp/sites/${encodeURIComponent(siteName)}/disable`,
+      method: 'POST',
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
   }
 
   async testFrankenPhpConfig(): Promise<APIResponse> {
@@ -352,7 +382,43 @@ export class ServerManagerV1API extends BaseAPI {
   }
 
   async reloadFrankenPhp(): Promise<APIResponse> {
-    return this.post('/frankenphp/reload');
+    return this.request({
+      url: '/frankenphp/reload',
+      method: 'POST',
+      timeout: FRANKENPHP_CONFIG_TIMEOUT_MS,
+      retry: false,
+    });
+  }
+
+  async getFrankenPhpReloadJob(jobId: string): Promise<APIResponse> {
+    return this.get(`/frankenphp/reloads/${encodeURIComponent(jobId)}`);
+  }
+
+  async waitForFrankenPhpReload(response: APIResponse): Promise<void> {
+    const data = response.data as Record<string, any> | undefined;
+    const jobId = data?.reload_job_id || data?.job_id;
+
+    if (!jobId) return;
+    for (let attempt = 0; attempt < FRANKENPHP_RELOAD_POLL_LIMIT; attempt += 1) {
+      await new Promise(resolve => setTimeout(resolve, FRANKENPHP_RELOAD_POLL_INTERVAL_MS));
+      let jobResponse: APIResponse;
+
+      try {
+        jobResponse = await this.getFrankenPhpReloadJob(String(jobId));
+      } catch {
+        continue;
+      }
+      const jobData = jobResponse.data as Record<string, any> | undefined;
+
+      if (!jobResponse.success) {
+        continue;
+      }
+      if (jobData?.status === 'completed') return;
+      if (jobData?.status === 'failed') {
+        throw new Error(jobData.error || 'FrankenPHP reload failed.');
+      }
+    }
+    throw new Error('FrankenPHP reload timed out.');
   }
 
   async frankenPhpService(action: 'start' | 'stop' | 'restart' | 'reload'): Promise<APIResponse> {

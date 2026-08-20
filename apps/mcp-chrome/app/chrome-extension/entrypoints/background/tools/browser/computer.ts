@@ -200,7 +200,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
       ],
     } as any);
 
-    const result = results?.[0]?.result;
+    const result = results?.[0]?.result as {
+      success?: boolean;
+      error?: string;
+      message?: string;
+      element?: unknown;
+    } | undefined;
     if (!result || typeof result !== 'object') {
       return createErrorResponse('No result from inline mouse event dispatch');
     }
@@ -279,7 +284,12 @@ class ComputerTool extends BaseBrowserToolExecutor {
       args: [direction, ticks, coordinates || undefined, selector || undefined],
     } as any);
 
-    const result = results?.[0]?.result;
+    const result = results?.[0]?.result as {
+      success?: boolean;
+      error?: string;
+      direction?: string;
+      ticks?: number;
+    } | undefined;
     if (!result?.success) {
       return createErrorResponse(result?.error || 'Scroll failed');
     }
@@ -335,7 +345,11 @@ class ComputerTool extends BaseBrowserToolExecutor {
       args: [resolvedSelector || undefined, coordinates || undefined],
     } as any);
 
-    const result = results?.[0]?.result;
+    const result = results?.[0]?.result as {
+      success?: boolean;
+      error?: string;
+      tagName?: string;
+    } | undefined;
     if (!result?.success) {
       return createErrorResponse(result?.error || 'scroll_to failed');
     }
@@ -372,7 +386,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           const coordinates = await this.resolveCoordinates(targetTabId, args.coordinates, args.ref);
           return await clickTool.execute({
             selector: args.selector,
-            coordinates,
+            coordinates: coordinates ?? undefined,
             waitForNavigation: false,
             tabId: targetTabId,
           });
@@ -382,7 +396,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           const coordinates = await this.resolveCoordinates(targetTabId, args.coordinates, args.ref);
           return await this.dispatchMouseEvents(targetTabId, {
             eventType: 'contextmenu',
-            coordinates,
+            coordinates: coordinates ?? undefined,
             selector: args.selector,
             modifiers: args.modifiers,
           });
@@ -392,7 +406,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           const coordinates = await this.resolveCoordinates(targetTabId, args.coordinates, args.ref);
           return await this.dispatchMouseEvents(targetTabId, {
             eventType: 'dblclick',
-            coordinates,
+            coordinates: coordinates ?? undefined,
             selector: args.selector,
             clickCount: 2,
             modifiers: args.modifiers,
@@ -405,7 +419,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           const coordinates = await this.resolveCoordinates(targetTabId, args.coordinates, args.ref);
           return await this.dispatchMouseEvents(targetTabId, {
             eventType: 'click',
-            coordinates,
+            coordinates: coordinates ?? undefined,
             selector: args.selector,
             clickCount: 3,
             modifiers: args.modifiers,
@@ -416,7 +430,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           const coordinates = await this.resolveCoordinates(targetTabId, args.coordinates, args.ref);
           return await this.dispatchMouseEvents(targetTabId, {
             eventType: 'mouseover',
-            coordinates,
+            coordinates: coordinates ?? undefined,
             selector: args.selector,
             modifiers: args.modifiers,
           });
@@ -429,7 +443,7 @@ class ComputerTool extends BaseBrowserToolExecutor {
           return await this.dispatchScroll(targetTabId, {
             direction,
             amount,
-            coordinates,
+            coordinates: coordinates ?? undefined,
             selector: args.selector,
           });
         }
@@ -624,7 +638,10 @@ class ComputerTool extends BaseBrowserToolExecutor {
             args: [startCoords.x, startCoords.y, endCoords.x, endCoords.y],
           } as any);
 
-          const dragResult = dragResults?.[0]?.result;
+          const dragResult = dragResults?.[0]?.result as {
+            success?: boolean;
+            error?: string;
+          } | undefined;
           if (!dragResult?.success) {
             return createErrorResponse(dragResult?.error || 'Drag operation failed');
           }

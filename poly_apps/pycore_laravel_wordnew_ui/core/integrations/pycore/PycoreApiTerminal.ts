@@ -117,6 +117,21 @@ export interface TerminalScheduleEntryResult {
   entry_id?: string;
 }
 
+export interface TerminalScheduleDefinition {
+  id: string;
+  mode: TerminalScheduleMode;
+  run_at: number;
+  interval_seconds: number;
+  message: string;
+}
+
+export interface TerminalScheduleSyncResult {
+  success: boolean;
+  error_code?: string | null;
+  terminal_number?: number;
+  entries?: TerminalScheduleEntry[];
+}
+
 export const pycoreApiTerminal = {
   getTerminalWindows: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalWindows, {}) as Promise<TerminalSnapshot>,
@@ -183,6 +198,13 @@ export const pycoreApiTerminal = {
       terminal_number: terminalNumber,
       entry_id: entryId,
     }) as Promise<TerminalScheduleEntryResult>,
+  syncTerminalScheduleEntries: (
+    terminalNumber: number,
+    entries: TerminalScheduleDefinition[],
+  ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
+    terminal_number: terminalNumber,
+    entries,
+  }) as Promise<TerminalScheduleSyncResult>,
   updateTerminalScheduleEntry: (
     terminalNumber: number,
     entryId: string,

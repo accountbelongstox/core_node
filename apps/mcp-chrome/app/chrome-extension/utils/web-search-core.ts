@@ -35,6 +35,31 @@ export interface WebSearchImageHit {
   engine: WebSearchEngine;
 }
 
+const SEARCH_TOKEN_MIN_LENGTH = 3;
+const SEARCH_STOP_WORDS = new Set([
+  'and',
+  'book',
+  'cover',
+  'for',
+  'from',
+  'image',
+  'images',
+  'poster',
+  'the',
+  'with',
+]);
+const REJECTED_IMAGE_URL_PARTS = [
+  'accounts.google.com/',
+  'explicit.bing.net/',
+  'fonts.gstatic.com/',
+  'pimpandhost.com/',
+  'pictoa.com/',
+  'productlogos/',
+  'rule34.',
+  'sex.com/',
+  'ssl.gstatic.com/gb/',
+];
+
 export interface WebSearchRequest {
   query: string;
   engine?: WebSearchEngine;
@@ -76,6 +101,37 @@ export interface BookCoverSearchResult {
   message: string;
   fromCache?: boolean;
   cacheKey?: string;
+}
+
+function searchTokens(query: string): string[] {
+  return String(query || '')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((token) => token.length >= SEARCH_TOKEN_MIN_LENGTH && !SEARCH_STOP_WORDS.has(token));
+}
+
+export function isSearchImageCandidate(
+  hit: WebSearchImageHit,
+  query: string,
+): boolean {
+  const imageUrl = String(hit.imageUrl || '').trim();
+  const normalizedUrl = imageUrl.toLowerCase();
+  if (!/^https?:\/\//i.test(imageUrl)) return false;
+  if (normalizedUrl.endsWith('.svg')) return false;
+  if (REJECTED_IMAGE_URL_PARTS.some((part) => normalizedUrl.includes(part))) return false;
+  if (hit.width > 0 && hit.height > 0 && Math.max(hit.width, hit.height) < 128) return false;
+
+  const tokens = searchTokens(query);
+  if (tokens.length === 0) return true;
+  const searchable = `${hit.title} ${hit.pageUrl} ${hit.imageUrl}`.toLowerCase();
+  return tokens.some((token) => searchable.includes(token));
+}
+
+export function filterSearchImageResults(
+  hits: WebSearchImageHit[],
+  query: string,
+): WebSearchImageHit[] {
+  return hits.filter((hit) => isSearchImageCandidate(hit, query));
 }
 
 export const WEB_SEARCH_PROGRESS_KEY = STORAGE_KEYS.WEB_SEARCH_PROGRESS;

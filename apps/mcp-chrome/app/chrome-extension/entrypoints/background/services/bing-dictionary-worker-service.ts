@@ -1486,7 +1486,7 @@ class BingDictionaryWorkerService extends LaravelWorkerLifecycleBase {
     status = 'pending',
     limit = 10,
     page = 1,
-    language = DEFAULT_SOURCE_LANG,
+    language: string = DEFAULT_SOURCE_LANG,
     targetLanguage?: string,
   ): Promise<{ ok: boolean; summary?: any; items?: any[]; pagination?: any; message?: string }> {
     const base = (apiUrl || this.config?.apiUrl || '').trim().replace(/\/+$/, '');

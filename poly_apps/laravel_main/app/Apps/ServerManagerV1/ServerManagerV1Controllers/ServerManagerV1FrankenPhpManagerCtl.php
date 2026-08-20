@@ -5,9 +5,9 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1AcmeShCertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpCaddyfileBuilder;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpReloadJob;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpRuntime;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1FrankenPhpSiteManager;
-use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
 use App\Support\RuntimeConfigurationStore;
 use App\Support\ServiceContract;
 use App\Support\WebServerPlane;
@@ -162,7 +162,8 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
     }
 
     /**
-     * Validate the Caddyfile (`frankenphp validate --config ...`).
+     * Adapt the Caddyfile without provisioning the live Mercure database.
+     * Atomic runtime provisioning is performed by the reload endpoint.
      */
     public function testConfig(Request $request): JsonResponse
     {
@@ -180,6 +181,7 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         return $this->success([
             'valid' => $result['success'],
             'output' => $result['output'],
+            'validation_mode' => 'caddyfile-adapt',
         ], $result['success'] ? 'Caddyfile is valid' : 'Caddyfile validation failed');
     }
 
@@ -382,9 +384,25 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         if ($validation) {
             return $validation;
         }
-        $result = ServerManagerV1FrankenPhpRuntime::reload(true);
+        $result = ServerManagerV1FrankenPhpReloadJob::queue(true);
 
         return $this->siteOperationResponse($result, 'FrankenPHP configuration reloaded successfully');
+    }
+
+    public function reloadJob(Request $request, string $jobId): JsonResponse
+    {
+        $validation = $this->validateRequest($request, 'frankenphp_reload_job');
+        $result = null;
+
+        if ($validation) {
+            return $validation;
+        }
+        $result = ServerManagerV1FrankenPhpReloadJob::status($jobId);
+        if ($result === null) {
+            return $this->error('FrankenPHP reload job not found.', ServerManagerV1Constants::RESPONSE_NOT_FOUND);
+        }
+
+        return $this->success($result, 'FrankenPHP reload job retrieved successfully');
     }
 
     public function serviceControl(Request $request): JsonResponse
@@ -396,7 +414,13 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
         if ($validation) {
             return $validation;
         }
-        $result = ServerManagerV1FrankenPhpRuntime::control($action);
+        if ($action === 'reload') {
+            $result = ServerManagerV1FrankenPhpReloadJob::queue(true);
+        } elseif (in_array($action, ['restart', 'stop'], true)) {
+            $result = ServerManagerV1FrankenPhpReloadJob::queueServiceAction($action);
+        } else {
+            $result = ServerManagerV1FrankenPhpRuntime::control($action);
+        }
 
         return $this->siteOperationResponse($result, "FrankenPHP {$action} completed successfully");
     }

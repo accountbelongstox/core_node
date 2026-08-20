@@ -757,6 +757,8 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
                 'domain' => strtolower((string) $domain),
                 'certificate' => $result['certificate'] ?? null,
                 'reloaded' => $result['reloaded'] ?? false,
+                'reload_queued' => $result['reload_queued'] ?? false,
+                'reload_job_id' => $result['reload_job_id'] ?? null,
                 'output' => $result['output'] ?? '',
                 'output_lines' => array_values(array_filter(explode("\n", (string) ($result['output'] ?? '')))),
             ], 'acme.sh certificate ensure completed successfully');

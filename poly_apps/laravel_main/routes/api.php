@@ -163,6 +163,7 @@ Route::prefix('servermanager/v1')->group(function () {
         Route::post('sites/{site_name}/enable', [ServerManagerV1FrankenPhpManagerCtl::class, 'enableSite']);
         Route::post('sites/{site_name}/disable', [ServerManagerV1FrankenPhpManagerCtl::class, 'disableSite']);
         Route::post('reload', [ServerManagerV1FrankenPhpManagerCtl::class, 'reload']);
+        Route::get('reloads/{job_id}', [ServerManagerV1FrankenPhpManagerCtl::class, 'reloadJob']);
         Route::post('service', [ServerManagerV1FrankenPhpManagerCtl::class, 'serviceControl']);
         Route::post('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'ensureCaddyfile']);
         Route::get('caddyfile', [ServerManagerV1FrankenPhpManagerCtl::class, 'caddyfile']);

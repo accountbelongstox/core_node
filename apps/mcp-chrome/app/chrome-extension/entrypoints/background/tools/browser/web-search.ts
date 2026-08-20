@@ -7,6 +7,7 @@ import {
   WEB_SEARCH_LAST_VERIFIED,
   buildSearchUrl,
   engineHost,
+  filterSearchImageResults,
   isVerificationUrl,
   type WebSearchEngine,
   type WebSearchMode,
@@ -50,7 +51,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
 
     try {
       let tabId = args.tabId;
-      let tab: chrome.tabs.Tab | undefined;
+      let tab: chrome.tabs.Tab | null | undefined;
 
       if (tabId) {
         tab = await this.tryGetTab(tabId);
@@ -98,6 +99,20 @@ class WebSearchTool extends BaseBrowserToolExecutor {
           status: 'verification_required',
           message: 'Search engine verification detected — solve CAPTCHA in the tab',
         };
+      }
+
+      if (mode === 'images' && status.ok) {
+        const imageResults = filterSearchImageResults(status.imageResults || [], query);
+        status = {
+          ...status,
+          ok: imageResults.length > 0,
+          status: imageResults.length > 0 ? 'ok' : 'no_results',
+          message: imageResults.length > 0
+            ? status.message
+            : 'No query-matching image results found on page',
+          imageResults,
+        };
+        finalStatus = status.status;
       }
 
       const result: WebSearchResult = {

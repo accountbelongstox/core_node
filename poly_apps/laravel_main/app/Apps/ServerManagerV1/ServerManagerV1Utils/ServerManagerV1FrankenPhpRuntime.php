@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Http;
 
 class ServerManagerV1FrankenPhpRuntime
 {
+    private const ADMIN_LOAD_TIMEOUT_SECONDS = 120;
     private const SERVICE_NAME = 'ncore-laravel-frankenphp.service';
     private const SERVICE_ACTIONS = ['start', 'stop', 'restart'];
 
@@ -107,7 +108,8 @@ class ServerManagerV1FrankenPhpRuntime
         $headers = $force ? ['Cache-Control' => 'must-revalidate'] : [];
 
         try {
-            $response = Http::timeout(15)
+            $response = Http::connectTimeout(5)
+                ->timeout(self::ADMIN_LOAD_TIMEOUT_SECONDS)
                 ->withHeaders($headers)
                 ->withBody($content, 'text/caddyfile')
                 ->post($url);

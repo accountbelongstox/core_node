@@ -62,7 +62,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
     public static function acmeCertificateDirectory(string $domain): string
     {
-        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs/'.strtolower($domain));
+        return ServiceContract::path('frankenphp_root_posix')
+            .DIRECTORY_SEPARATOR.'certs'.DIRECTORY_SEPARATOR.strtolower($domain);
     }
 
     /**
@@ -124,6 +125,9 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tservers :{$backend} {\n"
             . "\t\tprotocols h1\n"
             . "\t}\n"
+            . "\tservers :{$https} {\n"
+            . "\t\tprotocols h1 h2 h3\n"
+            . "\t}\n"
             . "\n"
             . "\tfrankenphp {\n"
             . "\t\tworker {\n"
@@ -155,8 +159,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
     /**
      * The single Mercure hub lives on the direct backend site. HTTPS and
-     * managed domain sites proxy the well-known path to this one instance,
-     * so the Bolt transport and FrankenPHP native publisher never diverge.
+     * managed domain sites proxy the well-known path to this one instance.
      */
     private static function mercureStanza(): string
     {
@@ -169,6 +172,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         }
 
         return "\tmercure {\n"
+            . "\t\ttransport ".ServiceContract::string('realtime.mercure_transport')."\n"
             . "\t\tpublisher_jwt {$publisherKey} HS256\n"
             . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
             . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
@@ -234,28 +238,47 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         return ['path' => $path, 'rendered' => true, 'canonical' => true];
     }
 
+    /** @return array{success: bool, output: string} */
+    public static function validate(): array
+    {
+        return self::adaptPath(self::caddyfilePath());
+    }
+
     /**
-     * Validate the Caddyfile through the binary (`frankenphp validate`).
+     * Adapt without provisioning runtime modules. Full provisioning is
+     * performed atomically by the Caddy admin /load endpoint. This avoids
+     * opening the live Mercure Bolt database from a second process.
      *
      * @return array{success: bool, output: string}
      */
-    public static function validate(): array
-    {
-        return self::validatePath(self::caddyfilePath());
-    }
-
-    public static function validatePath(string $path): array
+    public static function adaptPath(string $path): array
     {
         $binary = self::binary();
+        $configuration = null;
+        $error = '';
+        $result = [];
+
         if ($binary === null) {
             return ['success' => false, 'output' => 'frankenphp binary not found'];
         }
 
-        $result = ServerManagerV1Utils::executeCommand($binary, ['validate', '--config', $path]);
+        $result = ServerManagerV1Utils::executeCommand(
+            $binary,
+            ['adapt', '--config', $path, '--adapter', 'caddyfile']
+        );
+        $configuration = json_decode((string) ($result['output'] ?? ''), true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($configuration)) {
+            return [
+                'success' => true,
+                'output' => 'Caddyfile adapted successfully; runtime provisioning is verified by the atomic admin reload.',
+            ];
+        }
+
+        $error = trim((string) ($result['error'] ?? ''));
 
         return [
-            'success' => (bool) $result['success'],
-            'output' => trim(($result['output'] ?? '') . "\n" . ($result['error'] ?? '')),
+            'success' => false,
+            'output' => $error !== '' ? $error : 'Caddyfile adaptation failed.',
         ];
     }
 

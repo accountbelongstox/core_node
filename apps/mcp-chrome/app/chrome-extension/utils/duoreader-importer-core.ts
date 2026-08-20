@@ -801,12 +801,13 @@ export function normalizeImportProgress(raw: DuoreaderImportProgress | null | un
   const base = emptyProgress();
   if (!raw) return base;
   const legacy = raw as DuoreaderImportProgress & Record<string, unknown>;
+  const legacyStep = String(legacy.step || '');
   return {
     ...base,
     ...raw,
     paused: !!raw.paused,
     audioPending: !!raw.audioPending,
-    step: raw.step === 'tts' || raw.step === 'catchup' ? 'audio' : raw.step,
+    step: legacyStep === 'tts' || legacyStep === 'catchup' ? 'audio' : raw.step,
     audioFetchedLearn: Number(legacy.audioFetchedLearn ?? legacy.ttsEnrichedLearn ?? 0),
     audioFetchedMy: Number(legacy.audioFetchedMy ?? legacy.ttsEnrichedMy ?? 0),
     audioSlotsTarget: Number(legacy.audioSlotsTarget ?? legacy.slotsIngested ?? 0),

@@ -17,12 +17,4 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// NOTE: Sub-minute timer tasks (app/Services/TimerTasks/*) share ONE heartbeat per
-// process, owned entirely by OctaneTimerServiceProvider: Octane(Swoole) ->tick()
-// when running under `octane:start`, otherwise a Schedule->everySecond() tick
-// consumed by `php artisan schedule:work` (this is how Windows -- and any Linux/WSL
-// fallback where Octane isn't the active server -- runs the same TimerTasks/* code
-// as the primary Octane path). Do NOT register TimerTasks with the scheduler again
-// here: OctaneTimerServiceProvider already owns that single registration; a second
-// one here would double-drive them. Only genuine cron (non-timer) jobs belong below.
 Schedule::command('mcpv1:placeholder-cleanup')->daily()->at('03:00');

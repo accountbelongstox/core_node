@@ -8,7 +8,7 @@ CodeSync workspace API 是远端 AI、DEV 与 client 代码目录之间的通信
 
 1. 远端 AI 向 client 上传修复说明文档。
 2. DEV 从 client 获取 `docs_fix` 中最新的修复说明。
-3. DEV 按需读取 client 的 `core_node` 文件清单与文件内容。
+3. DEV 分页读取 client 的 `docs_fix` 文档清单，并按已知相对路径读取所需代码文件。
 4. DEV 根据最新文档修改代码。
 5. DEV 使用文件版本条件把修改写回 client。
 
@@ -18,16 +18,53 @@ CodeSync workspace API 是远端 AI、DEV 与 client 代码目录之间的通信
 
 - 服务端角色必须是 `client`。
 - `light` 模式不开放 workspace API。
-- 默认 CodeSync 地址为 `http://CLIENT_HOST:59000/code-sync`。
+- 当前 CLIENT CodeSync Base URL 为 `http://43.163.112.77:59000/code-sync`。
 - 公网通信必须使用 TLS 反向代理、VPN 或 SSH 隧道，不能直接暴露明文的 59000 端口。
 - 完整 pycore/FastAPI 和独立 `pyservice codesync run` 使用同一套业务实现与接口路径。
 
 ## 3. 固定认证
 
-所有 workspace API 请求必须携带固定 Bearer 密钥：
+所有 workspace API 请求必须携带固定 Bearer 密钥。密钥的唯一来源是
+`pycore/pyutils/codesync/workspace_auth.py` 中的 `WORKSPACE_SHARED_SECRET`；调用端必须先从该代码文件加载密钥，再构造 `Authorization` 请求头，不在文档、调用脚本或其他配置中复制密钥值。
 
-```http
-Authorization: Bearer cncs_6d7d35c797a143d49ce5a00c4479f4c9451f364395e347b6a981e3bc67bccf29
+Python 调用示例：
+
+```python
+import json
+import urllib.request
+
+from pycore.pyutils.codesync.workspace_auth import WORKSPACE_SHARED_SECRET
+
+
+CLIENT_BASE_URL = "http://43.163.112.77:59000/code-sync"
+WORKSPACE_URL = f"{CLIENT_BASE_URL}/workspace"
+REQUEST_HEADERS = {
+    "Accept": "application/json",
+    "Authorization": f"Bearer {WORKSPACE_SHARED_SECRET}",
+}
+
+request = urllib.request.Request(WORKSPACE_URL, headers=REQUEST_HEADERS, method="GET")
+with urllib.request.urlopen(request, timeout=15) as response:
+    capabilities = json.load(response)
+```
+
+PowerShell 调用示例同样从代码文件读取，不写入或输出密钥：
+
+```powershell
+$workspaceRoot = (Resolve-Path -LiteralPath '.').Path
+$authFile = Join-Path $workspaceRoot 'pycore\pyutils\codesync\workspace_auth.py'
+$clientBaseUrl = 'http://43.163.112.77:59000/code-sync'
+$authSource = Get-Content -LiteralPath $authFile -Raw
+$tokenMatch = [regex]::Match($authSource, 'cncs_[0-9a-f]+')
+$requestHeaders = @{}
+
+if (-not $tokenMatch.Success) {
+    throw 'Workspace Bearer token was not found in workspace_auth.py'
+}
+
+$requestHeaders['Accept'] = 'application/json'
+$requestHeaders['Authorization'] = "Bearer $($tokenMatch.Value)"
+Invoke-RestMethod -Uri "$clientBaseUrl/workspace" -Method Get -Headers $requestHeaders -TimeoutSec 15
 ```
 
 认证失败时返回：
@@ -45,7 +82,7 @@ Content-Type: application/json
 }
 ```
 
-固定密钥只在 `workspace_auth.py` 中定义一次。HTTP 路由不保存密钥，只把 `Authorization` 交给业务服务层统一校验。
+HTTP 路由不保存密钥，只把 `Authorization` 交给业务服务层统一校验。
 
 ## 4. 通用协议
 
@@ -55,7 +92,8 @@ Content-Type: application/json
 - 成功读取或写入文件时，响应 JSON 包含 `sha256` 和带双引号的 `etag`，HTTP 响应同时包含 `ETag` 头。
 - 所有文件路径必须是相对于 `core_node` 根目录的 `/` 分隔路径。
 - 路径在访问前会解析符号链接和 `..`，解析结果必须仍位于 `core_node` 内。
-- 文件清单不遍历符号链接目录，不返回符号链接文件和 CodeSync 临时文件。
+- 文件清单只枚举 `docs_fix` 顶层的 `.md` 常规文件，不递归扫描整个 `core_node`，也不返回符号链接。
+- 单文件读取与条件写入仍可访问 `core_node` 内的任意合法相对路径，不受文档清单范围影响。
 
 ## 5. 获取接口能力
 
@@ -65,9 +103,9 @@ Host: CLIENT_HOST:59000
 Authorization: Bearer <shared-secret>
 ```
 
-成功响应包含数据方向、根目录名称、分页限制、文件编码、传输安全要求、条件写入规则以及全部 workspace 路由。
+成功响应包含数据方向、根目录名称、文档清单范围、分页限制、文件编码、传输安全要求、条件写入规则以及全部 workspace 路由。
 
-## 6. 获取全部文件清单
+## 6. 获取 `docs_fix` 文档清单
 
 ```http
 GET /code-sync/workspace/files?limit=1000&include_hash=true&cursor= HTTP/1.1
@@ -90,19 +128,21 @@ Authorization: Bearer <shared-secret>
   "success": true,
   "files": [
     {
-      "path": "pycore/example.py",
+      "path": "docs_fix/FIX_EXAMPLE.md",
       "size": 1280,
       "mtime_ns": 1787200000000000000,
       "sha256": "03f1..."
     }
   ],
   "count": 1,
-  "next_cursor": "pycore/example.py",
+  "next_cursor": "docs_fix/FIX_EXAMPLE.md",
   "has_more": true
 }
 ```
 
-当 `has_more` 为 `true` 时，下一次请求必须把 `next_cursor` 原样作为 `cursor`。重复请求直到 `has_more` 为 `false`，即可获得全部常规文件。
+当 `has_more` 为 `true` 时，下一次请求必须把 `next_cursor` 原样作为 `cursor`。重复请求直到 `has_more` 为 `false`，即可获得 `docs_fix` 顶层的全部 Markdown 文档。枚举使用 `os.scandir()` 的目录项元数据，并对文件名显式排序；分页限制在这个有界目录内执行，不再遍历整个工作区。
+
+实现依据：[Python `os.scandir()` 官方文档](https://docs.python.org/3/library/os.html#os.scandir)说明目录项可提供文件类型和属性信息，从而减少额外系统调用，同时明确指出返回顺序不保证；[`os.DirEntry.is_file()` 官方文档](https://docs.python.org/3/library/os.html#os.DirEntry.is_file)规定 `follow_symlinks=False` 时只接受非符号链接的常规文件。
 
 ## 7. 读取文件
 
@@ -289,8 +329,8 @@ API 创建的文档会解析并返回原始 `title` 与正文 `content`；已有
 
 1. 调用 `GET /workspace` 确认 client 能力。
 2. 调用 `GET /workspace/documents/latest`，记录文档 SHA-256。
-3. 分页调用 `GET /workspace/files`，定位相关文件。
-4. 调用 `GET /workspace/file` 获取源文件及 ETag。
+3. 分页调用 `GET /workspace/files`，获取 `docs_fix` 顶层文档清单。
+4. 根据修复文档给出的相对路径，调用 `GET /workspace/file` 获取源文件及 ETag。
 5. 在 DEV 端完成最小范围修改。
 6. 对已有文件使用 `If-Match`，对新文件使用 `If-None-Match: *`。
 7. 如果收到 412，重新读取文件和最新文档，重新对齐后再提交。
@@ -305,8 +345,8 @@ API 创建的文档会解析并返回原始 `title` 与正文 `content`；已有
 | 统一路由路径 | `pycore/pyutils/codesync/routes.py` | 一致 |
 | FastAPI 路由 | `pycore/callmodule/rpc_routes/code_sync_routes.py` | 一致 |
 | 独立 HTTP 路由 | `pycore/pyutils/codesync/http_server.py` | 一致 |
-| 文件分页、读取、条件写回 | `pycore/pyutils/codesync/workspace_exchange.py` | 一致 |
+| `docs_fix` 有界文档清单、文件读取、条件写回 | `pycore/pyutils/codesync/workspace_exchange.py` | 一致 |
 | 文档上传与最新文档读取 | `pycore/pyutils/codesync/workspace_exchange.py` | 一致 |
 | 路径边界和原子写入 | `pycore/pyutils/codesync/file_operations.py` | 一致 |
 
-验证范围是协议与源代码的静态一致性、Python 语法树解析以及固定常量交叉检查。没有启动服务，也没有创建或运行测试。
+本次修改只进行了协议与源代码的静态一致性检查。按项目约束，没有启动服务，也没有创建或运行测试。

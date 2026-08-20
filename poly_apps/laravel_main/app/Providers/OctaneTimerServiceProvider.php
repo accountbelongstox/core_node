@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use App\Services\OctaneTimerService;
-use App\Services\TimerTasks\OctaneTimerTaskInterface;
+use App\Services\OctaneTimerTaskCatalog;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Log;
 use Laravel\Octane\Facades\Octane;
@@ -23,15 +23,6 @@ use Laravel\Octane\Facades\Octane;
  */
 class OctaneTimerServiceProvider extends ServiceProvider
 {
-    /**
-     * Timer tasks directory path
-     */
-    private const TASKS_DIRECTORY = __DIR__ . '/../Services/TimerTasks';
-
-    /**
-     * Timer tasks namespace
-     */
-    private const TASKS_NAMESPACE = 'App\\Services\\TimerTasks\\';
 
     /**
      * Register services
@@ -42,23 +33,27 @@ class OctaneTimerServiceProvider extends ServiceProvider
         $this->app->singleton(OctaneTimerService::class, function ($app) {
             return new OctaneTimerService();
         });
+        $this->app->singleton(OctaneTimerTaskCatalog::class);
     }
 
     /**
      * Bootstrap services
      */
-    public function boot(): void
+    public function boot(OctaneTimerTaskCatalog $catalog): void
     {
         // Auto-discover and register the same timer tasks regardless of runtime
         // (cheap, in-memory only -- no I/O). This also runs for console commands
         // that never tick, keeping status and inspection commands aware of the
         // same task catalog as the Octane worker that drives the heartbeat.
-        $this->autoDiscoverAndRegisterTasks();
-        $this->hookOctaneTick();
+        $this->autoDiscoverAndRegisterTasks($catalog);
+
+        if (config('octane.server') === 'swoole') {
+            $this->hookOctaneTick();
+        }
 
         Log::info('OctaneTimerServiceProvider: Bootstrapped', [
-            'tickSource' => 'octane-tick',
-            'server' => 'swoole',
+            'tick_source' => config('octane.server') === 'swoole' ? 'octane-tick' : 'laravel-schedule',
+            'server' => config('octane.server'),
             'tasks' => OctaneTimerService::getRegisteredTasks()
         ]);
     }
@@ -66,50 +61,28 @@ class OctaneTimerServiceProvider extends ServiceProvider
     /**
      * Auto-discover and register all timer tasks
      */
-    protected function autoDiscoverAndRegisterTasks(): void
+    protected function autoDiscoverAndRegisterTasks(OctaneTimerTaskCatalog $catalog): void
     {
-        if (!is_dir(self::TASKS_DIRECTORY)) {
-            Log::warning('OctaneTimerServiceProvider: Tasks directory not found', [
-                'directory' => self::TASKS_DIRECTORY
-            ]);
-            return;
-        }
-
-        $files = glob(self::TASKS_DIRECTORY . '/*.php');
+        $tasks = $catalog->discover();
         $registeredCount = 0;
         $skippedCount = 0;
 
-        foreach ($files as $file) {
-            $className = basename($file, '.php');
-
-            if (in_array($className, ['OctaneTimerTaskInterface', 'OctaneTimerTaskAbstract'])) {
-                continue;
-            }
-
-            $fullClassName = self::TASKS_NAMESPACE . $className;
-
-            if (!class_exists($fullClassName)) {
-                Log::warning('OctaneTimerServiceProvider: Task class not found', [
-                    'class' => $fullClassName
-                ]);
-                continue;
-            }
-
-            $implements = class_implements($fullClassName);
-            if (!isset($implements[OctaneTimerTaskInterface::class])) {
-                Log::debug('OctaneTimerServiceProvider: Class does not implement OctaneTimerTaskInterface', [
-                    'class' => $className
+        foreach ($tasks as $definition) {
+            if (isset($definition['error'])) {
+                Log::error('OctaneTimerServiceProvider: Failed to resolve task', [
+                    'class' => $definition['class'],
+                    'error' => $definition['error'],
                 ]);
                 continue;
             }
 
             try {
-                $task = new $fullClassName();
+                $task = $definition['instance'];
 
-                if (!$task->isEnabled()) {
+                if (!$definition['enabled']) {
                     Log::debug('OctaneTimerServiceProvider: Task is disabled', [
-                        'task' => $task->getName(),
-                        'class' => $className
+                        'task' => $definition['name'],
+                        'class' => $definition['class'],
                     ]);
                     $skippedCount++;
                     continue;
@@ -120,20 +93,20 @@ class OctaneTimerServiceProvider extends ServiceProvider
                     function () use ($task) {
                         $task->exec();
                     },
-                    $task->getInterval()
+                    $definition['interval']
                 );
 
                 Log::info('OctaneTimerServiceProvider: Task registered', [
-                    'task' => $task->getName(),
-                    'class' => $className,
-                    'interval' => $task->getInterval() . 's'
+                    'task' => $definition['name'],
+                    'class' => $definition['class'],
+                    'interval' => $definition['interval'] . 's'
                 ]);
 
                 $registeredCount++;
 
             } catch (\Throwable $e) {
                 Log::error('OctaneTimerServiceProvider: Failed to register task', [
-                    'class' => $className,
+                    'class' => $definition['class'],
                     'error' => $e->getMessage()
                 ]);
             }
@@ -142,7 +115,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
         Log::info('OctaneTimerServiceProvider: Auto-discovery completed', [
             'registered' => $registeredCount,
             'skipped' => $skippedCount,
-            'total_files' => count($files)
+            'total_tasks' => count($tasks)
         ]);
     }
 
@@ -153,10 +126,7 @@ class OctaneTimerServiceProvider extends ServiceProvider
     {
         try {
             Octane::tick('octane-timer', function () {
-                if (!OctaneTimerService::isRunning()) {
-                    OctaneTimerService::start();
-                }
-                OctaneTimerService::tick();
+                OctaneTimerService::heartbeat();
             })->seconds(1)->immediate();
 
         } catch (\Throwable $e) {

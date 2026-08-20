@@ -967,6 +967,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       if (!response.success) {
         throw new Error(response.error || t.messages.failed_to_renew_certs);
       }
+      await api.serverManagerV1.waitForFrankenPhpReload(response);
       await loadSSLCertificates();
     } catch (error: any) {
       alert(error.message || t.messages.failed_to_renew_certs);
@@ -983,6 +984,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
       if (!response.success) {
         throw new Error(response.error || 'ensure failed');
       }
+      await api.serverManagerV1.waitForFrankenPhpReload(response);
       await loadSSLCertificates();
     } catch (error: any) {
       alert(error.message);
@@ -1075,6 +1077,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
           }
         }, 1500);
       } else if (res.success && res.data?.status === 'completed') {
+        await api.serverManagerV1.waitForFrankenPhpReload(res);
         setCertProgress(previous => previous ? {
           ...previous,
           status: 'completed',

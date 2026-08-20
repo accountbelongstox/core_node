@@ -1170,6 +1170,7 @@ fm_ensure_dnspod_module() {
 # SYNC CONTRACT: ServerManagerV1FrankenPhpCaddyfileBuilder renders the
 # identical stanza and proxy.
 fm_mercure_config() {
+    local mercure_transport=""
     local publisher_key=""
     local subscriber_key=""
     local cookie_name=""
@@ -1186,8 +1187,9 @@ fm_mercure_config() {
         return
     fi
     cookie_name="$(sc_require realtime.mercure_cookie)"
-    printf -v FM_MERCURE_STANZA '\tmercure {\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcookie_name %s\n\t}\n\n' \
-        "$publisher_key" "$subscriber_key" "$cookie_name"
+    mercure_transport="$(sc_require realtime.mercure_transport)"
+    printf -v FM_MERCURE_STANZA '\tmercure {\n\t\ttransport %s\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcookie_name %s\n\t}\n\n' \
+        "$mercure_transport" "$publisher_key" "$subscriber_key" "$cookie_name"
 }
 
 fm_octane_php_server_stanza() {
@@ -1282,6 +1284,9 @@ import ${routes_dir}/*.caddy"
 	grace_period 10s
 	servers :${backend_port} {
 		protocols h1
+	}
+	servers :${https_port} {
+		protocols h1 h2 h3
 	}
 
 	frankenphp {

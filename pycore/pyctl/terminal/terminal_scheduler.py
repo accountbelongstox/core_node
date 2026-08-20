@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from pycore.pyctl.terminal.terminal_service import terminal_service
 from pycore.pyctl.terminal.terminal_state_repository import (
@@ -168,6 +168,61 @@ class TerminalScheduler:
         result = self._repository.remove_schedule_entry(
             terminal_number,
             entry_id,
+        )
+        if result.get("success"):
+            THREAD_BUS.signal(WAKEUP_SIGNAL, True)
+        return result
+
+    def sync_entries(
+        self,
+        terminal_number: int,
+        entries: Any,
+    ) -> Dict[str, Any]:
+        if terminal_number <= 0:
+            return _failure("terminal_number_required")
+        if not isinstance(entries, list):
+            return _failure("terminal_schedule_entry_invalid")
+
+        normalized_entries: List[Dict[str, Any]] = []
+        entry_ids = set()
+        for raw_entry in entries:
+            if not isinstance(raw_entry, dict):
+                return _failure("terminal_schedule_entry_invalid")
+            entry_id = str(raw_entry.get("id") or "")
+            mode = str(raw_entry.get("mode") or "").strip().lower()
+            try:
+                run_at_ms = int(raw_entry.get("run_at") or 0)
+                interval_seconds = int(
+                    raw_entry.get("interval_seconds") or 0
+                )
+            except (TypeError, ValueError):
+                return _failure("terminal_schedule_entry_invalid")
+            if not entry_id.isdigit() or entry_id in entry_ids:
+                return _failure("terminal_schedule_entry_invalid")
+            if mode not in SCHEDULE_ACTIVE_MODES:
+                return _failure("terminal_schedule_mode_invalid")
+            try:
+                next_run_at = self._compute_next_run_at(
+                    mode,
+                    run_at_ms,
+                    interval_seconds,
+                )
+            except ValueError as error:
+                return _failure(str(error))
+            entry_ids.add(entry_id)
+            normalized_entries.append({
+                "id": entry_id,
+                "mode": mode,
+                "next_run_at": next_run_at,
+                "interval_seconds": (
+                    interval_seconds if mode == "interval" else 0
+                ),
+                "message": str(raw_entry.get("message") or ""),
+            })
+
+        result = self._repository.sync_schedule_entries(
+            terminal_number,
+            normalized_entries,
         )
         if result.get("success"):
             THREAD_BUS.signal(WAKEUP_SIGNAL, True)

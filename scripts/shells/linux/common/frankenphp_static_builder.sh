@@ -32,6 +32,8 @@
 FM_STATIC_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_STATIC_LOG_TAG="frankenphp-static"
 
+source "${FM_STATIC_CURRENT_DIR}/service_contract_common.sh"
+
 # Host toolchain convergence (apt sources self-heal + full build deps);
 # must load after FM_STATIC_CURRENT_DIR resolves this directory.
 # shellcheck source=/dev/null
@@ -48,7 +50,10 @@ FRANKENPHP_STATIC_DB_EXT_REDIS="redis"
 # Persistent build root (NOT /tmp): the git tree, spc source cache and
 # build outputs are KEPT so every later run upgrades in place
 # (incremental rebuild) instead of re-downloading. Idempotently created.
-FRANKENPHP_STATIC_BUILD_ROOT="/www/programing/frankenphp"
+FRANKENPHP_STATIC_BUILD_ROOT="$(sc_get paths.frankenphp_root_posix)"
+if [ -z "$FRANKENPHP_STATIC_BUILD_ROOT" ]; then
+    echo "[$FM_STATIC_LOG_TAG] [FAIL] FrankenPHP root is absent from the service contract" >&2
+fi
 # Build-tuple record of the last successful dist build (tag/php/
 # extensions) - the dist-reuse probe compares against it, so a changed
 # extension set or release pin forces a real rebuild.

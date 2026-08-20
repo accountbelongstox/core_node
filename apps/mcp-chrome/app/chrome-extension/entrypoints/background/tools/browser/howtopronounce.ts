@@ -132,8 +132,11 @@ class HowToPronounceTool extends BaseBrowserToolExecutor {
       }
       // Download the top audio clips as base64 in the BACKGROUND (CORS bypass
       // via <all_urls> host permission - the page cannot fetch them).
-      if (data.audio && data.audio.length > 0) {
-        data.audioClips = await this.fetchAudioClips(data.audio.slice(0, MAX_AUDIO_CLIPS));
+      if (data.audioUrls.length > 0) {
+        const clips = data.audioUrls
+          .slice(0, MAX_AUDIO_CLIPS)
+          .map((url) => ({ url }));
+        data.audioClips = await this.fetchAudioClips(clips);
       }
       data.url = wordUrl;
       data.tabId = tabId;

@@ -17,6 +17,7 @@ export const PYCORE_HTTP_ROUTES = {
   terminalView: 'ui/terminal/view',
   terminalScheduleQueueAdd: 'ui/terminal/schedule_queue/add',
   terminalScheduleQueueRemove: 'ui/terminal/schedule_queue/remove',
+  terminalScheduleQueueSync: 'ui/terminal/schedule_queue/sync',
   terminalScheduleQueueUpdate: 'ui/terminal/schedule_queue/update',
   localAiChat: 'local/ai/chat',
   localAiStatus: 'local/ai/status',

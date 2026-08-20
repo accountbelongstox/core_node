@@ -122,12 +122,19 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
   const runServiceAction = async (action: ServiceAction) => {
     setBusyAction(action);
     try {
-      const response = await api.serverManagerV1.frankenPhpService(action);
+      const response = action === 'reload'
+        ? await api.serverManagerV1.reloadFrankenPhp()
+        : await api.serverManagerV1.frankenPhpService(action);
       if (!response.success) {
         throw new Error(response.error || t.operation_failed);
       }
+      if (action !== 'stop') {
+        await api.serverManagerV1.waitForFrankenPhpReload(response);
+      }
       toast.success(t.operation_succeeded.replace('{action}', t[action]));
-      await refresh();
+      if (action !== 'stop') {
+        await refresh();
+      }
     } catch (error: any) {
       toast.error(`${t.operation_failed}: ${error.message}`);
     } finally {
@@ -195,6 +202,7 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
       if (!response.success) {
         throw new Error(response.error || t.operation_failed);
       }
+      await api.serverManagerV1.waitForFrankenPhpReload(response);
       toast.success(editingSite ? t.site_updated : t.site_created);
       setShowSiteModal(false);
       setEditingSite(null);
@@ -215,6 +223,7 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
       if (!response.success) {
         throw new Error(response.error || t.operation_failed);
       }
+      await api.serverManagerV1.waitForFrankenPhpReload(response);
       toast.success(enabled ? t.site_enabled : t.site_disabled);
       await refresh();
     } catch (error: any) {
@@ -234,6 +243,7 @@ const FrankenPhpPanel: React.FC<FrankenPhpPanelProps> = ({ lang }) => {
       if (!response.success) {
         throw new Error(response.error || t.operation_failed);
       }
+      await api.serverManagerV1.waitForFrankenPhpReload(response);
       toast.success(t.site_deleted);
       setDeleteSite(null);
       await refresh();

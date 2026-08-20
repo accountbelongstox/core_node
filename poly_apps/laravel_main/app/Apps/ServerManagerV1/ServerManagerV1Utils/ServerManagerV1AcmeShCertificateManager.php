@@ -185,12 +185,14 @@ class ServerManagerV1AcmeShCertificateManager
             );
         }
 
-        $reload = ServerManagerV1FrankenPhpRuntime::reload(true);
+        $reload = ServerManagerV1FrankenPhpReloadJob::queue(true);
 
         return [
             'success' => ($reload['success'] ?? false) === true,
             'certificate' => $certificate,
-            'reloaded' => ($reload['success'] ?? false) === true,
+            'reloaded' => false,
+            'reload_queued' => ($reload['success'] ?? false) === true,
+            'reload_job_id' => $reload['job_id'] ?? null,
             'output' => trim((string) ($commandResult['output'] ?? '')),
             'error' => ($reload['success'] ?? false) === true
                 ? ''
@@ -241,14 +243,16 @@ class ServerManagerV1AcmeShCertificateManager
             );
         }
 
-        $reload = ServerManagerV1FrankenPhpRuntime::reload(true);
+        $reload = ServerManagerV1FrankenPhpReloadJob::queue(true);
 
         return [
             'success' => ($reload['success'] ?? false) === true,
             'domain' => $normalizedDomain,
             'certificates' => $certificates,
             'renewed' => count($certificates),
-            'reloaded' => ($reload['success'] ?? false) === true,
+            'reloaded' => false,
+            'reload_queued' => ($reload['success'] ?? false) === true,
+            'reload_job_id' => $reload['job_id'] ?? null,
             'output' => trim((string) ($commandResult['output'] ?? '')),
             'error' => ($reload['success'] ?? false) === true
                 ? ''
@@ -284,12 +288,12 @@ class ServerManagerV1AcmeShCertificateManager
 
     private static function acmeRoot(): string
     {
-        return PathMapper::mapWebPath('compile_dir', 'frankenphp/acme.sh');
+        return ServiceContract::path('frankenphp_root_posix').DIRECTORY_SEPARATOR.'acme.sh';
     }
 
     private static function certificateRoot(): string
     {
-        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs');
+        return ServiceContract::path('frankenphp_root_posix').DIRECTORY_SEPARATOR.'certs';
     }
 
     private static function installerScript(): string

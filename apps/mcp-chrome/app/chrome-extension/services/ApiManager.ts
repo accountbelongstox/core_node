@@ -1,4 +1,10 @@
-import { API_ENDPOINTS, buildApiUrl, getEndpointById, type ApiEndpoint } from '../config/api-endpoints';
+import {
+  API_ENDPOINTS,
+  DEFAULT_API_ENDPOINT_ID,
+  buildApiUrl,
+  getEndpointById,
+  type ApiEndpoint,
+} from '../config/api-endpoints';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { delay, fetchWithTimeout } from '@/utils/async';
 
@@ -64,14 +70,14 @@ export class ApiManager {
 
     const hasSelection = !!(settings.userSelectedEndpointId || settings.autoDetectedEndpointId);
     if (!hasSelection && !this.autoMode) {
-      const defaultEndpoint = this.resolveEndpoint('remote-laravel');
+      const defaultEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID);
       if (defaultEndpoint) {
         this.currentEndpoint = defaultEndpoint;
         await this.saveSettings({
-          userSelectedEndpointId: 'remote-laravel',
+          userSelectedEndpointId: DEFAULT_API_ENDPOINT_ID,
           autoMode: false,
         });
-        console.log('[API Manager] First-run default endpoint: remote-laravel');
+        console.log(`[API Manager] First-run default endpoint: ${DEFAULT_API_ENDPOINT_ID}`);
         return;
       }
     }
@@ -101,7 +107,7 @@ export class ApiManager {
     }
 
     if (!this.currentEndpoint && this.getAllEndpoints().length > 0) {
-      this.currentEndpoint = this.resolveEndpoint('remote-laravel') || this.getAllEndpoints()[0];
+      this.currentEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID) || this.getAllEndpoints()[0];
     }
   }
 
@@ -297,8 +303,8 @@ export class ApiManager {
 
   getCurrentBaseUrl(): string {
     if (!this.currentEndpoint) {
-      console.warn('[API Manager] No endpoint set, using default remote-laravel');
-      this.currentEndpoint = this.resolveEndpoint('remote-laravel') || this.getAllEndpoints()[0];
+      console.warn(`[API Manager] No endpoint set, using default ${DEFAULT_API_ENDPOINT_ID}`);
+      this.currentEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID) || this.getAllEndpoints()[0];
     }
 
     return buildApiUrl(this.currentEndpoint);

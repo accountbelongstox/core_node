@@ -117,8 +117,8 @@ async function startRecording(streamId: string, config: typeof recordingConfig) 
         mandatory: {
           chromeMediaSource: 'tab',
           chromeMediaSourceId: streamId,
-        } as any,
-      },
+        },
+      } as MediaTrackConstraints,
       video: false,
     });
     activeStreams.push(tabStream);

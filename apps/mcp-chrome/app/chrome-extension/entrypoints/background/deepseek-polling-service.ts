@@ -353,6 +353,10 @@ export class DeepSeekPollingService {
 
       const result = results[0].result;
 
+      if (!result) {
+        return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
+      }
+
       if (result.hasError) {
         return {
           isCompleted: false,

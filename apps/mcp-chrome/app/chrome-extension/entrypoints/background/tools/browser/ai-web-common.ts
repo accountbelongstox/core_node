@@ -22,6 +22,7 @@ import {
   type AiWebProvider,
 } from '@/services/AiProviderSettings';
 import { apiManager } from '@/services/ApiManager';
+import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 import { delay as waitForDelay, fetchWithTimeout } from '@/utils/async';
 import { toErrorMessage } from '@/utils/errors';
 
@@ -29,8 +30,6 @@ export { waitForTabComplete } from '@/utils/tab-readiness';
 
 export { getPreferredProvider, getValidityProvider, setPreferredProvider };
 export type { AiWebProvider };
-
-const DEFAULT_BACKEND_BASE = 'http://127.0.0.1:9000';
 
 /**
  * Which web AI a worker drives. User-configurable via settings.
@@ -52,7 +51,7 @@ export async function resolveBackendBase(override?: string): Promise<string> {
   } catch {
     // Endpoint storage may be unavailable in some contexts; use the local default.
   }
-  return DEFAULT_BACKEND_BASE;
+  return DEFAULT_API_BASE_URL;
 }
 
 /**
