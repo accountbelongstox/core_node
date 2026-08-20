@@ -176,7 +176,7 @@ fm_domain_enable_ui_binding() {
     done <<< "$DOMAIN_DOMAINS_LIST"
 
     admin_port="$(sc_require ports.frankenphp_admin)"
-    fm_domain_ensure_main_caddyfile "$admin_port" "$(fm_site_host)" "${FM_DOMAIN_LARAVEL_DIR}/public"
+    fm_domain_ensure_main_caddyfile "$admin_port" "${FM_DOMAIN_LARAVEL_DIR}/public"
     if [ "$route_drift" = "no" ] && [ "$FM_CADDYFILE_READY" = "yes" ]; then
         FM_DOMAIN_UI_BINDING_READY="yes"
     fi
@@ -227,18 +227,16 @@ fm_domain_ensure_route_file() {
 # Render the canonical main Caddyfile through the manager-owned renderer.
 fm_domain_render_main_caddyfile() {
     local admin_port="${1:-$(sc_get ports.frankenphp_admin)}"
-    local site_host="${2:-$(fm_site_host)}"
-    local laravel_public="${3:-${FM_DOMAIN_LARAVEL_DIR}/public}"
+    local laravel_public="${2:-${FM_DOMAIN_LARAVEL_DIR}/public}"
 
-    fm_caddyfile_render "$laravel_public" "$site_host" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
+    fm_caddyfile_render "$laravel_public" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
     printf '%s\n' "$FM_CADDYFILE_RENDERED"
 }
 
 # Ensure the main Caddyfile is canonical (content-hash idempotent).
 fm_domain_ensure_main_caddyfile() {
     local admin_port="${1:-$(sc_get ports.frankenphp_admin)}"
-    local site_host="${2:-$(fm_site_host)}"
-    local laravel_public="${3:-${FM_DOMAIN_LARAVEL_DIR}/public}"
+    local laravel_public="${2:-${FM_DOMAIN_LARAVEL_DIR}/public}"
 
     fm_domain_ensure_routes_dir
     if [ "$FM_DOMAIN_ROUTES_READY" != "yes" ]; then
@@ -246,7 +244,7 @@ fm_domain_ensure_main_caddyfile() {
         return
     fi
 
-    fm_caddyfile_ensure "$laravel_public" "$site_host" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
+    fm_caddyfile_ensure "$laravel_public" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
     if [ "$FM_CADDYFILE_READY" != "yes" ]; then
         echo "[fm-domain] [FAIL] Main Caddyfile convergence failed"
     fi
@@ -297,7 +295,6 @@ fm_domain_install_all() {
     local domain=""
     local prefix=""
     local failures=0
-    local site_host=""
 
     FM_DOMAIN_INSTALL_READY="no"
     domain_setup_load_secrets
@@ -336,9 +333,9 @@ fm_domain_install_all() {
 
     fm_domain_cleanup_stale_routes "$DOMAIN_DOMAINS_LIST"
 
-    # Main Caddyfile: site host = first api.${prefix}.${domain}
-    site_host="$(fm_site_host)"
-    fm_domain_ensure_main_caddyfile "$(sc_get ports.frankenphp_admin)" "$site_host" "${laravel_dir}/public"
+    # The main Caddyfile owns only the internal TLS site. Public API and UI
+    # hosts remain exclusively owned by the per-domain route files above.
+    fm_domain_ensure_main_caddyfile "$(sc_get ports.frankenphp_admin)" "${laravel_dir}/public"
     if [ "$FM_CADDYFILE_READY" != "yes" ]; then
         failures=$((failures + 1))
     fi

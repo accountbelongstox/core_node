@@ -374,6 +374,12 @@ trait GlobalTaskQueueQueries
             ->where('status', self::status('pending'))
             ->where('task_type', $taskType);
         $query->orderByDesc(QueueCenterContract::taskOrdering($taskType));
+        if ($taskType === QueueCenterContract::taskTypeKey('sentence_audio')) {
+            $query->orderByRaw(
+                "CASE WHEN lower(trim(payload->>'language')) = ? THEN 0 ELSE 1 END",
+                ['en']
+            );
+        }
 
         return $query
             ->oldest('created_at')

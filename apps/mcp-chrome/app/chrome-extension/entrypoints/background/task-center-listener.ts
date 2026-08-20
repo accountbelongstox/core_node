@@ -34,6 +34,7 @@ import { runWordValidityClassification } from './services/word-validity/word-val
 import type { AiWebProvider } from './tools/browser/ai-web-common';
 import { STORAGE_KEYS } from '@/utils/storage-keys';
 import { AsyncOperationController } from '@/utils/async';
+import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 
 interface PersistedTaskCenterRuntime {
   running: boolean;
@@ -144,28 +145,27 @@ async function performRuntimeRestore(): Promise<void> {
   }
   const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
   const enabledProcessors = processorsForCapabilities(activeCapabilities);
-  if (!runtime?.running || !runtime.config?.apiUrl) {
-    await persistTaskCenterRuntime(false, null);
-    if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
-      await bingDictionaryWorkerService.resume();
-    } else {
-      await bingDictionaryWorkerService.stopAndClear(true);
-    }
-    return;
-  }
+  const runtimeConfig: TaskCenterConfig = runtime?.running && runtime.config?.apiUrl
+    ? runtime.config
+    : {
+        apiUrl: intent.apiUrl || DEFAULT_API_BASE_URL,
+        processors: {},
+        activeCapabilities,
+        enabledProcessors,
+      };
 
   const usesValidity = activeCapabilities.some((key) => CAPABILITY_BY_KEY[key]?.usesValidityRunner);
 
-  const processors = { ...(runtime.config.processors || {}) };
+  const processors = { ...(runtimeConfig.processors || {}) };
   if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
     processors[LANES.BING_DICTIONARY] = {
-      ...(processors[LANES.BING_DICTIONARY] || { apiUrl: runtime.config.apiUrl }),
-      apiUrl: runtime.config.apiUrl,
+      ...(processors[LANES.BING_DICTIONARY] || { apiUrl: runtimeConfig.apiUrl }),
+      apiUrl: runtimeConfig.apiUrl,
       surface: false,
     };
   }
   const config = {
-    ...runtime.config,
+    ...runtimeConfig,
     processors,
     activeCapabilities,
     enabledProcessors,
@@ -526,7 +526,7 @@ async function handleStart(
   }
 
   lastStartConfig = config;
-  await setRunIntent({ running: true, activeCapabilities });
+  await setRunIntent({ running: true, activeCapabilities, apiUrl: config.apiUrl });
   await persistTaskCenterRuntime(true, config);
 
   sendResponse({
@@ -688,7 +688,7 @@ async function handleSetCapability(
   }
 
   lastStartConfig = nextConfig;
-  await setRunIntent({ running: true, activeCapabilities });
+  await setRunIntent({ running: true, activeCapabilities, apiUrl: nextConfig.apiUrl });
   await persistTaskCenterRuntime(true, nextConfig);
 
   sendResponse({ success: true, status: await buildFullStatus() });

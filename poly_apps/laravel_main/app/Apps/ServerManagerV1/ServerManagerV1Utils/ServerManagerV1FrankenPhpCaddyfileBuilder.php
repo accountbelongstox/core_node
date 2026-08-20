@@ -10,11 +10,9 @@ use App\Support\ServiceContract;
 use App\Utils\FileSystemManager;
 
 /**
- * Single source of truth for the frankenphp-plane Caddyfile generation (one
- * site: the contract laravel_main app served by the Caddyfile-declared
- * Laravel Octane worker on 443/h2/h3 with the built-in Mercure hub). Every caller (controllers, CLI
- * commands) renders through this builder so the plane keeps one canonical
- * server definition.
+ * Single source of truth for the FrankenPHP-plane Caddyfile generation. The
+ * contract-owned internal TLS site is distinct from public domain routes;
+ * Laravel Octane and the built-in Mercure hub share the same server plane.
  *
  * SYNC CONTRACT (two ends, one truth): this is the Laravel end of the
  * Caddyfile template. The shell end is:
@@ -25,8 +23,7 @@ use App\Utils\FileSystemManager;
  * Any change to the global admin block, the https site block, the Mercure
  * publisher_jwt/subscriber_jwt stanza, the php_server/file_server pair, or
  * the env placeholder names MUST be applied to both ends in the same
- * change (byte-identical semantics; only the managed-by comment names its
- * owning end). Initial provisioning renders through the shell end;
+ * change with byte-identical output. Initial provisioning renders through the shell end;
  * afterwards the UI (http://127.0.0.1:13054/laravel-manager#/server)
  * manages the plane through this builder via the laravel_main API.
  */
@@ -76,37 +73,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function render(
         ?string $laravelPublicDir = null,
-        ?string $siteHost = null,
         ?int $httpsPort = null,
         ?int $adminPort = null,
     ): string {
         $publicDir = $laravelPublicDir ?? self::defaultPublicDir();
-        $host = $siteHost ?? self::defaultSiteHost();
+        $host = ServiceContract::host('frankenphp_internal_tls');
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
         $backend = ServiceContract::port('laravel_api_backend');
-
-        // Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk
-        // are pinned explicitly (the service-start pre-flight provisions
-        // them BEFORE the server binds the HTTPS port). Mirrors the shell
-        // end's fm_caddyfile_ensure gate byte-identically.
-        $certDir = self::acmeCertDirForHost($host);
-        $acmeTls = ($certDir !== ''
-            && FileSystemManager::isFile($certDir.'/fullchain.pem')
-            && FileSystemManager::isFile($certDir.'/key.pem'))
-            ? "\ttls {$certDir}/fullchain.pem {$certDir}/key.pem\n\n"
-            : '';
-
-        // DNS-01 fallback stanza renders ONLY when no prebuilt cert holds
-        // and all truths hold (public site host - NOT the localhost
-        // fallback: certmagic rejects localhost for public certs and would
-        // loop ACME retries forever; a localhost site falls back to Caddy's
-        // internal CA - module embedded + token stored); token value stays
-        // a {env.*} placeholder. Mirrors the shell end's gate
-        // byte-identically.
-        $dnspodTls = ($acmeTls === '' && $host !== 'localhost' && self::hasDnsPodModule() && self::dnspodTokenConfigured())
-            ? "\ttls {\n\t\tdns dnspod {env.DNSPOD_TOKEN}\n\t}\n\n"
-            : '';
 
         $mercureStanza = self::mercureStanza();
 
@@ -117,7 +91,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             ? ''
             : "\n# Per-domain route files (managed by fm_domain_ensure_route_file)\nimport {$routesDir}/*.caddy\n";
 
-        return "# Managed by ServerManagerV1FrankenPhpCaddyfileBuilder (SYNC: frankenphp_manager.sh)\n"
+        return "# Managed by core_node FrankenPHP Caddyfile contract\n"
             . "{\n"
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
@@ -142,8 +116,6 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
             . "\n"
-            . $dnspodTls
-            . $acmeTls
             . self::octaneHttpsStanza($backend)
             . "}\n"
             . "\n"
@@ -393,46 +365,6 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         }
 
         return ['stored' => true] + self::ensure();
-    }
-
-    /**
-     * Contract site host (single consumer default; the shell end's
-     * FRANKENPHP_SITE_HOST flows through the runtime branch).
-     */
-    private static function defaultSiteHost(): string
-    {
-        return (string) (getenv('FRANKENPHP_SITE_HOST') ?: 'localhost');
-    }
-
-    /**
-     * Certificate directory (prebuilt acme.sh variant) serving the given
-     * site host, keyed by the registrable apex - mirrors the shell end's
-     * fm_acme_cert_dir_for_host: strip a leading "api.<region>.", where
-     * the region prefix comes from the DOMAIN_API_PREFIX env when set and
-     * otherwise from the 4-label heuristic ("api.si.gm15.com" ->
-     * "gm15.com"). Empty string when the apex cannot be derived.
-     */
-    private static function acmeCertDirForHost(string $host): string
-    {
-        $prefix = (string) (getenv('DOMAIN_API_PREFIX') ?: '');
-        $apex = '';
-
-        if ($host === '' || $host === 'localhost') {
-            return '';
-        }
-        if ($prefix !== '' && str_starts_with($host, "api.{$prefix}.")) {
-            $apex = substr($host, strlen("api.{$prefix}."));
-        } elseif (str_starts_with($host, 'api.') && substr_count($host, '.') >= 3) {
-            $apex = preg_replace('/^[^.]+\.[^.]+\./', '', $host) ?? $host;
-        } else {
-            $apex = $host;
-        }
-
-        if ($apex === '' || strpos($apex, '.') === false) {
-            return '';
-        }
-
-        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs/'.$apex);
     }
 
     /**

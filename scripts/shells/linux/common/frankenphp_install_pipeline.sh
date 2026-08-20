@@ -152,7 +152,6 @@ frankenphp_install_pipeline_retire_nonowners() {
 frankenphp_install_pipeline_finalize() {
     fm_caddyfile_ensure \
         "$FRANKENPHP_LARAVEL_PUBLIC_DIR" \
-        "$FRANKENPHP_SITE_HOST" \
         "$FRANKENPHP_SITE_PORT" \
         "$FRANKENPHP_ADMIN_PORT" \
         "${FRANKENPHP_CADDYFILE_DIR}/Caddyfile"

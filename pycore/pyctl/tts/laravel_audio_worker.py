@@ -188,6 +188,7 @@ def _run_audio_synth_lane(payload: Dict[str, Any]) -> Dict[str, int]:
             else:
                 failed += 1
         finally:
+            worker._record_task_result(success)
             worker._log_cycle_task_result(task, success)
             worker._queue.complete(task)
     return {
@@ -551,9 +552,6 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
 
     @serialized_method
     def _record_cycle(self, processed: int, succeeded: int, failed: int) -> Dict[str, Any]:
-        self._total_claimed += processed
-        self._total_succeeded += succeeded
-        self._total_failed += failed
         self._last_cycle_summary = {
             "processed": processed,
             "succeeded": succeeded,
@@ -561,6 +559,15 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             "at": int(time.time()),
         }
         return dict(self._last_cycle_summary)
+
+    @serialized_method
+    def _record_task_result(self, success: bool) -> None:
+        """Update lifetime counters as soon as one task reaches a terminal state."""
+        self._total_claimed += 1
+        if success:
+            self._total_succeeded += 1
+        else:
+            self._total_failed += 1
 
     def _state_snapshot(self) -> Dict[str, Any]:
         """Read the current counters without entering the worker queue."""
@@ -671,6 +678,8 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             info.update({
                 "kind": "article",
                 "text": text,
+                "md5": str(payload.get("md5") or "").strip()
+                or hashlib.md5(text.encode("utf-8")).hexdigest(),
                 "accent": str(payload.get("accent") or "").strip() or None,
                 "gender": str(payload.get("gender") or "").strip() or None,
             })
@@ -729,6 +738,37 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
         kind = info["kind"]
         language = info["language"]
         accent = info.get("accent") or None
+
+        if kind == "article":
+            cache_path = os.path.join(
+                str(get_app_cache_dir() / "article_audio"),
+                language,
+                f"{info.get('md5') or 'audio'}_{QWEN3TTS_ENGINE}.mp3",
+            )
+            os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+            if os.path.exists(cache_path) and os.path.getsize(cache_path) > 0:
+                ok_cache, _why = validate_mp3(cache_path)
+                if ok_cache:
+                    return True, cache_path, QWEN3TTS_ENGINE, "", False
+            result = tts_orchestrator.synthesize(
+                info["text"],
+                language,
+                Path(cache_path),
+                accent=accent,
+                gender=info.get("gender") or None,
+                priority_profile="agent_history",
+                required_engine=QWEN3TTS_ENGINE,
+                client_job_id=(
+                    f"queue-center:{info.get('task_id')}:{info.get('attempt', 0)}"
+                ),
+            )
+            provider = result.get("engine") or QWEN3TTS_ENGINE
+            if not result.get("success"):
+                return False, cache_path, provider, result.get("error") or "synthesis failed", False
+            ok, why = validate_mp3(cache_path)
+            if not ok:
+                return False, cache_path, provider, f"invalid audio from {provider}: {why}", False
+            return True, cache_path, provider, "", False
 
         if kind == "sentence":
             out_path = self._sentence_cache_path(info)
@@ -1301,13 +1341,22 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
             pass
 
     def _append_history(self, info: Dict[str, Any], provider: str, audio_path: str) -> None:
-        """Sentence-lane completed-history record (retired-worker parity)."""
-        if self.LANE != "sentence":
-            return
+        """Persist one completed audio record with cache and upload attribution."""
+        history_audio_path = audio_path
+        if info.get("kind") == "word":
+            cache_path = get_cache_path(info.get("word") or "", info.get("language") or "en", provider)
+            if os.path.exists(cache_path):
+                history_audio_path = cache_path
+        audio_bytes = (
+            os.path.getsize(history_audio_path)
+            if history_audio_path and os.path.exists(history_audio_path)
+            else 0
+        )
         try:
             append_record({
-                "task_type": _SENTENCE_HISTORY_TASK_TYPE,
-                "worker": "tts_sentence_worker",
+                "task_id": info.get("task_id"),
+                "task_type": info.get("task_type") or self.QUEUE_KEY,
+                "worker": "tts_sentence_worker" if self.LANE == "sentence" else "tts_queue_poller",
                 "title": (info.get("text") or "")[:120],
                 "content": info.get("text"),
                 "language": info.get("language"),
@@ -1315,12 +1364,17 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                 "detail": {
                     "provider": provider,
                     "engine": provider,
-                    "audio_path": audio_path,
+                    "audio_path": history_audio_path,
+                    "audio_bytes": audio_bytes,
                     "queue_position": info.get("queue_position"),
                     "variant_key": info.get("variant_key") or "",
                     "accent": info.get("accent"),
                     "gender": info.get("gender"),
                     "source": "tts",
+                    "audio_kind": info.get("kind"),
+                    "multi_sentence_audio": tts_orchestrator.engine_chunked(provider),
+                    "laravel_audio_uploaded": bool(info.get("backend_uploaded")),
+                    "laravel_result_accepted": bool(info.get("backend_result_accepted")),
                     "text": (info.get("text") or "")[:120],
                 },
             })
@@ -1508,6 +1562,7 @@ class BaseLaravelAudioWorker(BaseLaravelWorkerService):
                         else:
                             failed += 1
                     finally:
+                        self._record_task_result(success)
                         self._log_cycle_task_result(task, success)
                         self._queue.complete(task)
 
