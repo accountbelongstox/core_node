@@ -7,7 +7,10 @@ from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
 from pycore.pythreadpool import global_thread_pool
 from pycore.pythreadpool.registry import SERVICE_STARTERS
-from pycore.pyfoundations.singleton.detector import SingletonDetector, on_singleton_superseded
+from pycore.pyfoundations.singleton.detector import (
+    get_process_singleton_detector,
+    on_singleton_superseded,
+)
 from pycore.pyfoundations.launcher_config import LauncherConfig  # noqa: F401 — re-export
 
 import traceback
@@ -117,8 +120,9 @@ class ServiceLauncher:
                 'message': THREAD_BUS.get_busy_reason() if is_busy else 'Ready to shutdown'
             }
 
-        # Create detector with all configuration
-        self.singleton_detector = SingletonDetector(
+        # Reuse the process-owned detector when an embedding launcher already
+        # acquired this singleton domain before constructing ServiceLauncher.
+        self.singleton_detector = get_process_singleton_detector(
             app_id=self.config.app_id,
             port_start=self.config.singleton_port_start,
             port_range=self.config.singleton_port_range,

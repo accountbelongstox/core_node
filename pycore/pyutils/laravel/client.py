@@ -185,7 +185,7 @@ class LaravelClient:
         summary = _summarize_params(params, data, json, files)
         if timeout is None:
             timeout = _DEFAULT_TIMEOUT
-        request_headers = build_pycore_identity_headers()
+        request_headers = build_pycore_identity_headers(url)
         request_headers.update(dict(headers or {}))
         started = time.perf_counter()
         status = 0

@@ -13,6 +13,7 @@ class PycoreClientOnly
     private const CLIENT_ID = 'pycore';
     private const PROTOCOL_HEADER = 'X-Core-Node-Protocol';
     private const PROTOCOL_VERSION = '1';
+    private const SERVICE_ORIGIN_HEADER = 'X-Core-Node-Service-Origin';
     private const SERVICE_HEADER = 'X-Core-Node-Service';
     private const SERVICE_ID = 'laravel_main';
 
@@ -23,12 +24,50 @@ class PycoreClientOnly
      */
     public static function isMachineCall(Request $request): bool
     {
+        return DebugAuthService::isLoopback($request)
+            || self::hasPycoreIdentity($request);
+    }
+
+    public static function serviceOrigin(Request $request): ?string
+    {
+        $origin = trim((string) $request->header(self::SERVICE_ORIGIN_HEADER, ''));
+        $parts = [];
+        $scheme = '';
+        $host = '';
+        $authority = '';
+        $port = null;
+
+        if ($origin === '' || !self::hasPycoreIdentity($request)) {
+            return null;
+        }
+
+        $parts = parse_url($origin);
+        if (!is_array($parts)) {
+            return null;
+        }
+        $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+        $host = (string) ($parts['host'] ?? '');
+        $port = isset($parts['port']) ? (int) $parts['port'] : null;
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return null;
+        }
+        if (isset($parts['user']) || isset($parts['pass']) || isset($parts['path'])
+            || isset($parts['query']) || isset($parts['fragment'])) {
+            return null;
+        }
+
+        $authority = str_contains($host, ':') ? '['.$host.']' : $host;
+
+        return $scheme.'://'.$authority.($port !== null ? ':'.$port : '');
+    }
+
+    private static function hasPycoreIdentity(Request $request): bool
+    {
         $clientId = (string) $request->header(self::CLIENT_HEADER, '');
         $protocolVersion = (string) $request->header(self::PROTOCOL_HEADER, '');
 
-        return DebugAuthService::isLoopback($request)
-            || (hash_equals(self::CLIENT_ID, $clientId)
-                && hash_equals(self::PROTOCOL_VERSION, $protocolVersion));
+        return hash_equals(self::CLIENT_ID, $clientId)
+            && hash_equals(self::PROTOCOL_VERSION, $protocolVersion);
     }
 
     public function handle(Request $request, Closure $next): Response

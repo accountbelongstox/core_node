@@ -64,6 +64,7 @@ import { useClipboard } from '@/apps/laravel-manager/hooks';
 import NginxSiteModal from '../server-manager/NginxSiteModal';
 import GenerateCertModal from '../server-manager/modals/GenerateCertModal';
 import NginxPanel from '../server-manager/panels/NginxPanel';
+import FrankenPhpPanel from '../server-manager/panels/FrankenPhpPanel';
 import SslPanel from '../server-manager/panels/SslPanel';
 import SystemPanel from '../server-manager/panels/SystemPanel';
 import ServerFileManagerPanel from '../server-manager/panels/ServerFileManagerPanel';
@@ -74,7 +75,7 @@ interface ServerManagerProps {
   lang?: Language;
 }
 
-type ServerTab = 'nginx' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
+type ServerTab = 'nginx' | 'frankenphp' | 'ssl' | 'system' | 'files' | 'executor' | 'unified';
 
 const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
   const { setActiveView } = useUnifiedApp();
@@ -1073,6 +1074,15 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             // Polling error - keep trying.
           }
         }, 1500);
+      } else if (res.success && res.data?.status === 'completed') {
+        setCertProgress(previous => previous ? {
+          ...previous,
+          status: 'completed',
+          command: res.data.manager || 'acme.sh',
+          outputLines: Array.isArray(res.data.output_lines) ? res.data.output_lines : [],
+        } : null);
+        loadSSLCertificates();
+        setShowGenerateCert(false);
       } else {
         setCertProgress(p => p ? { ...p, status: 'failed', error: res.error || 'Failed to start certificate operation' } : null);
       }
@@ -1345,6 +1355,7 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
 
   const tabs = [
     { id: 'nginx' as ServerTab, label: t.tabs.nginx, icon: Network },
+    { id: 'frankenphp' as ServerTab, label: t.tabs.frankenphp, icon: Server },
     { id: 'ssl' as ServerTab, label: t.tabs.ssl, icon: Shield },
     { id: 'system' as ServerTab, label: t.tabs.system, icon: Server },
     { id: 'files' as ServerTab, label: t.tabs.files, icon: FileText },
@@ -1498,6 +1509,10 @@ const ServerManager: React.FC<ServerManagerProps> = ({ lang = 'en' }) => {
             onDeleteSite={handleDeleteSite}
             onDeleteFilesSite={handleDeleteFilesSite}
           />
+        )}
+
+        {activeTab === 'frankenphp' && (
+          <FrankenPhpPanel lang={lang} />
         )}
 
         {activeTab === 'ssl' && (

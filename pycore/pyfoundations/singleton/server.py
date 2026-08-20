@@ -60,6 +60,7 @@ class _SingletonServerMixin:
             self._is_primary = True
             self._running_signal = f"singleton.running.{self.app_id}.{port}"
             THREAD_BUS.signal(self._running_signal, True)
+            self._register_process_owner()
 
             self._log(f"[SUCCESS] Bound to port {port} (PRIMARY instance)")
 
@@ -81,6 +82,9 @@ class _SingletonServerMixin:
             return True
 
         except OSError as e:
+            if self._server_socket is not None:
+                self._server_socket.close()
+                self._server_socket = None
             self._log(f"Port {port}: Failed to bind - {e}", "ERROR")
             return False
 
@@ -274,8 +278,13 @@ class _SingletonServerMixin:
             THREAD_BUS.signal(self._running_signal, False)
         if self._server_socket:
             self._server_socket.close()
+            self._server_socket = None
         if self._listener_thread:
             self._listener_thread.join(timeout=2.0)
+            self._listener_thread = None
+        self._is_primary = False
+        self._bound_port = None
+        self._unregister_process_owner()
         self._log("Detector stopped")
 
     def is_primary(self) -> bool:

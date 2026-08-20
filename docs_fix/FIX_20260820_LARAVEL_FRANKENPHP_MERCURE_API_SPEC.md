@@ -226,6 +226,36 @@ The `realtime` member returned by both overview surfaces is:
 }
 ```
 
+### Machine endpoint origin correction (2026-08-20)
+
+Purpose: keep the Mercure dial URL and JWT `aud` bound to the exact Laravel
+origin that pycore already reached successfully. A reverse proxy may expose
+Laravel over HTTPS while the direct machine endpoint remains HTTP on port 9000;
+combining a forwarded HTTPS scheme with the direct HTTP port makes both pycore
+realtime consumers fail with `SSL: WRONG_VERSION_NUMBER`.
+
+Pycore now includes `X-Core-Node-Service-Origin` with its existing client and
+protocol identity headers. The value is reduced to an `http`/`https` origin
+without credentials, path, query, or fragment. Laravel accepts it only when the
+pycore identity pair is valid, then uses that one origin for `hub_url`,
+`subscribe_url`, and the JWT audience. Browser/session calls continue to use the
+request origin. This is a protocol-level correction shared by Queue Center and
+Relay; neither consumer performs TLS fallback or disables certificate checks.
+
+Code files and ownership:
+
+- `pycore/pyutils/laravel/identity.py`: builds the canonical machine service-origin header.
+- `pycore/pyutils/laravel/client.py`: attaches the actual resolved request origin to every pycore-to-Laravel call.
+- `poly_apps/laravel_main/app/Http/Middleware/PycoreClientOnly.php`: validates the origin under the existing pycore identity contract.
+- `poly_apps/laravel_main/app/Services/Relay/RelayHubJwt.php`: selects the validated machine origin before proxy-derived request origin.
+- `pycore/pyutils/common/mercure_client.py`: remains the one shared scheme-driven SSE transport for Queue Center and Relay.
+
+Official basis: Mercure defines the hub as the access-token resource identifier
+used by `aud`, and subscribers connect to the hub subscription URL over the
+declared HTTP transport. Python's `HTTPSConnection` performs TLS for an `https`
+URL; `SSL: WRONG_VERSION_NUMBER` therefore indicates a transport scheme mismatch,
+not a certificate-verification exception.
+
 mcp-chrome owns one shared Queue Center connection for background wakeups, task detail refresh, and the popup overview. Consumers reconcile through `/api/queue-center/events` before handling buffered SSE updates; `_id` suppresses duplicates, and `Last-Event-ID` resumes the Mercure transport after reconnect.
 
 ### Hub authorization response

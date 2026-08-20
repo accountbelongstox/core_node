@@ -29,6 +29,28 @@ export function getApiRegionPrefix(): string {
   return currentConfig.apiRegionPrefix;
 }
 
+export function resolveApiHostname(hostname: string): string {
+  const prefix = getApiRegionPrefix().toLowerCase();
+  const normalizedHost = hostname.trim().toLowerCase().replace(/\.$/, '');
+  const withoutWww = normalizedHost.replace(/^www\./, '');
+  const hasApiPrefix = withoutWww.startsWith('api.');
+  const apiRemainder = hasApiPrefix ? withoutWww.slice(4) : withoutWww;
+  const duplicateRegionPrefix = `${prefix}.${prefix}.`;
+  const canonicalRemainder = apiRemainder.startsWith(duplicateRegionPrefix)
+    ? apiRemainder.slice(prefix.length + 1)
+    : apiRemainder;
+
+  if (hasApiPrefix) {
+    return `api.${canonicalRemainder}`;
+  }
+
+  const apex = canonicalRemainder.startsWith(`${prefix}.`)
+    ? canonicalRemainder.slice(prefix.length + 1)
+    : canonicalRemainder;
+
+  return `api.${prefix}.${apex}`;
+}
+
 /**
  * Fetch the shell-written domain config same-origin and update the cache.
  * Single-flight while a load is in progress; every settled call may re-fetch,

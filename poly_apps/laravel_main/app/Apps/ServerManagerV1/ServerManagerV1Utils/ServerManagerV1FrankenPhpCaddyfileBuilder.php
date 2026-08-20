@@ -11,8 +11,8 @@ use App\Utils\FileSystemManager;
 
 /**
  * Single source of truth for the frankenphp-plane Caddyfile generation (one
- * site: the contract laravel_main app served by octane:frankenphp on
- * 443/h2/h3 with the built-in Mercure hub). Every caller (controllers, CLI
+ * site: the contract laravel_main app served by the Caddyfile-declared
+ * Laravel Octane worker on 443/h2/h3 with the built-in Mercure hub). Every caller (controllers, CLI
  * commands) renders through this builder so the plane keeps one canonical
  * server definition.
  *
@@ -21,7 +21,7 @@ use App\Utils\FileSystemManager;
  *   scripts/shells/linux/common/frankenphp_manager.sh
  *     (fm_caddyfile_ensure / fm_caddyfile_path defaults / fm_php_ini_dir)
  *   scripts/shells/linux/debian/debian_com/laravel_runtime_frankenphp.sh
- *     (launch: octane:frankenphp --caddyfile=... --admin-port=...)
+ *     (launch: frankenphp run -c <canonical Caddyfile>)
  * Any change to the global admin block, the https site block, the Mercure
  * publisher_jwt/subscriber_jwt stanza, the php_server/file_server pair, or
  * the env placeholder names MUST be applied to both ends in the same
@@ -48,6 +48,21 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'storage'
             .DIRECTORY_SEPARATOR.'frankenphp'.DIRECTORY_SEPARATOR.'Caddyfile';
+    }
+
+    public static function routesDirectory(): string
+    {
+        return dirname(self::caddyfilePath()).DIRECTORY_SEPARATOR.'routes';
+    }
+
+    public static function routeBackupsDirectory(): string
+    {
+        return dirname(self::caddyfilePath()).DIRECTORY_SEPARATOR.'route-backups';
+    }
+
+    public static function acmeCertificateDirectory(string $domain): string
+    {
+        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs/'.strtolower($domain));
     }
 
     /**
@@ -96,7 +111,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         // Per-domain route import, gated on file presence (caddy errors on
         // an unmatched import glob). Mirrors the shell end.
-        $routesDir = dirname(self::caddyfilePath()).DIRECTORY_SEPARATOR.'routes';
+        $routesDir = self::routesDirectory();
         $importStanza = !self::hasRouteFiles($routesDir)
             ? ''
             : "\n# Per-domain route files (managed by fm_domain_ensure_route_file)\nimport {$routesDir}/*.caddy\n";
@@ -226,12 +241,17 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function validate(): array
     {
+        return self::validatePath(self::caddyfilePath());
+    }
+
+    public static function validatePath(string $path): array
+    {
         $binary = self::binary();
         if ($binary === null) {
             return ['success' => false, 'output' => 'frankenphp binary not found'];
         }
 
-        $result = ServerManagerV1Utils::executeCommand($binary, ['validate', '--config', self::caddyfilePath()]);
+        $result = ServerManagerV1Utils::executeCommand($binary, ['validate', '--config', $path]);
 
         return [
             'success' => (bool) $result['success'],

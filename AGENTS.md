@@ -19,6 +19,7 @@
 **Compatibility:** Code must be compatible with Windows and Linux (Ubuntu, Debian, Kali) simultaneously, except for platform-specific scripts (.ps1 / .sh).
 
 **Documentation:** Code is documentation. Unless explicitly requested, do not add documentation in the code.
+**AI-Client Communication:** When AI-to-client communication or interaction is requested, read `docs_fix/CODESYNC_AI_COMMUNICATION_API.md`.
 
 **Pycore:** For work under `pycore`, use `development-guides/PYTHON_PYCORE.md`.
 

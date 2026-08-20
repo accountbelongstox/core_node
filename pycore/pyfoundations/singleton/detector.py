@@ -80,8 +80,21 @@ __all__ = [
     'MessageType',
     'ProtocolVersion',
     'detect_singleton',
+    'get_process_singleton_detector',
     'on_singleton_superseded',
 ]
+
+
+def _process_owner_signal(
+    app_id: str,
+    protocol_version: str,
+    port_start: int,
+    port_range: int,
+) -> str:
+    return (
+        f"singleton.owner.{protocol_version}.{app_id}."
+        f"{int(port_start)}.{int(port_range)}"
+    )
 
 
 # ============================================================
@@ -182,10 +195,36 @@ class SingletonDetector(_SingletonServerMixin):
         self._bound_port: Optional[int] = None
         self._server_socket: Optional[socket.socket] = None
         self._listener_thread: Optional[Any] = None
+        self._process_owner_signal = _process_owner_signal(
+            self.app_id,
+            self.protocol_version,
+            self.port_start,
+            self.port_range,
+        )
 
         if self.debug:
             self._log(f"[DEBUG] Initialized for app_id='{app_id}', port range {port_start}-{port_start + port_range - 1}")
             self._log(f"[DEBUG] Protocol: {self.protocol_version}, Timeout: {timeout}s")
+
+    def refresh_runtime_callbacks(
+        self,
+        on_message: Optional[Callable[[Dict], None]],
+        state_checker: Optional[Callable[[], Dict]],
+        on_shutdown_request: Optional[Callable[[], None]],
+        debug: bool,
+    ) -> None:
+        """Refresh callbacks when the process reuses its registered detector."""
+        self.on_message = on_message
+        self.state_checker = state_checker
+        self.on_shutdown_request = on_shutdown_request
+        self.debug = self.debug or debug
+
+    def _register_process_owner(self) -> None:
+        THREAD_BUS.signal(self._process_owner_signal, self)
+
+    def _unregister_process_owner(self) -> None:
+        if THREAD_BUS.get_signal(self._process_owner_signal) is self:
+            THREAD_BUS.clear_signal(self._process_owner_signal)
 
     def _log(self, message: str, level: str = "INFO"):
         """Log message if debug enabled"""
@@ -327,6 +366,18 @@ class SingletonDetector(_SingletonServerMixin):
         Returns:
             DetectionResult with detection status
         """
+        if self._is_primary and self._server_socket is not None and self._bound_port:
+            self._log(
+                f"[REUSE] This process already owns singleton port {self._bound_port}"
+            )
+            return DetectionResult(
+                is_primary=True,
+                port=self._bound_port,
+                existing_instance=False,
+                existing_port=None,
+                message=f"Reused PRIMARY instance on port {self._bound_port}",
+            )
+
         self._log("=" * 60)
         self._log(f"Starting singleton detection for '{self.app_id}'")
         self._log(f"Port range: {self.port_start}-{self.port_start + self.port_range - 1}")
@@ -589,13 +640,59 @@ def detect_singleton(
     Returns:
         DetectionResult
     """
-    detector = SingletonDetector(
+    detector = get_process_singleton_detector(
         app_id=app_id,
         port_start=port_start,
         port_range=port_range,
         debug=debug
     )
     return detector.detect_and_bind()
+
+
+def get_process_singleton_detector(
+    app_id: str,
+    port_start: int = 54000,
+    port_range: int = 100,
+    timeout: float = 1.0,
+    debug: bool = False,
+    on_message: Optional[Callable[[Dict], None]] = None,
+    state_checker: Optional[Callable[[], Dict]] = None,
+    shutdown_existing: bool = False,
+    protocol_version: str = ProtocolVersion.CURRENT,
+    on_shutdown_request: Optional[Callable[[], None]] = None,
+    takeover_timeout: float = 3.0,
+) -> SingletonDetector:
+    """Return the one registered detector for this process and port domain."""
+    owner_signal = _process_owner_signal(
+        app_id,
+        protocol_version,
+        port_start,
+        port_range,
+    )
+    existing = THREAD_BUS.get_signal(owner_signal)
+    if existing is not None and callable(getattr(existing, "is_primary", None)):
+        if existing.is_primary():
+            existing.refresh_runtime_callbacks(
+                on_message,
+                state_checker,
+                on_shutdown_request,
+                debug,
+            )
+            return existing
+
+    return SingletonDetector(
+        app_id=app_id,
+        port_start=port_start,
+        port_range=port_range,
+        timeout=timeout,
+        debug=debug,
+        on_message=on_message,
+        state_checker=state_checker,
+        shutdown_existing=shutdown_existing,
+        protocol_version=protocol_version,
+        on_shutdown_request=on_shutdown_request,
+        takeover_timeout=takeover_timeout,
+    )
 
 
 def on_singleton_superseded(callback: Callable[[Dict[str, Any]], None]) -> None:

@@ -29,8 +29,8 @@
 #   runtime mode (default): exact-variant runtime pointer convergence, then
 #     hands off to
 #     laravel_runtime_frankenphp.sh (Mercure key provisioning + canonical
-#     Caddyfile render with literal keys, octane:frankenphp HTTPS h2/h3 +
-#     embedded hub).
+#     Caddyfile render with literal keys, directly supervised FrankenPHP
+#     HTTPS h2/h3 + embedded Laravel Octane worker and hub).
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_SERVICE_COMMON_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -111,7 +111,7 @@ fi
 # FRANKENPHP_SITE_HOST still wins).
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
 
-echo "Starting headless API runtime (frankenphp plane -> octane:frankenphp on :${FRANKENPHP_HTTPS_PORT} h2/h3, Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
+echo "Starting headless API runtime (frankenphp plane -> direct Caddy supervision on :${FRANKENPHP_HTTPS_PORT} h2/h3, Laravel Octane worker + Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
 
 # Installation, custom-module builds and package cleanup are owned by step
 # 93. Foreground launches use the same exact-variant runtime contract as the

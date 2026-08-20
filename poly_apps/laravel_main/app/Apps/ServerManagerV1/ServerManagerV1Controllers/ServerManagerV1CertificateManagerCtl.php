@@ -4,6 +4,7 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Controllers;
 
 use App\Apps\ServerManagerV1\ServerManagerV1Gvar\ServerManagerV1Constants;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1Utils;
+use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1AcmeShCertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1SSLConfigReader;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateManager;
 use App\Apps\ServerManagerV1\ServerManagerV1Utils\ServerManagerV1CertificateMetadata;
@@ -12,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use App\Support\WebServerPlane;
 
 class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 {
@@ -23,6 +25,16 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $validation = $this->validateRequest($request, 'certificate_list');
         if ($validation) {
             return $validation;
+        }
+
+        if ($this->usesAcmeSh()) {
+            $certificates = ServerManagerV1AcmeShCertificateManager::list();
+
+            return $this->success([
+                'manager' => 'acme.sh',
+                'certificates' => $certificates,
+                'total_certificates' => count($certificates),
+            ], 'acme.sh certificate list retrieved successfully');
         }
 
         // Find certbot binary using absolute paths
@@ -140,6 +152,7 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         return $this->success([
             'provider' => ServerManagerV1CertificateMetadata::DEFAULT_PROVIDER,
+            'manager' => $this->usesAcmeSh() ? 'acme.sh' : 'certbot',
             'configured' => $credentials !== null,
             'email' => $credentials['email'] ?? null,
             'api_id' => $credentials['api_id'] ?? null,
@@ -169,6 +182,13 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         // Validate domain
         if (!filter_var($domain, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)) {
             return $this->error('Invalid domain name', 400, ['domain' => $domain]);
+        }
+
+        if ($this->usesAcmeSh()) {
+            return $this->acmeOperationResponse(
+                ServerManagerV1AcmeShCertificateManager::ensure((string) $domain),
+                'acme.sh certificate ensured successfully'
+            );
         }
 
         // Cooldown: 5 minutes between generate attempts per domain.
@@ -228,6 +248,13 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
 
         $domain = $request->input('domain');
         $all = $request->input('all', false);
+
+        if ($this->usesAcmeSh()) {
+            return $this->acmeOperationResponse(
+                ServerManagerV1AcmeShCertificateManager::renew($all ? null : ($domain !== null ? (string) $domain : null)),
+                'acme.sh certificate renewal completed successfully'
+            );
+        }
 
         // Find certbot binary using absolute paths
         $certbotPath = null;
@@ -380,6 +407,16 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         }
 
         $domain = $request->input('domain');
+
+        if ($this->usesAcmeSh()) {
+            $certificate = ServerManagerV1AcmeShCertificateManager::certificate((string) $domain);
+            if ($certificate === null) {
+                return $this->error('Certificate not found', 404, ['domain' => $domain]);
+            }
+
+            return $this->success($certificate, 'acme.sh certificate status retrieved successfully');
+        }
+
         $certPath = \App\Apps\ServerManagerV1\ServerManagerV1Config\ServerManagerV1PathConfig::getLetsEncryptCertPath($domain);
 
         if (!file_exists($certPath)) {
@@ -414,6 +451,13 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return $validation;
         }
 
+        if ($this->usesAcmeSh()) {
+            return $this->acmeOperationResponse(
+                ServerManagerV1AcmeShCertificateManager::install(),
+                'acme.sh installation completed successfully'
+            );
+        }
+
         // Run the check certbot command
         $exitCode = Artisan::call('servermanager:check-certbot', ['--install' => true]);
 
@@ -434,6 +478,13 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $validation = $this->validateRequest($request, 'certbot_detect');
         if ($validation) {
             return $validation;
+        }
+
+        if ($this->usesAcmeSh()) {
+            return $this->success(
+                ServerManagerV1AcmeShCertificateManager::status(),
+                'acme.sh status retrieved successfully'
+            );
         }
 
         // Check nginx using absolute paths (same as sh script logic)
@@ -690,6 +741,27 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
             return $this->error('Invalid domain name', 400);
         }
 
+        if ($this->usesAcmeSh()) {
+            $result = ServerManagerV1AcmeShCertificateManager::ensure((string) $domain);
+            if (($result['success'] ?? false) !== true) {
+                return $this->error(
+                    (string) ($result['error'] ?? 'acme.sh certificate ensure failed.'),
+                    (int) ($result['status'] ?? 500),
+                    $result
+                );
+            }
+
+            return $this->success([
+                'manager' => 'acme.sh',
+                'status' => 'completed',
+                'domain' => strtolower((string) $domain),
+                'certificate' => $result['certificate'] ?? null,
+                'reloaded' => $result['reloaded'] ?? false,
+                'output' => $result['output'] ?? '',
+                'output_lines' => array_values(array_filter(explode("\n", (string) ($result['output'] ?? '')))),
+            ], 'acme.sh certificate ensure completed successfully');
+        }
+
         // Cooldown: 5 minutes between attempts per domain (prevents rate-limit
         // exhaustion + rapid retry loops).
         $cooldownKey = 'cert_cooldown_' . md5(strtolower($domain));
@@ -834,5 +906,23 @@ class ServerManagerV1CertificateManagerCtl extends ServerManagerV1BaseCtl
         $which = ServerManagerV1Utils::executeCommand('which', ['certbot']);
         if ($which['success'] && trim($which['output'])) return trim($which['output']);
         return null;
+    }
+
+    private function usesAcmeSh(): bool
+    {
+        return WebServerPlane::current() === WebServerPlane::FRANKENPHP;
+    }
+
+    private function acmeOperationResponse(array $result, string $message): JsonResponse
+    {
+        if (($result['success'] ?? false) !== true) {
+            return $this->error(
+                (string) ($result['error'] ?? 'acme.sh operation failed.'),
+                (int) ($result['status'] ?? 500),
+                $result
+            );
+        }
+
+        return $this->success($result, $message);
     }
 }

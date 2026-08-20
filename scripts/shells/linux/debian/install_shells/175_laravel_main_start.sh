@@ -141,7 +141,7 @@ OCTANE_RUNTIME_POLL="0"
 # LARAVEL_SERVICE_RUN=1 is no longer needed (the service launcher is init-free).
 AS_SERVICE="${AS_SERVICE:-}"
 LARAVEL_SERVICE_NAME_BASE="ncore-laravel"
-LARAVEL_SERVICE_DESC_FRANKENPHP="laravel_main backend (octane:frankenphp, h2/h3)"
+LARAVEL_SERVICE_DESC_FRANKENPHP="laravel_main backend (FrankenPHP + Laravel Octane worker, h2/h3)"
 LARAVEL_SERVICE_DESC_NGINX="laravel_main backend (octane:swoole, nginx proxy)"
 # Laravel service resource policy (Laravel-specific; the manager's own
 # defaults stay 20% + tiered memory): CPU 25%, memory = 50% of total RAM

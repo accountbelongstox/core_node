@@ -39,6 +39,7 @@ const SslPanel: React.FC<SslPanelProps> = ({
   getStatusIcon
 }) => {
   const t = TRANSLATIONS[lang].server;
+  const certificateManager = certbotStatus.data?.manager || 'certbot';
 
   return (
     <div className="space-y-4">
@@ -53,12 +54,17 @@ const SslPanel: React.FC<SslPanelProps> = ({
                 <AlertTriangle className="w-5 h-5 text-yellow-500" />
               )}
               <div>
-                <p className="font-semibold">Certbot Status</p>
+                <p className="font-semibold">{certificateManager} {t.ssl.manager_status}</p>
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   {certbotStatus.data.installed
-                    ? `Installed${certbotStatus.data.version ? ` (v${certbotStatus.data.version})` : ''}`
-                    : 'Not Installed'}
+                    ? `${t.ssl.installed}${certbotStatus.data.version ? ` (${certbotStatus.data.version})` : ''}`
+                    : t.ssl.not_installed}
                 </p>
+                {certbotStatus.data.timer && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t.ssl.renewal_timer}: {certbotStatus.data.timer.active && certbotStatus.data.timer.enabled ? t.ssl.active : t.ssl.inactive}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -75,7 +81,7 @@ const SslPanel: React.FC<SslPanelProps> = ({
                   onClick={onInstallCertbot}
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"
                 >
-                  {t.ssl.certbot_install}
+                  {certificateManager === 'acme.sh' ? t.ssl.acme_install : t.ssl.certbot_install}
                 </button>
               )}
             </div>
@@ -137,11 +143,11 @@ const SslPanel: React.FC<SslPanelProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-500 dark:text-slate-400">{t.ssl.days_until_expiry}:</span>
-                  <p className="mt-1">{cert.days_until_expiry} days</p>
+                  <p className="mt-1">{t.ssl.days_value.replace('{days}', String(cert.days_until_expiry))}</p>
                 </div>
                 {cert.certificate_path && (
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400">Certificate Path:</span>
+                    <span className="text-slate-500 dark:text-slate-400">{t.ssl.certificate_path}:</span>
                     <p className="font-mono text-xs mt-1">{cert.certificate_path}</p>
                   </div>
                 )}
@@ -159,7 +165,7 @@ const SslPanel: React.FC<SslPanelProps> = ({
       {sslCertificates.data && sslCertificates.data.length === 0 && (
         <div className={`${commonClasses.card} p-12 text-center`}>
           <Shield className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-          <p className="text-slate-500 dark:text-slate-400">No SSL certificates found</p>
+          <p className="text-slate-500 dark:text-slate-400">{t.ssl.no_certificates}</p>
           <button
             onClick={onShowGenerateCert}
             className="mt-4 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium"

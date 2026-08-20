@@ -29,6 +29,7 @@ import json
 TEXT_END = "TEXT>>>"
 TEXT_START = "<<<TEXT"
 BLOCK_MARKERS = ("@session", "@prompt", "@turn", "@meta")
+ARTICLE_FRAGMENT_BOOLEAN_FIELDS = ("article_boundary", "direct_text")
 
 _SHARED_STATE_DIR = get_local_data_dir() / ".ai_state" / "agent_history"
 _LEGACY_DIR = APP_DATA_DIR / "ai_state" / "agent_history"
@@ -330,6 +331,8 @@ def read_session(session_id: str) -> Optional[Dict[str, Any]]:
             except (TypeError, ValueError):
                 fields["ts"] = 0
             fields["edited"] = str(fields.get("edited", "")).lower() == "true"
+            for field in ARTICLE_FRAGMENT_BOOLEAN_FIELDS:
+                fields[field] = str(fields.get(field, "")).lower() == "true"
             prompts.append(fields)
         elif marker == "@turn":
             try:
@@ -337,6 +340,8 @@ def read_session(session_id: str) -> Optional[Dict[str, Any]]:
             except (TypeError, ValueError):
                 fields["ts"] = 0
             fields["is_subagent"] = str(fields.get("is_subagent", "")).lower() == "true"
+            for field in ARTICLE_FRAGMENT_BOOLEAN_FIELDS:
+                fields[field] = str(fields.get(field, "")).lower() == "true"
             turns.append(fields)
     detail = dict(meta)
     for key in ("started_ts", "ended_ts", "prompt_count", "message_count", "bytes"):
@@ -379,6 +384,8 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
             "id": p.get("id", ""),
             "ts": p.get("ts", 0),
             "edited": bool(p.get("edited")),
+            "article_boundary": bool(p.get("article_boundary")),
+            "direct_text": bool(p.get("direct_text")),
             "text": p.get("text") or "",
         }, body_key="text"))
     for t in detail.get("turns") or []:
@@ -389,6 +396,8 @@ def write_session(session_id: str, detail: Dict[str, Any]) -> None:
             "is_subagent": bool(t.get("is_subagent")),
             "model": t.get("model") or "",
             "name": t.get("name") or "",
+            "article_boundary": bool(t.get("article_boundary")),
+            "direct_text": bool(t.get("direct_text")),
             "text": t.get("text") or "",
         }, body_key="text"))
     _atomic_write(sessions_dir() / f"{sid}.txt", "".join(parts))

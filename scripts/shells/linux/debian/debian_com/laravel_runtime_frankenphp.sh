@@ -12,10 +12,11 @@
 
 # laravel_main runtime - FRANKENPHP PLANE branch (referenced by
 # 175_laravel_main_start.sh and the plane-aware laravel service).
-# Single supervised `octane:frankenphp` process: HTTPS on
-# the contract frankenphp_https port (h2/h3), admin API on frankenphp_admin
-# (loopback), built-in Mercure hub at /.well-known/mercure. NO Reverb
-# process exists on this plane.
+# Single supervised `frankenphp run` process hosting the Laravel Octane
+# worker declared by the canonical Caddyfile: HTTPS on the contract
+# frankenphp_https port (h2/h3), admin API on frankenphp_admin (loopback),
+# built-in Mercure hub at /.well-known/mercure. NO Reverb process exists on
+# this plane.
 #
 # Mercure hub material (the pinned embedded Mercure runtime): the HMAC keys
 # are provisioned (never rotated) by the laravel_main RelayHubKeyProvisioner into the
@@ -35,6 +36,7 @@ WORKERS="${WORKERS:-4}"
 MAX_REQUESTS="${MAX_REQUESTS:-500}"
 OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
+REQUEST_MAX_EXECUTION_TIME="${REQUEST_MAX_EXECUTION_TIME:-30}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
 BOOTSTRAP_APP="${LARAVEL_DIR}/bootstrap/app.php"
 FRANKENPHP_CADDYFILE="${LARAVEL_DIR}/storage/frankenphp/Caddyfile"
@@ -49,7 +51,9 @@ FRANKENPHP_ACME_RELOAD_CMD=""
 FM_VARIANT=""
 FM_DNS01_MODE=""
 FM_BINARY=""
-OCTANE_ARGS=()
+CADDY_SERVER_WORKER_DIRECTIVE=""
+CADDY_SERVER_WATCH_DIRECTIVES=""
+FRANKENPHP_RUN_ARGS=()
 
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/service_contract_common.sh"
@@ -150,23 +154,28 @@ export PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)"
 
 cd "$LARAVEL_DIR" || exit 1
 
-OCTANE_ARGS=(
-    artisan octane:frankenphp
-    "--host=0.0.0.0"
-    "--port=${FRANKENPHP_HTTPS_PORT}"
-    "--https"
-    "--caddyfile=${FRANKENPHP_CADDYFILE}"
-    "--admin-port=${FRANKENPHP_ADMIN_PORT}"
-    "--workers=${WORKERS}"
-    "--max-requests=${MAX_REQUESTS}"
-)
+# Laravel Octane's artisan wrapper starts this same Caddy command as a child.
+# Systemd owns supervision here, so running Caddy directly removes the
+# duplicate PHP-CLI parent and gives Caddy native signal/shutdown semantics.
+export APP_BASE_PATH="$LARAVEL_DIR"
+export APP_PUBLIC_PATH="${LARAVEL_DIR}/public"
+export LARAVEL_OCTANE=1
+export MAX_REQUESTS
+export REQUEST_MAX_EXECUTION_TIME
 
+case "$WORKERS" in
+    ""|auto) CADDY_SERVER_WORKER_DIRECTIVE="" ;;
+    *[!0-9]*|0) CADDY_SERVER_WORKER_DIRECTIVE="" ;;
+    *) CADDY_SERVER_WORKER_DIRECTIVE="num ${WORKERS}" ;;
+esac
 if [ "$OCTANE_WATCH" = "1" ]; then
-    OCTANE_ARGS+=("--watch")
+    # Official FrankenPHP default watches .env/PHP/Twig/YAML files below
+    # the app root, avoiding a duplicate copy of Laravel's watch list.
+    CADDY_SERVER_WATCH_DIRECTIVES="watch"
 fi
-if [ "$OCTANE_POLL" = "1" ]; then
-    OCTANE_ARGS+=("--poll")
-fi
+export CADDY_SERVER_WORKER_DIRECTIVE
+export CADDY_SERVER_WATCH_DIRECTIVES
 
-echo "[laravel-runtime-frankenphp] Starting octane:frankenphp (https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"
-exec "$PHP_BIN" "${OCTANE_ARGS[@]}"
+FRANKENPHP_RUN_ARGS=(run -c "$FRANKENPHP_CADDYFILE")
+echo "[laravel-runtime-frankenphp] Starting direct FrankenPHP supervisor (Laravel Octane worker, https :${FRANKENPHP_HTTPS_PORT} h2/h3, admin :${FRANKENPHP_ADMIN_PORT}, Mercure hub on plane)"
+exec "$FM_BINARY" "${FRANKENPHP_RUN_ARGS[@]}"
