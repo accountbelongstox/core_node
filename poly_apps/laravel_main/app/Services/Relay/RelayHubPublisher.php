@@ -19,7 +19,7 @@ final class RelayHubPublisher
 {
     private const PUBLISHER_CACHE_SECONDS = 240;
 
-    /** @var array{token: string, expires_at: int}|null */
+    /** @var array{token: string, expires_at: int, hub_url: string}|null */
     private static ?array $cachedPublisher = null;
 
     /**
@@ -60,7 +60,7 @@ final class RelayHubPublisher
             $parts[] = 'topic='.rawurlencode($topic);
         }
 
-        $response = Http::withToken(self::publisherJwt())
+        $response = Http::withToken(self::publisherJwt($hubUrl))
             ->withBody(implode('&', $parts), 'application/x-www-form-urlencoded')
             ->timeout(5)
             ->post($hubUrl);
@@ -72,15 +72,18 @@ final class RelayHubPublisher
         return $updateId !== '' ? $updateId : null;
     }
 
-    private static function publisherJwt(): string
+    private static function publisherJwt(string $hubUrl): string
     {
-        if (self::$cachedPublisher !== null && time() < self::$cachedPublisher['expires_at']) {
+        if (self::$cachedPublisher !== null
+            && self::$cachedPublisher['hub_url'] === $hubUrl
+            && time() < self::$cachedPublisher['expires_at']) {
             return self::$cachedPublisher['token'];
         }
 
         self::$cachedPublisher = [
-            'token' => RelayHubJwt::publisherToken(),
+            'token' => RelayHubJwt::publisherToken($hubUrl),
             'expires_at' => time() + self::PUBLISHER_CACHE_SECONDS,
+            'hub_url' => $hubUrl,
         ];
 
         return self::$cachedPublisher['token'];

@@ -107,7 +107,7 @@ final class RelayHubAuthService
     {
         $topics = array_values(array_unique($topics));
         $hubUrl = RelayHubJwt::hubUrl();
-        $token = RelayHubJwt::subscriberToken($subject, $topics);
+        $token = RelayHubJwt::subscriberToken($subject, $topics, $hubUrl);
 
         return [
             'transport' => 'mercure',

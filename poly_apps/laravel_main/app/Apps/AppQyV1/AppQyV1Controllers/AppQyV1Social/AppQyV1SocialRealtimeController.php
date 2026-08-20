@@ -30,15 +30,18 @@ class AppQyV1SocialRealtimeController extends Controller
     {
         $userId = (int) $request->user()->id;
         // One authenticated round trip carries both the hub contract and the
-        // session token + cookie for this user's private social topic: the
-        // browser EventSource authorizes through the hub-path cookie alone.
+        // topic-scoped bearer token for this user's private social topic;
+        // the shared browser SSE transport sends it in Authorization.
         $token = RelayHubAuthService::issueForTopics(
             'social:'.$userId,
             [AppQyV1SocialEventModel::topic($userId)]
         );
         $token['events'] = AppQyV1SocialEventModel::eventNames();
 
-        return RelayHubAuthService::withHubCookie($this->success($token, 'Social realtime connection'), $token);
+        return RelayHubAuthService::withHubCookie(
+            $this->success($token, __('relay.social_realtime_connection')),
+            $token
+        );
     }
 
     public function events(Request $request): JsonResponse
@@ -71,6 +74,6 @@ class AppQyV1SocialRealtimeController extends Controller
             'cursor' => $current,
             'events' => $events,
             'has_more' => count($rows) >= $limit,
-        ], 'Social realtime events');
+        ], __('relay.social_realtime_events'));
     }
 }

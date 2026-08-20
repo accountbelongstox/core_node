@@ -12,7 +12,7 @@ use App\Support\RuntimeConfigurationStore;
  * keep validating across restarts); missing keys are generated once.
  *
  * The Caddyfile renderers (ServerManagerV1FrankenPhpCaddyfileBuilder here,
- * fm_mercure_stanza on the shell end) embed the stored values as literal
+ * fm_mercure_config on the shell end) embed the stored values as literal
  * publisher_jwt/subscriber_jwt directives after provisioning.
  */
 final class RelayHubKeyProvisioner

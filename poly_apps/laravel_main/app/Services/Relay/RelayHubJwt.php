@@ -22,26 +22,28 @@ final class RelayHubJwt
     public const TRUSTED_ISSUER_KEY = 'MERCURE_TRUSTED_ISSUERS';
     private const PUBLISHER_TTL_SECONDS = 300;
 
-    public static function publisherToken(): string
+    public static function publisherToken(?string $hubUrl = null): string
     {
         return self::build(
             'publisher',
             ['publish' => ['*']],
             self::PUBLISHER_TTL_SECONDS,
-            self::PUBLISHER_KEY
+            self::PUBLISHER_KEY,
+            $hubUrl
         );
     }
 
     /**
      * @param array<int, string> $topics
      */
-    public static function subscriberToken(string $subject, array $topics): string
+    public static function subscriberToken(string $subject, array $topics, ?string $hubUrl = null): string
     {
         return self::build(
             $subject,
             ['subscribe' => array_values(array_unique($topics))],
             QueueCenterContract::relayHubInt('token_ttl_seconds'),
-            self::SUBSCRIBER_KEY
+            self::SUBSCRIBER_KEY,
+            $hubUrl
         );
     }
 
@@ -58,11 +60,18 @@ final class RelayHubJwt
      */
     public static function servingOrigin(): string
     {
-        if (function_exists('app') && !app()->runningInConsole() && app()->bound('request')) {
+        if (function_exists('app') && app()->bound('request')) {
             $request = app('request');
-            if ($request instanceof \Illuminate\Http\Request && $request->getHost() !== '') {
+            if ($request instanceof \Illuminate\Http\Request
+                && $request->server->has('HTTP_HOST')
+                && $request->getHost() !== '') {
                 return $request->getSchemeAndHttpHost();
             }
+        }
+
+        $issuer = RuntimeConfigurationStore::get(self::TRUSTED_ISSUER_KEY, '');
+        if ($issuer !== '') {
+            return rtrim($issuer, '/');
         }
 
         return rtrim((string) config('app.url'), '/');
@@ -71,7 +80,13 @@ final class RelayHubJwt
     /**
      * @param array{publish?: array<int, string>, subscribe?: array<int, string>} $grant
      */
-    private static function build(string $subject, array $grant, int $ttlSeconds, string $keyName): string
+    private static function build(
+        string $subject,
+        array $grant,
+        int $ttlSeconds,
+        string $keyName,
+        ?string $hubUrl = null,
+    ): string
     {
         $now = new \DateTimeImmutable();
         $issuer = self::trustedIssuer();
@@ -85,7 +100,7 @@ final class RelayHubJwt
             ->withHeader('typ', 'at+jwt')
             ->issuedBy($issuer)
             ->identifiedBy('urn:uuid:'.(string) \Illuminate\Support\Str::uuid())
-            ->permittedFor(self::hubUrl())
+            ->permittedFor($hubUrl ?? self::hubUrl())
             ->relatedTo($subject)
             ->issuedAt($now)
             ->expiresAt($now->modify('+'.$ttlSeconds.' seconds'))

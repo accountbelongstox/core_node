@@ -41,6 +41,7 @@ FRANKENPHP_CADDYFILE="${LARAVEL_DIR}/storage/frankenphp/Caddyfile"
 FRANKENPHP_ROUTES_DIR="$(dirname "$FRANKENPHP_CADDYFILE")/routes"
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-localhost}"
 MERCURE_TRUSTED_ISSUERS=""
+MERCURE_CANONICAL_ISSUER=""
 DNSPOD_TOKEN=""
 FRANKENPHP_HTTPS_PORT=""
 FRANKENPHP_ADMIN_PORT=""
@@ -80,14 +81,14 @@ if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
     echo "[laravel-runtime-frankenphp] [ERROR] Mercure key provisioning failed (RelayHubKeyProvisioner); check the PHP runtime"
     exit 1
 fi
+MERCURE_CANONICAL_ISSUER="https://${FRANKENPHP_SITE_HOST}"
 MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
-if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
-    MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
-    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS" >/dev/null
+if [ "$MERCURE_TRUSTED_ISSUERS" != "$MERCURE_CANONICAL_ISSUER" ]; then
+    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_CANONICAL_ISSUER" >/dev/null
     MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
 fi
-if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
-    echo "[laravel-runtime-frankenphp] [ERROR] Mercure trusted issuer provisioning failed"
+if [ "$MERCURE_TRUSTED_ISSUERS" != "$MERCURE_CANONICAL_ISSUER" ]; then
+    echo "[laravel-runtime-frankenphp] [ERROR] Mercure trusted issuer convergence failed"
     exit 1
 fi
 DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"

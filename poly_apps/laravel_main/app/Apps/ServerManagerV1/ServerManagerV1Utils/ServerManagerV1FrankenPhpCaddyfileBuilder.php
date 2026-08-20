@@ -121,24 +121,23 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\n"
             . $dnspodTls
             . $acmeTls
-            . $mercureStanza
-            . self::octanePhpServerStanza()
+            . self::octaneHttpsStanza($backend)
             . "}\n"
             . "\n"
             . "# Direct HTTP catch-all backend (LAN and local machine clients)\n"
             . ":{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
+            . $mercureStanza
             . self::octanePhpServerStanza()
             . "}\n"
             . $importStanza;
     }
 
     /**
-     * Mercure hub stanza - the official flat syntax of the embedded
-     * mercure/caddy module (v0.24.x): literal HS256 keys from the private
-     * store. Empty when the keys are not provisioned yet. Mirrors the shell
-     * end's fm_mercure_stanza byte-identically.
+     * The single Mercure hub lives on the direct backend site. HTTPS and
+     * managed domain sites proxy the well-known path to this one instance,
+     * so the Bolt transport and FrankenPHP native publisher never diverge.
      */
     private static function mercureStanza(): string
     {
@@ -158,6 +157,19 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\n";
     }
 
+    private static function octaneHttpsStanza(int $backendPort): string
+    {
+        return "\troute {\n"
+            . "\t\t@mercure path /.well-known/mercure*\n"
+            . "\t\treverse_proxy @mercure http://".ServiceContract::host('loopback').":{$backendPort}\n"
+            . "\t\tphp_server {\n"
+            . "\t\t\tindex frankenphp-worker.php\n"
+            . "\t\t\ttry_files {path} frankenphp-worker.php\n"
+            . "\t\t\tresolve_root_symlink\n"
+            . "\t\t}\n"
+            . "\t}\n";
+    }
+
     /**
      * Idempotently ensure the Caddyfile matches the canonical render
      * (content-hash compare; write + 0600 only on drift). Returns a report
@@ -174,7 +186,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
                 'path' => $path,
                 'rendered' => false,
                 'canonical' => false,
-                'error' => 'Mercure hub keys are not provisioned',
+                'error' => __('relay.mercure_keys_missing'),
             ];
         }
         $rendered = self::render();
@@ -182,14 +194,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $dir = dirname($path);
         if (!FileSystemManager::ensureDirectoryExists($dir)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
-                'error' => "unable to create {$dir}"];
+                'error' => __('relay.private_file_directory_failed', ['path' => $dir])];
         }
 
         $existing = FileSystemManager::readFile($path, false);
         if (is_string($existing) && rtrim($existing) === rtrim($rendered)) {
             if (!FileSystemManager::ensureFileMode($path, 0600)) {
                 return ['path' => $path, 'rendered' => false, 'canonical' => true,
-                    'error' => "unable to set private permissions on {$path}"];
+                    'error' => __('relay.private_file_mode_failed', ['path' => $path])];
             }
 
             return ['path' => $path, 'rendered' => false, 'canonical' => true];
@@ -197,7 +209,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         if (!FileSystemManager::writePrivateFile($path, $rendered)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
-                'error' => "unable to write {$path}"];
+                'error' => __('relay.private_file_write_failed', ['path' => $path])];
         }
 
         return ['path' => $path, 'rendered' => true, 'canonical' => true];
@@ -330,7 +342,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         RuntimeConfigurationStore::put('DNSPOD_TOKEN', trim($token));
         $stored = RuntimeConfigurationStore::get('DNSPOD_TOKEN');
         if (!is_string($stored) || !hash_equals(trim($token), $stored)) {
-            return ['stored' => false, 'error' => 'token value was not persisted'];
+            return ['stored' => false, 'error' => __('relay.runtime_value_write_failed')];
         }
 
         return ['stored' => true] + self::ensure();
