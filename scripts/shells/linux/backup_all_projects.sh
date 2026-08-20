@@ -44,6 +44,7 @@ TAR_EXCLUDES=(
     --exclude='.venv'
     --exclude='venv'
     --exclude='env'
+    --exclude='.env'
     --exclude='.env.local'
     --exclude='target'
     --exclude='dist'

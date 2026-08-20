@@ -79,3 +79,19 @@ ensure_runtime_config_value() {
 
     runtime_config_put "$key" "$value"
 }
+
+# Ensure the Mercure hub keys exist in the store. Single writer: the
+# laravel_main provisioner (App\Services\Relay\RelayHubKeyProvisioner) -
+# idempotent, present keys are never rotated. Same caller contract as
+# runtime_config_get/put (PHP_BIN, VENDOR_AUTOLOAD, BOOTSTRAP_APP).
+# Non-zero when the provisioner cannot run; silent on success.
+runtime_config_ensure_mercure_keys() {
+    RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" \
+        php_script_run '
+        $autoload = getenv("RC_ARG_AUTOLOAD");
+        $bootstrap = getenv("RC_ARG_BOOTSTRAP");
+        require $autoload;
+        require $bootstrap;
+        \App\Services\Relay\RelayHubKeyProvisioner::ensure();
+    '
+}

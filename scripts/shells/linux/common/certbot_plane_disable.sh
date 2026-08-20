@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Certbot plane-disable (common area; companion of cert_selfheal_common.sh,
-# called by 49_install_frankenphp.sh - the frankenphp plane runs its own ACME
+# called by 93_install_frankenphp.sh - the frankenphp plane runs its own ACME
 # inside Caddy). DISABLES RENEWAL TIMERS AND RECORDS STATE ONLY: never
 # uninstalls certbot, never touches /etc/letsencrypt - re-running
 # 35_install_certbot.sh restores renewal at any time.

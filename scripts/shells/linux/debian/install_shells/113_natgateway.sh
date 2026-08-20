@@ -1447,7 +1447,7 @@ ensure_service_exists() {
 
 # Internal function to create systemd service (without auto-start)
 create_systemd_service_internal() {
-    local service_manager="$COMMON_DIR/debian_service_manager.sh"
+    local service_manager="$COMMON_DIR/systemd_service_manager.sh"
 
     if [[ ! -f "$service_manager" ]]; then
         log_error "Service manager not found: $service_manager"
@@ -1465,9 +1465,9 @@ create_systemd_service_internal() {
     fi
 }
 
-# Create systemd service using debian_service_manager.sh
+# Create systemd service using systemd_service_manager.sh
 create_systemd_service() {
-    log_info "Creating systemd service using debian_service_manager.sh..."
+    log_info "Creating systemd service using systemd_service_manager.sh..."
 
     if ! create_systemd_service_internal; then
         return 1

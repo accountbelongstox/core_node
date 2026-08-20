@@ -46,7 +46,7 @@ else
 fi
 
 # Use global temporary directory structure
-SCRIPT_TEMP_DIR=$(create_script_temp_dir "95_install_java")
+SCRIPT_TEMP_DIR=$(create_script_temp_dir "92_install_java")
 TAR_FILE="$SCRIPT_TEMP_DIR/$JAVA_TAR_FILE"
 EXTRACT_DIR="$SCRIPT_TEMP_DIR/$JAVA_EXTRACT_DIR"
 JAVA_BIN_DIR="$JAVA_INSTALL_DIR/jdk-${JAVA_VERSION}/bin"

@@ -69,12 +69,11 @@ initialize_runtime_configuration_store() {
 
     generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
     ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
-    # Mercure hub keys (HS256 secrets, server-side only; the frankenphp
-    # runtime branch injects them as process env for Caddy).
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
-    ensure_runtime_config_value "MERCURE_PUBLISHER_JWT" "$generated_value" || return 1
-    generated_value="$($PHP_BIN -r 'echo base64_encode(random_bytes(48));')"
-    ensure_runtime_config_value "MERCURE_SUBSCRIBER_JWT" "$generated_value" || return 1
+    # Mercure hub keys (HS256 secrets, server-side only; provisioned once
+    # by the laravel_main RelayHubKeyProvisioner into the constant store
+    # directory, then embedded as literal Caddyfile directives).
+    runtime_config_ensure_mercure_keys \
+        || { echo "ERROR: Failed to provision Mercure hub keys."; return 1; }
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }

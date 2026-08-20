@@ -14,7 +14,7 @@
 # called by 33_install_nginx.sh / 35_install_certbot.sh for the web-server
 # plane mutual exclusion). DISABLES THE OCTANE FRANKENPHP SERVICE AND RECORDS
 # STATE ONLY: never deletes the binary, the Caddyfile or the Mercure keys -
-# re-running 49_install_frankenphp.sh (or the 132 frankenphp branch)
+# re-running 93_install_frankenphp.sh (or the 132 frankenphp branch)
 # restores the plane.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

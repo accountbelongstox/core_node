@@ -11,7 +11,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Service runtime launcher — NGINX PLANE. Systemd ExecStart target.
-# Called by debian_service_manager via 175_laravel_main_start.sh's
+# Called by systemd_service_manager via 175_laravel_main_start.sh's
 # register_laravel_service. Only runs the minimal idempotent convergence
 # (nginx edge ports, service state, swoole probe) then exec's
 # laravel_runtime_nginx.sh with Octane swoole.
@@ -29,7 +29,7 @@ LINUX_COMMON_DIR="$(dirname "$LARAVEL_SERVICE_COMMON_DIR")/common"
 PORT="${PORT:-}"
 PHP_BIN="${PHP_BIN:-php}"
 LARAVEL_DIR="${LARAVEL_DIR:-}"
-LARAVEL_RUNTIME_NGINX_SCRIPT="${LARAVEL_RUNTIME_NGINX_SCRIPT:-${LARAVEL_SERVICE_COMMON_DIR}/laravel_runtime_nginx.sh}"
+LARAVEL_RUNTIME_NGINX_SCRIPT="${LARAVEL_RUNTIME_NGINX_SCRIPT:-${SCRIPT_CURRENT_DIR}/laravel_runtime_nginx.sh}"
 OCTANE_WATCH="${OCTANE_WATCH:-1}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 WORKERS="${WORKERS:-4}"

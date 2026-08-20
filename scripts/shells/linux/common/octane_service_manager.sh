@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 # Laravel Octane Service Manager
-# Wrapper around debian_service_manager.sh for Octane/Swoole services
+# Wrapper around systemd_service_manager.sh for Octane/Swoole services
 # Service naming: octane-<domain>-<port>
 # Auto-restart: Every 48 hours via systemd timer
 #
@@ -44,7 +44,7 @@ CORE_NODE_ROOT="$(dirname "$SCRIPT_PARENT_DIR")"
 # Source app paths constants first
 source "$SCRIPT_CURRENT_DIR/app_paths.sh"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
-source "$SCRIPT_CURRENT_DIR/debian_service_manager.sh"
+source "$SCRIPT_CURRENT_DIR/systemd_service_manager.sh"
 
 OCTANE_SERVICE_PREFIX="octane-"
 SYSTEMD_DIR="/etc/systemd/system"

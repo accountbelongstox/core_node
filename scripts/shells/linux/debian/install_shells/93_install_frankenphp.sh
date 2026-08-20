@@ -15,7 +15,9 @@
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 COMMON_DIR="$(dirname "$PARENT_DIR_LEVEL_1")/common"
-REPO_ROOT="$(cd "$SCRIPT_CURRENT_DIR/../../../.." && pwd)"
+# install_shells sits 5 levels below the repo root
+# (scripts/shells/linux/debian/install_shells).
+REPO_ROOT="$(cd "$SCRIPT_CURRENT_DIR/../../../../.." && pwd)"
 
 FRANKENPHP_INSTALL_MODE=""
 FRANKENPHP_INSTALL_SELECTION=""

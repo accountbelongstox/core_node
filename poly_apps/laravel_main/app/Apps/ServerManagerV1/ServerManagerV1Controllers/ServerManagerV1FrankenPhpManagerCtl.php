@@ -92,7 +92,8 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
 
     /**
      * Idempotently render the canonical Caddyfile (content-hash compare;
-     * secrets stay env placeholders). Returns the effective content.
+     * the returned content carries redacted Mercure key values). Returns
+     * the effective content.
      */
     public function ensureCaddyfile(Request $request): JsonResponse
     {
@@ -301,8 +302,9 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
     }
 
     /**
-     * Read the Caddyfile content (null-safe; secrets never appear - the
-     * template keeps env placeholders).
+     * Read the Caddyfile content (null-safe). The literal Mercure JWT key
+     * values are redacted: they never leave the 0600 file and the private
+     * store.
      */
     private function readCaddyfile(): ?string
     {
@@ -313,6 +315,14 @@ class ServerManagerV1FrankenPhpManagerCtl extends ServerManagerV1BaseCtl
 
         $content = @file_get_contents($path);
 
-        return $content === false ? null : $content;
+        if ($content === false) {
+            return null;
+        }
+
+        return preg_replace(
+            '/^(\s*(?:publisher|subscriber)_jwt\s+)\S+(\s+HS256\s*)$/m',
+            '$1<redacted>$2',
+            $content
+        );
     }
 }

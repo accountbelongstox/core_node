@@ -14,7 +14,7 @@
 # Core Node Services Manager (NCORE / PYCORE)
 # Auto-discovers and manages every systemd unit created by the core_node Linux
 # service-manager shells, regardless of which installer created it:
-#   - ncore-*            create_ncore_service / debian_service_manager.sh
+#   - ncore-*            create_ncore_service / systemd_service_manager.sh
 #                        (incl. ncore-laravel-main from poly_apps/laravel_main/scripts/start.sh)
 #   - pycore             pycore_service.sh (headless module caller)
 #   - pycore-module-caller   189_install_pycore_http_service.sh (HTTP service :59000)

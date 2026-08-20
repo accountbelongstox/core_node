@@ -78,40 +78,51 @@ fm_domain_render_route() {
     local api_host="api.${prefix}.${domain}"
     local dnspod_tls=""
     local acme_tls=""
+    local tls_directive=""
     local acme_cert_dir=""
 
-    # DNS-01 gate: identical to fm_caddyfile_ensure
-    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        && [ -n "$(fm_dnspod_token_value)" ]; then
-        dnspod_tls="tls {
-			dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
-		}"
+    # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
+    # pinned explicitly); the dnspod module stanza is the fallback.
+    acme_cert_dir="$(fm_acme_cert_dir_for_host "$api_host")"
+    if [ -n "$acme_cert_dir" ] \
+        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
+        && [ -f "${acme_cert_dir}/key.pem" ]; then
+        acme_tls="tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem"
     fi
 
-    # Prebuilt variant gate: acme.sh certs on disk
-    if [ -z "$dnspod_tls" ]; then
-        acme_cert_dir="$(fm_acme_cert_dir_for_host "$api_host")"
-        if [ -n "$acme_cert_dir" ] \
-            && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-            && [ -f "${acme_cert_dir}/key.pem" ]; then
-            acme_tls="tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem"
-        fi
+    # DNS-01 fallback gate: identical to fm_caddyfile_ensure
+    if [ -z "$acme_tls" ] \
+        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+        && [ -n "$(fm_dnspod_token_value)" ]; then
+        dnspod_tls="tls {
+		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
+	}"
+    fi
+
+    # Single tls directive line - omitted entirely when both gates are off
+    # (a bare tab line would not survive caddy fmt).
+    tls_directive=""
+    if [ -n "$acme_tls" ]; then
+        tls_directive="	${acme_tls}
+"
+    elif [ -n "$dnspod_tls" ]; then
+        tls_directive="	${dnspod_tls}
+"
     fi
 
     cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
 
 ${api_host}:${FM_DOMAIN_HTTPS_PORT} {
-	${dnspod_tls}${acme_tls}
-	reverse_proxy ${FM_DOMAIN_BACKEND_URL}
+${tls_directive}	reverse_proxy ${FM_DOMAIN_BACKEND_URL}
 }
 
 ${domain}:${FM_DOMAIN_HTTPS_PORT} {
-	redir https://${api_host}{uri} permanent
+${tls_directive}	redir https://${api_host}{uri} permanent
 }
 
 www.${domain}:${FM_DOMAIN_HTTPS_PORT} {
-	redir https://${api_host}{uri} permanent
+${tls_directive}	redir https://${api_host}{uri} permanent
 }
 EOF
 }
@@ -143,10 +154,29 @@ fm_domain_render_main_caddyfile() {
     local dnspod_tls=""
     local acme_tls=""
     local acme_cert_dir=""
+    local mercure_stanza=""
+    local backend_port=""
+    local import_stanza=""
 
-    # DNS-01 gate for the main server block (wildcard applies to the
-    # primary site_host; per-domain routes carry their own tls stanza).
-    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+    # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
+    # pinned explicitly - the service-start pre-flight provisions them);
+    # the dnspod module stanza is the fallback. A localhost site_host skips
+    # the fallback too (certmagic rejects localhost for public certs - the
+    # site falls back to Caddy's internal CA).
+    acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
+    if [ -n "$acme_cert_dir" ] \
+        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
+        && [ -f "${acme_cert_dir}/key.pem" ]; then
+        acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
+
+"
+    fi
+
+    # DNS-01 fallback gate for the main server block (wildcard applies to
+    # the primary site_host; per-domain routes carry their own tls stanza).
+    if [ -z "$acme_tls" ] \
+        && [ "$site_host" != "localhost" ] \
+        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
         && [ -n "$(fm_dnspod_token_value)" ]; then
         dnspod_tls="	tls {
 		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
@@ -155,15 +185,24 @@ fm_domain_render_main_caddyfile() {
 "
     fi
 
-    if [ -z "$dnspod_tls" ]; then
-        acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
-        if [ -n "$acme_cert_dir" ] \
-            && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-            && [ -f "${acme_cert_dir}/key.pem" ]; then
-            acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
+    # Mercure stanza: literal HS256 keys from the store (fm_mercure_stanza
+    # in frankenphp_manager.sh); empty (block omitted) when the keys are
+    # not provisioned yet. printf -v capture keeps the trailing blank line
+    # ($( ) strips it).
+    fm_mercure_stanza
+    mercure_stanza="$FM_MERCURE_STANZA"
 
-"
-        fi
+    # Direct HTTP backend block (nginx-plane contract port on all
+    # interfaces) + the per-domain route import, gated on file presence -
+    # caddy errors on an unmatched import glob. Byte-synced with the
+    # service renderer (fm_caddyfile_ensure).
+    backend_port="$(sc_require ports.laravel_api_backend)"
+    import_stanza=""
+    if compgen -G "${FM_DOMAIN_ROUTES_DIR}/*.caddy" > /dev/null 2>&1; then
+        import_stanza="
+
+# Per-domain route files (managed by fm_domain_ensure_route_file)
+import ${FM_DOMAIN_ROUTES_DIR}/*.caddy"
     fi
 
     cat <<EOF
@@ -178,23 +217,17 @@ https://${site_host}:${FM_DOMAIN_HTTPS_PORT} {
 	root * ${laravel_public}
 	encode zstd gzip
 
-${dnspod_tls}${acme_tls}	mercure {
-		issuer {env.MERCURE_TRUSTED_ISSUERS} {
-			publisher {
-				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
-			}
-			subscriber {
-				jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
-			}
-		}
-	}
-
-	php_server
+${dnspod_tls}${acme_tls}${mercure_stanza}	php_server
 	file_server
 }
 
-# Per-domain route files (managed by fm_domain_ensure_route_file)
-import ${FM_DOMAIN_ROUTES_DIR}/*
+# Direct HTTP backend (nginx-plane contract port, binds all interfaces)
+:${backend_port} {
+	root * ${laravel_public}
+	encode zstd gzip
+	php_server
+	file_server
+}${import_stanza}
 EOF
 }
 

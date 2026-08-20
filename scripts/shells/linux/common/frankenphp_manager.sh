@@ -42,13 +42,16 @@
 # (NOT uninstalled) via their plane-disable companions. The plane constant
 # is the shared web_server_plane() in gvar_common.sh.
 #
-# SECRETS: the Caddyfile carries ONLY {$ENV} placeholders for the Mercure
-# JWT keys - actual values are injected as process env by the runtime
-# (132 frankenphp branch) from the RuntimeConfigurationStore; they never
-# live in the Caddyfile.
+# SECRETS: the Mercure HS256 keys are read from the
+# RuntimeConfigurationStore and embedded as LITERAL publisher_jwt /
+# subscriber_jwt values (official flat syntax of the embedded
+# mercure/caddy module v0.24.x) - the 0600 Caddyfile is the only on-disk
+# copy next to the store itself; no process env, no .env. Keys are
+# provisioned (never rotated) by the laravel_main provisioner
+# (RelayHubKeyProvisioner) through the runtime_config_common adapter.
 #
 # SYNC CONTRACT: Caddyfile/mercure semantics are shared with the Laravel end
-# (ServerManagerV1FrankenPhpManagerCtl); change both ends together.
+# (ServerManagerV1FrankenPhpCaddyfileBuilder); change both ends together.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_INDEX="frankenphp-mgr"
@@ -830,8 +833,38 @@ fm_ensure_dnspod_module() {
     return 0
 }
 
-# Canonical Caddyfile render (content-hash idempotent). Mercure JWT values
-# stay {$ENV} placeholders; the runtime injects them as process env.
+# Mercure hub stanza: literal HS256 keys from the RuntimeConfigurationStore
+# (official flat syntax of the embedded mercure/caddy module v0.24.x).
+# Sets FM_MERCURE_STANZA (printf -v preserves the trailing blank line -
+# $(...) capture would strip it and glue php_server onto the closing
+# brace). Empty when the store is unreadable (e.g. an install-time render
+# before 175 provisioning - no runtime_config adapter context) or the keys
+# are not provisioned yet. SYNC CONTRACT:
+# ServerManagerV1FrankenPhpCaddyfileBuilder::mercureStanza renders the
+# identical stanza.
+fm_mercure_stanza() {
+    local publisher_key=""
+    local subscriber_key=""
+
+    FM_MERCURE_STANZA=""
+    if [ "$(type -t runtime_config_get)" != "function" ] \
+        || [ -z "${VENDOR_AUTOLOAD:-}" ] || [ ! -f "$VENDOR_AUTOLOAD" ] \
+        || [ -z "${BOOTSTRAP_APP:-}" ] || [ ! -f "$BOOTSTRAP_APP" ]; then
+        return 0
+    fi
+    publisher_key="$(runtime_config_get "MERCURE_PUBLISHER_JWT" 2>/dev/null)"
+    subscriber_key="$(runtime_config_get "MERCURE_SUBSCRIBER_JWT" 2>/dev/null)"
+    if [ -z "$publisher_key" ] || [ -z "$subscriber_key" ]; then
+        return 0
+    fi
+    printf -v FM_MERCURE_STANZA '\tmercure {\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t}\n\n' \
+        "$publisher_key" "$subscriber_key"
+}
+
+# Canonical Caddyfile render (content-hash idempotent). The Mercure keys
+# are embedded as literal publisher_jwt/subscriber_jwt values from the
+# store (fm_mercure_stanza); the stanza is omitted when the keys are not
+# available yet.
 # Args: 1 laravel_public_dir 2 site_host 3 https_port 4 admin_port 5 caddyfile_path
 fm_caddyfile_ensure() {
     local laravel_public_dir="$1"
@@ -845,18 +878,46 @@ fm_caddyfile_ensure() {
     local dnspod_tls=""
     local acme_tls=""
     local acme_cert_dir=""
+    local mercure_stanza=""
+    local routes_dir=""
+    local backend_port=""
+    local import_stanza=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
     if [ ! -d "$caddyfile_dir" ]; then
         mkdir -p "$caddyfile_dir"
     fi
 
-    # DNS-01 stanza renders ONLY when both truths hold: the module is
-    # embedded in the binary AND the DNSPod token is stored (env placeholder
-    # only - the token itself never enters the file). Sync contract: the
-    # Laravel builder renders the identical gate.
+    # Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk are
+    # pinned explicitly (the service-start pre-flight provisions them BEFORE
+    # the server binds the HTTPS port - acme_sh_preflight_for_service). The
+    # embedded dnspod DNS-01 stanza stays the fallback for builds whose
+    # module works; neither gate matching -> Caddy built-in ACME
+    # (HTTP-01/TLS-ALPN-01) stays in charge. Sync contract: the Laravel
+    # builder renders the identical gates.
+    acme_tls=""
+    acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
+    if [ -n "$acme_cert_dir" ] \
+        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
+        && [ -f "${acme_cert_dir}/key.pem" ]; then
+        acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
+
+"
+    fi
+
+    # DNS-01 fallback stanza renders ONLY when no prebuilt cert holds and
+    # all truths hold: the site host is a public domain (NOT the localhost
+    # fallback - certmagic rejects localhost for public certs, which would
+    # loop ACME retries forever; a localhost site falls back to Caddy's
+    # internal CA), the module is embedded in the binary AND the DNSPod
+    # token is stored (env placeholder only - the token itself never enters
+    # the file). Sync contract: the Laravel builder renders the identical
+    # gate.
     dnspod_tls=""
-    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] && [ -n "$(fm_dnspod_token_value)" ]; then
+    if [ -z "$acme_tls" ] \
+        && [ "$site_host" != "localhost" ] \
+        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
+        && [ -n "$(fm_dnspod_token_value)" ]; then
         dnspod_tls="	tls {
 		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
 	}
@@ -864,19 +925,23 @@ fm_caddyfile_ensure() {
 "
     fi
 
-    # Prebuilt variant gate: when the dnspod module is NOT embedded but the
-    # acme.sh DNS-01 certificates are on disk, pin them explicitly. Neither
-    # gate matching -> Caddy built-in ACME (HTTP-01/TLS-ALPN-01) stays in
-    # charge. Sync contract: the Laravel builder renders the identical gates.
-    if [ -z "$dnspod_tls" ]; then
-        acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
-        if [ -n "$acme_cert_dir" ] \
-            && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-            && [ -f "${acme_cert_dir}/key.pem" ]; then
-            acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
+    # Mercure stanza: literal HS256 keys from the store; empty (block
+    # omitted) when the store is unreadable or the keys are missing.
+    # printf -v capture keeps the trailing blank line ($( ) strips it).
+    fm_mercure_stanza
+    mercure_stanza="$FM_MERCURE_STANZA"
 
-"
-        fi
+    # Direct HTTP backend block (nginx-plane contract port on all
+    # interfaces) + the per-domain route import (same routes dir the domain
+    # renderer writes; gated on file presence - caddy errors on an
+    # unmatched import glob). Byte-synced with the Laravel builder.
+    routes_dir="${caddyfile_dir}/routes"
+    backend_port="$(sc_require ports.laravel_api_backend)"
+    import_stanza=""
+    if compgen -G "${routes_dir}/*.caddy" > /dev/null 2>&1; then
+        import_stanza="
+# Per-domain route files (managed by fm_domain_ensure_route_file)
+import ${routes_dir}/*.caddy"
     fi
 
     rendered="# Managed by frankenphp_manager.sh (SYNC: ServerManagerV1FrankenPhpManagerCtl)
@@ -889,21 +954,18 @@ https://${site_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${dnspod_tls}${acme_tls}	mercure {
-		issuer {env.MERCURE_TRUSTED_ISSUERS} {
-			publisher {
-				jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}
-			}
-			subscriber {
-				jwt {env.MERCURE_SUBSCRIBER_JWT_KEY} {env.MERCURE_SUBSCRIBER_JWT_ALG}
-			}
-		}
-	}
+${dnspod_tls}${acme_tls}${mercure_stanza}	php_server
+	file_server
+}
 
+# Direct HTTP backend (nginx-plane contract port, binds all interfaces)
+:${backend_port} {
+	root * ${laravel_public_dir}
+	encode zstd gzip
 	php_server
 	file_server
 }
-"
+${import_stanza}"
 
     existing=""
     [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"
@@ -914,7 +976,7 @@ ${dnspod_tls}${acme_tls}	mercure {
 
     printf '%s\n' "$rendered" > "$caddyfile_path"
     chmod 600 "$caddyfile_path"
-    echo "[$SCRIPT_INDEX] Caddyfile rendered: $caddyfile_path (secrets stay env placeholders)"
+    echo "[$SCRIPT_INDEX] Caddyfile rendered: $caddyfile_path (Mercure keys embedded as literal directives, caddy-fmt clean)"
 }
 
 # Persist state for downstream consumers (Laravel ServerManager, 132).
@@ -939,6 +1001,72 @@ fm_dns01_status() {
         return 0
     fi
     echo "ready (module embedded + token stored)"
+}
+
+# Certificate readiness summary for the service-start log: module/token/
+# account-email booleans plus the per-apex prebuilt cert state (presence
+# and the 30-day expiry window). Secrets never print - booleans and file
+# state only. Args: 1 site_host 2 routes_dir
+fm_cert_status() {
+    local site_host="$1"
+    local routes_dir="$2"
+    local prefix=""
+    local apex=""
+    local route_file=""
+    local cert_dir=""
+    local state=""
+    local apex_list=""
+
+    [ -n "$site_host" ] || site_host="localhost"
+    prefix="${DOMAIN_API_PREFIX:-}"
+    if [ -z "$prefix" ]; then
+        prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
+    fi
+
+    echo "[$SCRIPT_INDEX] Certificate readiness (booleans only):"
+    if [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ]; then
+        echo "  - dnspod module: embedded (fallback path)"
+    else
+        echo "  - dnspod module: missing"
+    fi
+    if [ -n "$(fm_dnspod_token_value)" ]; then
+        echo "  - dnspod token: stored (id,token)"
+    else
+        echo "  - dnspod token: absent"
+    fi
+    if [ -n "$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY" 2>/dev/null)" ]; then
+        echo "  - ACME account email: stored"
+    else
+        echo "  - ACME account email: absent"
+    fi
+
+    apex_list=" "
+    if [ "$site_host" != "localhost" ]; then
+        apex="${site_host#api.${prefix}.}"
+        if [ -n "$apex" ] && [ "$apex" != "localhost" ]; then
+            apex_list="${apex_list}${apex} "
+        fi
+    fi
+    if [ -n "$routes_dir" ] && [ -d "$routes_dir" ]; then
+        for route_file in "$routes_dir"/*.caddy; do
+            [ -f "$route_file" ] || continue
+            apex="$(basename "$route_file" .caddy)"
+            case "$apex_list" in *" $apex "*) continue ;; esac
+            apex_list="${apex_list}${apex} "
+        done
+    fi
+    for apex in $apex_list; do
+        cert_dir="${FRANKENPHP_ACME_CERT_DIR}/${apex}"
+        state="missing"
+        if [ -f "${cert_dir}/fullchain.pem" ] && [ -f "${cert_dir}/key.pem" ]; then
+            state="present"
+            if ! openssl x509 -checkend 2592000 -noout -in "${cert_dir}/fullchain.pem" >/dev/null 2>&1; then
+                state="present, renewal due (<30d left)"
+            fi
+        fi
+        echo "  - prebuilt cert ${apex}: ${state} (${cert_dir})"
+    done
+    echo "  - caddy data dir: ${XDG_DATA_HOME:-/root/.local/share}/caddy"
 }
 
 # Idempotent DNS-01 certificate readiness (compile variant): converge the

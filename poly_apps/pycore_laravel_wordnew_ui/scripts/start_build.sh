@@ -13,7 +13,7 @@
 # the idempotent installer steps referenced by FULL PATH (dd.sh install_shells menu):
 #   17_install_node_24.sh        - node + pnpm
 #   13_ensure_python.sh          - python
-#   93_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
+#   92_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
 #   187_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
 #                                  platforms;android-36 + build-tools;36.0.0
 # (each step is per-detail idempotent: every component is gated by binary existence)
@@ -41,7 +41,7 @@ BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
 LINUX_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux"
 STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_24.sh"
 STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
-STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/93_install_java.sh"
+STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/92_install_java.sh"
 STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
 ANDROID_BUILD_ENV="${LINUX_SHELLS_DIR}/common/android_build_env.sh"
 GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
@@ -212,7 +212,7 @@ if [ "$READY" -eq 1 ] && [ -z "$LIST_APPS" ]; then
         invoke_step "$STEP_JAVA"
         android_build_resolve_java_home
         if ! android_build_java_ready; then
-            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 93_install_java.sh."
+            err "JDK ${ANDROID_BUILD_REQUIRED_JAVA_MAJOR}+ still missing after 92_install_java.sh."
             READY=0
         fi
     fi

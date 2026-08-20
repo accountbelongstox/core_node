@@ -117,7 +117,7 @@ EOF
     $sudo_cmd chmod 755 "$CERT_SELFHEAL_WRAPPER" 2>/dev/null || true
 }
 
-# Ensure the twice-daily renewal timer via debian_service_manager's oneshot +
+# Ensure the twice-daily renewal timer via systemd_service_manager's oneshot +
 # timer primitives (official cadence guidance; RandomizedDelaySec spreads the
 # CA load; Persistent catches up after downtime). Self-detects systemd and
 # skips with guidance when unavailable; each unit is content-hash idempotent.
@@ -133,7 +133,7 @@ cert_selfheal_ensure_timer() {
     if [ "$(id -u)" -eq 0 ]; then
         (
             # shellcheck disable=SC1090
-            source "$CERT_SELFHEAL_COMMON_DIR/debian_service_manager.sh"
+            source "$CERT_SELFHEAL_COMMON_DIR/systemd_service_manager.sh"
             create_systemd_oneshot_service "$CERT_SELFHEAL_SERVICE_NAME" "core_node certificate renewal run" "$CERT_SELFHEAL_WRAPPER" "/"
             create_systemd_timer "$CERT_SELFHEAL_SERVICE_NAME" "core_node certificate renewal (twice daily; certbot self-gates near-expiry)" \
                 "*-*-* 06:17:00" "*-*-* 18:17:00" "RandomizedDelaySec=1h"
@@ -143,7 +143,7 @@ cert_selfheal_ensure_timer() {
             source "$1"
             create_systemd_oneshot_service "$2" "core_node certificate renewal run" "$3" "/"
             create_systemd_timer "$2" "core_node certificate renewal (twice daily; certbot self-gates near-expiry)" "*-*-* 06:17:00" "*-*-* 18:17:00" "RandomizedDelaySec=1h"
-        ' _ "$CERT_SELFHEAL_COMMON_DIR/debian_service_manager.sh" "$CERT_SELFHEAL_SERVICE_NAME" "$CERT_SELFHEAL_WRAPPER" \
+        ' _ "$CERT_SELFHEAL_COMMON_DIR/systemd_service_manager.sh" "$CERT_SELFHEAL_SERVICE_NAME" "$CERT_SELFHEAL_WRAPPER" \
             || echo "[cert-selfheal] [WARN] timer registration reported issues (continuing)"
     else
         echo "[cert-selfheal] [WARN] need root (or sudo) to register the renewal timer; re-run as root"

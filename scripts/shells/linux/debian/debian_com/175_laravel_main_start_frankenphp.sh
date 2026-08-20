@@ -30,8 +30,9 @@
 #     idempotent probe, no step's no-op blocks the next: binary -> canonical
 #     link -> php-cli shims -> plane PHP ini -> dnspod module (defer-safe) ->
 #     DNS-01 readiness -> site host. Then hands off to
-#     laravel_runtime_frankenphp.sh (canonical Caddyfile render, Mercure key
-#     env injection, octane:frankenphp HTTPS h2/h3 + embedded hub).
+#     laravel_runtime_frankenphp.sh (Mercure key provisioning + canonical
+#     Caddyfile render with literal keys, octane:frankenphp HTTPS h2/h3 +
+#     embedded hub).
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LARAVEL_SERVICE_COMMON_DIR="$(dirname "$SCRIPT_CURRENT_DIR")"
@@ -40,7 +41,7 @@ LINUX_COMMON_DIR="$(dirname "$LARAVEL_SERVICE_COMMON_DIR")/common"
 PORT="${PORT:-}"
 PHP_BIN="${PHP_BIN:-php}"
 LARAVEL_DIR="${LARAVEL_DIR:-}"
-LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${LARAVEL_RUNTIME_FRANKENPHP_SCRIPT:-${LARAVEL_SERVICE_COMMON_DIR}/laravel_runtime_frankenphp.sh}"
+LARAVEL_RUNTIME_FRANKENPHP_SCRIPT="${LARAVEL_RUNTIME_FRANKENPHP_SCRIPT:-${SCRIPT_CURRENT_DIR}/laravel_runtime_frankenphp.sh}"
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-}"
 FRANKENPHP_HTTPS_PORT="${FRANKENPHP_HTTPS_PORT:-}"
 OCTANE_RUNTIME_WATCH="${OCTANE_RUNTIME_WATCH:-0}"
@@ -118,8 +119,8 @@ fm_ensure_dnspod_module
 # the token is the single manual input and cannot be generated.
 fm_dns01_ensure
 
-# STEP 3: single supervised runtime process (canonical Caddyfile, Mercure
-# env injection, embedded hub - no sidecar process on this plane).
+# STEP 3: single supervised runtime process (canonical Caddyfile with
+# literal Mercure keys, embedded hub - no sidecar process on this plane).
 PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
     FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \
     OCTANE_WATCH="$OCTANE_RUNTIME_WATCH" OCTANE_POLL="$OCTANE_RUNTIME_POLL" \

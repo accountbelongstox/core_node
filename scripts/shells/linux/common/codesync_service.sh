@@ -20,7 +20,7 @@
 # Sync daemon (no UI, no pycore, no prerequisite install) in the foreground. It
 # REUSES the existing infrastructure, exactly like pycore_service.sh:
 #   - common/gvar_common.sh            -> detect_system_user(), USE_SUDO
-#   - common/debian_service_manager.sh -> create_systemd_service()
+#   - common/systemd_service_manager.sh -> create_systemd_service()
 #
 # Both SOURCEABLE and RUNNABLE:
 #   source codesync_service.sh                       # exposes codesync_service_* funcs
@@ -58,7 +58,7 @@ CODESYNC_SVC_EXEC_START="/bin/bash $CODESYNC_REPO_ROOT/pyservice.sh codesync run
 CODESYNC_SVC_USER=""
 CODESYNC_SVC_GROUP=""
 CODESYNC_SVC_USER_SOURCE=""
-CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/debian_service_manager.sh"
+CODESYNC_DEBIAN_MGR="$CODESYNC_SVC_SCRIPT_DIR/systemd_service_manager.sh"
 CODESYNC_GVAR_COMMON="$CODESYNC_SVC_SCRIPT_DIR/gvar_common.sh"
 CODESYNC_PERMISSION_HELPER="$CODESYNC_SVC_SCRIPT_DIR/fs_perm_helpers.sh"
 CODESYNC_UNIT_FILE="/etc/systemd/system/${CODESYNC_SERVICE_NAME}.service"

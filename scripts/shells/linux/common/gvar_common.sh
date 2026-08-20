@@ -130,8 +130,13 @@ detect_system_user() {
     echo "root"
 }
 
-# Check and set sudo
-if command -v sudo >/dev/null 2>&1; then
+# Check and set sudo. Skip sudo when already root: sudo-as-root is an
+# identity no-op that still opens a PAM session per invocation, flooding
+# the journal (3 lines x ~6 source-time calls x every gvar re-source) on
+# the systemd service plane.
+if [ "$(id -u)" = "0" ]; then
+    USE_SUDO=""
+elif command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
     USE_SUDO=""
@@ -139,6 +144,11 @@ fi
 
 # Function to check and install sudo if needed
 check_and_install_sudo() {
+    # Root never needs sudo (same journal-noise rationale as USE_SUDO).
+    if [ "$(id -u)" = "0" ]; then
+        USE_SUDO=""
+        return 0
+    fi
     if command -v sudo >/dev/null 2>&1; then
         USE_SUDO="sudo"
         return 0
