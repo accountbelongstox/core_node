@@ -33,7 +33,6 @@ from pycore.pyutils.codesync.runtime import http
 
 import pycore.pyutils.codesync.routes as routes
 from pycore.pyutils.codesync.peer_config import get_peer_config
-from pycore.pyutils.codesync.workspace_auth import get_workspace_token
 import pycore.pyutils.codesync.daemon as daemon
 
 
@@ -222,16 +221,6 @@ def cmd_skip_update(args):
     return _runtime_toggle(args, routes.SKIP_UPDATE_PATH, "skip-update")
 
 
-def cmd_workspace_token(_args):
-    token = get_workspace_token()
-    _emit(
-        {
-            "token": token,
-            "authorization": f"Bearer {token}",
-        }
-    )
-
-
 # --------------------------------------------------------------------------- #
 # parser                                                                        #
 # --------------------------------------------------------------------------- #
@@ -279,11 +268,6 @@ def build_parser():
                           help="client: temporarily reject code (running daemon only)")
     skip.add_argument("state", choices=["on", "off"])
     skip.set_defaults(func=cmd_skip_update)
-
-    sub.add_parser(
-        "workspace-token",
-        help="show the local bearer token for workspace exchange APIs",
-    ).set_defaults(func=cmd_workspace_token)
 
     return p
 

@@ -118,7 +118,7 @@ def register_code_sync_routes(server):
         if content.get("etag"):
             headers["ETag"] = str(content["etag"])
         if status_code == 401:
-            headers["WWW-Authenticate"] = 'Bearer realm="codesync-workspace"'
+            headers["WWW-Authenticate"] = cs.WORKSPACE_AUTHENTICATION_CHALLENGE
         return fastapi_module.responses.JSONResponse(
             content,
             status_code=status_code,

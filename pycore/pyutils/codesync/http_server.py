@@ -141,7 +141,7 @@ class _Handler(BaseHTTPRequestHandler):
         if status == 401:
             headers = {
                 **(headers or {}),
-                "WWW-Authenticate": 'Bearer realm="codesync-workspace"',
+                "WWW-Authenticate": code_sync_service.WORKSPACE_AUTHENTICATION_CHALLENGE,
             }
         return self._send_json(content, status=status, headers=headers)
 

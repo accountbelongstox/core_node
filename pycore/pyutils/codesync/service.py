@@ -15,7 +15,10 @@ from pycore.pyutils.codesync.workspace_exchange import (
     WorkspaceExchangeError,
     get_workspace_exchange,
 )
-from pycore.pyutils.codesync.workspace_auth import workspace_authorized
+from pycore.pyutils.codesync.workspace_auth import (
+    WORKSPACE_AUTHENTICATION_CHALLENGE,
+    workspace_authorized,
+)
 
 
 def _p(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
