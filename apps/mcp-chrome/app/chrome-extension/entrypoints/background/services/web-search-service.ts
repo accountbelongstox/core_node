@@ -26,6 +26,7 @@ import {
   bookCoverQuery,
   buildSearchUrl,
   emptyWebSearchProgress,
+  filterBookCoverImageResults,
 } from '@/utils/web-search-core';
 
 const LOG = 'Web Search';
@@ -234,10 +235,11 @@ export async function searchBookCoverUrls(
       openInNewTab: false,
       skipCoverCache: true,
     });
+    const coverResults = filterBookCoverImageResults(result.imageResults, title, author);
     attempts.push({
       engine,
       status: result.status,
-      resultCount: result.imageResults.length,
+      resultCount: coverResults.length,
       message: result.message,
     });
 
@@ -256,7 +258,7 @@ export async function searchBookCoverUrls(
       continue;
     }
 
-    const remoteUrls = result.imageResults
+    const remoteUrls = coverResults
       .map((hit) => hit.imageUrl)
       .filter(Boolean)
       .slice(0, COVER_SEARCH_MAX);

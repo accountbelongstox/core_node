@@ -143,6 +143,7 @@
       "waiting": "waiting",
       "laravel_received": "laravel_received",
       "worker_received": "worker_received",
+      "processing": "processing",
       "completed": "completed",
       "failed": "failed"
     },

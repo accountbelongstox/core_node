@@ -53,6 +53,7 @@ export interface WfNewQueueCommandItem {
   task_id?: string | null;
   queue_task_id?: string | null;
   queue_position?: number | null;
+  head_action?: string | null;
   audio_path?: string | null;
   audio_url?: string | null;
   audio_status?: string;

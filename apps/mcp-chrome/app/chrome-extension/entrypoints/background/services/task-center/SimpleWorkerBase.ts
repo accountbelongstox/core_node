@@ -407,6 +407,8 @@ export abstract class SimpleWorkerBase extends LaravelWorkerLifecycleBase {
   protected noteBackendSuccess(): void {
     this.stats.backendOnline = true;
     this.stats.consecutiveFailures = 0;
+    this.stats.lastError = null;
+    this.stats.lastErrorAt = null;
     this.stats.lastRequestAt = Date.now();
   }
 

@@ -443,5 +443,10 @@ export const jaLocaleB: Record<string, string> = {
     'queue.mcpChrome': 'mcp-chrome',
     'queue.online': 'オンライン',
     'queue.offline': 'オフライン',
+    'queue.headAction.moved_to_head': 'キューの先頭に移動しました',
+    'queue.headAction.not_queued': 'Pycore がすでにタスクを受信しました',
+    'queue.headAction.not_found': 'キュータスクが見つかりません',
+    'queue.progress': '進捗 {progress}%',
+    'queue.estimatedWait': '約 {seconds} 秒後に完了予定',
     'queue.tracked': '{count} 件を追跡中'
 };

@@ -200,7 +200,10 @@ trait GlobalTaskQueueQueries
                 'status',
                 'queue_position',
                 'priority',
+                'progress',
+                'timeout_seconds',
                 'assigned_to',
+                'assigned_at',
                 'updated_at',
             ])
             ->keyBy('task_id');

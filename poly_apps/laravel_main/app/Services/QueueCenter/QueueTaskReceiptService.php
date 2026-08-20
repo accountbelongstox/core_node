@@ -64,6 +64,8 @@ class QueueTaskReceiptService
                 'stage' => $this->stage((string) $task->status, $worker),
                 'task_status' => (string) $task->status,
                 'queue_position' => (int) $task->queue_position,
+                'progress' => (float) $task->progress,
+                'estimated_wait_seconds' => $this->estimatedWaitSeconds($task, $worker),
                 'worker' => $worker,
                 'updated_at' => $task->updated_at?->toIso8601String(),
             ];
@@ -84,11 +86,38 @@ class QueueTaskReceiptService
         if ($status === GlobalTask::status('failed') || $status === GlobalTask::status('cancelled')) {
             return QueueCenterContract::deliveryReceiptStage('failed');
         }
+        if ($status === GlobalTask::status('processing') && ($worker['online'] ?? false) === true) {
+            return QueueCenterContract::deliveryReceiptStage('processing');
+        }
         if (in_array($status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)
             && ($worker['online'] ?? false) === true
         ) {
             return QueueCenterContract::deliveryReceiptStage('worker_received');
         }
         return QueueCenterContract::deliveryReceiptStage('laravel_received');
+    }
+
+    private function estimatedWaitSeconds(GlobalTask $task, ?array $worker): ?int
+    {
+        $status = (string) $task->status;
+        if (in_array($status, [GlobalTask::status('completed'), GlobalTask::status('completed_demo')], true)) {
+            return 0;
+        }
+        if (!in_array($status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)
+            || ($worker['online'] ?? false) !== true
+            || $task->assigned_at === null
+        ) {
+            return null;
+        }
+
+        $elapsed = max(1, $task->assigned_at->diffInSeconds(now()));
+        $progress = max(0.0, min(100.0, (float) $task->progress));
+        $timeoutRemaining = max(1, (int) $task->timeout_seconds - $elapsed);
+        if ($progress <= 0.0) {
+            return $timeoutRemaining;
+        }
+
+        $progressEstimate = (int) ceil($elapsed * (100.0 - $progress) / $progress);
+        return max(1, min($timeoutRemaining, $progressEstimate));
     }
 }

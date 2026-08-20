@@ -222,7 +222,7 @@ class BaseLaravelWorkerService:
         Returns the resolved base URL (no trailing slash).
         """
         mgr = laravel_endpoint_manager
-        base = (mgr.resolve() or "").rstrip("/")
+        base = (mgr.get_active_base_url() or "").rstrip("/")
         state = mgr._load()
         endpoints = [
             (u or "").rstrip("/")
@@ -359,6 +359,15 @@ class BaseLaravelWorkerService:
         if changed and self._diff_pull_capacity() > 0:
             result = self.pull_once(prefer_remote=True)
             result["changed"] = True
+            return result
+        if (
+            not changed
+            and self._pull_capacity() > 0
+            and diff_task_segment_store.has_pending(scope)
+        ):
+            result = self.pull_once()
+            result["changed"] = False
+            result["recovered_local"] = True
             return result
         return {"ok": True, "changed": changed, "processed": 0}
 

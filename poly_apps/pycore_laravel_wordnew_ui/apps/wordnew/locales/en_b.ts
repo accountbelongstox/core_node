@@ -644,5 +644,10 @@ export const enLocaleB: Record<string, string> = {
     'queue.mcpChrome': 'mcp-chrome',
     'queue.online': 'Online',
     'queue.offline': 'Offline',
+    'queue.headAction.moved_to_head': 'Moved to queue front',
+    'queue.headAction.not_queued': 'Pycore already received the task',
+    'queue.headAction.not_found': 'Queue task not found',
+    'queue.progress': 'Progress {progress}%',
+    'queue.estimatedWait': 'Expected in about {seconds}s',
     'queue.tracked': '{count} tracked'
 };

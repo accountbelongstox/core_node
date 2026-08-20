@@ -5,11 +5,12 @@ Laravel Endpoint Manager — multi-endpoint resolution for the laravel_main API.
 Mirrors the dashboard's multi-API-URL system (development-guides/
 MULTI_API_URL_SYSTEM.md) on the pycore side, with the STORED-FIRST policy:
 
-  1. resolve() first probes ONLY the stored/current endpoint (cheap happy path);
-  2. if that fails, it sweeps EVERY candidate in parallel (3s probe cap) and
+  1. worker startup reads the stored/current endpoint without network I/O;
+  2. resolve() first probes ONLY the stored/current endpoint (cheap happy path);
+  3. if that fails, it sweeps EVERY candidate in parallel (3s probe cap) and
      picks the first healthy one in candidate order;
-  3. the winner is persisted as the user's choice and cached in-process;
-  4. the cache is invalidated whenever the list changes (add/remove/select).
+  4. the winner is persisted as the user's choice and cached in-process;
+  5. the cache is invalidated whenever the list changes (add/remove/select).
 
 Persistence lives in the backend data directory as
 ``laravel_endpoint_cache.json`` under the ``laravel_api`` section:

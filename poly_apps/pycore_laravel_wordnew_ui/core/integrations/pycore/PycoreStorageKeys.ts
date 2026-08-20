@@ -5,7 +5,6 @@ export const PycoreStorageKeys = {
   HTTP_CLIENT_ID: 'pycore_http_client_id',
   HTTP_EVENT_CURSORS: 'pycore_http_event_cursors',
   ROUTE_RECOVERY: 'pycore_route_recovery',
-  TERMINAL_SCHEDULE_BACKUPS: 'pc.terminal.scheduleBackups.v3',
   HEALTH_RECHECK_INTERVAL_MS: 'pc_health_recheck_interval_ms',
   /** Relay designation: the paired machine of the relay scheme (PART_3 §3.4). */
   RELAY_PAIR: 'pycore_relay_pair',

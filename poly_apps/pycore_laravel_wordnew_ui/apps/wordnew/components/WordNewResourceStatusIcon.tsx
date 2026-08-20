@@ -35,6 +35,18 @@ export const WordNewResourceStatusIcon: React.FC<WordNewResourceStatusIconProps>
   const expectedKind = resource === 'translation' ? 'chrome' : 'pycore';
   const workers = selectQueueWorkersByKind(snapshot.workers, expectedKind);
   const translate = trans || ((key: string) => key);
+  const receiptTitle = receipt ? [
+    translate(`queue.${receiptState}`),
+    receipt.headAction
+      ? translate(`queue.headAction.${receipt.headAction}`)
+      : null,
+    receipt.progress !== null
+      ? translate('queue.progress', { progress: Math.round(receipt.progress) })
+      : null,
+    receipt.estimatedWaitSeconds !== null
+      ? translate('queue.estimatedWait', { seconds: receipt.estimatedWaitSeconds })
+      : null,
+  ].filter(Boolean).join(' · ') : undefined;
 
   return (
     <QueueDeliveryStatusIcons
@@ -45,7 +57,7 @@ export const WordNewResourceStatusIcon: React.FC<WordNewResourceStatusIconProps>
       assignedWorkerId={receipt?.workerId}
       onClick={onClick}
       disabled={disabled}
-      title={title}
+      title={title || receiptTitle}
       size={size}
       className={className}
       trans={translate}

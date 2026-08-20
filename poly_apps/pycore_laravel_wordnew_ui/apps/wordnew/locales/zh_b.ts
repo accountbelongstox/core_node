@@ -643,5 +643,10 @@ export const zhLocaleB: Record<string, string> = {
     'queue.mcpChrome': 'mcp-chrome',
     'queue.online': '在线',
     'queue.offline': '离线',
+    'queue.headAction.moved_to_head': '已调整到队首',
+    'queue.headAction.not_queued': 'Pycore 已接收任务',
+    'queue.headAction.not_found': '未找到队列任务',
+    'queue.progress': '进度 {progress}%',
+    'queue.estimatedWait': '预计约 {seconds} 秒后完成',
     'queue.tracked': '正在跟踪 {count} 项'
 };

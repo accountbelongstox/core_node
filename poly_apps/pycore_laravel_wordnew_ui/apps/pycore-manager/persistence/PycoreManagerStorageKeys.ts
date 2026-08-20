@@ -26,6 +26,7 @@ export const PycoreManagerUiStorageKeys = {
   PYCORE_VOCAB_TAB: 'pc_vocab_tab',
   PYCORE_AGENT_HISTORY_UI: 'pc_agent_history_ui',
   PYCORE_AGENT_HISTORY_RECORD_PAGE: 'pc_agent_history_record_page',
+  PYCORE_TERMINAL_SCHEDULES: 'pc.terminal.scheduleBackups.v3',
 } as const;
 
 export const PycoreManagerStorageKeys = {

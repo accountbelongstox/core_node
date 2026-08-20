@@ -93,7 +93,10 @@ if [ "$MODE" = "domains" ]; then
     fi
 
     if [ "$DOMAIN_SCOPE" = "certs" ]; then
-        fm_domain_certificates_only || echo "  Warning: DNS-01 readiness convergence reported issues (continuing)."
+        fm_domain_certificates_only
+        if [ "$FM_DOMAIN_CERTIFICATES_READY" != "yes" ]; then
+            echo "  Warning: DNS-01 readiness postcondition is incomplete (continuing)."
+        fi
     else
         fm_domain_install_all "$LARAVEL_DIR"
         if [ "$FM_DOMAIN_INSTALL_READY" != "yes" ]; then

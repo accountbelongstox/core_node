@@ -129,6 +129,21 @@ class _DiffTaskSegmentCenter:
         return pending
 
     @serialized_method
+    def has_pending(self, scope: str) -> bool:
+        """Return whether a persisted task is eligible for local redelivery."""
+        segments = self._store.get_section(DATA_SEGMENT_NAMESPACE)
+        scope_segments = dict(segments.get(scope) or {})
+        now = time.time()
+        for task_id, task in scope_segments.items():
+            if not isinstance(task, dict):
+                continue
+            if self._delivery_key(scope, task_id) in self._delivered:
+                continue
+            if float(task.get(RETRY_AFTER_KEY) or 0) <= now:
+                return True
+        return False
+
+    @serialized_method
     def release(self, scope: str, task_ids: List[Any]) -> None:
         """Make staged payloads dispatchable again without dropping ownership data."""
         for task_id in task_ids:
