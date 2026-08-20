@@ -1,12 +1,9 @@
 /**
- * Dependency-free Mercure SSE transport shared by Laravel clients.
+ * Shared authenticated Mercure SSE transport for Laravel clients.
  *
- * Speaks the protocol implemented by the hub embedded in the pinned
- * FrankenPHP runtime: one `topic` query parameter per selector, session
- * auth through the configured hub-path cookie issued by /api/relay/hub-auth,
- * native EventSource auto-reconnect with
- * Last-Event-ID resume, and a background re-auth timer that keeps the
- * cookie fresh across reconnects (the hub closes streams at token exp).
+ * The pinned hub uses repeated `topic` parameters and topic-scoped Mercure
+ * JWTs. Browser clients consume the stream through fetch so the bearer token
+ * stays scoped to this connection and cross-origin cookies are unnecessary.
  */
 
 export interface LaravelMercureHubConfig {
@@ -17,6 +14,7 @@ export interface LaravelMercureHubConfig {
 
 export interface LaravelMercureAuthorization {
   subscribe_url: string;
+  token: string;
   token_ttl_seconds: number;
 }
 
@@ -27,14 +25,11 @@ export interface LaravelMercureCallbacks {
   onClose: () => void;
 }
 
-/** Refresh the auth cookie once this fraction of the TTL has elapsed. */
-const TOKEN_REFRESH_FRACTION = 0.75;
-
 export class LaravelMercureConnection {
-  private source: EventSource | null = null;
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private controller: AbortController | null = null;
   private connected = false;
   private generation = 0;
+  private lastEventId: string | null = null;
 
   connect(
     _baseURL: string,
@@ -45,17 +40,18 @@ export class LaravelMercureConnection {
     const generation = ++this.generation;
     void this.open(generation, config, callbacks).catch(() => {
       if (this.generation !== generation) return;
+      this.connected = false;
+      this.controller = null;
       callbacks.onClose();
     });
   }
 
   close(): void {
     this.generation += 1;
-    this.clearRefreshTimer();
-    const source = this.source;
-    this.source = null;
+    const controller = this.controller;
+    this.controller = null;
     this.connected = false;
-    if (source) source.close();
+    controller?.abort();
   }
 
   isConnected(): boolean {
@@ -69,61 +65,90 @@ export class LaravelMercureConnection {
   ): Promise<void> {
     const authorization = await callbacks.authorize();
     if (this.generation !== generation) return;
-    const url = authorization.subscribe_url || this.subscribeUrl(config);
-    const source = new EventSource(url, { withCredentials: true });
-    this.source = source;
-    source.onopen = () => {
-      if (this.generation !== generation) return;
-      this.connected = true;
-      this.scheduleRefresh(generation, authorization.token_ttl_seconds || config.token_ttl_seconds, callbacks);
-      callbacks.onSubscribed();
+    const controller = new AbortController();
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${authorization.token}`,
+      'Cache-Control': 'no-cache',
     };
-    source.onmessage = (message: MessageEvent<string>) => {
-      if (this.generation !== generation) return;
-      callbacks.onEvent('message', this.parseData(message.data));
-    };
-    source.onerror = () => {
-      if (this.generation !== generation) return;
-      // EventSource retries transient failures itself (Last-Event-ID resume);
-      // a CLOSED stream means auth or the hub is gone - hand the lifecycle
-      // back to the caller, which re-authenticates and reconnects.
-      if (source.readyState === EventSource.CLOSED) {
-        this.connected = false;
-        callbacks.onClose();
-      }
-    };
+    if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
+    this.controller = controller;
+
+    const response = await fetch(authorization.subscribe_url || this.subscribeUrl(config), {
+      headers,
+      signal: controller.signal,
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`MERCURE_SUBSCRIPTION_HTTP_${response.status}`);
+    }
+    if (this.generation !== generation) return;
+    this.connected = true;
+    callbacks.onSubscribed();
+    await this.consume(response.body, generation, callbacks);
+    if (this.generation !== generation) return;
+    this.connected = false;
+    this.controller = null;
+    callbacks.onClose();
   }
 
-  private scheduleRefresh(
+  private async consume(
+    stream: ReadableStream<Uint8Array>,
     generation: number,
-    ttlSeconds: number,
     callbacks: LaravelMercureCallbacks,
-  ): void {
-    this.clearRefreshTimer();
-    const intervalMs = Math.max(15_000, ttlSeconds * 1000 * TOKEN_REFRESH_FRACTION);
-    this.refreshTimer = setInterval(() => {
-      if (this.generation !== generation) {
-        this.clearRefreshTimer();
+  ): Promise<void> {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let dataLines: string[] = [];
+    let eventType = 'message';
+    let eventId: string | null = null;
+
+    const dispatch = (): void => {
+      if (dataLines.length > 0) {
+        callbacks.onEvent(eventType, this.parseData(dataLines.join('\n')));
+      }
+      if (eventId !== null) this.lastEventId = eventId;
+      dataLines = [];
+      eventType = 'message';
+      eventId = null;
+    };
+
+    const consumeLine = (rawLine: string): void => {
+      const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+      if (line === '') {
+        dispatch();
         return;
       }
-      // Cookie refresh only; a failed refresh surfaces through the stream
-      // closing at exp, which takes the normal reconnect path.
-      void callbacks.authorize().catch(() => undefined);
-    }, intervalMs);
-  }
+      if (line.startsWith(':')) return;
+      const separator = line.indexOf(':');
+      const field = separator < 0 ? line : line.slice(0, separator);
+      let value = separator < 0 ? '' : line.slice(separator + 1);
+      if (value.startsWith(' ')) value = value.slice(1);
+      if (field === 'data') dataLines.push(value);
+      else if (field === 'event') eventType = value || 'message';
+      else if (field === 'id' && !value.includes('\u0000')) eventId = value;
+    };
 
-  private clearRefreshTimer(): void {
-    if (this.refreshTimer) {
-      clearInterval(this.refreshTimer);
-      this.refreshTimer = null;
+    while (this.generation === generation) {
+      const result = await reader.read();
+      buffer += decoder.decode(result.value, { stream: !result.done });
+      let newline = buffer.indexOf('\n');
+      while (newline >= 0) {
+        consumeLine(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+      }
+      if (result.done) {
+        if (buffer !== '') consumeLine(buffer);
+        dispatch();
+        return;
+      }
     }
   }
 
   private subscribeUrl(config: LaravelMercureHubConfig): string {
     const url = new URL(config.hub_url);
-    for (const topic of config.topics) {
-      url.searchParams.append('topic', topic);
-    }
+    for (const topic of config.topics) url.searchParams.append('topic', topic);
     return url.toString();
   }
 

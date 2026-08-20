@@ -3,16 +3,15 @@ import { QUEUE_CENTER_PATHS } from '@/utils/api-paths';
 import { QUEUE_CENTER_REALTIME_EVENTS } from '@/utils/queue-center-contract';
 import { AsyncOperationController, fetchWithTimeout, TimeoutController } from '@/utils/async';
 
-interface ReverbConfig {
-  app_key: string;
-  host: string;
-  port: number;
-  scheme: string;
-  channel: string;
+interface MercureConfig {
+  transport: 'mercure';
+  subscribe_url: string;
+  token: string;
+  topics: string[];
 }
 
-interface PusherFrame {
-  event: string;
+interface MercureEnvelope {
+  event?: unknown;
   data?: unknown;
 }
 
@@ -26,7 +25,6 @@ type WakeHandler = (signal?: QueueCenterWakeSignal) => void;
 const LOG = 'QueueCenterWake';
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
-const PUSHER_PROTOCOL = '7';
 const BOOTSTRAP_TIMEOUT_MS = 10000;
 const WAKE_EVENTS = new Set<string>([
   QUEUE_CENTER_REALTIME_EVENTS.queue_changed,
@@ -39,13 +37,15 @@ const WAKE_EVENTS = new Set<string>([
 ]);
 
 class QueueCenterWakeService {
-  private socket: WebSocket | null = null;
+  private streamController: AbortController | null = null;
   private baseUrl: string | null = null;
   private readonly reconnectTimeout = new TimeoutController();
   private handlers = new Set<WakeHandler>();
   private generation = 0;
   private attempts = 0;
   private lastId: number | null = null;
+  private lastEventId: string | null = null;
+  private connecting = false;
   private readonly replayOperation = new AsyncOperationController<void>();
 
   subscribe(baseUrl: string, handler: WakeHandler): () => void {
@@ -55,9 +55,10 @@ class QueueCenterWakeService {
     if (this.baseUrl !== normalized) {
       this.baseUrl = normalized;
       this.lastId = null;
-      this.closeSocket();
+      this.lastEventId = null;
+      this.closeStream();
     }
-    if (!this.socket) void this.connect();
+    if (!this.streamController && !this.connecting) void this.connect();
 
     return () => {
       this.handlers.delete(handler);
@@ -68,14 +69,15 @@ class QueueCenterWakeService {
   private stop(): void {
     this.baseUrl = null;
     this.reconnectTimeout.cancel();
-    this.closeSocket();
+    this.closeStream();
   }
 
-  private closeSocket(): void {
-    const socket = this.socket;
+  private closeStream(): void {
+    const controller = this.streamController;
     this.generation += 1;
-    this.socket = null;
-    if (socket) socket.close();
+    this.streamController = null;
+    this.connecting = false;
+    controller?.abort();
   }
 
   private scheduleReconnect(): void {
@@ -89,9 +91,11 @@ class QueueCenterWakeService {
   }
 
   private async connect(): Promise<void> {
-    if (!this.baseUrl || this.handlers.size === 0 || this.socket) return;
+    if (!this.baseUrl || this.handlers.size === 0 || this.streamController || this.connecting) return;
     const baseUrl = this.baseUrl;
     const generation = ++this.generation;
+    const controller = new AbortController();
+    this.connecting = true;
 
     try {
       const response = await fetchWithTimeout(
@@ -99,79 +103,110 @@ class QueueCenterWakeService {
         BOOTSTRAP_TIMEOUT_MS,
       );
       const body = await response.json();
-      const config = body?.data?.realtime as ReverbConfig | undefined;
-      if (!response.ok || !config?.app_key || !config.channel) {
-        throw new Error('Laravel Reverb configuration is unavailable');
+      const config = body?.data?.realtime as MercureConfig | undefined;
+      if (!response.ok || config?.transport !== 'mercure' || !config.subscribe_url || !config.token) {
+        throw new Error('MERCURE_CONFIGURATION_UNAVAILABLE');
       }
       if (this.baseUrl !== baseUrl || this.generation !== generation) return;
+
+      this.streamController = controller;
+      const streamResponse = await fetch(config.subscribe_url, {
+        headers: this.streamHeaders(config.token),
+        signal: controller.signal,
+      });
+      if (!streamResponse.ok || !streamResponse.body) {
+        throw new Error(`MERCURE_SUBSCRIPTION_HTTP_${streamResponse.status}`);
+      }
+      if (this.baseUrl !== baseUrl || this.generation !== generation) return;
+
       await this.replay(baseUrl);
       if (this.baseUrl !== baseUrl || this.generation !== generation) return;
-      this.openSocket(baseUrl, config, generation);
-    } catch (error) {
-      logger.warn(LOG, 'Realtime connection bootstrap failed', error);
-      this.scheduleReconnect();
-    }
-  }
-
-  private openSocket(baseUrl: string, config: ReverbConfig, generation: number): void {
-    const endpoint = new URL(baseUrl);
-    const configuredHost = String(config.host || '').trim();
-    const host = !configuredHost || configuredHost === '0.0.0.0' || configuredHost === '::'
-      ? endpoint.hostname
-      : configuredHost;
-    const secure = config.scheme === 'https' || endpoint.protocol === 'https:';
-    const url = new URL(`${secure ? 'wss' : 'ws'}://${host}`);
-    url.port = secure ? String(endpoint.port || 443) : String(config.port || 80);
-    url.pathname = `/app/${encodeURIComponent(config.app_key)}`;
-    url.searchParams.set('protocol', PUSHER_PROTOCOL);
-    url.searchParams.set('client', 'mcp-chrome-worker');
-    url.searchParams.set('version', '1.0');
-    url.searchParams.set('flash', 'false');
-
-    const socket = new WebSocket(url.toString());
-    this.socket = socket;
-    socket.onmessage = (message) => this.handleMessage(socket, baseUrl, config, message.data);
-    socket.onerror = () => socket.close();
-    socket.onclose = () => {
-      if (this.socket !== socket || this.generation !== generation) return;
-      this.socket = null;
-      this.scheduleReconnect();
-    };
-  }
-
-  private handleMessage(
-    socket: WebSocket,
-    baseUrl: string,
-    config: ReverbConfig,
-    value: unknown,
-  ): void {
-    const frame = this.parseFrame(value);
-    if (!frame || this.socket !== socket) return;
-
-    if (frame.event === 'pusher:connection_established') {
-      socket.send(JSON.stringify({
-        event: 'pusher:subscribe',
-        data: { channel: config.channel, auth: '' },
-      }));
-      return;
-    }
-    if (frame.event === 'pusher:ping') {
-      socket.send(JSON.stringify({ event: 'pusher:pong', data: {} }));
-      return;
-    }
-    if (frame.event === 'pusher_internal:subscription_succeeded') {
       this.attempts = 0;
-      void this.replay(baseUrl)
-        .catch((error) => logger.warn(LOG, 'Realtime replay failed', error))
-        .finally(() => this.wake());
-      return;
+      this.wake();
+      await this.consumeStream(streamResponse.body, generation);
+    } catch (error) {
+      if (!controller.signal.aborted && this.generation === generation) {
+        logger.warn(LOG, 'MERCURE_CONNECTION_FAILED', error);
+      }
+    } finally {
+      if (this.generation === generation) {
+        this.streamController = null;
+        this.connecting = false;
+        this.scheduleReconnect();
+      }
     }
-    if (WAKE_EVENTS.has(frame.event)) {
-      const payload = this.parseObject(frame.data);
-      const id = Number(payload?._id ?? 0);
-      if (id > 0) this.lastId = Math.max(this.lastId ?? 0, id);
-      this.wake({ event: frame.event, payload });
+  }
+
+  private streamHeaders(token: string): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: 'text/event-stream',
+      Authorization: `Bearer ${token}`,
+      'Cache-Control': 'no-cache',
+    };
+    if (this.lastEventId) headers['Last-Event-ID'] = this.lastEventId;
+    return headers;
+  }
+
+  private async consumeStream(stream: ReadableStream<Uint8Array>, generation: number): Promise<void> {
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let dataLines: string[] = [];
+    let eventType = 'message';
+    let eventId: string | null = null;
+
+    const dispatch = (): void => {
+      if (dataLines.length > 0) {
+        this.handleEvent(eventType, dataLines.join('\n'), eventId);
+      }
+      dataLines = [];
+      eventType = 'message';
+      eventId = null;
+    };
+
+    const consumeLine = (rawLine: string): void => {
+      const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+      if (line === '') {
+        dispatch();
+        return;
+      }
+      if (line.startsWith(':')) return;
+      const separator = line.indexOf(':');
+      const field = separator < 0 ? line : line.slice(0, separator);
+      let lineValue = separator < 0 ? '' : line.slice(separator + 1);
+      if (lineValue.startsWith(' ')) lineValue = lineValue.slice(1);
+      if (field === 'data') dataLines.push(lineValue);
+      else if (field === 'event') eventType = lineValue || 'message';
+      else if (field === 'id' && !lineValue.includes('\u0000')) eventId = lineValue;
+    };
+
+    while (this.generation === generation) {
+      const result = await reader.read();
+      buffer += decoder.decode(result.value, { stream: !result.done });
+      let newline = buffer.indexOf('\n');
+      while (newline >= 0) {
+        consumeLine(buffer.slice(0, newline));
+        buffer = buffer.slice(newline + 1);
+        newline = buffer.indexOf('\n');
+      }
+      if (result.done) {
+        if (buffer !== '') consumeLine(buffer);
+        dispatch();
+        return;
+      }
     }
+  }
+
+  private handleEvent(eventType: string, value: string, eventId: string | null): void {
+    const envelope = this.parseObject(value) as MercureEnvelope | null;
+    const event = typeof envelope?.event === 'string' ? envelope.event : eventType;
+    const payload = this.parseObject(envelope?.data ?? value);
+    const id = Number(payload?._id ?? 0);
+    if (eventId !== null) this.lastEventId = eventId;
+    if (id > 0 && id <= (this.lastId ?? 0)) return;
+    if (!WAKE_EVENTS.has(event)) return;
+    if (id > 0) this.lastId = Math.max(this.lastId ?? 0, id);
+    this.wake({ event, payload });
   }
 
   private replay(baseUrl: string): Promise<void> {
@@ -181,7 +216,7 @@ class QueueCenterWakeService {
         `${baseUrl}${QUEUE_CENTER_PATHS.EVENTS}?cursor=${cursor}&limit=200`,
         BOOTSTRAP_TIMEOUT_MS,
       );
-      if (!response.ok) throw new Error(`Queue Center replay HTTP ${response.status}`);
+      if (!response.ok) throw new Error(`QUEUE_CENTER_REPLAY_HTTP_${response.status}`);
       const body = await response.json();
       const replay = body?.data ?? body;
       const events = Array.isArray(replay?.events) ? replay.events : [];
@@ -197,17 +232,6 @@ class QueueCenterWakeService {
 
   private wake(signal?: QueueCenterWakeSignal): void {
     for (const handler of this.handlers) handler(signal);
-  }
-
-  private parseFrame(value: unknown): PusherFrame | null {
-    try {
-      const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-      return parsed && typeof parsed === 'object' && typeof parsed.event === 'string'
-        ? parsed as PusherFrame
-        : null;
-    } catch {
-      return null;
-    }
   }
 
   private parseObject(value: unknown): Record<string, unknown> | null {

@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'absolute_path_required' => 'Path must be an absolute Pycore route.',
+    'blob_chunk_conflict' => 'Blob chunk conflicts with stored content.',
+    'blob_chunk_index_invalid' => 'Blob chunk index exceeds the contract range.',
+    'blob_chunk_too_large' => 'Blob chunk exceeds the contract cap.',
+    'blob_directory_failed' => 'Unable to create the relay blob directory.',
+    'blob_incomplete' => 'Blob is incomplete, unknown, or expired.',
+    'blob_total_too_large' => 'Blob total exceeds the contract cap.',
+    'blob_unknown' => 'Blob is unknown or expired.',
+    'blob_write_failed' => 'Unable to persist the relay blob chunk.',
+    'control_frame_too_large' => 'Relay control frame exceeds the contract cap.',
+    'inline_body_too_large' => 'Inline body exceeds the cap; upload a blob first.',
+    'invalid_blob_id' => 'Invalid blob ID.',
+    'invalid_machine_id' => 'Invalid machine ID.',
+    'machine_auth_required' => 'A recognized Pycore client is required.',
+    'machine_not_online' => 'Machine is not online.',
+    'machine_not_registered' => 'Machine is not registered.',
+    'mercure_issuer_missing' => 'Mercure trusted issuer is not provisioned.',
+    'mercure_key_missing' => 'Mercure key :key is not provisioned.',
+    'request_unknown' => 'Request is expired or unknown.',
+    'response_not_ready' => 'Response is not ready.',
+    'session_auth_required' => 'Session authentication is required.',
+];

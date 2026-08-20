@@ -1,0 +1,25 @@
+<?php
+
+return [
+    'absolute_path_required' => '路径必须是 Pycore 的绝对路由。',
+    'blob_chunk_conflict' => '分块内容与已存储内容冲突。',
+    'blob_chunk_index_invalid' => '分块索引超出协议范围。',
+    'blob_chunk_too_large' => '分块大小超过协议上限。',
+    'blob_directory_failed' => '无法创建中继分块目录。',
+    'blob_incomplete' => '分块不完整、不存在或已过期。',
+    'blob_total_too_large' => '分块总大小超过协议上限。',
+    'blob_unknown' => '分块不存在或已过期。',
+    'blob_write_failed' => '无法持久化中继分块。',
+    'control_frame_too_large' => '中继控制帧超过协议上限。',
+    'inline_body_too_large' => '内联正文超过上限，请先上传分块。',
+    'invalid_blob_id' => '分块 ID 无效。',
+    'invalid_machine_id' => '机器 ID 无效。',
+    'machine_auth_required' => '需要可识别的 Pycore 客户端。',
+    'machine_not_online' => '机器不在线。',
+    'machine_not_registered' => '机器尚未注册。',
+    'mercure_issuer_missing' => 'Mercure 可信签发者尚未配置。',
+    'mercure_key_missing' => 'Mercure 密钥 :key 尚未配置。',
+    'request_unknown' => '请求不存在或已过期。',
+    'response_not_ready' => '响应尚未就绪。',
+    'session_auth_required' => '需要会话身份认证。',
+];

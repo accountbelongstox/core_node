@@ -19,7 +19,7 @@
         "mercure": "v0.24.2"
     },
     "realtime": {
-        "mercure_cookie": "__Secure-mercure_access_token"
+        "mercure_cookie": "mercureAuthorization"
     },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",

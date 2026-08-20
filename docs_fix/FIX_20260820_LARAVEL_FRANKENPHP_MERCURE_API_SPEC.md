@@ -35,13 +35,15 @@ Official references:
 ## Runtime architecture
 
 ```text
-Browser EventSource ─┐
+Browser bearer SSE ──┐
 Pycore SSE client ───┼─ HTTPS / HTTP/2 or HTTP/3 ─ FrankenPHP :443
 HTTP API clients ────┘                              ├─ Mercure /.well-known/mercure
                                                    └─ Octane worker /api/*
 ```
 
 The Mercure stream is only the control plane. Relay request bodies, responses, and blobs remain in the Laravel HTTP data plane. Mercure updates carry wake-up metadata and identifiers, not large payloads.
+
+Port `9000` remains the direct LAN/local HTTP listener defined by the service contract. Session and machine gates protect relay operations on this listener.
 
 The canonical Octane launch is equivalent to:
 
@@ -83,13 +85,13 @@ GET|POST /.well-known/mercure
 
 ### Subscriber authorization
 
-Browser clients receive an HTTP-only secure cookie scoped to the hub path:
+The relay authorization endpoint can set an HTTP-only cookie scoped to the hub path. The `Secure` attribute is enabled on HTTPS origins:
 
 ```text
-__Secure-mercure_access_token=<subscriber JWT>
+mercureAuthorization=<subscriber JWT>
 ```
 
-Non-browser clients send:
+Pycore, mcp-chrome, and the shared browser SSE transport use the returned topic-scoped token directly:
 
 ```http
 Authorization: Bearer <subscriber JWT>
@@ -112,7 +114,9 @@ GET /.well-known/mercure?topic=pycore.machines&topic=pycore.pair.machine-01
 Accept: text/event-stream
 ```
 
-Reconnects use the `Last-Event-ID` request header. An initial explicit cursor uses `lastEventID=<cursor>`.
+Reconnects use the `Last-Event-ID` request header. An initial explicit cursor uses `lastEventID=<cursor>`. Browser clients that need an `Authorization` header consume the SSE `ReadableStream` through `fetch()`; tokens are never placed in query parameters.
+
+Anonymous subscriptions are disabled. The default deployment does not reflect arbitrary origins on the credentialed hub. Same-origin browser clients and extension clients with explicit host permission work directly; a separate browser origin must be added as an explicit trusted `cors_origins` deployment value, never `*` or an arbitrary-origin pattern.
 
 ### Publisher authorization
 
@@ -136,6 +140,19 @@ Authorization: Bearer <publisher JWT>
 Content-Type: application/x-www-form-urlencoded
 
 topic=<topic>&topic=<second-topic>&data=<json>&private=1&type=<event>&id=<optional-id>
+```
+
+Application events use the Mercure SSE `event` field and a JSON data frame. Queue Center frames additionally use the durable outbox envelope:
+
+```json
+{
+  "event": "queue.changed",
+  "data": {
+    "_id": 481,
+    "revision": 27,
+    "resource": "global_tasks"
+  }
+}
 ```
 
 ## Authentication contracts
@@ -178,6 +195,34 @@ All JSON endpoints use the standard envelope:
 | `POST /api/relay/{machine_id}/blobs` | Machine or Paired Session | Binary body; query: optional `blob_id`, `chunk_index`, `chunk_last` | Blob metadata |
 | `GET /api/relay/{machine_id}/blobs/{blob_id}` | Machine or Paired Session | None | `application/octet-stream` body |
 
+## Queue Center realtime API
+
+The Queue Center data is public at the same trust level as the existing task API, while the Mercure hub itself remains closed. Each overview response therefore carries a short-lived subscriber JWT restricted to the exact `queue-center` topic.
+
+| Method and path | Auth | Purpose |
+| --- | --- | --- |
+| `GET /api/queue-center/overview` | Existing Queue Center access policy | Queue/worker snapshot plus a fresh Mercure subscription contract |
+| `GET /api/queue-center/events?cursor=<id>&limit=<n>` | Existing Queue Center access policy | Durable ordered replay after initial connect or any SSE gap |
+| `GET /api/task-center/overview` | Existing Task Center access policy | Aggregate task snapshot with the same Mercure subscription contract |
+
+The `realtime` member returned by both overview surfaces is:
+
+```json
+{
+  "transport": "mercure",
+  "hub_url": "https://example.test/.well-known/mercure",
+  "topics": ["queue-center"],
+  "token": "<topic-scoped JWT>",
+  "token_ttl_seconds": 600,
+  "cookie": "mercureAuthorization",
+  "subscribe_url": "https://example.test/.well-known/mercure?topic=queue-center",
+  "event": "queue.changed",
+  "revision": 27
+}
+```
+
+mcp-chrome owns one shared Queue Center connection for background wakeups, task detail refresh, and the popup overview. Consumers reconcile through `/api/queue-center/events` before handling buffered SSE updates; `_id` suppresses duplicates, and `Last-Event-ID` resumes the Mercure transport after reconnect.
+
 ### Hub authorization response
 
 ```json
@@ -187,7 +232,7 @@ All JSON endpoints use the standard envelope:
   "topics": ["pycore.machines", "pycore.pair.machine-01", "queue-center"],
   "token": "<JWT>",
   "token_ttl_seconds": 600,
-  "cookie": "__Secure-mercure_access_token",
+  "cookie": "mercureAuthorization",
   "subscribe_url": "https://example.test/.well-known/mercure?topic=pycore.machines&topic=pycore.pair.machine-01&topic=queue-center"
 }
 ```

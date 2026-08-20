@@ -46,7 +46,7 @@ class RelayController extends Controller
     {
         $machineId = (string) $request->json('machine_id', '');
         if (!RelayMachineRegistry::isValidId($machineId)) {
-            return $this->validationError(['machine_id' => ['Invalid machine id.']]);
+            return $this->validationError(['machine_id' => [__('relay.invalid_machine_id')]]);
         }
 
         $record = RelayMachineRegistry::register($machineId, [
@@ -68,10 +68,10 @@ class RelayController extends Controller
     {
         $machineId = (string) $request->json('machine_id', '');
         if (!RelayMachineRegistry::isValidId($machineId)) {
-            return $this->validationError(['machine_id' => ['Invalid machine id.']]);
+            return $this->validationError(['machine_id' => [__('relay.invalid_machine_id')]]);
         }
         if (!RelayMachineRegistry::heartbeat($machineId)) {
-            return $this->conflict('Machine is not registered.', ['machine_id' => $machineId]);
+            return $this->conflict(__('relay.machine_not_registered'), ['machine_id' => $machineId]);
         }
 
         return $this->success([
@@ -99,18 +99,18 @@ class RelayController extends Controller
 
         if ($mode === 'machine') {
             if (!PycoreClientOnly::isMachineCall($request)) {
-                return $this->forbidden();
+                return $this->forbidden(__('relay.machine_auth_required'));
             }
             $machineId = (string) $request->json('machine_id', '');
             if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
-                return $this->conflict('Machine is not online.', ['machine_id' => $machineId]);
+                return $this->conflict(__('relay.machine_not_online'), ['machine_id' => $machineId]);
             }
             $token = RelayHubAuthService::issueForMachine($machineId);
             return $this->success($token);
         }
 
         if (!self::isSessionCall($request)) {
-            return $this->unauthorized();
+            return $this->unauthorized(__('relay.session_auth_required'));
         }
         $session = self::resolveSession($request);
         $token = RelayHubAuthService::issueForSession(
@@ -146,17 +146,17 @@ class RelayController extends Controller
         $method = strtoupper((string) $request->json('method', 'GET'));
         $path = (string) $request->json('path', '');
         if ($path === '' || $path[0] !== '/') {
-            return $this->validationError(['path' => ['Path must be an absolute pycore route.']]);
+            return $this->validationError(['path' => [__('relay.absolute_path_required')]]);
         }
 
         $inlineCap = \App\Support\QueueCenterContract::relayCap('inline_body_bytes');
         $body = $request->json('body');
         $bodyRef = (string) ($request->json('body_ref') ?? '');
         if (is_string($body) && strlen($body) > $inlineCap) {
-            return $this->validationError(['body' => ['Inline body exceeds cap; upload a blob first.']]);
+            return $this->validationError(['body' => [__('relay.inline_body_too_large')]]);
         }
         if ($bodyRef !== '' && RelayBlobStore::meta($machineId, $bodyRef) === null) {
-            return $this->validationError(['body_ref' => ['Unknown or expired blob.']]);
+            return $this->validationError(['body_ref' => [__('relay.blob_unknown')]]);
         }
 
         $requestId = RelayRequestStore::newRequestId();
@@ -185,7 +185,7 @@ class RelayController extends Controller
     {
         $stored = RelayRequestStore::getRequest($machineId, $requestId);
         if ($stored === null) {
-            return $this->notFound('Request expired or unknown.');
+            return $this->notFound(__('relay.request_unknown'));
         }
 
         return $this->success(['request' => $stored]);
@@ -195,14 +195,14 @@ class RelayController extends Controller
     {
         $requestId = (string) $request->json('request_id', '');
         if (RelayRequestStore::getRequest($machineId, $requestId) === null) {
-            return $this->notFound('Request expired or unknown.');
+            return $this->notFound(__('relay.request_unknown'));
         }
 
         $inlineCap = \App\Support\QueueCenterContract::relayCap('inline_body_bytes');
         $body = $request->json('body');
         $bodyRef = (string) ($request->json('body_ref') ?? '');
         if (is_string($body) && strlen($body) > $inlineCap) {
-            return $this->validationError(['body' => ['Inline body exceeds cap; upload a blob first.']]);
+            return $this->validationError(['body' => [__('relay.inline_body_too_large')]]);
         }
 
         $status = (int) $request->json('status', 200);
@@ -241,7 +241,7 @@ class RelayController extends Controller
         }
 
         if ($response === null) {
-            return $this->notFound('Response not ready.');
+            return $this->notFound(__('relay.response_not_ready'));
         }
 
         return $this->success(['response' => $response]);
@@ -259,7 +259,7 @@ class RelayController extends Controller
         }
         if (!PycoreClientOnly::isMachineCall($request)) {
             if (!self::isSessionCall($request)) {
-                return $this->unauthorized();
+                return $this->unauthorized(__('relay.session_auth_required'));
             }
             $session = self::resolveSession($request);
             if (!RelayDispatcher::gate($machineId, $session['id'])) {
@@ -272,7 +272,7 @@ class RelayController extends Controller
         $last = $request->boolean('chunk_last');
         $bytes = (string) $request->getContent();
         if ($chunkIndex < 0 || $chunkIndex > $maxChunkIndex) {
-            return $this->validationError(['chunk_index' => ['Blob chunk index exceeds the contract range.']]);
+            return $this->validationError(['chunk_index' => [__('relay.blob_chunk_index_invalid')]]);
         }
 
         $meta = RelayBlobStore::create(
@@ -292,7 +292,7 @@ class RelayController extends Controller
         // session reads its response bodies - the pair gate is the boundary.
         if (!PycoreClientOnly::isMachineCall($request)) {
             if (!self::isSessionCall($request)) {
-                return $this->unauthorized();
+                return $this->unauthorized(__('relay.session_auth_required'));
             }
             $session = self::resolveSession($request);
             if (!RelayDispatcher::gate($machineId, $session['id'])) {
@@ -301,7 +301,7 @@ class RelayController extends Controller
         }
         $bytes = RelayBlobStore::read($machineId, $blobId);
         if ($bytes === null) {
-            return response('Blob incomplete, unknown, or expired.', 404, ['Content-Type' => 'text/plain']);
+            return response(__('relay.blob_incomplete'), 404, ['Content-Type' => 'text/plain']);
         }
 
         return response($bytes, 200, [

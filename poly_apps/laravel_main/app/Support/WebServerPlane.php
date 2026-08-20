@@ -60,7 +60,7 @@ final class WebServerPlane
      * Adopt a plane (record-only switch, mirrors set_web_server_plane 'false'
      * fan-out mode): writes the constant so every plane-aware resolver on both
      * ends converges. Runtime adoption (service stop/start, Caddyfile/nginx
-     * provisioning) stays with the shell installers (26/27/28) and 132.
+     * provisioning) stays with the shell installers (33/93) and 175.
      */
     public static function adopt(string $plane): bool
     {
@@ -73,10 +73,12 @@ final class WebServerPlane
             return false;
         }
 
-        return FileSystemManager::writeFile(
+        FileSystemManager::writeFile(
             $dir.DIRECTORY_SEPARATOR.'WEB_SERVER_PLANE',
             $plane."\n"
         );
+
+        return self::current() === $plane;
     }
 
     private static function globalVarDirectory(): string

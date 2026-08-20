@@ -24,12 +24,12 @@ final class RelayHubPublisher
 
     /**
      * Publish an update; returns the update id, or null when the hub path is
-     * unavailable (the relay data plane keeps working - poll fallback).
+     * unavailable (the relay data plane keeps working through HTTP reads).
      */
     public static function publish(string|array $topics, string $data, bool $private = false, ?string $type = null, ?string $id = null): ?string
     {
         if (strlen($data) > QueueCenterContract::relayCap('control_frame_bytes')) {
-            throw new \InvalidArgumentException('Relay control frame exceeds contract cap.');
+            throw new \InvalidArgumentException(__('relay.control_frame_too_large'));
         }
 
         if (function_exists('mercure_publish')) {

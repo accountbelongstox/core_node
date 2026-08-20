@@ -464,7 +464,7 @@ LAUNCHER;
         $config .= "}\n\n";
 
         // HTTPS server (if SSL enabled) - shared TLS/HTTP3 stanza from the
-        // builder, app-specific proxy locations stay local (Reverb/HMR).
+        // builder; app-specific development proxy locations stay local.
         if ($sslEnabled && $certificate) {
             $config .= "server {\n";
             $config .= ServerManagerV1NginxConfigBuilder::renderTlsStanza(

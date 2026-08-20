@@ -441,6 +441,25 @@ wrapper_points_to_runtime_php() {
     echo "yes"
 }
 
+composer_runtime_php_wrapper_ready() {
+    local runtime_line=""
+    local subcommand_line=""
+
+    if [ ! -x "$COMPOSER_RUNTIME_PHP_WRAPPER" ]; then
+        echo "no"
+        return
+    fi
+
+    runtime_line="$(sed -n 's/^RUNTIME_CMD=//p' "$COMPOSER_RUNTIME_PHP_WRAPPER" 2>/dev/null)"
+    subcommand_line="$(sed -n 's/^RUNTIME_CMD_SUBCMD=//p' "$COMPOSER_RUNTIME_PHP_WRAPPER" 2>/dev/null)"
+    if [ "$runtime_line" != "\"$COMPOSER_RUNTIME_PHP\"" ] || [ "$subcommand_line" != "\"$COMPOSER_RUNTIME_SUBCMD\"" ]; then
+        echo "no"
+        return
+    fi
+
+    echo "yes"
+}
+
 write_composer_runtime_php_wrapper() {
     echo -e "${CYAN}$SCRIPT_INDEX Repairing Composer runtime PHP wrapper...${NC}"
     $USE_SUDO cat > "$COMPOSER_RUNTIME_PHP_WRAPPER" << EOF
@@ -558,7 +577,14 @@ EOF
 }
 
 repair_composer_wrappers() {
-    write_composer_runtime_php_wrapper
+    if [ "$(composer_runtime_php_wrapper_ready)" != "yes" ]; then
+        write_composer_runtime_php_wrapper
+        if [ "$(composer_runtime_php_wrapper_ready)" != "yes" ]; then
+            echo -e "${RED}$SCRIPT_INDEX Composer runtime PHP wrapper is unavailable after repair${NC}"
+        fi
+    else
+        echo -e "${GREEN}$SCRIPT_INDEX Composer runtime PHP wrapper is already ready${NC}"
+    fi
 
     if [ ! -f "$COMPOSER_TARGET_PATH" ] || [ ! -x "$COMPOSER_TARGET_PATH" ] || [ "$(wrapper_points_to_runtime_php "$COMPOSER_TARGET_PATH")" != "yes" ]; then
         write_composer_main_wrapper

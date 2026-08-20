@@ -254,10 +254,6 @@ class LaravelRealtime {
 
   private async openSocket(): Promise<void> {
     if (!this.started || this.transport.isConnected()) return;
-    if (typeof EventSource === 'undefined') {
-      console.warn('[laravel-realtime] EventSource unavailable');
-      return;
-    }
     const generation = ++this.generation;
     try {
       const overview = await laravelApi.getQueueCenterOverview();

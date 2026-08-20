@@ -106,12 +106,6 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
             . "\n"
-            . "\t# Explicit protocol set (official servers option): h2/h3 negotiate on\n"
-            . "\t# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.\n"
-            . "\tservers {\n"
-            . "\t\tprotocols h1 h2 h3\n"
-            . "\t}\n"
-            . "\n"
             . "\tfrankenphp {\n"
             . "\t\tworker {\n"
             . "\t\t\tfile \"{$publicDir}/frankenphp-worker.php\"\n"
@@ -131,7 +125,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . self::octanePhpServerStanza()
             . "}\n"
             . "\n"
-            . "# Direct HTTP backend (nginx-plane contract port, binds all interfaces)\n"
+            . "# Direct HTTP catch-all backend (LAN and local machine clients)\n"
             . ":{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
@@ -175,6 +169,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     {
         $path = self::caddyfilePath();
         RelayHubKeyProvisioner::ensure();
+        if (!RelayHubKeyProvisioner::provisioned()) {
+            return [
+                'path' => $path,
+                'rendered' => false,
+                'canonical' => false,
+                'error' => 'Mercure hub keys are not provisioned',
+            ];
+        }
         $rendered = self::render();
 
         $dir = dirname($path);
@@ -185,6 +187,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         $existing = FileSystemManager::readFile($path, false);
         if (is_string($existing) && rtrim($existing) === rtrim($rendered)) {
+            if (!FileSystemManager::ensureFileMode($path, 0600)) {
+                return ['path' => $path, 'rendered' => false, 'canonical' => true,
+                    'error' => "unable to set private permissions on {$path}"];
+            }
+
             return ['path' => $path, 'rendered' => false, 'canonical' => true];
         }
 
