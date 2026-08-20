@@ -122,6 +122,37 @@ class AppQyV1ArticleModel extends AppQyV1Model
         return self::query()->where('task_id', $taskId)->first();
     }
 
+    public static function mutateMetadataByArticleId(
+        string $articleId,
+        Closure $mutator,
+        int $attempts = 5
+    ): self {
+        $model = new static();
+
+        return $model->getConnection()->transaction(
+            static function () use ($articleId, $mutator): self {
+                $article = null;
+                $metadata = [];
+                $updatedMetadata = [];
+
+                $article = static::query()
+                    ->where('article_id', $articleId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+                $metadata = is_array($article->metadata) ? $article->metadata : [];
+                $updatedMetadata = $mutator($metadata, $article);
+
+                if ($updatedMetadata !== $metadata) {
+                    $article->metadata = $updatedMetadata;
+                    $article->saveRecord();
+                }
+
+                return $article;
+            },
+            $attempts
+        );
+    }
+
     public static function chunkForLibraryBackfill(?string $articleId, Closure $callback): void
     {
         $query = self::query();

@@ -27,6 +27,7 @@ from pycore.pyfoundations.http_sse import (
 from pycore.pyfoundations.network_constants import HTTP_BIND_HOST, PYCORE_HTTP_PORT
 
 import pycore.pyutils.codesync.routes as routes
+import pycore.pyutils.codesync.service as code_sync_service
 from pycore.pyutils.codesync.runtime import (
     is_shutdown_requested,
     log as ColorPrint,
@@ -74,7 +75,13 @@ class _Handler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
-    def _write_response(self, body: bytes, status: int, content_type: str) -> None:
+    def _write_response(
+        self,
+        body: bytes,
+        status: int,
+        content_type: str,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> None:
         """Write a full response, tolerating a client that disconnected mid-flight.
         A broken pipe / reset just means the caller went away — drop it quietly
         instead of letting the exception escape and spam a traceback (and, in the
@@ -83,15 +90,27 @@ class _Handler(BaseHTTPRequestHandler):
             self.send_response(status)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(body)
             self.wfile.flush()
         except _CONN_ERRORS:
             pass
 
-    def _send_json(self, obj: Any, status: int = 200) -> None:
+    def _send_json(
+        self,
+        obj: Any,
+        status: int = 200,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> None:
         body = json.dumps(obj, ensure_ascii=False, default=str).encode("utf-8")
-        self._write_response(body, status, "application/json; charset=utf-8")
+        self._write_response(
+            body,
+            status,
+            "application/json; charset=utf-8",
+            headers=headers,
+        )
 
     def _send_bytes(self, data: bytes, status: int = 200,
                     content_type: str = "application/octet-stream") -> None:
@@ -114,6 +133,20 @@ class _Handler(BaseHTTPRequestHandler):
 
     def log_message(self, fmt, *args):  # silence default stderr access log
         return
+
+    def _send_workspace_result(self, result: Dict[str, Any]) -> None:
+        content = dict(result or {})
+        status = int(content.pop("status_code", 200) or 200)
+        headers = {"ETag": str(content["etag"])} if content.get("etag") else None
+        if status == 401:
+            headers = {
+                **(headers or {}),
+                "WWW-Authenticate": code_sync_service.WORKSPACE_AUTHENTICATION_CHALLENGE,
+            }
+        return self._send_json(content, status=status, headers=headers)
+
+    def _workspace_authorization(self) -> str:
+        return str(self.headers.get("Authorization") or "")
 
     # ---- routing ---------------------------------------------------------- #
     def do_GET(self):
@@ -165,6 +198,43 @@ class _Handler(BaseHTTPRequestHandler):
                 return self._send_json(_manager().get_sync_logs(limit))
             if path == routes.FILE_TREE_PATH:
                 return self._send_json(_manager().get_file_tree())
+            if path == routes.WORKSPACE_PATH:
+                return self._send_workspace_result(
+                    code_sync_service.workspace_capabilities(
+                        self._workspace_authorization()
+                    )
+                )
+            if path == routes.WORKSPACE_FILES_PATH:
+                query = parse_qs(urlparse(self.path).query)
+                cursor = str((query.get("cursor") or [""])[0])
+                limit = (query.get("limit") or ["1000"])[0]
+                include_hash_value = str(
+                    (query.get("include_hash") or ["false"])[0]
+                ).lower()
+                include_hash = include_hash_value in ("1", "true", "yes", "on")
+                return self._send_workspace_result(
+                    code_sync_service.workspace_list_files(
+                        self._workspace_authorization(),
+                        cursor,
+                        limit,
+                        include_hash,
+                    )
+                )
+            if path == routes.WORKSPACE_FILE_PATH:
+                query = parse_qs(urlparse(self.path).query)
+                file_path = str((query.get("path") or [""])[0])
+                return self._send_workspace_result(
+                    code_sync_service.workspace_read_file(
+                        self._workspace_authorization(),
+                        file_path,
+                    )
+                )
+            if path == routes.WORKSPACE_LATEST_DOCUMENT_PATH:
+                return self._send_workspace_result(
+                    code_sync_service.workspace_latest_document(
+                        self._workspace_authorization()
+                    )
+                )
             if path == routes.PEER_FILE_TREE_PATH:
                 pid = ""
                 try:
@@ -192,6 +262,26 @@ class _Handler(BaseHTTPRequestHandler):
         body = self._read_json()
         try:
             return self._dispatch_post(path, body)
+        except Exception as exc:
+            return self._send_json({"detail": str(exc)}, status=500)
+
+    def do_PUT(self):
+        path = self.path.split("?", 1)[0].rstrip("/") or "/"
+        body = self._read_json()
+        try:
+            if path == routes.WORKSPACE_FILE_PATH:
+                query = parse_qs(urlparse(self.path).query)
+                file_path = str((query.get("path") or [""])[0])
+                return self._send_workspace_result(
+                    code_sync_service.workspace_write_file(
+                        self._workspace_authorization(),
+                        file_path,
+                        body,
+                        if_match=str(self.headers.get("If-Match") or ""),
+                        if_none_match=str(self.headers.get("If-None-Match") or ""),
+                    )
+                )
+            return self._send_json({"detail": "Not found"}, status=404)
         except Exception as exc:
             return self._send_json({"detail": str(exc)}, status=500)
 
@@ -236,6 +326,13 @@ class _Handler(BaseHTTPRequestHandler):
             return self._send_json(m.set_distributing(bool(body.get("enabled", False))))
         if path == routes.SKIP_UPDATE_PATH:
             return self._send_json(m.set_skip_update(bool(body.get("enabled", False))))
+        if path == routes.WORKSPACE_DOCUMENTS_PATH:
+            return self._send_workspace_result(
+                code_sync_service.workspace_write_document(
+                    self._workspace_authorization(),
+                    body,
+                )
+            )
         if path == routes.DISCOVER_PATH:
             return self._send_json(m.discover())
 

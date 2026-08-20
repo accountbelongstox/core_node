@@ -7,8 +7,18 @@ import base64
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import pycore.pyutils.codesync.routes as code_sync_routes
 from pycore.pyfoundations.network_constants import PYCORE_HTTP_PORT
 from pycore.pyutils.codesync.manager import get_code_sync_manager
+from pycore.pyutils.codesync.workspace_exchange import (
+    DEFAULT_FILE_PAGE_SIZE,
+    WorkspaceExchangeError,
+    get_workspace_exchange,
+)
+from pycore.pyutils.codesync.workspace_auth import (
+    WORKSPACE_AUTHENTICATION_CHALLENGE,
+    workspace_authorized,
+)
 
 
 def _p(params: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -281,3 +291,117 @@ def clear_pending_update(params: Optional[Dict[str, Any]] = None) -> Dict[str, A
     return get_code_sync_manager().clear_pending_update(
         str(_p(params).get("rel") or "").strip()
     )
+
+
+def _client_workspace(authorization: str):
+    if not workspace_authorized(authorization):
+        raise WorkspaceExchangeError(401, "Workspace authorization is required")
+    manager = get_code_sync_manager()
+    if not manager.is_client_mode():
+        raise WorkspaceExchangeError(503, "Workspace exchange is only available in client mode")
+    if bool(getattr(manager, "light", False)):
+        raise WorkspaceExchangeError(503, "Workspace exchange is unavailable in light mode")
+    return get_workspace_exchange(manager.sync_target_root())
+
+
+def _workspace_error(exc: WorkspaceExchangeError) -> Dict[str, Any]:
+    return {
+        "success": False,
+        "error": exc.detail,
+        "status_code": exc.status_code,
+    }
+
+
+def workspace_capabilities(authorization: str) -> Dict[str, Any]:
+    try:
+        result = _client_workspace(authorization).capabilities()
+        result["routes"] = {
+            "list_files": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_FILES_PATH,
+            },
+            "read_file": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_FILE_PATH,
+                "query": ["path"],
+            },
+            "write_file": {
+                "method": "PUT",
+                "path": code_sync_routes.WORKSPACE_FILE_PATH,
+                "query": ["path"],
+                "body": ["content_base64", "content_sha256"],
+            },
+            "upload_document": {
+                "method": "POST",
+                "path": code_sync_routes.WORKSPACE_DOCUMENTS_PATH,
+                "body": ["title", "content"],
+            },
+            "latest_document": {
+                "method": "GET",
+                "path": code_sync_routes.WORKSPACE_LATEST_DOCUMENT_PATH,
+            },
+        }
+        return result
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_list_files(
+    authorization: str,
+    cursor: str = "",
+    limit: int = DEFAULT_FILE_PAGE_SIZE,
+    include_hash: bool = False,
+) -> Dict[str, Any]:
+    try:
+        return _client_workspace(authorization).list_files(cursor, limit, include_hash)
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_read_file(authorization: str, file_path: str) -> Dict[str, Any]:
+    try:
+        return _client_workspace(authorization).read_file(file_path)
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_write_file(
+    authorization: str,
+    file_path: str,
+    params: Optional[Dict[str, Any]] = None,
+    *,
+    if_match: str = "",
+    if_none_match: str = "",
+) -> Dict[str, Any]:
+    request = _p(params)
+    try:
+        return _client_workspace(authorization).write_file(
+            file_path,
+            request.get("content_base64"),
+            content_sha256=str(request.get("content_sha256") or ""),
+            if_match=if_match,
+            if_none_match=if_none_match,
+        )
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_write_document(
+    authorization: str,
+    params: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    request = _p(params)
+    try:
+        return _client_workspace(authorization).write_document(
+            request.get("title"),
+            request.get("content"),
+        )
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)
+
+
+def workspace_latest_document(authorization: str) -> Dict[str, Any]:
+    try:
+        return _client_workspace(authorization).latest_document()
+    except WorkspaceExchangeError as exc:
+        return _workspace_error(exc)

@@ -72,6 +72,14 @@ MODE="${1:-runtime}"
 
 FRANKENPHP_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 
+# --- ui-binding mode: shared state + Caddy UI route convergence ----------
+if [ "$MODE" = "ui-binding" ]; then
+    fm_domain_enable_ui_binding
+    echo "[$SCRIPT_INDEX] UI binding ready: $FM_DOMAIN_UI_BINDING_READY"
+    echo "[$SCRIPT_INDEX] Caddy live reload ready: $FM_DOMAIN_CADDY_RELOAD_READY"
+    exit 0
+fi
+
 # --- domains mode: frankenphp plane domain/DNS-01 convergence -------------
 if [ "$MODE" = "domains" ]; then
     if [ ! -d "$DOMAIN_SETUP_SECRETS_DIR" ]; then

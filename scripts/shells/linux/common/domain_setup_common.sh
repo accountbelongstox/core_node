@@ -92,6 +92,7 @@ DOMAIN_DNSPOD_EMAIL=""
 DOMAIN_DNSPOD_TOKEN=""
 DOMAIN_DOMAINS_LIST=""
 DOMAIN_API_PREFIX=""
+DOMAIN_UI_BINDING_READY="no"
 
 # Persist one key in the file-backed global-var store (the user data
 # directory). Reuses set_global_var when gvar_common.sh is loaded; otherwise
@@ -407,18 +408,18 @@ domain_setup_ui_binding_enabled() {
     [ "$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")" = "yes" ]
 }
 
-# Install the dashboard www site for one domain: server_name www.<domain>
-# www.<prefix>.<domain>, reverse proxy to the UI backend, reusing the domain
-# certificate (the wildcard SANs already cover both names). Rendered only
-# while the UI binding is enabled; content-hash idempotent like every
-# managed site.
+# Install the dashboard aliases for one domain: www.<domain>,
+# <prefix>.<domain> and www.<prefix>.<domain>, reverse proxying to the UI
+# backend while reusing the domain certificate.
 domain_setup_ensure_www_site() {
     local domain="$1"
-    domain_setup_ensure_proxy_site "www.$domain" "$domain" "$(domain_ui_backend_url)" "redirect" "www.$domain www.$DOMAIN_API_PREFIX.$domain"
+    domain_setup_ensure_proxy_site "www.$domain" "$domain" "$(domain_ui_backend_url)" "redirect" \
+        "www.$domain $DOMAIN_API_PREFIX.$domain www.$DOMAIN_API_PREFIX.$domain"
 }
 
 # Idempotently (re)write the dashboard allowed-hosts file (one hostname per
-# line: apex + www.<domain> + www.<prefix>.<domain> for every bound domain).
+# line: apex + www.<domain> + <prefix>.<domain> + www.<prefix>.<domain> for
+# every bound domain).
 # Content-hash idempotent via write_file_if_changed; the Vite config reads
 # this constant path and keeps its defaults while the file is absent.
 domain_setup_write_ui_allowed_hosts() {
@@ -430,6 +431,7 @@ domain_setup_write_ui_allowed_hosts() {
             [ -z "$domain" ] && continue
             echo "$domain"
             echo "www.$domain"
+            echo "$DOMAIN_API_PREFIX.$domain"
             echo "www.$DOMAIN_API_PREFIX.$domain"
         done <<< "$DOMAIN_DOMAINS_LIST"
     } | write_file_if_changed "$DOMAIN_UI_ALLOWED_HOSTS_FILE")
@@ -482,28 +484,55 @@ domain_setup_restart_ui_service() {
     return 0
 }
 
-# Enable the dashboard (UI) binding and idempotently install it for every
-# secret domain: the apex retargets to the UI backend (content-hash rewrite
-# of the same site file) and the www.<domain> site is created. The stored
-# region prefix is reused without re-prompting.
-domain_setup_enable_ui_binding() {
-    local domain
+# Converge the shared UI binding state and dashboard inputs. Plane-specific
+# renderers call this one primitive, then re-probe DOMAIN_UI_BINDING_READY
+# before writing nginx or Caddy routes.
+domain_setup_prepare_ui_binding() {
+    local binding_state=""
 
-    domain_setup_load_secrets || return 1
+    DOMAIN_UI_BINDING_READY="no"
+    DOMAIN_DOMAINS_LIST=""
+    domain_setup_load_secrets
+    if [ -z "$DOMAIN_DOMAINS_LIST" ]; then
+        echo "[domain] [FAIL] UI binding needs at least one configured domain"
+        return
+    fi
     DOMAIN_API_PREFIX="$(domain_state_get "$DOMAIN_API_PREFIX_KEY" "si")"
     domain_state_set "$DOMAIN_UI_BINDING_KEY" "yes"
+    binding_state="$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")"
+    if [ "$binding_state" != "yes" ]; then
+        echo "[domain] [FAIL] UI binding state did not persist"
+        return
+    fi
 
-    echo "[domain] UI binding enabled: <domain> + www.<domain> + www.$DOMAIN_API_PREFIX.<domain> -> $(domain_ui_backend_url)"
+    domain_setup_write_ui_allowed_hosts
+    domain_setup_write_ui_domain_config
+    if [ -s "$DOMAIN_UI_ALLOWED_HOSTS_FILE" ] && [ -s "$DOMAIN_UI_DOMAIN_CONFIG_FILE" ]; then
+        DOMAIN_UI_BINDING_READY="yes"
+        echo "[domain] [OK] Shared UI binding state ready"
+    else
+        echo "[domain] [FAIL] Shared UI binding files are not ready"
+    fi
+}
+
+# Enable the dashboard binding on the nginx plane after converging the
+# plane-neutral state above.
+domain_setup_enable_ui_binding() {
+    local domain=""
+
+    domain_setup_prepare_ui_binding
+    if [ "$DOMAIN_UI_BINDING_READY" != "yes" ]; then
+        return
+    fi
+
+    echo "[domain] UI binding enabled: <domain> + www.<domain> + $DOMAIN_API_PREFIX.<domain> + www.$DOMAIN_API_PREFIX.<domain> -> $(domain_ui_backend_url)"
     while IFS= read -r domain; do
         [ -z "$domain" ] && continue
         domain_setup_ensure_apex_site "$domain"
         domain_setup_ensure_www_site "$domain"
     done <<< "$DOMAIN_DOMAINS_LIST"
 
-    domain_setup_write_ui_allowed_hosts
-    domain_setup_write_ui_domain_config
     nginx_repair_sites || true
-    return 0
 }
 
 # Full idempotent domain installation: secrets -> prefix -> certificates ->

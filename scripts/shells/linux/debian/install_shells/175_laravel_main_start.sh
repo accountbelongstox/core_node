@@ -705,7 +705,7 @@ _resolve_laravel_service_plane() {
             LARAVEL_SERVICE_PLANE_NAME="${LARAVEL_SERVICE_NAME_BASE}-frankenphp"
             LARAVEL_SERVICE_PLANE_DESC="$LARAVEL_SERVICE_DESC_FRANKENPHP"
             LARAVEL_SERVICE_PLANE_LAUNCHER="$SERVICE_FRANKENPHP_LAUNCHER"
-            LARAVEL_SERVICE_EXEC_STOP="/usr/bin/curl -sS --max-time 15 -X POST http://127.0.0.1:2019/stop"
+            LARAVEL_SERVICE_EXEC_STOP="-/usr/bin/curl -sS --max-time 15 -X POST http://127.0.0.1:2019/stop"
             LARAVEL_SERVICE_TIMEOUT_STOP="45s"
             ;;
         nginx)
@@ -1265,12 +1265,16 @@ if [ "$AS_SERVICE" = "yes" ]; then
                 if [ -f "$UI_START" ]; then
                     echo "Bringing up pycore_laravel_wordnew_ui dashboard as a background service (idempotent)..."
                     bash "$UI_START" --no-backend --service || echo "  Warning: UI dashboard service registration failed (continuing)."
-                    # Optional dashboard domain binding: apex + www.<domain> +
-                    # www.<prefix>.<domain> reverse-proxy to the UI backend
-                    # (certificates reused; each site is content-hash
-                    # idempotent; the stored region prefix is reused).
-                    if [ "$CURRENT_WEB_SERVER_PLANE" != "frankenphp" ] && ask_default_yes "Bind <domain>, www.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
-                        domain_setup_enable_ui_binding || echo "  Warning: UI domain binding reported issues (continuing)."
+                    # Dashboard domain binding: shared state and allowed-host
+                    # inputs, followed by the active plane's canonical route
+                    # renderer. --with-ui is explicit intent and does not
+                    # prompt; interactive selection keeps the default-yes
+                    # binding choice.
+                    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+                        PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
+                            /bin/bash "$LARAVEL_START_FRANKENPHP_SUB" ui-binding
+                    elif ask_default_yes "Bind <domain>, www.<domain>, <prefix>.<domain> and www.<prefix>.<domain> to the dashboard at $(domain_ui_backend_url) (certificates reused)?"; then
+                        domain_setup_enable_ui_binding
                     fi
                 else
                     echo "  Warning: UI start script not found: $UI_START (skipping)."

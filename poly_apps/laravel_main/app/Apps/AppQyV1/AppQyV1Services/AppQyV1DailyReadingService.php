@@ -36,6 +36,13 @@ class AppQyV1DailyReadingService
 
     public function storeAudio(string $articleId, string $language, string $audioBase64): ?string
     {
+        $artifact = $this->writeAudioArtifact($articleId, $language, $audioBase64);
+
+        return $artifact['url'] ?? null;
+    }
+
+    private function writeAudioArtifact(string $articleId, string $language, string $audioBase64): ?array
+    {
         $binary = null;
         $languageCode = '';
         $safeId = '';
@@ -59,10 +66,13 @@ class AppQyV1DailyReadingService
             return null;
         }
 
-        return '/static/app_qy_v1/audio/daily/'
-            . rawurlencode($languageCode)
-            . '/'
-            . rawurlencode($filename);
+        return [
+            'url' => '/static/app_qy_v1/audio/daily/'
+                . rawurlencode($languageCode)
+                . '/'
+                . rawurlencode($filename),
+            'sha256' => hash('sha256', $binary),
+        ];
     }
 
     /**
@@ -74,26 +84,45 @@ class AppQyV1DailyReadingService
      */
     public function replaceAudio(AppQyV1Article $article, string $audioBase64, array $provenance = []): ?string
     {
-        $audioUrl = $this->storeAudio($article->article_id, (string) $article->language, $audioBase64);
-        if ($audioUrl === null) {
+        $artifact = $this->writeAudioArtifact(
+            (string) $article->article_id,
+            (string) $article->language,
+            $audioBase64
+        );
+        if ($artifact === null) {
             return null;
         }
 
-        $metadata = is_array($article->metadata) ? $article->metadata : [];
-        $metadata['audio_url'] = $audioUrl;
-        $metadata['audio_status'] = 'ready';
-        $metadata['audio_replaced_at'] = now()->toDateTimeString();
-        $metadata['tts_engine'] = $provenance['tts_engine'] ?? ($metadata['tts_engine'] ?? null);
-        $metadata['tts_model'] = $provenance['tts_model'] ?? ($metadata['tts_model'] ?? null);
-        $metadata['tts_chunked'] = (bool) ($provenance['tts_chunked'] ?? false);
-        if (isset($metadata['audio_files'][0]) && is_array($metadata['audio_files'][0])) {
-            $metadata['audio_files'][0]['path'] = $audioUrl;
-            $metadata['audio_files'][0]['created_at'] = now()->toDateTimeString();
-        }
-        $article->metadata = $metadata;
-        $article->save();
+        AppQyV1Article::mutateMetadataByArticleId(
+            (string) $article->article_id,
+            static function (array $metadata, AppQyV1Article $lockedArticle) use ($artifact, $provenance): array {
+                $previousHash = (string) ($metadata['audio_sha256'] ?? '');
+                $audioChanged = $previousHash === '' || !hash_equals($previousHash, $artifact['sha256']);
+                $audioFiles = is_array($metadata['audio_files'] ?? null) ? $metadata['audio_files'] : [];
 
-        return $audioUrl;
+                $metadata['audio_url'] = $artifact['url'];
+                $metadata['audio_status'] = 'ready';
+                $metadata['audio_sha256'] = $artifact['sha256'];
+                $metadata['tts_engine'] = $provenance['tts_engine'] ?? ($metadata['tts_engine'] ?? null);
+                $metadata['tts_model'] = $provenance['tts_model'] ?? ($metadata['tts_model'] ?? null);
+                $metadata['tts_chunked'] = (bool) ($provenance['tts_chunked'] ?? false);
+                $metadata['tts_accent'] = $provenance['tts_accent'] ?? ($metadata['tts_accent'] ?? null);
+
+                if ($audioChanged || !isset($audioFiles[0]) || !is_array($audioFiles[0])) {
+                    $metadata['audio_replaced_at'] = now()->toIso8601String();
+                    $audioFiles[0] = [
+                        'sentence' => (string) $lockedArticle->content,
+                        'path' => $artifact['url'],
+                        'created_at' => now()->toIso8601String(),
+                    ];
+                }
+                $metadata['audio_files'] = array_values($audioFiles);
+
+                return $metadata;
+            }
+        );
+
+        return $artifact['url'];
     }
 
     public function createDocument(

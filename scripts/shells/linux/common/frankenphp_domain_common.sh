@@ -46,8 +46,11 @@ FM_DOMAIN_CADDY_DIR="${FM_DOMAIN_LARAVEL_DIR}/storage/frankenphp"
 FM_DOMAIN_CADDYFILE="${FM_DOMAIN_CADDY_DIR}/Caddyfile"
 FM_DOMAIN_ROUTES_DIR="${FM_DOMAIN_CADDY_DIR}/routes"
 FM_DOMAIN_BACKEND_URL="http://$(sc_require hosts.loopback):$(sc_require ports.laravel_api_backend)"
+FM_DOMAIN_UI_BACKEND_URL="$(domain_ui_backend_url)"
 FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FM_DOMAIN_MARKER="managed-by: frankenphp_domain_common"
+FM_DOMAIN_UI_BINDING_READY="no"
+FM_DOMAIN_CADDY_RELOAD_READY="no"
 
 # Ensure the Caddy routes directory exists (lazy sudo, symlink-aware).
 fm_domain_ensure_routes_dir() {
@@ -80,6 +83,8 @@ fm_domain_render_route() {
     local acme_tls=""
     local tls_directive=""
     local acme_cert_dir=""
+    local ui_binding=""
+    local ui_addresses=""
 
     # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
     # pinned explicitly); the dnspod module stanza is the fallback.
@@ -110,6 +115,23 @@ fm_domain_render_route() {
 "
     fi
 
+    ui_binding="$(domain_state_get "$DOMAIN_UI_BINDING_KEY" "no")"
+    if [ "$ui_binding" = "yes" ]; then
+        ui_addresses="${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${domain}:${FM_DOMAIN_HTTPS_PORT}, ${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}"
+        cat <<EOF
+# ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
+
+${api_host}:${FM_DOMAIN_HTTPS_PORT} {
+${tls_directive}	reverse_proxy ${FM_DOMAIN_BACKEND_URL}
+}
+
+${ui_addresses} {
+${tls_directive}	reverse_proxy ${FM_DOMAIN_UI_BACKEND_URL}
+}
+EOF
+        return
+    fi
+
     cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
 
@@ -125,6 +147,60 @@ www.${domain}:${FM_DOMAIN_HTTPS_PORT} {
 ${tls_directive}	redir https://${api_host}{uri} permanent
 }
 EOF
+}
+
+# Enable and render the dashboard aliases on the FrankenPHP plane. Shared
+# state/allowed-host inputs stay owned by domain_setup_common; this function
+# owns only Caddy route convergence and the zero-downtime admin load.
+fm_domain_enable_ui_binding() {
+    local domain=""
+    local prefix=""
+    local route_file=""
+    local rendered=""
+    local existing=""
+    local route_drift="no"
+    local admin_port=""
+    local reload_code=""
+
+    FM_DOMAIN_UI_BINDING_READY="no"
+    FM_DOMAIN_CADDY_RELOAD_READY="no"
+    domain_setup_prepare_ui_binding
+    if [ "$DOMAIN_UI_BINDING_READY" != "yes" ]; then
+        echo "[fm-domain] [FAIL] Shared UI binding state is not ready"
+        return
+    fi
+
+    prefix="$DOMAIN_API_PREFIX"
+    echo "[fm-domain] UI routes: <domain>, www.<domain>, ${prefix}.<domain>, www.${prefix}.<domain> -> ${FM_DOMAIN_UI_BACKEND_URL}"
+    while IFS= read -r domain; do
+        [ -z "$domain" ] && continue
+        fm_domain_ensure_route_file "$domain" "$prefix"
+        route_file="${FM_DOMAIN_ROUTES_DIR}/${domain}.caddy"
+        rendered="$(fm_domain_render_route "$domain" "$prefix")"
+        existing=""
+        [ -f "$route_file" ] && existing="$(cat "$route_file")"
+        if [ "$existing" != "$rendered" ]; then
+            route_drift="yes"
+        fi
+    done <<< "$DOMAIN_DOMAINS_LIST"
+
+    admin_port="$(sc_require ports.frankenphp_admin)"
+    fm_domain_ensure_main_caddyfile "$admin_port" "$(fm_site_host)" "${FM_DOMAIN_LARAVEL_DIR}/public"
+    if [ "$route_drift" = "no" ] && [ "$FM_CADDYFILE_READY" = "yes" ]; then
+        FM_DOMAIN_UI_BINDING_READY="yes"
+    fi
+
+    if command -v curl >/dev/null 2>&1 && [ -f "$FM_DOMAIN_CADDYFILE" ]; then
+        reload_code="$(curl -sS -o /dev/null -w '%{http_code}' -X POST \
+            -H 'Content-Type: text/caddyfile' --data-binary "@${FM_DOMAIN_CADDYFILE}" \
+            "http://127.0.0.1:${admin_port}/load" 2>/dev/null)"
+    fi
+    if [ "$reload_code" = "200" ]; then
+        FM_DOMAIN_CADDY_RELOAD_READY="yes"
+        echo "[fm-domain] [OK] Caddy loaded the UI routes"
+    else
+        echo "[fm-domain] [INFO] Caddy load deferred; the supervised runtime will read the canonical files at start"
+    fi
 }
 
 # Idempotently write ONE domain's Caddy route file. Content-hash idempotent

@@ -23,8 +23,9 @@ use App\Services\MediaIngestService;
 use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleWordModel as AppQyV1ArticleWord;
-use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
+use App\Apps\AppQyV1\AppQyV1Requests\AppQyV1WorkerArticleSubmitRequest;
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1AgentHistoryArticleSubmissionService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailyReadingService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DailySentenceService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleSentenceAudioService;
@@ -42,16 +43,20 @@ class AppQyV1ArticleController extends Controller
 
     protected AppQyV1ArticleSentenceAudioService $articleAudioService;
 
+    protected AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService;
+
     public function __construct(
         BookTextStatsService $stats,
         MediaIngestService $ingestService,
         AppQyV1DailyReadingService $dailyReadingService,
-        AppQyV1ArticleSentenceAudioService $articleAudioService
+        AppQyV1ArticleSentenceAudioService $articleAudioService,
+        AppQyV1AgentHistoryArticleSubmissionService $agentHistorySubmissionService
     ) {
         $this->stats = $stats;
         $this->ingestService = $ingestService;
         $this->dailyReadingService = $dailyReadingService;
         $this->articleAudioService = $articleAudioService;
+        $this->agentHistorySubmissionService = $agentHistorySubmissionService;
     }
 
     /**
@@ -566,162 +571,11 @@ class AppQyV1ArticleController extends Controller
      *
      * POST /api/app_qy_v1/ai_tools/article/worker/submit
      */
-    public function workerSubmit(Request $request): JsonResponse
+    public function workerSubmit(AppQyV1WorkerArticleSubmitRequest $request): JsonResponse
     {
-        $validator = Validator::make($request->all(), [
-            'article_text' => 'required|string|min:10|max:50000',
-            'language' => 'nullable|string|max:20',
-            'title' => 'nullable|string|max:255',
-            'title_en' => 'nullable|string|max:255',
-            'title_cn' => 'nullable|string|max:255',
-            'reference_cn' => 'nullable|string|max:5000',
-            'reference_lang' => 'nullable|string|max:10',
-            'target_lang' => 'nullable|string|max:10',
-            'article_type' => 'nullable|string|in:daily',
-            'source' => 'nullable|string|in:agent_history',
-            'idempotency_key' => 'nullable|string|max:128',
-            'raw_preview' => 'nullable|string|max:5000',
-            'raw_word_count' => 'nullable|integer|min:0',
-            'audio_base64' => 'required|string',
-            'tts_engine' => 'nullable|string|max:100',
-            'tts_model' => 'nullable|string|max:200',
-            'tts_chunked' => 'nullable|boolean',
-            'tts_accent' => 'nullable|string|max:20',
-            'openrouter_model' => 'nullable|string|max:200',
-        ]);
+        $result = $this->agentHistorySubmissionService->submit($request->validated());
 
-        if ($validator->fails()) {
-            return $this->error($validator->errors()->first(), 422);
-        }
-
-        $articleText = (string) $request->input('article_text');
-        $language = AppQyV1TableMaps::normalizeLangCode((string) $request->input('language', 'en'));
-        if ($language === '') {
-            $language = 'en';
-        }
-
-        // The title column is the ENGLISH title — wordnew Daily Reading shows
-        // the English version. Never fall back to the Chinese title here.
-        $titleEn = trim((string) ($request->input('title_en') ?: $request->input('title') ?: ''));
-        if ($titleEn === '') {
-            $titleEn = 'Daily reading article';
-        }
-
-        $idempotencyKey = trim((string) $request->input('idempotency_key', ''));
-        $articleId = $idempotencyKey === ''
-            ? 'article_' . Str::uuid()
-            : 'article_' . substr(hash('sha256', $idempotencyKey), 0, 40);
-        $existingArticle = AppQyV1Article::findByArticleId($articleId);
-        $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
-        $articleType = AppQyV1Article::TYPE_DAILY;
-        $source = AppQyV1Article::SOURCE_AGENT_HISTORY;
-
-        try {
-            $audioUrl = $existingArticle === null
-                ? $this->dailyReadingService->storeAudio(
-                    $articleId,
-                    $language,
-                    (string) $request->input('audio_base64')
-                )
-                : $this->dailyReadingService->replaceAudio(
-                    $existingArticle,
-                    (string) $request->input('audio_base64'),
-                    [
-                        'tts_engine' => $request->input('tts_engine'),
-                        'tts_model' => $request->input('tts_model'),
-                        'tts_chunked' => (bool) $request->input('tts_chunked', false),
-                    ]
-                );
-            if ($audioUrl === null) {
-                throw new \RuntimeException('Agent history article audio could not be stored.');
-            }
-
-            $article = $existingArticle ?? AppQyV1Article::createRecord([
-                'article_id' => $articleId,
-                'user_id' => 0,
-                'title' => $titleEn,
-                'content' => $articleText,
-                'language' => $language,
-                'article_type' => $articleType,
-                'source' => $source,
-                'word_count' => $parsedResult['total_words'],
-                'unique_word_count' => $parsedResult['unique_words'],
-                'sentence_count' => $parsedResult['total_sentences'],
-                'is_daily_reading' => true,
-                'reading_date' => now()->toDateString(),
-                'tts_generated' => true,
-                'metadata' => [
-                    'title_en' => $titleEn,
-                    'title_cn' => $request->input('title_cn'),
-                    'reference_cn' => $request->input('reference_cn'),
-                    'reference_lang' => $request->input('reference_lang', 'CN'),
-                    'target_lang' => $request->input('target_lang', 'EN'),
-                    'raw_preview' => $request->input('raw_preview'),
-                    'raw_word_count' => (int) $request->input('raw_word_count', 0),
-                    'openrouter_model' => $request->input('openrouter_model'),
-                    'submission_source' => $source,
-                    'idempotency_key' => $idempotencyKey ?: null,
-                    'audio_url' => $audioUrl,
-                    'audio_status' => 'ready',
-                    'tts_engine' => $request->input('tts_engine'),
-                    'tts_model' => $request->input('tts_model'),
-                    'tts_chunked' => (bool) $request->input('tts_chunked', false),
-                    'tts_accent' => $request->input('tts_accent'),
-                    'audio_files' => [[
-                        'sentence' => $articleText,
-                        'path' => $audioUrl,
-                        'created_at' => now()->toDateTimeString(),
-                    ]],
-                ],
-            ]);
-
-            AppQyV1ArticleWord::createFromArticleWords(
-                $articleId,
-                $parsedResult['words'],
-                $parsedResult['word_frequency'],
-                $language
-            );
-
-            // Also persist the article body as an uploaded document (same table
-            // as the /learning/upload document feature) categorized as daily
-            // reading; metadata.document_id links back. Best-effort — a failure
-            // here is logged inside the service and never breaks article creation.
-            $documentId = $this->dailyReadingService->createDocument(
-                $article,
-                $articleText,
-                $request->input('reference_cn'),
-                $language
-            );
-
-            $articleMetadata = is_array($article->metadata) ? $article->metadata : [];
-            if (empty($articleMetadata['publication_event_emitted'])) {
-                AppQyV1TranslationEventModel::emit('article.published', [
-                    'article_id' => $articleId,
-                    'source_key' => $articleId,
-                    'title' => $article->title,
-                    'language' => $language,
-                    'article_type' => $articleType,
-                    'source' => $source,
-                    'audio_url' => $audioUrl,
-                    'document_id' => $documentId,
-                ]);
-                $articleMetadata['publication_event_emitted'] = true;
-                $article->metadata = $articleMetadata;
-                $article->saveRecord();
-            }
-
-            return $this->success([
-                'article_id' => $articleId,
-                'source_key' => $articleId,
-                'audio_url' => $audioUrl,
-                'document_id' => $documentId,
-                'title' => $article->title,
-                'article_type' => $articleType,
-                'source' => $source,
-            ], 'Agent history article stored');
-        } catch (\Throwable $e) {
-            return $this->error('Failed to store worker article: ' . $e->getMessage(), 500);
-        }
+        return $this->success($result, __('article.worker_stored'));
     }
 
     /**
