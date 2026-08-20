@@ -221,9 +221,7 @@ class AppQyV1WordMediaService
         $translations = $this->extractTranslations($row);
         $hasTranslation = $this->hasTranslationFor($row, $targetLang);
 
-        // mcp-chrome submission is authoritative. A legacy image/status does not
-        // suppress the search task until Chrome has submitted this word itself.
-        $needsImage = $hasTranslation && !$mcpImageSubmitted;
+        $needsImage = false;
 
         $needsMedia = $needsImage || !$hasAudio || !$hasTranslation;
 
@@ -231,12 +229,8 @@ class AppQyV1WordMediaService
             // Enqueue the per-resource queues (idempotent; bump to front on query).
             $position = $bumpFront ? 'beginning' : 'end';
 
-            if ($needsImage) {
-                $this->imageQueue->add($word, $langCode, $position);
-            }
-
-            // Independent lanes: mcp-chrome owns images, pycore owns Google
-            // translation, and the word-audio worker owns pronunciation.
+            // Single words do not own image tasks. Translation and pronunciation
+            // remain independent lanes.
             $this->ensureWordMediaTask(
                 $word,
                 $md5,
@@ -309,18 +303,12 @@ class AppQyV1WordMediaService
 
             $hasAudio = $row ? ($this->resolveAudioUrl($row) !== null) : false;
             $hasTranslation = $this->hasTranslationFor($row, $targetLanguage);
-            $mcpImageSubmitted = $row
-                && $row->getAttribute('image_mcp_submitted_at') !== null;
-
-            $needsImage = $hasTranslation && !$mcpImageSubmitted;
+            $needsImage = false;
 
             if (!$needsImage && $hasAudio && $hasTranslation) {
                 return; // Nothing left to prioritize (image settled or present).
             }
 
-            if ($needsImage) {
-                $this->imageQueue->add($word, $langCode, 'beginning');
-            }
             if (!$hasAudio) {
                 $this->audioGateway->request($word, $langCode, null, true, true);
             }
@@ -468,18 +456,6 @@ class AppQyV1WordMediaService
         bool $needsImage = true,
         bool $needsTranslation = true
     ): void {
-        if ($needsImage) {
-            $this->ensureWordTask(
-                'word_media',
-                GlobalTask::executionType('remote_fast'),
-                $word,
-                $md5,
-                $langCode,
-                $targetLanguage,
-                $bumpFront
-            );
-        }
-
         if ($needsTranslation) {
             $this->ensureWordTask(
                 'word_translation',

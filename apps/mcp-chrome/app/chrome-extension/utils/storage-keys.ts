@@ -73,6 +73,7 @@ export const STORAGE_KEYS = {
 
   WEB_SEARCH_PROGRESS: 'web_search_progress',
   WEB_SEARCH_COVER_MANIFESTS: 'web_search_cover_manifests',
+  WEB_SEARCH_ENGINE_CIRCUITS: 'web_search_engine_circuits',
   QWEN_TTS_PROGRESS: 'qwenTtsProgress',
 } as const;
 

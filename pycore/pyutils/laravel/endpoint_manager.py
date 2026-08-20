@@ -40,8 +40,7 @@ needlessly fail the happy path and trigger a sweep. Per the dashboard rule
 Architecture / layering (pycore rules):
   * Shared Laravel domain, consumed by application workflows and RPC adapters.
     All imports stay at file top.
-  * Logging only via ColorPrint; networking via the lazily-loaded third-party
-    ``requests`` (pycore.pyfoundations.third_party), never a bare import.
+  * Logging only via ColorPrint; networking via the shared Laravel transport.
 """
 
 import re
@@ -57,13 +56,16 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyfoundations.system_paths import APP_DATA_DIR
 from pycore.pyfoundations.thread_bus.bus import THREAD_BUS
-from pycore.pyfoundations.third_party.api import get_third_package_requests
 from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 from pycore.pyutils.common.user_data_store import UserDataStore, user_data_store
 from pycore.pyutils.laravel.http_recorder import laravel_http_recorder
 from pycore.pyutils.laravel.identity import (
     LARAVEL_HEALTH_SERVICE,
     build_pycore_identity_headers,
+)
+from pycore.pyutils.laravel.transport import (
+    create_laravel_http_session,
+    response_http_version,
 )
 
 
@@ -152,14 +154,17 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not url:
         result["error"] = "empty url"
         return result
-    requests = get_third_package_requests()
     started = time.monotonic()
+    session, transport_options, transport = create_laravel_http_session(url)
+    http_version = ""
     try:
-        resp = requests.get(
+        resp = session.get(
             url + HEALTH_PATH,
             headers=build_pycore_identity_headers(),
             timeout=timeout,
+            **transport_options,
         )
+        http_version = response_http_version(resp)
         result["latency_ms"] = int((time.monotonic() - started) * 1000)
         result["status"] = resp.status_code
         content_type = (resp.headers.get("Content-Type") or "").lower()
@@ -176,6 +181,8 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         result["latency_ms"] = int((time.monotonic() - started) * 1000)
         result["error"] = str(exc).splitlines()[0][:200]
+    finally:
+        session.close()
     latency = result.get("latency_ms") or 0
     status = result.get("status") or 0
     error = result.get("error")
@@ -194,6 +201,8 @@ def _probe_endpoint(payload: Dict[str, Any]) -> Dict[str, Any]:
         "ms": float(latency),
         "error": error,
         "base_url": url,
+        "transport": transport,
+        "http_version": http_version,
     })
     return result
 

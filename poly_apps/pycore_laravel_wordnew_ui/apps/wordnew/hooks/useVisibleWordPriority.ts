@@ -39,9 +39,6 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
     if (rows.length === 0) return;
     const translationWords = rows.filter((row) => !row.hasTranslation).map((row) => row.word);
     const audioWords = rows.filter((row) => !row.hasAudio).map((row) => row.word);
-    const imageItems = rows
-      .filter((row) => !row.hasImage && row.word)
-      .map((row) => ({ word: row.word, language: row.language }));
     const requests: Promise<unknown>[] = [];
     if (translationWords.length > 0) {
       requests.push(wordNewQueueCenter.prioritizeTranslations(
@@ -52,9 +49,6 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
     }
     if (audioWords.length > 0) {
       requests.push(wordNewQueueCenter.moveWordsToHead(audioWords, languageRef.current));
-    }
-    if (imageItems.length > 0) {
-      requests.push(wordNewQueueCenter.prioritizeWordImages(imageItems));
     }
     void Promise.allSettled(requests).finally(() => {
       if (pendingRef.current.size > 0 && timerRef.current === null) {
@@ -74,7 +68,7 @@ export function useVisibleWordPriority(language: string, targetLanguage: string)
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         const word = elementWordsRef.current.get(entry.target);
-        if (!word || (word.hasTranslation && word.hasAudio && word.hasImage)) continue;
+        if (!word || (word.hasTranslation && word.hasAudio)) continue;
         const wordKey = word.md5 || word.word.toLocaleLowerCase();
         const key = `${languageRef.current}:${targetLanguageRef.current}:${wordKey}`;
         if (notifiedRef.current.has(key)) continue;

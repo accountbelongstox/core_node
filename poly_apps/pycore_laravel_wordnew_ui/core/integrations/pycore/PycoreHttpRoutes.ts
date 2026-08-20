@@ -198,6 +198,7 @@ export const PYCORE_HTTP_ROUTES = {
   taskCenterSetQueueCenterControl: 'ui/task_center/set_queue_center_control',
   taskCenterGetLocalTaskDetail: 'ui/task_center/get_local_task_detail',
   taskHistoryCompletedArchiveResource: 'ui/task_history/completed_archive_resource',
+  taskHistoryCachedAudioResource: 'ui/task_history/cached_audio_resource',
   taskHistoryGetRecentLocalTasks: 'ui/task_history/get_recent_local_tasks',
   taskHistorySearchTasks: 'ui/task_history/search_tasks',
   taskHistoryClearRecentTasks: 'ui/task_history/clear_recent_tasks',

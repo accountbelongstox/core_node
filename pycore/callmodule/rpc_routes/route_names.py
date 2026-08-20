@@ -216,6 +216,7 @@ UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL = "ui/task_center/set_queue_center_contr
 UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL = "ui/task_center/get_local_task_detail"
 UI_TASK_HISTORY_GET_COMPLETED_ARCHIVE = "ui/task_history/get_completed_archive"
 UI_TASK_HISTORY_COMPLETED_ARCHIVE_RESOURCE = "ui/task_history/completed_archive_resource"
+UI_TASK_HISTORY_CACHED_AUDIO_RESOURCE = "ui/task_history/cached_audio_resource"
 UI_TASK_HISTORY_GET_RECENT_LOCAL_TASKS = "ui/task_history/get_recent_local_tasks"
 UI_TASK_HISTORY_SEARCH_TASKS = "ui/task_history/search_tasks"
 UI_TASK_HISTORY_CLEAR_RECENT_TASKS = "ui/task_history/clear_recent_tasks"

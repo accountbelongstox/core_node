@@ -2,7 +2,7 @@ import { createErrorResponse, createJsonResponse, toErrorMessage, ToolResult } f
 import { BaseBrowserToolExecutor } from '../base-browser';
 import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { logger } from '@/utils/logger';
-import { delay as waitForDelay } from '@/utils/async';
+import { AsyncMutex, delay as waitForDelay } from '@/utils/async';
 import {
   WEB_SEARCH_LAST_VERIFIED,
   buildSearchUrl,
@@ -19,6 +19,9 @@ import { waitForTabComplete } from '@/utils/tab-readiness';
 
 const LOG = 'Web Search Tool';
 const HELPER_SCRIPT = 'inject-scripts/web-search-helper.js';
+const IMAGE_RESULTS_SETTLE_TIMEOUT_MS = 5_000;
+const IMAGE_RESULTS_RETRY_DELAY_MS = 500;
+const WEB_SEARCH_MUTEX = new AsyncMutex();
 
 interface WebSearchParams {
   query: string;
@@ -35,6 +38,15 @@ class WebSearchTool extends BaseBrowserToolExecutor {
   name = TOOL_NAMES.BROWSER.WEB_SEARCH;
 
   async execute(args: WebSearchParams): Promise<ToolResult> {
+    const release = await WEB_SEARCH_MUTEX.acquire();
+    try {
+      return await this.executeExclusive(args);
+    } finally {
+      release();
+    }
+  }
+
+  private async executeExclusive(args: WebSearchParams): Promise<ToolResult> {
     const query = String(args.query || '').trim();
     if (!query) {
       return createErrorResponse('query is required');
@@ -94,7 +106,22 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         statusProbeDelayMs: 600,
         expectedUrl: url,
       });
-      let status = await this.readPage(tabId, mode, maxResults);
+      let status: Awaited<ReturnType<WebSearchTool['readPage']>>;
+      try {
+        status = await this.readPage(tabId, mode, maxResults);
+      } catch (error) {
+        logger.warn(LOG, `Search tab ${tabId} could not be inspected; retrying in a fresh tab`, error);
+        const recoveryTab = await chrome.tabs.create({ url, active: false });
+        if (!recoveryTab.id) throw error;
+        tabId = recoveryTab.id;
+        await waitForTabComplete(tabId, {
+          timeoutMs: 20_000,
+          settleDelayMs: 500,
+          statusProbeDelayMs: 600,
+          expectedUrl: url,
+        });
+        status = await this.readPage(tabId, mode, maxResults);
+      }
       let finalStatus: WebSearchStatus = status.status;
 
       if (status.status === 'verification_required' && waitForVerification) {
@@ -111,17 +138,8 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         };
       }
 
-      if (mode === 'images' && status.ok) {
-        const imageResults = filterSearchImageResults(status.imageResults || [], query);
-        status = {
-          ...status,
-          ok: imageResults.length > 0,
-          status: imageResults.length > 0 ? 'ok' : 'no_results',
-          message: imageResults.length > 0
-            ? status.message
-            : 'No query-matching image results found on page',
-          imageResults,
-        };
+      if (mode === 'images' && finalStatus !== 'verification_required' && finalStatus !== 'verification_timeout') {
+        status = await this.settleImageResults(tabId, maxResults, query, status);
         finalStatus = status.status;
       }
 
@@ -142,7 +160,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
       };
 
       return createJsonResponse(result, {
-        isError: !result.ok && result.status !== 'verification_required',
+        isError: result.status === 'error',
         space: 2,
       });
     } catch (error) {
@@ -199,6 +217,7 @@ class WebSearchTool extends BaseBrowserToolExecutor {
     timeoutMs: number,
   ): Promise<{ finalStatus: WebSearchStatus; payload: Awaited<ReturnType<WebSearchTool['readPage']>> }> {
     const started = Date.now();
+    await this.surfaceManualVerification(tabId);
     while (Date.now() - started < timeoutMs) {
       await this.injectContentScript(tabId, [HELPER_SCRIPT]);
       const verify = await chrome.tabs.sendMessage(tabId, { action: 'webSearchDetectVerification' });
@@ -218,6 +237,54 @@ class WebSearchTool extends BaseBrowserToolExecutor {
         message: 'Verification wait timed out — solve CAPTCHA in the search tab and retry',
       },
     };
+  }
+
+  private async surfaceManualVerification(tabId: number): Promise<void> {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      await chrome.tabs.update(tabId, { active: true });
+      if (typeof tab.windowId === 'number') {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
+      logger.info(LOG, `Manual verification required in tab ${tabId}`);
+    } catch (error) {
+      logger.warn(LOG, `Could not surface verification tab ${tabId}`, error);
+    }
+  }
+
+  private async settleImageResults(
+    tabId: number,
+    maxResults: number,
+    query: string,
+    initial: Awaited<ReturnType<WebSearchTool['readPage']>>,
+  ): Promise<Awaited<ReturnType<WebSearchTool['readPage']>>> {
+    const started = Date.now();
+    let current = initial;
+
+    while (true) {
+      const imageResults = filterSearchImageResults(current.imageResults || [], query);
+      if (imageResults.length > 0) {
+        return {
+          ...current,
+          ok: true,
+          status: 'ok',
+          imageResults,
+        };
+      }
+      if (current.status === 'verification_required') return current;
+      if (Date.now() - started >= IMAGE_RESULTS_SETTLE_TIMEOUT_MS) {
+        return {
+          ...current,
+          ok: false,
+          status: 'no_results',
+          message: 'No query-matching image results found on page',
+          imageResults: [],
+        };
+      }
+
+      await waitForDelay(IMAGE_RESULTS_RETRY_DELAY_MS);
+      current = await this.readPage(tabId, 'images', maxResults);
+    }
   }
 
 }

@@ -140,7 +140,6 @@ const ROUTES = {
   assistOverviewItems: '/api/app_qy_v1/assist/overview/items',
   assistCoverRetry: '/api/app_qy_v1/assist/cover/retry',
   assistPosterPriority: '/api/app_qy_v1/assist/poster/priority',
-  wordImagePriority: '/api/app_qy_v1/ai_tools/word_image/queue/add',
   libraries: '/api/app_qy_v1/vocabulary/libraries',
   library: (id: number): string => `/api/app_qy_v1/learning/libraries/${encodeURIComponent(id)}`,
   libraryWords: (id: number): string => `/api/app_qy_v1/vocabulary/libraries/${encodeURIComponent(id)}/words`,
@@ -511,8 +510,6 @@ const laravelMethods = {
   },
   moveWordAudioToHead: (words: string[], language: string) =>
     requestLaravel<any>('POST', ROUTES.wordAudioHead, { words, language }),
-  prioritizeWordImages: (items: Array<{ word: string; language: string }>) =>
-    requestLaravel<any>('POST', ROUTES.wordImagePriority, { words: items, priority: 'front', interactive: true }),
   prioritizeCovers: (ids: number[], all = false) =>
     requestLaravel<any>('POST', ROUTES.assistCoverRetry, { ids, all }),
   prioritizePosters: (items: Array<{ media_type: 'book' | 'subtitle'; id: number }>) =>

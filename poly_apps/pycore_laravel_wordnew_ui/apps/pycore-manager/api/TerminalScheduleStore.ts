@@ -84,6 +84,21 @@ function readState(): TerminalScheduleState {
   ));
 }
 
+function definitionsEqual(
+  left: TerminalScheduleDefinition[],
+  right: TerminalScheduleDefinition[],
+): boolean {
+  return left.length === right.length && left.every((entry, index) => {
+    const candidate = right[index];
+    return candidate !== undefined
+      && entry.id === candidate.id
+      && entry.mode === candidate.mode
+      && entry.run_at === candidate.run_at
+      && entry.interval_seconds === candidate.interval_seconds
+      && entry.message === candidate.message;
+  });
+}
+
 export function readTerminalScheduleQueue(
   terminalNumber: number,
 ): TerminalScheduleRecord | null {
@@ -99,13 +114,18 @@ export function writeTerminalScheduleQueue(
   entries: TerminalScheduleDefinition[],
 ): TerminalScheduleRecord {
   const state = readState();
+  const normalizedEntries = entries
+    .map(normalizeDefinition)
+    .filter((entry): entry is TerminalScheduleDefinition => entry !== null);
+  const current = state.terminals[String(terminalNumber)];
+  if (current && definitionsEqual(current.entries, normalizedEntries)) {
+    return { ...current, entries: current.entries.map((entry) => ({ ...entry })) };
+  }
   const previousUpdatedAt = Number(
-    state.terminals[String(terminalNumber)]?.updated_at || 0,
+    current?.updated_at || 0,
   );
   const record: TerminalScheduleRecord = {
-    entries: entries
-      .map(normalizeDefinition)
-      .filter((entry): entry is TerminalScheduleDefinition => entry !== null),
+    entries: normalizedEntries,
     updated_at: Math.max(Date.now(), previousUpdatedAt + 1),
   };
   state.terminals[String(terminalNumber)] = record;
@@ -120,32 +140,29 @@ export function ensureTerminalScheduleQueue(
     || writeTerminalScheduleQueue(terminalNumber, []);
 }
 
-export function stageTerminalScheduleClearAll(
-  terminalNumbers: number[],
-): TerminalScheduleClearLocalResult {
+export function stageTerminalScheduleClearAll(): TerminalScheduleClearLocalResult {
   const state = readState();
   const clearedTerminalNumbers: number[] = [];
   let clearedEntryCount = 0;
-  const terminalKeys = new Set([
-    ...Object.keys(state.terminals),
-    ...terminalNumbers
-      .filter((value) => value > 0)
-      .map((value) => String(value)),
-  ]);
-  terminalKeys.forEach((key) => {
+  let changed = false;
+  Object.keys(state.terminals).forEach((key) => {
     const current = state.terminals[key];
-    if (current && current.entries.length === 0) return;
-    if (current && current.entries.length > 0) {
-      clearedEntryCount += current.entries.length;
-      clearedTerminalNumbers.push(Number(key));
-    }
+    if (current.entries.length === 0) return;
+    clearedEntryCount += current.entries.length;
+    clearedTerminalNumbers.push(Number(key));
     state.terminals[key] = {
       entries: [],
-      updated_at: Math.max(Date.now(), Number(current?.updated_at || 0) + 1),
+      updated_at: Math.max(Date.now(), Number(current.updated_at || 0) + 1),
     };
+    changed = true;
   });
-  state.clear_all_pending = true;
-  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+  if (!state.clear_all_pending) {
+    state.clear_all_pending = true;
+    changed = true;
+  }
+  if (changed) {
+    StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+  }
   return {
     cleared_entry_count: clearedEntryCount,
     terminal_numbers: clearedTerminalNumbers.sort((left, right) => left - right),

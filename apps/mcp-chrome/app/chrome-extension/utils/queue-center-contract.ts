@@ -32,7 +32,6 @@ export interface ChromeCapabilitySwitchDefinition {
   label: string;
   hint: string;
   processors: string[];
-  uses_validity_runner: boolean;
 }
 
 export interface TaskCreateResult {

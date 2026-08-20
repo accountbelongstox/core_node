@@ -5,7 +5,7 @@
  * parser. Both consumers reuse these functions so the prompt and the whitelist
  * parse can never drift:
  *   - WordValidityWebWorkerService  (server-lane `word_validity` task worker)
- *   - WordValidityRunnerService     (client-driven recursive pending drain)
+ *   - WordValidityPanel             (single-feature diagnostic)
  *
  * Behavior is moved verbatim from the worker's former private buildPrompt /
  * parseClassification. No network, no tab, no side effects — pure in/out.

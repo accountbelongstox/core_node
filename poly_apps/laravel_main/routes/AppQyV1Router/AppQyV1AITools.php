@@ -6,7 +6,6 @@ use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueCo
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TTSWorkerController;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1WordImageQueueController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1SentenceAudioController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TtsVariantSpecController;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1ArticleController;
@@ -129,14 +128,6 @@ Route::prefix('app_qy_v1/ai_tools')->group(function () {
         Route::get('/audio/{id}', [AppQyV1ArticleController::class, 'shortAudio']);
     });
 
-    // Word-image queue intake (P3). Mirrors the TTS queue batch/add: a re-request
-    // with priority 'front' moves the word to the head (PRIORITY_FRONT=100);
-    // state lives on the canonical dictionary row's image_* columns. Audio
-    // enqueue REUSES the existing tts/queue/batch/add (not duplicated).
-    //   POST /api/app_qy_v1/ai_tools/word_image/queue/add
-    Route::prefix('word_image')->group(function () {
-        Route::post('/queue/add', [AppQyV1WordImageQueueController::class, 'add']);
-    });
 });
 
 // Async word-translation pipeline (FE-facing). Uses Sanctum bearer authentication.

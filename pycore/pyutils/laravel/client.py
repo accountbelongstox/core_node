@@ -15,12 +15,13 @@ bridge) goes through here. Each request:
     stream published by rpc_v2,
   * notifies ``LaravelHttpRecorder`` with a structured record - rpc_v2 relays it as
     a ``laravel_http`` event to the dashboard HTTP debugger (PcHttpDebugger),
-  * returns the raw ``requests.Response`` so callers keep
+  * returns the raw requests-compatible response so callers keep
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
-Uses one ``requests.Session`` per request, so no mutable HTTP state crosses
-threads. Synchronous (matches every existing call site). Streaming responses
-retain and close their owning session with the response.
+Uses one isolated session per request, so no mutable HTTP state crosses threads.
+HTTPS transactional calls prefer HTTP/3 through curl_cffi/libcurl with protocol
+fallback. Streaming responses retain requests' iter_lines lifecycle and close
+their owning session with the response.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
@@ -31,13 +32,15 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
-from pycore.pyfoundations.third_party.api import get_third_package_requests
-
 from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import build_pycore_identity_headers
+from pycore.pyutils.laravel.transport import (
+    create_laravel_http_session,
+    response_http_version,
+)
 
 _FALLBACK_BASE = "http://127.0.0.1:9000"
 _PARAM_SUMMARY_MAX = 240
@@ -189,14 +192,18 @@ class LaravelClient:
         request_headers.update(dict(headers or {}))
         started = time.perf_counter()
         status = 0
-        session = get_third_package_requests().Session()
+        session, transport_options, transport = create_laravel_http_session(url, stream)
+        request_options = dict(transport_options)
+        request_options.update(kwargs)
+        http_version = ""
         try:
             resp = session.request(
                 method, url,
                 params=params, data=data, json=json, files=files,
                 headers=request_headers, timeout=timeout, stream=stream,
-                allow_redirects=allow_redirects, **kwargs,
+                allow_redirects=allow_redirects, **request_options,
             )
+            http_version = response_http_version(resp)
             if stream:
                 original_close = resp.close
 
@@ -225,6 +232,7 @@ class LaravelClient:
                 "params_summary": summary, "status": status, "ms": round(ms, 1),
                 "error": None, "base_url": base_url,
                 "response_summary": body_summary,
+                "transport": transport, "http_version": http_version,
             })
             return resp
         except Exception as e:
@@ -237,6 +245,7 @@ class LaravelClient:
                 "ts": time.time(), "method": method, "url": url, "path": display_path,
                 "params_summary": summary, "status": status, "ms": round(ms, 1),
                 "error": err, "base_url": base_url,
+                "transport": transport, "http_version": http_version,
             })
             raise
 

@@ -218,6 +218,11 @@ def get_third_package_requests():
     return _lazy_import('requests', 'import requests')
 
 
+def get_third_package_curl_cffi_requests():
+    """Get curl_cffi's requests-compatible HTTP/3 client."""
+    return _lazy_import('curl_cffi', 'from curl_cffi import requests as curl_cffi')
+
+
 def get_third_package_urllib3():
     """Get urllib3 package (lazy load). Used by requests; also available for direct use."""
     return _lazy_import('urllib3', 'import urllib3')

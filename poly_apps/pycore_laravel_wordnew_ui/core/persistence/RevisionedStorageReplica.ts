@@ -9,6 +9,7 @@ export interface RevisionedStorageDocument {
   values: Record<string, string>;
   accepted?: boolean;
   conflict?: boolean;
+  changed?: boolean;
 }
 
 export interface RevisionedStorageWrite {
@@ -19,7 +20,7 @@ export interface RevisionedStorageWrite {
 
 export interface RevisionedStorageReplicaOptions {
   keys: readonly StorageKey[];
-  bootstrapLocalKeys?: readonly StorageKey[];
+  localAuthorityKeys?: readonly StorageKey[];
   pendingRevisionKey: StorageKey;
   readRemote: () => Promise<RevisionedStorageDocument>;
   writeRemote: (request: RevisionedStorageWrite) => Promise<RevisionedStorageDocument>;
@@ -27,7 +28,7 @@ export interface RevisionedStorageReplicaOptions {
 
 export class RevisionedStorageReplica {
   private readonly keys: readonly StorageKey[];
-  private readonly bootstrapLocalKeySet: ReadonlySet<StorageKey>;
+  private readonly localAuthorityKeySet: ReadonlySet<StorageKey>;
   private readonly pendingRevisionKey: StorageKey;
   private readonly readRemote: () => Promise<RevisionedStorageDocument>;
   private readonly writeRemote: (
@@ -40,7 +41,7 @@ export class RevisionedStorageReplica {
 
   constructor(options: RevisionedStorageReplicaOptions) {
     this.keys = options.keys;
-    this.bootstrapLocalKeySet = new Set(options.bootstrapLocalKeys || []);
+    this.localAuthorityKeySet = new Set(options.localAuthorityKeys || []);
     this.pendingRevisionKey = options.pendingRevisionKey;
     this.readRemote = options.readRemote;
     this.writeRemote = options.writeRemote;
@@ -89,7 +90,7 @@ export class RevisionedStorageReplica {
       base_revision: this.revision,
       initialize_only: false,
     });
-    if (saved.conflict) return this.applyRemote(saved);
+    if (saved.conflict) return this.applyRemoteWithLocalAuthority(saved);
     this.acceptWrite(saved, values);
     return false;
   }
@@ -124,16 +125,49 @@ export class RevisionedStorageReplica {
     return values;
   }
 
-  private captureBootstrapValues(
+  private captureLocalAuthorityValues(
     remoteValues: Record<string, string>,
   ): Record<string, string> {
     const values: Record<string, string> = {};
-    this.bootstrapLocalKeySet.forEach((key) => {
-      if (Object.prototype.hasOwnProperty.call(remoteValues, key)) return;
+    this.localAuthorityKeySet.forEach((key) => {
       const rawValue = StorageManager.getRaw(key);
-      if (rawValue !== null) values[key] = rawValue;
+      if (rawValue !== null && rawValue !== (remoteValues[key] ?? null)) {
+        values[key] = rawValue;
+      }
     });
     return values;
+  }
+
+  private async applyRemoteWithLocalAuthority(
+    state: RevisionedStorageDocument,
+  ): Promise<boolean> {
+    let current = state;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const remoteValues = current.values && typeof current.values === 'object'
+        ? current.values
+        : {};
+      const localAuthorityValues = this.captureLocalAuthorityValues(remoteValues);
+      if (Object.keys(localAuthorityValues).length === 0) {
+        return this.applyRemote(current);
+      }
+      const saved = await this.writeRemote({
+        values: { ...remoteValues, ...localAuthorityValues },
+        base_revision: Number(current.revision || 0),
+        initialize_only: false,
+      });
+      if (!saved.conflict) return this.applyRemote(saved);
+      current = saved;
+    }
+    const remoteValues = current.values && typeof current.values === 'object'
+      ? current.values
+      : {};
+    const localAuthorityValues = this.captureLocalAuthorityValues(remoteValues);
+    const changed = this.applyRemote({
+      ...current,
+      values: { ...remoteValues, ...localAuthorityValues },
+    });
+    if (Object.keys(localAuthorityValues).length > 0) this.markLocalChange();
+    return changed;
   }
 
   private localMatches(remoteValues: Record<string, string>): boolean {
@@ -166,23 +200,11 @@ export class RevisionedStorageReplica {
           base_revision: pendingRevision,
           initialize_only: false,
         });
-        if (recovered.conflict) return this.applyRemote(recovered);
+        if (recovered.conflict) return this.applyRemoteWithLocalAuthority(recovered);
         this.acceptWrite(recovered, values);
         return false;
       }
-      const remoteValues = remote.values && typeof remote.values === 'object'
-        ? remote.values
-        : {};
-      const bootstrapValues = this.captureBootstrapValues(remoteValues);
-      if (Object.keys(bootstrapValues).length > 0) {
-        const bootstrapped = await this.writeRemote({
-          values: { ...remoteValues, ...bootstrapValues },
-          base_revision: Number(remote.revision || 0),
-          initialize_only: false,
-        });
-        return this.applyRemote(bootstrapped);
-      }
-      return this.applyRemote(remote);
+      return this.applyRemoteWithLocalAuthority(remote);
     }
     this.revision = 0;
     const values = this.captureLocal();
@@ -191,7 +213,7 @@ export class RevisionedStorageReplica {
       base_revision: 0,
       initialize_only: true,
     });
-    if (initialized.conflict) return this.applyRemote(initialized);
+    if (initialized.conflict) return this.applyRemoteWithLocalAuthority(initialized);
     this.acceptWrite(initialized, values);
     return false;
   }

@@ -26,25 +26,8 @@ MAX_VISIBLE_LOG_ENTRIES = 200
 TERMINAL_KEY_PATTERN = re.compile(r"^terminal\.(\d+)\.(.+)$")
 LOG_KEY_PATTERN = re.compile(r"^log\.(\d+)\.(content|date|error_code|status|title)$")
 LOG_ENTRY_FIELDS = ("content", "date", "error_code", "status", "title")
-QUEUE_KEY_PATTERN = re.compile(
-    r"^queue\.(\d+)\.(created_at|fire_count|interval_seconds|last_run_at"
-    r"|message|mode|next_run_at|preview|run_at)$"
-)
-QUEUE_ENTRY_FIELDS = (
-    "created_at",
-    "fire_count",
-    "interval_seconds",
-    "last_run_at",
-    "message",
-    "mode",
-    "next_run_at",
-    "preview",
-    "run_at",
-)
-QUEUE_SORT_FAR_FUTURE_MS = 2**62
 SIZE_ONLY_KEY_SUFFIXES = (".content", ".draft", ".message")
-SCHEDULE_ACTIVE_MODES = {"once", "interval"}
-SCHEDULE_PREVIEW_MAX_LENGTH = 80
+RETIRED_SCHEDULE_FIELD_PREFIX = "queue."
 
 
 def _now_iso() -> str:
@@ -370,249 +353,18 @@ class TerminalStateRepository:
             key = self._terminal_key(terminal_number, "draft")
         elif content_kind == "log" and log_id.isdigit():
             key = self._terminal_key(terminal_number, f"log.{log_id}.content")
-        elif content_kind == "schedule" and log_id.isdigit():
-            key = self._terminal_key(terminal_number, f"queue.{log_id}.message")
         else:
             return None
         content = self._store.read(key)
         if content is not None:
             return content
-        return "" if content_kind in {"draft", "schedule"} else None
+        return "" if content_kind == "draft" else None
 
     @serialized_method
-    @_transactional_store_method
-    def sync_schedule_entries(
-        self,
-        terminal_number: int,
-        entries: List[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
-        if record is None:
-            return {"success": False, "error_code": "terminal_state_not_found"}
-
-        existing_entries = record.get("queue_by_id") or {}
-        desired_ids = {str(entry["id"]) for entry in entries}
-        changed = False
-        now = _now_iso()
-        for entry_id in set(existing_entries) - desired_ids:
-            self._delete_schedule_entry(values, terminal_number, entry_id)
-            changed = True
-
-        for entry in entries:
-            entry_id = str(entry["id"])
-            existing = existing_entries.get(entry_id)
-            message = str(entry.get("message") or "")
-            mode = str(entry["mode"])
-            run_at = int(entry["run_at"])
-            next_run_at = int(entry["next_run_at"])
-            interval_seconds = int(entry["interval_seconds"])
-            definition_values = self._schedule_definition_values(
-                mode,
-                run_at,
-                next_run_at,
-                interval_seconds,
-                message,
-            )
-            if existing is None:
-                entry_values = {
-                    **definition_values,
-                    "created_at": now,
-                    "fire_count": "0",
-                    "last_run_at": "",
-                }
-            elif self._schedule_definition_matches(
-                terminal_number,
-                entry_id,
-                existing,
-                definition_values,
-            ):
-                continue
-            else:
-                entry_values = definition_values
-            self._write_schedule_entry(
-                values,
-                terminal_number,
-                entry_id,
-                entry_values,
-            )
-            changed = True
-
-        if changed:
-            self._write_value(
-                values,
-                self._terminal_key(terminal_number, "updated_at"),
-                now,
-            )
-        _updated_values, updated_records, _updated_next_number = (
-            self._scan_records()
-        )
-        updated_record = updated_records.get(terminal_number) or {}
-        return {
-            "success": True,
-            "terminal_number": terminal_number,
-            "entries": list(updated_record.get("queue") or []),
-        }
-
-    @serialized_method
-    @_transactional_store_method
-    def clear_schedule_entries(self) -> Dict[str, Any]:
-        values, records, _next_number = self._scan_records()
-        cleared_terminal_numbers: List[int] = []
-        terminal_results: List[Dict[str, Any]] = []
-        cleared_entry_count = 0
-        now = _now_iso()
-
-        for terminal_number in sorted(records):
-            queue_by_id = records[terminal_number].get("queue_by_id") or {}
-            entry_ids = list(queue_by_id)
-            if not entry_ids:
-                continue
-            for entry_id in entry_ids:
-                self._delete_schedule_entry(values, terminal_number, entry_id)
-            self._write_value(
-                values,
-                self._terminal_key(terminal_number, "updated_at"),
-                now,
-            )
-            cleared_terminal_numbers.append(terminal_number)
-            cleared_entry_count += len(entry_ids)
-            terminal_results.append({
-                "terminal_number": terminal_number,
-                "cleared_entry_count": len(entry_ids),
-                "entry_ids": entry_ids,
-            })
-        return {
-            "success": True,
-            "cleared_entry_count": cleared_entry_count,
-            "terminal_numbers": cleared_terminal_numbers,
-            "terminal_results": terminal_results,
-        }
-
-    @serialized_method
-    def due_schedules(self, now_ms: int) -> List[Dict[str, Any]]:
+    def resolve_window_id(self, terminal_number: int) -> str:
         _values, records, _next_number = self._scan_records()
-        due: List[Dict[str, Any]] = []
-        for terminal_number in sorted(records):
-            record = records[terminal_number]
-            window_id = str(record.get("window_id") or "")
-            queue_by_id = record.get("queue_by_id") or {}
-            for entry_id in sorted(queue_by_id, key=int):
-                entry_values = queue_by_id[entry_id]
-                mode = str(entry_values.get("mode") or "")
-                if mode not in SCHEDULE_ACTIVE_MODES:
-                    continue
-                next_run_raw = str(entry_values.get("next_run_at") or "")
-                if not next_run_raw.isdigit():
-                    continue
-                next_run_at = int(next_run_raw)
-                if next_run_at > now_ms:
-                    continue
-                message = self._store.read(
-                    self._terminal_key(
-                        terminal_number,
-                        f"queue.{entry_id}.message",
-                    ),
-                ) or ""
-                interval_raw = str(entry_values.get("interval_seconds") or "")
-                due.append({
-                    "terminal_number": terminal_number,
-                    "window_id": window_id,
-                    "entry_id": entry_id,
-                    "mode": mode,
-                    "interval_seconds": (
-                        int(interval_raw) if interval_raw.isdigit() else 0
-                    ),
-                    "next_run_at": next_run_at,
-                    "message": message,
-                })
-        return due
-
-    @serialized_method
-    @_transactional_store_method
-    def advance_schedule(
-        self,
-        terminal_number: int,
-        entry_id: str,
-        mode: str,
-        interval_seconds: int,
-        now_ms: int,
-    ) -> None:
-        values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)
-        if record is None:
-            return
-        entry_values = (record.get("queue_by_id") or {}).get(entry_id)
-        if entry_values is None:
-            return
-        now = _now_iso()
-        if mode == "interval" and interval_seconds > 0:
-            fire_count_raw = str(entry_values.get("fire_count") or "")
-            fire_count = int(fire_count_raw) if fire_count_raw.isdigit() else 0
-            updates = {
-                "next_run_at": str(now_ms + interval_seconds * 1000),
-                "fire_count": str(fire_count + 1),
-                "last_run_at": str(now_ms),
-            }
-            for field, value in updates.items():
-                self._write_value(
-                    values,
-                    self._terminal_key(
-                        terminal_number,
-                        f"queue.{entry_id}.{field}",
-                    ),
-                    value,
-                )
-        else:
-            self._delete_schedule_entry(values, terminal_number, entry_id)
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "updated_at"),
-            now,
-        )
-
-    @serialized_method
-    @_transactional_store_method
-    def defer_schedule(
-        self,
-        terminal_number: int,
-        entry_id: str,
-        next_run_at_ms: int,
-    ) -> None:
-        values, records, _next_number = self._scan_records()
-        record = records.get(terminal_number)
-        if record is None:
-            return
-        entry_values = (record.get("queue_by_id") or {}).get(entry_id)
-        if entry_values is None:
-            return
-        self._write_value(
-            values,
-            self._terminal_key(
-                terminal_number,
-                f"queue.{entry_id}.next_run_at",
-            ),
-            str(int(next_run_at_ms)),
-        )
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "updated_at"),
-            _now_iso(),
-        )
-
-    @serialized_method
-    def next_scheduled_run(self) -> Optional[int]:
-        _values, records, _next_number = self._scan_records()
-        candidates: List[int] = []
-        for record in records.values():
-            for entry_values in (record.get("queue_by_id") or {}).values():
-                mode = str(entry_values.get("mode") or "")
-                if mode not in SCHEDULE_ACTIVE_MODES:
-                    continue
-                next_run_raw = str(entry_values.get("next_run_at") or "")
-                if next_run_raw.isdigit():
-                    candidates.append(int(next_run_raw))
-        return min(candidates) if candidates else None
+        return str(record.get("window_id") or "") if record else ""
 
     def _merge_record_state(
         self,
@@ -627,8 +379,6 @@ class TerminalStateRepository:
         source_draft_size = int(source.get("draft") or 0)
         target_logs = target.get("logs_by_id") or {}
         source_logs = source.get("logs_by_id") or {}
-        target_queue = target.get("queue_by_id") or {}
-        source_queue = source.get("queue_by_id") or {}
 
         if target_draft_size == 0 and source_draft_size > 0:
             source_draft = self._store.read(
@@ -655,15 +405,6 @@ class TerminalStateRepository:
             LOG_ENTRY_FIELDS,
             target_logs,
             source_logs,
-        )
-        self._merge_nested_entries(
-            values,
-            target_number,
-            source_number,
-            "queue",
-            QUEUE_ENTRY_FIELDS,
-            target_queue,
-            source_queue,
         )
         self._write_value(
             values,
@@ -721,12 +462,13 @@ class TerminalStateRepository:
                 continue
             terminal_number = int(key_match.group(1))
             field = key_match.group(2)
+            if field.startswith(RETIRED_SCHEDULE_FIELD_PREFIX):
+                continue
             record = records.setdefault(
                 terminal_number,
                 {
                     "terminal_number": terminal_number,
                     "logs_by_id": {},
-                    "queue_by_id": {},
                 },
             )
             log_match = LOG_KEY_PATTERN.match(field)
@@ -735,13 +477,7 @@ class TerminalStateRepository:
                 log_field = log_match.group(2)
                 record["logs_by_id"].setdefault(log_id, {})[log_field] = value
                 continue
-            queue_match = QUEUE_KEY_PATTERN.match(field)
-            if queue_match is None:
-                record[field] = value
-                continue
-            queue_id = queue_match.group(1)
-            queue_field = queue_match.group(2)
-            record["queue_by_id"].setdefault(queue_id, {})[queue_field] = value
+            record[field] = value
 
         maximum_terminal_number = max(records, default=0)
         stored_next_number = values.get(NEXT_NUMBER_KEY, "")
@@ -761,19 +497,6 @@ class TerminalStateRepository:
                     reverse=True,
                 )
             ]
-            queue_by_id = record.get("queue_by_id") or {}
-            record["queue"] = sorted(
-                (
-                    self._queue_entry_metadata(entry_id, entry_values)
-                    for entry_id, entry_values in queue_by_id.items()
-                ),
-                key=lambda entry: (
-                    entry["next_run_at"]
-                    if entry["next_run_at"] is not None
-                    else QUEUE_SORT_FAR_FUTURE_MS,
-                    int(entry["id"]),
-                ),
-            )
         records = {
             terminal_number: record
             for terminal_number, record in records.items()
@@ -798,8 +521,6 @@ class TerminalStateRepository:
             if field in {
                 "logs",
                 "logs_by_id",
-                "queue",
-                "queue_by_id",
                 "terminal_number",
             }:
                 continue
@@ -820,92 +541,6 @@ class TerminalStateRepository:
             values[key] = str(len(value.encode("utf-8")))
             return
         self._store.write(key, value, values)
-
-    @staticmethod
-    def _schedule_definition_values(
-        mode: str,
-        run_at_ms: int,
-        next_run_at_ms: int,
-        interval_seconds: int,
-        message: str,
-    ) -> Dict[str, str]:
-        return {
-            "interval_seconds": str(max(0, int(interval_seconds))),
-            "message": message,
-            "mode": mode,
-            "next_run_at": str(int(next_run_at_ms)),
-            "preview": " ".join(message.split())[:SCHEDULE_PREVIEW_MAX_LENGTH],
-            "run_at": str(int(run_at_ms)),
-        }
-
-    def _schedule_definition_matches(
-        self,
-        terminal_number: int,
-        entry_id: str,
-        existing: Dict[str, Any],
-        desired: Dict[str, str],
-    ) -> bool:
-        existing_message = self._store.read(
-            self._terminal_key(
-                terminal_number,
-                f"queue.{entry_id}.message",
-            )
-        ) or ""
-        if existing_message != desired["message"]:
-            return False
-        definition_fields = (
-            "interval_seconds",
-            "mode",
-            "preview",
-            "run_at",
-        )
-        if any(
-            str(existing.get(field) or "") != desired[field]
-            for field in definition_fields
-        ):
-            return False
-        return True
-
-    def _write_schedule_entry(
-        self,
-        values: Dict[str, str],
-        terminal_number: int,
-        entry_id: str,
-        entry_values: Dict[str, str],
-    ) -> None:
-        for field, value in entry_values.items():
-            key = self._terminal_key(
-                terminal_number,
-                f"queue.{entry_id}.{field}",
-            )
-            current_value = (
-                self._store.read(key)
-                if key.endswith(SIZE_ONLY_KEY_SUFFIXES)
-                else values.get(key)
-            )
-            if current_value == value:
-                continue
-            self._write_value(
-                values,
-                key,
-                value,
-            )
-
-    def _delete_schedule_entry(
-        self,
-        values: Dict[str, str],
-        terminal_number: int,
-        entry_id: str,
-    ) -> None:
-        for field in QUEUE_ENTRY_FIELDS:
-            key = self._terminal_key(
-                terminal_number,
-                f"queue.{entry_id}.{field}",
-            )
-            if key not in values:
-                continue
-            self._store.delete(key)
-            values.pop(key, None)
 
     def _update_live_record(
         self,
@@ -986,8 +621,6 @@ class TerminalStateRepository:
             "slot_version": SLOT_VERSION,
             "logs": [],
             "logs_by_id": {},
-            "queue": [],
-            "queue_by_id": {},
         }
 
     @staticmethod
@@ -1004,7 +637,6 @@ class TerminalStateRepository:
         window["preview_expanded"] = (
             str(record.get("preview_expanded") or "0") == "1"
         )
-        window["schedule_queue"] = list(record.get("queue") or [])
         window["state_updated_at"] = str(record.get("updated_at") or "")
         return window
 
@@ -1043,7 +675,6 @@ class TerminalStateRepository:
             "preview_expanded": (
                 str(record.get("preview_expanded") or "0") == "1"
             ),
-            "schedule_queue": list(record.get("queue") or []),
             "state_updated_at": str(record.get("updated_at") or ""),
             "last_seen_at": str(record.get("last_seen_at") or ""),
         }
@@ -1054,42 +685,7 @@ class TerminalStateRepository:
             int(record.get("draft") or 0) > 0
             or bool(record.get("logs"))
             or str(record.get("preview_expanded") or "0") == "1"
-            or bool(record.get("queue"))
         )
-
-    @staticmethod
-    def _queue_entry_metadata(
-        entry_id: str,
-        values: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        next_run_raw = str(values.get("next_run_at") or "")
-        run_at_raw = str(values.get("run_at") or "")
-        interval_raw = str(values.get("interval_seconds") or "")
-        fire_count_raw = str(values.get("fire_count") or "")
-        last_run_raw = str(values.get("last_run_at") or "")
-        message_size = str(values.get("message") or "")
-        return {
-            "id": entry_id,
-            "mode": str(values.get("mode") or ""),
-            "next_run_at": (
-                int(next_run_raw) if next_run_raw.isdigit() else None
-            ),
-            "run_at": int(run_at_raw) if run_at_raw.isdigit() else None,
-            "interval_seconds": (
-                int(interval_raw) if interval_raw.isdigit() else 0
-            ),
-            "has_message": (
-                message_size.isdigit() and int(message_size) > 0
-            ),
-            "preview": str(values.get("preview") or ""),
-            "fire_count": (
-                int(fire_count_raw) if fire_count_raw.isdigit() else 0
-            ),
-            "last_run_at": (
-                int(last_run_raw) if last_run_raw.isdigit() else None
-            ),
-            "created_at": str(values.get("created_at") or ""),
-        }
 
     @staticmethod
     def _log_metadata(
@@ -1118,8 +714,6 @@ terminal_state_repository = TerminalStateRepository()
 
 __all__ = [
     "MAX_VISIBLE_LOG_ENTRIES",
-    "QUEUE_ENTRY_FIELDS",
-    "SCHEDULE_ACTIVE_MODES",
     "TERMINAL_DATA_DIR",
     "TerminalStateRepository",
     "terminal_state_repository",

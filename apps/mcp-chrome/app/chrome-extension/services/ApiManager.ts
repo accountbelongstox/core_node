@@ -28,8 +28,12 @@ const PROBE_RETRY_DELAY_MS = 300;
 // Rate-limit the "all endpoints down" warning so an outage can't flood the log.
 const NO_ENDPOINT_WARN_INTERVAL_MS = 60000;
 
+function getDefaultApiEndpoint(): ApiEndpoint | null {
+  return getEndpointById(DEFAULT_API_ENDPOINT_ID) || API_ENDPOINTS[0] || null;
+}
+
 export class ApiManager {
-  private currentEndpoint: ApiEndpoint | null = null;
+  private currentEndpoint: ApiEndpoint | null = getDefaultApiEndpoint();
   private endpointStatuses: Map<string, EndpointStatus> = new Map();
   private failureStreak: Map<string, number> = new Map();
   private customEndpoints: ApiEndpoint[] = [];
@@ -70,7 +74,7 @@ export class ApiManager {
 
     const hasSelection = !!(settings.userSelectedEndpointId || settings.autoDetectedEndpointId);
     if (!hasSelection && !this.autoMode) {
-      const defaultEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID);
+      const defaultEndpoint = getDefaultApiEndpoint();
       if (defaultEndpoint) {
         this.currentEndpoint = defaultEndpoint;
         await this.saveSettings({
@@ -107,7 +111,7 @@ export class ApiManager {
     }
 
     if (!this.currentEndpoint && this.getAllEndpoints().length > 0) {
-      this.currentEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID) || this.getAllEndpoints()[0];
+      this.currentEndpoint = getDefaultApiEndpoint();
     }
   }
 
@@ -302,12 +306,11 @@ export class ApiManager {
   }
 
   getCurrentBaseUrl(): string {
-    if (!this.currentEndpoint) {
-      console.warn(`[API Manager] No endpoint set, using default ${DEFAULT_API_ENDPOINT_ID}`);
-      this.currentEndpoint = this.resolveEndpoint(DEFAULT_API_ENDPOINT_ID) || this.getAllEndpoints()[0];
-    }
+    const endpoint = this.currentEndpoint || getDefaultApiEndpoint();
+    if (!endpoint) throw new Error('No API endpoints configured');
 
-    return buildApiUrl(this.currentEndpoint);
+    this.currentEndpoint = endpoint;
+    return buildApiUrl(endpoint);
   }
 
   getCurrentEndpoint(): ApiEndpoint | null {

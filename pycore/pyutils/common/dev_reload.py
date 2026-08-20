@@ -110,8 +110,7 @@ def start_reload_watcher(roots=None, interval=1.0, debounce=0.4):
         The started ``threading.Thread``.
     """
     if roots is None:
-        # This file is pycore/pyutils/dev_reload.py -> the pycore package dir.
-        roots = [Path(__file__).resolve().parent.parent]
+        roots = [Path(__file__).resolve().parents[2]]
     roots = [Path(r).resolve() for r in roots]
 
     def _run():

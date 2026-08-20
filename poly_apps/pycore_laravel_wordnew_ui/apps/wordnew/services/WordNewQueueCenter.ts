@@ -4,8 +4,6 @@ import { diffQueueContext } from '../../../core/tasks/DiffQueueContext';
 import { WordNewQueueCommandGateway } from './queue/WordNewQueueCommandGateway';
 import { wfNewApi } from '../api';
 import type { WfNewQueueCommandResult, WfNewWordAccent, WfNewWordMedia } from '../api';
-import { WfNewApiPaths } from '../api/WfNewApiPaths';
-import { authedPostJSON } from '../api/WfNewApiTransport';
 import {
   sentenceAudioQueueKey,
   wordAudioQueueKey,
@@ -17,11 +15,6 @@ export interface WordNewSentenceAudioHeadItem {
   text: string;
   language: string;
   content_id?: string;
-}
-
-export interface WordNewWordImagePriorityItem {
-  word: string;
-  language: string;
 }
 
 export interface WordNewWordAudioWaitOptions {
@@ -157,32 +150,6 @@ class WordNewQueueCenterClass extends WordNewQueueCommandGateway {
           });
           throw error;
         }
-      },
-    );
-  }
-
-  prioritizeWordImages(items: WordNewWordImagePriorityItem[]): Promise<unknown> {
-    const normalized = this.boundedByKey(
-      items
-        .map((item) => ({ word: item.word.trim(), language: item.language.trim() }))
-        .filter((item) => item.word && item.language),
-      (item) => `${item.language}:${item.word}`,
-    );
-    if (normalized.length === 0) return Promise.resolve(null);
-    return this.executeBatchOnce(
-      'word-image',
-      normalized,
-      (item) => `${item.language.toLowerCase()}:${item.word.toLowerCase()}`,
-      (commandItems) => {
-        diffQueueContext.touch(
-          'wordnew:word-media:priority',
-          commandItems.map((item) => `${item.language}:${item.word}`),
-        );
-        return authedPostJSON(WfNewApiPaths.wordImageQueueAdd, {
-          words: commandItems,
-          priority: 'front',
-          interactive: true,
-        });
       },
     );
   }

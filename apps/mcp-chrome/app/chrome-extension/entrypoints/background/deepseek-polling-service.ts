@@ -17,6 +17,7 @@ const DEEPSEEK_POLL_ALARM = 'mcp_deepseek_poll_watchdog';
 const DEEPSEEK_POLL_ALARM_MINUTES = 0.5;
 const RESPONSE_STABILITY_MS = 1500;
 const RESPONSE_STABILITY_CHECKS = 2;
+const DEFAULT_TASK_TIMEOUT_MS = 300000;
 
 /**
  * Polling state for a task
@@ -83,7 +84,9 @@ export class DeepSeekPollingService {
     });
 
     console.log(`Found ${tasks.length} tasks to resume polling`);
+    const now = Date.now();
     for (const task of tasks) {
+      if (await this.expireTaskIfNeeded(task, now)) continue;
       if (task.tabId) {
         this.startPolling(task.id);
       } else {
@@ -317,6 +320,7 @@ export class DeepSeekPollingService {
     const now = Date.now();
 
     for (const task of listing.tasks) {
+      if (await this.expireTaskIfNeeded(task, now)) continue;
       const state = this.pollingStates.get(task.id);
       if (!state) {
         if (task.tabId) this.startPolling(task.id);
@@ -326,6 +330,22 @@ export class DeepSeekPollingService {
         void this.pollTask(task.id);
       }
     }
+  }
+
+  private async expireTaskIfNeeded(task: DeepSeekTask, now: number): Promise<boolean> {
+    const configuredTimeout = Number((task.metadata as any)?.options?.timeout);
+    const timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+      ? configuredTimeout
+      : DEFAULT_TASK_TIMEOUT_MS;
+    const createdAt = Number(task.createdAt);
+    if (!Number.isFinite(createdAt) || now - createdAt <= timeoutMs) return false;
+
+    await this.taskQueueManager.updateTask(task.id, {
+      status: TaskStatus.FAILED,
+      error: 'Task expired while the extension service worker was suspended',
+    });
+    this.stopPolling(task.id);
+    return true;
   }
 
   /**

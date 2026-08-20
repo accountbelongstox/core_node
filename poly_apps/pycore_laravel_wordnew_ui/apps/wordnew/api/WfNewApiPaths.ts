@@ -97,8 +97,6 @@ export const WfNewApiPaths = {
   sentenceAudioHead: p('/ai_tools/tts/sentence/audio/head'),
   /** Insert or move word-audio tasks to the queue head. */
   wordAudioHead: p('/word/audio/head'),
-  wordImageQueueAdd: p('/ai_tools/word_image/queue/add'),
-
   // ---- Learning languages (AppQyV1Learning.php — prefix app_qy_v1/learning, sanctum) ----
   /** GET native + learning_languages / POST to update them. */
   learningLanguages: p('/learning/languages'),

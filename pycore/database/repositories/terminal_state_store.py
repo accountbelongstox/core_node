@@ -14,6 +14,7 @@ from pycore.database.schema.terminal_state_schema import (
 
 SQLITE_BUSY_TIMEOUT_MS = 30000
 LEGACY_TEXT_SUFFIX = ".txt"
+RETIRED_TERMINAL_SCHEDULE_KEY_SEGMENT = ".queue."
 
 
 class TerminalStateStore:
@@ -109,7 +110,10 @@ class TerminalStateStore:
             return
         with self.transaction():
             for path in paths:
-                if not path.is_file():
+                if (
+                    not path.is_file()
+                    or RETIRED_TERMINAL_SCHEDULE_KEY_SEGMENT in path.stem
+                ):
                     continue
                 self._connection.execute(
                     f"""

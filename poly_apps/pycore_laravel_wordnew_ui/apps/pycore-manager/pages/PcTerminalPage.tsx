@@ -44,6 +44,7 @@ import {
   writeTerminalScheduleQueue,
 } from '@/apps/pycore-manager/api';
 import { useIsMobile } from '@/apps/pycore-manager/hooks/useIsMobile';
+import { pycoreManagerUiStateSync } from '@/apps/pycore-manager/persistence/PycoreManagerUiStateSync';
 import type {
   TerminalActionResult,
   TerminalScheduleDefinition,
@@ -99,6 +100,8 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_schedule_interval_invalid: 'terminal.errors.scheduleInterval',
   terminal_schedule_entry_invalid: 'terminal.errors.scheduleEntry',
   terminal_schedule_entry_not_found: 'terminal.errors.scheduleEntry',
+  terminal_schedule_json_invalid: 'terminal.errors.scheduleJsonInvalid',
+  terminal_schedule_json_not_cleared: 'terminal.errors.scheduleJsonNotCleared',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
@@ -410,7 +413,7 @@ const PcTerminalPage: React.FC = () => {
   const loadedDraftsRef = useRef<Set<number>>(new Set());
   const scheduleSyncInFlightRef = useRef<Map<
     number,
-    ReturnType<typeof pycoreApi.syncTerminalScheduleEntries>
+    ReturnType<typeof pycoreManagerUiStateSync.synchronizeTerminalSchedules>
   >>(new Map());
   const scheduleClearAllInProgressRef = useRef(false);
 
@@ -469,9 +472,8 @@ const PcTerminalPage: React.FC = () => {
       || scheduleClearAllInProgressRef.current
       || scheduleSyncInFlightRef.current.has(terminalNumber)
     ) return null;
-    const request = pycoreApi.syncTerminalScheduleEntries(
+    const request = pycoreManagerUiStateSync.synchronizeTerminalSchedules(
       terminalNumber,
-      schedule.entries,
     );
     scheduleSyncInFlightRef.current.set(terminalNumber, request);
     try {
@@ -504,9 +506,13 @@ const PcTerminalPage: React.FC = () => {
       windows.forEach((windowInfo) => {
         ensureTerminalScheduleQueue(windowInfo.terminal_number);
       });
-      const clearResult = await pycoreApi.clearTerminalScheduleEntries()
+      const clearResult = await pycoreManagerUiStateSync.clearTerminalSchedules()
         .catch(() => null);
-      if (clearResult?.success) completeTerminalScheduleClearAll();
+      if (clearResult?.success) {
+        completeTerminalScheduleClearAll();
+        void pycoreManagerUiStateSync.pushTerminalScheduleJson()
+          .catch(() => undefined);
+      }
     }
     windows.forEach((windowInfo) => {
       const terminalNumber = windowInfo.terminal_number;
@@ -517,9 +523,8 @@ const PcTerminalPage: React.FC = () => {
       if (activeEntries.length !== schedule.entries.length) {
         writeTerminalScheduleQueue(terminalNumber, activeEntries);
       }
-      void syncTerminalScheduleQueue(terminalNumber).catch(() => undefined);
     });
-  }, [syncTerminalScheduleQueue]);
+  }, []);
 
   const refresh = useCallback(async (showLoading = false) => {
     if (refreshInFlightRef.current) return;
@@ -836,11 +841,8 @@ const PcTerminalPage: React.FC = () => {
   }, [errorTranslationKey, syncTerminalScheduleQueue]);
 
   const clearAllScheduleEntries = useCallback(async () => {
-    const terminalNumbers = (snapshot?.windows || []).map(
-      (windowInfo) => windowInfo.terminal_number,
-    );
     scheduleClearAllInProgressRef.current = true;
-    const localResult = stageTerminalScheduleClearAll(terminalNumbers);
+    const localResult = stageTerminalScheduleClearAll();
     const localTerminalNumbers = localResult.terminal_numbers.join(', ')
       || t('terminal.scheduleNoTerminals');
     setSnapshot((current) => current ? {
@@ -855,11 +857,12 @@ const PcTerminalPage: React.FC = () => {
     setActionNotice(null);
     try {
       await Promise.allSettled([...scheduleSyncInFlightRef.current.values()]);
-      const result = await pycoreApi.clearTerminalScheduleEntries();
+      const result = await pycoreManagerUiStateSync.clearTerminalSchedules();
       const pycoreTerminalNumbers = (result.terminal_numbers || []).join(', ')
         || t('terminal.scheduleNoTerminals');
       if (result.success) {
         completeTerminalScheduleClearAll();
+        void pycoreManagerUiStateSync.pushTerminalScheduleJson().catch(() => undefined);
         setActionNotice({
           kind: 'success',
           translationKey: 'terminal.scheduleClearResult',
@@ -868,6 +871,8 @@ const PcTerminalPage: React.FC = () => {
             frontendTerminals: localTerminalNumbers,
             pycoreCount: Number(result.cleared_entry_count || 0),
             pycoreTerminals: pycoreTerminalNumbers,
+            jsonCount: Number(result.json_entry_count || 0),
+            runtimeRemaining: Number(result.remaining_entry_count || 0),
           },
           responseJson: JSON.stringify(result, null, 2),
         });
@@ -897,7 +902,7 @@ const PcTerminalPage: React.FC = () => {
       scheduleClearAllInProgressRef.current = false;
       setActionWindowId('');
     }
-  }, [snapshot?.windows, t]);
+  }, [t]);
 
   const activate = useCallback((windowId: string) => runAction(
     windowId,

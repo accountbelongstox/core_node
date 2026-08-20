@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from pycore.pyfoundations.system_paths import get_app_cache_dir
 from pycore.pyctl.desktop.task_manager import task_manager
 from pycore.pyctl.task_history.archive import completed_task_archive
 from pycore.pyctl.task_history.store import (
@@ -20,6 +21,7 @@ from pycore.pyutils.common.task_type_contract import normalize_task_type
 
 _RING_MAX = 100
 _SUCCESS_STATUSES = ("completed", "submitted", "already_done")
+_CACHED_AUDIO_SUFFIXES = frozenset({".mp3", ".wav", ".ogg", ".m4a", ".flac"})
 
 
 def get_completed_archive(
@@ -47,6 +49,27 @@ def completed_archive_resource(cache_key: str) -> Dict[str, Any]:
     return {
         "success": True,
         "mime": mime or "application/octet-stream",
+        "content_base64": base64.b64encode(content).decode("ascii"),
+        "bytes": len(content),
+        "filename": resource_path.name,
+    }
+
+
+def cached_audio_resource(path: str) -> Dict[str, Any]:
+    """Read one cached audio file without exposing arbitrary local files."""
+    cache_root = get_app_cache_dir().resolve()
+    resource_path = Path(str(path or "")).resolve()
+    if (
+        not resource_path.is_relative_to(cache_root)
+        or resource_path.suffix.lower() not in _CACHED_AUDIO_SUFFIXES
+        or not resource_path.is_file()
+    ):
+        return {"success": False, "error": "Cached audio resource not found"}
+    content = resource_path.read_bytes()
+    mime, _encoding = mimetypes.guess_type(resource_path.name)
+    return {
+        "success": True,
+        "mime": mime or "audio/mpeg",
         "content_base64": base64.b64encode(content).decode("ascii"),
         "bytes": len(content),
         "filename": resource_path.name,
