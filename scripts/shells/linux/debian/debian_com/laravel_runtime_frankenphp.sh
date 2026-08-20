@@ -45,6 +45,9 @@ DNSPOD_TOKEN=""
 FRANKENPHP_HTTPS_PORT=""
 FRANKENPHP_ADMIN_PORT=""
 FRANKENPHP_ACME_RELOAD_CMD=""
+FM_VARIANT=""
+FM_DNS01_MODE=""
+FM_BINARY=""
 OCTANE_ARGS=()
 
 # shellcheck source=/dev/null
@@ -91,6 +94,29 @@ DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
 fm_cert_status "$FRANKENPHP_SITE_HOST" "$FRANKENPHP_ROUTES_DIR"
 acme_sh_preflight_for_service "$FRANKENPHP_SITE_HOST" "$FRANKENPHP_ROUTES_DIR" "$FRANKENPHP_ACME_RELOAD_CMD"
 
+# Variant branch (175SF contract, one launcher / two flows):
+#   compiled | prebuilt - acme.sh DNS-01 certificates FIRST (prebuilt-tls
+#     gate), the embedded dnspod module stays a TLS fallback (module
+#     variant carries it; official builds do not);
+#   apt - official deb build has NO dnspod module: certificates come
+#     exclusively from the acme.sh dns_dp pre-flight (issue-before-start).
+# Both flows share the pre-flight above (initial install / renewal check)
+# and the persistent ncore-acme-cert renewal timer it registers.
+FM_VARIANT="$(fm_variant)"
+FM_DNS01_MODE="$(fm_variant_dns01_mode "$FM_VARIANT")"
+FM_BINARY="$(fm_variant_binary)"
+export FRANKENPHP_VARIANT="$FM_VARIANT"
+export FRANKENPHP_DNS01_MODE="$FM_DNS01_MODE"
+export FRANKENPHP_BINARY_PATH="$FM_BINARY"
+case "$FM_DNS01_MODE" in
+    "$FRANKENPHP_DNS01_MODE_ACME_SH")
+        echo "[laravel-runtime-frankenphp] variant: ${FM_VARIANT} (acme.sh DNS-01 certificates only)"
+        ;;
+    *)
+        echo "[laravel-runtime-frankenphp] variant: ${FM_VARIANT:-unrecorded} (acme.sh DNS-01 first; dnspod module fallback)"
+        ;;
+esac
+
 # Canonical Caddyfile before launch (content-hash idempotent; literal
 # Mercure keys from the store).
 fm_caddyfile_ensure \
@@ -100,10 +126,13 @@ fm_caddyfile_ensure \
     "$FRANKENPHP_ADMIN_PORT" \
     "$FRANKENPHP_CADDYFILE"
 
-# DNSPod DNS-01 token (only when stored; the Caddyfile gate renders the tls
-# stanza only when module + token both exist). Stays env-based by design:
-# the token itself never enters the file.
-[ -n "$DNSPOD_TOKEN" ] && export DNSPOD_TOKEN
+# DNSPod DNS-01 token (only when stored AND a module-capable variant; the
+# Caddyfile gate renders the tls stanza only when module + token both
+# exist). Stays env-based by design: the token itself never enters the
+# file.
+if [ "$FM_DNS01_MODE" = "$FRANKENPHP_DNS01_MODE_EMBEDDED" ] && [ -n "$DNSPOD_TOKEN" ]; then
+    export DNSPOD_TOKEN
+fi
 # Embedded PHP ini scan dir (96_configure_php85.sh frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
 export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"

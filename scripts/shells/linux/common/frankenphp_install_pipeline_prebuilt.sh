@@ -38,7 +38,6 @@ frankenphp_install_pipeline_prebuilt_parse_args() {
 
 frankenphp_install_pipeline_prebuilt() {
     frankenphp_install_pipeline_prebuilt_parse_args "$@"
-    fm_variant_set "$FRANKENPHP_INSTALL_MODE_PREBUILT"
     frankenphp_install_prebuilt
 }
 

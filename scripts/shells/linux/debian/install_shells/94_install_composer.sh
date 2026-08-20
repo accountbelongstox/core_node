@@ -260,7 +260,7 @@ resolve_composer_runtime_php() {
     COMPOSER_RUNTIME_PLANE="$runtime_plane"
 
     if [ "$runtime_plane" = "frankenphp" ]; then
-        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: frankenphp - use embedded frankenPHP CLI runtime per official docs and keep the PHP_BINARY shim contract for Composer.${NC}"
+        echo -e "${CYAN}$SCRIPT_INDEX Runtime plane: frankenphp (variant: $(fm_variant 2>/dev/null || echo unrecorded)) - use embedded frankenPHP CLI runtime per official docs and keep the PHP_BINARY shim contract for Composer.${NC}"
         fm_ensure_php_cli_shim
 
         candidate="$FRANKENPHP_PHP_CLI_SHIM_PATH"

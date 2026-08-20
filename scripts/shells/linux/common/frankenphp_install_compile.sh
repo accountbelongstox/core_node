@@ -13,9 +13,8 @@
 # driven convergence (no step-state layer): every fm_* primitive is
 # self-probing and idempotent, logs its own outcome and never signals
 # via exit codes - the pipeline re-probes file state instead. The
-# variant record is written by the pipeline dispatch (single writer);
-# the final state record (fm_store_info) is the pipeline finalize's
-# single call - no duplicated finalize here.
+# owner record is written only by the central lifecycle after this candidate
+# passes its independent readiness probe.
 
 FRANKENPHP_INSTALL_COMPILE_INDEX="93-install-compile"
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,14 +25,8 @@ source "$SCRIPT_CURRENT_DIR/common_functions.sh"
 source "$SCRIPT_CURRENT_DIR/frankenphp_manager.sh"
 
 frankenphp_install_compile() {
-    # Baseline binary ensure (probe-based: compiled -> any usable
-    # candidate -> official installer bootstrap as convergence).
-    fm_install
-    # Independent fine-grained steps: each probes its own file state and
-    # no-ops when already satisfied, so a step deferred earlier (e.g. the
-    # dnspod rebuild) never blocks the ones after it.
-    fm_ensure_local_bin_link
-    fm_ensure_php_cli_shim
+    # Candidate-only convergence: bootstrap discovery and the custom build do
+    # not mutate owner state, runtime links, services or packages.
     fm_ensure_dnspod_module
 }
 

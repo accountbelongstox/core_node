@@ -30,7 +30,12 @@ use App\Support\ServiceContract;
  */
 class ServerManagerV1FrankenPhpCaddyfileBuilder
 {
-    /** Binary probe order (mirrors fm_get_binary candidates). */
+    private const DNS01_MODE_EMBEDDED = 'embedded';
+    private const ENV_BINARY_PATH = 'FRANKENPHP_BINARY_PATH';
+    private const ENV_DNS01_MODE = 'FRANKENPHP_DNS01_MODE';
+    private const ENV_VARIANT = 'FRANKENPHP_VARIANT';
+
+    /** Bootstrap probe order for an unrecorded runtime only. */
     private const BINARY_CANDIDATES = ['/usr/local/bin/frankenphp', '/usr/bin/frankenphp'];
 
     /**
@@ -101,6 +106,12 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "{\n"
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
+            . "\n"
+            . "\t# Explicit protocol set (official servers option): h2/h3 negotiate on\n"
+            . "\t# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.\n"
+            . "\tservers {\n"
+            . "\t\tprotocols h1 h2 h3\n"
+            . "\t}\n"
             . "}\n"
             . "\n"
             . "https://{$host}:{$https} {\n"
@@ -201,10 +212,20 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     }
 
     /**
-     * Detect the frankenphp binary (file-probe, mirrors fm_get_binary).
+     * Resolve the exact binary selected by the shell variant policy. A
+     * recorded runtime fails closed when its payload is missing; candidate
+     * probing is limited to processes without a variant contract.
      */
     public static function binary(): ?string
     {
+        $selectedBinary = getenv(self::ENV_BINARY_PATH);
+        if ($selectedBinary !== false && $selectedBinary !== '') {
+            return is_executable($selectedBinary) ? $selectedBinary : null;
+        }
+        if (getenv(self::ENV_VARIANT) !== false) {
+            return null;
+        }
+
         foreach (self::BINARY_CANDIDATES as $candidate) {
             if (is_executable($candidate)) {
                 return $candidate;
@@ -255,6 +276,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     public static function hasDnsPodModule(): bool
     {
+        $dns01Mode = getenv(self::ENV_DNS01_MODE);
+        if ($dns01Mode !== false && $dns01Mode !== self::DNS01_MODE_EMBEDDED) {
+            return false;
+        }
+
         $binary = self::binary();
         if ($binary === null) {
             return false;

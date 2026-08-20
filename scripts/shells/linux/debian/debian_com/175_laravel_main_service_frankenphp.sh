@@ -12,9 +12,8 @@
 
 # Service runtime launcher — FRANKENPHP PLANE. Systemd ExecStart target.
 # Called by systemd_service_manager via 175_laravel_main_start.sh's
-# register_laravel_service. Only runs the minimal idempotent convergence
-# (binary link, php-cli shim, dnspod module, DNS-01 readiness) then exec's
-# laravel_runtime_frankenphp.sh with octane:frankenphp.
+# register_laravel_service. Validates and repairs runtime pointers, then
+# exec's laravel_runtime_frankenphp.sh with octane:frankenphp.
 #
 # NO domain setup, NO nginx, NO certbot, NO 175 init — those are handled
 # by 175_laravel_main_start.sh (one-time setup). This script is the
@@ -46,16 +45,15 @@ SCRIPT_INDEX="175SF"
 # shellcheck source=/dev/null
 . "$LINUX_COMMON_DIR/frankenphp_manager.sh"
 
-echo "[$SCRIPT_INDEX] frankenphp plane service runtime: minimal convergence, then octane:frankenphp (watch=${OCTANE_WATCH})"
+echo "[$SCRIPT_INDEX] frankenphp plane service runtime: runtime-only convergence, then octane:frankenphp (watch=${OCTANE_WATCH})"
 
-# Minimal convergence: binary, shims, module, DNS-01 — all idempotent probes,
-# no-op when satisfied. No domain setup, no certbot, no nginx.
-fm_install
-fm_ensure_local_bin_link
-fm_ensure_php_cli_shim
-fm_php_ini_ensure
-fm_ensure_dnspod_module
-fm_dns01_ensure
+# Package installation, static builds and package cleanup are step 93
+# responsibilities. A service restart only repairs pointers for the exact
+# selected variant and fails closed when that payload is missing.
+fm_runtime_converge
+if [ -z "$FM_RUNTIME_BINARY" ]; then
+    exit 1
+fi
 
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
 

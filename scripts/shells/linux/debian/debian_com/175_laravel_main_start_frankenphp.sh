@@ -26,10 +26,8 @@
 #     readiness is converged. nginx and certbot are NEVER touched on this
 #     plane (TLS is Caddy-ACME owned).
 #
-#   runtime mode (default): plane stack convergence - every step its own
-#     idempotent probe, no step's no-op blocks the next: binary -> canonical
-#     link -> php-cli shims -> plane PHP ini -> dnspod module (defer-safe) ->
-#     DNS-01 readiness -> site host. Then hands off to
+#   runtime mode (default): exact-variant runtime pointer convergence, then
+#     hands off to
 #     laravel_runtime_frankenphp.sh (Mercure key provisioning + canonical
 #     Caddyfile render with literal keys, octane:frankenphp HTTPS h2/h3 +
 #     embedded hub).
@@ -100,26 +98,22 @@ if [ "$MODE" = "domains" ]; then
     exit 0
 fi
 
-# --- runtime mode (default): plane stack convergence + supervised launch ---
+# --- runtime mode (default): runtime-only convergence + supervised launch --
 # Site host: shared resolver (persisted region prefix + domain list; env
 # FRANKENPHP_SITE_HOST still wins).
 FRANKENPHP_SITE_HOST="${FRANKENPHP_SITE_HOST:-$(fm_site_host)}"
 
 echo "Starting headless API runtime (frankenphp plane -> octane:frankenphp on :${FRANKENPHP_HTTPS_PORT} h2/h3, Mercure hub at https://${FRANKENPHP_SITE_HOST}/.well-known/mercure)"
 
-# STEP 1: plane stack convergence (fine-grained, each probe independent).
-fm_install
-fm_ensure_local_bin_link
-fm_ensure_php_cli_shim
-fm_php_ini_ensure
-fm_ensure_dnspod_module
+# Installation, custom-module builds and package cleanup are owned by step
+# 93. Foreground launches use the same exact-variant runtime contract as the
+# systemd launcher.
+fm_runtime_converge
+if [ -z "$FM_RUNTIME_BINARY" ]; then
+    exit 1
+fi
 
-# STEP 2: idempotent certificate readiness - the wildcard certificate is
-# issued/renewed by Caddy's ACME at launch once module + token both hold;
-# the token is the single manual input and cannot be generated.
-fm_dns01_ensure
-
-# STEP 3: single supervised runtime process (canonical Caddyfile with
+# Single supervised runtime process (canonical Caddyfile with
 # literal Mercure keys, embedded hub - no sidecar process on this plane).
 PORT="$PORT" PHP_BIN="$PHP_BIN" LARAVEL_DIR="$LARAVEL_DIR" \
     FRANKENPHP_SITE_HOST="$FRANKENPHP_SITE_HOST" \

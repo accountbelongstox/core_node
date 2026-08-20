@@ -377,7 +377,7 @@ CONFIG_RUNTIME_PLANE=""
 source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
 CONFIG_RUNTIME_PLANE="$(php_runtime_plane)"
 if [ "$CONFIG_RUNTIME_PLANE" = "frankenphp" ]; then
-    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (Caddyfile-adjacent ini)${NC}"
+    echo -e "${CYAN}$SCRIPT_INDEX PHP runtime plane: frankenphp (variant: $(fm_variant 2>/dev/null || echo unrecorded); Caddyfile-adjacent ini, valid for compiled/prebuilt/apt binaries)${NC}"
     fm_php_ini_ensure
     set_directory_permissions || {
         echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"

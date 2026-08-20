@@ -210,6 +210,12 @@ import ${FM_DOMAIN_ROUTES_DIR}/*.caddy"
 {
 	admin localhost:${admin_port}
 	auto_https disable_redirects
+
+	# Explicit protocol set (official servers option): h2/h3 negotiate on
+	# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.
+	servers {
+		protocols h1 h2 h3
+	}
 }
 
 # Primary site host (Mercure hub + php_server for the default app)

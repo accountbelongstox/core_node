@@ -34,6 +34,10 @@ ACME_INSTALL_BIN="${ACME_INSTALL_HOME_DIR}/acme.sh"
 
 ACME_INSTALL_FINGERPRINT="prebuilt-v1"
 ACME_SH_FLOCK_FILE="/run/lock/core_node_acme_sh.lock"
+ACME_SH_INSTALL_LOG="${ACME_INSTALL_CONFIG_DIR}/install.log"
+ACME_SH_SERVICE_NAME="ncore-acme-cert"
+ACME_SH_SERVICE_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.service"
+ACME_SH_TIMER_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.timer"
 
 acme_install_fingerprint() {
     local repo_state=""
@@ -102,6 +106,7 @@ acme_install_linked_binary() {
 acme_install_bootstrap() {
     local installer=""
     local account_email=""
+    local install_status="0"
 
     if [ -x "$ACME_INSTALL_BIN" ] && [ -x "$ACME_INSTALL_LINK" ]; then
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [SKIP] acme.sh already has an installed script at $ACME_INSTALL_BIN"
@@ -117,13 +122,35 @@ acme_install_bootstrap() {
     mkdir -p "$ACME_INSTALL_HOME_DIR"
     mkdir -p "$ACME_INSTALL_CONFIG_DIR"
     account_email="${ACME_INSTALL_EMAIL:-admin@example.com}"
-    # Keep installation idempotent to the configured path; no fixed user home.
-    if ! sh "$installer" --install --home "$ACME_INSTALL_HOME_DIR" --config-home "$ACME_INSTALL_CONFIG_DIR" --accountemail "$account_email" >/dev/null 2>&1; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh bootstrap command reported issues; continue"
+    # The upstream installer copies its own entry by the RELATIVE name
+    # "acme.sh" (PROJECT_ENTRY), so it MUST run with the repository as the
+    # working directory - a foreign CWD is the classic silent bootstrap
+    # failure ("cp: cannot stat 'acme.sh'"). Full output goes to a log file;
+    # the tail is printed only on failure for diagnosis. --nocron: renewal
+    # runs through the dedicated systemd timer (acme_sh_service_ensure)
+    # instead of the installer's daily cron entry (official wiki pattern
+    # "Using systemd units instead of cron").
+    if ! (
+        cd "$ACME_INSTALL_REPO_DIR" \
+            && sh ./acme.sh --install \
+                --home "$ACME_INSTALL_HOME_DIR" \
+                --config-home "$ACME_INSTALL_CONFIG_DIR" \
+                --accountemail "$account_email" \
+                --nocron \
+                >"$ACME_SH_INSTALL_LOG" 2>&1
+    ); then
+        install_status="1"
     fi
 
     if [ ! -x "$ACME_INSTALL_BIN" ]; then
+        install_status="1"
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh bootstrap failed; installer log tail:"
+        tail -n 20 "$ACME_SH_INSTALL_LOG" 2>/dev/null \
+            || echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] no installer log at $ACME_SH_INSTALL_LOG"
         return 1
+    fi
+    if [ "$install_status" != "0" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh bootstrap reported issues (binary present); log: $ACME_SH_INSTALL_LOG"
     fi
     return 0
 }
@@ -207,18 +234,36 @@ acme_sh_ensure_certificate() {
     dp_id="${token_value%%,*}"
     dp_key="${token_value#*,}"
     cert_dir="${FRANKENPHP_ACME_CERT_DIR}/${apex_domain}"
+    issue_log="${ACME_INSTALL_CONFIG_DIR}/issue-${apex_domain}.log"
     mkdir -p "$cert_dir"
 
     ACME_SH_SAN_ARGS=(-d "$apex_domain" -d "*.${apex_domain}")
     if [ -n "$prefix" ]; then
         ACME_SH_SAN_ARGS+=(-d "*.${prefix}.${apex_domain}")
     fi
-    DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" --issue --dns dns_dp \
-        "${ACME_SH_SAN_ARGS[@]}" \
-        --server letsencrypt --keylength ec-256 >/dev/null 2>&1
+
+    # dns_dp adds all TXT records then sleeps the default 120s before
+    # verification; a transient propagation miss at the CA's resolvers can
+    # still fail one SAN (observed: "No TXT record found" on the deepest
+    # wildcard seconds after the API accepted the record). One immediate
+    # retry resolves it - the zone has already settled by then.
+    acme_sh_issue_attempt() {
+        DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" --issue --dns dns_dp \
+            "${ACME_SH_SAN_ARGS[@]}" \
+            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1
+        return $?
+    }
+    acme_sh_issue_attempt
     rc=$?
     if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh issue failed (rc=$rc) for ${apex_domain}"
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh issue failed (rc=$rc) for ${apex_domain}, retrying once"
+        acme_sh_issue_attempt
+        rc=$?
+    fi
+    if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh issue failed (rc=$rc) for ${apex_domain}; tail of ${issue_log}:"
+        tail -n 15 "$issue_log" 2>/dev/null \
+            || echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] no issue log at $issue_log"
         return 1
     fi
 
@@ -255,6 +300,70 @@ EOF
     return 0
 }
 
+# Persistent renewal service (official acme.sh wiki pattern "Using
+# systemd units instead of cron"): a oneshot service running the acme.sh
+# daily cron equivalent (`--cron`) plus a persistent 6h timer. Renewals
+# re-run the Le_ReloadCmd baked into each renewal conf (the caddy admin
+# /load poke), so renewed certificates go live without a service restart.
+# DNSPod credentials are NOT needed here: DP_Id/DP_Key are persisted in
+# the acme.sh account.conf by the first issuance and reused automatically.
+acme_sh_service_ensure() {
+    local acme_bin=""
+    local service_content=""
+    local timer_content=""
+
+    if ! command -v systemctl >/dev/null 2>&1 \
+        || [ ! -d /run/systemd/system ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] systemd not active; acme.sh renewal timer not registered"
+        return 0
+    fi
+    acme_bin="$(acme_install_linked_binary)"
+    if [ -z "$acme_bin" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh not usable; renewal timer not registered"
+        return 0
+    fi
+
+    service_content="[Unit]
+Description=Renew Let's Encrypt certificates using acme.sh (core_node)
+After=network-online.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+SyslogIdentifier=${ACME_SH_SERVICE_NAME}
+ExecStart=${acme_bin} --cron --home ${ACME_INSTALL_HOME_DIR} --config-home ${ACME_INSTALL_CONFIG_DIR}
+"
+    timer_content="[Unit]
+Description=Renewal of Let's Encrypt certificates (core_node acme.sh)
+
+[Timer]
+OnCalendar=0/6:00:00
+RandomizedOffsetSec=6h
+FixedRandomDelay=true
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"
+
+    if [ "$(cat "$ACME_SH_SERVICE_UNIT" 2>/dev/null || true)" != "$service_content" ]; then
+        printf '%s\n' "$service_content" > "$ACME_SH_SERVICE_UNIT"
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal service unit written: $ACME_SH_SERVICE_UNIT"
+    fi
+    if [ "$(cat "$ACME_SH_TIMER_UNIT" 2>/dev/null || true)" != "$timer_content" ]; then
+        printf '%s\n' "$timer_content" > "$ACME_SH_TIMER_UNIT"
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal timer unit written: $ACME_SH_TIMER_UNIT"
+    fi
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    systemctl enable --now "${ACME_SH_SERVICE_NAME}.timer" >/dev/null 2>&1 || true
+    if [ "$(systemctl is-active "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)" = "active" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal timer active: ${ACME_SH_SERVICE_NAME}.timer (next: $(systemctl list-timers "${ACME_SH_SERVICE_NAME}.timer" --no-pager 2>/dev/null | awk 'NR==2 {print $1, $2, $3}' | tr -d '\n'))"
+    else
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] renewal timer not active; check: systemctl status ${ACME_SH_SERVICE_NAME}.timer"
+    fi
+    return 0
+}
+
 # Service-start certificate pre-flight: ensure the acme.sh DNS-01 prebuilt
 # certificates exist BEFORE the server renders its Caddyfile and binds the
 # HTTPS port (the Caddyfile prebuilt-tls gate pins them; the embedded
@@ -271,6 +380,7 @@ acme_sh_preflight_for_service() {
     local apex=""
     local route_file=""
     local apex_list=""
+    local acme_bin=""
 
     acme_sh_ensure_install
 
@@ -324,6 +434,17 @@ EOF
         flock -u 9 2>/dev/null || true
         exec 9>&- 2>/dev/null || true
     fi
+
+    # Post-flight detail (diagnosis): managed certificates as acme.sh sees
+    # them, plus the persistent renewal timer. Nothing secret is printed.
+    acme_bin="$(acme_install_linked_binary)"
+    if [ -n "$acme_bin" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] acme.sh managed certificates:"
+        "$acme_bin" --list --home "$ACME_INSTALL_HOME_DIR" --config-home "$ACME_INSTALL_CONFIG_DIR" 2>/dev/null \
+            | awk 'NR==1 || /^(Main_Domain|[a-zA-Z0-9.-]+\.)[a-zA-Z]/ {print}' \
+            || echo "[$FRANKENPHP_ACME_INSTALL_INDEX] (no certificates issued yet)"
+    fi
+    acme_sh_service_ensure
     return 0
 }
 
