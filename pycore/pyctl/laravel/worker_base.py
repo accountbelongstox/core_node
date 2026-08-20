@@ -589,10 +589,10 @@ class BaseLaravelWorkerService:
         for task_type in task_types:
             if remaining <= 0:
                 break
-            response = laravel_client.get(
+            response = laravel_client.post(
                 queue_center_endpoint("worker_task_pull", task_type=task_type),
                 base_url=base_url,
-                params=self._pull_params(remaining),
+                json=self._pull_params(remaining),
                 timeout=self.PULL_HTTP_TIMEOUT_SECONDS,
             )
             if response.status_code != 200:

@@ -44,7 +44,7 @@ $PythonExe = $null
 $InitialDir = Get-Location
 $WatchChoice = ""
 $WatchMode = "dev"
-$cmdConfigProbe = $null
+$projectRootProbe = $null
 $uiTitle = $null
 $step1 = $null
 $step2 = $null
@@ -54,22 +54,14 @@ $step5 = $null
 $step6 = $null
 $nodeVersion = $null
 $pnpmVersion = $null
-$shouldInstall = $null
-$cmdInstall = $null
 $EnsureWinBinScript = $null
+$RegisterScript = $null
 $extensionPath = $null
 $manifestJson = $null
-$skipBuild = $false
-$cmdBuildShared = $null
 $sharedPath = $null
-$cmdBuildNative = $null
 $nativePathProbe = $null
-$cmdBuildExtension = $null
-$retryMax = $null
-$attempt = $null
 $manifestContent = $null
 $nativePath = $null
-$cmdRegister = $null
 $manifestPath = $null
 $regKeyPath = $null
 $WatchRoots = @()
@@ -87,7 +79,6 @@ $WatchSourceIdentifier = $null
 $WatchSourcePrefix = "McpChromeDevelopmentWatch"
 $WatchIndex = 0
 $WatchDebounceMilliseconds = 750
-$SupervisorExitCode = 0
 $ChangedPaths = @()
 
 function Get-LocalizedMessage {
@@ -315,8 +306,8 @@ try {
     Write-Host (Get-LocalizedMessage -Key "startPythonError" -Arguments @($_)) -ForegroundColor Yellow
 }
 
-$cmdConfigProbe = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED) -Default ""
-if (-not $cmdConfigProbe) {
+$projectRootProbe = Get-Var -Key ([VarKeys]::PROJECT_ROOT) -Default ""
+if (-not $projectRootProbe) {
     Write-Host ""
     Write-Host (Get-LocalizedMessage -Key "startBuildConfigIncomplete") -ForegroundColor Yellow
 }
@@ -359,43 +350,28 @@ Write-Host ""
 $step2 = Get-LocalizedMessage -Key "startInstallingDependencies"
 Write-Host "[2/6] $step2"
 
-$shouldInstall = Get-Var -Key ([VarKeys]::SHOULD_INSTALL) -Default "false"
-if ($shouldInstall -eq "true") {
-    $cmdInstall = Get-Var -Key ([VarKeys]::CMD_INSTALL)
-    Write-Host (Get-LocalizedMessage -Key "startInstallingDependenciesLive") -ForegroundColor Cyan
-    Invoke-Expression $cmdInstall
-    Write-Host (Get-LocalizedMessage -Key "startDependencyInstallFinished") -ForegroundColor Green
-} else {
-    Write-Host (Get-LocalizedMessage -Key "startDependenciesInstalled") -ForegroundColor Green
-}
+Write-Host (Get-LocalizedMessage -Key "startInstallingDependenciesLive") -ForegroundColor Cyan
+& pnpm install
+Write-Host (Get-LocalizedMessage -Key "startDependencyInstallFinished") -ForegroundColor Green
 
 # Ensure Windows .cmd shims exist (pnpm previously run via bash/WSL loses them).
 $EnsureWinBinScript = Join-Path $PSScriptRoot "ensure_win_bin.ps1"
+$RegisterScript = Join-Path $PSScriptRoot "register-local-dev.cjs"
 Write-Host (Get-LocalizedMessage -Key "startCheckingCmdShims") -ForegroundColor Cyan
 & $EnsureWinBinScript -WorkspaceRoot $ProjectRoot
 
-# Quick compile+install: never block on an interactive prompt so the flow runs
-# unattended with continuous live output. Rebuild by default; set
-# MCP_SKIP_BUILD=1 to reuse the existing output instead.
+# Quick compile+install: each package build aligns its own output incrementally.
 $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
 $manifestJson = Join-Path $extensionPath "manifest.json"
-$skipBuild = $false
-if ($env:MCP_SKIP_BUILD -eq "1") {
-    $skipBuild = $true
-    Write-Host (Get-LocalizedMessage -Key "startSkipBuild") -ForegroundColor Yellow
-} else {
-    Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
-}
+Write-Host (Get-LocalizedMessage -Key "startRebuilding") -ForegroundColor Cyan
 
-if (-not $skipBuild) {
-    # Step 3: Build Shared package
+# Step 3: Build Shared package
     Write-Host ""
     $step3 = Get-LocalizedMessage -Key "startBuildingShared"
     Write-Host "[3/6] $step3"
 
-    $cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
     Write-Host (Get-LocalizedMessage -Key "startBuildingSharedLive") -ForegroundColor Cyan
-    Invoke-Expression $cmdBuildShared
+    & pnpm run build:shared
 
     # Verify by artifact, not exit code (a noisy-but-successful build can return
     # nonzero; a real failure leaves the artifact missing).
@@ -411,9 +387,8 @@ if (-not $skipBuild) {
     $step4 = Get-LocalizedMessage -Key "startBuildingNative"
     Write-Host "[4/6] $step4"
 
-    $cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
     Write-Host (Get-LocalizedMessage -Key "startBuildingNativeLive") -ForegroundColor Cyan
-    Invoke-Expression $cmdBuildNative
+    & pnpm run build:native
 
     # Verify by artifact, not exit code.
     $nativePathProbe = Get-Var -Key ([VarKeys]::NATIVE_PATH) -Default ""
@@ -428,51 +403,7 @@ if (-not $skipBuild) {
     $step5 = Get-LocalizedMessage -Key "startBuildingExtension"
     Write-Host "[5/6] $step5"
 
-    $cmdBuildExtension = Get-Var -Key ([VarKeys]::CMD_BUILD_EXTENSION)
-    $retryMax = [int](Get-Var -Key ([VarKeys]::BUILD_RETRY_MAX) -Default "3")
-
-    $attempt = 1
-    while ($attempt -le $retryMax) {
-        if ($attempt -gt 1) {
-            Write-Host (Get-LocalizedMessage -Key "startRetryingBuild" -Arguments @($attempt, $retryMax)) -ForegroundColor Yellow
-            Start-Sleep -Seconds 2
-        }
-
-        Invoke-Expression $cmdBuildExtension
-
-        $extensionPath = Get-Var -Key ([VarKeys]::EXTENSION_PATH)
-        $manifestJson = Join-Path $extensionPath "manifest.json"
-
-        if (Test-Path $manifestJson) {
-            Write-Host (Get-LocalizedMessage -Key "startExtensionBuilt") -ForegroundColor Green
-            
-            # Verify manifest.json has key field for extension ID calculation
-            try {
-                $manifestContent = Get-Content $manifestJson -Raw | ConvertFrom-Json
-                if (-not $manifestContent.key) {
-                    Write-Host (Get-LocalizedMessage -Key "startManifestKeyMissing") -ForegroundColor Yellow
-                    Write-Host (Get-LocalizedMessage -Key "startExtensionIdUncalculated") -ForegroundColor Yellow
-                    Write-Host (Get-LocalizedMessage -Key "startRegistrationMayRequireUpdate") -ForegroundColor Yellow
-                } else {
-                    Write-Host (Get-LocalizedMessage -Key "startManifestKeyPresent") -ForegroundColor Green
-                }
-            } catch {
-                Write-Host (Get-LocalizedMessage -Key "startManifestVerificationFailed") -ForegroundColor Yellow
-            }
-            break
-        }
-
-        $attempt = $attempt + 1
-    }
-
-    if ($attempt -gt $retryMax) {
-        Write-Host (Get-LocalizedMessage -Key "startExtensionBuildFailed" -Arguments @($retryMax)) -ForegroundColor Red
-        exit 1
-    }
-} else {
-    Write-Host ""
-    Write-Host (Get-LocalizedMessage -Key "startBuildSkipped") -ForegroundColor Yellow
-}
+    & pnpm run build:extension
 
 $nativePath = Get-Var -Key ([VarKeys]::NATIVE_PATH)
 if (-not $extensionPath) {
@@ -506,9 +437,8 @@ try {
     Write-Host (Get-LocalizedMessage -Key "startManifestVerificationFailed") -ForegroundColor Yellow
 }
 
-$cmdRegister = Get-Var -Key ([VarKeys]::CMD_REGISTER)
 Write-Host (Get-LocalizedMessage -Key "startRegisteringHost") -ForegroundColor Cyan
-Invoke-Expression $cmdRegister
+& node $RegisterScript
 
 $manifestPath = Get-Var -Key ([VarKeys]::MANIFEST_PATH)
 Write-Host ""
@@ -604,17 +534,13 @@ try {
         while ($true) {
             $ChangedPaths = @(Wait-DevelopmentChangeBatch -SourcePrefix $WatchSourcePrefix -IgnoredRoots $IgnoredWatchRoots -IgnoredFilePatterns $IgnoredWatchFilePatterns -WatchedExtensions $WatchedFileExtensions -DebounceMilliseconds $WatchDebounceMilliseconds)
             Write-Host ([string]::Join(", ", $ChangedPaths)) -ForegroundColor DarkGray
-            $cmdBuildShared = Get-Var -Key ([VarKeys]::CMD_BUILD_SHARED)
-            $cmdBuildNative = Get-Var -Key ([VarKeys]::CMD_BUILD_NATIVE)
-            $cmdBuildExtension = Get-Var -Key ([VarKeys]::CMD_BUILD_EXTENSION)
-            Invoke-Expression $cmdBuildShared
-            Invoke-Expression $cmdBuildNative
-            Invoke-Expression $cmdBuildExtension
+            & pnpm run build:shared
+            & pnpm run build:native
+            & pnpm run build:extension
             & $PythonExe $SupervisorScript --wake
         }
     } else {
         & $PythonExe $SupervisorScript --wake
-        $SupervisorExitCode = $LASTEXITCODE
     }
 } finally {
     foreach ($WatchSubscription in $WatchSubscriptions) {
@@ -625,4 +551,3 @@ try {
     }
     Set-Location $InitialDir
 }
-exit $SupervisorExitCode

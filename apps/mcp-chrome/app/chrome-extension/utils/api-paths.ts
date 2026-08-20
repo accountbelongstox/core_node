@@ -33,12 +33,13 @@ export const QUEUE_CENTER_PATHS = {
 } as const;
 
 /** Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}. */
-export type WorkerTaskAction = 'pull' | 'accept' | 'result';
+export type WorkerTaskAction = 'pull' | 'accept' | 'result' | 'release';
 
 const WORKER_TASK_ACTION_ROLES = {
   pull: 'worker_task_pull',
   accept: 'worker_task_accept',
   result: 'worker_task_result',
+  release: 'worker_task_release',
 } as const;
 
 /** Build `/api/worker/tasks/{taskType}/{action}` (taskType percent-encoded). */

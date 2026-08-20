@@ -1,13 +1,10 @@
 # VarManager.ps1
-# PowerShell 变量管理�?
-# 负责读写文件变量
+# File-backed variable management for PowerShell.
 
-# 获取变量存储目录
 function Get-VarsDir {
     $userProfile = [Environment]::GetFolderPath("UserProfile")
     $varsDir = Join-Path $userProfile ".core_node\.build_global_vars"
 
-    # 确保目录存在
     if (-not (Test-Path $varsDir)) {
         try {
             New-Item -ItemType Directory -Path $varsDir -Force | Out-Null
@@ -15,14 +12,13 @@ function Get-VarsDir {
         catch {
             Write-Error "Failed to create vars directory: $varsDir"
             Write-Error $_.Exception.Message
-            exit 1
+            throw
         }
     }
 
     return $varsDir
 }
 
-# 设置变量（写入文件）
 function Set-Var {
     param(
         [Parameter(Mandatory=$true)]
@@ -49,7 +45,6 @@ function Set-Var {
     }
 }
 
-# 获取变量（读取文件）
 function Get-Var {
     param(
         [Parameter(Mandatory=$true)]
@@ -79,7 +74,6 @@ function Get-Var {
     }
 }
 
-# 删除变量（删除文件）
 function Remove-Var {
     param(
         [Parameter(Mandatory=$true)]
@@ -103,7 +97,6 @@ function Remove-Var {
     }
 }
 
-# 清除所有变�?
 function Clear-AllVars {
     $varsDir = Get-VarsDir
 
@@ -119,7 +112,6 @@ function Clear-AllVars {
     }
 }
 
-# 列出所有变�?
 function Get-AllVars {
     $varsDir = Get-VarsDir
     $result = @{}
@@ -139,7 +131,6 @@ function Get-AllVars {
     return $result
 }
 
-# 检查变量是否存�?
 function Test-Var {
     param(
         [Parameter(Mandatory=$true)]

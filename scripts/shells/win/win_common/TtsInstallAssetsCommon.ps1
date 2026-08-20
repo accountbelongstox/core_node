@@ -697,7 +697,7 @@ function ConvertTo-PyListLiteral {
 }
 
 function Test-IsolatedTtsVenvProvisioned {
-    # Quick no-build gate based on the isolated environment layout and stamp.
+    # Read-only health gate. Interpreter existence alone is not provisioning.
     param(
         [Parameter(Mandatory = $true)][string]$PythonExe,
         [Parameter(Mandatory = $true)][string]$CoreNodeRoot,
@@ -712,7 +712,7 @@ function Test-IsolatedTtsVenvProvisioned {
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyutils.common.python_env import isolated_venv
-sys.stdout.write('__VENV_READY__' if isolated_venv.venv_ready($engineLit) else '__VENV_NOTREADY__')
+sys.stdout.write('__VENV_READY__' if isolated_venv.venv_healthy($engineLit) else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies() (it does pip ops and throws under Stop).
@@ -762,7 +762,7 @@ sys.stdout.write(isolated_venv.resolve_python($engineLit) or '')
 function Invoke-IsolatedTtsVenvEnsure {
     # Build/verify an engine's isolated venv via isolated_venv.ensure_venv(). Runs the
     # system Python LIVE (pip output streams to console; first build takes minutes) and
-    # probes the resulting venv directly after provisioning.
+    # consumes the provisioning result emitted by that same call.
     # AI remediation plan: if Qwen3TTS repeatedly fails health checks, rebuild only its
     # canonical venv with `python -m venv --clear --system-site-packages`. Do not copy
     # the main interpreter's site-packages or delete the model cache/weights. Reinstall
@@ -788,11 +788,13 @@ function Invoke-IsolatedTtsVenvEnsure {
     $prevSkip = $env:PYCORE_SKIP_DEP_CHECK
     $prevEap = $ErrorActionPreference
     $venvOk = $false
+    $provisionOutput = [System.Collections.Generic.List[string]]::new()
     $pyCode = @"
 import sys
 sys.path.insert(0, r'$rootLiteral')
 from pycore.pyutils.common.python_env import isolated_venv
-isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+result = isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${healthArg}force=$forceLiteral)
+print('__VENV_READY__' if result else '__VENV_NOTREADY__')
 "@
     # PYCORE_SKIP_DEP_CHECK=1: importing pycore.pyutils.tts must NOT run the import-time
     # check_and_install_dependencies(); ensure_venv() does its own venv provisioning.
@@ -800,9 +802,13 @@ isolated_venv.ensure_venv($engineLit, pip_packages=$pkgLit, pins=$pinLit, ${heal
         $env:PYCORE_SKIP_DEP_CHECK = '1'
         $ErrorActionPreference = 'Continue'
         # Run LIVE (attached): ensure_venv streams pip output; first build takes minutes.
-        # Out-Host keeps child stdout out of the function's boolean return value.
-        & $PythonExe -c $pyCode | Out-Host
-        $venvOk = Test-IsolatedTtsVenvProvisioned -PythonExe $PythonExe -CoreNodeRoot $CoreNodeRoot -Engine $Engine
+        # Capture the marker emitted from ensure_venv itself; do not infer success
+        # from a process exit code or re-probe a weaker condition afterward.
+        & $PythonExe -c $pyCode | ForEach-Object {
+            [void]$provisionOutput.Add([string]$_)
+            Write-Host $_
+        }
+        $venvOk = (($provisionOutput -join "`n") -match '__VENV_READY__')
     } finally {
         $ErrorActionPreference = $prevEap
         $env:PYCORE_SKIP_DEP_CHECK = $prevSkip

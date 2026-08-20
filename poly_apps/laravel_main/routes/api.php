@@ -260,7 +260,7 @@ Route::withoutMiddleware([EnsureFrontendRequestsAreStateful::class])->group(func
         // Task operations are type-scoped: /api/worker/tasks/{taskType}/{action}.
         // {taskType} must be a key from config/queue_center_contract.json
         // task_types (validated in the controller).
-        Route::get('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
+        Route::post('tasks/{taskType}/pull', [WorkerController::class, 'pullTasks']);
         Route::post('tasks/{taskType}/accept', [WorkerController::class, 'acceptTask']);
         Route::post('tasks/{taskType}/result', [WorkerController::class, 'submitResult']);
         Route::post('tasks/{taskType}/release', [WorkerController::class, 'releaseTasks']);

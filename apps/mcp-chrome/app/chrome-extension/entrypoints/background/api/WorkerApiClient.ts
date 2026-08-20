@@ -27,6 +27,7 @@ import {
   type WorkerCapability,
   type WorkerInfo,
   type WorkerRegistration,
+  type WorkerReleaseOutcome,
   type WorkerSubmitOutcome,
   type QueueProgress,
   type QueueSliceDiff,
@@ -41,6 +42,7 @@ export type {
   WorkerCapability,
   WorkerInfo,
   WorkerRegistration,
+  WorkerReleaseOutcome,
   WorkerSubmitOutcome,
 } from '@/utils/queue-center-contract';
 
@@ -172,7 +174,7 @@ export class WorkerApiClient extends BaseApiClient {
       const segmentCapacity = await diffTaskSegmentStore.availableCapacity(scope);
       const remoteLimit = Math.min(remaining, segmentCapacity);
       if (remoteLimit > 0) {
-        response = await this.get<WorkerPullData>(
+        response = await this.post<WorkerPullData>(
           workerTaskPath(taskType, 'pull'),
           {
             worker_id: id,
@@ -333,16 +335,43 @@ export class WorkerApiClient extends BaseApiClient {
   }
 
   async releaseTasks(tasks: Task[]): Promise<void> {
-    const taskIdsByScope = new Map<string, string[]>();
+    const id = this.workerId;
+    if (!id) {
+      throw new Error('Worker ID not set. Call register() first');
+    }
+
+    const tasksByType = new Map<string, Task[]>();
     for (const task of tasks) {
       const scope = this.taskSegmentScopes.get(task.task_id);
       if (!scope) continue;
-      const taskIds = taskIdsByScope.get(scope) || [];
-      taskIds.push(task.task_id);
-      taskIdsByScope.set(scope, taskIds);
+      const groupedTasks = tasksByType.get(task.task_type) || [];
+      if (!groupedTasks.some((candidate) => candidate.task_id === task.task_id)) {
+        groupedTasks.push(task);
+      }
+      tasksByType.set(task.task_type, groupedTasks);
     }
-    for (const [scope, taskIds] of taskIdsByScope) {
-      await diffTaskSegmentStore.release(scope, taskIds);
+
+    for (const [taskType, groupedTasks] of tasksByType) {
+      const taskIds = groupedTasks.map((task) => task.task_id);
+      try {
+        const response = await this.post<WorkerReleaseOutcome>(
+          workerTaskPath(taskType, 'release'),
+          { worker_id: id, task_ids: taskIds },
+          CONTROL_RPC_OPTS,
+        );
+        if (!response.success) {
+          throw new Error(response.message);
+        }
+        for (const task of groupedTasks) {
+          await this.compactTask(task.task_id);
+        }
+      } catch (error) {
+        for (const task of groupedTasks) {
+          const scope = this.taskSegmentScopes.get(task.task_id);
+          if (scope) await diffTaskSegmentStore.release(scope, [task.task_id]);
+        }
+        throw error;
+      }
     }
   }
 
