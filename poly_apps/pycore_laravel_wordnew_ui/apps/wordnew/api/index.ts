@@ -57,7 +57,7 @@ export {
 } from './WfNewEndpoints';
 export { useWfNewEndpoints } from './useWfNewEndpoints';
 
-// Social realtime — private Reverb push plus bounded cursor recovery.
+// Social realtime - private Mercure push plus bounded cursor recovery.
 // Start/stop app-level on login/logout; pages subscribe to events via subscribeSocial.
 export {
   startSocialRealtime, stopSocialRealtime, subscribeSocial, isSocialRealtimeConnected,

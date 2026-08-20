@@ -69,7 +69,6 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
         $backend = ServiceContract::port('laravel_api_backend');
-        $backendHost = ServiceContract::string('hosts.loopback');
 
         // Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk
         // are pinned explicitly (the service-start pre-flight provisions
@@ -107,12 +106,6 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
             . "\n"
-            . "\t# Explicit protocol set (official servers option): h2/h3 negotiate on\n"
-            . "\t# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.\n"
-            . "\tservers {\n"
-            . "\t\tprotocols h1 h2 h3\n"
-            . "\t}\n"
-            . "\n"
             . "\tfrankenphp {\n"
             . "\t\tworker {\n"
             . "\t\t\tfile \"{$publicDir}/frankenphp-worker.php\"\n"
@@ -132,8 +125,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . self::octanePhpServerStanza()
             . "}\n"
             . "\n"
-            . "# Direct loopback HTTP backend (local machine clients only)\n"
-            . "{$backendHost}:{$backend} {\n"
+            . "# Direct HTTP catch-all backend (LAN and local machine clients)\n"
+            . ":{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
             . self::octanePhpServerStanza()

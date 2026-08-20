@@ -10,7 +10,7 @@ use App\Providers\AppTablePrefixServiceProvider;
  * Social: per-user real-time event outbox (SOCIAL_FEATURE_SPECIFICATION.md §1/§3).
  *
  * Mirrors app_qy_v1_translation_events per recipient. A dedicated Octane task
- * publishes committed rows through a private Reverb channel, while retained
+ * publishes committed rows through a private Mercure topic, while retained
  * rows provide bounded cursor replay after a client reconnects.
  *
  * Idempotent via SafeMigrationHelper - re-running sys:init only ADDS missing
@@ -34,14 +34,14 @@ return new class extends Migration
         $tableStructure = [
             'columns' => [
                 'id' => ['type' => 'bigIncrements'],
-                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false, 'index' => true, 'comment' => 'Recipient user id for the private Reverb channel'],
+                'user_id' => ['type' => 'unsignedBigInteger', 'nullable' => false, 'index' => true, 'comment' => 'Recipient user id for the private Mercure topic'],
                 'event' => ['type' => 'string', 'length' => 40, 'nullable' => false, 'comment' => 'Dotted contract name: message.new|friend.request|...'],
                 'data' => ['type' => 'text', 'nullable' => true, 'comment' => 'JSON payload'],
                 'created_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Emit time; drives age-based pruning'],
-                'published_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Successful Reverb publication time'],
+                'published_at' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Successful Mercure publication time'],
                 'publish_after' => ['type' => 'timestamp', 'nullable' => true, 'index' => true, 'comment' => 'Earliest retry time after a publication failure'],
                 'publish_attempts' => ['type' => 'unsignedInteger', 'default' => 0, 'comment' => 'Bounded publisher attempt count'],
-                'last_publish_error' => ['type' => 'text', 'nullable' => true, 'comment' => 'Latest Reverb publication failure'],
+                'last_publish_error' => ['type' => 'text', 'nullable' => true, 'comment' => 'Latest Mercure publication failure'],
             ],
             'indexes' => [
                 ['columns' => ['user_id']],

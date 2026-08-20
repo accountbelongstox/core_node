@@ -31,10 +31,10 @@ final class RelayBlobStore
         $statistics = [];
 
         if (strlen($bytes) > $chunkCap) {
-            throw new \InvalidArgumentException('Blob chunk exceeds contract cap.');
+            throw new \InvalidArgumentException(__('relay.blob_chunk_too_large'));
         }
         if (!self::isValidBlobId($id)) {
-            throw new \InvalidArgumentException('Invalid blob id.');
+            throw new \InvalidArgumentException(__('relay.invalid_blob_id'));
         }
 
         $meta = self::meta($machineId, $id);
@@ -51,10 +51,10 @@ final class RelayBlobStore
         $chunkPath = self::chunkPath($machineId, $id, $chunkIndex);
         $existingChunk = FileSystemManager::readFile($chunkPath, false);
         if (is_string($existingChunk) && !hash_equals($existingChunk, $bytes)) {
-            throw new \InvalidArgumentException('Blob chunk conflicts with stored content.');
+            throw new \InvalidArgumentException(__('relay.blob_chunk_conflict'));
         }
         if (!is_string($existingChunk) && ($statistics['bytes'] + strlen($bytes)) > $totalCap) {
-            throw new \InvalidArgumentException('Blob total exceeds contract cap.');
+            throw new \InvalidArgumentException(__('relay.blob_total_too_large'));
         }
 
         if (!is_string($existingChunk)) {
@@ -115,12 +115,12 @@ final class RelayBlobStore
         $stored = false;
 
         if (!FileSystemManager::ensureDirectoryExists($blobDir, 0700)) {
-            throw new \RuntimeException('Unable to create the relay blob directory.');
+            throw new \RuntimeException(__('relay.blob_directory_failed'));
         }
         FileSystemManager::writePrivateFile($chunkPath, $bytes);
         $stored = FileSystemManager::readFile($chunkPath, false);
         if (!is_string($stored) || !hash_equals($bytes, $stored)) {
-            throw new \RuntimeException('Unable to persist the relay blob chunk.');
+            throw new \RuntimeException(__('relay.blob_write_failed'));
         }
     }
 

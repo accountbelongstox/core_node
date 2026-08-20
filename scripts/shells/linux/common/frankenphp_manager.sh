@@ -1216,7 +1216,6 @@ fm_caddyfile_render() {
     local mercure_stanza=""
     local routes_dir=""
     local backend_port=""
-    local backend_host=""
     local import_stanza=""
     local octane_php_server_stanza=""
 
@@ -1266,13 +1265,12 @@ fm_caddyfile_render() {
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 
-    # Direct loopback HTTP backend block for local machine clients + the
+    # Direct HTTP backend block for LAN and local machine clients + the
     # per-domain route import (same routes dir the domain
     # renderer writes; gated on file presence - caddy errors on an
     # unmatched import glob). Byte-synced with the Laravel builder.
     routes_dir="${caddyfile_dir}/routes"
     backend_port="$(sc_require ports.laravel_api_backend)"
-    backend_host="$(sc_require hosts.loopback)"
     import_stanza=""
     if compgen -G "${routes_dir}/*.caddy" > /dev/null 2>&1; then
         import_stanza="
@@ -1285,13 +1283,6 @@ import ${routes_dir}/*.caddy"
 {
 	admin localhost:${admin_port}
 	auto_https disable_redirects
-
-	# Explicit protocol set (official servers option): h2/h3 negotiate on
-	# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default
-	# (disable only through an explicit \"0rtt off\").
-	servers {
-		protocols h1 h2 h3
-	}
 
 	frankenphp {
 		worker {
@@ -1308,8 +1299,8 @@ https://${site_host}:${https_port} {
 
 ${dnspod_tls}${acme_tls}${mercure_stanza}${octane_php_server_stanza}}
 
-# Direct loopback HTTP backend (local machine clients only)
-${backend_host}:${backend_port} {
+# Direct HTTP catch-all backend (LAN and local machine clients)
+:${backend_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 ${octane_php_server_stanza}}${import_stanza}"

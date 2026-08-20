@@ -20,12 +20,12 @@ interface TaskCenterOverviewPayload {
 }
 
 export interface QueueCenterRealtimeConfig {
-  transport: 'websocket';
-  app_key: string;
-  host: string;
-  port: number;
-  scheme: string;
-  channel: string;
+  transport: 'mercure';
+  hub_url: string;
+  topics: string[];
+  token: string;
+  token_ttl_seconds: number;
+  subscribe_url: string;
   event: string;
   revision: number;
 }

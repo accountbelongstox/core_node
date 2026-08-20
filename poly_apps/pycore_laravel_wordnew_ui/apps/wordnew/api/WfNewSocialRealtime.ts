@@ -19,6 +19,7 @@ export type WfNewSocialEvent =
 interface SocialRealtimeConnection {
   hub_url: string;
   topics: string[];
+  token: string;
   token_ttl_seconds: number;
   subscribe_url: string;
   auth_mode: string;
@@ -163,8 +164,7 @@ class WfNewSocialRealtime {
 
   /**
    * The authenticated connection endpoint is the single authorize step: it
-   * returns the hub contract and refreshes the hub-path cookie for the
-   * private social topic; the stream itself reuses it on reconnects.
+   * returns the hub contract and a bearer token for the private social topic.
    */
   private async authorize(): Promise<LaravelMercureAuthorization> {
     const config = await authedGetJSON<SocialRealtimeConnection>(
@@ -175,6 +175,7 @@ class WfNewSocialRealtime {
     this.allowedEvents = new Set(config.events || []);
     return {
       subscribe_url: config.subscribe_url,
+      token: config.token,
       token_ttl_seconds: config.token_ttl_seconds,
     };
   }
@@ -225,10 +226,6 @@ class WfNewSocialRealtime {
 
   private async openSocket(): Promise<void> {
     if (!this.started || !loadToken()) return;
-    if (typeof EventSource === 'undefined') {
-      console.warn('[wfnew-social-realtime] EventSource unavailable');
-      return;
-    }
     const generation = ++this.generation;
     try {
       await wfNewEndpoints.whenReady();

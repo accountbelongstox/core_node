@@ -18,7 +18,7 @@ final class RelayHubAuthService
     public static function issueForMachine(string $machineId): array
     {
         if (!RelayMachineRegistry::isValidId($machineId)) {
-            throw new \InvalidArgumentException('Invalid machine id.');
+            throw new \InvalidArgumentException(__('relay.invalid_machine_id'));
         }
 
         return self::issue($machineId, array_merge(
@@ -82,7 +82,7 @@ final class RelayHubAuthService
                 now()->addSeconds((int) $token['token_ttl_seconds'])->timestamp,
                 parse_url($token['hub_url'], PHP_URL_PATH) ?: '/.well-known/mercure',
                 null,
-                true,
+                parse_url($token['hub_url'], PHP_URL_SCHEME) === 'https',
                 true,
                 false,
                 'strict'

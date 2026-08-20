@@ -77,7 +77,7 @@ final class RelayHubJwt
         $issuer = self::trustedIssuer();
         $key = RuntimeConfigurationStore::get($keyName, '');
         if ($key === '') {
-            throw new \RuntimeException("Mercure key {$keyName} is not provisioned.");
+            throw new \RuntimeException(__('relay.mercure_key_missing', ['key' => $keyName]));
         }
         $configuration = Configuration::forSymmetricSigner(new Sha256(), InMemory::plainText($key));
 
@@ -115,7 +115,7 @@ final class RelayHubJwt
         RuntimeConfigurationStore::put(self::TRUSTED_ISSUER_KEY, $issuer);
         $stored = RuntimeConfigurationStore::get(self::TRUSTED_ISSUER_KEY, '');
         if ($stored === '' || !hash_equals($issuer, $stored)) {
-            throw new \RuntimeException('Mercure trusted issuer is not provisioned.');
+            throw new \RuntimeException(__('relay.mercure_issuer_missing'));
         }
 
         return $stored;

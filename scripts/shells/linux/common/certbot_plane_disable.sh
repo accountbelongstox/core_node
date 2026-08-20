@@ -22,22 +22,45 @@ SCRIPT_INDEX="certbot-plane"
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 
 CERTBOT_UNITS="certbot-renewal.service certbot-renewal.timer certbot.service certbot.timer"
+certbot_unit=""
+certbot_load_state=""
+certbot_active_state=""
+certbot_enable_state=""
 
 echo "[$SCRIPT_INDEX] Certbot plane-disable (idempotent, timers stop + record only)"
 
 for certbot_unit in $CERTBOT_UNITS; do
-    if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files "$certbot_unit" >/dev/null 2>&1; then
-        if systemctl is-active --quiet "$certbot_unit"; then
-            $USE_SUDO systemctl stop "$certbot_unit" || echo "[$SCRIPT_INDEX] [WARN] $certbot_unit stop reported failure"
-        fi
-        if systemctl is-enabled --quiet "$certbot_unit" 2>/dev/null; then
-            $USE_SUDO systemctl disable "$certbot_unit" || echo "[$SCRIPT_INDEX] [WARN] $certbot_unit disable reported failure"
-        else
-            echo "[$SCRIPT_INDEX] $certbot_unit already disabled"
-        fi
-    else
+    certbot_load_state="$(systemctl show "$certbot_unit" -p LoadState --value 2>/dev/null)"
+    if [ -z "$certbot_load_state" ] || [ "$certbot_load_state" = "not-found" ]; then
         echo "[$SCRIPT_INDEX] No systemd unit $certbot_unit present"
+        continue
     fi
+    certbot_active_state="$(systemctl show "$certbot_unit" -p ActiveState --value 2>/dev/null)"
+    if [ "$certbot_active_state" != "inactive" ] && [ "$certbot_active_state" != "failed" ]; then
+        $USE_SUDO systemctl stop "$certbot_unit" >/dev/null 2>&1 || true
+        certbot_active_state="$(systemctl show "$certbot_unit" -p ActiveState --value 2>/dev/null)"
+    fi
+    if [ "$certbot_active_state" != "inactive" ] && [ "$certbot_active_state" != "failed" ]; then
+        echo "[$SCRIPT_INDEX] [WARN] $certbot_unit remains active"
+    fi
+    certbot_enable_state="$(systemctl show "$certbot_unit" -p UnitFileState --value 2>/dev/null)"
+    case "$certbot_enable_state" in
+        enabled|enabled-runtime|linked|linked-runtime)
+            $USE_SUDO systemctl disable "$certbot_unit" >/dev/null 2>&1 || true
+            certbot_enable_state="$(systemctl show "$certbot_unit" -p UnitFileState --value 2>/dev/null)"
+            ;;
+    esac
+    case "$certbot_enable_state" in
+        enabled|enabled-runtime|linked|linked-runtime)
+            echo "[$SCRIPT_INDEX] [WARN] $certbot_unit remains enabled"
+            ;;
+        static)
+            echo "[$SCRIPT_INDEX] $certbot_unit is static and inactive"
+            ;;
+        *)
+            echo "[$SCRIPT_INDEX] $certbot_unit already disabled"
+            ;;
+    esac
 done
 
 set_global_var CERTBOT_PLANE_DISABLED "true" 'false'

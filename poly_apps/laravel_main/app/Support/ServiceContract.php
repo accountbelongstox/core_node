@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use RuntimeException;
 
 /**
@@ -27,8 +29,9 @@ final class ServiceContract
             return self::$document;
         }
 
-        $path = dirname(dirname(base_path())).DIRECTORY_SEPARATOR.'config'.DIRECTORY_SEPARATOR.'service_contract.json';
-        $json = file_get_contents($path);
+        $path = PathMapper::getCoreNodeDir().DIRECTORY_SEPARATOR.'config'
+            .DIRECTORY_SEPARATOR.'service_contract.json';
+        $json = FileSystemManager::readFile($path, false);
         $document = is_string($json) ? json_decode($json, true) : null;
         if (!is_array($document)) {
             throw new RuntimeException("Unable to load service contract: {$path}");

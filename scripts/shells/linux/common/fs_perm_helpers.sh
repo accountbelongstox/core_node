@@ -227,6 +227,26 @@ ensure_owned_tree_777() {
 
 # repair_owned_entry_777 <absolute-path> [user] [group]
 # Applies the policy only to one existing entry, without walking its children.
+owned_entry_777_ready() {
+    local target_path="$1"
+    local target_user="$2"
+    local target_group="$3"
+    local current_owner=""
+    local current_mode=""
+
+    if [ ! -e "$target_path" ]; then
+        echo "no"
+        return
+    fi
+    current_owner="$(stat -c '%U:%G' "$target_path" 2>/dev/null)"
+    current_mode="$(stat -c '%a' "$target_path" 2>/dev/null)"
+    if [ "$current_owner" = "$target_user:$target_group" ] && [ "$current_mode" = "777" ]; then
+        echo "yes"
+    else
+        echo "no"
+    fi
+}
+
 repair_owned_entry_777() {
     local target_path="$1"
     local target_user="${2:-}"
@@ -254,8 +274,11 @@ repair_owned_entry_777() {
         [ -n "$privilege_prefix" ] || return 1
         privilege_command=("$privilege_prefix")
     fi
-    "${privilege_command[@]}" chown "$target_user:$target_group" "$target_path" || return $?
-    "${privilege_command[@]}" chmod 777 "$target_path"
+    if [ "$(owned_entry_777_ready "$target_path" "$target_user" "$target_group")" = "yes" ]; then
+        return
+    fi
+    "${privilege_command[@]}" chown "$target_user:$target_group" "$target_path" 2>/dev/null || true
+    "${privilege_command[@]}" chmod 777 "$target_path" 2>/dev/null || true
 }
 
 # fs_perm_is_fuse_mount <path> -> 0 if path sits on a mount-fixed-permission fs.

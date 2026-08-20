@@ -238,9 +238,9 @@ import { apiManager, getApiBase } from '@/services/ApiManager';
 import { TaskCenterApiClient } from '@/services/TaskCenterApiClient';
 import type {
   AssistCategoryItem,
-  QueueCenterRealtimeConfig,
   ValidityQueuePage,
 } from '@/services/TaskCenterApiClient';
+import { queueCenterWakeService } from '@/entrypoints/background/services/task-center/QueueCenterWakeService';
 import { getValidityLanguages } from '@/services/AiProviderSettings';
 import { usePersistedRef } from '@/composables/usePersistedRef';
 import { getMessage } from '@/utils/i18n';
@@ -342,11 +342,8 @@ const validityFirstPage = ref<ValidityQueuePage | null>(null);
 const CATEGORY_PAGE_SIZE = 20;
 
 let taskCenterApi: TaskCenterApiClient | null = null;
-let realtimeSocket: WebSocket | null = null;
-let realtimeSignature = '';
-let realtimeReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let realtimeRefreshTimer: ReturnType<typeof setTimeout> | null = null;
-let realtimeRetry = 0;
+let unsubscribeRealtime: (() => void) | null = null;
 let componentMounted = false;
 
 const apiBase = getApiBase;
@@ -619,7 +616,7 @@ const refresh = async (): Promise<void> => {
     rows.value = snapshot.tasks;
     serverByType.value = summaryByType;
     validityFirstPage.value = validityPage;
-    connectRealtime(snapshot.realtime);
+    if (snapshot.realtime?.transport === 'mercure') connectRealtime();
     if (selectedCategory.value?.type === 'word_validity') {
       await loadCategoryPage();
     }
@@ -655,19 +652,6 @@ const loadAll = async (): Promise<void> => {
   }
 };
 
-const normalizeRealtimeHost = (config: QueueCenterRealtimeConfig): string => {
-  const configured = String(config.host || '').trim();
-  if (configured !== '' && configured !== '0.0.0.0' && configured !== '::') return configured;
-  return new URL(apiBase()).hostname;
-};
-
-const realtimeUrl = (config: QueueCenterRealtimeConfig): string => {
-  const protocol = config.scheme === 'https' ? 'wss' : 'ws';
-  const host = normalizeRealtimeHost(config);
-  const port = config.port > 0 ? `:${config.port}` : '';
-  return `${protocol}://${host}${port}/app/${encodeURIComponent(config.app_key)}?protocol=7&client=js&version=8.4.0&flash=false`;
-};
-
 const scheduleRealtimeRefresh = (): void => {
   if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
   realtimeRefreshTimer = setTimeout(() => {
@@ -676,57 +660,11 @@ const scheduleRealtimeRefresh = (): void => {
   }, 250);
 };
 
-const scheduleRealtimeReconnect = (config: QueueCenterRealtimeConfig): void => {
-  if (!componentMounted || realtimeReconnectTimer) return;
-  const delay = Math.min(30000, 1000 * (2 ** realtimeRetry));
-  realtimeRetry = Math.min(realtimeRetry + 1, 5);
-  realtimeReconnectTimer = setTimeout(() => {
-    realtimeReconnectTimer = null;
-    connectRealtime(config, true);
-  }, delay);
-};
-
-const connectRealtime = (config: QueueCenterRealtimeConfig | null, force = false): void => {
-  if (!config || config.transport !== 'websocket' || config.app_key === '') return;
-  const signature = `${realtimeUrl(config)}|${config.channel}|${config.event}`;
-  if (!force && realtimeSignature === signature
-    && realtimeSocket
-    && (realtimeSocket.readyState === WebSocket.OPEN || realtimeSocket.readyState === WebSocket.CONNECTING)) {
-    return;
-  }
-
-  realtimeSocket?.close();
-  realtimeSignature = signature;
-  const socket = new WebSocket(realtimeUrl(config));
-  realtimeSocket = socket;
-
-  socket.onmessage = (message) => {
-    let frame: { event?: string; data?: unknown } = {};
-    try {
-      frame = JSON.parse(String(message.data));
-    } catch {
-      return;
-    }
-    if (frame.event === 'pusher:connection_established') {
-      realtimeRetry = 0;
-      socket.send(JSON.stringify({
-        event: 'pusher:subscribe',
-        data: { channel: config.channel },
-      }));
-      return;
-    }
-    if (frame.event === 'pusher:ping') {
-      socket.send(JSON.stringify({ event: 'pusher:pong', data: {} }));
-      return;
-    }
-    if (frame.event === config.event) scheduleRealtimeRefresh();
-  };
-  socket.onerror = () => socket.close();
-  socket.onclose = () => {
-    if (realtimeSocket !== socket) return;
-    realtimeSocket = null;
-    scheduleRealtimeReconnect(config);
-  };
+const connectRealtime = (): void => {
+  if (unsubscribeRealtime) return;
+  unsubscribeRealtime = queueCenterWakeService.subscribe(apiBase(), () => {
+    if (componentMounted) scheduleRealtimeRefresh();
+  });
 };
 
 onMounted(async () => {
@@ -737,12 +675,10 @@ onMounted(async () => {
 
 onUnmounted(() => {
   componentMounted = false;
-  if (realtimeReconnectTimer) clearTimeout(realtimeReconnectTimer);
   if (realtimeRefreshTimer) clearTimeout(realtimeRefreshTimer);
-  realtimeReconnectTimer = null;
   realtimeRefreshTimer = null;
-  realtimeSocket?.close();
-  realtimeSocket = null;
+  unsubscribeRealtime?.();
+  unsubscribeRealtime = null;
 });
 
 // Let the parent (TaskCenterPanel Start button) trigger a full lane load so

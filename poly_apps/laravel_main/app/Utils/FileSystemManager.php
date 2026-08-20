@@ -137,6 +137,7 @@ class FileSystemManager
 
     public static function ensureFileMode(string $path, int $mode): bool
     {
+        $permissions = false;
         $resolvedPath = file_exists($path) ? $path : self::mapExternalPath($path);
 
         if (!self::isFile($resolvedPath)) {
@@ -147,8 +148,9 @@ class FileSystemManager
         }
 
         @chmod($resolvedPath, $mode);
+        $permissions = fileperms($resolvedPath);
 
-        return (fileperms($resolvedPath) & 0777) === $mode;
+        return is_int($permissions) && ($permissions & 0777) === $mode;
     }
 
     public static function readFile(string $path, bool $fixPermissions = true): string|false

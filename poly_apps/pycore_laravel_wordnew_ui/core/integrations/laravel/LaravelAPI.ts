@@ -349,9 +349,8 @@ const laravelMethods = {
    * Relay plane (pycore UI <-> machine relay through the central server).
    *
    * hub-auth runs in session mode: the server resolves the UI identity,
-   * grants the roster/queue-center (+ paired machine) topics and seeds the
-   * hub-path cookie; the request MUST carry credentials so the cookie sticks
-   * for the subsequent EventSource stream.
+   * grants the roster/queue-center (+ paired machine) topics. The shared SSE
+   * transport sends the returned token in its Authorization header.
    */
   relayHubAuth: async (machineId?: string): Promise<RelayHubToken> => {
     const response = await laravelHttp.rawRequest(ROUTES.relayHubAuth, {

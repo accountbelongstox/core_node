@@ -163,7 +163,7 @@
   "callback_queue_roles": {
     "translation_worker": "consumer",
     "translation_queue_monitor": "monitor",
-    "translation_ws_client": "signal",
+    "translation_realtime_client": "signal",
     "tts_queue_poller": "consumer",
     "tts_sentence_worker": "consumer",
     "ai_rate_reset": "maintainer",

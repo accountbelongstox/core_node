@@ -36,7 +36,7 @@ import {
 } from '@/utils/task-center-types';
 
 // ==================== Live task drilldown ====================
-// Queue Center Reverb is a wake-up signal. The durable task/detail endpoint is
+// Queue Center Mercure is a wake-up signal. The durable task/detail endpoint is
 // fetched once on open and again after a coalesced queue change; no popup-owned
 // EventSource or Laravel request worker is retained.
 

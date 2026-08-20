@@ -140,6 +140,7 @@ set_directory_permissions_from_php_common() {
     local script_index="${2:-[PERMISSIONS]}"
     local target_user=""
     local target_group=""
+    local permission_ready=""
 
     print_step_from_common_functions "$script_index Setting directory permissions for: $target_dir"
 
@@ -153,10 +154,18 @@ set_directory_permissions_from_php_common() {
     target_user="$ACTIVE_PERMISSION_USER"
     target_group="$ACTIVE_PERMISSION_GROUP"
     print_step_from_common_functions "$script_index Setting owner $target_user:$target_group and mode 777"
-    repair_owned_tree_777 "$target_dir" "$target_user" "$target_group" || return $?
+    permission_ready="$(owned_entry_777_ready "$target_dir" "$target_user" "$target_group")"
+    if [ "$permission_ready" != "yes" ]; then
+        print_step_from_common_functions "$script_index Repairing the managed directory root"
+        repair_owned_entry_777 "$target_dir" "$target_user" "$target_group"
+        permission_ready="$(owned_entry_777_ready "$target_dir" "$target_user" "$target_group")"
+    fi
 
-    print_success_from_common_functions "$script_index Directory permissions set successfully"
-    return 0
+    if [ "$permission_ready" = "yes" ]; then
+        print_success_from_common_functions "$script_index Directory root permissions are ready"
+    else
+        print_error_from_common_functions "$script_index Directory root permissions are not ready"
+    fi
 }
 
 # Configure PHP-FPM pool
