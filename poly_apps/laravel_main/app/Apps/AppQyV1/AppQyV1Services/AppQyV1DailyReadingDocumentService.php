@@ -5,7 +5,6 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1UploadedDocumentModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1DailyReadingLibraryDefaults;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Persists worker-submitted (agent-history) daily-reading articles as
@@ -16,10 +15,8 @@ use Illuminate\Support\Facades\Log;
 class AppQyV1DailyReadingDocumentService
 {
     /**
-     * Best-effort: store the article body (English article + Chinese reference)
-     * as an uploaded document linked to the code-owned 'Daily Reading' library,
-     * then record metadata.document_id on the article. Never throws — a
-     * document failure must not break article creation.
+     * Store the article body as one source-addressed uploaded document and
+     * atomically link its identifier from article metadata.
      *
      * @return int|null The created document id, or null on failure.
      */
@@ -29,42 +26,51 @@ class AppQyV1DailyReadingDocumentService
         ?string $referenceCn,
         string $language
     ): ?int {
-        $existingMetadata = is_array($article->metadata) ? $article->metadata : [];
-        $existingDocumentId = (int) ($existingMetadata['document_id'] ?? 0);
-        if ($existingDocumentId > 0) {
-            return $existingDocumentId;
+        $library = AppQyV1DailyReadingLibraryDefaults::ensureLibrary();
+        $content = $articleText;
+        $reference = trim((string) $referenceCn);
+        $documentModel = new AppQyV1UploadedDocumentModel();
+        $document = null;
+        $documentId = null;
+        $now = now();
+
+        if ($reference !== '') {
+            $content .= "\n\n" . $reference;
         }
-        try {
-            $library = AppQyV1DailyReadingLibraryDefaults::ensureLibrary();
 
-            $content = $articleText;
-            $reference = trim((string) $referenceCn);
-            if ($reference !== '') {
-                $content .= "\n\n" . $reference;
-            }
+        $documentId = $documentModel->getConnection()->transaction(
+            static function () use ($article, $library, $content, $language, $now, &$document): int {
+                AppQyV1UploadedDocumentModel::query()->insertOrIgnore([[
+                    'user_id' => 0,
+                    'collection_id' => (int) $library->id,
+                    'original_name' => (string) $article->title,
+                    'language' => $language,
+                    'content' => $content,
+                    'source_type' => AppQyV1UploadedDocumentModel::SOURCE_TYPE_ARTICLE,
+                    'source_key' => (string) $article->article_id,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]]);
 
-            $document = new AppQyV1UploadedDocumentModel([
-                'user_id' => 0,
-                // Library id (legacy column name kept for compatibility).
-                'collection_id' => (int) $library->id,
-                'original_name' => (string) $article->title,
-                'language' => $language,
-                'content' => $content,
-            ]);
-            $document->saveRecord();
+                $document = AppQyV1UploadedDocumentModel::query()
+                    ->where('source_type', AppQyV1UploadedDocumentModel::SOURCE_TYPE_ARTICLE)
+                    ->where('source_key', (string) $article->article_id)
+                    ->firstOrFail();
 
-            $meta = is_array($article->metadata) ? $article->metadata : [];
-            $meta['document_id'] = (int) $document->id;
-            $article->metadata = $meta;
-            $article->saveRecord();
+                AppQyV1Article::mutateMetadataByArticleId(
+                    (string) $article->article_id,
+                    static function (array $metadata) use ($document): array {
+                        $metadata['document_id'] = (int) $document->id;
 
-            return (int) $document->id;
-        } catch (\Throwable $e) {
-            Log::warning('[AppQyV1Article] Daily reading document creation failed', [
-                'article_id' => $article->article_id,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
+                        return $metadata;
+                    }
+                );
+
+                return (int) $document->id;
+            },
+            5
+        );
+
+        return $documentId;
     }
 }

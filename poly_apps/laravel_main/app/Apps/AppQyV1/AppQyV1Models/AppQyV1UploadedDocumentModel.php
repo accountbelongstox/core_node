@@ -11,6 +11,8 @@ namespace App\Apps\AppQyV1\AppQyV1Models;
  */
 class AppQyV1UploadedDocumentModel extends AppQyV1Model
 {
+    public const SOURCE_TYPE_ARTICLE = 'article';
+
     public const BROWSE_SORT_KEYS = [
         'title',
         'language',
@@ -27,6 +29,8 @@ class AppQyV1UploadedDocumentModel extends AppQyV1Model
         'original_name',
         'language',
         'content',
+        'source_type',
+        'source_key',
     ];
 
     protected function casts(): array

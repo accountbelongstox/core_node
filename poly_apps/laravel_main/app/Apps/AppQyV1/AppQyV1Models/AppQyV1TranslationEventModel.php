@@ -35,6 +35,7 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
         'publish_after',
         'publish_attempts',
         'last_publish_error',
+        'deduplication_key',
     ];
 
     protected function casts(): array
@@ -73,6 +74,20 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
                 ]);
             }
         }, $connectionName);
+    }
+
+    public static function emitOnce(string $event, string $deduplicationKey, array $data): void
+    {
+        static::query()->insertOrIgnore([[
+            'event' => $event,
+            'deduplication_key' => $deduplicationKey,
+            'data' => json_encode(
+                $data,
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+            ),
+            'created_at' => now(),
+            'publish_attempts' => 0,
+        ]]);
     }
 
     public static function pendingForPublish(int $limit)
