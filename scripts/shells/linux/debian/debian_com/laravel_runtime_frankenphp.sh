@@ -149,7 +149,6 @@ esac
 # Mercure keys from the store).
 fm_caddyfile_ensure \
     "${LARAVEL_DIR}/public" \
-    "$FRANKENPHP_SITE_HOST" \
     "$FRANKENPHP_HTTPS_PORT" \
     "$FRANKENPHP_ADMIN_PORT" \
     "$FRANKENPHP_CADDYFILE"

@@ -20,9 +20,9 @@
 #     Reuses the SAME shared components - domain_setup_load_secrets /
 #     domain_setup_ensure_prefix / domain_setup_persist_state - plus the
 #     same DNS_DNSPOD_API_TOKENS secret, mirrored into the runtime store.
-#     Per-domain Caddy route files are rendered (one per domain, reverse
-#     proxy api.${prefix}.${domain} -> laravel_api_backend port, apex +
-#     www 301 redirects), the main Caddyfile includes them, and DNS-01
+#     Per-domain Caddy route files are rendered with independent API and UI
+#     planes: api.${prefix}.${domain} -> Laravel, while apex/www/regional UI
+#     aliases -> Nexus Dash. The main Caddyfile includes them and DNS-01
 #     readiness is converged. nginx and certbot are NEVER touched on this
 #     plane (TLS is Caddy-ACME owned).
 #
@@ -95,7 +95,10 @@ if [ "$MODE" = "domains" ]; then
     if [ "$DOMAIN_SCOPE" = "certs" ]; then
         fm_domain_certificates_only || echo "  Warning: DNS-01 readiness convergence reported issues (continuing)."
     else
-        fm_domain_install_all "$LARAVEL_DIR" || echo "  Warning: Caddy domain install reported issues (continuing)."
+        fm_domain_install_all "$LARAVEL_DIR"
+        if [ "$FM_DOMAIN_INSTALL_READY" != "yes" ]; then
+            echo "  Warning: Caddy domain install postcondition is incomplete (continuing)."
+        fi
     fi
 
     echo "[$SCRIPT_INDEX] frankenphp plane: nginx/certbot phases skipped (Caddy ACME DNS-01 owns TLS, per-domain Caddy routes created)"

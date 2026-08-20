@@ -1196,65 +1196,27 @@ fm_octane_php_server_stanza() {
     printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_server {\n\t\tindex frankenphp-worker.php\n\t\ttry_files {path} frankenphp-worker.php\n\t\tresolve_root_symlink\n\t}\n'
 }
 
-# Canonical Caddyfile render. One backend hub owns the Mercure transport;
-# HTTPS routes proxy the well-known path to it.
-# Args: 1 laravel_public_dir 2 site_host 3 https_port 4 admin_port 5 caddyfile_path
+# Canonical Caddyfile render. The contract-owned internal TLS site is kept
+# separate from public domain routes; one backend hub owns the Mercure
+# transport and HTTPS routes proxy the well-known path to it.
+# Args: 1 laravel_public_dir 2 https_port 3 admin_port 4 caddyfile_path
 fm_caddyfile_render() {
     local laravel_public_dir="$1"
-    local site_host="$2"
-    local https_port="$3"
-    local admin_port="$4"
-    local caddyfile_path="$5"
+    local https_port="$2"
+    local admin_port="$3"
+    local caddyfile_path="$4"
     local caddyfile_dir=""
     local rendered=""
-    local dnspod_tls=""
-    local acme_tls=""
-    local acme_cert_dir=""
     local mercure_stanza=""
     local mercure_proxy=""
     local routes_dir=""
     local backend_port=""
     local import_stanza=""
+    local internal_tls_host=""
     local octane_php_server_stanza=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
-    # Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk are
-    # pinned explicitly (the service-start pre-flight provisions them BEFORE
-    # the server binds the HTTPS port - acme_sh_preflight_for_service). The
-    # embedded dnspod DNS-01 stanza stays the fallback for builds whose
-    # module works; neither gate matching -> Caddy built-in ACME
-    # (HTTP-01/TLS-ALPN-01) stays in charge. Sync contract: the Laravel
-    # builder renders the identical gates.
-    acme_tls=""
-    acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
-    if [ -n "$acme_cert_dir" ] \
-        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-        && [ -f "${acme_cert_dir}/key.pem" ]; then
-        acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
-
-"
-    fi
-
-    # DNS-01 fallback stanza renders ONLY when no prebuilt cert holds and
-    # all truths hold: the site host is a public domain (NOT the localhost
-    # fallback - certmagic rejects localhost for public certs, which would
-    # loop ACME retries forever; a localhost site falls back to Caddy's
-    # internal CA), the module is embedded in the binary AND the DNSPod
-    # token is stored (env placeholder only - the token itself never enters
-    # the file). Sync contract: the Laravel builder renders the identical
-    # gate.
-    dnspod_tls=""
-    if [ -z "$acme_tls" ] \
-        && [ "$site_host" != "localhost" ] \
-        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        && [ -n "$(fm_dnspod_token_value)" ]; then
-        dnspod_tls="	tls {
-		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
-	}
-
-"
-    fi
-
+    internal_tls_host="$(sc_require hosts.frankenphp_internal_tls)"
     backend_port="$(sc_require ports.laravel_api_backend)"
     # One direct-backend hub owns the transport and native PHP publisher.
     fm_mercure_config
@@ -1277,7 +1239,7 @@ fm_caddyfile_render() {
 import ${routes_dir}/*.caddy"
     fi
 
-    rendered="# Managed by frankenphp_manager.sh (SYNC: ServerManagerV1FrankenPhpManagerCtl)
+    rendered="# Managed by core_node FrankenPHP Caddyfile contract
 {
 	admin localhost:${admin_port}
 	auto_https disable_redirects
@@ -1298,11 +1260,11 @@ import ${routes_dir}/*.caddy"
 	}
 }
 
-https://${site_host}:${https_port} {
+https://${internal_tls_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${dnspod_tls}${acme_tls}${mercure_proxy}}
+${mercure_proxy}}
 
 # Direct HTTP catch-all backend (LAN and local machine clients)
 :${backend_port} {
@@ -1317,10 +1279,9 @@ ${mercure_stanza}${octane_php_server_stanza}}${import_stanza}"
 # fine-grained content comparison; a matching file never blocks later setup.
 fm_caddyfile_ensure() {
     local laravel_public_dir="$1"
-    local site_host="$2"
-    local https_port="$3"
-    local admin_port="$4"
-    local caddyfile_path="$5"
+    local https_port="$2"
+    local admin_port="$3"
+    local caddyfile_path="$4"
     local caddyfile_dir=""
     local rendered=""
     local existing=""
@@ -1334,7 +1295,7 @@ fm_caddyfile_ensure() {
     if [ ! -d "$caddyfile_dir" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] Caddyfile directory was not created: $caddyfile_dir"
     else
-        fm_caddyfile_render "$laravel_public_dir" "$site_host" "$https_port" "$admin_port" "$caddyfile_path"
+        fm_caddyfile_render "$laravel_public_dir" "$https_port" "$admin_port" "$caddyfile_path"
         rendered="$FM_CADDYFILE_RENDERED"
         [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"
         if [ "$existing" != "$rendered" ]; then
