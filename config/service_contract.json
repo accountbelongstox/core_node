@@ -23,6 +23,9 @@
         "mercure_cookie": "mercureAuthorization",
         "mercure_transport": "local"
     },
+    "http": {
+        "ui_early_hints_link": "<https://fonts.googleapis.com>; rel=preconnect, <https://fonts.gstatic.com>; rel=preconnect; crossorigin"
+    },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",
         "core_node_data_dir_windows_subpath": "var/_core_node",

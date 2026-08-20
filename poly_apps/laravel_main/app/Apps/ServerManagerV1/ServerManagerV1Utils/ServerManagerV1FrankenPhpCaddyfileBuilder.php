@@ -63,6 +63,49 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             .DIRECTORY_SEPARATOR.'certs'.DIRECTORY_SEPARATOR.strtolower($domain);
     }
 
+    public static function renderReverseProxySite(
+        array $hosts,
+        string $upstream,
+        string $certificateDirectory,
+        string $managedBy,
+    ): string {
+        $httpsPort = ServiceContract::port('frankenphp_https');
+        $httpPort = ServiceContract::port('frankenphp_http');
+        $earlyHintsLink = ServiceContract::string('http.ui_early_hints_link');
+        $httpsAddresses = [];
+        $httpAddresses = [];
+        $handlers = '';
+
+        foreach ($hosts as $host) {
+            $httpsAddresses[] = "https://{$host}:{$httpsPort}";
+            $httpAddresses[] = "http://{$host}:{$httpPort}";
+        }
+        $handlers = self::renderReverseProxyHandlers($upstream, $earlyHintsLink);
+
+        return "# managed-by: {$managedBy}\n\n"
+            .implode(', ', $httpsAddresses)." {\n"
+            ."\ttls {$certificateDirectory}/fullchain.pem {$certificateDirectory}/key.pem\n"
+            .$handlers
+            ."}\n\n"
+            .implode(', ', $httpAddresses)." {\n"
+            .$handlers
+            ."}\n";
+    }
+
+    private static function renderReverseProxyHandlers(string $upstream, string $earlyHintsLink): string
+    {
+        if (trim($earlyHintsLink) === '') {
+            return "\treverse_proxy {$upstream}\n";
+        }
+
+        return "\troute {\n"
+            ."\t\t@early_hints header Accept *text/html*\n"
+            ."\t\theader @early_hints Link \"{$earlyHintsLink}\"\n"
+            ."\t\trespond @early_hints 103\n"
+            ."\t\treverse_proxy {$upstream}\n"
+            ."\t}\n";
+    }
+
     /**
      * Render the canonical Caddyfile. The Mercure HS256 keys are embedded
      * as literal publisher_jwt/subscriber_jwt values (single source: the

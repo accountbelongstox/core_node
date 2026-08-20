@@ -55,6 +55,9 @@ class TerminalScheduleJsonRepository:
             if not terminal_text.isdigit() or int(terminal_text) <= 0:
                 continue
             terminal_number = int(terminal_text)
+            if clear_all_pending:
+                terminals[terminal_number] = []
+                continue
             raw_entries = (
                 raw_record.get("entries")
                 if isinstance(raw_record, dict)
@@ -73,7 +76,7 @@ class TerminalScheduleJsonRepository:
                     "error_code": "terminal_schedule_entry_invalid",
                 })
                 continue
-            terminals[terminal_number] = [] if clear_all_pending else entries
+            terminals[terminal_number] = entries
         return {
             "success": not terminal_errors,
             "error_code": (

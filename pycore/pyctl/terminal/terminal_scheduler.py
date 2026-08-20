@@ -122,15 +122,38 @@ class TerminalScheduler:
         source = self._json_repository.read()
         source_terminals = source.get("terminals")
         if not isinstance(source_terminals, dict):
-            return _failure(str(source.get("error_code") or "terminal_schedule_json_invalid"))
+            return _failure(
+                str(
+                    source.get("error_code")
+                    or "terminal_schedule_json_invalid"
+                )
+            )
 
         now_ms = _now_ms()
         requested_terminal = max(0, int(terminal_number or 0))
+        terminal_errors = {
+            int(item.get("terminal_number") or 0): str(
+                item.get("error_code")
+                or "terminal_schedule_entry_invalid"
+            )
+            for item in source.get("terminal_errors") or []
+            if isinstance(item, dict)
+            and int(item.get("terminal_number") or 0) > 0
+        }
         terminal_numbers = sorted(
-            set(self._entries_by_terminal) | set(source_terminals)
+            set(self._entries_by_terminal)
+            | set(source_terminals)
+            | set(terminal_errors)
         )
         terminal_results: List[Dict[str, Any]] = []
         for current_terminal in terminal_numbers:
+            if current_terminal in terminal_errors:
+                terminal_results.append({
+                    "terminal_number": current_terminal,
+                    "success": False,
+                    "error_code": terminal_errors[current_terminal],
+                })
+                continue
             raw_definitions = source_terminals.get(current_terminal, [])
             if not isinstance(raw_definitions, list):
                 terminal_results.append({

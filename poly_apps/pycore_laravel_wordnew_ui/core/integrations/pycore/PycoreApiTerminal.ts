@@ -199,10 +199,10 @@ export const pycoreApiTerminal = {
     PYCORE_HTTP_ROUTES.terminalScheduleQueueClear,
     {},
   ) as Promise<TerminalScheduleClearResult>,
-  syncTerminalScheduleEntries: (
+  synchronizeTerminalSchedules: (
     terminalNumber = 0,
   ) => requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
-    terminal_number: terminalNumber,
+    terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
   }) as Promise<TerminalScheduleSyncResult>,
   getTerminalContent: (
     terminalNumber: number,

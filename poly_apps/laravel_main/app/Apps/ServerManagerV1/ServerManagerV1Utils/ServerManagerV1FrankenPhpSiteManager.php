@@ -2,7 +2,6 @@
 
 namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
-use App\Support\ServiceContract;
 use App\Utils\FileSystemManager;
 
 class ServerManagerV1FrankenPhpSiteManager
@@ -306,7 +305,7 @@ class ServerManagerV1FrankenPhpSiteManager
             : preg_split('/[\s,]+/', (string) $hostsInput, -1, PREG_SPLIT_NO_EMPTY);
         $upstream = trim((string) ($input['upstream'] ?? ''));
         $certificateDomain = strtolower(trim((string) ($input['certificate_domain'] ?? '')));
-        $addresses = [];
+        $normalizedHosts = [];
         $certificateDirectory = '';
 
         if (is_string($raw) && trim($raw) !== '') {
@@ -319,7 +318,7 @@ class ServerManagerV1FrankenPhpSiteManager
             if (!self::validHost($host)) {
                 return self::failure("Invalid hostname: {$host}", 422);
             }
-            $addresses[] = "https://{$host}:".ServiceContract::port('frankenphp_https');
+            $normalizedHosts[] = $host;
         }
         if (!self::validUpstream($upstream)) {
             return self::failure('Invalid upstream URL. Use an http or https origin without a path.', 422);
@@ -336,11 +335,12 @@ class ServerManagerV1FrankenPhpSiteManager
 
         return [
             'success' => true,
-            'content' => '# managed-by: '.self::MANAGED_BY."\n\n"
-                .implode(', ', $addresses)." {\n"
-                ."\ttls {$certificateDirectory}/fullchain.pem {$certificateDirectory}/key.pem\n"
-                ."\treverse_proxy {$upstream}\n"
-                ."}\n",
+            'content' => ServerManagerV1FrankenPhpCaddyfileBuilder::renderReverseProxySite(
+                $normalizedHosts,
+                $upstream,
+                $certificateDirectory,
+                self::MANAGED_BY,
+            ),
         ];
     }
 

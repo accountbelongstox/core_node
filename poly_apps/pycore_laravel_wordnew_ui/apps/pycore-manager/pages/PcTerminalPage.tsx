@@ -100,6 +100,8 @@ const ERROR_TRANSLATION_KEYS: Record<string, string> = {
   terminal_schedule_interval_invalid: 'terminal.errors.scheduleInterval',
   terminal_schedule_entry_invalid: 'terminal.errors.scheduleEntry',
   terminal_schedule_entry_not_found: 'terminal.errors.scheduleEntry',
+  terminal_schedule_json_invalid: 'terminal.errors.scheduleJsonInvalid',
+  terminal_schedule_json_not_cleared: 'terminal.errors.scheduleJsonNotCleared',
   clipboard_write_failed: 'terminal.errors.clipboardWrite',
   clipboard_restore_failed: 'terminal.errors.clipboardRestore',
   request_failed: 'terminal.errors.request',
@@ -835,11 +837,8 @@ const PcTerminalPage: React.FC = () => {
   }, [errorTranslationKey, syncTerminalScheduleQueue]);
 
   const clearAllScheduleEntries = useCallback(async () => {
-    const terminalNumbers = (snapshot?.windows || []).map(
-      (windowInfo) => windowInfo.terminal_number,
-    );
     scheduleClearAllInProgressRef.current = true;
-    const localResult = stageTerminalScheduleClearAll(terminalNumbers);
+    const localResult = stageTerminalScheduleClearAll();
     const localTerminalNumbers = localResult.terminal_numbers.join(', ')
       || t('terminal.scheduleNoTerminals');
     setSnapshot((current) => current ? {
@@ -860,7 +859,7 @@ const PcTerminalPage: React.FC = () => {
         || t('terminal.scheduleNoTerminals');
       if (result.success) {
         completeTerminalScheduleClearAll();
-        await pycoreManagerUiStateSync.pushTerminalScheduleJson();
+        void pycoreManagerUiStateSync.pushTerminalScheduleJson().catch(() => undefined);
         setActionNotice({
           kind: 'success',
           translationKey: 'terminal.scheduleClearResult',
@@ -869,6 +868,8 @@ const PcTerminalPage: React.FC = () => {
             frontendTerminals: localTerminalNumbers,
             pycoreCount: Number(result.cleared_entry_count || 0),
             pycoreTerminals: pycoreTerminalNumbers,
+            jsonCount: Number(result.json_entry_count || 0),
+            runtimeRemaining: Number(result.remaining_entry_count || 0),
           },
           responseJson: JSON.stringify(result, null, 2),
         });
@@ -898,7 +899,7 @@ const PcTerminalPage: React.FC = () => {
       scheduleClearAllInProgressRef.current = false;
       setActionWindowId('');
     }
-  }, [snapshot?.windows, t]);
+  }, [t]);
 
   const activate = useCallback((windowId: string) => runAction(
     windowId,

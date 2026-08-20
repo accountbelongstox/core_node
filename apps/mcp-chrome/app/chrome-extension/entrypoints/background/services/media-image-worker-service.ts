@@ -1,9 +1,8 @@
 /**
- * Media Image Worker — book, poster and word imagery via Google/Bing search.
+ * Media Image Worker — book and poster imagery via Google/Bing search.
  *
  * Fulfils:
  *   - GlobalTask `poster` on dedicated `remote_poster` lane
- *   - GlobalTask `word_media` on the fast lane (capability image)
  *   - Laravel assist pool `poster` items via /assist/claim + /assist/submit
  *     (cover submits share the assist-cover pipeline with the Gemini worker)
  *
@@ -18,7 +17,6 @@ import { logger } from '@/utils/logger';
 import { TASK_CAPABILITY_BY_ROLE, TASK_TYPE_KEYS } from '@/utils/queue-center-contract';
 import {
   buildPosterQuery,
-  buildWordImageQuery,
   resolvePosterImageFromSearch,
 } from '@/utils/media-image-search';
 import {
@@ -64,12 +62,11 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
   }
 
   protected get pullTaskTypes(): string[] {
-    // word_media LAST: the high-volume primary lane.
-    return [TASK_TYPE_KEYS.poster, TASK_TYPE_KEYS.word_media];
+    return [TASK_TYPE_KEYS.poster];
   }
 
   protected handlesTaskType(taskType: string): boolean {
-    return taskType === TASK_TYPE_KEYS.poster || taskType === TASK_TYPE_KEYS.word_media;
+    return taskType === TASK_TYPE_KEYS.poster;
   }
 
   async start(config: SimpleWorkerConfig): Promise<void> {
@@ -222,10 +219,6 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
 
   protected async executeTask(task: Task): Promise<void> {
     const payload = (task.payload as Record<string, unknown>) || {};
-    if (task.task_type === TASK_TYPE_KEYS.word_media) {
-      await this.executeWordMediaTask(task, payload);
-      return;
-    }
     const mediaType = payload.media_type === 'subtitle' ? 'subtitle' : 'book';
     const title = String(payload.title || payload.name || '').trim();
     const yearRaw = payload.year;
@@ -260,58 +253,6 @@ class MediaImageWorkerService extends AssistPollingWorkerBase<Record<string, unk
     logger.info(LOG, `Poster task ${task.task_id} completed (${mediaType})`);
   }
 
-  private async executeWordMediaTask(task: Task, payload: Record<string, unknown>): Promise<void> {
-    const rawWords = Array.isArray(payload.words)
-      ? payload.words
-      : [payload.word || payload.content].filter(Boolean);
-    const words = rawWords
-      .map((item) => {
-        const record = item && typeof item === 'object'
-          ? item as Record<string, unknown>
-          : null;
-        const word = String(record?.word ?? item ?? '').trim();
-        const md5 = String(record?.md5 || '').trim();
-        return word ? { word, md5 } : null;
-      })
-      .filter((item): item is { word: string; md5: string } => item !== null)
-      .slice(0, 40);
-    const targetLanguage = String(payload.target_language || 'zh');
-    const translations: Array<Record<string, unknown>> = [];
-    const errors: string[] = [];
-
-    for (const item of words) {
-      const query = buildWordImageQuery(item.word);
-      const image = await resolvePosterImageFromSearch(query);
-      if (!image) {
-        errors.push(`${item.word}: no image found`);
-        continue;
-      }
-      translations.push({
-        word: item.word,
-        ...(item.md5 ? { md5: item.md5 } : {}),
-        translation: '',
-        image_base64: [{ base64: image.imageBase64, mime: image.mime }],
-        provider: image.provider,
-        model: image.engine,
-        source_url: image.sourceUrl,
-      });
-      await this.delay(600);
-    }
-
-    if (!translations.length) {
-      await this.submitResult(task.task_id, 'failed', undefined, {
-        error: errors.join('; ') || 'word_media task has no words',
-      });
-      return;
-    }
-    await this.submitResult(task.task_id, 'completed', {
-      translations,
-      target_language: targetLanguage,
-      provider: 'mcp-chrome-search',
-      errors,
-    });
-    logger.info(LOG, `Word-media task ${task.task_id} completed (${translations.length}/${words.length})`);
-  }
 }
 
 export const mediaImageWorkerService = new MediaImageWorkerService();

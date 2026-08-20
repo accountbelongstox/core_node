@@ -1,6 +1,7 @@
 import {
   getPycoreHealth,
   onHttpStatus,
+  pycoreApi,
   pycoreEventBus,
   PYCORE_BROWSER_EVENTS,
   PYCORE_HEALTH_EVENT,
@@ -40,7 +41,10 @@ class PycoreManagerUiStateSync {
   async initialize(): Promise<void> {
     try {
       await this.replica.reconcile();
-      await this.syncTerminalScheduleRuntime();
+      const result = await this.syncTerminalScheduleRuntime();
+      if (result?.success) {
+        this.terminalScheduleSyncSerial = this.terminalScheduleChangeSerial;
+      }
     } catch {
       // Offline startup keeps the browser copy until a later authoritative reconnect.
     }
@@ -103,7 +107,6 @@ class PycoreManagerUiStateSync {
   async pushTerminalScheduleJson(): Promise<void> {
     this.cancelScheduledPush();
     await this.replica.push();
-    this.terminalScheduleSyncSerial = this.terminalScheduleChangeSerial;
   }
 
   async synchronizeTerminalSchedules(terminalNumber = 0) {
@@ -145,9 +148,7 @@ class PycoreManagerUiStateSync {
   }
 
   private syncTerminalScheduleRuntime(terminalNumber = 0) {
-    return requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalScheduleQueueSync, {
-      terminal_number: terminalNumber > 0 ? terminalNumber : undefined,
-    });
+    return pycoreApi.synchronizeTerminalSchedules(terminalNumber);
   }
 
   private async readBackend(): Promise<RevisionedStorageDocument> {
@@ -169,8 +170,10 @@ class PycoreManagerUiStateSync {
   private reconcileAndReload(): void {
     void this.replica.reconcile()
       .then(async (changed) => {
-        await this.syncTerminalScheduleRuntime();
-        this.terminalScheduleSyncSerial = this.terminalScheduleChangeSerial;
+        const result = await this.syncTerminalScheduleRuntime();
+        if (result?.success) {
+          this.terminalScheduleSyncSerial = this.terminalScheduleChangeSerial;
+        }
         if (changed) window.location.reload();
       })
       .catch(() => {

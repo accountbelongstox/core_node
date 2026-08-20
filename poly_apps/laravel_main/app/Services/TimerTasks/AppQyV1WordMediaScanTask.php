@@ -48,7 +48,7 @@ class AppQyV1WordMediaScanTask extends DiffQueueFeederTaskAbstract
 
     public function isEnabled(): bool
     {
-        return (bool) app(UserConfigService::class)->get(UserConfigService::APPQYV1_MEDIA_SCAN, true);
+        return false;
     }
 
     public function exec(): void

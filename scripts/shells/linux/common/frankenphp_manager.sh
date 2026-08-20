@@ -1196,6 +1196,25 @@ fm_octane_php_server_stanza() {
     printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_server {\n\t\tindex frankenphp-worker.php\n\t\ttry_files {path} frankenphp-worker.php\n\t\tresolve_root_symlink\n\t}\n'
 }
 
+fm_caddy_reverse_proxy_handlers_render() {
+    local upstream="$1"
+    local early_hints_link="${2:-}"
+
+    if [ -n "$early_hints_link" ]; then
+        cat <<EOF
+	route {
+		@early_hints header Accept *text/html*
+		header @early_hints Link "${early_hints_link}"
+		respond @early_hints 103
+		reverse_proxy ${upstream}
+	}
+EOF
+        return
+    fi
+
+    printf '\treverse_proxy %s\n' "$upstream"
+}
+
 # Canonical Caddyfile render. The contract-owned internal TLS site is kept
 # separate from public domain routes; one backend hub owns the Mercure
 # transport and HTTPS routes proxy the well-known path to it.

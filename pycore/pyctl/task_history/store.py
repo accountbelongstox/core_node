@@ -13,10 +13,36 @@ from pycore.pyutils.common.task_type_contract import match_task_type
 from pycore.pyutils.common.task_type_contract import normalize_task_type
 
 _MAX_ENTRIES = 2000
+_SEARCH_FIELDS = (
+    "title",
+    "content",
+    "task_type",
+    "task_id",
+    "content_id",
+    "language",
+    "worker",
+    "engine",
+    "provider",
+    "model",
+    "audio_path",
+    "error",
+)
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _record_matches(entry: Dict[str, Any], pattern: re.Pattern[str]) -> bool:
+    for field in _SEARCH_FIELDS:
+        if pattern.search(str(entry.get(field) or "")):
+            return True
+    detail = entry.get("detail")
+    if isinstance(detail, dict):
+        for field in _SEARCH_FIELDS:
+            if pattern.search(str(detail.get(field) or "")):
+                return True
+    return False
 
 
 class _TaskHistoryState:
@@ -51,10 +77,7 @@ class _TaskHistoryState:
             pat = re.compile(re.escape(needle), re.IGNORECASE)
             entries = [
                 entry for entry in entries
-                if pat.search(str(entry.get("title") or ""))
-                or pat.search(str(entry.get("content") or ""))
-                or pat.search(str(entry.get("task_type") or ""))
-                or pat.search(str(entry.get("error") or ""))
+                if _record_matches(entry, pat)
             ]
         if task_type:
             entries = [

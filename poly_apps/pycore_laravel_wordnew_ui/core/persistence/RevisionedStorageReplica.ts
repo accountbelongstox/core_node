@@ -90,7 +90,7 @@ export class RevisionedStorageReplica {
       base_revision: this.revision,
       initialize_only: false,
     });
-    if (saved.conflict) return this.applyRemote(saved);
+    if (saved.conflict) return this.applyRemoteWithLocalAuthority(saved);
     this.acceptWrite(saved, values);
     return false;
   }
@@ -158,7 +158,16 @@ export class RevisionedStorageReplica {
       if (!saved.conflict) return this.applyRemote(saved);
       current = saved;
     }
-    return this.applyRemote(current);
+    const remoteValues = current.values && typeof current.values === 'object'
+      ? current.values
+      : {};
+    const localAuthorityValues = this.captureLocalAuthorityValues(remoteValues);
+    const changed = this.applyRemote({
+      ...current,
+      values: { ...remoteValues, ...localAuthorityValues },
+    });
+    if (Object.keys(localAuthorityValues).length > 0) this.markLocalChange();
+    return changed;
   }
 
   private localMatches(remoteValues: Record<string, string>): boolean {
@@ -204,7 +213,7 @@ export class RevisionedStorageReplica {
       base_revision: 0,
       initialize_only: true,
     });
-    if (initialized.conflict) return this.applyRemote(initialized);
+    if (initialized.conflict) return this.applyRemoteWithLocalAuthority(initialized);
     this.acceptWrite(initialized, values);
     return false;
   }

@@ -185,6 +185,11 @@ export abstract class SimpleWorkerBase extends LaravelWorkerLifecycleBase {
    * Every type uses the same immediate-return transport. */
   protected abstract get pullTaskTypes(): string[];
 
+  /** False for assist-only workers that do not register with global_tasks. */
+  protected get globalTaskPollingEnabled(): boolean {
+    return true;
+  }
+
   /** Shared processor adapters delegate here instead of duplicating task rules. */
   public canHandleTaskType(taskType: string): boolean {
     return this.handlesTaskType(taskType);
@@ -276,6 +281,11 @@ export abstract class SimpleWorkerBase extends LaravelWorkerLifecycleBase {
 
     this.isRunning = true;
     this.connectWorkerApi(this.config.apiUrl);
+    if (!this.globalTaskPollingEnabled) {
+      this.stats.isOnline = true;
+      logger.info(this.workerLabel, 'Assist-only worker started');
+      return;
+    }
     try {
       await this.register();
       this.activateRegisteredWorker();
@@ -311,6 +321,10 @@ export abstract class SimpleWorkerBase extends LaravelWorkerLifecycleBase {
     // a fresh loop.
     this.needsFastRepoll = false;
     this.stats.isOnline = false;
+    if (!this.globalTaskPollingEnabled) {
+      logger.info(this.workerLabel, 'Assist-only worker stopped');
+      return;
+    }
     if (this.workerClient && prefetchedTasks.length > 0) {
       void this.workerClient.releaseTasks(prefetchedTasks).catch((error) => {
         logger.warn(this.workerLabel, 'Failed to release prefetched tasks during stop', error);

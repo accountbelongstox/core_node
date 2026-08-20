@@ -48,6 +48,8 @@ FM_DOMAIN_CADDYFILE="${FM_DOMAIN_CADDY_DIR}/Caddyfile"
 FM_DOMAIN_ROUTES_DIR="${FM_DOMAIN_CADDY_DIR}/routes"
 FM_DOMAIN_BACKEND_URL="http://$(sc_require hosts.loopback):$(sc_require ports.laravel_api_backend)"
 FM_DOMAIN_UI_BACKEND_URL="$(domain_ui_backend_url)"
+FM_DOMAIN_UI_EARLY_HINTS_LINK="$(sc_require http.ui_early_hints_link)"
+FM_DOMAIN_HTTP_PORT="$(sc_get ports.frankenphp_http)"
 FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
 FM_DOMAIN_MARKER="managed-by: frankenphp_domain_common"
 FM_DOMAIN_UI_BINDING_READY="no"
@@ -55,6 +57,7 @@ FM_DOMAIN_CADDY_RELOAD_READY="no"
 FM_DOMAIN_ROUTES_READY="no"
 FM_DOMAIN_ROUTE_FILE_READY="no"
 FM_DOMAIN_INSTALL_READY="no"
+FM_DOMAIN_CERTIFICATES_READY="no"
 
 # Ensure the Caddy routes directory exists (lazy sudo, symlink-aware).
 fm_domain_ensure_routes_dir() {
@@ -89,6 +92,10 @@ fm_domain_render_route() {
     local tls_directive=""
     local acme_cert_dir=""
     local ui_addresses=""
+    local api_http_address=""
+    local ui_http_addresses=""
+    local api_handlers=""
+    local ui_handlers=""
 
     # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
     # pinned explicitly); the dnspod module stanza is the fallback.
@@ -120,15 +127,27 @@ fm_domain_render_route() {
     fi
 
     ui_addresses="${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${domain}:${FM_DOMAIN_HTTPS_PORT}, ${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}"
+    api_http_address="http://${api_host}:${FM_DOMAIN_HTTP_PORT}"
+    ui_http_addresses="http://${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${domain}:${FM_DOMAIN_HTTP_PORT}, http://${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}"
+    api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL")"
+    ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
     cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}
 
 ${api_host}:${FM_DOMAIN_HTTPS_PORT} {
-${tls_directive}	reverse_proxy ${FM_DOMAIN_BACKEND_URL}
+${tls_directive}${api_handlers}
 }
 
 ${ui_addresses} {
-${tls_directive}	reverse_proxy ${FM_DOMAIN_UI_BACKEND_URL}
+${tls_directive}${ui_handlers}
+}
+
+${api_http_address} {
+${api_handlers}
+}
+
+${ui_http_addresses} {
+${ui_handlers}
 }
 EOF
 }
@@ -258,29 +277,29 @@ fm_domain_cleanup_stale_routes() {
     local route_file=""
     local domain=""
     local found=""
+    local candidate_domain=""
 
-    [ -d "$FM_DOMAIN_ROUTES_DIR" ] || return 0
-
-    for route_file in "$FM_DOMAIN_ROUTES_DIR"/*.caddy; do
-        [ -f "$route_file" ] || continue
-        if ! grep -q "$FM_DOMAIN_MARKER" "$route_file" 2>/dev/null; then
-            continue
-        fi
-        domain="$(basename "$route_file" .caddy)"
-        found=""
-        while IFS= read -r d; do
-            [ -z "$d" ] && continue
-            if [ "$d" = "$domain" ]; then
-                found="yes"
-                break
+    if [ -d "$FM_DOMAIN_ROUTES_DIR" ]; then
+        for route_file in "$FM_DOMAIN_ROUTES_DIR"/*.caddy; do
+            [ -f "$route_file" ] || continue
+            if ! grep -q "$FM_DOMAIN_MARKER" "$route_file" 2>/dev/null; then
+                continue
             fi
-        done <<< "$domains_list"
-        if [ -z "$found" ]; then
-            rm -f "$route_file"
-            echo "[fm-domain] [OK] Removed stale route: $domain (no longer in secrets)"
-        fi
-    done
-    return 0
+            domain="$(basename "$route_file" .caddy)"
+            found=""
+            while IFS= read -r candidate_domain; do
+                [ -z "$candidate_domain" ] && continue
+                if [ "$candidate_domain" = "$domain" ]; then
+                    found="yes"
+                    break
+                fi
+            done <<< "$domains_list"
+            if [ -z "$found" ]; then
+                rm -f "$route_file"
+                echo "[fm-domain] [OK] Removed stale route: $domain (no longer in secrets)"
+            fi
+        done
+    fi
 }
 
 # Full idempotent frankenphp domain installation: secrets -> prefix ->
@@ -356,11 +375,20 @@ fm_domain_install_all() {
 # Caddy issues/renews at runtime; the shell end ensures the module +
 # token pair are in place.
 fm_domain_certificates_only() {
-    domain_setup_load_secrets || return 1
-    domain_setup_ensure_prefix || return 1
-    domain_setup_persist_state || true
+    FM_DOMAIN_CERTIFICATES_READY="no"
+    domain_setup_load_secrets
+    if [ -z "$DOMAIN_DNSPOD_EMAIL" ] || [ -z "$DOMAIN_DNSPOD_TOKEN" ] || [ -z "$DOMAIN_DOMAINS_LIST" ]; then
+        echo "[fm-domain] [WARN] Certificate convergence deferred because the secret postcondition is incomplete"
+        return
+    fi
+    domain_setup_ensure_prefix
+    if [ -z "$DOMAIN_API_PREFIX" ]; then
+        echo "[fm-domain] [WARN] Certificate convergence deferred because the API prefix postcondition is incomplete"
+        return
+    fi
+    domain_setup_persist_state
     fm_dnspod_token_ensure
     fm_dns01_ensure
+    FM_DOMAIN_CERTIFICATES_READY="yes"
     echo "[fm-domain] [OK] DNS-01 readiness converged (Caddy issues/renews wildcard at launch)"
-    return 0
 }
