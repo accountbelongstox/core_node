@@ -70,7 +70,7 @@ else
 fi
 
 echo ""
-echo "[*] pnpm run dev (wxt) — press Ctrl+C to stop"
+echo "[*] pnpm run dev (wxt) - press Ctrl+C to stop"
 echo "----------------------------------------"
 pnpm run dev
 echo "----------------------------------------"

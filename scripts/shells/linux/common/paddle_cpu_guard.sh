@@ -5,7 +5,7 @@
 # On Linux x86_64, `pip install paddlepaddle-gpu` from the wrong CUDA index or
 # installing GPU wheels on a CPU-only host wastes disk and breaks OCR. Several
 # install paths pull paddle transitively (paddleocr, paddlex), so this guard is
-# reused at key points — same policy as torch_cpu_guard.sh.
+# reused at key points - same policy as torch_cpu_guard.sh.
 #
 #   GPU present + driver usable -> paddlepaddle-gpu from driver-matched index.
 #   NO GPU                      -> paddlepaddle from the CPU index; uninstall GPU pkg.

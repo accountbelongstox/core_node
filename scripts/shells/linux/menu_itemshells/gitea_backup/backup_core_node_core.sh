@@ -212,7 +212,7 @@ list_core_node_backups() {
     print_info_from_common_functions "Found ${#backups[@]} backup(s) in $CORE_NODE_BACKUP_DIR:"
     echo ""
     printf "%-4s %-8s %-34s %-10s %-20s\n" "No." "Type" "Name" "Size" "Modified"
-    echo "──────────────────────────────────────────────────────────────────────────────────"
+    echo "----------------------------------------------------------------------------------"
     index=1
     for b in "${backups[@]}"; do
         filename="$(basename "$b")"

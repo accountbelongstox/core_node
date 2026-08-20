@@ -159,6 +159,24 @@ _ENGINE_SPECS: Dict[str, Dict[str, Any]] = {
             "import torch, torchaudio; "
             "from qwen_tts import Qwen3TTSModel",
         ),
+        "accelerator_packages": policy_csv(
+            "AI_QWEN_TTS_ACCELERATOR_PACKAGES"
+        ),
+        "accelerator_build_packages": policy_csv(
+            "AI_QWEN_TTS_ACCELERATOR_BUILD_PACKAGES"
+        ),
+        "accelerator_pip_args": policy_csv(
+            "AI_QWEN_TTS_ACCELERATOR_PIP_ARGS"
+        ),
+        "accelerator_platforms": policy_csv(
+            "AI_QWEN_TTS_ACCELERATOR_PLATFORMS"
+        ),
+        "accelerator_cuda_min_major": int(
+            policy_value("AI_QWEN_TTS_ACCELERATOR_CUDA_MIN_MAJOR", "12")
+        ),
+        "accelerator_compute_min_major": int(
+            policy_value("AI_QWEN_TTS_ACCELERATOR_COMPUTE_MIN_MAJOR", "8")
+        ),
         "shared_packages": ISOLATED_SHARED_PACKAGES,
         "require_cuda_when_present": True,
     },
@@ -181,6 +199,14 @@ def engine_spec(engine: str) -> Dict[str, Any]:
     result["policy_version"] = POLICY_VERSION
     result["packages"] = list(result.get("packages", ()))
     result["pins"] = list(result.get("pins", ()))
+    for sequence_key in (
+        "accelerator_packages",
+        "accelerator_build_packages",
+        "accelerator_pip_args",
+        "accelerator_platforms",
+    ):
+        if sequence_key in result:
+            result[sequence_key] = list(result[sequence_key])
     result["shared_packages"] = list(
         result.get(
             "shared_packages",

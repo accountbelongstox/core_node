@@ -6,12 +6,12 @@
 #   UI & system -> ffmpeg -> light pip -> OCR -> STT -> TTS -> neural TTS (opt-in) -> melotts (opt-in, last) -> device tools
 #
 # Install-time environment shielding (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §7). Every installer is IDEMPOTENT and
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 7). Every installer is IDEMPOTENT and
 # self-REPAIRING, so re-running this whole sweep preserves installed packages and repairs missing artifacts:
 #   * Bucket A (deepseek/qwen25/nllb/bark): shares the installed transformers distribution
 #     and delegates compatibility to pip only when the package is absent.
 #   * Bucket B (qwen3tts, melotts, gptsovits): incompatible transformer dependencies stay out
-#     of the main interpreter — each installs into a DEDICATED per-engine venv
+#     of the main interpreter - each installs into a DEDICATED per-engine venv
 #     (qwen3tts/melotts/gptsovits via isolated_venv.ensure_venv),
 #     built --system-site-packages so it reuses the system CUDA torch and self-rebuilds on a
 #     broken import; their transformer dependencies never touch the shared interpreter. melotts and

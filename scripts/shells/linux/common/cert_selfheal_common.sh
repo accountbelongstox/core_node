@@ -49,7 +49,7 @@ cert_selfheal_flock() {
 
 # Resolve every certbot config dir that actually holds managed certificates.
 # Single source of truth: nginx_common.sh's nginx_le_config_dirs_resolve
-# (sourced above) — the same resolution the vhost renders use, so renewal and
+# (sourced above) - the same resolution the vhost renders use, so renewal and
 # rendering can never drift apart again.
 cert_selfheal_resolve_le_dirs() {
     nginx_le_config_dirs_resolve
@@ -157,7 +157,7 @@ cert_selfheal_ensure_timer() {
     return 0
 }
 
-# Startup self-heal: ONE linear chain per trigger — ensure deploy hooks +
+# Startup self-heal: ONE linear chain per trigger - ensure deploy hooks +
 # wrapper + timer, then (when the Laravel directory is passed) the artisan
 # reconcile step (stale-credential reconfigure + broken-lineage repair, NO
 # renewal), then a single `certbot renew` via the wrapper (certbot self-gates

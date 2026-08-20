@@ -78,7 +78,7 @@ run_priv_capture() {
 read_listen_port() {
   LISTEN_PORT=""
   if [[ ! -f "$CONFIG_JSON" ]]; then
-    log "[WARN] Config missing: $CONFIG_JSON — using default port 18765."
+    log "[WARN] Config missing: $CONFIG_JSON - using default port 18765."
     LISTEN_PORT="18765"
     return
   fi
@@ -153,16 +153,16 @@ try_ufw() {
   log "[UFW] Full status output:"
   printf '%s\n' "$st"
   if printf '%s' "$st" | grep -q "Status: active"; then
-    log "[UFW] Firewall is active — adding rule for TCP $LISTEN_PORT."
+    log "[UFW] Firewall is active - adding rule for TCP $LISTEN_PORT."
     run_priv_capture "ufw allow" ufw allow "$LISTEN_PORT"/tcp comment "file_sync_v2 server"
     ACTION_TAKEN="ufw"
     return
   fi
   if printf '%s' "$st" | grep -q "Status: inactive"; then
-    log "[UFW] Installed but inactive — skip (no rule added; port already unrestricted by UFW)."
+    log "[UFW] Installed but inactive - skip (no rule added; port already unrestricted by UFW)."
     return
   fi
-  log "[UFW] Could not classify status string — no UFW rule added."
+  log "[UFW] Could not classify status string - no UFW rule added."
 }
 
 # --- firewalld (less common on Debian but supported) ---
@@ -180,13 +180,13 @@ try_firewalld() {
   st="$(with_priv firewall-cmd --state 2>&1)" || true
   log "[firewalld] firewall-cmd --state output: ${st:-<empty>}"
   if [[ "$st" == "running" ]]; then
-    log "[firewalld] Running — adding permanent TCP port $LISTEN_PORT."
+    log "[firewalld] Running - adding permanent TCP port $LISTEN_PORT."
     run_priv_capture "firewall-cmd permanent add-port" firewall-cmd --permanent --add-port="$LISTEN_PORT"/tcp
     run_priv_capture "firewall-cmd reload" firewall-cmd --reload
     ACTION_TAKEN="firewalld"
     return
   fi
-  log "[firewalld] Not running — skip."
+  log "[firewalld] Not running - skip."
 }
 
 # Count filter table chain headers as a coarse "iptables in use" signal.
@@ -207,7 +207,7 @@ iptables_eval_coarse_active() {
     IPT_COARSE_ACTIVE="yes"
     return
   fi
-  log "[iptables] Ruleset looks minimal — skip iptables modifications."
+  log "[iptables] Ruleset looks minimal - skip iptables modifications."
 }
 
 iptables_eval_rule_present_tcp() {
@@ -257,7 +257,7 @@ try_iptables() {
   fi
   iptables_eval_rule_present_tcp
   if [[ "$IPT_RULE_PRESENT" == "yes" ]]; then
-    log "[iptables] Rule already present — nothing inserted."
+    log "[iptables] Rule already present - nothing inserted."
     ACTION_TAKEN="iptables-already"
     return
   fi
@@ -288,7 +288,7 @@ note_nft() {
 }
 
 # --- main ---
-log_section "file_sync_v2 — firewall port opener (standalone)"
+log_section "file_sync_v2 - firewall port opener (standalone)"
 log "[INFO] Script directory: $SCRIPT_DIR"
 log "[INFO] Config file: $CONFIG_JSON"
 
@@ -298,7 +298,7 @@ fi
 probe_os
 
 if [[ "$UNAME_S" != "Linux" ]]; then
-  log "[WARN] This script is intended for Linux (Ubuntu/Debian). Detected: $UNAME_S — exiting without changes."
+  log "[WARN] This script is intended for Linux (Ubuntu/Debian). Detected: $UNAME_S - exiting without changes."
   log "[SUMMARY] action=skipped reason=non-linux"
   exit 0
 fi
@@ -321,7 +321,7 @@ case "$ACTION_TAKEN" in
   firewalld) log "[SUMMARY] firewalld was running; permanent port and reload requested." ;;
   iptables) log "[SUMMARY] iptables ruleset looked active; INPUT rule inserted (see logs above)." ;;
   iptables-already) log "[SUMMARY] iptables already had a matching rule; no insert." ;;
-  *) log "[SUMMARY] No active managed firewall matched, or tools missing — no port change performed." ;;
+  *) log "[SUMMARY] No active managed firewall matched, or tools missing - no port change performed." ;;
 esac
 log "[DONE] Script finished (always exit 0; rely on log lines above, not exit status)."
 exit 0

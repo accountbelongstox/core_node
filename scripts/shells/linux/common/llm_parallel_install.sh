@@ -11,7 +11,7 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# OPTIONAL parallel driver (linux/common). Invoked manually — not part of install_shells sweep.
+# OPTIONAL parallel driver (linux/common). Invoked manually - not part of install_shells sweep.
 
 PT_MODE="auto"
 PT_DRY_RUN=0

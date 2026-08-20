@@ -45,8 +45,8 @@ import type {
 const POLL_INTERVAL_MS = 2000;
 const DRAFT_SAVE_DELAY_MS = 500;
 const CANVAS_PADDING_PX = 16;
-/** Height reserved above the mobile terminal pager (top bar + page header). */
-const MOBILE_PAGER_OFFSET_REM = 15.5;
+/** Height reserved above the mobile terminal grid (top bar + page header). */
+const MOBILE_GRID_OFFSET_REM = 15.5;
 type TerminalScrollMode = 'page_up' | 'page_down' | 'bottom';
 const SCROLL_SUCCESS_TRANSLATION_KEYS: Record<TerminalScrollMode, string> = {
   page_up: 'terminal.pageScrolledUp',
@@ -571,7 +571,7 @@ const PcTerminalPage: React.FC = () => {
     resizeObserver.observe(canvas);
     updateCanvasSize();
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [isMobile]);
 
   const selectedWindow = useMemo(() => (
     snapshot?.windows.find(
@@ -623,9 +623,17 @@ const PcTerminalPage: React.FC = () => {
     ),
     null,
   );
-  const desktopBounds = useMemo(
-    () => calculateDesktopBounds(snapshot?.windows || []),
+  const onlineWindows = useMemo(
+    () => (snapshot?.windows || []).filter((windowInfo) => windowInfo.online),
     [snapshot?.windows],
+  );
+  const offlineWindows = useMemo(
+    () => (snapshot?.windows || []).filter((windowInfo) => !windowInfo.online),
+    [snapshot?.windows],
+  );
+  const desktopBounds = useMemo(
+    () => calculateDesktopBounds(onlineWindows),
+    [onlineWindows],
   );
   const canvasLayout = useMemo(
     () => calculateCanvasLayout(desktopBounds, canvasSize),
@@ -1437,6 +1445,95 @@ const PcTerminalPage: React.FC = () => {
     </div>
   );
 
+  const renderGridWindowCard = (
+    windowInfo: TerminalWindowInfo,
+    compactLayout = false,
+  ) => {
+    const selected = windowInfo.terminal_number === selectedTerminalNumber;
+    const busy = actionWindowId === windowInfo.id;
+    return (
+      <article
+        key={windowInfo.terminal_number}
+        className={`flex flex-col overflow-hidden rounded-2xl border shadow-sm transition-all ${
+          compactLayout ? 'h-36' : 'min-h-[16rem] sm:min-h-[13rem]'
+        } ${
+          selected
+            ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/20'
+            : windowInfo.active
+              ? 'border-emerald-500/70 bg-emerald-500/10'
+              : 'border-slate-500/40 bg-white/80 dark:bg-slate-900/80'
+        } ${windowInfo.online ? '' : 'border-dashed'}`}
+      >
+        <div className="flex shrink-0 items-center gap-2 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
+          <button
+            type="button"
+            onClick={() => selectTerminal(windowInfo.terminal_number)}
+            className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
+            aria-label={t('terminal.selectWindow', {
+              number: windowInfo.terminal_number,
+            })}
+          >
+            <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 px-1.5 font-mono text-xs font-bold text-indigo-200">
+              #{windowInfo.terminal_number}
+            </span>
+            <span className="truncate text-sm font-semibold">
+              {terminalName(windowInfo, t('terminal.untitled'))}
+            </span>
+            <span className={`h-2 w-2 shrink-0 rounded-full ${
+              windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
+            }`} />
+          </button>
+          {windowInfo.online && (
+            <button
+              type="button"
+              onClick={() => {
+                selectTerminal(windowInfo.terminal_number);
+                void activate(windowInfo.id);
+              }}
+              disabled={busy || !snapshot?.supported}
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+              aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
+            >
+              {busy
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <MousePointer2 className="h-4 w-4" />}
+              {!compactLayout && <span>{t('terminal.activate')}</span>}
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            selectTerminal(windowInfo.terminal_number);
+            if (windowInfo.screenshot?.content_base64) {
+              setPreviewTerminalNumber(windowInfo.terminal_number);
+            }
+          }}
+          className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/80 text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+          aria-label={t('terminal.previewScreenshot', {
+            number: windowInfo.terminal_number,
+          })}
+        >
+          {windowInfo.screenshot?.content_base64 ? (
+            <>
+              <img
+                src={`data:${windowInfo.screenshot.mime};base64,${windowInfo.screenshot.content_base64}`}
+                alt={terminalName(windowInfo, t('terminal.untitled'))}
+                decoding="async"
+                className="h-full w-full object-contain"
+              />
+              <Maximize2 className="absolute bottom-2 right-2 h-5 w-5 rounded bg-slate-950/70 p-0.5 text-white" />
+            </>
+          ) : (
+            <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs">
+              {t(windowInfo.online ? 'terminal.previewUnavailable' : 'terminal.offline')}
+            </span>
+          )}
+        </button>
+      </article>
+    );
+  };
+
   const snapshotError = snapshot?.error_code
     ? errorTranslationKey(snapshot.error_code)
     : null;
@@ -1515,104 +1612,33 @@ const PcTerminalPage: React.FC = () => {
           </div>
           {isMobile ? (
             <div
-              className="grid snap-y snap-mandatory grid-cols-1 content-start gap-4 overflow-y-auto overscroll-contain p-3"
-              style={{ height: `calc(100dvh - ${MOBILE_PAGER_OFFSET_REM}rem)` }}
+              className="flex flex-col overflow-y-auto overscroll-contain p-3"
+              style={{ height: `calc(100dvh - ${MOBILE_GRID_OFFSET_REM}rem)` }}
             >
               {!snapshot?.windows.length ? (
-                <div className="flex h-full snap-start items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
+                <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-500/25 p-6 text-center text-xs text-slate-400">
                   {loading ? t('common.loading') : t('terminal.empty')}
                 </div>
               ) : (
-                snapshot.windows.map((windowInfo) => {
-                  const selected = windowInfo.terminal_number === selectedTerminalNumber;
-                  const busy = actionWindowId === windowInfo.id;
-                  return (
-                    <article
-                      key={windowInfo.terminal_number}
-                      className={`flex h-full snap-start flex-col overflow-hidden rounded-2xl border shadow-sm transition-all ${
-                        selected
-                          ? 'border-indigo-500 bg-indigo-500/10 ring-2 ring-indigo-500/20'
-                          : windowInfo.active
-                            ? 'border-emerald-500/70 bg-emerald-500/10'
-                            : 'border-slate-500/40 bg-white/80 dark:bg-slate-900/80'
-                      } ${windowInfo.online ? '' : 'border-dashed'}`}
-                    >
-                        <div className="flex shrink-0 items-center gap-2 border-b border-slate-500/20 bg-slate-900 px-3 py-2 text-white">
-                          <button
-                            type="button"
-                            onClick={() => selectTerminal(windowInfo.terminal_number)}
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left focus:outline-none"
-                            aria-label={t('terminal.selectWindow', {
-                              number: windowInfo.terminal_number,
-                            })}
-                          >
-                            <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-500/25 px-1.5 font-mono text-xs font-bold text-indigo-200">
-                              #{windowInfo.terminal_number}
-                            </span>
-                            <span className="truncate text-sm font-semibold">
-                              {terminalName(windowInfo, t('terminal.untitled'))}
-                            </span>
-                            <span className={`h-2 w-2 shrink-0 rounded-full ${
-                              windowInfo.online ? 'bg-emerald-400' : 'bg-slate-400'
-                            }`} />
-                          </button>
-                          {windowInfo.online && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                selectTerminal(windowInfo.terminal_number);
-                                void activate(windowInfo.id);
-                              }}
-                              disabled={busy || !snapshot.supported}
-                              className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-3 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
-                              aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
-                            >
-                              {busy
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <MousePointer2 className="h-4 w-4" />}
-                              <span>{t('terminal.activate')}</span>
-                            </button>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            selectTerminal(windowInfo.terminal_number);
-                            if (windowInfo.screenshot?.content_base64) {
-                              setPreviewTerminalNumber(windowInfo.terminal_number);
-                            }
-                          }}
-                          className="relative min-h-0 flex-1 overflow-hidden bg-slate-950/80 text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
-                          aria-label={t('terminal.previewScreenshot', {
-                            number: windowInfo.terminal_number,
-                          })}
-                        >
-                          {windowInfo.screenshot?.content_base64 ? (
-                            <>
-                              <img
-                                src={`data:${windowInfo.screenshot.mime};base64,${windowInfo.screenshot.content_base64}`}
-                                alt={terminalName(windowInfo, t('terminal.untitled'))}
-                                decoding="async"
-                                className="h-full w-full object-contain"
-                              />
-                              <Maximize2 className="absolute bottom-2 right-2 h-5 w-5 rounded bg-slate-950/70 p-0.5 text-white" />
-                            </>
-                          ) : (
-                            <span className="absolute inset-0 flex items-center justify-center px-3 text-center text-xs">
-                              {t(windowInfo.online ? 'terminal.previewUnavailable' : 'terminal.offline')}
-                            </span>
-                          )}
-                        </button>
-                      </article>
-                    );
-                  })
+                <>
+                  {onlineWindows.length > 0 && (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {onlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo))}
+                    </div>
+                  )}
+                  {offlineWindows.length > 0 && (
+                    <div className={`mt-auto grid grid-cols-1 gap-3 pt-4 sm:grid-cols-2 ${
+                      onlineWindows.length ? 'border-t border-slate-500/15' : ''
+                    }`}>
+                      {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : (
-          <div
-            ref={canvasRef}
-            className="relative h-[52vh] min-h-[22rem] max-h-[38rem] overflow-hidden bg-slate-950/[0.03] dark:bg-slate-950/40"
-          >
+          <div className="flex h-[52vh] min-h-[22rem] max-h-[38rem] flex-col overflow-hidden bg-slate-950/[0.03] dark:bg-slate-950/40">
+            <div ref={canvasRef} className="relative min-h-0 flex-1 overflow-hidden">
             <div
               className="pointer-events-none absolute inset-0 opacity-40 dark:opacity-20"
               style={{
@@ -1620,11 +1646,13 @@ const PcTerminalPage: React.FC = () => {
                 backgroundSize: '24px 24px',
               }}
             />
-            {!snapshot?.windows.length ? (
+            {!onlineWindows.length ? (
               <div className="absolute inset-0 flex items-center justify-center p-8 text-center text-xs text-slate-400">
-                {loading ? t('common.loading') : t('terminal.empty')}
+                {loading
+                  ? t('common.loading')
+                  : t(snapshot?.windows.length ? 'terminal.offline' : 'terminal.empty')}
               </div>
-            ) : canvasLayout && desktopBounds && snapshot.windows.map((windowInfo) => {
+            ) : canvasLayout && desktopBounds && onlineWindows.map((windowInfo) => {
               const selected = windowInfo.terminal_number === selectedTerminalNumber;
               const busy = actionWindowId === windowInfo.id;
               const mappedWidth = windowInfo.rect.width * canvasLayout.scale;
@@ -1688,7 +1716,7 @@ const PcTerminalPage: React.FC = () => {
                             selectTerminal(windowInfo.terminal_number);
                             void activate(windowInfo.id);
                           }}
-                          disabled={busy || !snapshot.supported}
+                          disabled={busy || !snapshot?.supported}
                           className="inline-flex h-4 shrink-0 items-center justify-center gap-1 rounded bg-indigo-600 px-1 text-[8px] font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
                           aria-label={`${t('terminal.activate')}: ${terminalName(windowInfo, t('terminal.untitled'))}`}
                         >
@@ -1734,6 +1762,14 @@ const PcTerminalPage: React.FC = () => {
                 </article>
               );
             })}
+            </div>
+            {offlineWindows.length > 0 && (
+              <div className="relative z-40 max-h-[11rem] shrink-0 overflow-y-auto border-t border-slate-500/15 bg-slate-100/80 p-3 dark:bg-slate-950/70">
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+                  {offlineWindows.map((windowInfo) => renderGridWindowCard(windowInfo, true))}
+                </div>
+              </div>
+            )}
           </div>
           )}
         </section>

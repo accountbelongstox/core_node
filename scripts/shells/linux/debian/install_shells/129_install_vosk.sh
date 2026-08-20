@@ -1,5 +1,5 @@
 #!/bin/bash
-# Offline Vosk STT prerequisite (Linux) — pip + a model, auto-run by prepare_pycore_prerequisites.sh
+# Offline Vosk STT prerequisite (Linux) - pip + a model, auto-run by prepare_pycore_prerequisites.sh
 # (pyservice). Vosk is FREE and CPU-only (no CUDA inference), so the CPU/GPU
 # principle selects MODEL SIZE: small on a CPU host, the large gigaspeech model
 # when CUDA is present. Unzips into $HOME/.core_node/cache/stt/vosk/<name>/, which

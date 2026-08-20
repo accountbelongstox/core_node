@@ -60,6 +60,7 @@ fi
 
 initialize_runtime_configuration_store() {
     local generated_value=""
+    local config_state=""
 
     RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
     if [ -z "$RUNTIME_CONFIG_DIR" ]; then
@@ -68,12 +69,19 @@ initialize_runtime_configuration_store() {
     fi
 
     generated_value="$($PHP_BIN -r 'echo "base64:".base64_encode(random_bytes(32));')"
-    ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
+    config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
+    if [ "$config_state" != "ready" ]; then
+        echo "ERROR: Failed to provision APP_KEY."
+        return 1
+    fi
     # Mercure hub keys (HS256 secrets, server-side only; provisioned once
     # by the laravel_main RelayHubKeyProvisioner into the constant store
     # directory, then embedded as literal Caddyfile directives).
-    runtime_config_ensure_mercure_keys \
-        || { echo "ERROR: Failed to provision Mercure hub keys."; return 1; }
+    runtime_config_ensure_mercure_keys
+    if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
+        echo "ERROR: Failed to provision Mercure hub keys."
+        return 1
+    fi
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }

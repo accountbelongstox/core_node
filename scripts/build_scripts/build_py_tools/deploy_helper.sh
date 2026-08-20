@@ -36,7 +36,7 @@ prepare_nuxt_deployment() {
     echo "  Copying build output to factory..."
     if [ -d "$PROJECT_PATH/.output" ]; then
         cp -r "$PROJECT_PATH/.output" "$FACTORY_PATH/"
-        echo "  �?Build output copied"
+        echo "  Build output copied"
     else
         echo "  Error: .output directory not found in $PROJECT_PATH"
         return 1
@@ -45,13 +45,13 @@ prepare_nuxt_deployment() {
     if [ -d "$PROJECT_PATH/node_modules" ]; then
         echo "  Copying node_modules..."
         cp -r "$PROJECT_PATH/node_modules" "$FACTORY_PATH/"
-        echo "  �?node_modules copied"
+        echo "  node_modules copied"
     fi
 
     echo "  Setting permissions..."
     chmod -R 755 "$FACTORY_PATH"
 
-    echo "  �?Nuxt deployment prepared at: $FACTORY_PATH"
+    echo "  Nuxt deployment prepared at: $FACTORY_PATH"
     return 0
 }
 
@@ -98,7 +98,7 @@ prepare_static_deployment() {
     echo "  Setting permissions..."
     chmod -R 755 "$DEPLOY_PATH"
 
-    echo "  �?Static deployment prepared at: $DEPLOY_PATH"
+    echo "  Static deployment prepared at: $DEPLOY_PATH"
     return 0
 }
 
@@ -112,13 +112,13 @@ cleanup_deployment() {
         local FACTORY_PATH="/www/_build_dir/nuxt_factory/linux/_app_$PROJECT_NAME"
         if [ -d "$FACTORY_PATH" ]; then
             rm -rf "$FACTORY_PATH"
-            echo "  �?Cleaned factory directory"
+            echo "  Cleaned factory directory"
         fi
     else
         local DEPLOY_PATH="/www/_build_dir/static_apps/$PROJECT_NAME"
         if [ -d "$DEPLOY_PATH" ]; then
             rm -rf "$DEPLOY_PATH"
-            echo "  �?Cleaned deployment directory"
+            echo "  Cleaned deployment directory"
         fi
     fi
 }

@@ -28,7 +28,6 @@ LARAVEL_INSTALLER_LINK_PATH="/usr/local/bin/$LARAVEL_INSTALLER_BINARY_NAME"
 LARAVEL_INSTALLER_UPDATE_STAMP="/usr/local/etc/.laravel_installer_update_stamp"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
 source "$PARENT_DIR_LEVEL_2/common/frankenphp_manager.sh"
 
 # Source PHP common variables and functions
@@ -180,10 +179,14 @@ check_composer_errors() {
 # Get current PHP version
 get_current_php_version() {
     local php_probe=""
+    local runtime_binary=""
     local version_output=""
 
     if [ -x "$COMPOSER_RUNTIME_PHP" ]; then
-        if [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
+        if [ "$COMPOSER_RUNTIME_PLANE" = "frankenphp" ]; then
+            runtime_binary="$(fm_variant_binary)"
+            version_output="$(fm_php_full_version_of "$runtime_binary")"
+        elif [ "$COMPOSER_RUNTIME_SUBCMD" = "php-cli" ]; then
             php_probe="$(mktemp)"
             printf '<?php echo PHP_VERSION;' > "$php_probe"
             version_output="$(composer_runtime_exec "$php_probe" 2>/dev/null | tr -d '[:space:]' || true)"
@@ -191,7 +194,12 @@ get_current_php_version() {
         else
             version_output="$(composer_runtime_exec -v 2>/dev/null | tr -d '[:space:]' | head -n1 || true)"
         fi
-        echo "$version_output" | grep -oP '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || echo "unknown"
+        version_output="$(printf '%s' "$version_output" | sed -nE 's/.*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' | head -n 1)"
+        if [ -n "$version_output" ]; then
+            echo "$version_output"
+        else
+            echo "unknown"
+        fi
     else
         echo "not_found"
     fi
@@ -211,12 +219,21 @@ store_php_version() {
 composer_runtime_supports_phar() {
     local candidate_binary="$1"
     local candidate_subcmd="${2:-}"
+    local runtime_binary=""
+    local runtime_plane=""
     local probe_script=""
     local probe_result=""
     local supported="no"
 
     if [ -z "$candidate_binary" ] || [ ! -x "$candidate_binary" ]; then
         echo "no"
+        return
+    fi
+
+    runtime_plane="$(php_runtime_plane)"
+    if [ "$runtime_plane" = "frankenphp" ]; then
+        runtime_binary="$(fm_variant_binary)"
+        fm_embedded_extension_loaded "$runtime_binary" "phar"
         return
     fi
 
@@ -772,10 +789,10 @@ elif [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
     echo -e "${CYAN}  /usr/local/etc/.composer_php_version (PHP version tracking)${NC}"
     echo -e "${CYAN}${NC}"
     echo -e "${CYAN}Server-Optimized Features:${NC}"
-    echo -e "${CYAN}  �?Automatic retry on download failures${NC}"
-    echo -e "${CYAN}  �?Non-interactive mode by default${NC}"
-    echo -e "${CYAN}  �?Root user handling without prompts${NC}"
-    echo -e "${CYAN}  �?Comprehensive error detection${NC}"
+    echo -e "${CYAN}  - Automatic retry on download failures${NC}"
+    echo -e "${CYAN}  - Non-interactive mode by default${NC}"
+    echo -e "${CYAN}  - Root user handling without prompts${NC}"
+    echo -e "${CYAN}  - Comprehensive error detection${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     exit 0
 fi
@@ -838,8 +855,8 @@ main() {
         auto_fix_needed=true
     elif [ -f "${COMPOSER_TARGET_PATH}.original" ] && [ -x "${COMPOSER_TARGET_PATH}.original" ]; then
         echo -e "${GREEN}$SCRIPT_INDEX Composer core binary is already present (version: $current_version)${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Original: ${COMPOSER_TARGET_PATH}.original${NC}"
-        echo -e "${GREEN}$SCRIPT_INDEX �?PHP version tracking: $php_version${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Original: ${COMPOSER_TARGET_PATH}.original${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] PHP version tracking: $php_version${NC}"
         repair_composer_wrappers
         repair_composer_path
         install_laravel_installer
@@ -883,7 +900,7 @@ main() {
 
         if curl -fsSL "$COMPOSER_DOWNLOAD_URL" -o composer-setup.php 2>/dev/null; then
             download_success=true
-            echo -e "${GREEN}$SCRIPT_INDEX �?Download successful${NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] Download successful${NC}"
             break
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Download attempt $download_attempts failed${NC}"
@@ -931,12 +948,12 @@ main() {
     local install_status=$?
 
     if [ $install_status -eq 0 ]; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?Composer installed successfully${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Composer installed successfully${NC}"
 
         # Show installed version
         local installed_version
         installed_version="$(composer_run_original_runtime --version 2>/dev/null | grep -oP 'Composer version \K[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown")"
-        echo -e "${GREEN}$SCRIPT_INDEX �?Installed version: $installed_version${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Installed version: $installed_version${NC}"
 
         if ! version_compare "$installed_version" "$MIN_COMPOSER_VERSION"; then
             echo -e "${RED}$SCRIPT_INDEX WARNING: Installed version $installed_version may be too old for PHP 8.5${NC}"
@@ -970,34 +987,34 @@ main() {
     # Test main composer wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing main composer wrapper...${NC}"
     if run_composer_command --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?Main composer wrapper: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Main composer wrapper${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX �?Main composer wrapper: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX [ERROR] Main composer wrapper failed${NC}"
         all_checks_passed=false
     fi
 
     # Test composer-safe wrapper
     echo -e "${CYAN}$SCRIPT_INDEX Testing composer-safe wrapper...${NC}"
     if run_composer_wrapper_command "$COMPOSER_SAFE_PATH" --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?Composer-safe wrapper: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Composer-safe wrapper${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX �?Composer-safe wrapper: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX [ERROR] Composer-safe wrapper failed${NC}"
         all_checks_passed=false
     fi
 
     # Test original composer binary
     echo -e "${CYAN}$SCRIPT_INDEX Testing original composer binary...${NC}"
     if composer_run_original_runtime --version >/dev/null 2>&1; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?Original composer binary: OK${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] Original composer binary${NC}"
     else
-        echo -e "${RED}$SCRIPT_INDEX �?Original composer binary: FAILED${NC}"
+        echo -e "${RED}$SCRIPT_INDEX [ERROR] Original composer binary failed${NC}"
         all_checks_passed=false
     fi
 
     # Check for deprecation warnings
     echo -e "${CYAN}$SCRIPT_INDEX Checking for deprecation warnings...${NC}"
     if check_composer_errors; then
-        echo -e "${GREEN}$SCRIPT_INDEX �?No deprecation warnings detected${NC}"
+        echo -e "${GREEN}$SCRIPT_INDEX [OK] No deprecation warnings detected${NC}"
     else
         echo -e "${YELLOW}$SCRIPT_INDEX ! Deprecation warnings present (may need newer Composer version)${NC}"
     fi
@@ -1016,7 +1033,7 @@ main() {
     # Final verification with environment variables
     local final_version=$(get_composer_version)
     echo -e "${CYAN}============================================================================${NC}"
-    echo -e "${GREEN}$SCRIPT_INDEX ✓✓ Composer installation completed ✓✓${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX [OK][OK] Composer installation completed [OK][OK]${NC}"
     echo -e "${CYAN}============================================================================${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX Composer Version: $final_version${NC}"
     echo -e "${GREEN}$SCRIPT_INDEX PHP Version: $(get_current_php_version)${NC}"

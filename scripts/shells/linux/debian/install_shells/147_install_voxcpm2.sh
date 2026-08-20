@@ -1,5 +1,5 @@
 #!/bin/bash
-# VoxCPM2 prerequisite (Linux) — OpenBMB in-process TTS (pip voxcpm).
+# VoxCPM2 prerequisite (Linux) - OpenBMB in-process TTS (pip voxcpm).
 # GPU hosts install CUDA torch by default (~8GB VRAM recommended).
 #
 # Official: https://voxcpm.readthedocs.io/en/latest/quickstart.html

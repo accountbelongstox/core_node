@@ -59,7 +59,7 @@
 # (ServerManagerV1FrankenPhpCaddyfileBuilder); change both ends together.
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPT_INDEX="frankenphp-mgr"
+SCRIPT_INDEX="${SCRIPT_INDEX:-frankenphp-mgr}"
 
 source "$SCRIPT_CURRENT_DIR/gvar_common.sh"
 # shellcheck source=/dev/null
@@ -87,10 +87,8 @@ FRANKENPHP_DNSPOD_TOKEN_KEY="DNSPOD_TOKEN"
 FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY="DNS_DNSPOD_API_TOKENS"
 FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY="DNSPOD_EMAILS"
 FRANKENPHP_FRANKENPHP_IMPORT="github.com/dunglas/frankenphp"
-# Mercure hub module version, matched to the release frankenphp v1.12.7
-# pins in its own go.mod (v0.24.2) so a rebuild never drags in a newer
-# hub major behind the running binary's back.
-FRANKENPHP_MERCURE_VERSION="v0.24.2"
+# Mercure hub module version follows the central runtime contract.
+FRANKENPHP_MERCURE_VERSION="$(sc_require versions.mercure)"
 # Official static-build xcaddy args (frankenphp.dev/docs/static): a custom
 # XCADDY_ARGS must re-include the modules the Caddyfile relies on - the
 # mercure hub directive and the official build's vulcain + cbrotli set -
@@ -104,9 +102,14 @@ FRANKENPHP_PHP_CLI_SHIM_PATH="${FRANKENPHP_PHP_SHIM_DIR}/php-cli"
 FRANKENPHP_COMPOSER_RUNTIME_SHIM="${FRANKENPHP_PHP_SHIM_DIR}/composer-php-runtime"
 FRANKENPHP_PHP_RUNTIME_SUBCMD="php-cli"
 FRANKENPHP_PHP_INI_DIR="/etc/frankenphp/php-conf.d"
+FRANKENPHP_PHP_INI_SCAN_PATH=":${FRANKENPHP_PHP_INI_DIR}"
 FRANKENPHP_APT_BINARY_PATH="/usr/bin/frankenphp"
 FRANKENPHP_BIN_CANDIDATES="${FRANKENPHP_COMPILED_BINARY_PATH} ${FRANKENPHP_PREBUILT_BINARY_PATH} ${FRANKENPHP_APT_BINARY_PATH}"
+FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS=("pdo" "pdo_pgsql" "phar" "simplexml" "pcntl")
 FM_RUNTIME_BINARY=""
+FM_MERCURE_STANZA=""
+FM_OCTANE_PHP_SERVER_STANZA=""
+FM_CADDYFILE_RENDERED=""
 
 # Resolve one binary path to its real executable target.
 fm_resolve_binary_path() {
@@ -352,6 +355,9 @@ fm_variant_binary_ready() {
             ready="no"
             ;;
     esac
+    if [ "$ready" = "yes" ] && [ "$(fm_php_runtime_extensions_ready "$binary")" != "yes" ]; then
+        ready="no"
+    fi
     echo "$ready"
 }
 
@@ -388,12 +394,15 @@ fm_runtime_contract_ready() {
     local linked_binary=""
     local shim=""
     local shim_content=""
+    local scan_path=""
     local ready="yes"
 
     variant="${1:-$(fm_variant)}"
     binary="$(fm_resolve_binary_path "$(fm_variant_binary_path "$variant")")"
     linked_binary="$(fm_resolve_binary_path "$FRANKENPHP_LINK_PATH")"
-    if [ "$(fm_variant)" != "$variant" ] || [ -z "$binary" ] || [ "$linked_binary" != "$binary" ]; then
+    scan_path="$(fm_php_ini_scan_path)"
+    if [ "$(fm_variant)" != "$variant" ] || [ -z "$binary" ] || [ "$linked_binary" != "$binary" ] \
+        || [ "$(fm_variant_binary_ready "$variant" "$binary")" != "yes" ]; then
         ready="no"
     fi
     for shim in "$FRANKENPHP_PHP_SHIM_PATH" "$FRANKENPHP_PHP_CLI_SHIM_PATH"; do
@@ -403,6 +412,10 @@ fm_runtime_contract_ready() {
         fi
         case "$shim_content" in
             *"exec ${binary} ${FRANKENPHP_PHP_RUNTIME_SUBCMD}"*) ;;
+            *) ready="no" ;;
+        esac
+        case "$shim_content" in
+            *"export PHP_INI_SCAN_DIR=\"${scan_path}\""*) ;;
             *) ready="no" ;;
         esac
     done
@@ -529,6 +542,25 @@ fm_php_version() {
     fm_php_version_of "$(fm_get_binary)"
 }
 
+# Full embedded PHP version (for package/tool metadata that requires the patch
+# component). Keep the major.minor probe above as the static builder contract.
+fm_php_full_version_of() {
+    local binary=""
+    local tmp=""
+
+    binary="$1"
+    if [ -n "$binary" ]; then
+        tmp="$(mktemp "${TMPDIR:-/tmp}/fm_php_full_ver.XXXXXX.php")"
+        printf '<?php echo PHP_VERSION;' > "$tmp"
+        PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)" "$binary" php-cli "$tmp" 2>/dev/null
+        rm -f "$tmp"
+    fi
+}
+
+fm_php_full_version() {
+    fm_php_full_version_of "$(fm_get_binary)"
+}
+
 # Ensure the `php` / `php-cli` command shims route to the embedded PHP
 # (frankenphp plane PHP runtime; file-probe idempotent - a shim already
 # execing this binary stays untouched). /usr/local/bin precedes /usr/bin
@@ -549,6 +581,7 @@ fm_ensure_php_cli_shim() {
     for shim in php php-cli; do
         wanted="#!/usr/bin/env bash
 args=()
+export PHP_INI_SCAN_DIR=\"${FRANKENPHP_PHP_INI_SCAN_PATH}\"
 while [ \"\$#\" -gt 0 ]; do
     case \"\$1\" in
         --)
@@ -608,8 +641,19 @@ fm_runtime_converge() {
     fm_ensure_local_bin_link "$FM_RUNTIME_BINARY"
     fm_ensure_php_cli_shim "$FM_RUNTIME_BINARY"
     fm_php_ini_ensure
+    if [ "$(fm_runtime_contract_ready "$variant")" != "yes" ]; then
+        echo "[$SCRIPT_INDEX] [ERROR] selected FrankenPHP variant '${variant:-unrecorded}' does not satisfy the runtime PHP extension/configuration contract"
+        FM_RUNTIME_BINARY=""
+        return 0
+    fi
     echo "[$SCRIPT_INDEX] runtime converged: ${variant:-unrecorded} -> ${FM_RUNTIME_BINARY}"
     return 0
+}
+
+# Effective PHP ini scan path. The leading empty component preserves the
+# binary's compiled scan directory before applying the project overrides.
+fm_php_ini_scan_path() {
+    echo "$FRANKENPHP_PHP_INI_SCAN_PATH"
 }
 
 # Caddyfile-adjacent PHP ini directory (frankenphp plane config target for
@@ -761,6 +805,7 @@ fm_dnspod_token_value() {
 # Laravel-side writer (ServerManager frankenphp API).
 fm_dnspod_token_put() {
     local token="$1"
+    local stored=""
     if [ -z "$token" ]; then
         echo "[$SCRIPT_INDEX] [ERROR] token value required (format: id,token)"
         return 0
@@ -769,8 +814,13 @@ fm_dnspod_token_put() {
         echo "[$SCRIPT_INDEX] [ERROR] runtime store context required (PHP_BIN, VENDOR_AUTOLOAD)"
         return 0
     fi
-    runtime_config_put "$FRANKENPHP_DNSPOD_TOKEN_KEY" "$token"
-    echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
+    runtime_config_put "$FRANKENPHP_DNSPOD_TOKEN_KEY" "$token" >/dev/null
+    stored="$(runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY" 2>/dev/null)"
+    if [ "$stored" = "$token" ]; then
+        echo "[$SCRIPT_INDEX] DNSPod token stored (DNS-01 engages on the next Caddyfile render)"
+    else
+        echo "[$SCRIPT_INDEX] [ERROR] DNSPod token was not persisted"
+    fi
 }
 
 # Mirror the secret-file token (${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY}) into
@@ -787,8 +837,11 @@ fm_dnspod_token_ensure() {
         && [ -n "$VENDOR_AUTOLOAD" ] && [ -f "$VENDOR_AUTOLOAD" ]; then
         stored="$(runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY" 2>/dev/null || true)"
         if [ -z "$stored" ]; then
-            fm_dnspod_token_put "$file_token" >/dev/null 2>&1 || true
-            echo "[$SCRIPT_INDEX] DNSPod token seeded into the runtime store (from ${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY})"
+            fm_dnspod_token_put "$file_token" >/dev/null 2>&1
+            stored="$(runtime_config_get "$FRANKENPHP_DNSPOD_TOKEN_KEY" 2>/dev/null)"
+            if [ "$stored" = "$file_token" ]; then
+                echo "[$SCRIPT_INDEX] DNSPod token seeded into the runtime store (from ${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY})"
+            fi
         fi
     fi
     return 0
@@ -957,7 +1010,7 @@ fm_embedded_extension_loaded() {
     fi
     probe="$(mktemp)"
     printf '<?php echo extension_loaded(getenv("FM_PROBE_EXTENSION")) ? "yes" : "no";' > "$probe"
-    loaded="$(FM_PROBE_EXTENSION="$extension" "$binary" php-cli "$probe" 2>/dev/null)"
+    loaded="$(PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)" FM_PROBE_EXTENSION="$extension" "$binary" php-cli "$probe" 2>/dev/null)"
     rm -f "$probe"
     if [ "$loaded" = "yes" ]; then
         echo "yes"
@@ -966,17 +1019,31 @@ fm_embedded_extension_loaded() {
     fi
 }
 
+# Shared runtime extension floor for every packaging variant. The application
+# always uses PostgreSQL, while Composer and Octane require the remaining
+# extensions before a variant can own the runtime plane.
+fm_php_runtime_extensions_ready() {
+    local binary=""
+    local extension=""
+    local ready="yes"
+
+    binary="$1"
+    for extension in "${FRANKENPHP_RUNTIME_REQUIRED_PHP_EXTENSIONS[@]}"; do
+        if [ "$(fm_embedded_extension_loaded "$binary" "$extension")" != "yes" ]; then
+            ready="no"
+        fi
+    done
+    echo "$ready"
+}
+
 # Embedded-runtime completeness floor for a compile-variant binary (string
-# contract: yes/no): the dnspod DNS-01 module plus the extensions the
-# operating scripts depend on (phar+simplexml: composer, pcntl: worker
-# control). A binary missing any of them is a rebuild trigger.
+# contract: yes/no): the dnspod DNS-01 module plus the shared runtime
+# extension floor. A binary missing any of them is a rebuild trigger.
 fm_binary_compile_complete() {
     local binary="$1"
 
     if [ "$(fm_module_in_bin "$binary" "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        && [ "$(fm_embedded_extension_loaded "$binary" phar)" = "yes" ] \
-        && [ "$(fm_embedded_extension_loaded "$binary" simplexml)" = "yes" ] \
-        && [ "$(fm_embedded_extension_loaded "$binary" pcntl)" = "yes" ]; then
+        && [ "$(fm_php_runtime_extensions_ready "$binary")" = "yes" ]; then
         echo "yes"
     else
         echo "no"
@@ -1109,6 +1176,7 @@ fm_ensure_dnspod_module() {
 fm_mercure_stanza() {
     local publisher_key=""
     local subscriber_key=""
+    local cookie_name=""
 
     FM_MERCURE_STANZA=""
     if [ "$(type -t runtime_config_get)" != "function" ] \
@@ -1121,16 +1189,21 @@ fm_mercure_stanza() {
     if [ -z "$publisher_key" ] || [ -z "$subscriber_key" ]; then
         return 0
     fi
-    printf -v FM_MERCURE_STANZA '\tmercure {\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t}\n\n' \
-        "$publisher_key" "$subscriber_key"
+    cookie_name="$(sc_require realtime.mercure_cookie)"
+    printf -v FM_MERCURE_STANZA '\tmercure {\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcookie_name %s\n\t}\n\n' \
+        "$publisher_key" "$subscriber_key" "$cookie_name"
 }
 
-# Canonical Caddyfile render (content-hash idempotent). The Mercure keys
+fm_octane_php_server_stanza() {
+    printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_server {\n\t\tindex frankenphp-worker.php\n\t\ttry_files {path} frankenphp-worker.php\n\t\tresolve_root_symlink\n\t}\n'
+}
+
+# Canonical Caddyfile render. The Mercure keys
 # are embedded as literal publisher_jwt/subscriber_jwt values from the
 # store (fm_mercure_stanza); the stanza is omitted when the keys are not
 # available yet.
 # Args: 1 laravel_public_dir 2 site_host 3 https_port 4 admin_port 5 caddyfile_path
-fm_caddyfile_ensure() {
+fm_caddyfile_render() {
     local laravel_public_dir="$1"
     local site_host="$2"
     local https_port="$3"
@@ -1138,7 +1211,6 @@ fm_caddyfile_ensure() {
     local caddyfile_path="$5"
     local caddyfile_dir=""
     local rendered=""
-    local existing=""
     local dnspod_tls=""
     local acme_tls=""
     local acme_cert_dir=""
@@ -1146,12 +1218,9 @@ fm_caddyfile_ensure() {
     local routes_dir=""
     local backend_port=""
     local import_stanza=""
+    local octane_php_server_stanza=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
-    if [ ! -d "$caddyfile_dir" ]; then
-        mkdir -p "$caddyfile_dir"
-    fi
-
     # Prebuilt-cert gate FIRST: the acme.sh DNS-01 certificates on disk are
     # pinned explicitly (the service-start pre-flight provisions them BEFORE
     # the server binds the HTTPS port - acme_sh_preflight_for_service). The
@@ -1194,6 +1263,8 @@ fm_caddyfile_ensure() {
     # printf -v capture keeps the trailing blank line ($( ) strips it).
     fm_mercure_stanza
     mercure_stanza="$FM_MERCURE_STANZA"
+    fm_octane_php_server_stanza
+    octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 
     # Direct HTTP backend block (nginx-plane contract port on all
     # interfaces) + the per-domain route import (same routes dir the domain
@@ -1220,25 +1291,49 @@ import ${routes_dir}/*.caddy"
 	servers {
 		protocols h1 h2 h3
 	}
+
+	frankenphp {
+		worker {
+			file "${laravel_public_dir}/frankenphp-worker.php"
+			{\$CADDY_SERVER_WORKER_DIRECTIVE}
+			{\$CADDY_SERVER_WATCH_DIRECTIVES}
+		}
+	}
 }
 
 https://${site_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${dnspod_tls}${acme_tls}${mercure_stanza}	php_server
-	file_server
-}
+${dnspod_tls}${acme_tls}${mercure_stanza}${octane_php_server_stanza}}
 
 # Direct HTTP backend (nginx-plane contract port, binds all interfaces)
 :${backend_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
-	php_server
-	file_server
-}${import_stanza}"
+${octane_php_server_stanza}}${import_stanza}"
 
-    existing=""
+    FM_CADDYFILE_RENDERED="$rendered"
+}
+
+# Idempotent writer for the canonical render. Every caller uses this one
+# fine-grained content comparison; a matching file never blocks later setup.
+fm_caddyfile_ensure() {
+    local laravel_public_dir="$1"
+    local site_host="$2"
+    local https_port="$3"
+    local admin_port="$4"
+    local caddyfile_path="$5"
+    local caddyfile_dir=""
+    local rendered=""
+    local existing=""
+
+    caddyfile_dir="$(dirname "$caddyfile_path")"
+    if [ ! -d "$caddyfile_dir" ]; then
+        mkdir -p "$caddyfile_dir"
+    fi
+    fm_caddyfile_render "$laravel_public_dir" "$site_host" "$https_port" "$admin_port" "$caddyfile_path"
+    rendered="$FM_CADDYFILE_RENDERED"
     [ -f "$caddyfile_path" ] && existing="$(cat "$caddyfile_path")"
     if [ "$existing" = "$rendered" ]; then
         echo "[$SCRIPT_INDEX] Caddyfile already canonical: $caddyfile_path"
@@ -1413,6 +1508,8 @@ fm_verify() {
     fi
     echo "[$SCRIPT_INDEX] [VERIFY] binary: $binary ($(fm_version))"
     echo "[$SCRIPT_INDEX] [VERIFY] embedded PHP: $(fm_php_version)"
+    echo "[$SCRIPT_INDEX] [VERIFY] PHP ini scan path: $(fm_php_ini_scan_path)"
+    echo "[$SCRIPT_INDEX] [VERIFY] runtime PHP extensions: $(fm_php_runtime_extensions_ready "$binary")"
     variant="$(fm_variant)"
     dns01_mode="$(fm_variant_dns01_mode "$variant")"
     echo "[$SCRIPT_INDEX] [VERIFY] variant: ${variant}"

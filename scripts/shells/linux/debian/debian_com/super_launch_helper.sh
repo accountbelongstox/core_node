@@ -283,7 +283,7 @@ fix_all_super_launch_scripts() {
 
         # Check if corresponding executable exists in super_bin
         if [ ! -f "$super_bin_path" ]; then
-            $log_func "  �?Skipping $script_name (no executable in super_bin)"
+            $log_func "  Skipping $script_name (no executable in super_bin)"
             skipped_count=$((skipped_count + 1))
             continue
         fi
@@ -295,7 +295,7 @@ fix_all_super_launch_scripts() {
         if echo "$script_content" | grep -qE "(^|[[:space:]])${script_name}([[:space:]]|\$)"; then
             # Check if it's already using the full path
             if ! echo "$script_content" | grep -q "$super_bin_path"; then
-                $log_func "  🔧 Fixing $script_name (infinite loop detected)"
+                $log_func "   Fixing $script_name (infinite loop detected)"
 
                 # Replace exec_name with full path
                 local fixed_content=$(echo "$script_content" | sed -E "s#(^|[[:space:]])${script_name}([[:space:]]|\$)#\1${super_bin_path}\2#g")
@@ -308,12 +308,12 @@ EOF
                 $USE_SUDO chmod 755 "$script_file"
 
                 fixed_count=$((fixed_count + 1))
-                $log_func "    �?Fixed: $script_file"
+                $log_func "    Fixed: $script_file"
             else
-                $log_func "  �?$script_name (already fixed)"
+                $log_func "  $script_name (already fixed)"
             fi
         else
-            $log_func "  �?$script_name (no issues detected)"
+            $log_func "  $script_name (no issues detected)"
         fi
     done
 

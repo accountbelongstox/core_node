@@ -73,15 +73,15 @@ log_header() {
 }
 
 log_success() {
-    echo -e "${COLOR_SUCCESS}�?$1${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}$1${COLOR_RESET}"
 }
 
 log_warning() {
-    echo -e "${COLOR_WARNING}�?$1${COLOR_RESET}"
+    echo -e "${COLOR_WARNING}$1${COLOR_RESET}"
 }
 
 log_error() {
-    echo -e "${COLOR_ERROR}�?$1${COLOR_RESET}"
+    echo -e "${COLOR_ERROR}$1${COLOR_RESET}"
 }
 
 log_info() {
@@ -104,9 +104,9 @@ print_service_info() {
 
     # Check if service is running
     if systemctl is-active --quiet "$service_name"; then
-        log_success "✓ Service is running: $service_name"
+        log_success "[OK] Service is running: $service_name"
     else
-        log_error "✗ Service failed to start: $service_name"
+        log_error "[ERROR] Service failed to start: $service_name"
         log_info "Check logs: journalctl -u $service_name -f"
         return 1
     fi
@@ -131,21 +131,21 @@ print_service_info() {
         source "$network_utils"
 
         # Get all IP addresses
-        echo "  📍 Localhost:  http://localhost:$port"
-        echo "  📍 Loopback:   http://127.0.0.1:$port"
+        echo "   Localhost:  http://localhost:$port"
+        echo "   Loopback:   http://127.0.0.1:$port"
 
         # Get all network interfaces
         local all_ips=$(hostname -I 2>/dev/null)
         if [[ -n "$all_ips" ]]; then
             for ip in $all_ips; do
                 if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-                    echo "  📍 Network:    http://$ip:$port"
+                    echo "   Network:    http://$ip:$port"
                 fi
             done
         fi
     else
-        echo "  📍 Local: http://localhost:$port"
-        echo "  📍 Local: http://127.0.0.1:$port"
+        echo "   Local: http://localhost:$port"
+        echo "   Local: http://127.0.0.1:$port"
     fi
 
     # If domains provided (for proxy services)
@@ -154,8 +154,8 @@ print_service_info() {
         log_header "Domain Access (via Nginx Proxy)"
         echo ""
         for domain in $domain_list; do
-            echo "  🌐 https://$domain (if SSL available)"
-            echo "  🌐 http://$domain"
+            echo "   https://$domain (if SSL available)"
+            echo "   http://$domain"
         done
     fi
 
@@ -538,10 +538,10 @@ main() {
                             log_info "Command: $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
                             
                             if $USE_SUDO php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto 2>&1; then
-                                log_success "✓ Nginx proxy configured for: $domain"
+                                log_success "[OK] Nginx proxy configured for: $domain"
                                 ((success_count++))
                             else
-                                log_error "✗ Failed to configure proxy for: $domain"
+                                log_error "[ERROR] Failed to configure proxy for: $domain"
                                 log_info "Manual configuration command:"
                                 log_info "  cd $LARAVEL_MAIN_PATH"
                                 log_info "  $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
@@ -620,13 +620,13 @@ main() {
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "✓ All steps completed successfully"
+                    log_success "[OK] All steps completed successfully"
 
                     # Use unified print function
                     local build_service_name="webapp-$app_name$BUILD_SERVICE_SUFFIX"
                     print_service_info "$build_service_name" "$app_name" "$port" "$domains_string"
                 else
-                    log_warning "⚠ Some steps failed - check above for details"
+                    log_warning "[WARN] Some steps failed - check above for details"
                 fi
 
                 echo ""
@@ -744,10 +744,10 @@ main() {
                             log_info "Command: $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=\"$port\" --ssl=auto"
 
                             if $USE_SUDO php artisan servermanager:website add "$domain" --type=proxy --port="$port" --ssl=auto 2>&1; then
-                                log_success "✓ Nginx proxy configured for: $domain"
+                                log_success "[OK] Nginx proxy configured for: $domain"
                                 ((success_count++))
                             else
-                                log_error "✗ Failed to configure proxy for: $domain"
+                                log_error "[ERROR] Failed to configure proxy for: $domain"
                                 log_info "Manual configuration command:"
                                 log_info "  cd $LARAVEL_MAIN_PATH"
                                 log_info "  $USE_SUDO php artisan servermanager:website add \"$domain\" --type=proxy --port=$port --ssl=auto"
@@ -836,7 +836,7 @@ main() {
 
                 echo ""
                 if [[ $service_created -eq 1 ]] && [[ $proxy_configured -eq 1 ]] && [[ $nginx_reloaded -eq 1 ]]; then
-                    log_success "✓ All steps completed successfully"
+                    log_success "[OK] All steps completed successfully"
 
                     # Determine service name based on framework
                     local service_name=""
@@ -861,7 +861,7 @@ main() {
                     # Use unified print function
                     print_service_info "$service_name" "$app_name" "$port" "$domains_string"
                 else
-                    log_warning "⚠ Some steps failed - please check above for details"
+                    log_warning "[WARN] Some steps failed - please check above for details"
                     log_info "You can retry failed steps manually"
                 fi
 

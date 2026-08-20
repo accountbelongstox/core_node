@@ -249,7 +249,7 @@ install_antigravity() {
     fi
 }
 
-# Function: Update Antigravity (add repo �?upgrade �?remove repo)
+# Function: Update Antigravity (add repo upgrade remove repo)
 update_antigravity() {
     log "Updating $ANTIGRAVITY_PACKAGE..."
     
@@ -390,13 +390,13 @@ scan_and_replace_desktop_entries() {
 
         # Skip if already pointing to the target
         if [[ "$current_exec" == "$target_exec"* ]]; then
-            log "  �?Already correct, skipping"
+            log "  Already correct, skipping"
             continue
         fi
 
         # Skip if pointing to any launcher script (prevent recursion)
         if [[ "$current_exec" == *"/super_scripts/"* ]]; then
-            log "  �?Already using launcher script, skipping"
+            log "  Already using launcher script, skipping"
             continue
         fi
 
@@ -419,9 +419,9 @@ scan_and_replace_desktop_entries() {
                 fi
 
                 files_updated=$((files_updated + 1))
-                log "  �?Updated (with sudo)"
+                log "  Updated (with sudo)"
             else
-                log "  �?Skipped (not writable, no sudo)"
+                log "  Skipped (not writable, no sudo)"
             fi
         else
             # Backup original
@@ -439,7 +439,7 @@ scan_and_replace_desktop_entries() {
             fi
 
             files_updated=$((files_updated + 1))
-            log "  �?Updated"
+            log "  Updated"
         fi
     done
 
@@ -460,27 +460,27 @@ refresh_desktop_database() {
         update-desktop-database ~/.local/share/applications 2>/dev/null || true
         $USE_SUDO update-desktop-database /usr/share/applications 2>/dev/null || true
         $USE_SUDO update-desktop-database /usr/local/share/applications 2>/dev/null || true
-        log "  �?Desktop database updated"
+        log "  Desktop database updated"
     fi
 
     # Update icon cache
     if command -v gtk-update-icon-cache >/dev/null 2>&1; then
         gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
         $USE_SUDO gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
-        log "  �?Icon cache updated"
+        log "  Icon cache updated"
     fi
 
     # Update MIME database
     if command -v update-mime-database >/dev/null 2>&1; then
         update-mime-database ~/.local/share/mime 2>/dev/null || true
         $USE_SUDO update-mime-database /usr/share/mime 2>/dev/null || true
-        log "  �?MIME database updated"
+        log "  MIME database updated"
     fi
 
     # Kill and restart any running panel/dock processes to reload icons
     if pgrep -x gnome-shell >/dev/null 2>&1; then
         # GNOME Shell - no need to restart, it will reload automatically
-        log "  �?GNOME Shell detected (will auto-reload)"
+        log "  GNOME Shell detected (will auto-reload)"
     fi
 
     log "Desktop refresh completed"

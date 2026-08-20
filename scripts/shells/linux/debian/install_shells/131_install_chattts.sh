@@ -1,5 +1,5 @@
 #!/bin/bash
-# ChatTTS prerequisite (Linux) — official PyPI + local OpenAI-compatible api.
+# ChatTTS prerequisite (Linux) - official PyPI + local OpenAI-compatible api.
 # Official: pip install ChatTTS (https://github.com/2noise/ChatTTS#installation)
 # API: chattts_api_server.py -> POST /v1/audio/speech
 #

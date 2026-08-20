@@ -12,7 +12,7 @@
 # ### AI SPECIAL ATTENTION RULES END ###
 
 #==============================================================================
-# Chinese Wubi (五笔) Input Method Installation Script
+# Chinese Wubi (wu bi) Input Method Installation Script
 #==============================================================================
 # Installs a Chinese Wubi input method on Debian-family desktops, idempotently.
 # Targets: Debian 11/12/13, Ubuntu 18.04-26.x, Kali (rolling/latest).

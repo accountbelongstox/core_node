@@ -198,7 +198,7 @@ resolve_port_conflict() {
 }
 
 # Function to check if the PostgreSQL SERVER is already installed.
-# IMPORTANT: psql is the CLIENT (package postgresql-client) — its presence does
+# IMPORTANT: psql is the CLIENT (package postgresql-client) - its presence does
 # NOT mean the server is installed. A client-only box has NO `postgres` OS user,
 # NO cluster tools (pg_createcluster/pg_ctlcluster from postgresql-common) and NO
 # server daemon, so the old `command_exists psql` check wrongly took the "already

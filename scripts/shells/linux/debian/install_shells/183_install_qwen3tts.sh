@@ -1,8 +1,8 @@
 #!/bin/bash
-# Qwen3-TTS prerequisite (Linux) — Alibaba qwen-tts, class C (isolated venv + HTTP server).
+# Qwen3-TTS prerequisite (Linux) - Alibaba qwen-tts, class C (isolated venv + HTTP server).
 #
 # Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7, Bucket B): qwen-tts pins
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7, Bucket B): qwen-tts pins
 # qwen-tts owns transformer dependencies that may conflict with the main interpreter
 # pin (Bucket A: deepseek/qwen25/nllb/bark). So qwen-tts is NEVER installed into the main
 # interpreter. It lives in a DEDICATED per-engine venv built + verified by
@@ -148,8 +148,8 @@ fi
 # Never install qwen-tts into the main interpreter: its transformer dependency set
 # would break the shared 4.46.x stack. The main interpreter only needs the shared torch
 # stack (installed below), which the venv REUSES via --system-site-packages. ensure_venv()
-# is idempotent + self-repairing, so it runs on every sweep — even with the sentinel
-# present — to heal a drifted / half-built venv.
+# is idempotent + self-repairing, so it runs on every sweep - even with the sentinel
+# present - to heal a drifted / half-built venv.
 if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
     tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated qwen-tts venv provisioned (.deps_done)"
     tts_probe_isolated_venv_provisioned "$PYTHON" "qwen3tts"

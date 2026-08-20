@@ -883,12 +883,12 @@ EOF
 # Used by the certificate self-heal layer (cert_selfheal_common.sh) and any
 # scheduled maintenance unit. The unit file is rewritten only when its content
 # changed; daemon-reload runs only on change; the resulting state is verified
-# by direct file detection and published in DSM_UNIT_CHANGED ("yes"/"no") —
+# by direct file detection and published in DSM_UNIT_CHANGED ("yes"/"no") -
 # never inferred from a command exit code.
 # ---------------------------------------------------------------------------
 DSM_UNIT_CHANGED="no"
 
-# dsm_write_unit <unit_file> <content> — write only when changed.
+# dsm_write_unit <unit_file> <content> - write only when changed.
 dsm_write_unit() {
     local unit_file="$1"
     local content="$2"
@@ -905,7 +905,7 @@ dsm_write_unit() {
 }
 
 # Create (or content-update) a Type=oneshot service unit. No Restart policy,
-# no [Install] wanted target — it is activated by its timer or manually.
+# no [Install] wanted target - it is activated by its timer or manually.
 # Usage: create_systemd_oneshot_service <name> <description> <exec_command> [working_dir]
 create_systemd_oneshot_service() {
     local service_name="$1"

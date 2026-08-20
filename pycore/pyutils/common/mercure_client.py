@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Shared Mercure 1.0 SSE subscriber for every pycore realtime lane.
+"""Shared Mercure SSE subscriber for every pycore realtime lane.
 
-Speaks the latest Mercure specification directly (no compatibility mode):
+Speaks the protocol implemented by the Mercure hub embedded in the pinned
+FrankenPHP runtime:
 
-- Subscription = ``GET <hub>?match=<topic>`` with one exact ``match`` query
+- Subscription = ``GET <hub>?topic=<selector>`` with one ``topic`` query
   parameter per topic (repeated), ``Accept: text/event-stream``.
-- Authorization = RFC 9068 access token (``at+jwt``) in the
-  ``Authorization: Bearer`` header for non-browser clients; the hub also
-  closes streams at token ``exp``, so the token provider is re-asked on
+- Authorization = a topic-scoped Mercure JWT in the ``Authorization: Bearer``
+  header for non-browser clients; the hub closes streams at token ``exp``,
+  so the token provider is re-asked on
   every (re)connection and forced on 401/403.
 - Reconciliation = ``Last-Event-ID`` request header on reconnects; the
   initial cursor rides the ``last_event_id`` query parameter.
@@ -62,17 +63,17 @@ class MercureUpdate:
 
 def mercure_subscribe_url(
     hub_url: str,
-    matches: List[str],
+    topics: List[str],
     last_event_id: str = "",
 ) -> str:
-    """Build the 1.0 subscription URL: repeated exact ``match`` parameters.
+    """Build the subscription URL with repeated ``topic`` parameters.
 
     ``last_event_id`` is only honored for the INITIAL cursor (spec query
     parameter); reconnects use the ``Last-Event-ID`` header instead.
     """
-    query: List[Tuple[str, str]] = [("match", str(topic)) for topic in matches if topic]
+    query: List[Tuple[str, str]] = [("topic", str(topic)) for topic in topics if topic]
     if last_event_id:
-        query.append(("last_event_id", str(last_event_id)))
+        query.append(("lastEventID", str(last_event_id)))
     separator = "&" if "?" in hub_url else "?"
     return hub_url + separator + urllib.parse.urlencode(query)
 
@@ -88,7 +89,7 @@ class MercureSubscriber:
     def __init__(
         self,
         hub_url: str,
-        matches: List[str],
+        topics: List[str],
         token_provider: Optional[TokenProvider] = None,
         on_update: Optional[UpdateCallback] = None,
         on_state_change: Optional[StateCallback] = None,
@@ -100,9 +101,9 @@ class MercureSubscriber:
         extra_headers: Optional[Dict[str, str]] = None,
     ) -> None:
         self.hub_url = str(hub_url or "").rstrip("/")
-        self.matches = [str(topic) for topic in matches if topic]
-        if not self.hub_url or not self.matches:
-            raise ValueError("MercureSubscriber requires a hub URL and at least one match topic")
+        self.topics = [str(topic) for topic in topics if topic]
+        if not self.hub_url or not self.topics:
+            raise ValueError("MercureSubscriber requires a hub URL and at least one topic")
         self.token_provider = token_provider
         self.on_update = on_update
         self.on_state_change = on_state_change
@@ -162,7 +163,7 @@ class MercureSubscriber:
     ) -> Tuple[http.client.HTTPConnection, str, Dict[str, str]]:
         token = self._token(force=False)
         redirects_left = self.max_redirects
-        url = mercure_subscribe_url(self.hub_url, self.matches, initial_cursor)
+        url = mercure_subscribe_url(self.hub_url, self.topics, initial_cursor)
         while True:
             parsed = urllib.parse.urlsplit(url)
             connection = self._new_connection(parsed)

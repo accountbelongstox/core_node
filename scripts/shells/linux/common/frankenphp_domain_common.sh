@@ -18,12 +18,12 @@
 #   - idempotent per-domain Caddy route files (one file per domain under
 #     the Caddy config dir, included by the main Caddyfile)
 #   - the canonical Caddyfile (main server block + include directive)
-#   - Caddy-managed DNS-01 ACME certificates (no certbot — Caddy is the
+#   - Caddy-managed DNS-01 ACME certificates (no certbot - Caddy is the
 #     ACME client; the module + token gate is shared with the manager)
 #
 # Every managed domain gets a Caddy route file that reverse-proxies to the
 # Laravel API backend (service contract ports.laravel_api_backend on
-# loopback) — the same contract the nginx plane sites use. Apex and www
+# loopback) - the same contract the nginx plane sites use. Apex and www
 # variants redirect to the canonical api.${prefix}.${domain} host.
 # Content-hash idempotent via the shared write_file_if_changed.
 #
@@ -67,8 +67,8 @@ fm_domain_ensure_routes_dir() {
 }
 
 # Render ONE Caddy route file for a domain. Maps api.${prefix}.${domain}
-# (reverse proxy → backend), ${domain} (apex, 301 → api host), and
-# www.${domain} (301 → api host). The tls stanza is rendered ONLY when
+# (reverse proxy -> backend), ${domain} (apex, 301 -> api host), and
+# www.${domain} (301 -> api host). The tls stanza is rendered ONLY when
 # the dnspod module + token both hold (DNS-01); otherwise Caddy built-in
 # ACME (HTTP-01/TLS-ALPN-01) stays in charge.
 # Usage: fm_domain_render_route <domain> <prefix>
@@ -143,98 +143,14 @@ fm_domain_ensure_route_file() {
     return 0
 }
 
-# Render the canonical main Caddyfile that includes all per-domain route
-# files plus the Mercure hub + php_server. The admin block and global
-# options are shared; per-domain routes are imported via the Caddy
-# `import` directive. Content-hash idempotent.
+# Render the canonical main Caddyfile through the manager-owned renderer.
 fm_domain_render_main_caddyfile() {
     local admin_port="${1:-$(sc_get ports.frankenphp_admin)}"
     local site_host="${2:-$(fm_site_host)}"
     local laravel_public="${3:-${FM_DOMAIN_LARAVEL_DIR}/public}"
-    local dnspod_tls=""
-    local acme_tls=""
-    local acme_cert_dir=""
-    local mercure_stanza=""
-    local backend_port=""
-    local import_stanza=""
 
-    # Prebuilt-cert gate FIRST (acme.sh DNS-01 certificates on disk are
-    # pinned explicitly - the service-start pre-flight provisions them);
-    # the dnspod module stanza is the fallback. A localhost site_host skips
-    # the fallback too (certmagic rejects localhost for public certs - the
-    # site falls back to Caddy's internal CA).
-    acme_cert_dir="$(fm_acme_cert_dir_for_host "$site_host")"
-    if [ -n "$acme_cert_dir" ] \
-        && [ -f "${acme_cert_dir}/fullchain.pem" ] \
-        && [ -f "${acme_cert_dir}/key.pem" ]; then
-        acme_tls="	tls ${acme_cert_dir}/fullchain.pem ${acme_cert_dir}/key.pem
-
-"
-    fi
-
-    # DNS-01 fallback gate for the main server block (wildcard applies to
-    # the primary site_host; per-domain routes carry their own tls stanza).
-    if [ -z "$acme_tls" ] \
-        && [ "$site_host" != "localhost" ] \
-        && [ "$(fm_has_module "$FRANKENPHP_DNSPOD_MODULE")" = "yes" ] \
-        && [ -n "$(fm_dnspod_token_value)" ]; then
-        dnspod_tls="	tls {
-		dns dnspod {env.${FRANKENPHP_DNSPOD_TOKEN_KEY}}
-	}
-
-"
-    fi
-
-    # Mercure stanza: literal HS256 keys from the store (fm_mercure_stanza
-    # in frankenphp_manager.sh); empty (block omitted) when the keys are
-    # not provisioned yet. printf -v capture keeps the trailing blank line
-    # ($( ) strips it).
-    fm_mercure_stanza
-    mercure_stanza="$FM_MERCURE_STANZA"
-
-    # Direct HTTP backend block (nginx-plane contract port on all
-    # interfaces) + the per-domain route import, gated on file presence -
-    # caddy errors on an unmatched import glob. Byte-synced with the
-    # service renderer (fm_caddyfile_ensure).
-    backend_port="$(sc_require ports.laravel_api_backend)"
-    import_stanza=""
-    if compgen -G "${FM_DOMAIN_ROUTES_DIR}/*.caddy" > /dev/null 2>&1; then
-        import_stanza="
-
-# Per-domain route files (managed by fm_domain_ensure_route_file)
-import ${FM_DOMAIN_ROUTES_DIR}/*.caddy"
-    fi
-
-    cat <<EOF
-# ${FM_DOMAIN_MARKER} main Caddyfile
-{
-	admin localhost:${admin_port}
-	auto_https disable_redirects
-
-	# Explicit protocol set (official servers option): h2/h3 negotiate on
-	# the TLS listeners; TLS 1.3 early data (0-RTT) stays enabled by default.
-	servers {
-		protocols h1 h2 h3
-	}
-}
-
-# Primary site host (Mercure hub + php_server for the default app)
-https://${site_host}:${FM_DOMAIN_HTTPS_PORT} {
-	root * ${laravel_public}
-	encode zstd gzip
-
-${dnspod_tls}${acme_tls}${mercure_stanza}	php_server
-	file_server
-}
-
-# Direct HTTP backend (nginx-plane contract port, binds all interfaces)
-:${backend_port} {
-	root * ${laravel_public}
-	encode zstd gzip
-	php_server
-	file_server
-}${import_stanza}
-EOF
+    fm_caddyfile_render "$laravel_public" "$site_host" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
+    printf '%s\n' "$FM_CADDYFILE_RENDERED"
 }
 
 # Ensure the main Caddyfile is canonical (content-hash idempotent).
@@ -242,14 +158,14 @@ fm_domain_ensure_main_caddyfile() {
     local admin_port="${1:-$(sc_get ports.frankenphp_admin)}"
     local site_host="${2:-$(fm_site_host)}"
     local laravel_public="${3:-${FM_DOMAIN_LARAVEL_DIR}/public}"
-    local rendered=""
 
-    fm_domain_ensure_routes_dir || return 1
+    fm_domain_ensure_routes_dir
+    if [ ! -d "$FM_DOMAIN_ROUTES_DIR" ]; then
+        echo "[fm-domain] [FAIL] Main Caddyfile deferred because the routes directory is unavailable"
+        return
+    fi
 
-    rendered="$(fm_domain_render_main_caddyfile "$admin_port" "$site_host" "$laravel_public")"
-    echo "$rendered" | write_file_if_changed "$FM_DOMAIN_CADDYFILE"
-    echo "[fm-domain] [OK] Main Caddyfile: $FM_DOMAIN_CADDYFILE"
-    return 0
+    fm_caddyfile_ensure "$laravel_public" "$site_host" "$FM_DOMAIN_HTTPS_PORT" "$admin_port" "$FM_DOMAIN_CADDYFILE"
 }
 
 # Clean up stale route files for domains that are no longer in the secrets
@@ -285,8 +201,8 @@ fm_domain_cleanup_stale_routes() {
     return 0
 }
 
-# Full idempotent frankenphp domain installation: secrets → prefix →
-# per-domain route files → main Caddyfile → DNS-01 readiness.
+# Full idempotent frankenphp domain installation: secrets -> prefix ->
+# per-domain route files -> main Caddyfile -> DNS-01 readiness.
 # Mirrors domain_setup_install_all but for the Caddy-native plane:
 #   - no nginx (Caddy is the TLS terminator and reverse proxy)
 #   - no certbot (Caddy ACME DNS-01 issues wildcard certificates)

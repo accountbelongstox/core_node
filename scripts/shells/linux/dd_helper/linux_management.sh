@@ -443,7 +443,7 @@ block_and_remove_apache() {
     read
 }
 
-# One-shot: remove ALL desktop/dev bloat at once (the "同时清理" item).
+# One-shot: remove ALL desktop/dev bloat at once (the "tong shi qing li" item).
 server_slim_all() {
     printf "\033c"
     echo "=========================================="

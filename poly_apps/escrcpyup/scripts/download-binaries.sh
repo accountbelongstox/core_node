@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# 星灿传媒 测试版 - Binary Downloader
+# xing canchuan mei ce shi ban - Binary Downloader
 # Auto Download ADB and SCRCPY Binaries
 # ============================================
 # This script automatically downloads the latest ADB and SCRCPY binaries
@@ -351,7 +351,7 @@ install_scrcpy_linux() {
 # Main execution
 echo ""
 echo -e "${CYAN}============================================${NC}"
-echo -e "${CYAN}  星灿传媒 测试版 - Binary Downloader${NC}"
+echo -e "${CYAN}  xing canchuan mei ce shi ban - Binary Downloader${NC}"
 echo -e "${CYAN}  Auto Download ADB and SCRCPY Binaries${NC}"
 echo -e "${CYAN}============================================${NC}"
 echo ""

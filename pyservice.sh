@@ -136,7 +136,7 @@ resolve_python() {
     # Prefer the project venv built by 13_ensure_python.sh ($COMPILE_DIR/python3_venv):
     # venv_python_common.sh calls it "THE project interpreter", and it is created
     # --system-site-packages (a SUPERSET of the system python). The worker AND the
-    # prerequisites must use it — otherwise packages installed INTO the venv (22/96 and the
+    # prerequisites must use it - otherwise packages installed INTO the venv (22/96 and the
     # dd.sh numbered sweep) are invisible to a service running under /usr/bin/python3.
     # Resolve it in an ISOLATED subshell with strict mode OFF so sourcing the heavy
     # gvar/venv libs can never abort this `set -euo` entry point. Fall back to the system
@@ -411,9 +411,9 @@ cd "$SCRIPT_DIR"
 # prepare_pycore_prerequisites.sh runs the numbered installers. Every one is IDEMPOTENT
 # and self-REPAIRING, so this step is safe to re-run on every boot and heals drift: the
 # Bucket-A LLM stack shares ONE pinned transformers (never --upgrade) and Bucket-B engines
-# with incompatible pins (qwen3tts, melotts, gptsovits — each in its own isolated per-engine
+# with incompatible pins (qwen3tts, melotts, gptsovits - each in its own isolated per-engine
 # venv; melotts/gptsovits build opt-in only) never touch the main interpreter. See
-# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7.
+# development-guides/cross-docs/TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7.
 if [[ "$NO_INSTALL" -eq 1 ]]; then
     echo "[i] Skipping all shell prerequisite installers (--no-install)."
 else
@@ -503,7 +503,7 @@ if [[ "$(uname)" == "Linux" ]]; then
             export DISPLAY=":0"
         fi
     fi
-    # XDG_RUNTIME_DIR must be owned by the running uid — GLib and PulseAudio
+    # XDG_RUNTIME_DIR must be owned by the running uid - GLib and PulseAudio
     # check ownership and warn/fail if it doesn't match. When running as root
     # via sudo, XDG_RUNTIME_DIR is often inherited as /run/user/1001 (the
     # desktop user), which root (uid 0) does not own.

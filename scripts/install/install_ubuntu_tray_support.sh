@@ -11,32 +11,32 @@ echo ""
 
 # Check if running on Linux
 if [[ "$OSTYPE" != "linux-gnu"* ]]; then
-    echo "�?This script is for Linux only"
+    echo "This script is for Linux only"
     exit 1
 fi
 
 # Check if running Ubuntu/Debian
 if ! command -v apt-get &> /dev/null; then
-    echo "⚠️  Warning: apt-get not found. This script is designed for Ubuntu/Debian"
+    echo "[WARN]  Warning: apt-get not found. This script is designed for Ubuntu/Debian"
     echo "   You may need to adapt the commands for your distribution"
     exit 1
 fi
 
-echo "📦 Installing system packages..."
+echo " Installing system packages..."
 echo ""
 
 # Update package list
-echo "�?Updating package list..."
+echo "Updating package list..."
 sudo apt-get update
 
 # Install GTK3 and AppIndicator3
 echo ""
-echo "�?Installing python3-gi and AppIndicator3..."
+echo "Installing python3-gi and AppIndicator3..."
 sudo apt-get install -y python3-gi gir1.2-appindicator3-0.1
 
 # Install development libraries (needed for pip install PyGObject)
 echo ""
-echo "�?Installing development libraries..."
+echo "Installing development libraries..."
 sudo apt-get install -y \
     libgirepository1.0-dev \
     libcairo2-dev \
@@ -46,23 +46,23 @@ sudo apt-get install -y \
 # Install GNOME Shell Extension (if GNOME detected)
 echo ""
 if [[ "$XDG_CURRENT_DESKTOP" == *"GNOME"* ]] || [[ "$XDG_CURRENT_DESKTOP" == *"ubuntu"* ]]; then
-    echo "�?GNOME Shell detected"
-    echo "�?Installing GNOME Shell AppIndicator extension..."
+    echo "GNOME Shell detected"
+    echo "Installing GNOME Shell AppIndicator extension..."
     sudo apt-get install -y gnome-shell-extension-appindicator
 
     echo ""
-    echo "�?Enabling AppIndicator extension..."
+    echo "Enabling AppIndicator extension..."
     if command -v gnome-extensions &> /dev/null; then
         gnome-extensions enable appindicatorsupport@rgcjonas.gmail.com 2>/dev/null || true
-        echo "�?Extension enabled"
+        echo "Extension enabled"
     else
-        echo "⚠️  gnome-extensions command not found"
+        echo "[WARN]  gnome-extensions command not found"
         echo "   You may need to enable the extension manually:"
         echo "   1. Open GNOME Extensions app"
         echo "   2. Enable 'AppIndicator and KStatusNotifierItem Support'"
     fi
 else
-    echo "ℹ️  GNOME Shell not detected, skipping extension install"
+    echo "i  GNOME Shell not detected, skipping extension install"
     echo "   Current desktop: $XDG_CURRENT_DESKTOP"
 fi
 
@@ -73,30 +73,30 @@ echo "=============================================="
 echo ""
 
 # Verify installation
-echo "📋 Verification:"
+echo " Verification:"
 echo ""
 
 # Check python3-gi
 if python3 -c "import gi" 2>/dev/null; then
-    echo "�?python3-gi installed"
+    echo "python3-gi installed"
 else
-    echo "�?python3-gi NOT available"
+    echo "python3-gi NOT available"
 fi
 
 # Check AppIndicator3
 if python3 -c "import gi; gi.require_version('AppIndicator3', '0.1'); from gi.repository import AppIndicator3" 2>/dev/null; then
-    echo "�?AppIndicator3 available"
+    echo "AppIndicator3 available"
 else
-    echo "�?AppIndicator3 NOT available"
+    echo "AppIndicator3 NOT available"
 fi
 
 # Check GNOME extension (if GNOME)
 if [[ "$XDG_CURRENT_DESKTOP" == *"GNOME"* ]] || [[ "$XDG_CURRENT_DESKTOP" == *"ubuntu"* ]]; then
     if command -v gnome-extensions &> /dev/null; then
         if gnome-extensions list 2>/dev/null | grep -q "appindicator"; then
-            echo "�?AppIndicator extension installed"
+            echo "AppIndicator extension installed"
         else
-            echo "⚠️  AppIndicator extension NOT found"
+            echo "[WARN]  AppIndicator extension NOT found"
         fi
     fi
 fi
@@ -125,12 +125,12 @@ if [[ "$XDG_SESSION_TYPE" == "x11" ]]; then
     read -p "Restart GNOME Shell now? (X11 only) [y/N] " -n 1 -r
     echo ""
     if [[ $REPLY =~ ^[Yy]$ ]]; then
-        echo "�?Restarting GNOME Shell..."
+        echo "Restarting GNOME Shell..."
         busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'global.reexec_self()'
     fi
 else
-    echo "⚠️  You're using Wayland. Please log out and log back in for changes to take effect"
+    echo "[WARN]  You're using Wayland. Please log out and log back in for changes to take effect"
 fi
 
 echo ""
-echo "�?Done!"
+echo "Done!"

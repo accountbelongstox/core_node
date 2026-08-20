@@ -10,9 +10,9 @@ missing_list=""
 for icon in $icons; do
   total=$((total+1))
   if grep -q "\.ph-$icon:" public/fonts/phosphor/style.css; then
-    echo "✓ $icon"
+    echo "[OK] $icon"
   else
-    echo "✗ $icon MISSING"
+    echo "[ERROR] $icon MISSING"
     missing=$((missing+1))
     missing_list="$missing_list $icon"
   fi

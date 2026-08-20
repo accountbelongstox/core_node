@@ -1,5 +1,5 @@
 #!/bin/bash
-# desktop_electron_ime_compat.sh — shared IME bridge for Electron/GTK apps
+# desktop_electron_ime_compat.sh - shared IME bridge for Electron/GTK apps
 # (Cursor, VS Code, Chrome, etc.) on Debian/Ubuntu/Kali.
 #
 # Problem: Chromium/Electron apps often ignore system IME unless GTK_IM_MODULE and

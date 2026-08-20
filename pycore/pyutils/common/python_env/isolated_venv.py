@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ _PIP_TO_IMPORT = {
     "faster-whisper": "faster_whisper",
     "gpt-sovits": "GPT_SoVITS",
     "qwen-tts": "qwen_tts",
+    "flash-attn": "flash_attn",
 }
 
 
@@ -623,18 +625,136 @@ def _repair_broken_distributions(
     )
 
 
+def _packages_importable(
+    venv_python: str,
+    package_names: Sequence[str],
+) -> bool:
+    modules = [
+        module
+        for module in (_pip_to_import(package) for package in package_names)
+        if module
+    ]
+    if not modules:
+        return True
+    result = subprocess.run(
+        [venv_python, "-c", "import " + ", ".join(modules)],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def _torch_cuda_profile(venv_python: str) -> tuple[Optional[int], Optional[int]]:
+    code = (
+        "import torch\n"
+        "cuda = torch.version.cuda or ''\n"
+        "capability = torch.cuda.get_device_capability()[0] "
+        "if torch.cuda.is_available() else ''\n"
+        "print(f'{cuda}|{capability}')\n"
+    )
+    result = subprocess.run(
+        [venv_python, "-c", code],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if result.returncode != 0:
+        return None, None
+    cuda_text, _, capability_text = result.stdout.strip().partition("|")
+    cuda_major = int(cuda_text.split(".", 1)[0]) if cuda_text else None
+    compute_major = int(capability_text) if capability_text else None
+    return cuda_major, compute_major
+
+
+def _nvcc_cuda_major() -> Optional[int]:
+    cuda_root = (os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH") or "").strip()
+    nvcc_name = "nvcc.exe" if sys.platform == "win32" else "nvcc"
+    nvcc_path = Path(cuda_root) / "bin" / nvcc_name if cuda_root else None
+    if nvcc_path is None or not nvcc_path.is_file():
+        resolved = shutil.which("nvcc")
+        nvcc_path = Path(resolved) if resolved else None
+    if nvcc_path is None:
+        return None
+    result = subprocess.run(
+        [str(nvcc_path), "--version"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    match = re.search(r"release\s+(\d+)", result.stdout or result.stderr)
+    return int(match.group(1)) if match else None
+
+
+def _accelerator_supported(venv_python: str, spec: dict) -> bool:
+    platforms = tuple(spec.get("accelerator_platforms", ()))
+    if platforms and sys.platform not in platforms:
+        return False
+    torch_cuda_major, compute_major = _torch_cuda_profile(venv_python)
+    cuda_min_major = int(spec.get("accelerator_cuda_min_major", 0))
+    compute_min_major = int(spec.get("accelerator_compute_min_major", 0))
+    nvcc_cuda_major = _nvcc_cuda_major()
+    if torch_cuda_major is None or compute_major is None or nvcc_cuda_major is None:
+        return False
+    return (
+        torch_cuda_major >= cuda_min_major
+        and compute_major >= compute_min_major
+        and nvcc_cuda_major == torch_cuda_major
+    )
+
+
+def _install_accelerators(
+    venv_python: str,
+    spec: dict,
+) -> None:
+    packages = tuple(spec.get("accelerator_packages", ()))
+    if not packages or _packages_importable(venv_python, packages):
+        return
+    if not _accelerator_supported(venv_python, spec):
+        ColorPrint.yellow(
+            "[isolated-venv] optional accelerator skipped: compatible CUDA "
+            "toolkit, torch build, and GPU architecture are required"
+        )
+        return
+    build_packages = tuple(spec.get("accelerator_build_packages", ()))
+    if build_packages and not _run(
+        [venv_python, "-m", "pip", "install", *build_packages]
+    ):
+        ColorPrint.yellow(
+            "[isolated-venv] optional accelerator build tools are unavailable"
+        )
+        return
+    pip_args = tuple(spec.get("accelerator_pip_args", ()))
+    ColorPrint.blue(
+        "[isolated-venv] installing optional accelerator: "
+        + ", ".join(packages)
+    )
+    if not _run(
+        [venv_python, "-m", "pip", "install", *pip_args, *packages]
+    ) or not _packages_importable(venv_python, packages):
+        ColorPrint.yellow(
+            "[isolated-venv] optional accelerator unavailable; using PyTorch attention"
+        )
+
+
 def _install_into(
     engine: str,
     venv_python: str,
     pip_packages: Sequence[str],
     pins: Sequence[str],
     health_imports: str,
-    force: bool,
+    install_required: bool,
     shared_packages: Sequence[str],
     managed_venv: bool,
 ) -> bool:
     constraint_path: Optional[Path] = None
-    if not force and _venv_healthy(engine, venv_python, health_imports):
+    if not install_required and _venv_healthy(engine, venv_python, health_imports):
         return True
     repair_candidates = list(pip_packages)
     if engine == "qwen3tts":
@@ -731,11 +851,12 @@ def ensure_venv(
             packages,
             resolved_pins,
             probe,
-            force,
-            shared_packages,
+            install_required=force,
+            shared_packages=shared_packages,
             managed_venv=False,
         ):
             return None
+        _install_accelerators(override, spec)
         return override
 
     if not _compatible(engine, sys.executable):
@@ -761,7 +882,8 @@ def ensure_venv(
         )
         return None
 
-    needs_repair = force or created or not _stamp_matches(engine) or not _venv_healthy(engine, str(python_path), probe)
+    policy_changed = not _stamp_matches(engine)
+    needs_repair = force or created or policy_changed or not _venv_healthy(engine, str(python_path), probe)
     if needs_repair:
         if not _install_into(
             engine,
@@ -769,13 +891,15 @@ def ensure_venv(
             packages,
             resolved_pins,
             probe,
-            force=force,
+            install_required=force or created or policy_changed,
             shared_packages=shared_packages,
             managed_venv=True,
         ):
             return None
         _write_base_identity(engine)
         _write_stamp(engine)
+
+    _install_accelerators(str(python_path), spec)
 
     result = str(python_path)
     ColorPrint.green(f"[isolated-venv] ready ({engine}): {result}")

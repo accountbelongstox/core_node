@@ -202,7 +202,7 @@ list_laravel_backups() {
     print_info_from_common_functions "Found ${#backups[@]} backup(s):"
     echo ""
     printf "%-4s %-30s %-12s %-20s\n" "No." "Filename" "Size" "Modified"
-    echo "────────────────────────────────────────────────────────────────────────────"
+    echo "----------------------------------------------------------------------------"
     
     local index=1
     for backup in "${backups[@]}"; do

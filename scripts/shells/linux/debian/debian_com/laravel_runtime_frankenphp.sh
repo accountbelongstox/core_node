@@ -32,7 +32,7 @@ LINUX_COMMON_DIR="$(dirname "$LARAVEL_SERVICE_COMMON_DIR")/common"
 PHP_BIN="${PHP_BIN:-php}"
 LARAVEL_DIR="${LARAVEL_DIR:-}"
 WORKERS="${WORKERS:-4}"
-TASK_WORKERS="${TASK_WORKERS:-2}"
+MAX_REQUESTS="${MAX_REQUESTS:-500}"
 OCTANE_WATCH="${OCTANE_WATCH:-0}"
 OCTANE_POLL="${OCTANE_POLL:-0}"
 VENDOR_AUTOLOAD="${LARAVEL_DIR}/vendor/autoload.php"
@@ -75,14 +75,15 @@ FRANKENPHP_ACME_RELOAD_CMD="curl -fsS -m 5 -X POST -H 'Content-Type: text/caddyf
 # always present at render time. The trusted issuer self-bootstraps from
 # the site host when absent (single source: the store, mirrored back on
 # derivation) for the app-side token signer.
-if ! runtime_config_ensure_mercure_keys; then
+runtime_config_ensure_mercure_keys
+if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
     echo "[laravel-runtime-frankenphp] [ERROR] Mercure key provisioning failed (RelayHubKeyProvisioner); check the PHP runtime"
     exit 1
 fi
 MERCURE_TRUSTED_ISSUERS="$(runtime_config_get "MERCURE_TRUSTED_ISSUERS")"
 if [ -z "$MERCURE_TRUSTED_ISSUERS" ]; then
     MERCURE_TRUSTED_ISSUERS="https://${FRANKENPHP_SITE_HOST}"
-    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS"
+    runtime_config_put "MERCURE_TRUSTED_ISSUERS" "$MERCURE_TRUSTED_ISSUERS" >/dev/null
 fi
 DNSPOD_TOKEN="$(runtime_config_get "DNSPOD_TOKEN")"
 
@@ -135,18 +136,19 @@ if [ "$FM_DNS01_MODE" = "$FRANKENPHP_DNS01_MODE_EMBEDDED" ] && [ -n "$DNSPOD_TOK
 fi
 # Embedded PHP ini scan dir (96_configure_php85.sh frankenphp plane target):
 # the Caddyfile-adjacent overrides load through PHP's own scan-dir rule.
-export PHP_INI_SCAN_DIR="$(fm_php_ini_dir)"
+export PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)"
 
 cd "$LARAVEL_DIR" || exit 1
 
 OCTANE_ARGS=(
-    artisan octane:start
-    "--server=frankenphp"
+    artisan octane:frankenphp
+    "--host=0.0.0.0"
+    "--port=${FRANKENPHP_HTTPS_PORT}"
     "--https"
     "--caddyfile=${FRANKENPHP_CADDYFILE}"
     "--admin-port=${FRANKENPHP_ADMIN_PORT}"
     "--workers=${WORKERS}"
-    "--task-workers=${TASK_WORKERS}"
+    "--max-requests=${MAX_REQUESTS}"
 )
 
 if [ "$OCTANE_WATCH" = "1" ]; then

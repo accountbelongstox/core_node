@@ -328,7 +328,7 @@ domain_setup_print_certificate_summary() {
 # "proxy" (api.*: direct proxy, plain HTTP reaches the backend even while
 # 443 is blocked). Content-hash idempotent: a site whose file differs from
 # the canonical render is rewritten (site repair). Certificate state never
-# changes the vhost shape — see the placeholder note inside.
+# changes the vhost shape - see the placeholder note inside.
 domain_setup_ensure_proxy_site() {
     local fqdn="$1"
     local cert_domain="$2"

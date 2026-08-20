@@ -1,5 +1,5 @@
 #!/bin/bash
-# Parler-TTS prerequisite (Linux) — Hugging Face parler-tts.
+# Parler-TTS prerequisite (Linux) - Hugging Face parler-tts.
 # Category 1: Python 3.13 native with the shared torch distribution.
 #
 # Official: pip install git+https://github.com/huggingface/parler-tts.git

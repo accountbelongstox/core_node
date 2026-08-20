@@ -1103,7 +1103,7 @@ ensure_cursor_agent_installed() {
 
     print_info_from_common_functions "Installing Cursor Agent for user: $agent_user ($agent_home)"
 
-    # Official install: https://cursor.com/cli — run as target user when we are root so agent goes to ~/.local/bin
+    # Official install: https://cursor.com/cli - run as target user when we are root so agent goes to ~/.local/bin
     local install_ok=0
     if [[ "$(id -u)" -eq 0 ]] && [[ "$agent_user" != "root" ]]; then
         if $USE_SUDO -u "$agent_user" env HOME="$agent_home" bash -c 'curl -fsS https://cursor.com/install | bash'; then
@@ -1194,7 +1194,7 @@ refresh_cursor_config() {
 install_cursor() {
     print_header_from_common_functions "Installing Cursor IDE"
 
-    # Ensure Cursor Agent (CLI) every run — idempotent; required for both desktop and headless Linux.
+    # Ensure Cursor Agent (CLI) every run - idempotent; required for both desktop and headless Linux.
     print_step_from_common_functions "Ensuring Cursor Agent (CLI) is installed..."
     local agent_path=$(ensure_cursor_agent_installed)
     if [[ -n "$agent_path" ]]; then
@@ -1375,7 +1375,7 @@ install_cursor() {
     if [[ "$file_extension" == "deb" ]]; then
         print_info_from_common_functions "Detected .deb package, using dpkg installation..."
 
-        # Install .deb; on a CORRUPT download, restart the script to re-fetch — BOUNDED by
+        # Install .deb; on a CORRUPT download, restart the script to re-fetch - BOUNDED by
         # the exported CURSOR_RESTART_COUNT (survives the exec; a local counter would reset
         # to 0 on every exec and loop forever).
         local install_result
@@ -1407,7 +1407,7 @@ install_cursor() {
         local extract_result=$?
 
         if [[ $extract_result -eq 2 ]]; then
-            # File corruption detected. Restart to re-fetch — BOUNDED by the exported
+            # File corruption detected. Restart to re-fetch - BOUNDED by the exported
             # CURSOR_RESTART_COUNT so a persistently-bad download can't loop forever.
             print_error_from_common_functions "File corruption detected: $cursor_file"
             if [[ "$CURSOR_RESTART_COUNT" -ge "$CURSOR_MAX_RESTARTS" ]]; then

@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Providers\PathMapper;
+use App\Utils\FileSystemManager;
 use RuntimeException;
 
 /**
@@ -23,9 +25,6 @@ final class WebServerPlane
     public const FRANKENPHP = 'frankenphp';
     public const NGINX = 'nginx';
 
-    /** Global-var store root (mirrors gvar_common.sh CORE_NODE_DATA_DIR). */
-    private const GVAR_DIR = '/var/_core_node/global_var';
-
     /** Allowed planes (mirrors set_web_server_plane's case arms). */
     public const PLANES = [self::FRANKENPHP, self::NGINX];
 
@@ -36,9 +35,10 @@ final class WebServerPlane
      */
     public static function current(): string
     {
-        $file = self::GVAR_DIR . DIRECTORY_SEPARATOR . 'WEB_SERVER_PLANE';
-        if (is_file($file) && is_readable($file)) {
-            $value = trim((string) strtok((string) @file_get_contents($file), "\r\n"));
+        $file = self::globalVarDirectory().DIRECTORY_SEPARATOR.'WEB_SERVER_PLANE';
+        $content = FileSystemManager::readFile($file, false);
+        if (is_string($content)) {
+            $value = trim((string) strtok($content, "\r\n"));
             if (in_array($value, self::PLANES, true)) {
                 return $value;
             }
@@ -68,12 +68,25 @@ final class WebServerPlane
             throw new RuntimeException('Plane must be frankenphp or nginx');
         }
 
-        $dir = self::GVAR_DIR;
-        if (!is_dir($dir) && !@mkdir($dir, 0777, true) && !is_dir($dir)) {
+        $dir = self::globalVarDirectory();
+        if (!FileSystemManager::ensureDirectoryExists($dir)) {
             return false;
         }
 
-        return @file_put_contents($dir . DIRECTORY_SEPARATOR . 'WEB_SERVER_PLANE', $plane . "\n") !== false;
+        return FileSystemManager::writeFile(
+            $dir.DIRECTORY_SEPARATOR.'WEB_SERVER_PLANE',
+            $plane."\n"
+        );
+    }
+
+    private static function globalVarDirectory(): string
+    {
+        $root = PathMapper::isWindows()
+            ? PathMapper::mapWebPath('www', ServiceContract::string('paths.core_node_data_dir_windows_subpath'))
+            : ServiceContract::string('paths.core_node_data_dir_posix');
+
+        return $root
+            .DIRECTORY_SEPARATOR.ServiceContract::string('paths.global_var_dir_name');
     }
 
     private function __construct()

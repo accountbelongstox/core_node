@@ -37,7 +37,7 @@
 #
 #   2. REPO BASE URL (deployment stage only)
 #      Global = GitHub, China (Cn) = Gitee. Choice is saved to cache (e.g. ~/.core_node/SELECTED_REGION).
-#      Next run: prompt "Modify region? (N/y)" — N or Enter = use cached; y = show region menu and update cache.
+#      Next run: prompt "Modify region? (N/y)" - N or Enter = use cached; y = show region menu and update cache.
 #
 #   3. DOWNLOAD REQUIRED PROJECT LIBRARIES (first priority)
 #      Download to launcher root subpaths (same layout as repo). Required libs:

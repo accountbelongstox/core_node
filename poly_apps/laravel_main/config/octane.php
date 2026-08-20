@@ -1,6 +1,7 @@
 <?php
 
 use App\Providers\PathMapper;
+use App\Support\WebServerPlane;
 use Laravel\Octane\Contracts\OperationTerminated;
 use Laravel\Octane\Events\RequestHandled;
 use Laravel\Octane\Events\RequestReceived;
@@ -23,6 +24,9 @@ use Laravel\Octane\Octane;
 
 $octaneStateFile = PathMapper::mapWebPath('logs', 'octane-server-state.json');
 $swooleLogFile = PathMapper::mapWebPath('logs', 'swoole_http.log');
+$webServerPlane = WebServerPlane::current();
+$octaneServer = $webServerPlane === WebServerPlane::FRANKENPHP ? 'frankenphp' : 'swoole';
+$octaneHttps = $webServerPlane === WebServerPlane::FRANKENPHP;
 
 return [
 
@@ -39,7 +43,7 @@ return [
     |
     */
 
-    'server' => 'swoole',
+    'server' => $octaneServer,
 
     /*
     |--------------------------------------------------------------------------
@@ -52,7 +56,7 @@ return [
     |
     */
 
-    'https' => false,
+    'https' => $octaneHttps,
 
     /*
     |--------------------------------------------------------------------------

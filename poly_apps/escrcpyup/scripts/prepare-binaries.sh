@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# 星灿传媒 测试版 - Binary Files Manager
+# xing canchuan mei ce shi ban - Binary Files Manager
 # ============================================
 # This script manages binary files backup and restoration
 

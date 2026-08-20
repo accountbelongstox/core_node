@@ -91,10 +91,9 @@
   },
   "relay": {
     "hub": {
-      "protocol": "mercure-1.0",
+      "protocol": "mercure",
       "path": "/.well-known/mercure",
-      "token_ttl_seconds": 600,
-      "cookie": "__Secure-mercure_access_token"
+      "token_ttl_seconds": 600
     },
     "topics": {
       "machines": "pycore.machines",

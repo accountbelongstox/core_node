@@ -4,8 +4,10 @@ namespace App\Apps\ServerManagerV1\ServerManagerV1Utils;
 
 use App\Services\Relay\RelayHubKeyProvisioner;
 use App\Services\Relay\RelayHubJwt;
+use App\Providers\PathMapper;
 use App\Support\RuntimeConfigurationStore;
 use App\Support\ServiceContract;
+use App\Utils\FileSystemManager;
 
 /**
  * Single source of truth for the frankenphp-plane Caddyfile generation (one
@@ -39,18 +41,13 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
     private const BINARY_CANDIDATES = ['/usr/local/bin/frankenphp', '/usr/bin/frankenphp'];
 
     /**
-     * Prebuilt acme.sh certificate root (mirrors FRANKENPHP_ACME_CERT_DIR
-     * in frankenphp_static_builder.sh - the single shell-side source).
-     */
-    private const ACME_CERT_DIR = '/www/programing/frankenphp/certs';
-
-    /**
      * The contract Caddyfile path (mirrors
      * laravel_runtime_frankenphp.sh FRANKENPHP_CADDYFILE).
      */
     public static function caddyfilePath(): string
     {
-        return storage_path('frankenphp/Caddyfile');
+        return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'storage'
+            .DIRECTORY_SEPARATOR.'frankenphp'.DIRECTORY_SEPARATOR.'Caddyfile';
     }
 
     /**
@@ -78,7 +75,9 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         // them BEFORE the server binds the HTTPS port). Mirrors the shell
         // end's fm_caddyfile_ensure gate byte-identically.
         $certDir = self::acmeCertDirForHost($host);
-        $acmeTls = ($certDir !== '' && is_file($certDir.'/fullchain.pem') && is_file($certDir.'/key.pem'))
+        $acmeTls = ($certDir !== ''
+            && FileSystemManager::isFile($certDir.'/fullchain.pem')
+            && FileSystemManager::isFile($certDir.'/key.pem'))
             ? "\ttls {$certDir}/fullchain.pem {$certDir}/key.pem\n\n"
             : '';
 
@@ -97,8 +96,8 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
 
         // Per-domain route import, gated on file presence (caddy errors on
         // an unmatched import glob). Mirrors the shell end.
-        $routesDir = storage_path('frankenphp/routes');
-        $importStanza = glob($routesDir.'/*.caddy') === []
+        $routesDir = dirname(self::caddyfilePath()).DIRECTORY_SEPARATOR.'routes';
+        $importStanza = !self::hasRouteFiles($routesDir)
             ? ''
             : "\n# Per-domain route files (managed by fm_domain_ensure_route_file)\nimport {$routesDir}/*.caddy\n";
 
@@ -112,6 +111,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tservers {\n"
             . "\t\tprotocols h1 h2 h3\n"
             . "\t}\n"
+            . "\n"
+            . "\tfrankenphp {\n"
+            . "\t\tworker {\n"
+            . "\t\t\tfile \"{$publicDir}/frankenphp-worker.php\"\n"
+            . "\t\t\t{\$CADDY_SERVER_WORKER_DIRECTIVE}\n"
+            . "\t\t\t{\$CADDY_SERVER_WATCH_DIRECTIVES}\n"
+            . "\t\t}\n"
+            . "\t}\n"
             . "}\n"
             . "\n"
             . "https://{$host}:{$https} {\n"
@@ -121,16 +128,14 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . $dnspodTls
             . $acmeTls
             . $mercureStanza
-            . "\tphp_server\n"
-            . "\tfile_server\n"
+            . self::octanePhpServerStanza()
             . "}\n"
             . "\n"
             . "# Direct HTTP backend (nginx-plane contract port, binds all interfaces)\n"
             . ":{$backend} {\n"
             . "\troot * {$publicDir}\n"
             . "\tencode zstd gzip\n"
-            . "\tphp_server\n"
-            . "\tfile_server\n"
+            . self::octanePhpServerStanza()
             . "}\n"
             . $importStanza;
     }
@@ -154,6 +159,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         return "\tmercure {\n"
             . "\t\tpublisher_jwt {$publisherKey} HS256\n"
             . "\t\tsubscriber_jwt {$subscriberKey} HS256\n"
+            . "\t\tcookie_name ".ServiceContract::string('realtime.mercure_cookie')."\n"
             . "\t}\n"
             . "\n";
     }
@@ -172,21 +178,20 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $rendered = self::render();
 
         $dir = dirname($path);
-        if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        if (!FileSystemManager::ensureDirectoryExists($dir)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
                 'error' => "unable to create {$dir}"];
         }
 
-        if (is_file($path) && is_readable($path)
-            && rtrim((string) @file_get_contents($path)) === rtrim($rendered)) {
+        $existing = FileSystemManager::readFile($path, false);
+        if (is_string($existing) && rtrim($existing) === rtrim($rendered)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => true];
         }
 
-        if (@file_put_contents($path, $rendered) === false) {
+        if (!FileSystemManager::writePrivateFile($path, $rendered)) {
             return ['path' => $path, 'rendered' => false, 'canonical' => false,
                 'error' => "unable to write {$path}"];
         }
-        @chmod($path, 0600);
 
         return ['path' => $path, 'rendered' => true, 'canonical' => true];
     }
@@ -355,7 +360,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             return '';
         }
 
-        return self::ACME_CERT_DIR.'/'.$apex;
+        return PathMapper::mapWebPath('compile_dir', 'frankenphp/certs/'.$apex);
     }
 
     /**
@@ -364,6 +369,32 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
      */
     private static function defaultPublicDir(): string
     {
-        return base_path('public');
+        return PathMapper::getLaravelMainDir().DIRECTORY_SEPARATOR.'public';
+    }
+
+    private static function octanePhpServerStanza(): string
+    {
+        return "\tphp_server {\n"
+            . "\t\tindex frankenphp-worker.php\n"
+            . "\t\ttry_files {path} frankenphp-worker.php\n"
+            . "\t\tresolve_root_symlink\n"
+            . "\t}\n";
+    }
+
+    private static function hasRouteFiles(string $routesDir): bool
+    {
+        $entries = FileSystemManager::scandir($routesDir);
+        if (!is_array($entries)) {
+            return false;
+        }
+
+        foreach ($entries as $entry) {
+            if (str_ends_with($entry, '.caddy')
+                && FileSystemManager::isFile($routesDir.DIRECTORY_SEPARATOR.$entry)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

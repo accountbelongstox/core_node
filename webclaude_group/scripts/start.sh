@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 # WebClaude Group - Unified Debug Launcher (Linux/macOS)
 #
 # All configuration, env parsing, and checks are handled by Python
@@ -13,7 +13,7 @@
 #
 # Data dir: WEBCLAUDE_DATA_DIR (default: webclaude_group/.data). Role cache: deploy_role.json
 # Non-interactive: WEBCLAUDE_NON_INTERACTIVE=1
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 
 SKIP_CHECKS=false 
 BUILD_ONLY=false
@@ -50,7 +50,7 @@ for arg in "$@"; do
     esac
 done
 
-# ── Colors (only used for service start messages) ───────────
+# -- Colors (only used for service start messages) -----------
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
 CYAN='\033[0;36m'; GRAY='\033[0;37m'; MAGENTA='\033[0;35m'; NC='\033[0m'
 ok()     { echo -e "  ${GREEN}[OK]${NC}   $1"; }
@@ -63,10 +63,10 @@ header() { echo -e "\n${CYAN}=== $1 ===${NC}"; }
 source "$SCRIPT_DIR/lib/webclaude_resolve_core_node.sh"
 CORE_NODE="$(webclaude_print_resolved_core_node "$GROUP_ROOT" "$GROUP_ROOT" 2>/dev/null)"
 if [ -z "$CORE_NODE" ]; then
-    warn "core_node root not found — set WEBCLAUDE_CORE_NODE or clone core_node beside webclaude_group (Redis install / claude_host need it)."
+    warn "core_node root not found - set WEBCLAUDE_CORE_NODE or clone core_node beside webclaude_group (Redis install / claude_host need it)."
 fi
 
-# ── Find Python ─────────────────────────────────────────────
+# -- Find Python ---------------------------------------------
 for cmd in python3 python; do
     command -v "$cmd" >/dev/null 2>&1 && PY="$cmd" && break
 done
@@ -77,9 +77,9 @@ if [ -z "$PY" ]; then
     SKIP_CHECKS=true
 fi
 
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 # Deploy role (data dir + cache). Emits SERVICES, WEBCLAUDE_DATA_DIR, WEBCLAUDE_LOG_DIR
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 
 chmod +x "$DEPLOY_ROLE_PY" 2>/dev/null || true
 DATA_DIR_DEFAULT="${WEBCLAUDE_DATA_DIR:-$GROUP_ROOT/.data}"
@@ -113,14 +113,14 @@ echo -e "  ${MAGENTA}Data: ${WEBCLAUDE_DATA_DIR}${NC}"
 echo -e "  ${MAGENTA}Services: ${SERVICES}${NC}"
 echo ""
 
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 # PHASE 0 + 1: Python handles EVERYTHING
 #   - init .env files (merge missing keys, force sqlite if no MySQL)
 #   - init config files, data dirs, script permissions
 #   - check Node.js, Go, Python, pnpm, nodemon, air, watchdog
 #   - check database (sqlite/mysql) and redis
 #   - output KEY=VALUE lines to stdout (sourced via temp file, not eval)
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 
 chmod +x "$SCRIPT_DIR/pytools/"*.py 2>/dev/null || true
 
@@ -146,7 +146,7 @@ if [ "${PREFLIGHT_OK:-1}" = "0" ]; then
     BUILD_ONLY=true
 fi
 
-# ── Auto-install Redis if not running (uses core_node install scripts) ──
+# -- Auto-install Redis if not running (uses core_node install scripts) --
 REDIS_INSTALL_SCRIPT="$CORE_NODE/scripts/shells/linux/debian/install_shells/73_install_redis.sh"
 if [ -f "$REDIS_INSTALL_SCRIPT" ]; then
     REDIS_PORT="${REDIS_PORT:-6379}"
@@ -202,9 +202,9 @@ s.close()
     fi
 fi
 
-# ═══════════════════════════════════════════════════════════════
-# PHASE 2: Build / Install (shell handles — simple commands)
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
+# PHASE 2: Build / Install (shell handles - simple commands)
+# ---------------------------------------------------------------
 
 header "Phase 2: Build & Install"
 
@@ -260,13 +260,13 @@ if [ "$BUILD_ONLY" = true ]; then
     echo ""
 else
 
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 # PHASE 3: Start Services
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------
 
 header "Phase 3: Starting Services"
 
-# ── Kill old processes on our ports ─────────────────────
+# -- Kill old processes on our ports ---------------------
 CENTER_P="${CENTER_PORT:-18100}"
 GATEWAY_P="${GATEWAY_PORT:-18200}"
 WEBSITE_P="18300"
@@ -320,7 +320,7 @@ WEBCLAUDE_SKIP_SERVICE_PROMPT=1
 
 # shellcheck source=/dev/null
 source "$_HINT_LIB"
-header "Nohup (background) and hot reload — per service"
+header "Nohup (background) and hot reload - per service"
 has_service center && webclaude_print_nohup_and_hot_reload "$(_wc_abs_start_sh "$CENTER_SH")" "$LOG_DIR/center.nohup.log" \
     "cd $(printf %q "$GROUP_ROOT/webclaude_center_server") && npm run dev  # nodemon hot reload" \
     "Center Server" "--skip-deps --no-build" "1"
@@ -337,7 +337,7 @@ if has_service host && [[ -f "$HOST_SH" ]]; then
         "$_wc_host_hot" "Claude Host" "--dev" "1"
 fi
 
-# ── Print all sub-script commands for manual debugging ──
+# -- Print all sub-script commands for manual debugging --
 echo ""
 echo -e "  ${GRAY}Sub-scripts (copy to debug individually):${NC}"
 echo ""
@@ -347,7 +347,7 @@ has_service website && echo -e "  ${CYAN}[website]${NC}  chmod +x $WEBSITE_SH &&
 has_service host    && echo -e "  ${CYAN}[host]${NC}     chmod +x $HOST_SH && $HOST_SH"
 echo ""
 
-# ── 1. Center Server ────────────────────────────────────
+# -- 1. Center Server ------------------------------------
 if has_service center; then
     if [ -f "$CENTER_SH" ]; then
         bash "$CENTER_SH" --skip-deps --no-build > "$LOG_DIR/center.log" 2>&1 &
@@ -382,7 +382,7 @@ for i in range(30):
     ok "Center Server ready on port $CENTER_P"
 fi
 
-# ── 2. Go Gateway ───────────────────────────────────────
+# -- 2. Go Gateway ---------------------------------------
 if has_service gateway; then
     if [ -f "$GATEWAY_SH" ]; then
         bash "$GATEWAY_SH" --skip-deps --no-build > "$LOG_DIR/gateway.log" 2>&1 &
@@ -396,7 +396,7 @@ if has_service gateway; then
     ok "Started: Go Gateway (PID $!) on port $GATEWAY_P"
 fi
 
-# ── 3. Website ──────────────────────────────────────────
+# -- 3. Website ------------------------------------------
 if has_service website; then
     if [ -f "$WEBSITE_SH" ]; then
         bash "$WEBSITE_SH" --skip-deps > "$LOG_DIR/website.log" 2>&1 &
@@ -410,7 +410,7 @@ if has_service website; then
     ok "Started: Website (PID $!) on port $WEBSITE_P"
 fi
 
-# ── 4. Claude Host ──────────────────────────────────────
+# -- 4. Claude Host --------------------------------------
 if has_service host; then
     _wc_host_started=0
     if [ -f "$HOST_SH" ]; then
@@ -438,7 +438,7 @@ fi
 if declare -F webclaude_is_first_run >/dev/null 2>&1 && webclaude_is_first_run webclaude_group_unified 2>/dev/null; then
     info "First run: brief pause, then last 25 lines from each service log (unified launcher)."
     sleep 2
-    header "First run — log preview (last 25 lines)"
+    header "First run - log preview (last 25 lines)"
     for _wc_log in center.log gateway.log website.log host.log; do
         _wc_lp="$LOG_DIR/$_wc_log"
         [[ -f "$_wc_lp" ]] || continue
@@ -454,7 +454,7 @@ if declare -F webclaude_is_first_run >/dev/null 2>&1 && webclaude_is_first_run w
     echo ""
 fi
 
-# ── Get local IP for display ────────────────────────────
+# -- Get local IP for display ----------------------------
 LOCAL_IP=$($PY -c "
 import socket
 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -463,7 +463,7 @@ except: print('127.0.0.1')
 finally: s.close()
 " 2>/dev/null)
 
-# ── Wait a moment then check if services are alive ──────
+# -- Wait a moment then check if services are alive ------
 sleep 3
 echo ""
 header "Service Health Check"
@@ -485,7 +485,7 @@ for i in "${!PIDS[@]}"; do
     fi
 done
 
-# ── Check ports are actually listening ──────────────────
+# -- Check ports are actually listening ------------------
 echo ""
 header "Port Listening Check"
 for i in "${!PORTS[@]}"; do
@@ -503,7 +503,7 @@ print('yes' if s.connect_ex(('127.0.0.1',$P))==0 else 'no'); s.close()
     fi
 done
 
-# ── Summary ─────────────────────────────────────────────
+# -- Summary ---------------------------------------------
 echo ""
 header "All Services Running"
 echo ""

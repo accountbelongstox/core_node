@@ -576,9 +576,9 @@ setup_routing() {
         local lan_cidr=$(ip addr show "$lan_if" 2>/dev/null | grep -oP 'inet \K[\d.]+/\d+' | head -1 | cut -d'/' -f2)
         local lan_subnet=$(echo "$lan_ip" | cut -d. -f1-3)
         
-        log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_service "----------------------------------------"
         log_service "NAT Gateway Configuration Summary:"
-        log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_service "----------------------------------------"
         log_service "WAN Interface (Internet):"
         log_service "  Interface: $wan_if"
         log_service "  IP Address: ${wan_ip:-NOT CONFIGURED}"
@@ -590,9 +590,9 @@ setup_routing() {
         log_service "  Subnet: ${lan_subnet}.0/$lan_cidr (192.168.2.0/24)"
         log_service "  Function: Gateway for connected routers/devices"
         log_service ""
-        log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_service "----------------------------------------"
         log_service "How to Configure Connected Routers/Devices:"
-        log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_service "----------------------------------------"
         log_service "1. Connect router/device to: $lan_if"
         log_service ""
         log_service "2. Configure router WAN settings:"
@@ -610,7 +610,7 @@ setup_routing() {
         log_service "   -> LAN devices -> $lan_if ($lan_ip) -> NAT -> $wan_if (${wan_ip:-WAN}) -> Internet"
         log_service ""
         log_service "Note: All LAN traffic will be NAT'd through WAN IP: ${wan_ip:-N/A}"
-        log_service "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        log_service "----------------------------------------"
     else
         log_error "LAN interface $lan_if has no IP address configured"
         log_error "Cannot function as NAT gateway without LAN gateway IP"

@@ -40,11 +40,10 @@ source "${FM_STATIC_CURRENT_DIR}/frankenphp_static_prereq.sh"
 # Base extension set for the static build (spc names; covers the Laravel
 # main app needs - Laravel 13 included). The official default list is
 # intentionally overridden for a deterministic, minimal binary.
-FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,mysqli,openssl,opcache,pcntl,pdo,pdo_mysql,pdo_sqlite,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
-# Service-selector driven additions (get_var START_*): only the database
-# backends this host actually starts are baked into the binary.
+FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE="apcu,bcmath,brotli,bz2,calendar,ctype,curl,dom,fileinfo,filter,gd,iconv,intl,mbstring,openssl,opcache,pcntl,pdo,pdo_pgsql,pdo_sqlite,pgsql,phar,session,simplexml,sodium,sqlite3,tokenizer,xml,xmlreader,xmlwriter,zip,zstd"
+# PostgreSQL is part of the Laravel runtime floor. Selectors add only optional
+# backends beyond that invariant baseline.
 FRANKENPHP_STATIC_DB_EXT_MYSQL="mysqli,pdo_mysql"
-FRANKENPHP_STATIC_DB_EXT_POSTGRESQL="pdo_pgsql,pgsql"
 FRANKENPHP_STATIC_DB_EXT_REDIS="redis"
 # Persistent build root (NOT /tmp): the git tree, spc source cache and
 # build outputs are KEPT so every later run upgrades in place
@@ -78,7 +77,7 @@ FRANKENPHP_PREBUILT_STAGING_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/prebuilt-stagin
 FRANKENPHP_ACME_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/acme.sh"
 FRANKENPHP_ACME_CERT_DIR="${FRANKENPHP_STATIC_BUILD_ROOT}/certs"
 
-# Effective PHP_EXTENSIONS list: base + selector-driven database sets,
+# Effective PHP_EXTENSIONS list: invariant base + optional selector sets,
 # de-duplicated preserving order.
 fm_static_php_extensions() {
     local exts=""
@@ -86,9 +85,6 @@ fm_static_php_extensions() {
     exts="$FRANKENPHP_STATIC_PHP_EXTENSIONS_BASE"
     if [ "$(get_var "START_MYSQL" "false")" = "true" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_MYSQL}"
-    fi
-    if [ "$(get_var "START_POSTGRESQL" "false")" = "true" ]; then
-        exts="${exts},${FRANKENPHP_STATIC_DB_EXT_POSTGRESQL}"
     fi
     if [ "$(get_var "START_REDIS" "false")" = "true" ]; then
         exts="${exts},${FRANKENPHP_STATIC_DB_EXT_REDIS}"

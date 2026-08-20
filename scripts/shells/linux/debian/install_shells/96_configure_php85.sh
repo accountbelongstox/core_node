@@ -127,7 +127,6 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
-source "$PARENT_DIR_LEVEL_2/common/octane_service_manager.sh"
 
 # Source PHP common variables and functions
 source "$PARENT_DIR_LEVEL_1/debian_com/php_common_vars.sh"
@@ -233,7 +232,7 @@ setup_php_default() {
         echo -e "${CYAN}$SCRIPT_INDEX Current PHP default: $current_php${NC}"
 
         if [ "$current_php" = "/usr/bin/php8.5" ]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is now the system default �?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] PHP 8.5 is now the system default${NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default verification failed${NC}"
         fi
@@ -249,7 +248,7 @@ setup_php_default() {
         echo -e "${GREEN}$SCRIPT_INDEX Current PHP version: $php_version${NC}"
 
         if [[ "$php_version" == "8.5"* ]]; then
-            echo -e "${GREEN}$SCRIPT_INDEX PHP 8.5 is active and working �?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] PHP 8.5 is active and working${NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX PHP version mismatch: expected 8.5.x, got $php_version${NC}"
         fi
@@ -285,7 +284,7 @@ setup_php_default() {
         local alternatives_count=$(echo "$alternatives_list" | wc -l)
 
         if [ $alternatives_count -eq 1 ] && echo "$alternatives_list" | grep -q "php8.5"; then
-            echo -e "${GREEN}$SCRIPT_INDEX Only PHP 8.5 is in alternatives �?{NC}"
+            echo -e "${GREEN}$SCRIPT_INDEX [OK] Only PHP 8.5 is in alternatives${NC}"
         else
             echo -e "${YELLOW}$SCRIPT_INDEX Warning: Multiple PHP versions in alternatives:${NC}"
             echo "$alternatives_list"
@@ -320,31 +319,31 @@ main() {
 
     echo -e "${CYAN}$SCRIPT_INDEX [PRECISION MODE] Running ALL configuration steps regardless of current state${NC}"
 
-    # Step 1: Configure PHP-FPM (ALWAYS run - 精细化修复第1�?
+    # Step 1: Configure PHP-FPM.
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 1/5] Configuring PHP-FPM...${NC}"
     configure_php_fpm || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP-FPM configuration completed with warnings${NC}"
     }
 
-    # Step 2: Configure PHP for Laravel (ALWAYS run - 精细化修复第2�?
+    # Step 2: Configure PHP for Laravel.
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 2/5] Configuring PHP for Laravel...${NC}"
     configure_php_for_laravel || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP Laravel configuration completed with warnings${NC}"
     }
 
-    # Step 3: Set directory permissions (ALWAYS run - 精细化修复第3�?
+    # Step 3: Set directory permissions.
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 3/5] Setting directory permissions...${NC}"
     set_directory_permissions || {
         echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"
     }
 
-    # Step 4: Set PHP 8.5 as default (ALWAYS run - 精细化修复第4�?
+    # Step 4: Set PHP 8.5 as default.
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 4/5] Setting PHP 8.5 as default...${NC}"
     setup_php_default || {
         echo -e "${YELLOW}$SCRIPT_INDEX PHP 8.5 default setup completed with warnings${NC}"
     }
 
-    # Step 5: Update web server configurations (ALWAYS check - 精细化修复第5�?
+    # Step 5: Update web server configurations.
     echo -e "${BLUE}$SCRIPT_INDEX [STEP 5/5] Updating web server configurations...${NC}"
     if [ "$INSTALL_NGINX" = "true" ]; then
         update_nginx_config || {
@@ -367,7 +366,7 @@ main() {
     echo -e "${GREEN}$SCRIPT_INDEX [SUCCESS] All PHP 8.5 configuration steps completed${NC}"
 }
 
-# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 §0.7): plane-aware
+# PHP-runtime plane gate (DESIGN_20260817_2115 PART_0 Section 0.7): plane-aware
 # config targets. frankenphp plane configures the Caddyfile-adjacent PHP
 # ini (scan dir exported as PHP_INI_SCAN_DIR by the runtime branch) and
 # keeps the plane-invariant Laravel directory permissions - NO /etc/php
@@ -382,7 +381,7 @@ if [ "$CONFIG_RUNTIME_PLANE" = "frankenphp" ]; then
     set_directory_permissions || {
         echo -e "${YELLOW}$SCRIPT_INDEX Directory permissions set with warnings${NC}"
     }
-    echo -e "${GREEN}$SCRIPT_INDEX FrankenPHP plane PHP configured: ini scan dir $(fm_php_ini_dir) (runtime exports PHP_INI_SCAN_DIR)${NC}"
+    echo -e "${GREEN}$SCRIPT_INDEX FrankenPHP plane PHP configured: ini scan path $(fm_php_ini_scan_path) (package/static defaults, then project overrides)${NC}"
     exit 0
 fi
 

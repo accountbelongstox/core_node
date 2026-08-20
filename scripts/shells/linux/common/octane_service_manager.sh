@@ -57,37 +57,6 @@ SWOOLE_PORT_END=9999
 DEFAULT_SERVICE_USER=$(detect_system_user)
 DEFAULT_SERVICE_GROUP=$DEFAULT_SERVICE_USER
 
-# PHP-runtime plane (DESIGN_20260817_2115 PART_0): lives here in the PHP
-# common area, NOT in gvar_common.sh (basic vars only). Derived from the
-# shared web_server_plane constant (gvar_common.sh) unless explicitly
-# overridden: frankenphp = embedded static PHP in the binary, system = apt
-# PHP + Swoole for the nginx compat plane.
-# SYNC: ServerManagerV1OctaneServiceManager - plane-aware service creation
-php_runtime_plane() {
-    local runtime=""
-    runtime="$(get_global_var PHP_RUNTIME_PLANE '')"
-    if [ -n "$runtime" ]; then
-        case "$runtime" in
-            system) echo "system" ;;
-            *) echo "frankenphp" ;;
-        esac
-        return 0
-    fi
-    if [ "$(web_server_plane)" = "nginx" ]; then
-        echo "system"
-    else
-        echo "frankenphp"
-    fi
-}
-
-set_php_runtime_plane() {
-    local runtime="$1"
-    case "$runtime" in
-        frankenphp|system) set_global_var PHP_RUNTIME_PLANE "$runtime" 'false' ;;
-        *) echo "Error: runtime must be frankenphp or system" >&2 ;;
-    esac
-}
-
 # Check if running as root (required for systemd operations)
 check_root_permissions() {
     if [ "$EUID" -ne 0 ] && [ -z "$SUDO_USER" ]; then

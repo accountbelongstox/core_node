@@ -31,17 +31,17 @@ log_header() {
 
 log_success() {
     local message="$1"
-    echo -e "${COLOR_SUCCESS}�?$message${COLOR_RESET}"
+    echo -e "${COLOR_SUCCESS}$message${COLOR_RESET}"
 }
 
 log_warning() {
     local message="$1"
-    echo -e "${COLOR_WARNING}�?$message${COLOR_RESET}"
+    echo -e "${COLOR_WARNING}$message${COLOR_RESET}"
 }
 
 log_error() {
     local message="$1"
-    echo -e "${COLOR_ERROR}�?$message${COLOR_RESET}"
+    echo -e "${COLOR_ERROR}$message${COLOR_RESET}"
 }
 
 log_info() {

@@ -28,7 +28,7 @@ LARAVEL_CPU_LIMIT="50%"
 # Override only via CORE_NODE_APP_MANAGER_DATA.
 APP_MANAGER_DATA_DIR_DEFAULT="/opt/_core_node"
 
-# Retired data roots — every OTHER place logs were ever written before unifying on
+# Retired data roots - every OTHER place logs were ever written before unifying on
 # /opt/_core_node: the old 'core_node_unified_manager' tree AND the earlier
 # multi-candidate '_core_node' fallbacks under /var and /tmp. cleanup_old_log_dirs()
 # DELETES each of these (guarded so it never touches the active dir). Path-map key

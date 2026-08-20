@@ -69,6 +69,21 @@ final class ServiceContract
         return $files[$name];
     }
 
+    public static function string(string $path): string
+    {
+        $value = self::document();
+        foreach (explode('.', $path) as $segment) {
+            $value = is_array($value) && array_key_exists($segment, $value)
+                ? $value[$segment]
+                : null;
+        }
+        if (!is_string($value) || $value === '') {
+            throw new RuntimeException("Unknown service contract string: {$path}");
+        }
+
+        return $value;
+    }
+
     public static function laravelApiBackendUrl(): string
     {
         return 'http://'.self::host('loopback').':'.self::port('laravel_api_backend');

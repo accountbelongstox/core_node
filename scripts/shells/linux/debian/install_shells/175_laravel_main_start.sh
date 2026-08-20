@@ -84,7 +84,6 @@ PHP_PGSQL_ENSURE_SCRIPT="${INSTALL_SHELLS_DIR}/77_ensure_php_pgsql.sh"
 SSH_SETUP_SCRIPT="${INSTALL_SHELLS_DIR}/23_setup_ssh_remote.sh"
 GVAR_COMMON_SCRIPT="${COMMON_DIR}/gvar_common.sh"
 COMPOSER_VENDOR_COMMON="${COMMON_DIR}/composer_vendor_common.sh"
-OCTANE_SERVICE_MANAGER_SCRIPT="${COMMON_DIR}/octane_service_manager.sh"
 GLOBAL_VAR_DIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
 
 # Per-app PostgreSQL databases (one per app connection; mirrors config/database.php
@@ -106,6 +105,7 @@ LARAVEL_RUNTIME_DIRS=(
 
 # Tool resolution state
 PHP_BIN=""
+PHP_PDO_PGSQL_READY="no"
 COMPOSER_CMD=""
 NPX_BIN=""
 PHP_CANDIDATE=""
@@ -188,7 +188,6 @@ FRANKENPHP_MANAGER_SCRIPT="${LINUX_DIR}/common/frankenphp_manager.sh"
 # binding (service-registration branch) renders through it.
 . "$DOMAIN_SETUP_COMMON"
 . "$COMPOSER_VENDOR_COMMON"
-source "$OCTANE_SERVICE_MANAGER_SCRIPT"
 . "$FRANKENPHP_MANAGER_SCRIPT"
 
 # Runtime port: central service contract (config/service_contract.json), with
@@ -365,6 +364,43 @@ resolve_php() {
     return 1
 }
 
+# Converge the PostgreSQL PDO contract before Composer or Laravel bootstrap.
+# FrankenPHP variants are prepared by step 93 and are only re-probed here;
+# system PHP delegates installation to its canonical package ensurer.
+ensure_php_pdo_pgsql() {
+    local runtime_binary=""
+
+    PHP_PDO_PGSQL_READY="no"
+    CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
+    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
+        runtime_binary="$(fm_variant_binary)"
+        if [ "$(fm_php_runtime_extensions_ready "$runtime_binary")" = "yes" ]; then
+            PHP_PDO_PGSQL_READY="yes"
+            echo "FrankenPHP runtime extension contract ready."
+        else
+            echo "ERROR: The selected FrankenPHP variant does not satisfy the required PHP extension contract."
+            echo "  Repair: run $PHP_ENSURE_SCRIPT_FRANKENPHP and select the intended variant."
+        fi
+        return
+    fi
+
+    if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+        PHP_PDO_PGSQL_READY="yes"
+        echo "PHP pdo_pgsql extension present."
+        return
+    fi
+
+    echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
+    echo "  $PHP_PGSQL_ENSURE_SCRIPT"
+    bash "$PHP_PGSQL_ENSURE_SCRIPT"
+    if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
+        PHP_PDO_PGSQL_READY="yes"
+        echo "pdo_pgsql installed -> PostgreSQL driver available."
+    else
+        echo "ERROR: pdo_pgsql remains unavailable after package convergence."
+    fi
+}
+
 # Resolve composer into COMPOSER_CMD: prefer frankenphp shim/installed wrapper on frankenphp plane.
 resolve_composer() {
     local runtime_plane=""
@@ -438,6 +474,7 @@ source "$RUNTIME_CONFIG_COMMON"
 
 initialize_runtime_configuration_store() {
     local generated_value=""
+    local config_state=""
 
     RUNTIME_CONFIG_DIR="$(runtime_config_directory)"
     if [ -z "$RUNTIME_CONFIG_DIR" ]; then
@@ -450,20 +487,29 @@ initialize_runtime_configuration_store() {
         echo "ERROR: Failed to generate APP_KEY."
         return 1
     fi
-    ensure_runtime_config_value "APP_KEY" "$generated_value" || return 1
+    config_state="$(ensure_runtime_config_value "APP_KEY" "$generated_value")"
+    if [ "$config_state" != "ready" ]; then
+        echo "ERROR: Failed to provision APP_KEY."
+        return 1
+    fi
     # Mercure hub keys (HS256 secrets, server-side only - never shipped to
     # pycore, the browser UI or the extension; provisioned once by the
     # laravel_main RelayHubKeyProvisioner into the constant store directory
     # outside the repo, then embedded as literal Caddyfile directives at
     # every render; the trusted issuer is derived per launch by the runtime
     # branch).
-    if ! runtime_config_ensure_mercure_keys; then
+    runtime_config_ensure_mercure_keys
+    if [ "$(runtime_config_mercure_keys_ready)" != "yes" ]; then
         echo "ERROR: Failed to provision Mercure hub keys (RelayHubKeyProvisioner)."
         return 1
     fi
     # Installation access (super) code: provisioned once into the external
     # store, stable across runs; InstallationAccessCode.php only reads it.
-    ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE" || return 1
+    config_state="$(ensure_runtime_config_value "INSTALLATION_ACCESS_CODE" "$GENERATED_ACCESS_CODE")"
+    if [ "$config_state" != "ready" ]; then
+        echo "ERROR: Failed to provision the installation access code."
+        return 1
+    fi
 
     echo "Runtime configuration store ready: $RUNTIME_CONFIG_DIR"
 }
@@ -678,7 +724,7 @@ _resolve_laravel_service_plane() {
 
 # Register (or refresh) the laravel_main systemd service via systemd_service_manager.
 # The ExecStart is a plane-specific runtime launcher (175SF/175SN) that does
-# minimal convergence + octane — NO init, NO domain setup, NO installers.
+# minimal convergence + octane - NO init, NO domain setup, NO installers.
 # Default: hot-reload (OCTANE_WATCH=1).
 register_laravel_service() {
     local exec_cmd="$1"
@@ -789,6 +835,11 @@ if ! resolve_php; then
     fi
 fi
 
+ensure_php_pdo_pgsql
+if [ "$PHP_PDO_PGSQL_READY" != "yes" ]; then
+    exit 1
+fi
+
 # --- Ensure composer (auto-install via init-ensure script if missing or wrapper broken) ---
 if ! resolve_composer; then
     echo "composer not found. Invoking init-ensure installer:"
@@ -820,7 +871,6 @@ elif ! composer_command_healthy "$COMPOSER_CMD"; then
     fi
 fi
 
-CURRENT_WEB_SERVER_PLANE="$(php_runtime_plane 2>/dev/null || echo frankenphp)"
 echo "Using php:      $PHP_BIN"
 echo "Using composer: $COMPOSER_CMD"
 echo "Web server plane: $CURRENT_WEB_SERVER_PLANE"
@@ -860,31 +910,6 @@ fi
 if ! initialize_runtime_configuration_store; then
     echo "ERROR: Runtime configuration store initialization failed."
     exit 1
-fi
-
-# --- Ensure the PHP pdo_pgsql extension (the app uses PostgreSQL on Linux) ---
-if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
-    echo "PHP pdo_pgsql extension present."
-else
-    if [ "$CURRENT_WEB_SERVER_PLANE" = "frankenphp" ]; then
-        echo "PHP pdo_pgsql extension not found under frankenphp runtime."
-        echo "This plane uses the embedded FrankenPHP PHP binary; apt-based installer is intentionally skipped."
-        echo "  Action: rebuild FrankenPHP with PostgreSQL extension when START_POSTGRESQL=true."
-    else
-        echo "PHP pdo_pgsql missing. Invoking init-ensure installer:"
-        echo "  $PHP_PGSQL_ENSURE_SCRIPT"
-        if [ -f "$PHP_PGSQL_ENSURE_SCRIPT" ]; then
-            bash "$PHP_PGSQL_ENSURE_SCRIPT" || echo "  Warning: pdo_pgsql installer reported failure."
-            if "$PHP_BIN" -m 2>/dev/null | grep -qi '^pdo_pgsql$'; then
-                echo "pdo_pgsql installed -> PostgreSQL driver available."
-            else
-                echo "  *** ACTION REQUIRED: pdo_pgsql still missing -> all DB access will fail."
-                echo "  *** Build manually: bash $PHP_PGSQL_ENSURE_SCRIPT"
-            fi
-        else
-            echo "  Warning: pdo_pgsql installer missing: $PHP_PGSQL_ENSURE_SCRIPT"
-        fi
-    fi
 fi
 
 # --- PostgreSQL cross-environment sync adapter ---

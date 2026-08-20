@@ -1,5 +1,5 @@
 #!/bin/bash
-# Kokoro-82M prerequisite (Linux) — sherpa-onnx + multi-lang Kokoro model.
+# Kokoro-82M prerequisite (Linux) - sherpa-onnx + multi-lang Kokoro model.
 # Complements 31_install_tts_offline.sh with a dedicated KOKORO_TTS_MODEL_DIR cache.
 #
 # Official: https://k2-fsa.github.io/sherpa/onnx/tts/all/Chinese-English/kokoro-multi-lang-v1_1.html

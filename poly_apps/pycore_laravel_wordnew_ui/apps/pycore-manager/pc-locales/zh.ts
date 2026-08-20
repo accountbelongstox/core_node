@@ -715,7 +715,7 @@ export const pcZh: PcTranslationDict = {
     platform: '平台',
     session: '桌面会话',
     windowsTitle: '终端窗口',
-    windowsHint: '按真实桌面坐标和窗口尺寸等比绘制；标题固定在 2 秒刷新的原生截图上方，已离线的保存窗口使用虚线框。',
+    windowsHint: '在线窗口按真实桌面坐标和尺寸等比绘制；已保存的离线窗口固定在底部网格中，直到同编号终端重新认领。',
     empty: '没有检测到在线或已保存的终端窗口。',
     untitled: '未命名终端',
     active: '当前活动',

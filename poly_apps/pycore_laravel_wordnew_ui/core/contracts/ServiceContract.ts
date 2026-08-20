@@ -25,3 +25,4 @@ export const CORE_NODE_DATA_DIR_WINDOWS_SUBPATH: string = contractDocument.paths
 export const GLOBAL_VAR_DIR_NAME: string = contractDocument.paths.global_var_dir_name;
 export const UI_ALLOWED_HOSTS_FILE_NAME: string = contractDocument.files.ui_allowed_hosts;
 export const UI_DOMAIN_CONFIG_FILE_NAME: string = contractDocument.files.ui_domain_config;
+export const MERCURE_COOKIE_NAME: string = contractDocument.realtime.mercure_cookie;

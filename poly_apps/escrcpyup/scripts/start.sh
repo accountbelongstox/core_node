@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# 星灿传媒 测试版 - Start Script (Bash)
+# xing canchuan mei ce shi ban - Start Script (Bash)
 # ============================================
 
 set -e
@@ -47,7 +47,7 @@ show_banner() {
     clear
     print_color "================================================" "$CYAN"
     print_color "" "$CYAN"
-    print_color "        星灿传媒 测试版" "$CYAN"
+    print_color "        xing canchuan mei ce shi ban" "$CYAN"
     print_color "        Android Screen Mirroring Tool" "$CYAN"
     print_color "        Powered by Scrcpy & Electron" "$CYAN"
     print_color "" "$CYAN"
@@ -234,7 +234,7 @@ start_application() {
     verify_electron_version
     echo ""
 
-    print_info "Launching 星灿传媒 测试版..."
+    print_info "Launching xing canchuan mei ce shi ban..."
     echo ""
     print_color "========================================" "$CYAN"
     echo ""
@@ -520,7 +520,7 @@ show_main_menu() {
                 ;;
             0)
                 echo ""
-                print_color "Thank you for using 星灿传媒 测试版!" "$CYAN"
+                print_color "Thank you for using xing canchuan mei ce shi ban!" "$CYAN"
                 echo ""
                 exit 0
                 ;;

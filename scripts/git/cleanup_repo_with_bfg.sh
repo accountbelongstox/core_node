@@ -117,36 +117,36 @@ ensure_git_filter_repo() {
                 if command -v sudo &> /dev/null; then
                     if sudo cp "$filter_repo_path" /usr/local/bin/git-filter-repo 2>/dev/null; then
                         sudo chmod +x /usr/local/bin/git-filter-repo
-                        echo -e "${GREEN}�?Installed to /usr/local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to /usr/local/bin/git-filter-repo${NC}"
                     else
-                        echo -e "${YELLOW}�?No permission for /usr/local/bin, using ~/.local/bin${NC}"
+                        echo -e "${YELLOW}No permission for /usr/local/bin, using ~/.local/bin${NC}"
                         mkdir -p ~/.local/bin
                         cp "$filter_repo_path" ~/.local/bin/git-filter-repo
                         chmod +x ~/.local/bin/git-filter-repo
                         export PATH="$HOME/.local/bin:$PATH"
-                        echo -e "${GREEN}�?Installed to ~/.local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to ~/.local/bin/git-filter-repo${NC}"
                     fi
                 else
                     cp "$filter_repo_path" /usr/local/bin/git-filter-repo 2>/dev/null || {
-                        echo -e "${YELLOW}�?No permission for /usr/local/bin, using ~/.local/bin${NC}"
+                        echo -e "${YELLOW}No permission for /usr/local/bin, using ~/.local/bin${NC}"
                         mkdir -p ~/.local/bin
                         cp "$filter_repo_path" ~/.local/bin/git-filter-repo
                         chmod +x ~/.local/bin/git-filter-repo
                         export PATH="$HOME/.local/bin:$PATH"
-                        echo -e "${GREEN}�?Installed to ~/.local/bin/git-filter-repo${NC}"
+                        echo -e "${GREEN}Installed to ~/.local/bin/git-filter-repo${NC}"
                     }
                 fi
             fi
 
             if command -v git-filter-repo &> /dev/null; then
-                echo -e "${GREEN}�?git-filter-repo installed successfully${NC}"
+                echo -e "${GREEN}git-filter-repo installed successfully${NC}"
                 git filter-repo --help > /dev/null 2>&1
                 if [ $? -eq 0 ]; then
-                    echo -e "${GREEN}�?git-filter-repo is working${NC}"
+                    echo -e "${GREEN}git-filter-repo is working${NC}"
                 fi
                 return 0
             else
-                echo -e "${RED}�?Failed to install git-filter-repo${NC}"
+                echo -e "${RED}Failed to install git-filter-repo${NC}"
                 echo ""
                 echo -e "${YELLOW}Please install manually:${NC}"
                 echo -e "  ${CYAN}pip3 install --user --break-system-packages git-filter-repo${NC}"
@@ -389,7 +389,7 @@ remove_directory() {
     git branch "$backup_branch" 2>/dev/null
 
     if [ $? -eq 0 ]; then
-        echo -e "${GREEN}�?Backup branch created successfully${NC}"
+        echo -e "${GREEN}Backup branch created successfully${NC}"
     else
         echo -e "${RED}Failed to create backup branch${NC}"
         return 1
@@ -402,9 +402,9 @@ remove_directory() {
     for dir_path in $dir_paths; do
         if [ -d "$dir_path" ]; then
             rm -rf "$dir_path"
-            echo -e "${GREEN}�?Removed from HEAD: $dir_path${NC}"
+            echo -e "${GREEN}Removed from HEAD: $dir_path${NC}"
         else
-            echo -e "${YELLOW}�?Directory not found in current HEAD: $dir_path${NC}"
+            echo -e "${YELLOW}Directory not found in current HEAD: $dir_path${NC}"
         fi
     done
 
@@ -414,9 +414,9 @@ remove_directory() {
 
     echo -e "${BLUE}Committing changes...${NC}"
     if git commit -m "Remove large files from HEAD before BFG cleanup" 2>/dev/null; then
-        echo -e "${GREEN}�?Changes committed${NC}"
+        echo -e "${GREEN}Changes committed${NC}"
     else
-        echo -e "${YELLOW}�?No changes to commit (already clean)${NC}"
+        echo -e "${YELLOW}No changes to commit (already clean)${NC}"
     fi
 
     echo ""
@@ -435,13 +435,13 @@ remove_directory() {
     local exit_code=$?
 
     echo ""
-    echo -e "${CYAN}�?Waiting 5 seconds for cleanup to settle...${NC}"
+    echo -e "${CYAN}Waiting 5 seconds for cleanup to settle...${NC}"
     sleep 5
     echo ""
 
     if [ $exit_code -eq 0 ]; then
         echo ""
-        echo -e "${GREEN}�?Directories successfully removed from Git history${NC}"
+        echo -e "${GREEN}Directories successfully removed from Git history${NC}"
 
         echo ""
         echo -e "${BLUE}Restoring remote URL to default...${NC}"
@@ -452,14 +452,14 @@ remove_directory() {
         du -sh .git
 
         echo ""
-        echo -e "${CYAN}📦 Backup branch created: $backup_branch${NC}"
+        echo -e "${CYAN} Backup branch created: $backup_branch${NC}"
         echo -e "${YELLOW}To recover old changes:${NC}"
         echo -e "  ${CYAN}git checkout $backup_branch${NC}"
 
         echo ""
-        echo -e "${YELLOW}⚠️  IMPORTANT: Local changes have been cleaned.${NC}"
-        echo -e "${YELLOW}⚠️  DO NOT push to remote unless you want to update it.${NC}"
-        echo -e "${YELLOW}⚠️  If you want to push:${NC}"
+        echo -e "${YELLOW}[WARN]  IMPORTANT: Local changes have been cleaned.${NC}"
+        echo -e "${YELLOW}[WARN]  DO NOT push to remote unless you want to update it.${NC}"
+        echo -e "${YELLOW}[WARN]  If you want to push:${NC}"
         echo -e "  ${CYAN}git push origin --force --all${NC}"
         echo -e "  ${CYAN}git push origin --force --tags${NC}"
 
@@ -468,7 +468,7 @@ remove_directory() {
         return 0
     else
         echo ""
-        echo -e "${RED}�?git-filter-repo failed${NC}"
+        echo -e "${RED}git-filter-repo failed${NC}"
         echo ""
         echo -e "${BLUE}Attempting to restore remote URL...${NC}"
         restore_remote_url

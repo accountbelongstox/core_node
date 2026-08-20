@@ -63,7 +63,7 @@ runtime_config_put() {
         $value = trim(stream_get_contents(STDIN));
         require $autoload;
         require $bootstrap;
-        exit(\App\Support\RuntimeConfigurationStore::put($key, $value) ? 0 : 1);
+        echo \App\Support\RuntimeConfigurationStore::put($key, $value) ? "stored" : "failed";
     '
 }
 
@@ -71,13 +71,21 @@ ensure_runtime_config_value() {
     local key="$1"
     local value="$2"
     local current=""
+    local write_state=""
 
     current="$(runtime_config_get "$key")"
     if [ -n "$current" ]; then
-        return 0
+        echo "ready"
+        return
     fi
 
-    runtime_config_put "$key" "$value"
+    write_state="$(runtime_config_put "$key" "$value")"
+    current="$(runtime_config_get "$key")"
+    if [ "$write_state" = "stored" ] && [ -n "$current" ]; then
+        echo "ready"
+    else
+        echo "failed"
+    fi
 }
 
 # Ensure the Mercure hub keys exist in the store. Single writer: the
@@ -93,5 +101,16 @@ runtime_config_ensure_mercure_keys() {
         require $autoload;
         require $bootstrap;
         \App\Services\Relay\RelayHubKeyProvisioner::ensure();
+    '
+}
+
+runtime_config_mercure_keys_ready() {
+    RC_ARG_AUTOLOAD="$VENDOR_AUTOLOAD" RC_ARG_BOOTSTRAP="$BOOTSTRAP_APP" \
+        php_script_run '
+        $autoload = getenv("RC_ARG_AUTOLOAD");
+        $bootstrap = getenv("RC_ARG_BOOTSTRAP");
+        require $autoload;
+        require $bootstrap;
+        echo \App\Services\Relay\RelayHubKeyProvisioner::provisioned() ? "yes" : "no";
     '
 }

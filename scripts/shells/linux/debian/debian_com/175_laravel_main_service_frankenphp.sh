@@ -10,12 +10,12 @@
 # VIOLATION OF THESE RULES IS STRICTLY PROHIBITED
 # ### AI SPECIAL ATTENTION RULES END ###
 
-# Service runtime launcher — FRANKENPHP PLANE. Systemd ExecStart target.
+# Service runtime launcher - FRANKENPHP PLANE. Systemd ExecStart target.
 # Called by systemd_service_manager via 175_laravel_main_start.sh's
 # register_laravel_service. Validates and repairs runtime pointers, then
 # exec's laravel_runtime_frankenphp.sh with octane:frankenphp.
 #
-# NO domain setup, NO nginx, NO certbot, NO 175 init — those are handled
+# NO domain setup, NO nginx, NO certbot, NO 175 init - those are handled
 # by 175_laravel_main_start.sh (one-time setup). This script is the
 # "just start octane" path for every systemd restart.
 #

@@ -1,9 +1,9 @@
 #!/bin/bash
-# GPT-SoVITS TTS prerequisite (Linux) — free voice-clone HTTP server on :9880 (class C).
+# GPT-SoVITS TTS prerequisite (Linux) - free voice-clone HTTP server on :9880 (class C).
 # Auto-run by prepare_pycore_prerequisites.sh (pyservice).
 #
 # Lifecycle rule (see development-guides/cross-docs/
-# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md §5 & §7, Bucket B): the repo's requirements.txt
+# TTS_STT_ENGINE_LIFECYCLE_AND_CONCURRENCY.md Section 5 & Section 7, Bucket B): the repo's requirements.txt
 # pins an OLD transformers, INCOMPATIBLE with the main interpreter's shared 4.46.x pin
 # (deepseek/qwen25/nllb/bark). So the requirements are NEVER installed into the main
 # interpreter: they are built into a DEDICATED per-engine venv by
@@ -13,7 +13,7 @@
 # under that venv (isolated_venv.resolve_python("gptsovits")) and the gptsovits engine talks
 # to it over HTTP as a managed class-C server, so the conflicting pins never touch the main
 # interpreter. The heavy clone + venv build + model download is nonetheless OPT-IN so a normal
-# boot is never ambushed — it runs only when requested (--full / GPTSOVITS_INSTALL=1);
+# boot is never ambushed - it runs only when requested (--full / GPTSOVITS_INSTALL=1);
 # an already-built install (.deps_done) is still maintained + self-repaired.
 # Everything is IDEMPOTENT (never re-clones/re-downloads what is present). CPU/GPU: CUDA
 # torch when a GPU is present, else CPU (the post-install torch_cpu_guard.sh also reconciles).

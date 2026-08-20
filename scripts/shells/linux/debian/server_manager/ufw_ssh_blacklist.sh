@@ -17,8 +17,8 @@
 # Official references (Ubuntu / netfilter frontend):
 #   https://help.ubuntu.com/community/UFW
 #   https://manpages.ubuntu.com/manpages/noble/en/man8/ufw.8.html
-# Deny syntax: "ufw deny from <address>" — see DESCRIPTION and EXAMPLES in man ufw(8).
-# Rule order: first matching rule wins — insert deny rules before generic "allow OpenSSH".
+# Deny syntax: "ufw deny from <address>" - see DESCRIPTION and EXAMPLES in man ufw(8).
+# Rule order: first matching rule wins - insert deny rules before generic "allow OpenSSH".
 
 SCRIPT_CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "$0")"

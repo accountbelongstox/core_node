@@ -1613,8 +1613,6 @@ get_var() {
 # constant every plane-aware script resolves through these helpers - never
 # parsed from another script's state. Default plane = frankenphp (single
 # octane:frankenphp process with the built-in Mercure hub on 443/h3).
-# PHP-runtime derivation lives in the PHP common area
-# (octane_service_manager.sh), not here - gvar_common stays basic.
 web_server_plane() {
     local plane=""
     # Single source: the [W] selector key START_WEB_SERVER (mutex constant).
@@ -1626,6 +1624,37 @@ web_server_plane() {
     case "$plane" in
         nginx) echo "nginx" ;;
         *) echo "frankenphp" ;;
+    esac
+}
+
+# PHP runtime plane derived from the shared web-server selector unless an
+# explicit runtime owner is stored. Plane selection is global state, so it
+# belongs beside web_server_plane rather than in a service manager.
+php_runtime_plane() {
+    local runtime=""
+
+    runtime="$(get_global_var PHP_RUNTIME_PLANE '')"
+    if [ -n "$runtime" ]; then
+        case "$runtime" in
+            system) echo "system" ;;
+            *) echo "frankenphp" ;;
+        esac
+        return 0
+    fi
+    if [ "$(web_server_plane)" = "nginx" ]; then
+        echo "system"
+    else
+        echo "frankenphp"
+    fi
+}
+
+set_php_runtime_plane() {
+    local runtime=""
+
+    runtime="$1"
+    case "$runtime" in
+        frankenphp|system) set_global_var PHP_RUNTIME_PLANE "$runtime" 'false' ;;
+        *) echo "Error: runtime must be frankenphp or system" >&2 ;;
     esac
 }
 
@@ -2201,4 +2230,3 @@ if [ -z "$(get_global_var "SKIP_LARGE_MODELS" "")" ]; then
         set_global_var "SKIP_LARGE_MODELS" "false" "false"
     fi
 fi
-
