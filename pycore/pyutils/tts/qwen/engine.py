@@ -228,6 +228,7 @@ def submit_queued_synthesis(
     )
     if not payload["text"]:
         return {"ok": False, "error": "empty text", "client_job_id": stable_id}
+    payload["client_job_id"] = stable_id
     ok, job, error = queue_submit(payload, timeout=30.0)
     if not ok or not isinstance(job, dict):
         return {

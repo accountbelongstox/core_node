@@ -29,6 +29,11 @@ class AppQyV1DailyReadingDocumentService
         ?string $referenceCn,
         string $language
     ): ?int {
+        $existingMetadata = is_array($article->metadata) ? $article->metadata : [];
+        $existingDocumentId = (int) ($existingMetadata['document_id'] ?? 0);
+        if ($existingDocumentId > 0) {
+            return $existingDocumentId;
+        }
         try {
             $library = AppQyV1DailyReadingLibraryDefaults::ensureLibrary();
 

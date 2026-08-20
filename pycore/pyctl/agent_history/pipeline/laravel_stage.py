@@ -36,6 +36,7 @@ def upload_to_laravel(
     article: Dict[str, Any],
     audio: Dict[str, Any],
     raw_text: str,
+    idempotency_key: str,
 ) -> Dict[str, Any]:
     """Upload the generated article and audio to Laravel.
 
@@ -60,6 +61,7 @@ def upload_to_laravel(
         "language": "en",
         "article_type": _ARTICLE_TYPE,
         "source": _ARTICLE_SOURCE,
+        "idempotency_key": str(idempotency_key or ""),
         "raw_word_count": len([w for w in raw_text.split() if w.strip()]),
         "audio_base64": audio.get("audio_base64"),
         "tts_engine": audio.get("engine"),

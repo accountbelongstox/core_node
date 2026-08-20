@@ -2,7 +2,6 @@
 import base64
 import time
 import traceback
-import uuid
 from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
@@ -11,7 +10,6 @@ from pycore.pyutils.common.operation_service import operation_service
 from pycore.pyutils.common.operation_event_service import operation_event_service
 from pycore.pyctl.agent_history.pipeline.config import (
     advance_tool_cursor,
-    advance_tool_live_cursor,
     get_config,
     mark_tool_live_item_completed,
     save_config,
@@ -22,7 +20,7 @@ from pycore.pyctl.agent_history.pipeline.article_stages import (
     generate_chinese_article,
     translate_to_english,
 )
-from pycore.pyctl.agent_history.pipeline.audio_stage import synthesize_audio
+from pycore.pyctl.agent_history.pipeline.audio_stage import advance_audio_synthesis
 from pycore.pyctl.agent_history.pipeline import audio_rebuild
 from pycore.pyctl.agent_history.pipeline.laravel_stage import (
     replace_audio_on_laravel,
@@ -52,22 +50,9 @@ class _RunGate:
 
 _run_gate = _RunGate()
 
-# A non-retriable pipeline item is retried until this many attempts, then stays
-# failed. Classified transient provider/network errors remain queued behind the
-# provider cooldown and keep their checkpoint until the dependency recovers.
-# One attempt per 10s tick, so 30 attempts ≈ 5 minutes of retry — long enough
-# for a cold-loading local TTS engine, bounded enough to drop a poison batch.
+# Every failed pipeline item is bounded. Queue waiting is represented as a
+# running checkpoint and does not consume attempts.
 MAX_ITEM_ATTEMPTS = 30
-
-# Fair share for the legacy-audio rebuild lane. The batch backlog is deep
-# enough that a purely idle-only rebuild schedule would starve the 460+
-# legacy records indefinitely (every tick would plan a new article). After
-# every _BATCH_ITEMS_PER_REBUILD completed batch items, the next tick with no
-# active operation goes to ONE rebuild instead of planning a new batch, so
-# both lanes always progress. The counter is in-memory: a restart simply
-# re-earns the rebuild turn after _BATCH_ITEMS_PER_REBUILD fresh articles.
-_BATCH_ITEMS_PER_REBUILD = 3
-_batch_items_since_rebuild = 0
 
 def _try_acquire_run() -> Optional[object]:
     return _run_gate.acquire()
@@ -101,7 +86,6 @@ def recover_nonterminal_operations() -> Dict[str, Any]:
 
 def tick_pipeline() -> None:
     """Process one stage of one item per heartbeat."""
-    global _batch_items_since_rebuild
     cfg = get_config()
     if not cfg.get("enabled") or not cfg.get("extract_as_article"):
         return
@@ -118,14 +102,6 @@ def tick_pipeline() -> None:
         op_service = operation_service
         event_service = operation_event_service
 
-        # Piggyback 1 - NETWORK UPLOAD lane (drain-all): every audio that has
-        # not reached Laravel main yet is delivered first - full submissions
-        # of generated articles, then multi-sentence replacements of already
-        # published legacy audio (records the rebuild lane regenerated
-        # locally). Each record is one independent idempotent step; one
-        # record's failure defers only that record.
-        _piggyback_upload_tick()
-
         active_ops = [
             op for op in op_service.repo.list_nonterminal_operations(limit=10)
             if str(op.kind).startswith("agent_history")
@@ -138,53 +114,41 @@ def tick_pipeline() -> None:
             # audio" reports). Terminal = succeeded/skipped/cancelled, or failed
             # after MAX_ITEM_ATTEMPTS attempts.
             pending_items = [item for item in items if not _is_item_terminal(item)]
-            if pending_items:
-                item = pending_items[0]
-                if _item_deferred(item):
-                    # Head item waits out a provider cooldown - the batch lane
-                    # is idle this tick, so the rebuild piggyback fills it (no
-                    # new batches while an active operation holds the lane).
-                    audio_rebuild.piggyback_rebuild_tick()
-                    return
-                try:
-                    if _process_item(item, op_service, event_service):
-                        # Item reached the succeeded stage - advance its tool
-                        # cursor so completed batches are never re-planned.
-                        _advance_cursor_for_input(item.input_json or {})
-                        _batch_items_since_rebuild += 1
-                except Exception as e:
-                    _fail_item(item, e, op_service)
-                return
-            # All items terminal but the operation itself was never closed.
-            # Close it so create_or_get stops reusing it (avoids repeated
-            # UNIQUE constraint failures on (operation_id, item_key)).
-            any_failed = any(item.status == "failed" for item in items)
-            if any_failed:
-                failed_item = next(item for item in items if item.status == "failed")
-                _advance_cursor_for_input(failed_item.input_json or {})
-                op_service.fail(op.id, {"message": "one or more items failed"}, "Operation failed")
-            else:
-                op_service.complete(op.id, "All items finished")
-        
-        # Fair share: when the rebuild lane has waited through
-        # _BATCH_ITEMS_PER_REBUILD completed articles, it takes this free
-        # tick (no active operation) before the next batch is planned.
-        if _batch_items_since_rebuild >= _BATCH_ITEMS_PER_REBUILD:
-            _batch_items_since_rebuild = 0
+            if not pending_items:
+                # Close stale terminal operations before legacy generation so
+                # a previously exhausted item cannot remain at the queue head.
+                any_failed = any(item.status == "failed" for item in items)
+                if any_failed:
+                    failed_item = next(item for item in items if item.status == "failed")
+                    _advance_cursor_for_input(failed_item.input_json or {})
+                    op_service.fail(op.id, {"message": "one or more items failed"}, "Operation failed")
+                else:
+                    op_service.complete(op.id, "All items finished")
+                active_ops = []
+
+        # Legacy audio is a strict prerequisite. One small idempotent rebuild
+        # progression step runs per tick until every record is multi-sentence.
+        if audio_rebuild.pending_rebuild_count() > 0:
             audio_rebuild.piggyback_rebuild_tick()
             return
 
+        if active_ops:
+            op = active_ops[0]
+            items = op_service.get_operation_items(op.id)
+            pending_items = [item for item in items if not _is_item_terminal(item)]
+            if pending_items:
+                item = pending_items[0]
+                if _item_deferred(item):
+                    return
+                try:
+                    if _process_item(item, op_service, event_service):
+                        _advance_cursor_for_input(item.input_json or {})
+                except Exception as e:
+                    _fail_item(item, e, op_service)
+                return
+
         items, pending = plan_batches()
         if not items:
-            # Piggyback 2 - REBUILD lane (local-only): legacy single-shot
-            # audio is regenerated as multi-sentence without touching
-            # Laravel main - the upload lane above delivers it. The lane runs
-            # on ticks the primary batch lane leaves idle (head-item cooldown
-            # or empty plan) plus its fair-share turns above, so neither new
-            # articles nor the legacy backlog can starve each other.
-            # Old-first within the backlog; a query of 0 candidates costs one
-            # local index scan (milliseconds).
-            audio_rebuild.piggyback_rebuild_tick()
             return
 
         # Create a mini-operation for this batch if we don't have one
@@ -205,14 +169,12 @@ def tick_pipeline() -> None:
         item = op_service.get_operation_items(op.id)[0]
         
         try:
-            _process_item(item, op_service, event_service)
-
-            # Advance the per-tool cursor (forward only) and rotate to the
-            # next tool so every AI is processed evenly.
-            _advance_cursor_for_input(items[0])
-            cfg = get_config()
-            cfg["cursor"]["attempts"] = 0
-            save_config(cfg)
+            completed = _process_item(item, op_service, event_service)
+            if completed:
+                _advance_cursor_for_input(items[0])
+                cfg = get_config()
+                cfg["cursor"]["attempts"] = 0
+                save_config(cfg)
             
         except Exception as e:
             err = str(e)
@@ -259,6 +221,7 @@ def _fail_item(item, error: Exception, op_service: Any) -> None:
     payload carries ``error_json`` verbatim so the UI log can show every
     detail on click.
     """
+    item = op_service.repo.get_operation_item(item.id) or item
     err = str(error)
     failure = classify_ai_failure(err)
     retriable = error.retriable if isinstance(error, AiRequestError) else bool(failure["retriable"])
@@ -312,6 +275,14 @@ def _piggyback_upload_tick() -> None:
     _drain_rebuild_uploads()
 
 
+def tick_upload() -> None:
+    """Advance deferred Laravel delivery independently from local generation."""
+    cfg = get_config()
+    if not cfg.get("enabled") or not cfg.get("extract_as_article"):
+        return
+    _piggyback_upload_tick()
+
+
 def _drain_initial_uploads() -> None:
     try:
         pending = records.pending_uploads()
@@ -339,6 +310,7 @@ def _drain_initial_uploads() -> None:
                 },
                 audio,
                 "",
+                record_id,
             )
             records.mark_uploaded(record_id, laravel_data)
             consecutive_failures = 0
@@ -398,10 +370,6 @@ def _is_item_terminal(item) -> bool:
     if item.status in ("succeeded", "skipped", "cancelled"):
         return True
     if item.status == "failed":
-        error_data = item.error_json or {}
-        failure = classify_ai_failure(error_data.get("message"))
-        if bool(error_data.get("retriable")) or bool(failure["retriable"]):
-            return False
         return int(item.attempts or 0) >= MAX_ITEM_ATTEMPTS
     return False
 
@@ -446,8 +414,45 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
     # Laravel also queues every parsed sentence independently for missing-audio
     # completion through the central sentence_audio lane.
     if item.stage == "synthesizing_audio":
-        op_service.transition_item(item.id, "running", "synthesizing_audio", 0.5, message="Synthesizing audio")
-        checkpoint["audio"] = synthesize_audio(checkpoint["article_en"]["article_en"])
+        audio_step = advance_audio_synthesis(
+            checkpoint["article_en"]["article_en"],
+            checkpoint.get("audio_job") if isinstance(checkpoint.get("audio_job"), dict) else None,
+            f"agent-history-item:{item.id}:{int(checkpoint.get('audio_attempt') or 1)}",
+        )
+        checkpoint["audio_job"] = audio_step.get("job") or {}
+        if audio_step.get("status") == "waiting":
+            poll_after_s = float(audio_step.get("poll_after_s") or 1.0)
+            checkpoint["retry_not_before"] = time.time() + poll_after_s
+            job = checkpoint["audio_job"]
+            op_service.transition_item(
+                item.id,
+                "running",
+                "synthesizing_audio",
+                0.5,
+                checkpoint_json=checkpoint,
+                message=(
+                    "Qwen synthesis "
+                    f"{str(job.get('status') or 'pending')}; "
+                    f"running_ms={int(job.get('running_elapsed_ms') or 0)}; "
+                    f"next_poll_s={poll_after_s:g}"
+                ),
+            )
+            return False
+        if audio_step.get("status") == "failed":
+            checkpoint["audio_attempt"] = int(checkpoint.get("audio_attempt") or 1) + 1
+            checkpoint.pop("audio_job", None)
+            op_service.transition_item(
+                item.id,
+                "running",
+                "synthesizing_audio",
+                0.5,
+                checkpoint_json=checkpoint,
+                message="Qwen synthesis job failed",
+            )
+            raise RuntimeError(str(audio_step.get("error") or "Qwen synthesis failed"))
+        checkpoint["audio"] = audio_step["audio"]
+        checkpoint.pop("audio_job", None)
+        checkpoint.pop("audio_attempt", None)
         audio_source = checkpoint["audio"]
         event_service.log_event(
             item.operation_id,
@@ -471,9 +476,12 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         audio_base64 = str(audio_data.get("audio_base64") or "")
         audio_bytes = base64.b64decode(audio_base64) if audio_base64 else b""
         
+        record_id = str(checkpoint.get("record_id") or f"article-{item.id}")
+        existing_record = records.get_record(record_id) or {}
         record = records.save_record({
-            "id": str(uuid.uuid4()),
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            **existing_record,
+            "id": record_id,
+            "created_at": existing_record.get("created_at") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "title_cn": article_cn_data.get("title_cn"),
             "title_en": article_en_data.get("title_en"),
             "reference_cn": article_cn_data.get("reference_cn"),
@@ -489,30 +497,9 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         checkpoint["record_id"] = record["id"]
         op_service.transition_item(item.id, "running", "uploading_laravel", 0.8, checkpoint_json=checkpoint)
         
-    # Stage 5: uploading_laravel
+    # Stage 5: local completion. Laravel delivery is an independent heartbeat
+    # lane, so an offline backend never gates article or audio generation.
     if item.stage == "uploading_laravel":
-        op_service.transition_item(item.id, "running", "uploading_laravel", 0.8, message="Uploading to Laravel")
-        try:
-            laravel_data = upload_to_laravel(
-                {
-                    "title_cn": checkpoint["article_cn"].get("title_cn"),
-                    "reference_cn": checkpoint["article_cn"].get("reference_cn"),
-                    "title_en": checkpoint["article_en"].get("title_en"),
-                    "article_en": checkpoint["article_en"].get("article_en"),
-                    "word_count": count_words(checkpoint["article_en"].get("article_en", "")),
-                },
-                checkpoint.get("audio") or {},
-                raw_text,
-            )
-            records.mark_uploaded(checkpoint["record_id"], laravel_data)
-            checkpoint["laravel_data"] = laravel_data
-        except Exception as e:
-            # Upload is best-effort, we don't fail the item
-            event_service.log_event(
-                item.operation_id, "warn", "item.upload_deferred", 
-                f"Laravel upload deferred: {e}", item.id
-            )
-            
         op_service.transition_item(
             item.id,
             "succeeded",
@@ -525,5 +512,9 @@ def _process_item(item, op_service: Any, event_service: Any) -> bool:
         return True
     return False
 
+
 def count_words(text: str) -> int:
     return len([w for w in text.split() if w.strip()])
+
+
+__all__ = ["recover_nonterminal_operations", "tick_pipeline", "tick_upload"]

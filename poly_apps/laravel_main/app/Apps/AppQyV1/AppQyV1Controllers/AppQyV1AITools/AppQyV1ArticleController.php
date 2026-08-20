@@ -579,6 +579,7 @@ class AppQyV1ArticleController extends Controller
             'target_lang' => 'nullable|string|max:10',
             'article_type' => 'nullable|string|in:daily',
             'source' => 'nullable|string|in:agent_history',
+            'idempotency_key' => 'nullable|string|max:128',
             'raw_preview' => 'nullable|string|max:5000',
             'raw_word_count' => 'nullable|integer|min:0',
             'audio_base64' => 'required|string',
@@ -606,22 +607,36 @@ class AppQyV1ArticleController extends Controller
             $titleEn = 'Daily reading article';
         }
 
+        $idempotencyKey = trim((string) $request->input('idempotency_key', ''));
+        $articleId = $idempotencyKey === ''
+            ? 'article_' . Str::uuid()
+            : 'article_' . substr(hash('sha256', $idempotencyKey), 0, 40);
+        $existingArticle = AppQyV1Article::findByArticleId($articleId);
         $parsedResult = AppQyV1ArticleTextParser::parseArticle($articleText, $language);
-        $articleId = 'article_' . Str::uuid();
         $articleType = AppQyV1Article::TYPE_DAILY;
         $source = AppQyV1Article::SOURCE_AGENT_HISTORY;
 
         try {
-            $audioUrl = $this->dailyReadingService->storeAudio(
-                $articleId,
-                $language,
-                (string) $request->input('audio_base64')
-            );
+            $audioUrl = $existingArticle === null
+                ? $this->dailyReadingService->storeAudio(
+                    $articleId,
+                    $language,
+                    (string) $request->input('audio_base64')
+                )
+                : $this->dailyReadingService->replaceAudio(
+                    $existingArticle,
+                    (string) $request->input('audio_base64'),
+                    [
+                        'tts_engine' => $request->input('tts_engine'),
+                        'tts_model' => $request->input('tts_model'),
+                        'tts_chunked' => (bool) $request->input('tts_chunked', false),
+                    ]
+                );
             if ($audioUrl === null) {
                 throw new \RuntimeException('Agent history article audio could not be stored.');
             }
 
-            $article = AppQyV1Article::createRecord([
+            $article = $existingArticle ?? AppQyV1Article::createRecord([
                 'article_id' => $articleId,
                 'user_id' => 0,
                 'title' => $titleEn,
@@ -645,6 +660,7 @@ class AppQyV1ArticleController extends Controller
                     'raw_word_count' => (int) $request->input('raw_word_count', 0),
                     'openrouter_model' => $request->input('openrouter_model'),
                     'submission_source' => $source,
+                    'idempotency_key' => $idempotencyKey ?: null,
                     'audio_url' => $audioUrl,
                     'audio_status' => 'ready',
                     'tts_engine' => $request->input('tts_engine'),
@@ -677,16 +693,22 @@ class AppQyV1ArticleController extends Controller
                 $language
             );
 
-            AppQyV1TranslationEventModel::emit('article.published', [
-                'article_id' => $articleId,
-                'source_key' => $articleId,
-                'title' => $article->title,
-                'language' => $language,
-                'article_type' => $articleType,
-                'source' => $source,
-                'audio_url' => $audioUrl,
-                'document_id' => $documentId,
-            ]);
+            $articleMetadata = is_array($article->metadata) ? $article->metadata : [];
+            if (empty($articleMetadata['publication_event_emitted'])) {
+                AppQyV1TranslationEventModel::emit('article.published', [
+                    'article_id' => $articleId,
+                    'source_key' => $articleId,
+                    'title' => $article->title,
+                    'language' => $language,
+                    'article_type' => $articleType,
+                    'source' => $source,
+                    'audio_url' => $audioUrl,
+                    'document_id' => $documentId,
+                ]);
+                $articleMetadata['publication_event_emitted'] = true;
+                $article->metadata = $articleMetadata;
+                $article->saveRecord();
+            }
 
             return $this->success([
                 'article_id' => $articleId,

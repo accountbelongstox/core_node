@@ -11,7 +11,7 @@
 
 › http://127.0.0.1:13054/pycore-manager/terminal
   UI，虚线框窗口在下一次载入时，会自动用编号填充，比如有一个
-  虚线框窗口，在1的标号，就用存在的1的terminal来合并，并重新
+  虚线框窗口，在1的标号，就用存在的1的terminal来合并，并重新f
   在desktop下绘出新x,y，但是合并历史绘画，定时器等缓存。没有
   terminal对应的才标记为虚线框，防止虚线框越来越多。所有都是
   用编号标记。poly apps / pycore ui

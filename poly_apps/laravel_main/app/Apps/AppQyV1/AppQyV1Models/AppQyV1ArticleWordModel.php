@@ -85,7 +85,11 @@ class AppQyV1ArticleWordModel extends AppQyV1Model
         }
 
         if (!empty($insertData)) {
-            self::insert($insertData);
+            self::upsert(
+                $insertData,
+                ['article_id', 'word_md5'],
+                ['word', 'language', 'frequency', 'is_new_for_user', 'updated_at']
+            );
         }
 
         return $dictionaryInfo;

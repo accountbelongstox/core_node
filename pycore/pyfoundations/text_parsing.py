@@ -343,6 +343,71 @@ def tokenize_words(text: str) -> List[str]:
     return tokens
 
 
+def split_by_word_count(text: str, limit: int) -> List[str]:
+    """Split text without rewriting it, using the shared multilingual rules."""
+    if not text:
+        return []
+    size = max(1, int(limit or 1))
+    normalized = normalize_quotes(text)
+    token_ends: List[int] = []
+    word_start: Optional[int] = None
+    run_start: Optional[int] = None
+
+    def flush_word(end: int) -> None:
+        nonlocal word_start
+        if word_start is not None:
+            value = normalized[word_start:end].strip("'-")
+            if value and any(char.isalpha() for char in value):
+                token_ends.append(end)
+            word_start = None
+
+    def flush_run(end: int) -> None:
+        nonlocal run_start
+        if run_start is not None:
+            token_ends.append(end)
+            run_start = None
+
+    for index, char in enumerate(normalized):
+        codepoint = ord(char)
+        if _is_per_char_cjk(codepoint):
+            flush_word(index)
+            flush_run(index)
+            token_ends.append(index + 1)
+        elif _is_run_cjk(codepoint):
+            flush_word(index)
+            if run_start is None:
+                run_start = index
+        elif char.isalpha():
+            flush_run(index)
+            if word_start is None:
+                word_start = index
+        elif char in "'-" and word_start is not None:
+            continue
+        else:
+            flush_word(index)
+            flush_run(index)
+    flush_word(len(normalized))
+    flush_run(len(normalized))
+    if not token_ends:
+        return []
+
+    chunks: List[str] = []
+    start = 0
+    for token_index in range(size - 1, len(token_ends), size):
+        end = token_ends[token_index]
+        chunk = text[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        start = end
+    tail = text[start:].strip()
+    if tail:
+        if chunks and not tokenize_words(tail):
+            chunks[-1] = (chunks[-1] + text[start:]).strip()
+        else:
+            chunks.append(tail)
+    return chunks
+
+
 # --------------------------------------------------------------------------- #
 # Sentence splitting (multi-language)                                          #
 # --------------------------------------------------------------------------- #

@@ -14,7 +14,6 @@ from pycore.pyutils.tts.qwen.config import ENGINE_NAME
 import pycore.pyutils.tts.qwen.engine as qwen_engine
 
 
-_FETCH_TIMEOUT_SECONDS = 30.0
 _MAX_POLL_FAILURES = 6
 _OUTPUT_FORMAT_PATH = Path("article.mp3")
 _POLL_MAX_SECONDS = 30.0

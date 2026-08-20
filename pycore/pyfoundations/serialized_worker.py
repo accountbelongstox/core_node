@@ -294,6 +294,12 @@ def init_serialized_owner(
     timeout: float = DEFAULT_SERIALIZED_TIMEOUT,
 ) -> None:
     """Give one object a dedicated THREAD_BUS-backed state-owner thread."""
+    existing_worker = getattr(owner, "_serialized_worker", None)
+    if (
+        isinstance(existing_worker, SerializedWorkerThread)
+        and existing_worker.is_alive()
+    ):
+        return
     owner_id = uuid.uuid4().hex
     owner._serialized_queue_name = f"{queue_prefix}.{owner_id}"
     owner._serialized_thread_name = f"{thread_prefix}-{owner_id[:8]}"
@@ -302,6 +308,7 @@ def init_serialized_owner(
         owner._serialized_queue_name,
         owner._serialized_thread_name,
     )
+    owner._serialized_worker = worker
     worker.start()
 
 
@@ -319,8 +326,8 @@ def serialized_method(method: Callable[..., Any]) -> Callable[..., Any]:
     """Route a synchronous instance method through its state-owner queue."""
     @wraps(method)
     def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
-        thread_name = getattr(owner, "_serialized_thread_name", "")
-        if threading.current_thread().name == thread_name:
+        owner_thread = getattr(owner, "_serialized_worker", None)
+        if threading.current_thread() is owner_thread:
             return method(owner, *args, **kwargs)
         return call_serialized(
             owner._serialized_queue_name,
@@ -358,9 +365,9 @@ class SerializedStateObject:
             return object.__getattribute__(self, name)
 
         attributes = object.__getattribute__(self, "__dict__")
-        owner_thread = attributes.get("_serialized_thread_name", "")
+        owner_thread = attributes.get("_serialized_worker")
         if name in attributes and owner_thread:
-            if threading.current_thread().name == owner_thread:
+            if threading.current_thread() is owner_thread:
                 return object.__getattribute__(self, name)
             state_getter = object.__getattribute__(self, "_serialized_state_get")
             return state_getter(name)
@@ -368,11 +375,11 @@ class SerializedStateObject:
 
     def __setattr__(self, name: str, value: Any) -> None:
         attributes = object.__getattribute__(self, "__dict__")
-        owner_thread = attributes.get("_serialized_thread_name", "")
+        owner_thread = attributes.get("_serialized_worker")
         if name.startswith("_serialized_") or not owner_thread:
             object.__setattr__(self, name, value)
             return
-        if threading.current_thread().name == owner_thread:
+        if threading.current_thread() is owner_thread:
             object.__setattr__(self, name, value)
             return
 
