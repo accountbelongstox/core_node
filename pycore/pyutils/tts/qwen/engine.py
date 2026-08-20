@@ -176,7 +176,7 @@ def queued_synthesis_request(
     speaker: Optional[str] = None,
     instruct: Optional[str] = None,
     client_job_id: Optional[str] = None,
-) -> Tuple[Dict[str, Any], str]:
+) -> tuple[Dict[str, Any], str]:
     """Build the canonical idempotent queue payload and client identity."""
     cleaned = (text or "").strip()
     output = Path(output_path)
@@ -266,7 +266,7 @@ def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
     }
 
 
-def fetch_queued_synthesis(job_id: str) -> Tuple[bool, bytes, Optional[str]]:
+def fetch_queued_synthesis(job_id: str) -> tuple[bool, bytes, Optional[str]]:
     """Fetch retained bytes after the job was observed in the done state."""
     return fetch_queue_result(job_id, _RESULT_FETCH_TIMEOUT_S)
 

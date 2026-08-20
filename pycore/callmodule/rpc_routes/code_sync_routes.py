@@ -26,6 +26,9 @@ def register_code_sync_routes(server):
     peer_config_body = fastapi_module.Body(default={})
     peer_heartbeat_body = fastapi_module.Body(default={})
     pending_update_body = fastapi_module.Body(default={})
+    workspace_file_body = fastapi_module.Body(default={})
+    workspace_document_body = fastapi_module.Body(default={})
+    workspace_file_path = fastapi_module.Query(default="", alias="path")
 
     def get_sync_logs(params, _request_id, _context):
         return cs.get_sync_logs(
@@ -108,6 +111,92 @@ def register_code_sync_routes(server):
             thread_name="CodeSyncClearPendingUpdateRoute",
         )
 
+    def workspace_response(result):
+        content = dict(result or {})
+        status_code = int(content.pop("status_code", 200) or 200)
+        headers = {}
+        if content.get("etag"):
+            headers["ETag"] = str(content["etag"])
+        if status_code == 401:
+            headers["WWW-Authenticate"] = 'Bearer realm="codesync-workspace"'
+        return fastapi_module.responses.JSONResponse(
+            content,
+            status_code=status_code,
+            headers=headers,
+        )
+
+    async def get_workspace_capabilities(request: Request):
+        result = await await_bus_task(
+            cs.workspace_capabilities,
+            str(request.headers.get("authorization") or ""),
+            thread_name="CodeSyncWorkspaceCapabilitiesRoute",
+        )
+        return workspace_response(result)
+
+    async def list_workspace_files(
+        request: Request,
+        cursor: str = "",
+        limit: int = 1000,
+        include_hash: bool = False,
+    ):
+        result = await await_bus_task(
+            cs.workspace_list_files,
+            str(request.headers.get("authorization") or ""),
+            cursor,
+            limit,
+            include_hash,
+            thread_name="CodeSyncWorkspaceFilesRoute",
+        )
+        return workspace_response(result)
+
+    async def read_workspace_file(
+        request: Request,
+        file_path: str = workspace_file_path,
+    ):
+        result = await await_bus_task(
+            cs.workspace_read_file,
+            str(request.headers.get("authorization") or ""),
+            file_path,
+            thread_name="CodeSyncWorkspaceReadFileRoute",
+        )
+        return workspace_response(result)
+
+    async def write_workspace_file(
+        request: Request,
+        file_path: str = workspace_file_path,
+        payload=workspace_file_body,
+    ):
+        result = await await_bus_task(
+            cs.workspace_write_file,
+            str(request.headers.get("authorization") or ""),
+            file_path,
+            payload,
+            if_match=str(request.headers.get("if-match") or ""),
+            if_none_match=str(request.headers.get("if-none-match") or ""),
+            thread_name="CodeSyncWorkspaceWriteFileRoute",
+        )
+        return workspace_response(result)
+
+    async def write_workspace_document(
+        request: Request,
+        payload=workspace_document_body,
+    ):
+        result = await await_bus_task(
+            cs.workspace_write_document,
+            str(request.headers.get("authorization") or ""),
+            payload,
+            thread_name="CodeSyncWorkspaceWriteDocumentRoute",
+        )
+        return workspace_response(result)
+
+    async def get_latest_workspace_document(request: Request):
+        result = await await_bus_task(
+            cs.workspace_latest_document,
+            str(request.headers.get("authorization") or ""),
+            thread_name="CodeSyncWorkspaceLatestDocumentRoute",
+        )
+        return workspace_response(result)
+
     routes = (
         (rn.UI_CODE_SYNC_PING, cs.ping),
         (rn.UI_CODE_SYNC_GET_STATUS, cs.get_status),
@@ -167,4 +256,40 @@ def register_code_sync_routes(server):
         receive_peer_heartbeat,
         methods=["POST"],
         name="code_sync_peer_heartbeat",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_PATH,
+        get_workspace_capabilities,
+        methods=["GET"],
+        name="code_sync_workspace_capabilities",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_FILES_PATH,
+        list_workspace_files,
+        methods=["GET"],
+        name="code_sync_workspace_files",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_FILE_PATH,
+        read_workspace_file,
+        methods=["GET"],
+        name="code_sync_workspace_read_file",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_FILE_PATH,
+        write_workspace_file,
+        methods=["PUT"],
+        name="code_sync_workspace_write_file",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_DOCUMENTS_PATH,
+        write_workspace_document,
+        methods=["POST"],
+        name="code_sync_workspace_write_document",
+    )
+    server.app.add_api_route(
+        code_sync_http_routes.WORKSPACE_LATEST_DOCUMENT_PATH,
+        get_latest_workspace_document,
+        methods=["GET"],
+        name="code_sync_workspace_latest_document",
     )

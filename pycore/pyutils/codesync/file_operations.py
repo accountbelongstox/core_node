@@ -65,6 +65,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _remove_temporary_file(path: Path) -> None:
+    try:
+        path.unlink(missing_ok=True)
+    except OSError:
+        return
+
+
 def atomic_write_bytes(
     path: Path,
     content: bytes,
@@ -82,12 +89,12 @@ def atomic_write_bytes(
             os.chmod(temporary, target_mode)
         os.replace(str(temporary), str(target))
     except PermissionError:
-        temporary.unlink(missing_ok=True)
+        _remove_temporary_file(temporary)
         if not allow_fallback:
             raise
         target.write_bytes(content)
     except Exception:
-        temporary.unlink(missing_ok=True)
+        _remove_temporary_file(temporary)
         raise
 
 
