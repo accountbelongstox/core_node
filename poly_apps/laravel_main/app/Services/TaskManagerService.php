@@ -791,13 +791,13 @@ class TaskManagerService
      *
      * @return array{released: int, skipped: int}
      */
-    public function releaseWorkerTasks(string $workerId, array $taskIds): array
+    public function releaseWorkerTasks(string $workerId, array $taskIds, string $taskType): array
     {
         $releasedTaskTypes = [];
         $released = 0;
         $skipped = 0;
 
-        GlobalTask::runInTransaction(function () use ($workerId, $taskIds, &$releasedTaskTypes, &$released, &$skipped) {
+        GlobalTask::runInTransaction(function () use ($workerId, $taskIds, $taskType, &$releasedTaskTypes, &$released, &$skipped) {
             // Same lock order as pull/assign/submit: worker first, then task.
             $worker = Worker::lockByWorkerId($workerId);
 
@@ -811,7 +811,8 @@ class TaskManagerService
 
                 if (!$task
                     || $task->assigned_to !== $workerId
-                    || !in_array($task->status, [GlobalTask::status('assigned'), GlobalTask::status('processing')], true)) {
+                    || $task->task_type !== $taskType
+                    || $task->status !== GlobalTask::status('assigned')) {
                     $skipped++;
                     continue;
                 }

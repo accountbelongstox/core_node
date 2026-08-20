@@ -44,7 +44,8 @@ from typing import Any, Dict, List, Optional
 
 from pycore.pyfoundations.system_paths import get_local_data_dir
 
-_INDEX_CAP = 500
+_LIST_CAP = 500
+_INDEX_FILE_NAME = "index.json"
 _ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 # Rule §4: no module-level locks. On-disk state is mutated via single atomic
@@ -65,7 +66,7 @@ def audio_dir() -> Path:
 
 
 def _index_path() -> Path:
-    return records_dir() / "index.json"
+    return records_dir() / _INDEX_FILE_NAME
 
 
 def _atomic_write_json(path: Path, data: Any) -> None:
@@ -80,18 +81,64 @@ def _atomic_write_json(path: Path, data: Any) -> None:
             pass
 
 
-def load_index() -> Dict[str, Any]:
-    path = _index_path()
-    if not path.is_file():
-        return {"records": []}
+def _read_record_path(path: Path) -> Optional[Dict[str, Any]]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {"records": []}
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _align_durable_index(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Recover committed record files missing from the durable index.
+
+    Record JSON and index replacement are independent minimum steps. If the
+    process stops between them, or an older capped index omitted archived
+    records, the next read folds every committed record file back into the
+    index without changing an existing record identity.
+    """
+    indexed = {
+        str(row.get("id") or ""): row
+        for row in rows
+        if str(row.get("id") or "")
+    }
+    changed = False
+    for path in records_dir().glob("*.json"):
+        if path.name == _INDEX_FILE_NAME or path.stem in indexed:
+            continue
+        record = _read_record_path(path)
+        record_id = str((record or {}).get("id") or "")
+        if not record_id or not _ID_RE.match(record_id) or record_id in indexed:
+            continue
+        indexed[record_id] = record or {}
+        changed = True
+    if not changed:
+        return rows
+    aligned = sorted(
+        indexed.values(),
+        key=lambda row: (
+            str(row.get("created_at") or ""),
+            str(row.get("id") or ""),
+        ),
+        reverse=True,
+    )
+    _atomic_write_json(_index_path(), {"records": aligned})
+    return aligned
+
+
+def load_index() -> Dict[str, Any]:
+    path = _index_path()
+    if not path.is_file():
+        return {"records": _align_durable_index([])}
+    data = _read_record_path(path)
     rows = data.get("records") if isinstance(data, dict) else None
     if not isinstance(rows, list):
-        return {"records": []}
-    return {"records": [r for r in rows if isinstance(r, dict)]}
+        rows = []
+    return {
+        "records": _align_durable_index(
+            [row for row in rows if isinstance(row, dict)]
+        )
+    }
 
 
 RECORD_BODY_FIELDS = ("article_en", "reference_cn")
@@ -121,7 +168,7 @@ def list_record_metadata(limit: int = 100) -> List[Dict[str, Any]]:
     """ID-page rows, newest first: full metadata minus the heavy text bodies."""
     rows = load_index()["records"]
     out: List[Dict[str, Any]] = []
-    for r in rows[: max(1, min(int(limit or 100), _INDEX_CAP))]:
+    for r in rows[: max(1, min(int(limit or 100), _LIST_CAP))]:
         row = _decorate_row(r)
         for field in RECORD_BODY_FIELDS:
             row.pop(field, None)
@@ -143,9 +190,14 @@ def list_records(limit: int = 100) -> List[Dict[str, Any]]:
     """Index records, newest first, with audio availability attached."""
     rows = load_index()["records"]
     out: List[Dict[str, Any]] = []
-    for r in rows[: max(1, min(int(limit or 100), _INDEX_CAP))]:
+    for r in rows[: max(1, min(int(limit or 100), _LIST_CAP))]:
         out.append(_decorate_row(r))
     return out
+
+
+def list_all_records() -> List[Dict[str, Any]]:
+    """Return the complete durable inventory, newest first."""
+    return [dict(row) for row in load_index()["records"]]
 
 
 def summarize_records() -> Dict[str, int]:
@@ -186,7 +238,7 @@ def save_record(record: Dict[str, Any], audio_bytes: bytes) -> Dict[str, Any]:
     _atomic_write_json(records_dir() / f"{rid}.json", record)
     rows = [r for r in load_index()["records"] if r.get("id") != rid]
     rows.insert(0, record)
-    _atomic_write_json(_index_path(), {"records": rows[:_INDEX_CAP]})
+    _atomic_write_json(_index_path(), {"records": rows})
     return record
 
 
@@ -196,12 +248,9 @@ def get_record(record_id: str) -> Optional[Dict[str, Any]]:
         return None
     path = records_dir() / f"{rid}.json"
     if path.is_file():
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-        except (OSError, json.JSONDecodeError):
-            pass
+        data = _read_record_path(path)
+        if data is not None:
+            return data
     for r in load_index()["records"]:
         if r.get("id") == rid:
             return r

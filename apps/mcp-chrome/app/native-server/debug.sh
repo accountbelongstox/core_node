@@ -53,7 +53,7 @@ if [ -z "${NODE_EXEC}" ]; then
     # dan ru guonode dou zhaobu dao, ye wu fa zhi xing mubiao jiao ben
     # zhe li ke yi kao lu shu chu yi ge fuNative Messaging xie yi de cuo wu xiao xigei kuozhan (ru guo ke yi de hua)
     # huo zhe jiu rang ta shi bai, Chrome hui baoNative Host Exited.
-    exit 1 # bi xu tui chu, fou ze xia mianexec hui shi
+    exit 1 # Stop before the exec call below when the build artifact is missing.
 fi
 
 echo "Using Node executable: ${NODE_EXEC}" >> "${WRAPPER_LOG}"

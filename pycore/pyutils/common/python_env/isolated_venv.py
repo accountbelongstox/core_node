@@ -109,10 +109,30 @@ def venv_ready(engine: str) -> bool:
     return resolve_python(engine) is not None
 
 
-def _run(argv: Sequence[str]) -> bool:
+def _subprocess_env(executable: str) -> dict:
+    env = os.environ.copy()
+    executable_dir = str(Path(executable).resolve().parent)
+    current_path = env.get("PATH", "")
+    env["PATH"] = os.pathsep.join(
+        part for part in (executable_dir, current_path) if part
+    )
+    return env
+
+
+def _run(
+    argv: Sequence[str],
+    extra_env: Optional[dict] = None,
+) -> bool:
     try:
+        command_env = _subprocess_env(str(argv[0]))
+        if extra_env:
+            command_env.update(extra_env)
         ColorPrint.blue(f"[isolated-venv] {' '.join(str(item) for item in argv)}")
-        subprocess.run(list(argv), check=True)
+        subprocess.run(
+            list(argv),
+            check=True,
+            env=command_env,
+        )
         return True
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[isolated-venv] command failed: {exc}")
@@ -199,6 +219,7 @@ def _run_health_step(venv_python: str, label: str, code: str) -> bool:
             encoding="utf-8",
             errors="replace",
             check=False,
+            env=_subprocess_env(venv_python),
         )
     except Exception as exc:  # noqa: BLE001
         ColorPrint.yellow(f"[isolated-venv] FAIL: {label} ({exc})")
@@ -695,52 +716,141 @@ def _nvcc_cuda_major() -> Optional[int]:
 def _accelerator_supported(venv_python: str, spec: dict) -> bool:
     platforms = tuple(spec.get("accelerator_platforms", ()))
     if platforms and sys.platform not in platforms:
+        ColorPrint.blue(
+            f"[isolated-venv] optional accelerator is not provisioned on {sys.platform}; "
+            "using the supported PyTorch attention path"
+        )
         return False
     torch_cuda_major, compute_major = _torch_cuda_profile(venv_python)
     cuda_min_major = int(spec.get("accelerator_cuda_min_major", 0))
     compute_min_major = int(spec.get("accelerator_compute_min_major", 0))
-    nvcc_cuda_major = _nvcc_cuda_major()
-    if torch_cuda_major is None or compute_major is None or nvcc_cuda_major is None:
+    if torch_cuda_major is None or compute_major is None:
+        ColorPrint.blue(
+            "[isolated-venv] optional accelerator is not applicable without "
+            "a compatible CUDA torch build and GPU"
+        )
         return False
-    return (
-        torch_cuda_major >= cuda_min_major
-        and compute_major >= compute_min_major
-        and nvcc_cuda_major == torch_cuda_major
+    if torch_cuda_major < cuda_min_major or compute_major < compute_min_major:
+        ColorPrint.blue(
+            "[isolated-venv] optional accelerator is not supported by the "
+            "active CUDA ABI or GPU architecture"
+        )
+        return False
+    return True
+
+
+def _accelerator_toolkit_ready(venv_python: str) -> bool:
+    torch_cuda_major, _ = _torch_cuda_profile(venv_python)
+    nvcc_cuda_major = _nvcc_cuda_major()
+    if nvcc_cuda_major is None:
+        ColorPrint.yellow(
+            "[isolated-venv] optional accelerator pending: CUDA Toolkit nvcc "
+            "is not installed or not discoverable"
+        )
+        return False
+    if torch_cuda_major != nvcc_cuda_major:
+        ColorPrint.yellow(
+            "[isolated-venv] optional accelerator pending: nvcc CUDA major "
+            f"{nvcc_cuda_major} does not match torch CUDA major {torch_cuda_major}"
+        )
+        return False
+    return True
+
+
+def _accelerator_build_tools_ready(venv_python: str) -> bool:
+    return _run_health_step(
+        venv_python,
+        "ninja executable",
+        "from torch.utils.cpp_extension import verify_ninja_availability; "
+        "verify_ninja_availability()",
     )
+
+
+def _install_package_steps(
+    venv_python: str,
+    pip_args: Sequence[str],
+    packages: Sequence[str],
+    label: str,
+    skip_importable: bool = False,
+    command_env: Optional[dict] = None,
+) -> bool:
+    for package in packages:
+        if skip_importable and _packages_importable(venv_python, (package,)):
+            ColorPrint.blue(
+                f"[isolated-venv] {label} already importable: {package}"
+            )
+            continue
+        ColorPrint.blue(f"[isolated-venv] {label}: {package}")
+        if not _run(
+            [venv_python, "-m", "pip", "install", *pip_args, package],
+            extra_env=command_env,
+        ):
+            return False
+    return True
 
 
 def _install_accelerators(
     venv_python: str,
     spec: dict,
-) -> None:
+) -> bool:
     packages = tuple(spec.get("accelerator_packages", ()))
-    if not packages or _packages_importable(venv_python, packages):
-        return
-    if not _accelerator_supported(venv_python, spec):
-        ColorPrint.yellow(
-            "[isolated-venv] optional accelerator skipped: compatible CUDA "
-            "toolkit, torch build, and GPU architecture are required"
+    if not packages:
+        return True
+    if _packages_importable(venv_python, packages):
+        ColorPrint.blue(
+            "[isolated-venv] accelerator packages already importable: "
+            + ", ".join(packages)
         )
-        return
+        return True
+    if not _accelerator_supported(venv_python, spec):
+        return True
     build_packages = tuple(spec.get("accelerator_build_packages", ()))
-    if build_packages and not _run(
-        [venv_python, "-m", "pip", "install", *build_packages]
+    if not _install_package_steps(
+        venv_python,
+        (),
+        build_packages,
+        "ensuring accelerator build package",
+        skip_importable=True,
     ):
         ColorPrint.yellow(
             "[isolated-venv] optional accelerator build tools are unavailable"
         )
-        return
+        return False
+    if not _accelerator_build_tools_ready(venv_python):
+        ColorPrint.yellow(
+            "[isolated-venv] repairing unusable accelerator build package: ninja"
+        )
+        if not _install_package_steps(
+            venv_python,
+            ("--ignore-installed",),
+            ("ninja",),
+            "repairing accelerator build package",
+        ) or not _accelerator_build_tools_ready(venv_python):
+            ColorPrint.yellow(
+                "[isolated-venv] optional accelerator pending: ninja executable "
+                "is not usable from the isolated environment"
+            )
+            return False
+    if not _accelerator_toolkit_ready(venv_python):
+        return False
     pip_args = tuple(spec.get("accelerator_pip_args", ()))
-    ColorPrint.blue(
-        "[isolated-venv] installing optional accelerator: "
-        + ", ".join(packages)
-    )
-    if not _run(
-        [venv_python, "-m", "pip", "install", *pip_args, *packages]
+    build_env = {"MAX_JOBS": os.environ.get("MAX_JOBS", "4")}
+    if not _install_package_steps(
+        venv_python,
+        pip_args,
+        packages,
+        "installing optional accelerator",
+        skip_importable=True,
+        command_env=build_env,
     ) or not _packages_importable(venv_python, packages):
         ColorPrint.yellow(
             "[isolated-venv] optional accelerator unavailable; using PyTorch attention"
         )
+        return False
+    ColorPrint.green(
+        "[isolated-venv] optional accelerator ready: " + ", ".join(packages)
+    )
+    return True
 
 
 def _install_into(
@@ -787,10 +897,13 @@ def _install_into(
             ColorPrint.blue(
                 "[isolated-venv] preserving shared runtime: " + ", ".join(constraints)
             )
-        if install_list:
-            ColorPrint.blue(f"[isolated-venv] installing: {', '.join(install_list)}")
-            if not _run([*pip_args, *install_list]):
-                return False
+        if install_list and not _install_package_steps(
+            venv_python,
+            tuple(pip_args[4:]),
+            install_list,
+            "ensuring engine package",
+        ):
+            return False
     finally:
         if constraint_path is not None:
             try:
@@ -856,7 +969,12 @@ def ensure_venv(
             managed_venv=False,
         ):
             return None
-        _install_accelerators(override, spec)
+        accelerator_ready = _install_accelerators(override, spec)
+        if not accelerator_ready:
+            ColorPrint.yellow(
+                f"[isolated-venv] core environment ready ({engine}); "
+                "optional accelerator remains pending"
+            )
         return override
 
     if not _compatible(engine, sys.executable):
@@ -899,7 +1017,12 @@ def ensure_venv(
         _write_base_identity(engine)
         _write_stamp(engine)
 
-    _install_accelerators(str(python_path), spec)
+    accelerator_ready = _install_accelerators(str(python_path), spec)
+    if not accelerator_ready:
+        ColorPrint.yellow(
+            f"[isolated-venv] core environment ready ({engine}); "
+            "optional accelerator remains pending"
+        )
 
     result = str(python_path)
     ColorPrint.green(f"[isolated-venv] ready ({engine}): {result}")

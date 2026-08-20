@@ -2,6 +2,9 @@
 # Resolve pycore/tts_install_assets from install_shells (5 levels below repo root).
 
 TTS_ISOLATED_VENV_READY=0
+TTS_SOX_READY=0
+TTS_HF_REPO_READY=0
+NEURAL_TTS_WEIGHTS_READY=0
 NEURAL_TTS_LAST_REPORTED_MODEL_PATH=""
 
 _core_node_repo_root_from_tts_common() {
@@ -122,26 +125,31 @@ tts_write_dependency_stamp() {
 
 tts_provision_isolated_venv() {
     local py="$1" engine="$2" force="${3:-0}"
-    local repo_root force_value probe_output
+    local repo_root force_value result_file provision_state
     repo_root="$(_core_node_repo_root_from_tts_common)"
     force_value="0"
     [[ "$force" == "1" ]] && force_value="1"
     TTS_ISOLATED_VENV_READY=0
+    result_file="$(mktemp)"
     PYCORE_ISOLATED_ROOT="$repo_root" \
     PYCORE_ISOLATED_ENGINE="$engine" \
     PYCORE_ISOLATED_FORCE="$force_value" \
+    PYCORE_ISOLATED_RESULT_FILE="$result_file" \
     "$py" -c 'import os, sys
+from pathlib import Path
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
-isolated_venv.ensure_venv(
+result = isolated_venv.ensure_venv(
     os.environ["PYCORE_ISOLATED_ENGINE"],
     force=os.environ.get("PYCORE_ISOLATED_FORCE") == "1",
-)'
-    probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
-sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
-from pycore.pyutils.common.python_env import isolated_venv
-print("__VENV_READY__" if isolated_venv.venv_ready(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
-    [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
+)
+Path(os.environ["PYCORE_ISOLATED_RESULT_FILE"]).write_text(
+    "ready" if result else "not-ready",
+    encoding="ascii",
+)' 
+    provision_state="$(tr -d '\r\n' < "$result_file" 2>/dev/null || true)"
+    rm -f -- "$result_file"
+    [[ "$provision_state" == "ready" ]] && TTS_ISOLATED_VENV_READY=1
     :
 }
 
@@ -164,7 +172,7 @@ tts_probe_isolated_venv_provisioned() {
     probe_output="$(PYCORE_ISOLATED_ROOT="$repo_root" PYCORE_ISOLATED_ENGINE="$engine" "$py" -c 'import os, sys
 sys.path.insert(0, os.environ["PYCORE_ISOLATED_ROOT"])
 from pycore.pyutils.common.python_env import isolated_venv
-print("__VENV_READY__" if isolated_venv.venv_ready(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
+print("__VENV_READY__" if isolated_venv.venv_healthy(os.environ["PYCORE_ISOLATED_ENGINE"]) else "__VENV_NOT_READY__")' 2>/dev/null)"
     [[ "$probe_output" == *"__VENV_READY__"* ]] && TTS_ISOLATED_VENV_READY=1
     :
 }
@@ -175,8 +183,10 @@ _tts_assets_common_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ensure_sox_on_path() {
     local prefix="${1:-}"
+    TTS_SOX_READY=0
     if command -v sox >/dev/null 2>&1; then
         echo "${prefix}[idempotent] SoX on PATH: $(command -v sox)"
+        TTS_SOX_READY=1
         return 0
     fi
     if command -v apt-get >/dev/null 2>&1; then
@@ -189,6 +199,7 @@ ensure_sox_on_path() {
     fi
     if command -v sox >/dev/null 2>&1; then
         echo "${prefix}[OK] SoX on PATH: $(command -v sox)"
+        TTS_SOX_READY=1
         return 0
     fi
     echo "${prefix}[!] SoX NOT on PATH - pysox (qwen-tts tokenizer) warns at import. Install: apt install sox" >&2
@@ -426,6 +437,7 @@ install_hf_repo_flat() {
     shift 4 || true
     local allow_raw="${1:-*}" mirror="${2:-$(_hf_mirror_base)}" sentinel_value="${3:-$repo}" py="${4:-python3}" reconcile="${5:-0}"
     local -a allow=()
+    TTS_HF_REPO_READY=0
     local name all_ok=1 count=0 total=0 catalog_bytes=0 local_bytes=0
     IFS=',' read -r -a allow <<< "$allow_raw"
     mkdir -p "$dest"
@@ -433,6 +445,7 @@ install_hf_repo_flat() {
         local_bytes="$(find "$dest" -type f \( -name '*.safetensors' -o -name '*.bin' -o -name '*.pt' \) -printf '%s\n' 2>/dev/null | awk '{sum += $1} END {print sum + 0}')"
         printf '%s\n' "$sentinel_value" > "$sentinel"
         echo "${prefix}[idempotent] local model found: ${dest} (${local_bytes} bytes); remote lookup skipped"
+        TTS_HF_REPO_READY=1
         return 0
     fi
     mapfile -t names < <(_hf_list_repo_files "$repo" || true)
@@ -458,6 +471,7 @@ install_hf_repo_flat() {
     echo "${prefix}[..] ${count} of ${total} files matched allow-list (mirror ${mirror})"
     if [[ "$all_ok" -eq 1 && "$count" -gt 0 ]]; then
         printf '%s\n' "$sentinel_value" > "$sentinel"
+        TTS_HF_REPO_READY=1
         return 0
     fi
     rm -f "$sentinel"
@@ -473,6 +487,7 @@ neural_tts_local_weights_ready() {
     local catalog="" expected=0 f="" file_size=0 rel="" total_bytes=0 weight_count=0
     local required_path="" entry="" entry_size=0 entry_path=""
     local -a allow=()
+    NEURAL_TTS_WEIGHTS_READY=0
     IFS=',' read -r -a allow <<< "$allow_raw"
     [[ -d "$dir" ]] || return 1
     find "$dir" -type f -name 'config.json' 2>/dev/null | grep -q . || return 1
@@ -516,6 +531,7 @@ neural_tts_local_weights_ready() {
             echo "[model-cache] local model found: $dir (${total_bytes} bytes)"
             NEURAL_TTS_LAST_REPORTED_MODEL_PATH="$dir"
         fi
+        NEURAL_TTS_WEIGHTS_READY=1
         return 0
     fi
     return 1

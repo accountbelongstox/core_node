@@ -22,6 +22,12 @@ export interface RequestConfig {
   retryDelay?: number;
 }
 
+const RETRYABLE_METHODS = new Set<RequestConfig['method']>([
+  'GET',
+  'PUT',
+  'DELETE',
+]);
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -61,9 +67,9 @@ export abstract class BaseApiClient {
       method = 'GET',
       headers = {},
       body,
-      retries = 3,
       retryDelay = 1000,
     } = config;
+    const retries = config.retries ?? (RETRYABLE_METHODS.has(method) ? 3 : 0);
     // An explicit per-call timeout wins; otherwise
     // resolve the configurable backend timeout live from the cache.
     const timeout = config.timeout ?? getCachedBackendTimeoutMs();

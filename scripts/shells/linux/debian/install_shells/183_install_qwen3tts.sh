@@ -15,7 +15,7 @@
 #
 # Idempotent + self-repairing: ensure_venv() is a cheap import probe when healthy and
 # repairs the venv in place when qwen_tts fails to import; HF weights download/repair via curl
-# resume + size verification (.deps_done = venv provisioned, .model_installed = repo id).
+# resume + size verification (.deps_done = core venv policy, .model_installed = repo id).
 # AI remediation plan (comments only): if the same Qwen health path fails repeatedly,
 # rebuild only the canonical venv with `base_python -m venv --clear --system-site-packages`.
 # Do not copy the main interpreter's site-packages and do not remove TARGET_DIR/weights.
@@ -114,7 +114,8 @@ echo "[install_qwen3tts]  weights : $WEIGHTS_DIR"
 echo "[install_qwen3tts]  model   : $_qwen_model"
 echo "[install_qwen3tts]  sentinel: $MODEL_SENTINEL ($([ -f "$MODEL_SENTINEL" ] && echo present || echo absent))"
 
-if ! ensure_sox_on_path "[install_qwen3tts] "; then
+ensure_sox_on_path "[install_qwen3tts] "
+if [[ "$TTS_SOX_READY" -ne 1 ]]; then
     echo "[install_qwen3tts] [!] SoX is required by qwen-tts; installation cannot continue." >&2
     fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
@@ -125,66 +126,35 @@ if [[ "$PYCORE_TORCH_STACK_READY" -ne 1 ]]; then
     fail_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
 fi
 
-if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
-    _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
-    if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
-        # Weights verified; also verify (and self-repair) the isolated venv before the
-        # fast idempotent exit \u2014 a broken venv must never be masked by a present sentinel.
-        tts_probe_isolated_venv_provisioned "$PYTHON" "qwen3tts"
-        if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
-            tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "Qwen3-TTS already installed (isolated venv + verified model)"
-            complete_prereq_step "$PYTHON" "[install_qwen3tts] " --absent-ok "$QWEN3TTS_ABSENT_NOTE" qwen_tts
-        fi
-        echo "[install_qwen3tts] [..] isolated venv needs (re)provisioning; continuing."
-    fi
-    if [[ "$_sentinel_model" != "$_qwen_model" ]]; then
-        echo "[install_qwen3tts] [..] model tier changed (${_sentinel_model:-unknown} -> $_qwen_model); refreshing weights."
-    elif ! neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
-        echo "[install_qwen3tts] [..] local weights incomplete or corrupt; repairing download."
-    fi
-fi
-
 # --- Isolated qwen-tts venv (Bucket B) ----------------------------------- #
 # Never install qwen-tts into the main interpreter: its transformer dependency set
 # would break the shared 4.46.x stack. The main interpreter only needs the shared torch
 # stack (installed below), which the venv REUSES via --system-site-packages. ensure_venv()
 # is idempotent + self-repairing, so it runs on every sweep - even with the sentinel
 # present - to heal a drifted / half-built venv.
-if tts_dependency_stamp_matches "$PYTHON" "qwen3tts" "$DEPS_SENTINEL" && [[ "$FORCE" -eq 0 ]]; then
-    tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "isolated qwen-tts venv provisioned (.deps_done)"
-    tts_probe_isolated_venv_provisioned "$PYTHON" "qwen3tts"
-    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
-        _venv_ready=1
-        echo "[install_qwen3tts] [OK] isolated qwen-tts venv present."
-    else
-        echo "[install_qwen3tts] [..] isolated venv is missing; provisioning."
-        provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
-        [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]] && _venv_ready=1
-    fi
+echo "[install_qwen3tts] [..] ensuring isolated qwen-tts venv components ..."
+provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
+if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
+    tts_write_dependency_stamp "$PYTHON" "qwen3tts" "$DEPS_SENTINEL"
+    _venv_ready=1
+    echo "[install_qwen3tts] [OK] isolated qwen-tts venv ready; main interpreter untouched."
 else
-    echo "[install_qwen3tts] [..] provisioning isolated qwen-tts venv (package dependencies shadow main; system torch reused) ..."
-    provision_qwen3tts_venv "$_QWEN3TTS_FORCE_PY"
-    if [[ "$TTS_ISOLATED_VENV_READY" -eq 1 ]]; then
-        tts_write_dependency_stamp "$PYTHON" "qwen3tts" "$DEPS_SENTINEL"
-        _venv_ready=1
-        echo "[install_qwen3tts] [OK] isolated qwen-tts venv ready; main interpreter untouched."
-    else
-        rm -f -- "$DEPS_SENTINEL"
-        echo "[install_qwen3tts] [!] venv provisioning incomplete; will RESUME next run."
-    fi
+    rm -f -- "$DEPS_SENTINEL"
+    echo "[install_qwen3tts] [!] venv provisioning incomplete; will RESUME next run."
 fi
 
 if [[ -f "$MODEL_SENTINEL" && "$FORCE" -eq 0 ]]; then
     _sentinel_model="$(tr -d '\r\n\ufeff' < "$MODEL_SENTINEL" 2>/dev/null || true)"
-    if [[ "$_sentinel_model" == "$_qwen_model" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
+    neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"
+    if [[ "$_sentinel_model" == "$_qwen_model" && "$NEURAL_TTS_WEIGHTS_READY" -eq 1 ]]; then
         tts_idempotent_msg "$PYTHON" "$SCRIPT_DIR" "model weights verified ($_qwen_model)"
         _model_ready=1
     fi
 fi
 if [[ "$_model_ready" -eq 0 ]]; then
     echo "[install_qwen3tts] [..] downloading/repairing model '$_qwen_model' (curl, resumable) ..."
-    if install_hf_repo_flat "$_qwen_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_qwen3tts] " "*" "$(_hf_mirror_base)" "$_qwen_model" \
-        && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
+    install_hf_repo_flat "$_qwen_model" "$WEIGHTS_DIR" "$MODEL_SENTINEL" "[install_qwen3tts] " "*" "$(_hf_mirror_base)" "$_qwen_model"
+    if [[ "$TTS_HF_REPO_READY" -eq 1 ]]; then
         _model_ready=1
         echo "[install_qwen3tts] [OK] model '$_qwen_model' ready at $WEIGHTS_DIR."
     else
@@ -198,7 +168,8 @@ if [[ "$_venv_ready" -ne 1 || "$_model_ready" -ne 1 ]]; then
 fi
 
 echo "[install_qwen3tts] [OK] Qwen3-TTS ready. export QWEN3TTS_MODEL=$_qwen_model"
-if [[ -f "$MODEL_SENTINEL" ]] && neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"; then
+neural_tts_local_weights_ready "$WEIGHTS_DIR" "$_qwen_model"
+if [[ -f "$MODEL_SENTINEL" && "$NEURAL_TTS_WEIGHTS_READY" -eq 1 ]]; then
     echo "[install_qwen3tts]  local weights auto-detected: $WEIGHTS_DIR"
 fi
 echo "[install_qwen3tts]  START:  pycore runs pycore/tts_install_assets/qwen3tts_api_server.py under the ISOLATED venv as a managed class-C server (QWEN3TTS_PORT, default 57210)."

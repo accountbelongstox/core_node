@@ -16,7 +16,36 @@ NC='\033[0m' # No Color
 MCP_WATCH_CHOICE="${MCP_CHROME_WATCH_MODE:-}"
 MCP_WATCH_MODE="dev"
 MCP_DEV_PID=""
-MCP_SUPERVISOR_EXIT="0"
+MCP_SCRIPT_DIR=""
+MCP_PROJECT_ROOT=""
+MCP_CORE_NODE_ROOT=""
+MCP_LINUX_COMMON_DIR=""
+MCP_GVAR_COMMON=""
+MCP_VENV_PYTHON_COMMON=""
+MCP_PYTHON_EXE=""
+MCP_COMMON_LIB_DIR=""
+MCP_COMPILE_CHOICE=""
+MCP_DEV_NVM=""
+MCP_PYTHON_SCRIPT=""
+MCP_VARS_DIR=""
+MCP_NODE_VERSION=""
+MCP_PNPM_VERSION=""
+MCP_BUILD_OUTPUT_DIR=""
+MCP_GLOBAL_LOG_DIR=""
+MCP_NODE_SEARCH_DIRS=()
+mcp_ui_title=""
+mcp_step1=""
+mcp_step2=""
+mcp_step3=""
+mcp_step4=""
+mcp_step5=""
+mcp_step6=""
+mcp_shared_path=""
+mcp_native_path=""
+mcp_run_host_sh=""
+mcp_extension_path=""
+mcp_manifest_json=""
+mcp_system_manifest_path=""
 
 # Get project root directory - use MCP prefix to avoid conflicts
 MCP_SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -63,9 +92,8 @@ if [ -n "$INVOCATION_ID" ]; then
     MCP_DEV_PID=$!
     trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
     "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode dev --recover-on-start
-    MCP_SUPERVISOR_EXIT=$?
     kill "$MCP_DEV_PID" 2>/dev/null || true
-    exit "$MCP_SUPERVISOR_EXIT"
+    exit
 fi
 
 echo -e "\n${CYAN}========================================${NC}"
@@ -139,35 +167,6 @@ mcp_fix_build_permissions() {
     fi
 }
 
-# Helper function: Clean old build directories
-mcp_clean_old_build_dirs() {
-    echo -e "${CYAN}  Cleaning old build directories...${NC}"
-
-    # Clean native-server dist (may have wrong permissions from previous root build)
-    local mcp_native_dist="$MCP_PROJECT_ROOT/app/native-server/dist"
-    if [ -d "$mcp_native_dist" ]; then
-        rm -rf "$mcp_native_dist" 2>/dev/null || {
-            echo -e "${YELLOW}  [WARN] Removing old native-server dist directory${NC}"
-            if [ "$(id -u)" -eq 0 ]; then
-                rm -rf "$mcp_native_dist"
-            fi
-        }
-    fi
-
-    # Clean extension .output (may have wrong permissions from previous root build)
-    local mcp_extension_output="$MCP_PROJECT_ROOT/.output"
-    if [ -d "$mcp_extension_output" ]; then
-        rm -rf "$mcp_extension_output" 2>/dev/null || {
-            echo -e "${YELLOW}  [WARN] Removing old extension output directory${NC}"
-            if [ "$(id -u)" -eq 0 ]; then
-                rm -rf "$mcp_extension_output"
-            fi
-        }
-    fi
-
-    echo -e "${GREEN}  [OK] Old build directories cleaned${NC}"
-}
-
 # ======================================
 # Step 0: Ensure PATH and fix node/pnpm symlinks (idempotent, works under sudo)
 # ======================================
@@ -181,6 +180,9 @@ MCP_NODE_SEARCH_DIRS=(
 )
 
 mcp_find_node_bin_dir() {
+    local mcp_found_bin_dir=""
+    local mcp_existing=""
+
     # Search for node binary in well-known locations
     for mcp_search_dir in "${MCP_NODE_SEARCH_DIRS[@]}"; do
         if [ ! -d "$mcp_search_dir" ]; then
@@ -189,38 +191,38 @@ mcp_find_node_bin_dir() {
         # Find node-* directories (versioned installs)
         for mcp_ver_dir in "$mcp_search_dir"/node-v*; do
             if [ -x "$mcp_ver_dir/bin/node" ]; then
-                echo "$mcp_ver_dir/bin"
-                return 0
+                mcp_found_bin_dir="$mcp_ver_dir/bin"
+                break 2
             fi
         done
     done
-    # Fallback: check if node is already in PATH
-    local mcp_existing
-    mcp_existing=$(command -v node 2>/dev/null)
-    if [ -n "$mcp_existing" ] && [ -x "$mcp_existing" ]; then
-        dirname "$mcp_existing"
-        return 0
+
+    if [ -z "$mcp_found_bin_dir" ]; then
+        mcp_existing=$(command -v node 2>/dev/null)
+        if [ -n "$mcp_existing" ] && [ -x "$mcp_existing" ]; then
+            mcp_found_bin_dir=$(dirname "$mcp_existing")
+        fi
     fi
-    return 1
+
+    printf '%s' "$mcp_found_bin_dir"
 }
 
 mcp_ensure_symlink() {
     local mcp_binary_name="$1"
     local mcp_source_path="$2"
-
-    if [ -z "$mcp_source_path" ] || [ ! -e "$mcp_source_path" ]; then
-        return 1
-    fi
-
     local mcp_link="/usr/local/bin/$mcp_binary_name"
     local mcp_current_target=""
+    local mcp_expected_target=""
+
+    if [ -z "$mcp_source_path" ] || [ ! -e "$mcp_source_path" ]; then
+        return
+    fi
 
     if [ -L "$mcp_link" ]; then
         mcp_current_target=$(readlink -f "$mcp_link" 2>/dev/null)
-        local mcp_expected_target
         mcp_expected_target=$(readlink -f "$mcp_source_path" 2>/dev/null)
         if [ "$mcp_current_target" = "$mcp_expected_target" ]; then
-            return 0  # Already correct
+            return
         fi
     fi
 
@@ -270,7 +272,7 @@ mcp_ensure_node_deps() {
         if [ -e "$mcp_node_bin_dir/pnpm" ]; then
             mcp_ensure_symlink "pnpm" "$mcp_node_bin_dir/pnpm"
         fi
-        return 0
+        return
     fi
 
     # pnpm not found - try to install it
@@ -310,12 +312,7 @@ MCP_PYTHON_SCRIPT="$MCP_SCRIPT_DIR/build_orchestrator.py"
 
 # Check if Python is installed
 # Run Python script
-if ! "$MCP_PYTHON_EXE" "$MCP_PYTHON_SCRIPT"; then
-    mcp_error=$(mcp_get_var "$VAR_KEY_ERROR" || echo "Unknown error")
-    echo ""
-    echo -e "${RED}ERROR: Python processing failed: $mcp_error${NC}"
-    exit 1
-fi
+"$MCP_PYTHON_EXE" "$MCP_PYTHON_SCRIPT"
 
 echo ""
 
@@ -366,23 +363,9 @@ if [ -z "$mcp_step2" ]; then
 fi
 echo -e "${YELLOW}[2/6] $mcp_step2${NC}"
 
-mcp_should_install=$(mcp_get_var "$VAR_KEY_SHOULD_INSTALL" || echo "false")
-if [ "$mcp_should_install" = "true" ]; then
-    mcp_cmd_install=$(mcp_get_var "$VAR_KEY_CMD_INSTALL")
-    echo -e "${CYAN}  Installing dependencies...${NC}"
-    eval "$mcp_cmd_install"
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}  [ERROR] ERROR: Failed to install dependencies${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}  [OK] Dependencies installed${NC}"
-else
-    echo -e "${GREEN}  [OK] Dependencies already installed${NC}"
-fi
-
-# Clean old build directories before building
-echo ""
-mcp_clean_old_build_dirs
+echo -e "${CYAN}  Installing dependencies...${NC}"
+pnpm install
+echo -e "${GREEN}  [OK] Dependency state aligned${NC}"
 
 # Step 3: Build Shared package
 echo ""
@@ -392,13 +375,8 @@ if [ -z "$mcp_step3" ]; then
 fi
 echo -e "${YELLOW}[3/6] $mcp_step3${NC}"
 
-mcp_cmd_build_shared=$(mcp_get_var "$VAR_KEY_CMD_BUILD_SHARED")
 echo -e "${CYAN}  Building chrome-mcp-shared...${NC}"
-eval "$mcp_cmd_build_shared"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}  [ERROR] ERROR: Failed to build shared package${NC}"
-    exit 1
-fi
+pnpm run build:shared
 
 mcp_shared_path=$(mcp_get_var "$VAR_KEY_SHARED_PATH")
 if [ -d "$mcp_shared_path" ]; then
@@ -413,13 +391,8 @@ if [ -z "$mcp_step4" ]; then
 fi
 echo -e "${YELLOW}[4/6] $mcp_step4${NC}"
 
-mcp_cmd_build_native=$(mcp_get_var "$VAR_KEY_CMD_BUILD_NATIVE")
 echo -e "${CYAN}  Building mcp-chrome-bridge...${NC}"
-eval "$mcp_cmd_build_native"
-if [ $? -ne 0 ]; then
-    echo -e "${RED}  [ERROR] ERROR: Failed to build Native Server${NC}"
-    exit 1
-fi
+pnpm run build:native
 
 mcp_native_path=$(mcp_get_var "$VAR_KEY_NATIVE_PATH")
 mcp_run_host_sh="$mcp_native_path/run_host.sh"
@@ -449,19 +422,6 @@ if [ -f "$mcp_run_host_sh" ]; then
     # Fix permissions for native server dist
     mcp_fix_build_permissions "$mcp_native_path"
 
-    # Auto-register Native Host for local development (system-level requires root)
-    echo -e "${CYAN}  Auto-registering Native Host to system directory...${NC}"
-    if [ "$(id -u)" -eq 0 ]; then
-        # Already root, run directly
-        node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
-            echo -e "${GREEN}  [OK] Native Host registered successfully${NC}" || \
-            echo -e "${YELLOW}  [WARN] Auto-registration failed${NC}"
-    else
-        # Not root, try with sudo
-        sudo node "$MCP_SCRIPT_DIR/register-local-dev.cjs" > /dev/null 2>&1 && \
-            echo -e "${GREEN}  [OK] Native Host registered successfully (with sudo)${NC}" || \
-            echo -e "${YELLOW}  [WARN] Auto-registration failed (run with sudo for system-level registration)${NC}"
-    fi
 fi
 
 # Step 5: Build Chrome Extension
@@ -478,19 +438,7 @@ MCP_BUILD_OUTPUT_DIR=$(mcp_get_var "$VAR_KEY_BUILD_OUTPUT_DIR")
 # Create build directory with proper permissions before building
 mcp_create_build_dir_with_permissions "$MCP_BUILD_OUTPUT_DIR"
 
-mcp_cmd_build_extension=$(mcp_get_var "$VAR_KEY_CMD_BUILD_EXTENSION")
-if [ -z "$mcp_cmd_build_extension" ]; then
-    echo -e "${RED}[ERROR] Build command is EMPTY!${NC}"
-    exit 1
-fi
-
-eval "$mcp_cmd_build_extension"
-mcp_build_exit_code=$?
-
-if [ $mcp_build_exit_code -ne 0 ]; then
-    echo -e "${RED}  [ERROR] Failed to build Chrome Extension${NC}"
-    exit 1
-fi
+pnpm run build:extension
 
 mcp_extension_path=$(mcp_get_var "$VAR_KEY_EXTENSION_PATH")
 if [ -z "$mcp_extension_path" ]; then
@@ -511,12 +459,11 @@ fi
 
 # Step 6: Register Native Messaging Host
 echo ""
-mcp_step6=$(mcp_get_var "$VAR_KEY_UI_STEP_6" || echo "Registering Native Messaging Host...")
+mcp_step6=$(mcp_get_var "$VAR_KEY_UI_STEP_6" "Registering Native Messaging Host...")
 echo -e "${YELLOW}[6/6] $mcp_step6${NC}"
 
-mcp_cmd_register=$(mcp_get_var "$VAR_KEY_CMD_REGISTER")
 echo -e "${CYAN}  Using local development registration...${NC}"
-eval "$mcp_cmd_register"
+node "$MCP_SCRIPT_DIR/register-local-dev.cjs"
 
 # Verify system-level registration
 echo ""
@@ -583,14 +530,10 @@ if [ "$MCP_WATCH_MODE" = "dev" ]; then
     MCP_DEV_PID=$!
     trap 'kill "$MCP_DEV_PID" 2>/dev/null || true' EXIT INT TERM
     "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --project-root "$MCP_PROJECT_ROOT" --watch-mode "$MCP_WATCH_MODE" --recover-on-start --foreground
-    MCP_SUPERVISOR_EXIT=$?
     kill "$MCP_DEV_PID" 2>/dev/null || true
 else
     echo -e "${YELLOW}  One-time build complete.${NC}"
     echo -e "${CYAN}========================================${NC}"
     echo ""
     "$MCP_PYTHON_EXE" "$MCP_SCRIPT_DIR/service_supervisor.py" --wake
-    MCP_SUPERVISOR_EXIT=$?
 fi
-
-exit "$MCP_SUPERVISOR_EXIT"

@@ -254,9 +254,12 @@ def engine_compatibility(
 
 
 def engine_fingerprint(engine: str) -> str:
-    """Return a stable fingerprint for one engine policy."""
+    """Return a stable fingerprint for core engine dependencies."""
     spec = engine_spec(engine)
     spec.pop("policy_version", None)
+    for key in tuple(spec):
+        if key.startswith("accelerator_"):
+            spec.pop(key)
     if spec.get("isolated"):
         shared_packages = tuple(spec.get("shared_packages", ()))
         if "transformers" not in shared_packages:

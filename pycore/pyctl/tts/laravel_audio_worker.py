@@ -9,7 +9,7 @@ manual dispatch surface.
 ------------------------------------------------------------------------------
 Laravel typed pull/accept/result contract
 ------------------------------------------------------------------------------
-  Pull:    GET  /api/worker/tasks/{taskType}/pull
+  Pull:    POST /api/worker/tasks/{taskType}/pull
   Accept:  POST /api/worker/tasks/{taskType}/accept
   Result:  POST /api/worker/tasks/{taskType}/result   (processing/completed/failed)
 

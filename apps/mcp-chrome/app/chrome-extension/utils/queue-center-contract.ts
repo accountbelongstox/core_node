@@ -187,6 +187,11 @@ export interface WorkerSubmitOutcome {
   images_saved?: number;
 }
 
+export interface WorkerReleaseOutcome {
+  released: number;
+  skipped: number;
+}
+
 export interface WorkerInfo {
   worker_id: string;
   worker_name: string;

@@ -73,7 +73,7 @@ def pending_rebuild_records() -> List[Dict[str, Any]]:
     milliseconds per tick."""
     rows = [
         row
-        for row in records.list_records(500)
+        for row in records.list_all_records()
         if row.get("article_en") and is_rebuild_candidate(row)
     ]
     rows.reverse()

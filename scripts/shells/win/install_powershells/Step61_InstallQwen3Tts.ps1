@@ -62,7 +62,8 @@ $modelSentinel = Join-Path $targetDir '.model_installed'
 # Storage ownership invariant:
 # - $targetDir\weights is the only installer-managed Qwen model store.
 # - .model_installed identifies the HF repository stored in weights.
-# - .deps_done describes the package plan only.
+# - .deps_done describes the core package plan only; optional accelerators are
+#   probed independently on every run.
 # - D:\.dev_win10\py_venv_qwen3tts_* contains Python packages only.
 # Rebuilding or changing the venv must never delete, move, or redownload
 # complete files under $weightsDir. Install-HfRepoFlat skips verified files and
@@ -107,7 +108,7 @@ $cudaPolicy = Get-CudaRuntimePolicy
 Install-PycoreTorchStack -PythonExe $resolvedPython -Prefix "$SCRIPT_INDEX "
 if ($cudaPolicy.Enabled -and -not (Test-TorchCudaUsable -PythonCmd $resolvedPython)) {
     Write-Host "$SCRIPT_INDEX [!] NVIDIA GPU is present but $($cudaPolicy.Tag) torch is not usable; Qwen3-TTS will retry after the runtime is repaired." -ForegroundColor DarkYellow
-    return
+    throw "$SCRIPT_INDEX canonical CUDA torch is not usable."
 }
 
 $hasCuda = ($cudaPolicy.Enabled -and (Test-TorchCudaUsable -PythonCmd $resolvedPython))
@@ -122,27 +123,7 @@ New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
 $soxReady = Ensure-SoxOnPath -Prefix "$SCRIPT_INDEX " -Force:$Force
 if (-not $soxReady) {
     Write-Host "$SCRIPT_INDEX [!] SoX is unavailable; qwen-tts will retry next run." -ForegroundColor DarkYellow
-    return
-}
-
-if (
-    (Test-TtsDependencyStamp -PythonExe $resolvedPython -Engine 'qwen3tts' -Path $depsSentinel) -and
-    (Test-Path $modelSentinel) -and
-    -not $Force -and
-    (Test-IsolatedTtsVenvProvisioned -PythonExe $resolvedPython -CoreNodeRoot $coreNodeRoot -Engine 'qwen3tts')
-) {
-    $sentinelModel = (Get-Content -LiteralPath $modelSentinel -Raw -ErrorAction SilentlyContinue)
-    if ($sentinelModel) { $sentinelModel = $sentinelModel.Trim().Trim([char]0xFEFF) }
-    if ($sentinelModel -and ($sentinelModel -eq $qwenModel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
-        Write-TtsIdempotentSkip -PythonExe $resolvedPython -Reason "Qwen3-TTS already installed (deps + verified model)" -InstallScriptRoot $PSScriptRoot -Prefix $SCRIPT_INDEX
-        Complete-PrereqStep -PythonExe $resolvedPython -Prefix $SCRIPT_INDEX -ImportModules @()
-        return
-    }
-    if ($sentinelModel -and ($sentinelModel -ne $qwenModel)) {
-        Write-Host ("$SCRIPT_INDEX [..] model tier changed ({0} -> {1}); refreshing weights." -f $sentinelModel, $qwenModel) -ForegroundColor Yellow
-    } elseif (-not (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
-        Write-Host "$SCRIPT_INDEX [..] local weights incomplete or corrupt; repairing download." -ForegroundColor Yellow
-    }
+    throw "$SCRIPT_INDEX SoX prerequisite is unavailable."
 }
 
 # --- Isolated venv (Bucket B): qwen-tts owns its transformer dependency set, which is
@@ -176,7 +157,7 @@ if ((Test-Path $modelSentinel) -and -not $Force) {
 if (-not $modelReady) {
     Write-Host ("$SCRIPT_INDEX [..] downloading/repairing model '{0}' (curl, resumable) ..." -f $qwenModel) -ForegroundColor Yellow
     $dlOk = Install-HfRepoFlat -RepoId $qwenModel -DestDir $weightsDir -SentinelPath $modelSentinel -Prefix "$SCRIPT_INDEX " -SentinelValue $qwenModel
-    if ($dlOk -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
+    if ($dlOk) {
         $modelReady = $true
         Write-Host ("$SCRIPT_INDEX [OK] model '{0}' ready at {1}." -f $qwenModel, $weightsDir) -ForegroundColor Green
     } else {
@@ -186,11 +167,11 @@ if (-not $modelReady) {
 
 if (-not $venvReady -or -not $modelReady) {
     Write-Host "$SCRIPT_INDEX [!] Qwen3-TTS is not ready; the incomplete component will be retried next run." -ForegroundColor DarkYellow
-    return
+    throw "$SCRIPT_INDEX required Qwen3-TTS components are incomplete."
 }
 
 Write-Host "$SCRIPT_INDEX [OK] Qwen3-TTS ready. Set QWEN3TTS_MODEL / QWEN3TTS_SPEAKER." -ForegroundColor Green
-if ((Test-Path $modelSentinel) -and (Test-NeuralTtsLocalWeightsReady -WeightsDir $weightsDir -RepoId $qwenModel)) {
+if ($modelReady) {
     Write-Host ("$SCRIPT_INDEX  local weights auto-detected: {0}" -f $weightsDir) -ForegroundColor Cyan
 }
 Write-Host "$SCRIPT_INDEX  Runtime: pycore launches the qwen3tts HTTP server (class C) under the isolated venv on demand; no manual start needed." -ForegroundColor Cyan

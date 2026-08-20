@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Build Orchestrator - Build orchestration script
-Handles cross-platform differences, generates build commands and configuration
-Does not execute shell commands, only generates variable files for Shell to read
+Build Orchestrator - Build configuration script
+Handles cross-platform path and UI configuration for the shell launchers.
 """
 
 import os
 import sys
 import json
 from pathlib import Path
-from typing import Dict, List
 
 # Import variable manager and variable definitions
 from var_manager import get_instance as get_var_manager
@@ -98,35 +96,6 @@ class BuildOrchestrator:
         else:  # linux
             return os.path.join(home, ".config", "google-chrome", "NativeMessagingHosts", "com.chromemcp.nativehost.json")
 
-    def generate_commands(self):
-        """Generate build commands"""
-        print("Generating build commands...")
-
-        # Dependency check command (display only, not executed)
-        self.vm.set(BuildVars.CMD_CHECK_DEPS, "node --version && pnpm --version")
-
-        # Install dependencies command
-        node_modules_exists = self.vm.get(BuildVars.NODE_MODULES_EXISTS) == "true"
-        if node_modules_exists:
-            self.vm.set(BuildVars.SHOULD_INSTALL, "false")
-            self.vm.set(BuildVars.CMD_INSTALL, "")
-        else:
-            self.vm.set(BuildVars.SHOULD_INSTALL, "true")
-            self.vm.set(BuildVars.CMD_INSTALL, "pnpm install")
-
-        # Build commands (cross-platform)
-        self.vm.set(BuildVars.CMD_BUILD_SHARED, "pnpm run build:shared")
-        self.vm.set(BuildVars.CMD_BUILD_NATIVE, "pnpm run build:native")
-        self.vm.set(BuildVars.CMD_BUILD_EXTENSION, "pnpm run build:extension")
-
-        # Register command
-        if self.platform == "windows":
-            self.vm.set(BuildVars.CMD_REGISTER, "node scripts\\register-local-dev.cjs")
-        else:
-            self.vm.set(BuildVars.CMD_REGISTER, "node scripts/register-local-dev.cjs")
-
-        print("  Commands generated successfully")
-
     def generate_ui_strings(self):
         """Generate UI display strings"""
         print("Generating UI strings...")
@@ -186,9 +155,6 @@ class BuildOrchestrator:
 
             # Detect environment
             self.detect_environment()
-
-            # Generate commands
-            self.generate_commands()
 
             # Generate UI strings
             self.generate_ui_strings()

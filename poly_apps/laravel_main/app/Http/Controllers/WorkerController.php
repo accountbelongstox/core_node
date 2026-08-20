@@ -179,7 +179,7 @@ class WorkerController extends Controller
      * Pull tasks of one task type for worker.
      * Tasks are automatically assigned to worker atomically
      *
-     * GET /api/worker/tasks/{taskType}/pull
+     * POST /api/worker/tasks/{taskType}/pull
      */
     public function pullTasks(Request $request, string $taskType): JsonResponse
     {
@@ -398,7 +398,8 @@ class WorkerController extends Controller
 
         $outcome = $this->taskManager->releaseWorkerTasks(
             $validated['worker_id'],
-            array_values($validated['task_ids'])
+            array_values($validated['task_ids']),
+            $taskType
         );
 
         return $this->success($outcome, 'Tasks released');
