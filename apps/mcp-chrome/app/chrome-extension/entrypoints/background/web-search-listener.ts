@@ -5,7 +5,8 @@ import {
   searchBookCoverUrls,
 } from './services/web-search-service';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'Web Search Listener';
 

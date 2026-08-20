@@ -164,6 +164,11 @@ export const pycoreApiTerminal = {
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalDraft, text, {
       terminal_number: terminalNumber,
     }) as Promise<TerminalDraftResult>,
+  pressTerminalEnter: (windowId: string, terminalNumber: number) =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.terminalEnter, {
+      window_id: windowId,
+      terminal_number: terminalNumber,
+    }) as Promise<TerminalActionResult>,
   inputTerminalText: (windowId: string, terminalNumber: number, text: string) =>
     requestPycoreHttpText(PYCORE_HTTP_ROUTES.terminalInput, text, {
       window_id: windowId,

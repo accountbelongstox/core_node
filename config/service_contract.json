@@ -19,12 +19,14 @@
         "mercure": "v0.24.2"
     },
     "realtime": {
-        "mercure_cookie": "mercureAuthorization"
+        "mercure_cookie": "mercureAuthorization",
+        "mercure_transport": "local"
     },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",
         "core_node_data_dir_windows_subpath": "var/_core_node",
-        "global_var_dir_name": "global_var"
+        "global_var_dir_name": "global_var",
+        "frankenphp_root_posix": "/www/programing/frankenphp"
     },
     "files": {
         "ui_allowed_hosts": "UI_ALLOWED_HOSTS",

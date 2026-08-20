@@ -117,6 +117,17 @@
       }
       return;
     }
+    const supportedActions = [
+      'duoreaderDismissLanguage',
+      'duoreaderWaitChapter',
+      'duoreaderExtractToc',
+      'duoreaderExtractChapter',
+      'duoreaderFetchBinary',
+      'duoreaderApiFetchPz',
+      'duoreaderDecodePz',
+      'duoreaderApiTest',
+    ];
+    if (!message || !supportedActions.includes(message.action)) return false;
 
     const run = async () => {
       switch (message.action) {
@@ -217,8 +228,6 @@
           });
           break;
         }
-        default:
-          sendResponse({ ok: false, error: `Unknown action: ${message.action}` });
       }
     };
 

@@ -9,7 +9,6 @@ import {
   buildApiUrl,
   getEndpointById,
   getAllEndpoints,
-  getCurrentOriginEndpoint,
 } from '@/core/integrations/laravel/LaravelEndpoints';
 import { clampRecheckInterval } from '../../health/OfflineRecheckScheduler';
 import { loadDomainConfig } from '../../contracts/DomainConfig';
@@ -93,8 +92,7 @@ class ApiManager {
    *   1. api_user_modified  (the manual switcher's choice — highest trust)
    *   2. api_current_endpoint
    *   3. api_auto_detected
-   *   4. Current URL (:9000) when no localStorage preference exists yet
-   *   5. first endpoint by priority index (config order)
+   *   4. first endpoint by priority index (config order)
    *
    * This is a best-effort guess made WITHOUT health knowledge; the background
    * stored-first pass (runBackgroundHealthPass) only probes persisted state.
@@ -124,13 +122,7 @@ class ApiManager {
       }
     }
 
-    // No stored preference — default to the page's Current URL (:9000).
-    const currentUrl = getCurrentOriginEndpoint();
-    if (currentUrl) {
-      return this.activateEndpoint(currentUrl);
-    }
-
-    // Fall back to the highest-priority static endpoint (config order). No store
+    // Default to the highest-priority static endpoint (config order). No store
     // write-back here — this is only a synchronous guess; the background pass
     // is the source of truth for persisting a known-good endpoint.
     this.currentEndpoint = endpoints.length > 0 ? endpoints[0] : null;

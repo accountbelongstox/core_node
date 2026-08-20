@@ -2,7 +2,7 @@
 """Central code-backed service and worker configuration."""
 
 
-LARAVEL_WORKER_API_URL = "http://127.0.0.1:9000"
+LARAVEL_WORKER_API_URL = "https://api.si.12gm.com"
 PYCORE_WORKER_INSTANCE = ""
 TRAY_BACKEND = "native"
 UI_ENABLE_TRAY = TRAY_BACKEND == "pyside"

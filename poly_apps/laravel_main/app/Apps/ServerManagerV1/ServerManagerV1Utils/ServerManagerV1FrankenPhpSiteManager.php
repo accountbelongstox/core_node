@@ -136,6 +136,7 @@ class ServerManagerV1FrankenPhpSiteManager
             $backupPath = self::backupPath($normalizedName, 'deleted');
             $ensure = [];
             $reload = [];
+            $rollback = [];
 
             if (!FileSystemManager::ensureDirectoryExists(dirname($backupPath), 0700)) {
                 return self::failure('Unable to prepare the FrankenPHP site backup directory.');
@@ -145,14 +146,14 @@ class ServerManagerV1FrankenPhpSiteManager
             }
 
             $ensure = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
+            $rollback = self::rollbackMetadata($normalizedName, $resolved, $backupPath);
             $reload = ($ensure['canonical'] ?? false)
-                ? ServerManagerV1FrankenPhpRuntime::reload()
+                ? ServerManagerV1FrankenPhpReloadJob::queue(false, $rollback)
                 : self::failure((string) ($ensure['error'] ?? 'Unable to render the canonical Caddyfile.'));
 
             if (($reload['success'] ?? false) !== true) {
                 @rename($backupPath, $resolved['path']);
                 ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
-                ServerManagerV1FrankenPhpRuntime::reload();
                 return self::failure((string) ($reload['error'] ?? 'FrankenPHP reload failed.'));
             }
 
@@ -161,7 +162,9 @@ class ServerManagerV1FrankenPhpSiteManager
                 'site_name' => $normalizedName,
                 'deleted' => true,
                 'backup_file' => $backupPath,
-                'reloaded' => true,
+                'reloaded' => false,
+                'reload_queued' => true,
+                'reload_job_id' => $reload['job_id'] ?? null,
             ];
         }, true);
 
@@ -186,6 +189,7 @@ class ServerManagerV1FrankenPhpSiteManager
             $validation = [];
             $ensure = [];
             $reload = [];
+            $rollback = [];
 
             if ($create && $current !== null) {
                 return self::failure('FrankenPHP site already exists.', 409);
@@ -215,14 +219,14 @@ class ServerManagerV1FrankenPhpSiteManager
             }
 
             $ensure = ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
+            $rollback = self::rollbackMetadata($siteName, $current, $backupPath);
             $reload = ($ensure['canonical'] ?? false)
-                ? ServerManagerV1FrankenPhpRuntime::reload()
+                ? ServerManagerV1FrankenPhpReloadJob::queue(false, $rollback)
                 : self::failure((string) ($ensure['error'] ?? 'Unable to render the canonical Caddyfile.'));
 
             if (($reload['success'] ?? false) !== true) {
                 self::restore($siteName, $current, $backupPath);
                 ServerManagerV1FrankenPhpCaddyfileBuilder::ensure();
-                ServerManagerV1FrankenPhpRuntime::reload();
                 return self::failure((string) ($reload['error'] ?? 'FrankenPHP reload failed.'));
             }
 
@@ -230,7 +234,9 @@ class ServerManagerV1FrankenPhpSiteManager
                 'success' => true,
                 'created' => $create,
                 'updated' => !$create,
-                'reloaded' => true,
+                'reloaded' => false,
+                'reload_queued' => true,
+                'reload_job_id' => $reload['job_id'] ?? null,
                 'site' => self::describe($siteName, $targetPath, $enabled),
                 'backup_file' => $backupPath,
             ];
@@ -285,7 +291,7 @@ class ServerManagerV1FrankenPhpSiteManager
             return ['success' => false, 'output' => 'Unable to prepare the temporary Caddyfile validation input.'];
         }
 
-        $result = ServerManagerV1FrankenPhpCaddyfileBuilder::validatePath($temporaryPath);
+        $result = ServerManagerV1FrankenPhpCaddyfileBuilder::adaptPath($temporaryPath);
         @unlink($temporaryPath);
 
         return $result;
@@ -361,7 +367,7 @@ class ServerManagerV1FrankenPhpSiteManager
         if (!is_string($content)) {
             $content = '';
         }
-        if (preg_match_all('/^\s*((?:https?:\/\/)?[^#{]+)\s*\{\s*$/m', $content, $matches)) {
+        if (preg_match_all('/^[ \t]*((?:https?:\/\/)?[^\r\n#{]+?)[ \t]*\{[ \t]*$/m', $content, $matches)) {
             foreach ($matches[1] as $addressList) {
                 foreach (explode(',', $addressList) as $address) {
                     $host = preg_replace('/^https?:\/\//', '', trim($address));
@@ -456,6 +462,51 @@ class ServerManagerV1FrankenPhpSiteManager
         if ($current !== null && $backupPath !== null && FileSystemManager::isFile($backupPath)) {
             FileSystemManager::copy($backupPath, $current['path']);
         }
+    }
+
+    public static function rollbackQueuedChange(array $metadata): array
+    {
+        $backupPath = is_string($metadata['backup_file'] ?? null) ? $metadata['backup_file'] : null;
+        $backupRoot = ServerManagerV1FrankenPhpCaddyfileBuilder::routeBackupsDirectory().DIRECTORY_SEPARATOR;
+        $currentEnabled = (bool) ($metadata['current_enabled'] ?? false);
+        $currentExisted = (bool) ($metadata['current_existed'] ?? false);
+        $siteName = self::normalizeSiteName((string) ($metadata['site_name'] ?? ''));
+        $targetPath = '';
+
+        if ($siteName === null) {
+            return self::failure('Invalid FrankenPHP rollback site name.');
+        }
+        if ($currentExisted && ($backupPath === null
+            || !str_starts_with($backupPath, $backupRoot)
+            || !FileSystemManager::isFile($backupPath))) {
+            return self::failure('FrankenPHP rollback backup is unavailable.');
+        }
+
+        self::restore($siteName, $currentExisted ? [
+            'path' => self::routePath($siteName, $currentEnabled),
+            'enabled' => $currentEnabled,
+        ] : null, $backupPath);
+        $targetPath = self::routePath($siteName, $currentEnabled);
+
+        return [
+            'success' => $currentExisted
+                ? FileSystemManager::isFile($targetPath)
+                : !FileSystemManager::isFile(self::routePath($siteName, true))
+                    && !FileSystemManager::isFile(self::routePath($siteName, false)),
+            'site_name' => $siteName,
+            'restored' => $currentExisted,
+            'removed' => !$currentExisted,
+        ];
+    }
+
+    private static function rollbackMetadata(string $siteName, ?array $current, ?string $backupPath): array
+    {
+        return [
+            'site_name' => $siteName,
+            'current_existed' => $current !== null,
+            'current_enabled' => (bool) ($current['enabled'] ?? false),
+            'backup_file' => $backupPath,
+        ];
     }
 
     private static function normalizeSiteName(string $siteName): ?string

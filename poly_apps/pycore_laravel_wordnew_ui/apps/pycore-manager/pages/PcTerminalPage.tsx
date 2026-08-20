@@ -1006,8 +1006,7 @@ const PcTerminalPage: React.FC = () => {
     scheduleDraftSave(terminalNumber, text);
   }, [scheduleDraftSave, selectedWindow]);
 
-  // Sends the current draft (or an explicit override such as '' for an
-  // Enter-only submission); empty text is valid and presses Enter remotely.
+  // Sends the current draft or an explicit text override through clipboard paste.
   const sendInput = useCallback(async (textOverride?: string) => {
     if (!selectedWindow || !selectedWindow.online) return;
     const payload = textOverride === undefined ? selectedDraft : textOverride;
@@ -1040,6 +1039,19 @@ const PcTerminalPage: React.FC = () => {
       setDraftStatuses((current) => ({ ...current, [key]: 'saved' }));
     }
   }, [persistDraft, runAction, selectedDraft, selectedWindow]);
+
+  const sendEnter = useCallback(async () => {
+    if (!selectedWindow || !selectedWindow.online) return;
+    const result = await runAction(
+      selectedWindow.id,
+      () => pycoreApi.pressTerminalEnter(
+        selectedWindow.id,
+        selectedWindow.terminal_number,
+      ),
+      'terminal.sent',
+    );
+    if (result?.log?.id) setSelectedLogId(result.log.id);
+  }, [runAction, selectedWindow]);
 
   const addScheduleEntry = useCallback(async () => {
     if (!selectedWindow) return;
@@ -1289,7 +1301,7 @@ const PcTerminalPage: React.FC = () => {
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={() => void sendInput('')}
+          onClick={() => void sendEnter()}
           disabled={
             !selectedWindow?.online
             || Boolean(actionWindowId)

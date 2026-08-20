@@ -53,7 +53,7 @@ function createCurrentOriginEndpoint(
       id: `${CURRENT_URL_TYPE}:${apiHost}`,
       url: apiHost,
       protocol,
-      priority: 0,
+      priority: 99,
       isLocal: false,
       description: `Current URL - this site (${protocol}://${apiHost})`,
     };
@@ -64,7 +64,7 @@ function createCurrentOriginEndpoint(
     url: hostname,
     protocol,
     port: FIXED_API_PORT,
-    priority: 0,
+    priority: 99,
     isLocal,
     description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
   };
@@ -91,11 +91,19 @@ export function getCurrentOriginEndpoint(): BackendApiEndpoint | null {
 export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
   endpoints: [
     {
+      id: 'primary-remote',
+      url: 'api.si.12gm.com',
+      protocol: 'https',
+      priority: 1,
+      isLocal: false,
+      description: 'Primary Remote API Server'
+    },
+    {
       id: 'localhost',
       url: 'localhost',
       protocol: 'http',
       port: 9000,
-      priority: 1,
+      priority: 2,
       isLocal: true,
       description: 'Localhost API Server'
     },
@@ -104,7 +112,7 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       url: '192.168.50.3',
       protocol: 'http',
       port: 9000,
-      priority: 2,
+      priority: 3,
       isLocal: true,
       description: 'Local IP 192.168.50.3'
     },
@@ -113,7 +121,7 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       url: '192.168.50.2',
       protocol: 'http',
       port: 9000,
-      priority: 3,
+      priority: 4,
       isLocal: true,
       description: 'Local IP 192.168.50.2'
     },
@@ -122,17 +130,9 @@ export const GLOBAL_API_ENDPOINTS: ApiEndpointsConfig = {
       url: '43.163.112.77',
       protocol: 'http',
       port: 9000,
-      priority: 4,
-      isLocal: false,
-      description: 'Remote API Server 43.163.112.77'
-    },
-    {
-      id: 'primary-remote',
-      url: 'api.si.12gm.com',
-      protocol: 'https',
       priority: 5,
       isLocal: false,
-      description: 'Primary Remote API Server'
+      description: 'Remote API Server 43.163.112.77'
     },
     {
       id: 'secondary-remote',

@@ -7,6 +7,7 @@ from pycore.callmodule.rpc_routes.route_names import (
     UI_TERMINAL_COMMAND_HISTORY,
     UI_TERMINAL_CONTENT,
     UI_TERMINAL_DRAFT,
+    UI_TERMINAL_ENTER,
     UI_TERMINAL_INPUT,
     UI_TERMINAL_SCHEDULE_QUEUE_CLEAR,
     UI_TERMINAL_SCHEDULE_QUEUE_SYNC,
@@ -58,6 +59,11 @@ def register_terminal_routes(server) -> None:
         terminal_number = _integer_param(params, "terminal_number")
         text = str(params.get("text") or "")
         return terminal_service.input_text(window_id, terminal_number, text)
+
+    def enter_handler(params, _request_id, _context):
+        window_id = str(params.get("window_id") or "")
+        terminal_number = _integer_param(params, "terminal_number")
+        return terminal_service.press_enter(window_id, terminal_number)
 
     def command_history_handler(params, _request_id, _context):
         window_id = str(params.get("window_id") or "")
@@ -120,6 +126,7 @@ def register_terminal_routes(server) -> None:
         handler=command_history_handler,
     )
     server.post(path=UI_TERMINAL_DRAFT, handler=draft_handler)
+    server.post(path=UI_TERMINAL_ENTER, handler=enter_handler)
     server.post(path=UI_TERMINAL_INPUT, handler=input_handler)
     server.post(path=UI_TERMINAL_SCROLL, handler=scroll_handler)
     server.post(path=UI_TERMINAL_VIEW, handler=view_handler)

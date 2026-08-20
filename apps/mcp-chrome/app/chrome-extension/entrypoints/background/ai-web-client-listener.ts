@@ -18,7 +18,8 @@ import { geminiWebTool } from './tools/browser/gemini-web';
 import { getPreferredProvider, setPreferredProvider } from './tools/browser/ai-web-common';
 import { FEATURE_MESSAGE_TYPES } from '@/common/message-types';
 import { logger } from '@/utils/logger';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 const LOG = 'AI-Web Listener';
 

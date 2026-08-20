@@ -231,6 +231,34 @@ class TerminalService:
             },
         )
 
+    def press_enter(
+        self,
+        window_id: str,
+        terminal_number: int,
+    ) -> Dict[str, Any]:
+        if self._backend is None:
+            return self._failure("unsupported_platform")
+        if not window_id:
+            return self._failure("terminal_window_id_required")
+        if terminal_number <= 0:
+            return self._failure("terminal_number_required")
+
+        pending_log = self._state_repository.begin_submission(
+            terminal_number,
+            "",
+            update_draft=False,
+        )
+        if pending_log is None:
+            return self._failure("terminal_state_not_found")
+        log_id = str(pending_log.get("id") or "")
+        activation = self._backend.activate(window_id)
+        action = (
+            self._backend.press_enter(window_id)
+            if activation.get("success")
+            else activation
+        )
+        return self._complete_input(terminal_number, log_id, action)
+
     def submit_scheduled(
         self,
         terminal_number: int,

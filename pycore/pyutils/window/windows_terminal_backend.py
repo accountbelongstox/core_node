@@ -120,6 +120,15 @@ class WindowsTerminalBackend:
             return self._failure("terminal_history_key_failed")
         return {"success": True, "error_code": None, "window": window}
 
+    def press_enter(self, window_id: str) -> Dict[str, Any]:
+        window = self._find_terminal_window(window_id)
+        if window is None:
+            return self._failure("terminal_window_not_found")
+        time.sleep(FOCUS_DELAY_SECONDS)
+        if not press_native_key("ENTER"):
+            return self._failure("terminal_enter_failed")
+        return {"success": True, "error_code": None, "window": window}
+
     def scroll(
         self,
         window_id: str,
@@ -164,9 +173,7 @@ class WindowsTerminalBackend:
         if not click_screen_point(center_x, center_y, "right"):
             return self._failure("terminal_right_click_failed")
         time.sleep(PASTE_DELAY_SECONDS)
-        if not press_native_key("ENTER"):
-            return self._failure("terminal_enter_failed")
-        return {"success": True, "error_code": None, "window": window}
+        return self.press_enter(window_id)
 
     @staticmethod
     def _prepare_window(window: Dict[str, Any]) -> Dict[str, Any]:

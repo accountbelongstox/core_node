@@ -12,7 +12,8 @@
  * reads the status, and reports whether the API is genuinely healthy.
  */
 import { fetchWithTimeout } from '@/utils/async';
-import { registerRuntimeMessageHandler, toErrorMessage } from '@/utils/runtime-message';
+import { registerRuntimeMessageHandler } from '@/utils/runtime-message';
+import { toErrorMessage } from '@/utils/errors';
 
 export function initApiHealthListener() {
   registerRuntimeMessageHandler('api_health_check', async (message: any) => {

@@ -267,6 +267,7 @@ class TerminalStateRepository:
         self,
         terminal_number: int,
         text: str,
+        update_draft: bool = True,
     ) -> Optional[Dict[str, Any]]:
         values, records, _next_number = self._scan_records()
         record = records.get(terminal_number)
@@ -289,11 +290,12 @@ class TerminalStateRepository:
                 self._terminal_key(terminal_number, f"{log_prefix}.{field}"),
                 value,
             )
-        self._write_value(
-            values,
-            self._terminal_key(terminal_number, "draft"),
-            text,
-        )
+        if update_draft:
+            self._write_value(
+                values,
+                self._terminal_key(terminal_number, "draft"),
+                text,
+            )
         self._write_value(
             values,
             self._terminal_key(terminal_number, "updated_at"),
@@ -393,7 +395,6 @@ class TerminalStateRepository:
         desired_ids = {str(entry["id"]) for entry in entries}
         changed = False
         now = _now_iso()
-
         for entry_id in set(existing_entries) - desired_ids:
             self._delete_schedule_entry(values, terminal_number, entry_id)
             changed = True
@@ -475,7 +476,6 @@ class TerminalStateRepository:
             )
             cleared_terminal_numbers.append(terminal_number)
             cleared_entry_count += len(entry_ids)
-
         return {
             "success": True,
             "cleared_entry_count": cleared_entry_count,

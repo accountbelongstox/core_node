@@ -4,6 +4,7 @@ import { TOOL_NAMES } from 'chrome-mcp-shared';
 import { TOOL_MESSAGE_TYPES } from '@/common/message-types';
 import { TIMEOUTS, ERROR_MESSAGES } from '@/common/constants';
 import { delay as waitForDelay } from '@/utils/async';
+import { withDebuggerSession } from '@/utils/debugger-session';
 import {
   canvasToDataURL,
   createImageBitmapFromUrl,
@@ -44,7 +45,7 @@ const SCREENSHOT_CONSTANTS = {
 }
 
 interface ScreenshotToolParams {
-  name: string;
+  name?: string;
   selector?: string;
   width?: number;
   height?: number;
@@ -52,6 +53,9 @@ interface ScreenshotToolParams {
   fullPage?: boolean;
   savePng?: boolean;
   maxHeight?: number; // Maximum height to capture in pixels (for infinite scroll pages)
+  tabId?: number;
+  windowId?: number;
+  background?: boolean;
 }
 
 /**
@@ -70,16 +74,16 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       storeBase64 = false,
       fullPage = false,
       savePng = true,
+      background = false,
     } = args;
 
     console.log(`Starting screenshot with options:`, args);
 
-    // Get current tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tabs[0]) {
+    const explicitTab = await this.tryGetTab(args.tabId);
+    const tab = explicitTab || (await this.getActiveTabOrThrowInWindow(args.windowId));
+    if (!tab?.id) {
       return createErrorResponse(ERROR_MESSAGES.TAB_NOT_FOUND);
     }
-    const tab = tabs[0];
 
     // Check URL restrictions
     if (
@@ -96,8 +100,12 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     let finalImageDataUrl: string | undefined;
     const results: any = { base64: null, fileSaved: false };
     let originalScroll = { x: 0, y: 0 };
+    const [previousActiveTab] = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+    const useCdpCapture = !fullPage && !selector && (background || typeof args.tabId === 'number');
+    const shouldActivate = !useCdpCapture && previousActiveTab?.id !== tab.id;
 
     try {
+      if (shouldActivate) await chrome.tabs.update(tab.id, { active: true });
       await this.injectContentScript(tab.id!, ['inject-scripts/screenshot-helper.js']);
       // Wait for script initialization
       await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
@@ -122,7 +130,9 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       } else {
         // Visible area only
         this.logInfo('Capturing visible area...');
-        finalImageDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+        finalImageDataUrl = useCdpCapture
+          ? await this._captureViewport(tab.id)
+          : await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
       }
 
       if (!finalImageDataUrl) {
@@ -198,6 +208,13 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
       } catch (err) {
         console.warn('Failed to reset page, tab might have closed:', err);
       }
+      if (shouldActivate && previousActiveTab?.id) {
+        try {
+          await chrome.tabs.update(previousActiveTab.id, { active: true });
+        } catch {
+          // The previously active tab may have closed during capture.
+        }
+      }
     }
 
     this.logInfo('Screenshot completed!');
@@ -217,6 +234,16 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
    */
   private logInfo(message: string) {
     console.log(`[Screenshot Tool] ${message}`);
+  }
+
+  private async _captureViewport(tabId: number): Promise<string> {
+    const response = await withDebuggerSession(tabId, async (target) => chrome.debugger.sendCommand(
+      target,
+      'Page.captureScreenshot',
+      { format: 'png', fromSurface: true },
+    )) as { data?: string };
+    if (!response.data) throw new Error('Page.captureScreenshot returned no data');
+    return `data:image/png;base64,${response.data}`;
   }
 
   /**
@@ -246,7 +273,8 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
     // Small delay to ensure element is fully rendered after scrollIntoView
     await waitForDelay(SCREENSHOT_CONSTANTS.SCRIPT_INIT_DELAY);
 
-    const visibleCaptureDataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+    const tab = await chrome.tabs.get(tabId);
+    const visibleCaptureDataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
     if (!visibleCaptureDataUrl) {
       throw new Error('Failed to capture visible tab for element cropping');
     }
@@ -317,7 +345,8 @@ class ScreenshotTool extends BaseBrowserToolExecutor {
         setTimeout(resolve, SCREENSHOT_CONSTANTS.CAPTURE_STITCH_DELAY_MS),
       );
 
-      const dataUrl = await chrome.tabs.captureVisibleTab({ format: 'png' });
+      const tab = await chrome.tabs.get(tabId);
+      const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
       if (!dataUrl) throw new Error('captureVisibleTab returned empty during full page capture');
 
       const yOffsetPx = currentScrollYCss * dpr;

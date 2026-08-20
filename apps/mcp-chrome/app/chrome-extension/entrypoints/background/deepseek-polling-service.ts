@@ -15,6 +15,8 @@ import { inspectDeepSeekPage, type DeepSeekPageObservation } from '@/utils/deeps
 
 const DEEPSEEK_POLL_ALARM = 'mcp_deepseek_poll_watchdog';
 const DEEPSEEK_POLL_ALARM_MINUTES = 0.5;
+const RESPONSE_STABILITY_MS = 1500;
+const RESPONSE_STABILITY_CHECKS = 2;
 
 /**
  * Polling state for a task
@@ -30,6 +32,9 @@ interface PollingState {
   // response that was already on screen before the new prompt was submitted.
   sawGenerating: boolean;
   checking: boolean;
+  lastResponseKey: string;
+  stableResponseChecks: number;
+  stableResponseSince: number;
 }
 
 /**
@@ -125,6 +130,9 @@ export class DeepSeekPollingService {
       currentBackoff: 1000, // Start with 1 second
       sawGenerating: false,
       checking: false,
+      lastResponseKey: '',
+      stableResponseChecks: 0,
+      stableResponseSince: 0,
     };
 
     this.pollingStates.set(taskId, state);
@@ -242,9 +250,25 @@ export class DeepSeekPollingService {
       // still shows a previous response — ignore it and keep polling.
       if (status.isGenerating) {
         state.sawGenerating = true;
+        state.lastResponseKey = '';
+        state.stableResponseChecks = 0;
+        state.stableResponseSince = 0;
       }
 
-      if (status.isCompleted && (state.sawGenerating || task.responseBaseline !== undefined)) {
+      let hasStableResponse = false;
+      if (status.isCompleted && status.responseKey) {
+        if (state.lastResponseKey !== status.responseKey) {
+          state.lastResponseKey = status.responseKey;
+          state.stableResponseChecks = 1;
+          state.stableResponseSince = Date.now();
+        } else {
+          state.stableResponseChecks += 1;
+          hasStableResponse = state.stableResponseChecks >= RESPONSE_STABILITY_CHECKS
+            && Date.now() - state.stableResponseSince >= RESPONSE_STABILITY_MS;
+        }
+      }
+
+      if (status.isCompleted && hasStableResponse && (state.sawGenerating || task.responseBaseline !== undefined)) {
         await this.handleCompletion(taskId, status.result!);
       } else if (status.isError) {
         await this.handleError(taskId, status.error || 'Unknown error');
@@ -315,6 +339,7 @@ export class DeepSeekPollingService {
     error?: string;
     messageCount?: number;
     responseCandidates?: Array<Record<string, unknown>>;
+    responseKey?: string;
   }> {
     if (!task.tabId) {
       return { isCompleted: false, isGenerating: false, isError: true, error: 'No tab ID' };
@@ -331,6 +356,10 @@ export class DeepSeekPollingService {
       }
 
       const result = results[0].result as DeepSeekPageObservation | undefined;
+
+      if (!result) {
+        return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
+      }
 
       if (!result) {
         return { isCompleted: false, isGenerating: false, isError: true, error: 'Empty script result' };
@@ -362,6 +391,7 @@ export class DeepSeekPollingService {
             conversationUrl: result.conversationUrl,
             extractedAt: Date.now(),
           },
+          responseKey: result.lastResponseKey,
         };
       }
 
@@ -371,6 +401,7 @@ export class DeepSeekPollingService {
         isError: false,
         messageCount: result.assistantMessageCount,
         responseCandidates: result.responseCandidates,
+        responseKey: result.lastResponseKey,
       };
     } catch (error) {
       console.error(`Error checking task status for ${task.id}:`, error);

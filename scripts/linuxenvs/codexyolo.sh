@@ -40,6 +40,11 @@ mcp_chrome_enabled=0
 model="gpt-5.6-sol"
 reasoning_effort="high"
 codex_args=()
+resume_requested=0
+resume_argument=""
+codex_home_path=""
+thread_writer_locks_path=""
+thread_writer_lock_count=0
 
 script_source_path="${BASH_SOURCE[0]}"
 if [ -L "$script_source_path" ]; then
@@ -76,6 +81,26 @@ codex_args=(
     --config "agents.default_subagent_model=\"$model\""
     --config "agents.default_subagent_reasoning_effort=\"$reasoning_effort\""
 )
+
+for resume_argument in "$@"; do
+    if [ "$resume_argument" = "resume" ] || [ "$resume_argument" = "--resume" ]; then
+        resume_requested=1
+        break
+    fi
+done
+if [ "$resume_requested" -eq 1 ]; then
+    codex_home_path="${CODEX_HOME:-$HOME/.codex}"
+    thread_writer_locks_path="$codex_home_path/thread-writer-locks"
+    if [ -d "$thread_writer_locks_path" ]; then
+        while IFS= read -r -d '' resume_argument; do
+            rm -f -- "$resume_argument"
+            thread_writer_lock_count=$((thread_writer_lock_count + 1))
+        done < <(find "$thread_writer_locks_path" -maxdepth 1 -type f -name '*.lock' ! -name '.coordination.lock' -print0)
+        if [ "$thread_writer_lock_count" -gt 0 ]; then
+            echo "[INFO] Cleared $thread_writer_lock_count Codex thread writer lock file(s) before resume."
+        fi
+    fi
+fi
 
 echo ""
 echo "============================================================"
