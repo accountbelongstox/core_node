@@ -39,8 +39,8 @@ if command -v systemctl >/dev/null 2>&1; then
     done
 fi
 
-if pgrep -f "octane:start.*frankenphp" >/dev/null 2>&1; then
-    $USE_SUDO pkill -f "octane:start.*frankenphp" || echo "[$SCRIPT_INDEX] [WARN] stray octane frankenphp process termination reported failure"
+if pgrep -f "artisan octane:frankenphp" >/dev/null 2>&1; then
+    $USE_SUDO pkill -f "artisan octane:frankenphp" || echo "[$SCRIPT_INDEX] [WARN] stray octane frankenphp process termination reported failure"
 else
     echo "[$SCRIPT_INDEX] No running octane frankenphp process"
 fi

@@ -32,12 +32,13 @@ final class RelayHubAuthService
 
     public static function issueForSession(?string $machineId, ?string $subject = null): array
     {
+        $resolvedSubject = $subject !== null && $subject !== '' ? $subject : 'session';
         $topics = array_merge([RelayDispatcher::machinesTopic()], self::queueCenterTopics());
-        if ($machineId !== null && RelayPairRegistry::isActive($machineId)) {
+        if ($machineId !== null && RelayPairRegistry::isActive($machineId, $resolvedSubject)) {
             $topics[] = RelayDispatcher::pairTopic($machineId);
         }
 
-        return self::issue($subject !== null && $subject !== '' ? $subject : 'session', $topics);
+        return self::issue($resolvedSubject, $topics);
     }
 
     /**
@@ -67,7 +68,7 @@ final class RelayHubAuthService
     }
 
     /**
-     * Attach the hub-path cookie (spec default name) to a JSON response so a
+     * Attach the configured hub-path cookie to a JSON response so a
      * browser EventSource can authorize without headers.
      *
      * @param array<string, mixed> $token
@@ -124,8 +125,11 @@ final class RelayHubAuthService
      */
     private static function buildSubscribeUrl(string $hubUrl, array $topics): string
     {
-        $query = http_build_query(['topic' => $topics], '', '&', PHP_QUERY_RFC3986);
+        $query = array_map(
+            static fn (string $topic): string => 'topic='.rawurlencode($topic),
+            $topics
+        );
 
-        return $hubUrl.'?'.preg_replace('/topic%5B\d+%5D=/', 'topic=', $query);
+        return $hubUrl.'?'.implode('&', $query);
     }
 }

@@ -1493,16 +1493,36 @@ cleanup_script_temp_dir() {
     fi
 }
 
-# Ensure the global variable directory exists
-if [ ! -d "$GLOBAL_VAR_DIR" ]; then
-    $USE_SUDO mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || mkdir -p "$GLOBAL_VAR_DIR" 2>/dev/null || true
-    echo "Created global variable directory: $GLOBAL_VAR_DIR"
-fi
-# Assign shared core_node state to the resolved user with the common mode policy.
-CORE_PERMISSION_USER="$(detect_system_user)"
-CORE_PERMISSION_GROUP="$(id -gn "$CORE_PERMISSION_USER" 2>/dev/null || echo "$CORE_PERMISSION_USER")"
-$USE_SUDO chown -R "$CORE_PERMISSION_USER:$CORE_PERMISSION_GROUP" "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
-$USE_SUDO chmod -R 777 "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR" 2>/dev/null || true
+# Converge only the two shared-state roots. Writers own the permissions of the
+# files and subdirectories they create; recursively rewriting a multi-gigabyte
+# data tree on every library source makes service startup state-dependent.
+ensure_core_state_roots() {
+    local state_dir=""
+    local current_owner=""
+    local current_mode=""
+
+    CORE_PERMISSION_USER="$(detect_system_user)"
+    CORE_PERMISSION_GROUP="$(id -gn "$CORE_PERMISSION_USER" 2>/dev/null || echo "$CORE_PERMISSION_USER")"
+    for state_dir in "$CORE_NODE_DATA_DIR" "$GLOBAL_VAR_DIR"; do
+        if [ ! -d "$state_dir" ]; then
+            $USE_SUDO mkdir -p "$state_dir" 2>/dev/null || mkdir -p "$state_dir" 2>/dev/null || true
+        fi
+        if [ ! -d "$state_dir" ]; then
+            echo "[ERROR] Shared state directory is unavailable: $state_dir" >&2
+            continue
+        fi
+        current_owner="$(stat -c '%U:%G' "$state_dir" 2>/dev/null)"
+        if [ "$current_owner" != "$CORE_PERMISSION_USER:$CORE_PERMISSION_GROUP" ]; then
+            $USE_SUDO chown "$CORE_PERMISSION_USER:$CORE_PERMISSION_GROUP" "$state_dir" 2>/dev/null || true
+        fi
+        current_mode="$(stat -c '%a' "$state_dir" 2>/dev/null)"
+        if [ "$current_mode" != "777" ]; then
+            $USE_SUDO chmod 777 "$state_dir" 2>/dev/null || true
+        fi
+    done
+}
+
+ensure_core_state_roots
 
 # Set IS_GLOBAL based on SELECTED_REGION
 set_is_global() {

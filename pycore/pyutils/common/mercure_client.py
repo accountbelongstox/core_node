@@ -11,7 +11,7 @@ FrankenPHP runtime:
   so the token provider is re-asked on
   every (re)connection and forced on 401/403.
 - Reconciliation = ``Last-Event-ID`` request header on reconnects; the
-  initial cursor rides the ``last_event_id`` query parameter.
+  initial cursor rides the ``lastEventID`` query parameter.
 
 Parsing follows the SSE spec: ``event``/``data``/``id``/``retry`` fields,
 ``:`` comment lines (hub heartbeat), CRLF/LF/CR line endings, dispatch on

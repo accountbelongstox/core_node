@@ -58,14 +58,10 @@ final class RelayHubJwt
      */
     public static function servingOrigin(): string
     {
-        if (!function_exists('app') || !app()->runningInConsole()) {
-            try {
-                $request = app('request');
-                if ($request instanceof \Illuminate\Http\Request && $request->getHost() !== '') {
-                    return $request->getSchemeAndHttpHost();
-                }
-            } catch (\Throwable) {
-                // No request context bound - fall through to the app URL.
+        if (function_exists('app') && !app()->runningInConsole() && app()->bound('request')) {
+            $request = app('request');
+            if ($request instanceof \Illuminate\Http\Request && $request->getHost() !== '') {
+                return $request->getSchemeAndHttpHost();
             }
         }
 
@@ -109,13 +105,19 @@ final class RelayHubJwt
     public static function trustedIssuer(): string
     {
         $issuer = RuntimeConfigurationStore::get(self::TRUSTED_ISSUER_KEY, '');
+        $stored = '';
+
         if ($issuer !== '') {
             return $issuer;
         }
 
         $issuer = self::servingOrigin();
         RuntimeConfigurationStore::put(self::TRUSTED_ISSUER_KEY, $issuer);
+        $stored = RuntimeConfigurationStore::get(self::TRUSTED_ISSUER_KEY, '');
+        if ($stored === '' || !hash_equals($issuer, $stored)) {
+            throw new \RuntimeException('Mercure trusted issuer is not provisioned.');
+        }
 
-        return $issuer;
+        return $stored;
     }
 }

@@ -31,6 +31,8 @@ ACME_INSTALL_REPO_DIR="${ACME_INSTALL_DIR}/repo"
 ACME_INSTALL_HOME_DIR="${ACME_INSTALL_DIR}/home"
 ACME_INSTALL_CONFIG_DIR="${ACME_INSTALL_HOME_DIR}/.acme.sh"
 ACME_INSTALL_BIN="${ACME_INSTALL_HOME_DIR}/acme.sh"
+ACME_SH_LEGACY_CONFIG_DIR="${HOME:-}/.acme.sh"
+ACME_SH_HOME_ARGS=(--home "$ACME_INSTALL_HOME_DIR" --config-home "$ACME_INSTALL_CONFIG_DIR")
 
 ACME_INSTALL_FINGERPRINT="prebuilt-v1"
 ACME_SH_FLOCK_FILE="/run/lock/core_node_acme_sh.lock"
@@ -38,6 +40,7 @@ ACME_SH_INSTALL_LOG="${ACME_INSTALL_CONFIG_DIR}/install.log"
 ACME_SH_SERVICE_NAME="ncore-acme-cert"
 ACME_SH_SERVICE_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.service"
 ACME_SH_TIMER_UNIT="/etc/systemd/system/${ACME_SH_SERVICE_NAME}.timer"
+ACME_SH_MINIMUM_VALIDITY_SECONDS="${ACME_SH_MINIMUM_VALIDITY_SECONDS:-604800}"
 
 acme_install_fingerprint() {
     local repo_state=""
@@ -191,6 +194,139 @@ acme_sh_ensure_install() {
     fi
 }
 
+# Retire state created by older calls that omitted --config-home. This is a
+# one-time move into the authoritative project-owned state directory; all
+# later issue, install, list and cron commands use that same directory.
+acme_sh_adopt_legacy_domain_state() {
+    local apex_domain="$1"
+    local managed_domain_dir=""
+    local legacy_domain_dir=""
+    local managed_account_file=""
+    local legacy_account_file=""
+    local saved_dp_id=""
+    local saved_dp_key=""
+
+    managed_domain_dir="${ACME_INSTALL_CONFIG_DIR}/${apex_domain}_ecc"
+    legacy_domain_dir="${ACME_SH_LEGACY_CONFIG_DIR}/${apex_domain}_ecc"
+    managed_account_file="${ACME_INSTALL_CONFIG_DIR}/account.conf"
+    legacy_account_file="${ACME_SH_LEGACY_CONFIG_DIR}/account.conf"
+    if [ -f "${managed_domain_dir}/${apex_domain}.conf" ]; then
+        return
+    fi
+    if [ -z "$ACME_SH_LEGACY_CONFIG_DIR" ] || [ "$ACME_SH_LEGACY_CONFIG_DIR" = "$ACME_INSTALL_CONFIG_DIR" ]; then
+        return
+    fi
+    if [ ! -f "${legacy_domain_dir}/${apex_domain}.conf" ]; then
+        return
+    fi
+
+    mkdir -p "$ACME_INSTALL_CONFIG_DIR"
+    if [ ! -d "${ACME_INSTALL_CONFIG_DIR}/ca" ] && [ -d "${ACME_SH_LEGACY_CONFIG_DIR}/ca" ]; then
+        cp -a "${ACME_SH_LEGACY_CONFIG_DIR}/ca" "${ACME_INSTALL_CONFIG_DIR}/ca"
+    fi
+    if [ ! -d "$managed_domain_dir" ]; then
+        cp -a "$legacy_domain_dir" "$managed_domain_dir"
+    fi
+    touch "$managed_account_file"
+    saved_dp_id="$(sed -n '/^SAVED_DP_Id=/p' "$legacy_account_file" 2>/dev/null)"
+    saved_dp_key="$(sed -n '/^SAVED_DP_Key=/p' "$legacy_account_file" 2>/dev/null)"
+    if [ -n "$saved_dp_id" ] && [ -z "$(sed -n '/^SAVED_DP_Id=/p' "$managed_account_file" 2>/dev/null)" ]; then
+        printf '%s\n' "$saved_dp_id" >> "$managed_account_file"
+    fi
+    if [ -n "$saved_dp_key" ] && [ -z "$(sed -n '/^SAVED_DP_Key=/p' "$managed_account_file" 2>/dev/null)" ]; then
+        printf '%s\n' "$saved_dp_key" >> "$managed_account_file"
+    fi
+    chmod 600 "$managed_account_file" "${managed_domain_dir}/${apex_domain}.conf" "${managed_domain_dir}/${apex_domain}.key" 2>/dev/null || true
+    if [ -f "${managed_domain_dir}/${apex_domain}.conf" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] adopted certificate renewal state into: $managed_domain_dir"
+    fi
+}
+
+acme_sh_certificate_payload_ready() {
+    local certificate_file="$1"
+    local key_file="$2"
+    local apex_domain="$3"
+    local prefix="$4"
+    local not_after=""
+    local expiry_epoch=""
+    local minimum_epoch=""
+    local san_text=""
+    local certificate_key_hash=""
+    local private_key_hash=""
+
+    if [ ! -s "$certificate_file" ] || [ ! -s "$key_file" ]; then
+        echo "no"
+        return
+    fi
+    not_after="$(openssl x509 -in "$certificate_file" -noout -enddate 2>/dev/null | sed -n 's/^notAfter=//p')"
+    expiry_epoch="$(date -d "$not_after" +%s 2>/dev/null)"
+    minimum_epoch="$(($(date +%s) + ACME_SH_MINIMUM_VALIDITY_SECONDS))"
+    if [ -z "$expiry_epoch" ] || [ "$expiry_epoch" -le "$minimum_epoch" ] 2>/dev/null; then
+        echo "no"
+        return
+    fi
+    san_text="$(openssl x509 -in "$certificate_file" -noout -ext subjectAltName 2>/dev/null | tr '\n' ' ')"
+    case "$san_text" in *"DNS:${apex_domain}"*) ;; *) echo "no"; return ;; esac
+    case "$san_text" in *"DNS:*.${apex_domain}"*) ;; *) echo "no"; return ;; esac
+    if [ -n "$prefix" ]; then
+        case "$san_text" in *"DNS:*.${prefix}.${apex_domain}"*) ;; *) echo "no"; return ;; esac
+    fi
+    certificate_key_hash="$(openssl x509 -in "$certificate_file" -pubkey -noout 2>/dev/null | openssl pkey -pubin -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"
+    private_key_hash="$(openssl pkey -in "$key_file" -pubout -outform DER 2>/dev/null | sha256sum | awk '{print $1}')"
+    if [ -z "$certificate_key_hash" ] || [ "$certificate_key_hash" != "$private_key_hash" ]; then
+        echo "no"
+        return
+    fi
+    echo "yes"
+}
+
+acme_sh_domain_material_ready() {
+    local apex_domain="$1"
+    local prefix="$2"
+    local domain_dir=""
+
+    domain_dir="${ACME_INSTALL_CONFIG_DIR}/${apex_domain}_ecc"
+    if [ ! -f "${domain_dir}/${apex_domain}.conf" ]; then
+        echo "no"
+        return
+    fi
+    acme_sh_certificate_payload_ready "${domain_dir}/fullchain.cer" "${domain_dir}/${apex_domain}.key" "$apex_domain" "$prefix"
+}
+
+acme_sh_deployment_contract_ready() {
+    local apex_domain="$1"
+    local prefix="$2"
+    local reload_cmd="$3"
+    local cert_dir=""
+    local domain_config=""
+    local expected_reload=""
+    local configured_key_path=""
+    local configured_fullchain_path=""
+    local configured_reload=""
+
+    cert_dir="${FRANKENPHP_ACME_CERT_DIR}/${apex_domain}"
+    domain_config="${ACME_INSTALL_CONFIG_DIR}/${apex_domain}_ecc/${apex_domain}.conf"
+    if [ "$(acme_sh_certificate_payload_ready "${cert_dir}/fullchain.pem" "${cert_dir}/key.pem" "$apex_domain" "$prefix")" != "yes" ]; then
+        echo "no"
+        return
+    fi
+    configured_key_path="$(sed -n "s/^Le_RealKeyPath='\(.*\)'$/\1/p" "$domain_config" 2>/dev/null)"
+    configured_fullchain_path="$(sed -n "s/^Le_RealFullChainPath='\(.*\)'$/\1/p" "$domain_config" 2>/dev/null)"
+    if [ "$configured_key_path" != "${cert_dir}/key.pem" ] || [ "$configured_fullchain_path" != "${cert_dir}/fullchain.pem" ]; then
+        echo "no"
+        return
+    fi
+    if [ -n "$reload_cmd" ]; then
+        expected_reload="__ACME_BASE64__START_$(printf '%s' "$reload_cmd" | base64 | tr -d '\n')__ACME_BASE64__END_"
+        configured_reload="$(sed -n "s/^Le_ReloadCmd='\(.*\)'$/\1/p" "$domain_config" 2>/dev/null)"
+        if [ "$configured_reload" != "$expected_reload" ]; then
+            echo "no"
+            return
+        fi
+    fi
+    echo "yes"
+}
+
 # Issue (or keep) the DNSPod DNS-01 certificate for one apex domain via the
 # acme.sh dns_dp provider, installed into the shared cert dir the Caddyfile
 # file-cert gate (fm_acme_cert_dir_for_host) reads. SANs: apex, *.apex and
@@ -210,76 +346,86 @@ acme_sh_ensure_certificate() {
     local dp_key=""
     local cert_dir=""
     local acme_bin=""
-    local rc="0"
+    local issue_log=""
+    local material_ready=""
+    local -a san_args=()
+    local -a install_args=()
 
-    [ -n "$apex_domain" ] || return 1
+    [ -n "$apex_domain" ] || return
     acme_bin="$(acme_install_linked_binary)"
     if [ -z "$acme_bin" ]; then
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh not usable yet; certificate deferred for ${apex_domain}"
-        return 1
-    fi
-    token_value="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY")"
-    if [ -z "$token_value" ]; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] ${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY} absent; certificate deferred for ${apex_domain}"
-        return 1
-    fi
-    account_email="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY" 2>/dev/null)"
-    if [ -n "$account_email" ]; then
-        "$acme_bin" --register-account -m "$account_email" >/dev/null 2>&1 || true
+        return
     fi
     prefix="${DOMAIN_API_PREFIX:-}"
     if [ -z "$prefix" ]; then
         prefix="$(get_global_var "DOMAIN_API_REGION_PREFIX" "")"
     fi
-    dp_id="${token_value%%,*}"
-    dp_key="${token_value#*,}"
     cert_dir="${FRANKENPHP_ACME_CERT_DIR}/${apex_domain}"
     issue_log="${ACME_INSTALL_CONFIG_DIR}/issue-${apex_domain}.log"
     mkdir -p "$cert_dir"
 
-    ACME_SH_SAN_ARGS=(-d "$apex_domain" -d "*.${apex_domain}")
-    if [ -n "$prefix" ]; then
-        ACME_SH_SAN_ARGS+=(-d "*.${prefix}.${apex_domain}")
+    acme_sh_adopt_legacy_domain_state "$apex_domain"
+    if [ "$(acme_sh_deployment_contract_ready "$apex_domain" "$prefix" "$reload_cmd")" = "yes" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] certificate already ready: ${cert_dir}"
+        return
     fi
 
-    # dns_dp adds all TXT records then sleeps the default 120s before
-    # verification; a transient propagation miss at the CA's resolvers can
-    # still fail one SAN (observed: "No TXT record found" on the deepest
-    # wildcard seconds after the API accepted the record). One immediate
-    # retry resolves it - the zone has already settled by then.
-    acme_sh_issue_attempt() {
-        DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" --issue --dns dns_dp \
-            "${ACME_SH_SAN_ARGS[@]}" \
-            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1
-        return $?
-    }
-    acme_sh_issue_attempt
-    rc=$?
-    if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh issue failed (rc=$rc) for ${apex_domain}, retrying once"
-        acme_sh_issue_attempt
-        rc=$?
+    material_ready="$(acme_sh_domain_material_ready "$apex_domain" "$prefix")"
+    if [ "$material_ready" != "yes" ]; then
+        token_value="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY")"
+        if [ -z "$token_value" ]; then
+            echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] ${FRANKENPHP_DNSPOD_TOKEN_SECRET_KEY} absent; certificate deferred for ${apex_domain}"
+            return
+        fi
+        account_email="$(get_secret_key_from_common_functions "$FRANKENPHP_DNSPOD_EMAIL_SECRET_KEY" 2>/dev/null)"
+        if [ -n "$account_email" ]; then
+            "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --register-account -m "$account_email" >/dev/null 2>&1 || true
+        fi
+        dp_id="${token_value%%,*}"
+        dp_key="${token_value#*,}"
     fi
-    if [ "$rc" -ne 0 ] && [ "$rc" -ne 2 ]; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh issue failed (rc=$rc) for ${apex_domain}; tail of ${issue_log}:"
+
+    san_args=(-d "$apex_domain" -d "*.${apex_domain}")
+    if [ -n "$prefix" ]; then
+        san_args+=(-d "*.${prefix}.${apex_domain}")
+    fi
+
+    # DNS propagation can settle after the provider API accepts the record.
+    # Retry only when the issued material postcondition is still absent.
+    if [ "$material_ready" != "yes" ]; then
+        DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --issue --dns dns_dp \
+            "${san_args[@]}" \
+            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1 || true
+        material_ready="$(acme_sh_domain_material_ready "$apex_domain" "$prefix")"
+    fi
+    if [ "$material_ready" != "yes" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] issued material is not ready for ${apex_domain}; retrying once"
+        DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --issue --dns dns_dp \
+            "${san_args[@]}" \
+            --server letsencrypt --keylength ec-256 >"$issue_log" 2>&1 || true
+        material_ready="$(acme_sh_domain_material_ready "$apex_domain" "$prefix")"
+    fi
+    if [ "$material_ready" != "yes" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] issued material is unavailable for ${apex_domain}; tail of ${issue_log}:"
         tail -n 15 "$issue_log" 2>/dev/null \
             || echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] no issue log at $issue_log"
-        return 1
+        return
     fi
 
-    ACME_SH_INSTALL_ARGS=(--install-cert -d "$apex_domain" --ecc \
+    install_args=(--install-cert -d "$apex_domain" --ecc \
         --fullchain-file "${cert_dir}/fullchain.pem" \
         --key-file "${cert_dir}/key.pem")
     if [ -n "$reload_cmd" ]; then
-        ACME_SH_INSTALL_ARGS+=(--reloadcmd "$reload_cmd")
+        install_args+=(--reloadcmd "$reload_cmd")
     fi
-    if ! DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_INSTALL_ARGS[@]}" >/dev/null 2>&1; then
-        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] acme.sh install-cert failed for ${apex_domain}"
-        return 1
-    fi
+    DP_Id="$dp_id" DP_Key="$dp_key" "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" "${install_args[@]}" >/dev/null 2>&1 || true
     chmod 600 "${cert_dir}/key.pem" 2>/dev/null || true
-    echo "[$FRANKENPHP_ACME_INSTALL_INDEX] DNS-01 certificate ready: ${cert_dir} (${apex_domain}, *.${apex_domain}$(if [ -n "$prefix" ]; then printf ', *.%s.%s' "$prefix" "$apex_domain"; fi))"
-    return 0
+    if [ "$(acme_sh_deployment_contract_ready "$apex_domain" "$prefix" "$reload_cmd")" = "yes" ]; then
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] DNS-01 certificate ready: ${cert_dir} (${apex_domain}, *.${apex_domain}$(if [ -n "$prefix" ]; then printf ', *.%s.%s' "$prefix" "$apex_domain"; fi))"
+    else
+        echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] certificate deployment contract is not ready for ${apex_domain}"
+    fi
 }
 
 # Iterate the configured DOMAIN_DOMAINS_LIST (no-op when unset/empty); a
@@ -311,6 +457,9 @@ acme_sh_service_ensure() {
     local acme_bin=""
     local service_content=""
     local timer_content=""
+    local units_changed="no"
+    local timer_active=""
+    local timer_enabled=""
 
     if ! command -v systemctl >/dev/null 2>&1 \
         || [ ! -d /run/systemd/system ]; then
@@ -331,8 +480,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 SyslogIdentifier=${ACME_SH_SERVICE_NAME}
-ExecStart=${acme_bin} --cron --home ${ACME_INSTALL_HOME_DIR} --config-home ${ACME_INSTALL_CONFIG_DIR}
-"
+ExecStart=${acme_bin} --cron --home ${ACME_INSTALL_HOME_DIR} --config-home ${ACME_INSTALL_CONFIG_DIR}"
     timer_content="[Unit]
 Description=Renewal of Let's Encrypt certificates (core_node acme.sh)
 
@@ -343,20 +491,28 @@ FixedRandomDelay=true
 Persistent=true
 
 [Install]
-WantedBy=timers.target
-"
+WantedBy=timers.target"
 
     if [ "$(cat "$ACME_SH_SERVICE_UNIT" 2>/dev/null || true)" != "$service_content" ]; then
         printf '%s\n' "$service_content" > "$ACME_SH_SERVICE_UNIT"
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal service unit written: $ACME_SH_SERVICE_UNIT"
+        units_changed="yes"
     fi
     if [ "$(cat "$ACME_SH_TIMER_UNIT" 2>/dev/null || true)" != "$timer_content" ]; then
         printf '%s\n' "$timer_content" > "$ACME_SH_TIMER_UNIT"
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal timer unit written: $ACME_SH_TIMER_UNIT"
+        units_changed="yes"
     fi
-    systemctl daemon-reload >/dev/null 2>&1 || true
-    systemctl enable --now "${ACME_SH_SERVICE_NAME}.timer" >/dev/null 2>&1 || true
-    if [ "$(systemctl is-active "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)" = "active" ]; then
+    if [ "$units_changed" = "yes" ]; then
+        systemctl daemon-reload >/dev/null 2>&1 || true
+    fi
+    timer_active="$(systemctl is-active "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)"
+    timer_enabled="$(systemctl is-enabled "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)"
+    if [ "$timer_active" != "active" ] || [ "$timer_enabled" != "enabled" ]; then
+        systemctl enable --now "${ACME_SH_SERVICE_NAME}.timer" >/dev/null 2>&1 || true
+        timer_active="$(systemctl is-active "${ACME_SH_SERVICE_NAME}.timer" 2>/dev/null || true)"
+    fi
+    if [ "$timer_active" = "active" ]; then
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] renewal timer active: ${ACME_SH_SERVICE_NAME}.timer (next: $(systemctl list-timers "${ACME_SH_SERVICE_NAME}.timer" --no-pager 2>/dev/null | awk 'NR==2 {print $1, $2, $3}' | tr -d '\n'))"
     else
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] [WARN] renewal timer not active; check: systemctl status ${ACME_SH_SERVICE_NAME}.timer"
@@ -440,7 +596,7 @@ EOF
     acme_bin="$(acme_install_linked_binary)"
     if [ -n "$acme_bin" ]; then
         echo "[$FRANKENPHP_ACME_INSTALL_INDEX] acme.sh managed certificates:"
-        "$acme_bin" --list --home "$ACME_INSTALL_HOME_DIR" --config-home "$ACME_INSTALL_CONFIG_DIR" 2>/dev/null \
+        "$acme_bin" "${ACME_SH_HOME_ARGS[@]}" --list 2>/dev/null \
             | awk 'NR==1 || /^(Main_Domain|[a-zA-Z0-9.-]+\.)[a-zA-Z]/ {print}' \
             || echo "[$FRANKENPHP_ACME_INSTALL_INDEX] (no certificates issued yet)"
     fi
