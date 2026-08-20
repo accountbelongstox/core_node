@@ -62,7 +62,7 @@ class QueueCenterController extends Controller
             'queues' => $this->queueCenter->stats(),
             'workers' => $this->workerPresence->snapshot(),
             'realtime' => $this->realtime->connection(),
-        ], 'Queue center overview');
+        ], __('relay.queue_center_overview'));
     }
 
     public function events(Request $request): JsonResponse
@@ -78,7 +78,7 @@ class QueueCenterController extends Controller
                 (int) ($validated['cursor'] ?? 0),
                 (int) ($validated['limit'] ?? $limit)
             ),
-            'Queue center events'
+            __('relay.queue_center_events')
         );
     }
 

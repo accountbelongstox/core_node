@@ -27,9 +27,12 @@ Official references:
 - [FrankenPHP Laravel and Octane](https://frankenphp.dev/docs/laravel/)
 - [FrankenPHP built-in Mercure](https://frankenphp.dev/docs/mercure/)
 - [FrankenPHP v1.12.7 dependency manifest](https://raw.githubusercontent.com/php/frankenphp/v1.12.7/go.mod)
+- [FrankenPHP v1.12.7 native Mercure publisher binding](https://github.com/php/frankenphp/blob/v1.12.7/caddy/mercure.go)
 - [Mercure v0.24.2 authorization implementation](https://raw.githubusercontent.com/dunglas/mercure/v0.24.2/authorization.go)
 - [Mercure v0.24.2 subscription implementation](https://raw.githubusercontent.com/dunglas/mercure/v0.24.2/subscribe.go)
 - [Mercure Hub configuration](https://mercure.rocks/docs/hub/config)
+- [Mercure subscriber authentication and CORS troubleshooting](https://mercure.rocks/docs/hub/troubleshooting)
+- [Mercure official subscribing guide](https://github.com/dunglas/mercure/blob/main/docs/concepts/subscribing.md)
 - [Laravel Octane](https://laravel.com/docs/master/octane)
 
 ## Runtime architecture
@@ -59,6 +62,8 @@ php artisan octane:frankenphp \
 ```
 
 Swoole task-worker options are not passed to FrankenPHP. The Caddyfile contains the Octane worker block and routes unresolved requests to `frankenphp-worker.php`. The same site block enables the embedded Mercure hub with private publisher and subscriber keys.
+
+Exactly one Mercure handler and Bolt transport are rendered on the direct LAN/local `:9000` site. The primary HTTPS site proxies only `/.well-known/mercure*` to that handler, while managed `api.<prefix>.<domain>` sites already proxy all traffic to the same backend. Every request-derived hub URL therefore remains valid without creating competing hub instances, transports, or native `mercure_publish()` targets.
 
 ## Deployment convergence
 

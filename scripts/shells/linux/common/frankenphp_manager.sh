@@ -120,12 +120,12 @@ fm_resolve_binary_path() {
     candidate="$1"
     if [ -z "$candidate" ]; then
         echo ""
-        return 0
+        return
     fi
     resolved="$(readlink -f "$candidate" 2>/dev/null || true)"
     if [ -n "$resolved" ] && [ -x "$resolved" ]; then
         echo "$resolved"
-        return 0
+        return
     fi
     if [ -x "$candidate" ]; then
         echo "$candidate"
@@ -1163,16 +1163,13 @@ fm_ensure_dnspod_module() {
     echo "[$SCRIPT_INDEX] compiled candidate prepared: ${candidate}"
 }
 
-# Mercure hub stanza: literal HS256 keys from the RuntimeConfigurationStore
-# (official flat syntax of the embedded mercure/caddy module v0.24.x).
-# Sets FM_MERCURE_STANZA (printf -v preserves the trailing blank line -
-# $(...) capture would strip it and glue php_server onto the closing
-# brace). Empty when the store is unreadable (e.g. an install-time render
-# before 175 provisioning - no runtime_config adapter context) or the keys
-# are not provisioned yet. SYNC CONTRACT:
-# ServerManagerV1FrankenPhpCaddyfileBuilder::mercureStanza renders the
-# identical stanza.
-fm_mercure_stanza() {
+# Single Mercure hub stanza: literal HS256 keys from the
+# RuntimeConfigurationStore (official flat syntax of the embedded
+# mercure/caddy module v0.24.x). It is rendered once on the direct backend;
+# HTTPS and managed domains proxy the well-known path to that same hub.
+# SYNC CONTRACT: ServerManagerV1FrankenPhpCaddyfileBuilder renders the
+# identical stanza and proxy.
+fm_mercure_config() {
     local publisher_key=""
     local subscriber_key=""
     local cookie_name=""
@@ -1181,12 +1178,12 @@ fm_mercure_stanza() {
     if [ "$(type -t runtime_config_get)" != "function" ] \
         || [ -z "${VENDOR_AUTOLOAD:-}" ] || [ ! -f "$VENDOR_AUTOLOAD" ] \
         || [ -z "${BOOTSTRAP_APP:-}" ] || [ ! -f "$BOOTSTRAP_APP" ]; then
-        return 0
+        return
     fi
     publisher_key="$(runtime_config_get "MERCURE_PUBLISHER_JWT" 2>/dev/null)"
     subscriber_key="$(runtime_config_get "MERCURE_SUBSCRIBER_JWT" 2>/dev/null)"
     if [ -z "$publisher_key" ] || [ -z "$subscriber_key" ]; then
-        return 0
+        return
     fi
     cookie_name="$(sc_require realtime.mercure_cookie)"
     printf -v FM_MERCURE_STANZA '\tmercure {\n\t\tpublisher_jwt %s HS256\n\t\tsubscriber_jwt %s HS256\n\t\tcookie_name %s\n\t}\n\n' \
@@ -1197,10 +1194,8 @@ fm_octane_php_server_stanza() {
     printf -v FM_OCTANE_PHP_SERVER_STANZA '\tphp_server {\n\t\tindex frankenphp-worker.php\n\t\ttry_files {path} frankenphp-worker.php\n\t\tresolve_root_symlink\n\t}\n'
 }
 
-# Canonical Caddyfile render. The Mercure keys
-# are embedded as literal publisher_jwt/subscriber_jwt values from the
-# store (fm_mercure_stanza); the stanza is omitted when the keys are not
-# available yet.
+# Canonical Caddyfile render. One backend hub owns the Mercure transport;
+# HTTPS routes proxy the well-known path to it.
 # Args: 1 laravel_public_dir 2 site_host 3 https_port 4 admin_port 5 caddyfile_path
 fm_caddyfile_render() {
     local laravel_public_dir="$1"
@@ -1214,6 +1209,7 @@ fm_caddyfile_render() {
     local acme_tls=""
     local acme_cert_dir=""
     local mercure_stanza=""
+    local mercure_proxy=""
     local routes_dir=""
     local backend_port=""
     local import_stanza=""
@@ -1257,11 +1253,12 @@ fm_caddyfile_render() {
 "
     fi
 
-    # Mercure stanza: literal HS256 keys from the store; empty (block
-    # omitted) when the store is unreadable or the keys are missing.
-    # printf -v capture keeps the trailing blank line ($( ) strips it).
-    fm_mercure_stanza
+    backend_port="$(sc_require ports.laravel_api_backend)"
+    # One direct-backend hub owns the transport and native PHP publisher.
+    fm_mercure_config
     mercure_stanza="$FM_MERCURE_STANZA"
+    printf -v mercure_proxy '\troute {\n\t\t@mercure path /.well-known/mercure*\n\t\treverse_proxy @mercure http://%s:%s\n\t\tphp_server {\n\t\t\tindex frankenphp-worker.php\n\t\t\ttry_files {path} frankenphp-worker.php\n\t\t\tresolve_root_symlink\n\t\t}\n\t}\n' \
+        "$(sc_require hosts.loopback)" "$backend_port"
     fm_octane_php_server_stanza
     octane_php_server_stanza="$FM_OCTANE_PHP_SERVER_STANZA"
 
@@ -1270,7 +1267,6 @@ fm_caddyfile_render() {
     # renderer writes; gated on file presence - caddy errors on an
     # unmatched import glob). Byte-synced with the Laravel builder.
     routes_dir="${caddyfile_dir}/routes"
-    backend_port="$(sc_require ports.laravel_api_backend)"
     import_stanza=""
     if compgen -G "${routes_dir}/*.caddy" > /dev/null 2>&1; then
         import_stanza="
@@ -1297,13 +1293,13 @@ https://${site_host}:${https_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
 
-${dnspod_tls}${acme_tls}${mercure_stanza}${octane_php_server_stanza}}
+${dnspod_tls}${acme_tls}${mercure_proxy}}
 
 # Direct HTTP catch-all backend (LAN and local machine clients)
 :${backend_port} {
 	root * ${laravel_public_dir}
 	encode zstd gzip
-${octane_php_server_stanza}}${import_stanza}"
+${mercure_stanza}${octane_php_server_stanza}}${import_stanza}"
 
     FM_CADDYFILE_RENDERED="$rendered"
 }

@@ -491,6 +491,9 @@ create_systemd_service() {
     local memory_limit="${9:-}"
     local log_file="${10:-}"
     local timeout_start="${11:-}"
+    local restart_existing="${12:-yes}"
+    local exec_stop="${13:-}"
+    local timeout_stop="${14:-}"
 
     if [ -z "$service_name" ] || [ -z "$description" ] || [ -z "$exec_command" ]; then
         echo "[ERROR] service_name, description, and exec_command are required"
@@ -566,6 +569,14 @@ EOF
         echo "TimeoutStartSec=$timeout_start" >> "$service_file"
         echo "[INFO] TimeoutStartSec: $timeout_start"
     fi
+    if [ -n "$exec_stop" ]; then
+        echo "ExecStop=$exec_stop" >> "$service_file"
+        echo "[INFO] ExecStop: $exec_stop"
+    fi
+    if [ -n "$timeout_stop" ]; then
+        echo "TimeoutStopSec=$timeout_stop" >> "$service_file"
+        echo "[INFO] TimeoutStopSec: $timeout_stop"
+    fi
 
     if [ -n "$log_file" ]; then
         printf 'StandardOutput=append:%s\nStandardError=append:%s\n' "$log_file" "$log_file" >> "$service_file"
@@ -593,11 +604,13 @@ EOF
     if [ $? -eq 0 ]; then
         echo "[SUCCESS] Service file created: $service_file"
         systemctl daemon-reload
-        # Existing-service semantics: ALWAYS rewrite (done above) + restart,
-        # so the new definition takes effect immediately.
-        if [ "$unit_preexisted" = "yes" ]; then
+        # The caller may own the restart when it must perform one final
+        # state probe or coordinate a plane-specific graceful stop.
+        if [ "$unit_preexisted" = "yes" ] && [ "$restart_existing" = "yes" ]; then
             echo "[INFO] Restarting existing service: $service_name"
             systemctl restart "$service_name" || echo "[WARNING] restart reported failure: $service_name"
+        elif [ "$unit_preexisted" = "yes" ]; then
+            echo "[INFO] Existing service restart deferred to caller: $service_name"
         fi
         return 0
     else

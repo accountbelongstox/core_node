@@ -124,7 +124,7 @@ class RelayController extends Controller
     public function pair(Request $request, string $machineId): JsonResponse
     {
         if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
-            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
         }
 
         $session = self::resolveSession($request);
@@ -140,7 +140,7 @@ class RelayController extends Controller
     {
         $session = self::resolveSession($request);
         if (!RelayDispatcher::gate($machineId, $session['id'])) {
-            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
         }
 
         $method = strtoupper((string) $request->json('method', 'GET'));
@@ -230,7 +230,7 @@ class RelayController extends Controller
         $wait = $request->boolean('wait');
 
         if (!RelayDispatcher::gate($machineId, $session['id'])) {
-            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
         }
         while (true) {
             $response = RelayRequestStore::getResponse($machineId, $requestId);
@@ -255,7 +255,7 @@ class RelayController extends Controller
         ) - 1;
 
         if (!RelayMachineRegistry::isValidId($machineId) || !RelayMachineRegistry::isOnline($machineId)) {
-            return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+            return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
         }
         if (!PycoreClientOnly::isMachineCall($request)) {
             if (!self::isSessionCall($request)) {
@@ -263,7 +263,7 @@ class RelayController extends Controller
             }
             $session = self::resolveSession($request);
             if (!RelayDispatcher::gate($machineId, $session['id'])) {
-                return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+                return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
             }
         }
 
@@ -296,7 +296,7 @@ class RelayController extends Controller
             }
             $session = self::resolveSession($request);
             if (!RelayDispatcher::gate($machineId, $session['id'])) {
-                return $this->conflict('peer-offline', ['machine_id' => $machineId]);
+                return $this->conflict(__('relay.peer_offline'), ['machine_id' => $machineId]);
             }
         }
         $bytes = RelayBlobStore::read($machineId, $blobId);
