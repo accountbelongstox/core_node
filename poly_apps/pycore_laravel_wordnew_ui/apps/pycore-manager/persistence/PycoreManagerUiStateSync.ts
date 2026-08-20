@@ -17,6 +17,7 @@ import {
 import {
   PYCORE_MANAGER_SYNCED_STORAGE_KEYS,
   PycoreManagerStorageKeys,
+  PycoreManagerUiStorageKeys,
 } from './PycoreManagerStorageKeys';
 
 const PUSH_DEBOUNCE_MS = 500;
@@ -25,6 +26,7 @@ const SYNCED_KEY_SET = new Set<string>(PYCORE_MANAGER_SYNCED_STORAGE_KEYS);
 class PycoreManagerUiStateSync {
   private readonly replica = new RevisionedStorageReplica({
     keys: PYCORE_MANAGER_SYNCED_STORAGE_KEYS,
+    bootstrapLocalKeys: [PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES],
     pendingRevisionKey: PycoreManagerStorageKeys.PYCORE_UI_STATE_PENDING_REVISION,
     readRemote: () => this.readBackend(),
     writeRemote: (request) => this.writeBackend(request),
@@ -58,9 +60,7 @@ class PycoreManagerUiStateSync {
     const healthHandler = () => {
       if (getPycoreHealth().up === true) {
         this.reconcileAndReload();
-        return;
       }
-      this.replica.discardPendingLocal();
     };
     window.addEventListener(STORAGE_MANAGER_CHANGED_EVENT, storageHandler);
     window.addEventListener('storage', nativeStorageHandler);
@@ -72,12 +72,9 @@ class PycoreManagerUiStateSync {
       onHttpStatus((connected) => {
         if (connected) {
           this.reconcileAndReload();
-          return;
         }
-        this.replica.discardPendingLocal();
       }),
       pycoreEventBus.subscribe(PYCORE_BROWSER_EVENTS.httpEventServerRestarted, () => {
-        this.replica.discardPendingLocal();
         this.reconcileAndReload();
       }),
     ];
@@ -104,7 +101,6 @@ class PycoreManagerUiStateSync {
           if (changed) window.location.reload();
         })
         .catch(() => {
-          this.replica.discardPendingLocal();
           // Offline writes remain in the browser copy until reconnect.
         });
     }, PUSH_DEBOUNCE_MS);

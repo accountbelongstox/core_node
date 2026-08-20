@@ -11,7 +11,7 @@ export * from './PycoreCapabilityStore';
 export * from './AgentHistoryRuntimeStore';
 export * from './CodeSyncRuntimeStore';
 export * from './LlmStatusRuntimeStore';
-export * from './TerminalScheduleBackupStore';
+export * from './TerminalScheduleStore';
 export * from './PycoreEngineLoadStore';
 export * from './PycoreCache';
 export { QueueCenterExchangeAPI, queueCenterExchangeApi } from './PcQueueCenterExchange';

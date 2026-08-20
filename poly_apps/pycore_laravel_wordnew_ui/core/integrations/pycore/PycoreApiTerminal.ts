@@ -130,6 +130,11 @@ export interface TerminalScheduleClearResult {
   error_code?: string | null;
   cleared_entry_count?: number;
   terminal_numbers?: number[];
+  terminal_results?: Array<{
+    terminal_number: number;
+    cleared_entry_count: number;
+    entry_ids: string[];
+  }>;
 }
 
 export const pycoreApiTerminal = {

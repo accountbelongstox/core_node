@@ -19,6 +19,7 @@ export interface RevisionedStorageWrite {
 
 export interface RevisionedStorageReplicaOptions {
   keys: readonly StorageKey[];
+  bootstrapLocalKeys?: readonly StorageKey[];
   pendingRevisionKey: StorageKey;
   readRemote: () => Promise<RevisionedStorageDocument>;
   writeRemote: (request: RevisionedStorageWrite) => Promise<RevisionedStorageDocument>;
@@ -26,6 +27,7 @@ export interface RevisionedStorageReplicaOptions {
 
 export class RevisionedStorageReplica {
   private readonly keys: readonly StorageKey[];
+  private readonly bootstrapLocalKeySet: ReadonlySet<StorageKey>;
   private readonly pendingRevisionKey: StorageKey;
   private readonly readRemote: () => Promise<RevisionedStorageDocument>;
   private readonly writeRemote: (
@@ -38,6 +40,7 @@ export class RevisionedStorageReplica {
 
   constructor(options: RevisionedStorageReplicaOptions) {
     this.keys = options.keys;
+    this.bootstrapLocalKeySet = new Set(options.bootstrapLocalKeys || []);
     this.pendingRevisionKey = options.pendingRevisionKey;
     this.readRemote = options.readRemote;
     this.writeRemote = options.writeRemote;
@@ -121,6 +124,18 @@ export class RevisionedStorageReplica {
     return values;
   }
 
+  private captureBootstrapValues(
+    remoteValues: Record<string, string>,
+  ): Record<string, string> {
+    const values: Record<string, string> = {};
+    this.bootstrapLocalKeySet.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(remoteValues, key)) return;
+      const rawValue = StorageManager.getRaw(key);
+      if (rawValue !== null) values[key] = rawValue;
+    });
+    return values;
+  }
+
   private localMatches(remoteValues: Record<string, string>): boolean {
     return this.keys.every((key) => (
       (StorageManager.getRaw(key) ?? null) === (remoteValues[key] ?? null)
@@ -154,6 +169,18 @@ export class RevisionedStorageReplica {
         if (recovered.conflict) return this.applyRemote(recovered);
         this.acceptWrite(recovered, values);
         return false;
+      }
+      const remoteValues = remote.values && typeof remote.values === 'object'
+        ? remote.values
+        : {};
+      const bootstrapValues = this.captureBootstrapValues(remoteValues);
+      if (Object.keys(bootstrapValues).length > 0) {
+        const bootstrapped = await this.writeRemote({
+          values: { ...remoteValues, ...bootstrapValues },
+          base_revision: Number(remote.revision || 0),
+          initialize_only: false,
+        });
+        return this.applyRemote(bootstrapped);
       }
       return this.applyRemote(remote);
     }

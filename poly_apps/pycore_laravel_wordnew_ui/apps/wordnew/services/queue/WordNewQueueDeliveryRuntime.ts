@@ -14,6 +14,10 @@ export interface QueueDeliveryTrackedReceipt<Resource extends string> {
   status: string | null;
   workerId: string | null;
   workerKind: string | null;
+  queuePosition: number | null;
+  headAction: string | null;
+  progress: number | null;
+  estimatedWaitSeconds: number | null;
 }
 
 export interface QueueDeliveryRuntimeSnapshot<Resource extends string> {
@@ -104,9 +108,22 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
     this.setReceipt(key, resource, 'waiting');
   }
 
-  markLaravelReceived(key: string, resource: Resource, taskId?: string | null): void {
+  markLaravelReceived(
+    key: string,
+    resource: Resource,
+    taskId?: string | null,
+    queuePosition?: number | null,
+    headAction?: string | null,
+  ): void {
     const current = this.tracked.get(key);
-    this.setReceipt(key, resource, 'laravel_received', taskId || current?.taskId || '');
+    this.setReceipt(
+      key,
+      resource,
+      'laravel_received',
+      taskId || current?.taskId || '',
+      queuePosition,
+      headAction,
+    );
   }
 
   markReady(key: string, resource: Resource): void {
@@ -201,6 +218,9 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
           status: wire.task_status ?? null,
           workerId: wire.worker?.id ?? null,
           workerKind: wire.worker?.kind ?? null,
+          queuePosition: wire.queue_position ?? current.queuePosition,
+          progress: wire.progress ?? current.progress,
+          estimatedWaitSeconds: wire.estimated_wait_seconds ?? null,
         });
       });
       this.replaceWorkers(Array.isArray(response?.workers) ? response.workers : [], true);
@@ -219,7 +239,14 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
     this.emit();
   }
 
-  private setReceipt(key: string, resource: Resource, stage: QueueDeliveryStage, taskId = ''): void {
+  private setReceipt(
+    key: string,
+    resource: Resource,
+    stage: QueueDeliveryStage,
+    taskId = '',
+    queuePosition?: number | null,
+    headAction?: string | null,
+  ): void {
     if (this.tracked.size >= this.receiptLimit && !this.tracked.has(key)) {
       const oldestKey = this.tracked.keys().next().value as string | undefined;
       if (oldestKey) this.tracked.delete(oldestKey);
@@ -234,6 +261,10 @@ export abstract class WordNewQueueDeliveryRuntime<Resource extends string> {
       status: current?.status ?? null,
       workerId: current?.workerId ?? null,
       workerKind: current?.workerKind ?? null,
+      queuePosition: queuePosition ?? current?.queuePosition ?? null,
+      headAction: headAction ?? current?.headAction ?? null,
+      progress: current?.progress ?? null,
+      estimatedWaitSeconds: current?.estimatedWaitSeconds ?? null,
     });
     this.publish();
   }

@@ -86,7 +86,13 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
         this.markFailed(key, 'audio');
         return;
       }
-      this.markLaravelReceived(key, 'audio', result.queue_task_id);
+      this.markLaravelReceived(
+        key,
+        'audio',
+        result.queue_task_id,
+        result.queue_position,
+        result.head_action,
+      );
     });
   }
 
@@ -126,6 +132,8 @@ class WordNewQueueRuntime extends WordNewQueueDeliveryRuntime<WordNewQueueResour
         key,
         'audio',
         item.task_id || item.queue_task_id,
+        item.queue_position,
+        item.head_action,
       );
     });
   }

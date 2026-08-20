@@ -1,0 +1,17 @@
+ 直接访问：http://12gm.com/   https://12gm.com/
+  都还没有指向13054，同时要保证是http3 301
+    以及需要能支持HTTP 2 HTTP3 301early，同时 现在在175脚本
+    中，api.${prefix}.${domain} 反代到9000端口，但是 www.
+    ${prefix}.${domain} && ${prefix}.${domain} 是反代到
+  13054
+    前端服务
+     现在需要同时访问
+  https://www.12gm.com能访问前端UI，并支持
+     HTTP 2 HTTP3 301early
+        复用重复实现类库。同时搜索官方文档，搜索官方文档。
+    注意从底层构架，不要薄兼容，代码从底层重构，同时搜索官方
+  文，同时确保，Mercure 共享443。
+
+    ·自动运行 93 94 96 175脚本，并确保能访问到9000端口以及
+      https://api.si.12gm.com/
+       发现问题就修复。

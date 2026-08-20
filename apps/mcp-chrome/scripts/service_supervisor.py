@@ -210,12 +210,40 @@ def extension_recovery_url() -> Optional[str]:
     return None
 
 
+def windows_app_executable(executable_name: str) -> Optional[str]:
+    if os.name != "nt":
+        return None
+
+    import winreg
+
+    registry_roots = [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
+    registry_paths = [
+        rf"Software\Microsoft\Windows\CurrentVersion\App Paths\{executable_name}",
+        rf"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\{executable_name}",
+    ]
+    for registry_root in registry_roots:
+        for registry_path in registry_paths:
+            try:
+                with winreg.OpenKey(registry_root, registry_path) as registry_key:
+                    executable_path, _value_type = winreg.QueryValueEx(registry_key, None)
+            except OSError:
+                continue
+            candidate = Path(str(executable_path).strip('"'))
+            if candidate.is_file():
+                return str(candidate)
+    return None
+
+
 def chrome_executable() -> Optional[str]:
     command = shutil.which("chrome") or shutil.which("google-chrome") or shutil.which("chromium")
     if command:
         return command
     if os.name != "nt":
         return None
+
+    registered_command = windows_app_executable("chrome.exe")
+    if registered_command:
+        return registered_command
 
     candidates = [
         Path(os.environ.get("PROGRAMFILES", "")) / "Google" / "Chrome" / "Application" / "chrome.exe",
@@ -228,7 +256,7 @@ def chrome_executable() -> Optional[str]:
     return None
 
 
-def wake_extension() -> None:
+def wake_extension(reload_extension: bool = True) -> None:
     recovery_url = extension_recovery_url()
     chrome_path = chrome_executable()
     reload_url: Optional[str] = None
@@ -241,22 +269,25 @@ def wake_extension() -> None:
     reconnect_url = f"{recovery_url}?reconnectNative=1"
     try:
         if chrome_path:
-            subprocess.Popen(
-                [chrome_path, reload_url],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            time.sleep(1.5)
+            if reload_extension:
+                subprocess.Popen(
+                    [chrome_path, reload_url],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                time.sleep(1.5)
             subprocess.Popen(
                 [chrome_path, reconnect_url],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
         else:
-            webbrowser.open(reload_url, new=0, autoraise=False)
-            time.sleep(1.5)
+            if reload_extension:
+                webbrowser.open(reload_url, new=0, autoraise=False)
+                time.sleep(1.5)
             webbrowser.open(reconnect_url, new=0, autoraise=False)
-        print("[Supervisor] Requested Chrome extension native-host recovery.", flush=True)
+        recovery_mode = "reload and reconnect" if reload_extension else "reconnect"
+        print(f"[Supervisor] Requested Chrome extension {recovery_mode}.", flush=True)
     except OSError as error:
         print(f"[Supervisor] Could not wake the Chrome extension: {error}", flush=True)
 
@@ -326,7 +357,7 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
             and not service_up
             and consecutive_down_recoveries < RECOVERY_MAX_ATTEMPTS
         ):
-            wake_extension()
+            wake_extension(reload_extension=recovery_due)
             last_recovery_at = now
             if recovery_due:
                 pending_recovery_at = None

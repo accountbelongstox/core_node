@@ -1,34 +1,30 @@
 import { StorageManager } from '../../../core/persistence';
-import { PycoreStorageKeys } from '../../../core/integrations/pycore/PycoreStorageKeys';
+import { PycoreManagerUiStorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import type {
   TerminalScheduleDefinition,
   TerminalScheduleEntry,
 } from '../../../core/integrations/pycore/PycoreApiTerminal';
 
 
-interface TerminalScheduleBackupRecord {
+interface TerminalScheduleRecord {
   entries: TerminalScheduleDefinition[];
   updated_at: number;
 }
 
-interface TerminalScheduleBackupState {
+interface TerminalScheduleState {
   version: 3;
-  terminals: Record<string, TerminalScheduleBackupRecord>;
+  terminals: Record<string, TerminalScheduleRecord>;
   clear_all_pending: boolean;
 }
 
-interface LegacyTerminalScheduleBackupEntry {
-  backend_id?: unknown;
-  mode?: unknown;
-  run_at?: unknown;
-  interval_seconds?: unknown;
-  message?: unknown;
+export interface TerminalScheduleClearLocalResult {
+  cleared_entry_count: number;
+  terminal_numbers: number[];
 }
 
-const LEGACY_STORAGE_KEY = 'pc.terminal.scheduleBackup.v2';
 const EMPTY_STATE_VERSION = 3;
 
-function emptyState(): TerminalScheduleBackupState {
+function emptyState(): TerminalScheduleState {
   return {
     version: EMPTY_STATE_VERSION,
     terminals: {},
@@ -59,9 +55,9 @@ function normalizeDefinition(value: unknown): TerminalScheduleDefinition | null 
   };
 }
 
-function normalizeState(value: unknown): TerminalScheduleBackupState {
-  const candidate = value as Partial<TerminalScheduleBackupState> | null;
-  const terminals: Record<string, TerminalScheduleBackupRecord> = {};
+function normalizeState(value: unknown): TerminalScheduleState {
+  const candidate = value as Partial<TerminalScheduleState> | null;
+  const terminals: Record<string, TerminalScheduleRecord> = {};
   if (candidate?.version !== EMPTY_STATE_VERSION || !candidate.terminals) {
     return emptyState();
   }
@@ -81,47 +77,16 @@ function normalizeState(value: unknown): TerminalScheduleBackupState {
   };
 }
 
-function migrateLegacyState(): TerminalScheduleBackupState {
-  const legacy = StorageManager.get<Record<string, LegacyTerminalScheduleBackupEntry[]>>(
-    LEGACY_STORAGE_KEY,
-    {},
-  );
-  const terminals: Record<string, TerminalScheduleBackupRecord> = {};
-  Object.entries(legacy).forEach(([key, entries]) => {
-    if (!/^\d+$/.test(key) || !Array.isArray(entries)) return;
-    const normalizedEntries = entries
-      .map((entry) => normalizeDefinition({
-        id: String(entry.backend_id || ''),
-        mode: entry.mode,
-        run_at: entry.run_at,
-        interval_seconds: entry.interval_seconds,
-        message: entry.message,
-      }))
-      .filter((entry): entry is TerminalScheduleDefinition => entry !== null);
-    terminals[key] = { entries: normalizedEntries, updated_at: Date.now() };
-  });
-  const state: TerminalScheduleBackupState = {
-    version: EMPTY_STATE_VERSION,
-    terminals,
-    clear_all_pending: false,
-  };
-  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
-  return state;
-}
-
-function readState(): TerminalScheduleBackupState {
-  if (!StorageManager.has(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS)) {
-    return migrateLegacyState();
-  }
+function readState(): TerminalScheduleState {
   return normalizeState(StorageManager.get(
-    PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS,
+    PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES,
     emptyState(),
   ));
 }
 
-export function readTerminalScheduleBackup(
+export function readTerminalScheduleQueue(
   terminalNumber: number,
-): TerminalScheduleBackupRecord | null {
+): TerminalScheduleRecord | null {
   const state = readState();
   const record = state.terminals[String(terminalNumber)];
   return record
@@ -129,29 +94,38 @@ export function readTerminalScheduleBackup(
     : null;
 }
 
-export function writeTerminalScheduleBackup(
+export function writeTerminalScheduleQueue(
   terminalNumber: number,
   entries: TerminalScheduleDefinition[],
-): TerminalScheduleBackupRecord {
+): TerminalScheduleRecord {
   const state = readState();
   const previousUpdatedAt = Number(
     state.terminals[String(terminalNumber)]?.updated_at || 0,
   );
-  const record: TerminalScheduleBackupRecord = {
+  const record: TerminalScheduleRecord = {
     entries: entries
       .map(normalizeDefinition)
       .filter((entry): entry is TerminalScheduleDefinition => entry !== null),
     updated_at: Math.max(Date.now(), previousUpdatedAt + 1),
   };
   state.terminals[String(terminalNumber)] = record;
-  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
+  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
   return { ...record, entries: record.entries.map((entry) => ({ ...entry })) };
+}
+
+export function ensureTerminalScheduleQueue(
+  terminalNumber: number,
+): TerminalScheduleRecord {
+  return readTerminalScheduleQueue(terminalNumber)
+    || writeTerminalScheduleQueue(terminalNumber, []);
 }
 
 export function stageTerminalScheduleClearAll(
   terminalNumbers: number[],
-): void {
+): TerminalScheduleClearLocalResult {
   const state = readState();
+  const clearedTerminalNumbers: number[] = [];
+  let clearedEntryCount = 0;
   const terminalKeys = new Set([
     ...Object.keys(state.terminals),
     ...terminalNumbers
@@ -161,13 +135,21 @@ export function stageTerminalScheduleClearAll(
   terminalKeys.forEach((key) => {
     const current = state.terminals[key];
     if (current && current.entries.length === 0) return;
+    if (current && current.entries.length > 0) {
+      clearedEntryCount += current.entries.length;
+      clearedTerminalNumbers.push(Number(key));
+    }
     state.terminals[key] = {
       entries: [],
       updated_at: Math.max(Date.now(), Number(current?.updated_at || 0) + 1),
     };
   });
   state.clear_all_pending = true;
-  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
+  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
+  return {
+    cleared_entry_count: clearedEntryCount,
+    terminal_numbers: clearedTerminalNumbers.sort((left, right) => left - right),
+  };
 }
 
 export function isTerminalScheduleClearAllPending(): boolean {
@@ -178,7 +160,7 @@ export function completeTerminalScheduleClearAll(): void {
   const state = readState();
   if (!state.clear_all_pending) return;
   state.clear_all_pending = false;
-  StorageManager.set(PycoreStorageKeys.TERMINAL_SCHEDULE_BACKUPS, state);
+  StorageManager.set(PycoreManagerUiStorageKeys.PYCORE_TERMINAL_SCHEDULES, state);
 }
 
 export function createTerminalScheduleEntryId(): string {
@@ -189,7 +171,7 @@ export function createTerminalScheduleEntryId(): string {
   return `${Date.now()}${String(randomPart).padStart(6, '0')}`;
 }
 
-export function terminalScheduleDefinitionMetadata(
+export function mergeTerminalScheduleRuntime(
   definition: TerminalScheduleDefinition,
   current?: TerminalScheduleEntry,
 ): TerminalScheduleEntry {

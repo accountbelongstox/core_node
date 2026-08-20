@@ -141,6 +141,8 @@ export interface QueueTaskDeliveryReceipt {
   task_status: GlobalTaskStatus | null;
   queue_position: number | null;
   priority?: number | null;
+  progress?: number | null;
+  estimated_wait_seconds?: number | null;
   worker: QueueCenterWorkerPresence | null;
   updated_at: string | null;
 }

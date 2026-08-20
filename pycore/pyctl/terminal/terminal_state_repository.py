@@ -459,6 +459,7 @@ class TerminalStateRepository:
     def clear_schedule_entries(self) -> Dict[str, Any]:
         values, records, _next_number = self._scan_records()
         cleared_terminal_numbers: List[int] = []
+        terminal_results: List[Dict[str, Any]] = []
         cleared_entry_count = 0
         now = _now_iso()
 
@@ -476,10 +477,16 @@ class TerminalStateRepository:
             )
             cleared_terminal_numbers.append(terminal_number)
             cleared_entry_count += len(entry_ids)
+            terminal_results.append({
+                "terminal_number": terminal_number,
+                "cleared_entry_count": len(entry_ids),
+                "entry_ids": entry_ids,
+            })
         return {
             "success": True,
             "cleared_entry_count": cleared_entry_count,
             "terminal_numbers": cleared_terminal_numbers,
+            "terminal_results": terminal_results,
         }
 
     @serialized_method

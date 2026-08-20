@@ -340,6 +340,7 @@ class AppQyV1UnifiedTTSQueueService
     private function addWordTask(string $content, string $language, string $position): array
     {
         $contentHash = md5($content);
+        $headAction = null;
         $queueTaskId = null;
         $queuePosition = 0;
 
@@ -409,6 +410,7 @@ class AppQyV1UnifiedTTSQueueService
                 $queueLinks,
                 300
             );
+            $headAction = $queueResult['head_action'] ?? null;
             $queueTaskId = (string) ($queueResult['task_id'] ?? '');
             $queuePosition = (int) ($queueResult['queue_position'] ?? 0);
             if ($queueTaskId !== '') {
@@ -445,6 +447,7 @@ class AppQyV1UnifiedTTSQueueService
             'task_id' => AppQyV1DictionaryTTSCoordinator::encodeTaskId((int) $dictEntry->id, self::TYPE_WORD, $language),
             'queue_task_id' => $queueTaskId,
             'queue_position' => $queuePosition,
+            'head_action' => $headAction,
             'task_type' => self::TYPE_WORD,
             'position' => $position,
         ];

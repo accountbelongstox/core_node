@@ -443,5 +443,10 @@ export const koLocaleB: Record<string, string> = {
     'queue.mcpChrome': 'mcp-chrome',
     'queue.online': '온라인',
     'queue.offline': '오프라인',
+    'queue.headAction.moved_to_head': '대기열 맨 앞으로 이동했습니다',
+    'queue.headAction.not_queued': 'Pycore가 이미 작업을 수신했습니다',
+    'queue.headAction.not_found': '대기열 작업을 찾을 수 없습니다',
+    'queue.progress': '진행률 {progress}%',
+    'queue.estimatedWait': '약 {seconds}초 후 완료 예정',
     'queue.tracked': '{count}개 추적 중'
 };

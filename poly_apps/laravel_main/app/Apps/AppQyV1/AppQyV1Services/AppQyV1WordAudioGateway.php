@@ -62,6 +62,7 @@ class AppQyV1WordAudioGateway
             'audio_files' => $row !== null ? $this->audioVariantsForApi($row, $language) : [],
             'queue_task_id' => $queue['queue_task_id'] ?? null,
             'queue_position' => isset($queue['queue_position']) ? (int) $queue['queue_position'] : null,
+            'head_action' => $queue['head_action'] ?? null,
             'queue_status' => $queue['status'] ?? null,
             'error' => $queue['error'] ?? null,
         ];
