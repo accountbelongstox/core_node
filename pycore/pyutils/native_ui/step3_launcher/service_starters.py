@@ -36,7 +36,7 @@ from pycore.pyutils.native_ui.step1_config.app_config import NativeUIConfig
 from pycore.pyutils.native_ui.step7_managers.callback_manager import CallbackManager
 from pycore.pyutils.native_ui.step9_frontend.frontend_config import FrontendConfig
 from pycore.pyutils.native_ui.step9_frontend.frontend_starter import start_frontend_if_needed
-from pycore.pyfoundations.singleton.detector import SingletonDetector
+from pycore.pyfoundations.singleton.detector import get_process_singleton_detector
 from pycore.pyfoundations.launcher_config import LauncherConfig
 # ServiceLauncher lives in the higher pylauncher layer; obtain it via the
 # pyfoundations provider seam (registered by pylauncher at import time) so this
@@ -94,7 +94,7 @@ def _start_singleton_detector(
     # Create singleton detector with shutdown_existing=True
     # This means: if an old instance exists, notify it to shutdown and take over
 
-    detector = SingletonDetector(
+    detector = get_process_singleton_detector(
         app_id=config.app_id,
         port_start=port_start,
         port_range=port_range,

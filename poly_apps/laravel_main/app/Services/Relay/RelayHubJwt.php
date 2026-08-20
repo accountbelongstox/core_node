@@ -2,8 +2,10 @@
 
 namespace App\Services\Relay;
 
+use App\Http\Middleware\PycoreClientOnly;
 use App\Support\QueueCenterContract;
 use App\Support\RuntimeConfigurationStore;
+use Illuminate\Http\Request;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
@@ -60,9 +62,19 @@ final class RelayHubJwt
      */
     public static function servingOrigin(): string
     {
+        $request = null;
+        $serviceOrigin = null;
+        $issuer = '';
+
         if (function_exists('app') && app()->bound('request')) {
             $request = app('request');
-            if ($request instanceof \Illuminate\Http\Request
+            if ($request instanceof Request) {
+                $serviceOrigin = PycoreClientOnly::serviceOrigin($request);
+                if ($serviceOrigin !== null) {
+                    return $serviceOrigin;
+                }
+            }
+            if ($request instanceof Request
                 && $request->server->has('HTTP_HOST')
                 && $request->getHost() !== '') {
                 return $request->getSchemeAndHttpHost();
