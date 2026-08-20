@@ -35,7 +35,17 @@ def response_http_version(response: Any) -> str:
     value = getattr(response, "http_version", None)
     if value is not None:
         name = getattr(value, "name", None)
-        return str(name or value)
+        normalized = str(name or value)
+        return {
+            "10": "HTTP/1.0",
+            "11": "HTTP/1.1",
+            "20": "HTTP/2",
+            "30": "HTTP/3",
+            "V1_0": "HTTP/1.0",
+            "V1_1": "HTTP/1.1",
+            "V2_0": "HTTP/2",
+            "V3": "HTTP/3",
+        }.get(normalized, normalized)
     raw = getattr(response, "raw", None)
     version = getattr(raw, "version", None)
     return {10: "HTTP/1.0", 11: "HTTP/1.1", 20: "HTTP/2"}.get(version, "")
