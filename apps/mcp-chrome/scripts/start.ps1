@@ -22,6 +22,7 @@ $ScriptDir = $null
 $ProjectRoot = $null
 $AppsDir = $null
 $CoreNodeRoot = $null
+$ConfigRoot = $null
 $ScriptsRoot = $null
 $ShellsRoot = $null
 $WindowsShellsRoot = $null
@@ -41,6 +42,8 @@ $LanguageCandidate = $null
 $NormalizedLanguage = $null
 $LocaleName = $null
 $PythonExe = $null
+$SupervisorArguments = @()
+$SupervisorProcess = $null
 $InitialDir = Get-Location
 $WatchChoice = ""
 $WatchMode = "dev"
@@ -240,6 +243,7 @@ $ScriptDir = Split-Path -Parent $PSScriptRoot
 $ProjectRoot = $ScriptDir
 $AppsDir = Split-Path -Parent $ProjectRoot
 $CoreNodeRoot = Split-Path -Parent $AppsDir
+$ConfigRoot = Join-Path $CoreNodeRoot "config"
 $ScriptsRoot = Join-Path $CoreNodeRoot "scripts"
 $ShellsRoot = Join-Path $ScriptsRoot "shells"
 $WindowsShellsRoot = Join-Path $ShellsRoot "win"
@@ -334,7 +338,7 @@ if ($nodeVersion) {
     Write-Host (Get-LocalizedMessage -Key "startNodeVersion" -Arguments @($nodeVersion)) -ForegroundColor Green
 } else {
     Write-Host (Get-LocalizedMessage -Key "startNodeMissing") -ForegroundColor Red
-    exit 1
+    throw (Get-LocalizedMessage -Key "startNodeMissing")
 }
 
 $pnpmVersion = pnpm --version 2>$null
@@ -342,7 +346,7 @@ if ($pnpmVersion) {
     Write-Host (Get-LocalizedMessage -Key "startPnpmVersion" -Arguments @($pnpmVersion)) -ForegroundColor Green
 } else {
     Write-Host (Get-LocalizedMessage -Key "startPnpmMissing") -ForegroundColor Red
-    exit 1
+    throw (Get-LocalizedMessage -Key "startPnpmMissing")
 }
 
 # Step 2: Install dependencies
@@ -422,7 +426,7 @@ $manifestJson = Join-Path $extensionPath "manifest.json"
 if (-not (Test-Path $manifestJson)) {
     Write-Host (Get-LocalizedMessage -Key "startManifestMissing" -Arguments @($manifestJson)) -ForegroundColor Red
     Write-Host (Get-LocalizedMessage -Key "startCannotRegister") -ForegroundColor Red
-    exit 1
+    throw (Get-LocalizedMessage -Key "startCannotRegister")
 }
 
 # Verify manifest has key field
@@ -495,23 +499,38 @@ if ($WatchMode -eq "dev") {
 Write-Host "========================================"
 Write-Host ""
 
+if ($WatchMode -eq "dev") {
+    $SupervisorArguments = @(
+        [string]::Concat('"', $SupervisorScript, '"'),
+        "--project-root",
+        [string]::Concat('"', $ProjectRoot, '"'),
+        "--watch-mode",
+        $WatchMode,
+        "--recover-on-start"
+    )
+    $SupervisorProcess = Start-Process -FilePath $PythonExe -ArgumentList $SupervisorArguments -WindowStyle Hidden -PassThru
+    Write-Host "Chrome recovery supervisor started (PID $($SupervisorProcess.Id))." -ForegroundColor Green
+}
+
 # Shell owns source watching and runs one complete build batch per change.
-# Python wakes the extension/native MCP connection after the batch, then exits.
+# The persistent supervisor observes artifacts, reloads the extension after
+# successful builds, and reconnects the native host after browser restarts.
 Set-Location $ProjectRoot
 try {
     if ($WatchMode -eq "dev") {
         $WatchRoots = @(
+            $ConfigRoot,
             (Join-Path (Join-Path $ProjectRoot "packages") "shared"),
             (Join-Path (Join-Path $ProjectRoot "app") "native-server"),
             (Join-Path (Join-Path $ProjectRoot "app") "chrome-extension")
         )
         $IgnoredWatchRoots = @(
-            (Join-Path $WatchRoots[0] "dist"),
-            (Join-Path $WatchRoots[0] "node_modules"),
             (Join-Path $WatchRoots[1] "dist"),
             (Join-Path $WatchRoots[1] "node_modules"),
-            (Join-Path $WatchRoots[2] ".wxt"),
-            (Join-Path $WatchRoots[2] "node_modules")
+            (Join-Path $WatchRoots[2] "dist"),
+            (Join-Path $WatchRoots[2] "node_modules"),
+            (Join-Path $WatchRoots[3] ".wxt"),
+            (Join-Path $WatchRoots[3] "node_modules")
         )
 
         foreach ($WatchRoot in $WatchRoots) {
@@ -530,14 +549,12 @@ try {
             $WatchIndex = $WatchIndex + 1
         }
 
-        & $PythonExe $SupervisorScript --wake
         while ($true) {
             $ChangedPaths = @(Wait-DevelopmentChangeBatch -SourcePrefix $WatchSourcePrefix -IgnoredRoots $IgnoredWatchRoots -IgnoredFilePatterns $IgnoredWatchFilePatterns -WatchedExtensions $WatchedFileExtensions -DebounceMilliseconds $WatchDebounceMilliseconds)
             Write-Host ([string]::Join(", ", $ChangedPaths)) -ForegroundColor DarkGray
             & pnpm run build:shared
             & pnpm run build:native
             & pnpm run build:extension
-            & $PythonExe $SupervisorScript --wake
         }
     } else {
         & $PythonExe $SupervisorScript --wake

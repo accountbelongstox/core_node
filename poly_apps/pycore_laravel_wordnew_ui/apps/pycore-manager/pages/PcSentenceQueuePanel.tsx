@@ -18,6 +18,7 @@ import { usePycoreTaskCenterState } from '../hooks/TaskCenterState';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 import PcTagFilteredLog from '../components/PcTagFilteredLog';
+import { PcAudioDeliveryOutboxStatus } from '../components/PcAudioDeliveryOutboxStatus';
 import { QUEUE_CENTER_DIFF_DELIVERY } from '../../../core/contracts/QueueCenterContract';
 
 type PcSentenceQueuePanelProps = QueueCenterPanelProps;
@@ -243,6 +244,13 @@ export const PcSentenceQueuePanel: React.FC<PcSentenceQueuePanelProps> = () => {
           </span>
         )}
       </div>
+
+      <PcAudioDeliveryOutboxStatus
+        lane="sentence"
+        running={snap?.worker?.delivery_outbox_running}
+        status={snap?.worker?.delivery_outbox}
+        onChanged={hub.refreshHub}
+      />
 
       {inFlight.length > 0 && (
         <div className="space-y-1.5">

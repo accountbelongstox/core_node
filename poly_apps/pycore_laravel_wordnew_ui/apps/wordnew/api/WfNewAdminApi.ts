@@ -245,7 +245,7 @@ function stripBom(text: string): string {
  * backend `message` and `.status` (401 → callers show the needLogin toast).
  */
 async function request<T>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
-  const res = await protocolFetch(`${adminBase()}${path}`, {
+  const res = await protocolFetch(adminUrl(path), {
     method,
     headers: headers(body !== undefined),
     body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -269,11 +269,11 @@ const postJSON = <T,>(path: string, body: object): Promise<T> => request<T>('POS
 const putJSON = <T,>(path: string, body: object): Promise<T> => request<T>('PUT', path, body as Record<string, unknown>);
 const deleteJSON = <T,>(path: string): Promise<T> => request<T>('DELETE', path);
 
-/** Resolve a backend-relative media path (audio/covers/images) onto the pinned base. */
+/** Resolve backend-relative media onto the page-associated API endpoint. */
 function adminAbsUrl(u?: string | null): string | null {
   if (!u || typeof u !== 'string') return null;
   if (/^https?:\/\//i.test(u) || u.startsWith('data:')) return u;
-  return `${adminBase()}${u.startsWith('/') ? u : `/${u}`}`;
+  return adminUrl(u);
 }
 
 // --- gateway ------------------------------------------------------------------ #
@@ -289,15 +289,15 @@ export const wfNewAdminApi = {
 
   /**
    * Probe the backend loopback debug status (public, never throws). A short
-   * timeout keeps a dead/remote :9000 from delaying app start — any failure
-   * simply reports super mode disabled.
+   * timeout keeps a dead page-associated backend from delaying app start — any
+   * failure simply reports super mode disabled.
    */
   async probeStatus(): Promise<WfNewSuperAdminStatus> {
     const disabled: WfNewSuperAdminStatus = { enabled: false, reason: 'disabled', clientIp: '' };
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 4000);
-      const res = await protocolFetch(`${adminBase()}${WFNEW_ADMIN_DEBUG_STATUS_PATH}`, {
+      const res = await protocolFetch(adminUrl(WFNEW_ADMIN_DEBUG_STATUS_PATH), {
         method: 'GET',
         headers: { Accept: 'application/json' },
         signal: ctrl.signal,

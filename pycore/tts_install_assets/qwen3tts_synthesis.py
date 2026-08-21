@@ -43,7 +43,7 @@ from pydub import AudioSegment
 #               multi-sentence text never becomes one long merged chunk.
 _CHUNK_MAX_CHARS_DEFAULT = 280
 _CHUNK_PAUSE_MS_DEFAULT = 150
-_SENTENCE_MERGE_RATIO = 0.6
+_SENTENCE_MERGE_RATIO = 0.85
 _SPEED_MIN = 0.25
 _SPEED_MAX = 3.0
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;。！？；:：])\s+|(?<=[。！？；])|\n+")
@@ -51,19 +51,16 @@ _CLAUSE_SPLIT_RE = re.compile(r"(?<=[,，、])\s*")
 
 
 def _chunk_max_chars(speed: float = 1.0) -> int:
-    """Effective hard cap for one generation at the given playback speed.
+    """Hard input cap for one model generation.
 
-    The degradation bound is per-generation DURATION, not characters: slower
-    speech (speed < 1.0) produces longer audio for the same text, so the
-    character budget shrinks proportionally to keep the worst-case generation
-    at the same ~20s ceiling."""
+    Playback speed is applied after inference, so it must not shrink the model
+    input and multiply the number of generation calls."""
     raw = (os.environ.get("QWEN3TTS_CHUNK_MAX_CHARS") or "").strip()
     try:
         base = max(80, int(raw)) if raw else _CHUNK_MAX_CHARS_DEFAULT
     except ValueError:
         base = _CHUNK_MAX_CHARS_DEFAULT
-    scaled = round(base * min(1.0, max(_SPEED_MIN, float(speed))))
-    return max(80, scaled)
+    return base
 
 
 def _chunk_pause_ms() -> int:
@@ -150,11 +147,7 @@ class QwenSynthesis:
         resolve_speaker: Callable[..., Dict[str, Any]],
         speaker_for_variant: Callable[[str, Dict[str, Any], int], Dict[str, Any]],
         qwen_language: Callable[[str], str],
-        query_gpu_snapshot: Callable[[int], Dict[str, Any]],
-        estimate_max_parallel: Callable[..., int],
-        detect_model_variant: Callable[[str], str],
-        model_id: Callable[[], str],
-        device: Callable[[], str],
+        capacity_plan: Callable[[], Dict[str, Any]],
         logger: Callable[[str], None],
         default_speed: Callable[[], float],
     ) -> None:
@@ -163,17 +156,24 @@ class QwenSynthesis:
         self._resolve_speaker = resolve_speaker
         self._speaker_for_variant = speaker_for_variant
         self._qwen_language = qwen_language
-        self._query_gpu_snapshot = query_gpu_snapshot
-        self._estimate_max_parallel = estimate_max_parallel
-        self._detect_model_variant = detect_model_variant
-        self._model_id = model_id
-        self._device = device
+        self._capacity_plan = capacity_plan
         self._logger = logger
         self._default_speed = default_speed
         self._stats_lock = threading.Lock()
         self._count = 0
         self._failed = 0
         self._total_ms = 0
+        self._runtime_lock = threading.Lock()
+        self._runtime: Dict[str, Any] = {
+            "phase": "idle",
+            "work_kind": None,
+            "job_count": 0,
+            "text_chars": 0,
+            "chunks_total": 0,
+            "chunks_completed": 0,
+            "active_native_batch": 0,
+            "started_monotonic": None,
+        }
 
     def stats(self) -> Dict[str, int]:
         with self._stats_lock:
@@ -182,6 +182,64 @@ class QwenSynthesis:
                 "synthesized_count": self._count,
                 "failed_count": self._failed,
                 "average_elapsed_ms": average,
+            }
+
+    def runtime(self) -> Dict[str, Any]:
+        with self._runtime_lock:
+            snapshot = dict(self._runtime)
+        started = snapshot.pop("started_monotonic", None)
+        snapshot["running_elapsed_ms"] = (
+            max(0, round((time.monotonic() - float(started)) * 1000))
+            if started is not None
+            else 0
+        )
+        return snapshot
+
+    def _start_runtime(
+        self,
+        work_kind: str,
+        job_count: int,
+        text_chars: int,
+        chunks_total: int,
+    ) -> None:
+        with self._runtime_lock:
+            self._runtime = {
+                "phase": "running",
+                "work_kind": work_kind,
+                "job_count": max(1, int(job_count)),
+                "text_chars": max(0, int(text_chars)),
+                "chunks_total": max(1, int(chunks_total)),
+                "chunks_completed": 0,
+                "active_native_batch": 1,
+                "started_monotonic": time.monotonic(),
+            }
+
+    def _update_runtime(
+        self,
+        phase: str,
+        active_native_batch: int,
+        chunks_completed: int,
+    ) -> None:
+        with self._runtime_lock:
+            self._runtime["phase"] = phase
+            self._runtime["active_native_batch"] = max(
+                1, int(active_native_batch)
+            )
+            self._runtime["chunks_completed"] = max(
+                0, int(chunks_completed)
+            )
+
+    def _finish_runtime(self) -> None:
+        with self._runtime_lock:
+            self._runtime = {
+                "phase": "idle",
+                "work_kind": None,
+                "job_count": 0,
+                "text_chars": 0,
+                "chunks_total": 0,
+                "chunks_completed": 0,
+                "active_native_batch": 0,
+                "started_monotonic": None,
             }
 
     def _resolve_speed(self, params: Dict[str, Any]) -> float:
@@ -208,6 +266,9 @@ class QwenSynthesis:
             language,
             requested=str(params.get("speaker") or "").strip(),
             random_default=True,
+            stable_identity=str(
+                params.get("client_job_id") or params.get("job_id") or ""
+            ),
         )
         if not resolved.get("ok"):
             raise ValueError(str(resolved.get("message") or resolved))
@@ -227,17 +288,30 @@ class QwenSynthesis:
             hard_cap = _chunk_max_chars(speed)
             chunks = _split_long_text(text, hard_cap)
             with self._model_lock:
-                if len(chunks) > 1:
-                    self._logger(
-                        f"[api] sentence text -> {len(chunks)} chunks "
-                        f"({len(text)} chars, merge_cap="
-                        f"{max(60, round(hard_cap * _SENTENCE_MERGE_RATIO))}, "
-                        f"speed={speed:g}, speaker={speaker})"
-                    )
-                    wav, sample_rate = self._generate_chunked(model, gen_kwargs, chunks)
-                else:
-                    wavs, sample_rate = model.generate_custom_voice(**gen_kwargs)
-                    wav = wavs[0]
+                self._start_runtime(
+                    "sentence_chunks" if len(chunks) > 1 else "single",
+                    1,
+                    len(text),
+                    len(chunks),
+                )
+                try:
+                    if len(chunks) > 1:
+                        self._logger(
+                            f"[api] sentence text -> {len(chunks)} chunks "
+                            f"({len(text)} chars, merge_cap="
+                            f"{max(60, round(hard_cap * _SENTENCE_MERGE_RATIO))}, "
+                            f"speed={speed:g}, speaker={speaker})"
+                        )
+                        wav, sample_rate = self._generate_chunked(
+                            model, gen_kwargs, chunks
+                        )
+                    else:
+                        self._update_runtime("single", 1, 0)
+                        wavs, sample_rate = model.generate_custom_voice(**gen_kwargs)
+                        wav = wavs[0]
+                        self._update_runtime("single", 1, 1)
+                finally:
+                    self._finish_runtime()
             wav = _stretch_to_speed(wav, speed)
             audio, media_type = self._encode_audio(wav, sample_rate, fmt)
             elapsed_ms = round((time.monotonic() - started) * 1000)
@@ -284,6 +358,7 @@ class QwenSynthesis:
         for start in range(0, len(chunks), group_limit):
             group = chunks[start:start + group_limit]
             batch_done = False
+            self._update_runtime("sentence_batch", len(group), start)
             if len(group) > 1:
                 try:
                     wavs, sample_rate = self._generate_chunk_group(
@@ -303,10 +378,16 @@ class QwenSynthesis:
                     )
             if not batch_done:
                 for offset, chunk in enumerate(group):
+                    self._update_runtime("sentence_fallback", 1, start + offset)
                     wavs, sample_rate = model.generate_custom_voice(
                         **{**gen_kwargs, "text": chunk}
                     )
                     ordered[start + offset] = np.asarray(wavs[0], dtype=np.float32)
+            self._update_runtime(
+                "sentence_batch",
+                len(group),
+                start + len(group),
+            )
         parts: List[Any] = []
         for index, wav in enumerate(ordered):
             if wav is None:
@@ -339,15 +420,13 @@ class QwenSynthesis:
         return model.generate_custom_voice(**batch_kwargs)
 
     def _chunk_parallel_limit(self) -> int:
-        """GPU-tuned bound for one parallel chunk group (same estimator as
-        the queue's batch size, QWEN3TTS_MAX_PARALLEL overridable)."""
-        snapshot = self._query_gpu_snapshot(self._gpu_index())
-        return max(1, self._estimate_max_parallel(
-            self._detect_model_variant(self._model_id()),
-            snapshot.get("mem_total_mb") or 0,
-            snapshot.get("mem_used_mb") or 0,
-            snapshot.get("util_percent"),
-        ))
+        """Use the immutable startup plan shared by every synthesis path."""
+        return max(1, int(self._capacity_plan().get("batch_size") or 1))
+
+    def queue_batchable(self, job: Dict[str, Any]) -> bool:
+        text = str(job.get("text") or "").strip()
+        hard_cap = _chunk_max_chars(self._resolve_speed(job))
+        return len(_split_long_text(text, hard_cap)) <= 1
 
     def generate_queue_batch(self, jobs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         if not jobs:
@@ -364,6 +443,9 @@ class QwenSynthesis:
                 str(job.get("language") or "en"),
                 requested=str(job.get("speaker") or ""),
                 random_default=True,
+                stable_identity=str(
+                    job.get("client_job_id") or job.get("job_id") or ""
+                ),
             )
             if not resolved.get("ok"):
                 results[index] = {
@@ -379,17 +461,13 @@ class QwenSynthesis:
             })
         if not valid:
             return results
-        # Long jobs (articles) leave the stable single-shot context; route them
-        # through chunked per-job generation instead of the batched call. The
-        # per-job speed governs its own chunk budget; the routing decision uses
-        # the slowest requested speed (smallest budget).
-        max_chars = max(
-            _chunk_max_chars(self._resolve_speed(row["job"])) for row in valid
-        )
+        # Any text that produces multiple sentence-safe chunks is routed
+        # through the one shared chunk-and-merge path. Cross-job batching is
+        # reserved for inputs that remain one safe chunk.
         long_rows: List[Dict[str, Any]] = []
         batch_rows: List[Dict[str, Any]] = []
         for row in valid:
-            if len(str(row["job"].get("text") or "")) > max_chars:
+            if not self.queue_batchable(row["job"]):
                 long_rows.append(row)
             else:
                 batch_rows.append(row)
@@ -427,7 +505,20 @@ class QwenSynthesis:
             gen_kwargs["instruct"] = instructions
         try:
             with self._model_lock:
-                wavs, sample_rate = model.generate_custom_voice(**gen_kwargs)
+                self._start_runtime(
+                    "queue_batch",
+                    len(batch_rows),
+                    sum(len(text) for text in texts),
+                    len(batch_rows),
+                )
+                try:
+                    self._update_runtime("queue_batch", len(batch_rows), 0)
+                    wavs, sample_rate = model.generate_custom_voice(**gen_kwargs)
+                    self._update_runtime(
+                        "queue_batch", len(batch_rows), len(batch_rows)
+                    )
+                finally:
+                    self._finish_runtime()
             for offset, wav in enumerate(wavs):
                 row = batch_rows[offset]
                 fmt = str(row["job"].get("format") or "mp3")
@@ -484,14 +575,13 @@ class QwenSynthesis:
             resolved_rows.append(resolved)
         if all(not speaker for speaker in speakers):
             raise ValueError("no valid speakers in batch")
-        snapshot = self._query_gpu_snapshot(self._gpu_index())
-        max_parallel = self._estimate_max_parallel(
-            self._detect_model_variant(self._model_id()),
-            snapshot.get("mem_total_mb") or 0,
-            snapshot.get("mem_used_mb") or 0,
-            snapshot.get("util_percent"),
+        max_parallel = max(
+            1,
+            min(
+                int(self._capacity_plan().get("batch_size") or 1),
+                len(variants),
+            ),
         )
-        max_parallel = max(1, min(max_parallel, len(variants)))
         results: List[Dict[str, Any]] = [None] * len(variants)  # type: ignore[list-item]
         for index, row in enumerate(resolved_rows):
             if not row.get("ok"):
@@ -581,11 +671,6 @@ class QwenSynthesis:
             "audio_base64": None,
             "error": error or row.get("error") or row,
         }
-
-    def _gpu_index(self) -> int:
-        device = self._device()
-        suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
-        return int(suffix) if suffix.isdigit() else 0
 
     def _record(self, elapsed_ms: int, ok: bool) -> None:
         with self._stats_lock:

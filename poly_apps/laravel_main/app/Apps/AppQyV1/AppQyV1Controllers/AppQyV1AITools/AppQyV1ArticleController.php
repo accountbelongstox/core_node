@@ -589,8 +589,8 @@ class AppQyV1ArticleController extends Controller
     public function workerReplaceAudio(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'article_id' => 'nullable|string|max:100',
-            'reading_date' => 'nullable|date',
+            'article_id' => 'nullable|string|max:100|required_without:source_record_id',
+            'source_record_id' => 'nullable|string|max:255|required_without:article_id',
             'audio_base64' => 'required|string',
             'tts_engine' => 'nullable|string|max:100',
             'tts_model' => 'nullable|string|max:200',
@@ -602,7 +602,7 @@ class AppQyV1ArticleController extends Controller
         }
 
         $articleId = trim((string) $request->input('article_id', ''));
-        $readingDate = trim((string) $request->input('reading_date', ''));
+        $sourceRecordId = trim((string) $request->input('source_record_id', ''));
 
         $article = null;
         if ($articleId !== '') {
@@ -611,13 +611,11 @@ class AppQyV1ArticleController extends Controller
                 ->where('source', AppQyV1Article::SOURCE_AGENT_HISTORY)
                 ->first();
         }
-        if ($article === null && $readingDate !== '') {
-            $article = AppQyV1Article::query()
-                ->where('source', AppQyV1Article::SOURCE_AGENT_HISTORY)
-                ->where('article_type', AppQyV1Article::TYPE_DAILY)
-                ->where('reading_date', $readingDate)
-                ->orderByDesc('id')
-                ->first();
+        if ($article === null && $sourceRecordId !== '') {
+            $article = AppQyV1Article::findAgentHistoryBySourceRecordId($sourceRecordId);
+        }
+        if ($article !== null) {
+            $article = AppQyV1Article::resolveCanonicalArticle($article);
         }
         if ($article === null) {
             return $this->error('Agent history article not found for audio replacement', 404);
@@ -630,6 +628,8 @@ class AppQyV1ArticleController extends Controller
                 'tts_engine' => $request->input('tts_engine'),
                 'tts_model' => $request->input('tts_model'),
                 'tts_chunked' => (bool) $request->input('tts_chunked', false),
+                'source_record_id' => $sourceRecordId,
+                'audio_rebuild' => true,
             ]
         );
         if ($audioUrl === null) {

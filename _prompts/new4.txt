@@ -1,4 +1,5 @@
 需要测试pycore http://127.0.0.1:13054/pycore-manager/queue-center 所有功能，如果都正常可用，忽略本次提示：
+现在的问题是，开启的任务为什么没有自动跑，不管浏览器是否重启，只要激活如果是开启状态应该自动跑。
 1：同时laravel main的代码会实时同步到服务器，可能 会2分钟生效-中间服务器可能 重启暂时中断1-2分钟，要求测试所能功能可用，所以修改后等待服务器更新并测试，
 2：Laravel endpoint API https://api.si.12gm.com 无端口为默认API，并直接测试，http://127.0.0.1:13054/pycore-manager/queue-center 即使在127.0.0.1下也默认用该API测试。
 3：需要测试，单词音频生成，请求laravel main，并根据diff调整队首，并生成回传功能。

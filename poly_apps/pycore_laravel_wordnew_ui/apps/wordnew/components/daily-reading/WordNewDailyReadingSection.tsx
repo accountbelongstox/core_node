@@ -15,10 +15,15 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import type { ElementTheme } from '../../WfNewThemes';
-import { fetchDailyReadings, requestDailyReadingAudio, type DailyReadingRow } from './dailyReadingApi';
+import {
+  applyDailyReadingAudioReady,
+  fetchDailyReadings,
+  requestDailyReadingAudio,
+  type DailyReadingRow,
+} from './dailyReadingApi';
 import { useDailyReadingPlayer } from './useDailyReadingPlayer';
 import { WordNewDailyReadingPlayerOverlay } from './WordNewDailyReadingPlayerOverlay';
-import { connectPycoreHttp, PYCORE_EVENT_TOPICS, subscribe } from '@/apps/wordnew/integrations/pycore';
+import { LARAVEL_REALTIME_EVENTS, laravelRealtime } from '../../../../core/integrations/laravel';
 import { wfNewApi, type WfNewDailyReadingSelectionMode } from '../../api';
 import { requestAuthLogin } from '../../../../core/auth/AuthRequestCenter';
 
@@ -35,6 +40,7 @@ interface Props {
 }
 
 const POLL_MS = 12_000;
+const PAGE_SIZE = 100;
 const SELECTION_MODE_OPTIONS: Array<{
   value: WfNewDailyReadingSelectionMode;
   labelKey: string;
@@ -70,7 +76,17 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   onPlaybackStateChange,
 }) => {
   const [rows, setRows] = useState<DailyReadingRow[]>([]);
+  const [totalRows, setTotalRows] = useState(0);
+  const [statistics, setStatistics] = useState({
+    total: 0,
+    rawTotal: 0,
+    historicalDuplicates: 0,
+    multiSentence: 0,
+    legacyAudio: 0,
+    rebuilt: 0,
+  });
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [selectionMode, setSelectionMode] = useState<WfNewDailyReadingSelectionMode>('latest');
@@ -150,12 +166,37 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
   }, [savedArticleId]);
 
   const load = useCallback(async (silent = false) => {
+    const firstPageSize = routeMode ? PAGE_SIZE : 20;
     if (!silent) setLoading(true);
     try {
-      const items = await fetchDailyReadings(20);
+      const page = await fetchDailyReadings(firstPageSize, 0);
       if (mounted.current) {
-        setRows(items);
+        setRows((current) => {
+          if (!silent) return page.items;
+          const freshIds = new Set(page.items.map((item) => item.id));
+          const merged = [
+            ...page.items,
+            ...current.filter((item) => !freshIds.has(item.id)),
+          ];
+          return merged.slice(0, Math.max(page.items.length, page.total));
+        });
+        setTotalRows(page.total);
+        setStatistics(page.statistics);
         setError(null);
+      }
+      if (!silent && routeMode) {
+        let offset = page.items.length;
+        while (mounted.current && offset < page.total) {
+          const nextPage = await fetchDailyReadings(PAGE_SIZE, offset);
+          if (nextPage.items.length === 0) break;
+          setRows((current) => {
+            const currentIds = new Set(current.map((item) => item.id));
+            return [...current, ...nextPage.items.filter((item) => !currentIds.has(item.id))];
+          });
+          setTotalRows(nextPage.total);
+          setStatistics(nextPage.statistics);
+          offset += nextPage.items.length;
+        }
       }
     } catch (loadError) {
       if (mounted.current) {
@@ -164,7 +205,25 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, [trans]);
+  }, [routeMode, trans]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || rows.length >= totalRows) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchDailyReadings(PAGE_SIZE, rows.length);
+      if (mounted.current) {
+        setRows((current) => {
+          const currentIds = new Set(current.map((item) => item.id));
+          return [...current, ...page.items.filter((item) => !currentIds.has(item.id))];
+        });
+        setTotalRows(page.total);
+        setStatistics(page.statistics);
+      }
+    } finally {
+      if (mounted.current) setLoadingMore(false);
+    }
+  }, [loadingMore, rows.length, totalRows]);
 
   const queueAudio = useCallback(async (row: DailyReadingRow) => {
     if (!row.audio_url || row.audio_ready) return;
@@ -192,13 +251,24 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
       });
     }
     const id = setInterval(() => load(true), POLL_MS);
-    connectPycoreHttp();
     const onArticlePublished = () => load(true);
-    const unsubscribe = subscribe(PYCORE_EVENT_TOPICS.articlePublished, onArticlePublished);
+    const unsubscribePublished = laravelRealtime.subscribe(
+      LARAVEL_REALTIME_EVENTS.articlePublished,
+      onArticlePublished,
+    );
+    const unsubscribeAudio = laravelRealtime.subscribe(
+      LARAVEL_REALTIME_EVENTS.articleAudioReady,
+      (payload) => {
+        setRows((current) => current.map((row) => applyDailyReadingAudioReady(row, payload)));
+      },
+    );
+    laravelRealtime.start();
     return () => {
       mounted.current = false;
       clearInterval(id);
-      unsubscribe();
+      unsubscribePublished();
+      unsubscribeAudio();
+      laravelRealtime.stop();
     };
   }, [load]);
 
@@ -283,11 +353,25 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
         {routeMode && (
           <div className="flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-wider text-zinc-500">
             <span className="rounded-full border border-white/5 bg-white/[0.03] px-3 py-1.5">
-              {trans('home.dailyReading.articleCount', { count: rows.length })}
+              {trans('home.dailyReading.articleCount', { count: totalRows })}
             </span>
             <span className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 text-emerald-400/80">
               {trans('home.dailyReading.playableCount', { count: playableCount })}
             </span>
+            <span className="rounded-full border border-emerald-500/15 bg-emerald-500/5 px-3 py-1.5 text-emerald-400/80">
+              {trans('home.dailyReading.multiSentenceCount', { count: statistics.multiSentence })}
+            </span>
+            <span className="rounded-full border border-amber-500/15 bg-amber-500/5 px-3 py-1.5 text-amber-400/80">
+              {trans('home.dailyReading.legacyAudioCount', { count: statistics.legacyAudio })}
+            </span>
+            <span className="rounded-full border border-sky-500/15 bg-sky-500/5 px-3 py-1.5 text-sky-400/80">
+              {trans('home.dailyReading.rebuiltCount', { count: statistics.rebuilt })}
+            </span>
+            {statistics.historicalDuplicates > 0 && (
+              <span className="rounded-full border border-zinc-500/15 bg-zinc-500/5 px-3 py-1.5 text-zinc-400/80">
+                {trans('home.dailyReading.archivedDuplicateCount', { count: statistics.historicalDuplicates })}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -297,7 +381,8 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
           {loading ? '…' : error || trans('home.dailyReading.empty')}
         </p>
       ) : (
-        <ul className={routeMode ? 'grid flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
+        <>
+          <ul className={routeMode ? 'grid flex-1 auto-rows-min gap-4 xl:grid-cols-2' : 'space-y-3 max-h-[420px] overflow-y-auto pr-1'}>
           {rows.map((row) => {
             const expanded = expandedId === row.id;
             const dateLabel = row.reading_date ?? row.created_at;
@@ -315,6 +400,16 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
                   >
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-bold text-zinc-100 truncate">{row.title_en}</span>
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${row.audio_generation_type === 'multi_sentence'
+                          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'
+                          : 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+                        }`}
+                      >
+                        {trans(row.audio_generation_type === 'multi_sentence'
+                          ? 'home.dailyReading.multiSentenceAudio'
+                          : 'home.dailyReading.legacyAudio')}
+                      </span>
                       <ChevronDown
                         className={`w-3.5 h-3.5 shrink-0 text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
                       />
@@ -396,7 +491,19 @@ export const WordNewDailyReadingSection: React.FC<Props> = ({
               </li>
             );
           })}
-        </ul>
+          </ul>
+          {routeMode && rows.length < totalRows && (
+            <button
+              type="button"
+              onClick={() => void loadMore()}
+              disabled={loadingMore}
+              className="mx-auto inline-flex items-center gap-2 rounded-xl border border-white/10 px-4 py-2 text-xs font-bold text-zinc-300 hover:border-indigo-500/30 hover:text-indigo-300 disabled:opacity-50"
+            >
+              {loadingMore && <Loader2 className="h-4 w-4 animate-spin" />}
+              {trans('home.dailyReading.loadMore')}
+            </button>
+          )}
+        </>
       )}
     </section>
   );

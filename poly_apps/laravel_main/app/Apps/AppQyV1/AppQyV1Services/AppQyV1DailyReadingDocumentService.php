@@ -56,6 +56,18 @@ class AppQyV1DailyReadingDocumentService
                     ->where('source_type', AppQyV1UploadedDocumentModel::SOURCE_TYPE_ARTICLE)
                     ->where('source_key', (string) $article->article_id)
                     ->firstOrFail();
+                $document->fill([
+                    'user_id' => 0,
+                    'collection_id' => (int) $library->id,
+                    'original_name' => (string) $article->title,
+                    'language' => $language,
+                    'content' => $content,
+                    'source_type' => AppQyV1UploadedDocumentModel::SOURCE_TYPE_ARTICLE,
+                    'source_key' => (string) $article->article_id,
+                ]);
+                if ($document->isDirty()) {
+                    $document->saveRecord();
+                }
 
                 AppQyV1Article::mutateMetadataByArticleId(
                     (string) $article->article_id,

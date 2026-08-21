@@ -19,9 +19,8 @@ bridge) goes through here. Each request:
     ``.status_code`` / ``.json()`` / ``.text`` / ``.iter_lines()``.
 
 Uses one isolated session per request, so no mutable HTTP state crosses threads.
-HTTPS transactional calls prefer HTTP/3 through curl_cffi/libcurl with protocol
-fallback. Streaming responses retain requests' iter_lines lifecycle and close
-their owning session with the response.
+HTTPS calls prefer HTTP/3 through curl_cffi/libcurl with protocol fallback.
+Streaming responses retain their owning session until the response is closed.
 
 Layering: imports ``laravel_endpoint_manager`` (one-way, top-level). The recorder
 lives in its own zero-dep module so the endpoint manager can import it too without
@@ -32,17 +31,20 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlsplit
 
 from pycore.pyfoundations.pybasecommon.color_print import ColorPrint
+from pycore.pyutils.common.service_config import LARAVEL_WORKER_API_URL
 from pycore.pyutils.laravel.http_recorder import (
     laravel_http_recorder,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
 from pycore.pyutils.laravel.identity import build_pycore_identity_headers
 from pycore.pyutils.laravel.transport import (
+    TRANSPORT_CURL_CFFI,
+    create_curl_multipart,
     create_laravel_http_session,
     response_http_version,
 )
 
-_FALLBACK_BASE = "http://127.0.0.1:9000"
+_FALLBACK_BASE = LARAVEL_WORKER_API_URL
 _PARAM_SUMMARY_MAX = 240
 _BODY_SUMMARY_MAX = 200
 # requests' own default is "wait forever" — cap it so a hung Laravel worker can
@@ -195,11 +197,19 @@ class LaravelClient:
         session, transport_options, transport = create_laravel_http_session(url, stream)
         request_options = dict(transport_options)
         request_options.update(kwargs)
+        multipart = None
+        request_data = data
+        request_files = files
         http_version = ""
         try:
+            if files and transport == TRANSPORT_CURL_CFFI:
+                multipart = create_curl_multipart(data, files)
+                request_data = None
+                request_files = None
+                request_options["multipart"] = multipart
             resp = session.request(
                 method, url,
-                params=params, data=data, json=json, files=files,
+                params=params, data=request_data, json=json, files=request_files,
                 headers=request_headers, timeout=timeout, stream=stream,
                 allow_redirects=allow_redirects, **request_options,
             )
@@ -248,6 +258,9 @@ class LaravelClient:
                 "transport": transport, "http_version": http_version,
             })
             raise
+        finally:
+            if multipart is not None:
+                multipart.close()
 
     def get(self, path: str, **kwargs):
         return self.request("GET", path, **kwargs)

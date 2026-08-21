@@ -368,7 +368,7 @@ class GlobalTask extends Model
             $update = [];
             $isAudio = QueueCenterContract::isQueuePositionOrdered((string) $this->task_type);
             $isImage = $this->capability === self::capability('image')
-                || in_array($this->task_type, ['word_media', 'gemini_image'], true);
+                || $this->task_type === 'gemini_image';
 
             if ($isAudio && $schema->hasColumn($table, 'tts_status')) {
                 $hasAudio = isset($row->has_audio) ? (bool) $row->has_audio : false;

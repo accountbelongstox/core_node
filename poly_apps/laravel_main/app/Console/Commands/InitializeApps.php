@@ -65,6 +65,12 @@ class InitializeApps extends Command
             $this->error('System initialization stopped because migrations failed.');
             return Command::FAILURE;
         }
+        try {
+            \App\Apps\AppQyV1\AppQyV1Services\AppQyV1ArticleIdentityRepairService::repair();
+        } catch (\Throwable $e) {
+            $this->error($e->getMessage());
+            return Command::FAILURE;
+        }
         $this->newLine();
 
         $this->info('Creating invite code tables...');

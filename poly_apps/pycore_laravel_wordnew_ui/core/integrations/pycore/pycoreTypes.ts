@@ -1317,6 +1317,7 @@ export interface AgentHistoryToolStatistics {
   tool: string;
   sessions: number;
   history_records: number;
+  content_records?: number;
   processed: number;
   pending: number;
   prompts: number;
@@ -1975,6 +1976,17 @@ export interface SentenceWorkerTask {
   backend_result_accepted?: boolean;
 }
 
+export interface AudioDeliveryOutboxStatus {
+  total: number;
+  pending: number;
+  pending_domain_upload: number;
+  pending_result: number;
+  pending_history: number;
+  dead_letter: number;
+  oldest_pending_at?: number | null;
+  next_retry_at?: number | null;
+}
+
 /** HTTP API sentence-audio status — auto-start, worker, and Laravel counts. */
 export interface SentenceAudioAutoStatus {
   auto_start: boolean;
@@ -2007,6 +2019,8 @@ export interface SentenceAudioAutoStatus {
     processing?: number | string | null;
     enabled?: boolean;
     cycle_running?: boolean;
+    delivery_outbox_running?: boolean;
+    delivery_outbox?: AudioDeliveryOutboxStatus;
     total_claimed?: number;
     total_succeeded?: number;
     total_failed?: number;
@@ -2145,6 +2159,8 @@ export interface WordTtsAutoStatus {
     processing?: number;
     current_task?: WordTtsWorkerTask | null;
     current_tasks?: WordTtsWorkerTask[];
+    delivery_outbox_running?: boolean;
+    delivery_outbox?: AudioDeliveryOutboxStatus;
     backend_progress?: {
       current?: number;
       completed?: number;

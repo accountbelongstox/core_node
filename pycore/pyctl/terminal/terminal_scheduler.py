@@ -47,7 +47,18 @@ class TerminalSchedulerThread(threading.Thread):
     def run(self) -> None:
         while True:
             THREAD_BUS.clear_signal(WAKEUP_SIGNAL)
-            next_run_at = self._scheduler.process_due(_now_ms())
+            claim = self._scheduler.claim_due(_now_ms())
+            due = claim.get("entry")
+            if isinstance(due, dict):
+                result = self._scheduler.execute_dispatch(due)
+                outcome = self._scheduler.complete_dispatch(
+                    due,
+                    result,
+                    _now_ms(),
+                )
+                self._scheduler.report_dispatch(outcome)
+                continue
+            next_run_at = claim.get("next_run_at")
             timeout = (
                 max(0.0, (next_run_at - _now_ms()) / 1000.0)
                 if next_run_at is not None
@@ -62,6 +73,7 @@ class TerminalScheduler:
         self._service = service
         self._entries_by_terminal: Dict[int, Dict[str, Dict[str, Any]]] = {}
         self._source_revision = 0
+        self._dispatch_sequence = 0
         init_serialized_owner(
             self,
             "terminal.scheduler.state",
@@ -72,25 +84,52 @@ class TerminalScheduler:
         self._thread.start()
 
     @serialized_method
-    def process_due(self, now_ms: int) -> Optional[int]:
+    def claim_due(self, now_ms: int) -> Dict[str, Any]:
         due = self._first_due(now_ms)
-        if due is not None:
-            self._dispatch(due)
-        return self._next_scheduled_run()
-
-    def _dispatch(self, due: Dict[str, Any]) -> None:
+        if due is None:
+            return {"entry": None, "next_run_at": self._next_scheduled_run()}
+        self._dispatch_sequence += 1
+        dispatch_token = self._dispatch_sequence
         terminal_number = int(due["terminal_number"])
         entry_id = str(due["id"])
-        result = self._service.submit_scheduled(
+        current = self._entries_by_terminal[terminal_number][entry_id]
+        current["dispatch_token"] = dispatch_token
+        return {
+            "entry": {**due, "dispatch_token": dispatch_token},
+            "next_run_at": self._next_scheduled_run(),
+        }
+
+    def execute_dispatch(self, due: Dict[str, Any]) -> Dict[str, Any]:
+        terminal_number = int(due["terminal_number"])
+        window_id = self._service.resolve_window_id(terminal_number)
+        return self._service.submit_scheduled(
             terminal_number,
-            str(due.get("window_id") or ""),
+            window_id,
             str(due.get("message") or ""),
         )
-        completed_at = _now_ms()
+
+    @serialized_method
+    def complete_dispatch(
+        self,
+        due: Dict[str, Any],
+        result: Dict[str, Any],
+        completed_at: int,
+    ) -> Dict[str, Any]:
+        terminal_number = int(due["terminal_number"])
+        entry_id = str(due["id"])
+        dispatch_token = int(due["dispatch_token"])
         terminal_entries = self._entries_by_terminal.get(terminal_number) or {}
         current = terminal_entries.get(entry_id)
-        if current is None:
-            return
+        if (
+            current is None
+            or int(current.get("dispatch_token") or 0) != dispatch_token
+        ):
+            return {
+                "applied": False,
+                "terminal_number": terminal_number,
+                "entry_id": entry_id,
+            }
+        current["dispatch_token"] = 0
         if result.get("success"):
             if current["mode"] == "interval":
                 current["next_run_at"] = (
@@ -102,24 +141,48 @@ class TerminalScheduler:
                 terminal_entries.pop(entry_id, None)
                 if not terminal_entries:
                     self._entries_by_terminal.pop(terminal_number, None)
+        else:
+            current["next_run_at"] = (
+                completed_at + SCHEDULE_RETRY_DELAY_SECONDS * 1000
+            )
+        return {
+            "applied": True,
+            "success": bool(result.get("success")),
+            "terminal_number": terminal_number,
+            "entry_id": entry_id,
+            "mode": str(current["mode"]),
+            "error_code": result.get("error_code"),
+        }
+
+    @staticmethod
+    def report_dispatch(outcome: Dict[str, Any]) -> None:
+        if not outcome.get("applied"):
+            return
+        terminal_number = int(outcome["terminal_number"])
+        entry_id = str(outcome["entry_id"])
+        if outcome.get("success"):
             ColorPrint.blue(
                 f"[TerminalScheduler] Sent frontend-synchronized message to "
                 f"terminal #{terminal_number} (entry={entry_id}, "
-                f"mode={current['mode']})."
+                f"mode={outcome['mode']})."
             )
             return
-        current["next_run_at"] = (
-            completed_at + SCHEDULE_RETRY_DELAY_SECONDS * 1000
-        )
         ColorPrint.yellow(
             f"[TerminalScheduler] Frontend-synchronized message to terminal "
             f"#{terminal_number} (entry={entry_id}) failed: "
-            f"{result.get('error_code')}; retry retained."
+            f"{outcome.get('error_code')}; retry retained."
         )
 
-    @serialized_method
     def sync_from_json(self, terminal_number: int = 0) -> Dict[str, Any]:
         source = self._json_repository.read()
+        return self._apply_json_source(source, terminal_number)
+
+    @serialized_method
+    def _apply_json_source(
+        self,
+        source: Dict[str, Any],
+        terminal_number: int,
+    ) -> Dict[str, Any]:
         source_terminals = source.get("terminals")
         if not isinstance(source_terminals, dict):
             return _failure(
@@ -241,8 +304,71 @@ class TerminalScheduler:
             "expired_entry_ids": expired_entry_ids,
         }
 
-    @serialized_method
     def clear_entries(self) -> Dict[str, Any]:
+        runtime_clear = self._clear_runtime_entries()
+        source = self._json_repository.read()
+        remaining_runtime_counts = self._runtime_entry_counts()
+        source_terminals = source.get("terminals") or {}
+        source_terminal_counts = {
+            int(terminal_number): len(entries)
+            for terminal_number, entries in source_terminals.items()
+            if isinstance(entries, list)
+        } if isinstance(source_terminals, dict) else {}
+        json_entry_count = (
+            sum(source_terminal_counts.values())
+            if isinstance(source_terminals, dict)
+            else -1
+        )
+        remaining_entry_count = sum(remaining_runtime_counts.values())
+        json_cleared = bool(source.get("success", True)) and json_entry_count == 0
+        runtime_cleared = remaining_entry_count == 0
+        runtime_results = runtime_clear["terminal_results"]
+        terminal_numbers = runtime_clear["terminal_numbers"]
+        json_terminal_numbers = sorted(source_terminal_counts)
+        terminal_results = [
+            {
+                **runtime_results.get(current_terminal, {
+                    "terminal_number": current_terminal,
+                    "cleared_entry_count": 0,
+                    "entry_ids": [],
+                }),
+                "json_entry_count": source_terminal_counts.get(
+                    current_terminal,
+                    0,
+                ),
+                "remaining_entry_count": remaining_runtime_counts.get(
+                    current_terminal,
+                    0,
+                ),
+            }
+            for current_terminal in sorted(
+                set(terminal_numbers)
+                | set(json_terminal_numbers)
+                | set(remaining_runtime_counts)
+            )
+        ]
+        return {
+            "success": json_cleared and runtime_cleared,
+            "error_code": self._clear_error_code(
+                source,
+                json_cleared,
+                runtime_cleared,
+            ),
+            "source": "pycore_manager_ui_state_json",
+            "source_revision": int(source.get("revision") or 0),
+            "source_updated_at": str(source.get("updated_at") or ""),
+            "json_entry_count": json_entry_count,
+            "json_clear_all_pending": bool(source.get("clear_all_pending")),
+            "cleared_entry_count": runtime_clear["cleared_entry_count"],
+            "remaining_entry_count": remaining_entry_count,
+            "terminal_numbers": terminal_numbers,
+            "runtime_terminal_numbers": terminal_numbers,
+            "json_terminal_numbers": json_terminal_numbers,
+            "terminal_results": terminal_results,
+        }
+
+    @serialized_method
+    def _clear_runtime_entries(self) -> Dict[str, Any]:
         runtime_results: Dict[int, Dict[str, Any]] = {}
         cleared_entry_count = 0
         for terminal_number in sorted(self._entries_by_terminal):
@@ -260,59 +386,34 @@ class TerminalScheduler:
             }
         self._entries_by_terminal.clear()
         THREAD_BUS.signal(WAKEUP_SIGNAL, True)
-
-        source = self._json_repository.read()
-        source_terminals = source.get("terminals") or {}
-        source_terminal_counts = {
-            int(terminal_number): len(entries)
-            for terminal_number, entries in source_terminals.items()
-            if isinstance(entries, list)
-        } if isinstance(source_terminals, dict) else {}
-        json_entry_count = (
-            sum(source_terminal_counts.values())
-            if isinstance(source_terminals, dict)
-            else -1
-        )
-        json_cleared = bool(source.get("success", True)) and json_entry_count == 0
-        terminal_numbers = sorted(runtime_results)
-        json_terminal_numbers = sorted(source_terminal_counts)
-        terminal_results = [
-            {
-                **runtime_results.get(current_terminal, {
-                    "terminal_number": current_terminal,
-                    "cleared_entry_count": 0,
-                    "entry_ids": [],
-                }),
-                "json_entry_count": source_terminal_counts.get(
-                    current_terminal,
-                    0,
-                ),
-                "remaining_entry_count": 0,
-            }
-            for current_terminal in sorted(
-                set(terminal_numbers) | set(json_terminal_numbers)
-            )
-        ]
         return {
-            "success": json_cleared,
-            "error_code": (
-                None if json_cleared else str(
-                    source.get("error_code")
-                    or "terminal_schedule_json_not_cleared"
-                )
-            ),
-            "source": "pycore_manager_ui_state_json",
-            "source_revision": int(source.get("revision") or 0),
-            "source_updated_at": str(source.get("updated_at") or ""),
-            "json_entry_count": json_entry_count,
-            "json_clear_all_pending": bool(source.get("clear_all_pending")),
             "cleared_entry_count": cleared_entry_count,
-            "remaining_entry_count": 0,
-            "terminal_numbers": terminal_numbers,
-            "runtime_terminal_numbers": terminal_numbers,
-            "json_terminal_numbers": json_terminal_numbers,
-            "terminal_results": terminal_results,
+            "terminal_numbers": sorted(runtime_results),
+            "terminal_results": runtime_results,
         }
+
+    @serialized_method
+    def _runtime_entry_counts(self) -> Dict[int, int]:
+        return {
+            terminal_number: len(entries)
+            for terminal_number, entries in self._entries_by_terminal.items()
+            if entries
+        }
+
+    @staticmethod
+    def _clear_error_code(
+        source: Dict[str, Any],
+        json_cleared: bool,
+        runtime_cleared: bool,
+    ) -> Optional[str]:
+        if not json_cleared:
+            return str(
+                source.get("error_code")
+                or "terminal_schedule_json_not_cleared"
+            )
+        if not runtime_cleared:
+            return "terminal_schedule_runtime_not_cleared"
+        return None
 
     @serialized_method
     def decorate_snapshot(self, snapshot: Dict[str, Any]) -> Dict[str, Any]:
@@ -334,10 +435,11 @@ class TerminalScheduler:
             for entry in entries.values():
                 if int(entry["next_run_at"]) > now_ms:
                     continue
+                if int(entry.get("dispatch_token") or 0) > 0:
+                    continue
                 due_entries.append({
                     **entry,
                     "terminal_number": terminal_number,
-                    "window_id": self._service.resolve_window_id(terminal_number),
                 })
         return min(
             due_entries,
@@ -349,6 +451,7 @@ class TerminalScheduler:
             int(entry["next_run_at"])
             for entries in self._entries_by_terminal.values()
             for entry in entries.values()
+            if int(entry.get("dispatch_token") or 0) == 0
         ]
         return min(candidates) if candidates else None
 
@@ -396,6 +499,7 @@ class TerminalScheduler:
             "fire_count": 0,
             "last_run_at": None,
             "created_at": _now_iso(),
+            "dispatch_token": 0,
         }
 
     @staticmethod

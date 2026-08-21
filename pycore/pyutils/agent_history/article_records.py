@@ -142,6 +142,89 @@ def load_index() -> Dict[str, Any]:
 
 
 RECORD_BODY_FIELDS = ("article_en", "reference_cn")
+_DELIVERY_RETRY_BASE_SECONDS = 2.0
+_DELIVERY_RETRY_MAX_SECONDS = 300.0
+_REBUILD_DELIVERY_CONTRACT = "audio-replace-v1"
+
+
+def _delivery_retry_at(attempts: int) -> float:
+    delay = _DELIVERY_RETRY_BASE_SECONDS * (2 ** min(max(0, attempts - 1), 8))
+    return time.time() + min(_DELIVERY_RETRY_MAX_SECONDS, delay)
+
+
+def _iso_timestamp_value(value: Any) -> float:
+    text = str(value or "").strip()
+    parsed: Optional[datetime] = None
+    if not text:
+        return 0.0
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return 0.0
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.timestamp()
+
+
+def is_rebuild_upload_current(record: Dict[str, Any]) -> bool:
+    """True only when Laravel acknowledged the current rebuilt audio version."""
+    rebuilt_at = _iso_timestamp_value(record.get("audio_rebuilt_at"))
+    uploaded_at = _iso_timestamp_value(record.get("rebuild_uploaded_at"))
+    if not bool(record.get("rebuild_uploaded")):
+        return False
+    if rebuilt_at <= 0.0:
+        return True
+    return (
+        str(record.get("rebuild_delivery_contract") or "")
+        == _REBUILD_DELIVERY_CONTRACT
+        and uploaded_at >= rebuilt_at
+    )
+
+
+def _reset_delivery_state(rec: Dict[str, Any], prefix: str) -> List[str]:
+    fields = [f"{prefix}_attempts", f"{prefix}_not_before", f"{prefix}_last_error"]
+    rec[fields[0]] = 0
+    rec[fields[1]] = 0.0
+    rec[fields[2]] = None
+    return fields
+
+
+def _mark_delivery_failed(
+    record_id: str,
+    error: str,
+    prefix: str,
+    fallback_error: str,
+) -> Optional[Dict[str, Any]]:
+    rec = get_record(record_id)
+    if rec is None:
+        return None
+    attempts_field = f"{prefix}_attempts"
+    not_before_field = f"{prefix}_not_before"
+    error_field = f"{prefix}_last_error"
+    attempts = int(rec.get(attempts_field) or 0) + 1
+    rec[attempts_field] = attempts
+    rec[not_before_field] = _delivery_retry_at(attempts)
+    rec[error_field] = str(error or fallback_error)
+    return _commit_record(
+        rec,
+        [attempts_field, not_before_field, error_field],
+    )
+
+
+def _delivery_priority(
+    rows: List[Dict[str, Any]],
+    prefix: str,
+) -> List[Dict[str, Any]]:
+    return sorted(
+        rows,
+        key=lambda row: (
+            int(row.get(f"{prefix}_attempts") or 0),
+            str(row.get("created_at") or ""),
+            str(row.get("id") or ""),
+        ),
+    )
 
 
 def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -151,7 +234,7 @@ def _decorate_row(row: Dict[str, Any]) -> Dict[str, Any]:
     out["audio_available"] = local_audio or bool(out.get("audio_url"))
     out["audio_status"] = "ready" if local_audio else str(out.get("audio_status") or "queued")
     out["uploaded"] = bool(out.get("uploaded"))
-    out["rebuild_uploaded"] = bool(out.get("rebuild_uploaded"))
+    out["rebuild_uploaded"] = is_rebuild_upload_current(out)
     return out
 
 
@@ -166,14 +249,30 @@ def records_revision() -> str:
 
 def list_record_metadata(limit: int = 100) -> List[Dict[str, Any]]:
     """ID-page rows, newest first: full metadata minus the heavy text bodies."""
+    page = record_metadata_page(1, max(1, min(int(limit or 100), _LIST_CAP)))
+    return page["items"]
+
+
+def record_metadata_page(page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+    """Return one bounded metadata page while counting the full inventory."""
     rows = load_index()["records"]
+    total = len(rows)
+    normalized_page_size = max(1, min(int(page_size or 50), _LIST_CAP))
+    page_count = max(1, -(-total // normalized_page_size))
+    normalized_page = max(1, min(int(page or 1), page_count))
+    start = (normalized_page - 1) * normalized_page_size
     out: List[Dict[str, Any]] = []
-    for r in rows[: max(1, min(int(limit or 100), _LIST_CAP))]:
+    for r in rows[start:start + normalized_page_size]:
         row = _decorate_row(r)
         for field in RECORD_BODY_FIELDS:
             row.pop(field, None)
         out.append(row)
-    return out
+    return {
+        "items": out,
+        "total": total,
+        "page": normalized_page,
+        "page_count": page_count,
+    }
 
 
 def get_records(record_ids: List[str], cap: int = 50) -> List[Dict[str, Any]]:
@@ -196,12 +295,17 @@ def list_records(limit: int = 100) -> List[Dict[str, Any]]:
 
 
 def list_all_records() -> List[Dict[str, Any]]:
-    """Return the complete durable inventory, newest first."""
-    return [dict(row) for row in load_index()["records"]]
+    """Return complete authoritative record files, newest first."""
+    out: List[Dict[str, Any]] = []
+    for row in load_index()["records"]:
+        record_id = str(row.get("id") or "")
+        record = _read_record_path(records_dir() / f"{record_id}.json") if record_id else None
+        out.append(dict(record if record is not None else row))
+    return out
 
 
 def summarize_records() -> Dict[str, int]:
-    rows = load_index()["records"]
+    rows = list_all_records()
     return {
         "total": len(rows),
         "uploaded": sum(1 for row in rows if bool(row.get("uploaded"))),
@@ -210,13 +314,14 @@ def summarize_records() -> Dict[str, int]:
         "audio_queued": sum(1 for row in rows if str(row.get("audio_status") or "") == "queued"),
         "multi_sentence": sum(1 for row in rows if bool(row.get("tts_chunked"))),
         "legacy_audio": sum(1 for row in rows if not bool(row.get("tts_chunked"))),
+        "rebuilt": sum(1 for row in rows if bool(row.get("audio_rebuilt_at"))),
         # Uploaded records whose multi-sentence audio never replaced the
         # published legacy audio (rebuilt locally, Laravel replace pending).
         "rebuild_upload_pending": sum(
             1 for row in rows
             if bool(row.get("uploaded"))
             and bool(row.get("tts_chunked"))
-            and not bool(row.get("rebuild_uploaded"))
+            and not is_rebuild_upload_current(row)
         ),
     }
 
@@ -278,7 +383,7 @@ def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None)
         return None
     rec["uploaded"] = True
     rec["uploaded_at"] = datetime.now(timezone.utc).isoformat()
-    fields = ["uploaded", "uploaded_at"]
+    fields = ["uploaded", "uploaded_at", *_reset_delivery_state(rec, "upload")]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id")
         rec["audio_url"] = laravel_data.get("audio_url")
@@ -290,7 +395,11 @@ def mark_uploaded(record_id: str, laravel_data: Optional[Dict[str, Any]] = None)
     if bool(rec.get("tts_chunked")):
         rec["rebuild_uploaded"] = True
         rec["rebuild_uploaded_at"] = rec["uploaded_at"]
-        fields += ["rebuild_uploaded", "rebuild_uploaded_at"]
+        rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
+        fields += [
+            "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
+            *_reset_delivery_state(rec, "rebuild_upload"),
+        ]
     return _commit_record(rec, fields)
 
 
@@ -325,10 +434,12 @@ def mark_audio_rebuilt(
     rec["audio_rebuilt_at"] = datetime.now(timezone.utc).isoformat()
     rec["rebuild_uploaded"] = False
     rec["rebuild_uploaded_at"] = None
+    rec["rebuild_delivery_contract"] = None
     return _commit_record(rec, [
         "audio_file", "audio_status", "tts_engine", "tts_model",
         "tts_chunked", "rebuild_attempts", "rebuild_audio_job", "rebuild_not_before", "audio_rebuilt_at",
-        "rebuild_uploaded", "rebuild_uploaded_at",
+        "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
+        *_reset_delivery_state(rec, "rebuild_upload"),
     ])
 
 
@@ -346,7 +457,11 @@ def mark_rebuild_uploaded(
     stamped_at = datetime.now(timezone.utc).isoformat()
     rec["rebuild_uploaded"] = True
     rec["rebuild_uploaded_at"] = stamped_at
-    fields = ["rebuild_uploaded", "rebuild_uploaded_at"]
+    rec["rebuild_delivery_contract"] = _REBUILD_DELIVERY_CONTRACT
+    fields = [
+        "rebuild_uploaded", "rebuild_uploaded_at", "rebuild_delivery_contract",
+        *_reset_delivery_state(rec, "rebuild_upload"),
+    ]
     if isinstance(laravel_data, dict):
         rec["laravel_article_id"] = laravel_data.get("article_id") or rec.get("laravel_article_id")
         rec["audio_url"] = laravel_data.get("audio_url") or rec.get("audio_url")
@@ -355,8 +470,33 @@ def mark_rebuild_uploaded(
     if not bool(rec.get("uploaded")):
         rec["uploaded"] = True
         rec["uploaded_at"] = stamped_at
-        fields += ["uploaded", "uploaded_at"]
+        fields += [
+            "uploaded", "uploaded_at", *_reset_delivery_state(rec, "upload"),
+        ]
     return _commit_record(rec, fields)
+
+
+def mark_upload_failed(record_id: str, error: str) -> Optional[Dict[str, Any]]:
+    """Defer one full-submit step without blocking another record."""
+    return _mark_delivery_failed(
+        record_id,
+        error,
+        "upload",
+        "upload failed",
+    )
+
+
+def mark_rebuild_upload_failed(
+    record_id: str,
+    error: str,
+) -> Optional[Dict[str, Any]]:
+    """Defer one replacement step without blocking another record."""
+    return _mark_delivery_failed(
+        record_id,
+        error,
+        "rebuild_upload",
+        "audio replacement failed",
+    )
 
 
 def mark_rebuild_failed(record_id: str) -> Optional[Dict[str, Any]]:
@@ -399,31 +539,42 @@ def clear_rebuild_marker(record_id: str) -> Optional[Dict[str, Any]]:
     rec["tts_chunked"] = False
     rec["rebuild_uploaded"] = False
     rec["rebuild_uploaded_at"] = None
+    rec["rebuild_delivery_contract"] = None
     rec["audio_status"] = "queued"
     return _commit_record(
-        rec, ["tts_chunked", "rebuild_uploaded", "rebuild_uploaded_at", "audio_status"]
+        rec,
+        [
+            "tts_chunked", "rebuild_uploaded", "rebuild_uploaded_at",
+            "rebuild_delivery_contract",
+            *_reset_delivery_state(rec, "rebuild_upload"), "audio_status",
+        ],
     )
 
 
 def pending_uploads() -> List[Dict[str, Any]]:
-    """Records whose full Laravel submission has not succeeded yet (oldest first)."""
-    rows = [r for r in load_index()["records"] if not r.get("uploaded")]
-    rows.reverse()
-    return rows
+    """Ready full submissions, fair by attempt count and then record age."""
+    now = time.time()
+    rows = [
+        r for r in load_index()["records"]
+        if not r.get("uploaded")
+        and float(r.get("upload_not_before") or 0.0) <= now
+    ]
+    return _delivery_priority(rows, "upload")
 
 
 def pending_rebuild_uploads() -> List[Dict[str, Any]]:
     """Uploaded records whose regenerated multi-sentence audio has not
-    replaced the published legacy audio yet (oldest first) - the drain list
-    of the rebuild half of the network-upload piggyback."""
+    replaced the published legacy audio yet, fair by attempt count and then
+    record age."""
+    now = time.time()
     rows = [
         r for r in load_index()["records"]
         if bool(r.get("uploaded"))
         and bool(r.get("tts_chunked"))
-        and not bool(r.get("rebuild_uploaded"))
+        and not is_rebuild_upload_current(r)
+        and float(r.get("rebuild_upload_not_before") or 0.0) <= now
     ]
-    rows.reverse()
-    return rows
+    return _delivery_priority(rows, "rebuild_upload")
 
 
 def audio_path(record_id: str) -> Optional[Path]:

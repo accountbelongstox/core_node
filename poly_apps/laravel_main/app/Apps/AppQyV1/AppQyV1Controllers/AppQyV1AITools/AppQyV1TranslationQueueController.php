@@ -15,9 +15,9 @@ namespace App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools;
 
 use App\Http\Controllers\Controller;
 use App\Models\GlobalTask;
-use App\Services\TaskManagerService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1TranslationRealtimeService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationQueueService;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationWriteback;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Traits\ApiResponse;
@@ -48,29 +48,23 @@ class AppQyV1TranslationQueueController extends Controller
      */
 
     // Visible (FE) words jump the queue ahead of the background scan (LOW = 0).
-    private const PRIORITY_HIGH = 100;
+    private const PRIORITY_HIGH = AppQyV1WordTranslationQueueService::PRIORITY_HIGH;
 
     // A word the user is actively looking at outranks even the batch-visible
     // words, so its translation lands first.
-    private const PRIORITY_ELEVATED = 200;
-
     // Sane clamp range for the control-plane priority endpoint.
     private const PRIORITY_MIN = 0;
     private const PRIORITY_MAX = 1000;
 
-    // Words per created task. Keeps each task small enough for a worker to
-    // finish inside its timeout.
-    private const WORDS_PER_TASK = 40;
-
-    private $taskManager;
+    private AppQyV1WordTranslationQueueService $queue;
     private AppQyV1TranslationRealtimeService $realtime;
 
     public function __construct(
-        TaskManagerService $taskManager,
+        AppQyV1WordTranslationQueueService $queue,
         AppQyV1TranslationRealtimeService $realtime
     )
     {
-        $this->taskManager = $taskManager;
+        $this->queue = $queue;
         $this->realtime = $realtime;
     }
 
@@ -110,7 +104,7 @@ class AppQyV1TranslationQueueController extends Controller
         $engine = $validated['engine'] ?? 'google';
 
         // Shared enqueue/dedup logic (move-to-front + HIGH-priority enqueue).
-        $outcome = $this->stackWords(
+        $outcome = $this->queue->stackWords(
             $validated['words'],
             $validated['language'],
             $validated['target_language'],
@@ -125,142 +119,6 @@ class AppQyV1TranslationQueueController extends Controller
             'skipped' => $outcome['skipped'],
             'moved' => $outcome['moved'],
         ], 'Word translation batch processed');
-    }
-
-    /**
-     * Shared enqueue core used by batchAdd and the control-plane stack endpoint.
-     *
-     * For each de-duplicated word:
-     *   - already has translations[target] -> "already_translated" (skipped);
-     *   - inside a PENDING word_translation task -> bump that task to $priority,
-     *     "moved_to_front";
-     *   - otherwise -> collected and chunked into new tasks at $priority, "queued".
-     *
-     * @return array{
-     *   results: array<int, array{word:string, status:string}>,
-     *   moved: int, queued: int, skipped: int, task_ids: array<int,string>
-     * }
-     */
-    private function stackWords(array $rawWords, string $language, string $targetLanguage, int $priority, bool $interactive = false, string $engine = 'google'): array
-    {
-        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-        $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
-
-        // De-duplicate the incoming list while preserving order.
-        $words = [];
-        foreach ($rawWords as $rawWord) {
-            $word = trim($rawWord);
-            if ($word === '') {
-                continue;
-            }
-            if (!in_array($word, $words, true)) {
-                $words[] = $word;
-            }
-        }
-
-        $results = [];
-        $toQueue = [];
-        $taskIds = [];
-        $skipped = 0;
-        $moved = 0;
-
-        // Snapshot of pending word_translation tasks for this (lang,target) pair
-        // so we can detect duplicates and bump priority without N queries.
-        $pendingIndex = $this->buildPendingWordIndex($langCode, $targetCode);
-
-        // Batch-ensure dictionary rows: ONE select for the existing rows + ONE
-        // bulk insert for the missing ones, instead of a findByMd5 (+ createOrFind)
-        // per word (a 100-word batch was ~100-200 queries). insertOrIgnore keeps
-        // the insert race-safe on the md5 index.
-        $md5ByWord = [];
-        foreach ($words as $word) {
-            $md5ByWord[$word] = md5($word);
-        }
-        $existing = AppQyV1LangDictionaryModel::rowsByHashes(
-            $langCode,
-            array_values($md5ByWord),
-            ['md5', 'translations', 'is_valid']
-        )
-            ->keyBy('md5');
-
-        $now = now();
-        $missingRows = [];
-        foreach ($words as $word) {
-            if (!$existing->has($md5ByWord[$word])) {
-                $missingRows[] = [
-                    'content' => $word,
-                    'md5' => $md5ByWord[$word],
-                    'has_translation' => false,
-                    'query_count' => 0,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-        }
-        if (!empty($missingRows)) {
-            AppQyV1LangDictionaryModel::insertRows($langCode, $missingRows);
-            AppQyV1LangDictionaryModel::forgetMetricsCache($langCode);
-        }
-
-        foreach ($words as $word) {
-            // Existing rows carry their translations; a freshly-inserted row has
-            // none, so a missing map entry means "not translated yet".
-            $existingEntry = $existing->get($md5ByWord[$word]);
-            $translations = $existingEntry ? $existingEntry->translations : null;
-
-            // Already translated -> skip.
-            if (is_array($translations) && isset($translations[$targetCode]) && $translations[$targetCode] !== '') {
-                $results[] = ['word' => $word, 'status' => 'already_translated'];
-                $skipped++;
-                continue;
-            }
-
-            // Explicitly invalid (a client verified the word has no online
-            // dictionary entry) -> never enqueue. Freshly-inserted rows are absent
-            // from $existing and default to valid, so only known rows are checked.
-            if ($existingEntry && $existingEntry->is_valid === false) {
-                $results[] = ['word' => $word, 'status' => 'skipped_invalid'];
-                $skipped++;
-                continue;
-            }
-
-            // Already queued -> bump the owning pending task to $priority.
-            if (isset($pendingIndex[$word])) {
-                $taskId = $pendingIndex[$word];
-                $this->bumpTaskPriority($taskId, $priority);
-                if (!in_array($taskId, $taskIds, true)) {
-                    $taskIds[] = $taskId;
-                }
-                $results[] = ['word' => $word, 'status' => 'moved_to_front', 'task_id' => $taskId];
-                $moved++;
-                continue;
-            }
-
-            // Otherwise schedule into a new task at $priority.
-            $toQueue[] = $word;
-            $results[] = ['word' => $word, 'status' => 'queued'];
-        }
-
-        $queued = count($toQueue);
-
-        foreach (array_chunk($toQueue, self::WORDS_PER_TASK) as $chunk) {
-            $task = $this->createWordTranslationTask($language, $targetLanguage, $chunk, $priority, $interactive, $engine);
-            $taskIds[] = $task->task_id;
-            foreach ($results as &$result) {
-                if (($result['status'] ?? null) === 'queued' && in_array($result['word'] ?? '', $chunk, true)) {
-                    $result['task_id'] = (string) $task->task_id;
-                }
-            }
-            unset($result);
-        }
-
-        return [
-            'results' => $results,
-            'moved' => $moved,
-            'queued' => $queued,
-            'skipped' => $skipped,
-            'task_ids' => $taskIds,
-        ];
     }
 
     /**
@@ -698,7 +556,7 @@ class AppQyV1TranslationQueueController extends Controller
             ], 'No pending words to enqueue');
         }
 
-        $outcome = $this->stackWords($words, $language, $targetLanguage, self::PRIORITY_HIGH);
+        $outcome = $this->queue->stackWords($words, $language, $targetLanguage, self::PRIORITY_HIGH);
 
         return $this->success([
             'queued' => $outcome['queued'],
@@ -909,7 +767,7 @@ class AppQyV1TranslationQueueController extends Controller
             }
         }
 
-        $outcome = $this->stackWords(
+        $outcome = $this->queue->stackWords(
             $validated['words'],
             $validated['language'],
             $validated['target_language'],
@@ -923,156 +781,6 @@ class AppQyV1TranslationQueueController extends Controller
             'task_ids' => $outcome['task_ids'],
             'results' => $outcome['results'],
         ], 'Words stacked into translation queue');
-    }
-
-    /**
-     * Query-path priority bump (cheap, non-blocking helper).
-     *
-     * Called from the word lookup/query controllers: when the user actively
-     * queries a single word that has NO translation for the target language, the
-     * word is stacked into the word_translation queue at ELEVATED priority so it
-     * is translated before the batch-visible and background words.
-     *
-     * Dedup is inherited from stackWords (it bumps an existing pending task or
-     * skips an already-translated word, never piling duplicates). This is a fire-
-     * and-forget call: any failure is swallowed so the lookup response is never
-     * slowed or broken by the queue bump.
-     */
-    public function bumpQueriedWord(string $word, string $language, string $targetLanguage): void
-    {
-        $word = trim($word);
-        if ($word === '' || trim($targetLanguage) === '') {
-            return;
-        }
-
-        try {
-            $this->stackWords([$word], $language, $targetLanguage, self::PRIORITY_ELEVATED);
-        } catch (\Throwable $e) {
-            // Non-blocking: never let a queue bump break a lookup.
-            \Illuminate\Support\Facades\Log::warning('[TranslationQueue] query bump failed', [
-                'word' => $word,
-                'error' => $e->getMessage(),
-            ]);
-        }
-    }
-
-    /**
-     * Build word -> task_id index over PENDING word_translation tasks for the
-     * given language pair, so the add endpoint can de-dup and move-to-front.
-     */
-    private function buildPendingWordIndex(string $langCode, string $targetCode): array
-    {
-        $index = [];
-
-        // Filter by the normalized language codes stored in the JSON payload
-        // (payload is a real json column), so we load only the pending tasks for
-        // THIS (language, target) pair rather than every pending word_translation
-        // task. The (app_name, task_type, status) predicate is index-backed; the
-        // JSON predicate then runs on that narrow subset in the DB.
-        $tasks = GlobalTask::pendingPayloadTasksForPair(
-            'AppQyV1',
-            'word_translation',
-            $langCode,
-            $targetCode
-        );
-
-        foreach ($tasks as $task) {
-            $payload = $task->payload;
-            if (!is_array($payload)) {
-                continue;
-            }
-
-            $taskWords = $payload['words'] ?? [];
-            if (!is_array($taskWords)) {
-                continue;
-            }
-
-            foreach ($taskWords as $taskWord) {
-                // First task that owns a word wins; bumping it is enough.
-                if (!isset($index[$taskWord])) {
-                    $index[$taskWord] = $task->task_id;
-                }
-            }
-        }
-
-        return $index;
-    }
-
-    private function bumpTaskPriority(string $taskId, int $priority): void
-    {
-        $updated = GlobalTask::raisePendingPriority($taskId, $priority);
-
-        // Only signal when a row was actually bumped (Phase-C `task.priority`).
-        if ($updated > 0) {
-            $this->realtime->priority($taskId, $priority);
-        }
-    }
-
-    /**
-     * Create a single word_translation global task. Payload matches the shared
-     * contract so mcp-chrome and the Laravel fallback can consume it.
-     */
-    private function createWordTranslationTask(
-        string $language,
-        string $targetLanguage,
-        array $words,
-        int $priority,
-        bool $interactive = false,
-        string $engine = 'google'
-    ): GlobalTask {
-        $timeoutSeconds = 60 + (count($words) * 3);
-        if ($timeoutSeconds > 600) {
-            $timeoutSeconds = 600;
-        }
-
-        // Store NORMALIZED language codes in the JSON payload so the pending-dedup
-        // index and the background-scan counter can filter at the DB level
-        // (where payload->language = ?) instead of loading every pending task's
-        // payload into PHP to normalize and compare. The write-back resolves codes
-        // via getLanguageCode() anyway, so a code-form payload is equivalent.
-        $langCode = AppQyV1DictionaryService::getLanguageCode($language);
-        $targetCode = AppQyV1DictionaryService::getLanguageCode($targetLanguage);
-
-        $payload = [
-            'words' => array_values($words),
-            'language' => $langCode,
-            'target_language' => $targetCode,
-            'word_count' => count($words),
-        ];
-
-        // interactive=true promotes the task onto the shared remote_fast lane at
-        // the FAST priority tier inside createTask so mcp-chrome can claim it
-        // immediately. The capability tag selects the browser execution mode:
-        // engine='ai' tags it 'ai_translate'; otherwise the default 'translate'
-        // (Google/Bing-eligible) path is kept unchanged. A
-        // non-interactive task carries no capability (any-eligible backfill).
-        $capability = null;
-        if ($interactive) {
-            $capability = $engine === 'ai'
-                ? GlobalTask::capability('ai_translate')
-                : GlobalTask::capability('translate');
-        }
-        $task = $this->taskManager->createTask(
-            'AppQyV1',
-            'word_translation',
-            GlobalTask::executionType('remote_translation'),
-            $payload,
-            $timeoutSeconds,
-            $priority,
-            3,
-            $interactive,
-            $capability
-        );
-
-        $this->realtime->queued(
-            $task->task_id,
-            $words,
-            $langCode,
-            $targetCode,
-            $priority
-        );
-
-        return $task;
     }
 
     /**

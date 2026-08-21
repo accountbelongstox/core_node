@@ -14,6 +14,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
 import webbrowser
 from pathlib import Path
 from typing import IO, Optional
@@ -30,8 +31,9 @@ MCP_PORT = 12306
 POLL_INTERVAL_SECONDS = 2.0
 RESTART_DELAY_SECONDS = 2.0
 RECOVERY_DEBOUNCE_SECONDS = 2.0
-RECOVERY_COOLDOWN_SECONDS = 60.0
-WAKE_MIN_INTERVAL_SECONDS = 60.0
+SERVICE_RECOVERY_COOLDOWN_SECONDS = 15.0
+LINK_RECOVERY_COOLDOWN_SECONDS = 5.0
+WAKE_MIN_INTERVAL_SECONDS = 5.0
 RECOVERY_MAX_ATTEMPTS = 5
 TAKEOVER_WAIT_SECONDS = 30.0
 WINDOWS_ALREADY_EXISTS = 183
@@ -117,6 +119,18 @@ def port_is_listening() -> bool:
         with socket.create_connection(("127.0.0.1", MCP_PORT), timeout=0.5):
             return True
     except OSError:
+        return False
+
+
+def extension_is_connected() -> bool:
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{MCP_PORT}/health",
+            timeout=0.5,
+        ) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+            return payload.get("extensionConnected") is True
+    except (OSError, ValueError):
         return False
 
 
@@ -216,22 +230,6 @@ def windows_app_executable(executable_name: str) -> Optional[str]:
     if os.name != "nt":
         return None
 
-
-def wake_state_path() -> Path:
-    return Path(tempfile.gettempdir()) / WAKE_STATE_FILE_NAME
-
-
-def wake_interval_remaining(now: float) -> float:
-    try:
-        last_wake_at = float(wake_state_path().read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return 0.0
-    return max(0.0, WAKE_MIN_INTERVAL_SECONDS - (now - last_wake_at))
-
-
-def record_wake(now: float) -> None:
-    wake_state_path().write_text(str(now), encoding="utf-8")
-
     import winreg
 
     registry_roots = [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]
@@ -250,6 +248,22 @@ def record_wake(now: float) -> None:
             if candidate.is_file():
                 return str(candidate)
     return None
+
+
+def wake_state_path() -> Path:
+    return Path(tempfile.gettempdir()) / WAKE_STATE_FILE_NAME
+
+
+def wake_interval_remaining(now: float) -> float:
+    try:
+        last_wake_at = float(wake_state_path().read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0.0
+    return max(0.0, WAKE_MIN_INTERVAL_SECONDS - (now - last_wake_at))
+
+
+def record_wake(now: float) -> None:
+    wake_state_path().write_text(str(now), encoding="utf-8")
 
 
 def chrome_executable() -> Optional[str]:
@@ -274,7 +288,7 @@ def chrome_executable() -> Optional[str]:
     return None
 
 
-def wake_extension(reload_extension: bool = True) -> None:
+def wake_extension(reload_extension: bool = True, force: bool = False) -> None:
     recovery_url = extension_recovery_url()
     chrome_path = chrome_executable()
     reload_url: Optional[str] = None
@@ -282,7 +296,7 @@ def wake_extension(reload_extension: bool = True) -> None:
     now = time.time()
     remaining = wake_interval_remaining(now)
 
-    if remaining > 0:
+    if not force and remaining > 0:
         print(
             f"[Supervisor] Chrome extension wake deferred for {remaining:.0f}s.",
             flush=True,
@@ -375,30 +389,37 @@ def supervise(project_root: Path, recover_on_start: bool, initial_watch_mode: st
             auto_recovery_suspended_logged = False
 
         service_up = port_is_listening()
-        if service_up:
+        extension_connected = extension_is_connected() if service_up else False
+        if extension_connected:
             consecutive_down_recoveries = 0
             auto_recovery_suspended_logged = False
         recovery_due = pending_recovery_at is not None and now >= pending_recovery_at
-        cooldown_elapsed = now - last_recovery_at >= RECOVERY_COOLDOWN_SECONDS
-        if recovery_due or (
+        recovery_cooldown = (
+            LINK_RECOVERY_COOLDOWN_SECONDS
+            if service_up
+            else SERVICE_RECOVERY_COOLDOWN_SECONDS
+        )
+        cooldown_elapsed = now - last_recovery_at >= recovery_cooldown
+        if recovery_due:
+            wake_extension(reload_extension=True, force=True)
+            last_recovery_at = now
+            pending_recovery_at = None
+        elif (
             cooldown_elapsed
-            and not service_up
+            and not extension_connected
             and consecutive_down_recoveries < RECOVERY_MAX_ATTEMPTS
         ):
-            wake_extension(reload_extension=recovery_due)
+            wake_extension(reload_extension=False, force=service_up)
             last_recovery_at = now
-            if recovery_due:
-                pending_recovery_at = None
-            else:
-                consecutive_down_recoveries += 1
+            consecutive_down_recoveries += 1
         elif (
-            not service_up
+            not extension_connected
             and consecutive_down_recoveries >= RECOVERY_MAX_ATTEMPTS
             and not auto_recovery_suspended_logged
         ):
             auto_recovery_suspended_logged = True
             print(
-                "[Supervisor] MCP service is still not listening after "
+                "[Supervisor] Chrome extension remains disconnected after "
                 f"{RECOVERY_MAX_ATTEMPTS} recovery attempts; pausing automatic "
                 "recovery until the next build or explicit request.",
                 flush=True,
@@ -414,7 +435,7 @@ def main() -> int:
     project_root: Optional[Path] = None
 
     if args.wake:
-        wake_extension()
+        wake_extension(force=True)
         return 0
 
     project_root = Path(args.project_root).resolve()

@@ -4,6 +4,7 @@ import { pycoreApi } from '@/apps/pycore-manager/api';
 import { connectPycoreHttp } from '@/apps/pycore-manager/api';
 import { pycoreEventBus } from '@/apps/pycore-manager/api';
 import { PYCORE_EVENT_TOPICS } from '@/apps/pycore-manager/api';
+import { useAgentHistoryRuntime } from '@/apps/pycore-manager/api';
 import { laravelMediaUrl } from '@/core/integrations/laravel/LaravelMediaUrl';
 import type { AgentHistoryArticleRecord, AgentHistoryArticleRecordMetadata } from '@/apps/pycore-manager/api';
 import { agentHistoryPageTableStore } from '@/apps/pycore-manager/persistence/AgentHistoryPageTableStore';
@@ -45,6 +46,7 @@ const RecordAudio: React.FC<{ record: AgentHistoryArticleRecord; tk: (k: string)
  * full record bodies are materialized lazily for the visible page.
  */
 const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) => {
+  const { articleSummary } = useAgentHistoryRuntime();
   const [records, setRecords] = useState<AgentHistoryArticleRecord[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(() => Math.max(
@@ -137,6 +139,21 @@ const PcAgentHistoryRecords: React.FC<{ tk: (k: string) => string }> = ({ tk }) 
         {loadError && !loading && (
           <span className="text-[11px] text-amber-500" title={loadError}>{loadError}</span>
         )}
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-[10px] font-mono">
+        <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-1 text-emerald-600 dark:text-emerald-300">
+          {tk('multiSentence')}: {Number(articleSummary?.multi_sentence || 0)}
+        </span>
+        <span className="rounded-full border border-amber-500/20 bg-amber-500/5 px-2.5 py-1 text-amber-600 dark:text-amber-300">
+          {tk('legacyAudio')}: {Number(articleSummary?.legacy_audio || 0)}
+        </span>
+        <span className="rounded-full border border-sky-500/20 bg-sky-500/5 px-2.5 py-1 text-sky-600 dark:text-sky-300">
+          {tk('audioRebuilt')}: {Number(articleSummary?.rebuilt || 0)}
+        </span>
+        <span className="rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-violet-600 dark:text-violet-300">
+          {tk('rebuildPending')}: {Number(articleSummary?.rebuild_pending || 0)}
+        </span>
       </div>
 
       {records.length === 0 ? (

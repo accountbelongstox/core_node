@@ -25,8 +25,9 @@ class PiExtractor(BaseExtractor):
         return "pi"
 
     def discover(self, home: str, user: str) -> List[Dict[str, Any]]:
-        agent_root = os.path.join(home, PI_AGENT_DIRECTORY)
-        roots = self._session_roots(agent_root, home)
+        agent_root = self._canonical_agent_root(home, user)
+        session_home = os.path.dirname(os.path.dirname(agent_root))
+        roots = self._session_roots(agent_root, session_home)
         found: Dict[str, Dict[str, Any]] = {}
         pattern = "**/*.jsonl"
         for root in roots:
@@ -38,6 +39,17 @@ class PiExtractor(BaseExtractor):
                 real = os.path.realpath(path)
                 found[real] = self.descriptor(real)
         return list(found.values())
+
+    @staticmethod
+    def _canonical_agent_root(home: str, user: str) -> str:
+        if os.name != "nt":
+            return os.path.join(home, PI_AGENT_DIRECTORY)
+        system_drive = str(os.environ.get("SystemDrive") or "C:").rstrip("\\/")
+        windows_home = os.path.join(system_drive + os.sep, "Users", user)
+        windows_agent_root = os.path.join(windows_home, PI_AGENT_DIRECTORY)
+        if os.path.isdir(windows_agent_root):
+            return windows_agent_root
+        return os.path.join(home, PI_AGENT_DIRECTORY)
 
     def parse_source(self, path: str, user: str) -> List[Dict[str, Any]]:
         entries = self.load_jsonl(path)

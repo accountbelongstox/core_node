@@ -59,7 +59,7 @@ from pycore.pylauncher.tray_codesync_cache import (
 )
 
 
-_RUNTIME_WORKERS_REGISTERED = False
+_RUNTIME_STEPS_COMPLETED = set()
 # Heartbeat fallback cadence for the pull loops. The fast path is
 # event-driven: Mercure queue events reach worker.request_pull() through the
 # shared Queue Center socket, so these intervals only matter when realtime
@@ -372,57 +372,87 @@ def register_runtime_workers() -> None:
     Queue worker callbacks are always registered. Persisted UI switches decide
     which callbacks are enabled, so processing continues after the UI closes.
     """
-    global _RUNTIME_WORKERS_REGISTERED
-    if _RUNTIME_WORKERS_REGISTERED:
-        return
-
     heartbeat = shared_heartbeat_system
     if not heartbeat.is_running():
         heartbeat.start()
 
     assist_settings = load_assist_settings()
     callback_states = assist_callback_states(assist_settings)
-    restore_word_audio_settings()
-    restore_sentence_audio_settings()
+    runtime_steps = (
+        ("restore_word_audio", restore_word_audio_settings),
+        ("restore_sentence_audio", restore_sentence_audio_settings),
+    )
+    for step_name, step in runtime_steps:
+        if step_name in _RUNTIME_STEPS_COMPLETED:
+            continue
+        try:
+            step()
+            _RUNTIME_STEPS_COMPLETED.add(step_name)
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
     for callback_name, callback, interval in _QUEUE_WORKER_CALLBACKS:
-        heartbeat.register_callback(
-            name=callback_name,
-            callback=callback,
-            interval=interval,
-            enabled=callback_states[callback_name],
-        )
+        step_name = f"queue_callback:{callback_name}"
+        if step_name in _RUNTIME_STEPS_COMPLETED:
+            continue
+        try:
+            heartbeat.register_callback(
+                name=callback_name,
+                callback=callback,
+                interval=interval,
+                enabled=callback_states[callback_name],
+            )
+            _RUNTIME_STEPS_COMPLETED.add(step_name)
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
     apply_assist_runtime(assist_settings)
     # The relay runtime registers this machine on the central server first:
     # its machine token feeds both the roster/pair stream and the Queue
     # Center hub subscription that starts right after.
-    relay_service.start()
-    queue_center_snapshot_service.start()
+    service_steps = (
+        ("relay_service", relay_service.start),
+        ("queue_center_snapshot", queue_center_snapshot_service.start),
+        ("agent_history", register_agent_history_extraction),
+    )
+    for step_name, step in service_steps:
+        if step_name in _RUNTIME_STEPS_COMPLETED:
+            continue
+        try:
+            step()
+            _RUNTIME_STEPS_COMPLETED.add(step_name)
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
 
     # Agent-history extraction worker (backfill -> live article pipeline):
     # previously registered ONLY on the native_ui path (callmodule_main), so
     # "auto process history" never ticked under pycore_module_caller.
-    try:
-        register_agent_history_extraction()
-    except Exception as e:
-        ColorPrint.red(f"[EventHandlers] Failed to register agent_history_extraction: {e}")
-
     rate_interval = 30
     raw_interval = os.environ.get("PYCORE_AI_RATE_RESET_INTERVAL", "").strip()
     if raw_interval.isdigit() and int(raw_interval) > 0:
         rate_interval = int(raw_interval)
     rate_enabled = os.environ.get("PYCORE_AI_RATE_RESET", "1").strip().lower()
-    heartbeat.register_callback(
-        name="ai_rate_reset",
-        callback=ai_rate_reset_service.tick,
-        interval=rate_interval,
-        enabled=rate_enabled not in ("0", "false", "no"),
+    if "ai_rate_reset" not in _RUNTIME_STEPS_COMPLETED:
+        try:
+            heartbeat.register_callback(
+                name="ai_rate_reset",
+                callback=ai_rate_reset_service.tick,
+                interval=rate_interval,
+                enabled=rate_enabled not in ("0", "false", "no"),
+            )
+            _RUNTIME_STEPS_COMPLETED.add("ai_rate_reset")
+        except Exception as exc:
+            ColorPrint.red(f"[EventHandlers] Runtime step ai_rate_reset failed: {exc}")
+    final_steps = (
+        ("system_settings", apply_persisted_system_settings),
+        ("tts_engine_startup", report_tts_engine_startup),
     )
-    try:
-        apply_persisted_system_settings()
-    except Exception as e:
-        ColorPrint.yellow(f"[EventHandlers] Worker prefs / system_settings restore: {e}")
-    report_tts_engine_startup()
-    _RUNTIME_WORKERS_REGISTERED = True
+    for step_name, step in final_steps:
+        if step_name in _RUNTIME_STEPS_COMPLETED:
+            continue
+        try:
+            step()
+            _RUNTIME_STEPS_COMPLETED.add(step_name)
+        except Exception as exc:
+            ColorPrint.yellow(f"[EventHandlers] Runtime step {step_name} failed: {exc}")
 
 
 __all__ = ["register_event_handlers", "register_runtime_workers"]

@@ -20,17 +20,17 @@ network-upload lane in worker.py, which stamps ``rebuild_uploaded``.
 
 Every step is idempotent at its own granularity (one step being done must
 never short-circuit or poison the others):
-  candidate scan  - records lacking tts_chunked, old-first
+  candidate scan  - records lacking tts_chunked, newest-first
   generation      - skipped per record when tts_chunked is set AND the local
                     audio file exists; otherwise synthesized and committed
                     atomically (audio bytes + provenance + marker)
   delivery        - owned by the upload lane (pending_rebuild_uploads)
 
 Ordering contract: no new article stage runs until the legacy backlog is
-empty. Rebuilds run old-first, while failed records use bounded backoff and
-do not prevent another ready legacy record from progressing. Only one Qwen
-job is active for this lane at a time. Each heartbeat advances one small,
-persisted step.
+empty. Rebuilds run newest-first, while failed records use bounded backoff and
+do not prevent another ready legacy record from progressing. A bounded window
+of Qwen jobs feeds the shared queue so compatible work can run in parallel.
+Each record is still advanced and persisted as an independent idempotent step.
 """
 
 import base64
@@ -48,6 +48,44 @@ from pycore.pyctl.agent_history.pipeline.audio_stage import advance_audio_synthe
 # lane's log operation must never be adopted. The scope keeps its events
 # visible in the agent_history UI snapshot.
 _REBUILD_OP_KIND = "audio_rebuild"
+_REBUILD_QUEUE_WINDOW = 8
+_REBUILD_OP_MESSAGE = "Rebuilding legacy article audio (sentence-concat upgrade)"
+
+
+def _rebuild_operation():
+    """Return the shared rebuild operation and start its first state step."""
+    operation = operation_service.create_or_get(
+        kind=_REBUILD_OP_KIND,
+        scope="agent_history",
+        initial_message=_REBUILD_OP_MESSAGE,
+    )
+    if operation.status == "pending":
+        operation = operation_service.start(
+            operation.id,
+            stage="synthesizing_audio",
+            message=_REBUILD_OP_MESSAGE,
+        )
+    return operation
+
+
+def _runtime_log_fragment(job: Dict[str, Any]) -> str:
+    gpu_fragment = "gpu=unavailable"
+    if job.get("gpu_available"):
+        gpu_fragment = (
+            f"gpu={int(job.get('gpu_physical_index') or 0)} "
+            f"gpu_util={float(job.get('gpu_util_percent') or 0.0):g}% "
+            f"gpu_memory={int(job.get('gpu_mem_used_mb') or 0)}/"
+            f"{int(job.get('gpu_mem_total_mb') or 0)}MB"
+        )
+    return (
+        f"batch_plan={int(job.get('max_parallel') or 1)} "
+        f"active_batch={int(job.get('active_native_batch') or 0)} "
+        f"attention={str(job.get('attention_implementation') or 'unknown')} "
+        f"phase={str(job.get('synthesis_phase') or 'idle')} "
+        f"chunks={int(job.get('synthesis_chunks_completed') or 0)}/"
+        f"{int(job.get('synthesis_chunks_total') or 0)} "
+        f"{gpu_fragment}"
+    )
 
 
 def is_rebuild_candidate(record: Dict[str, Any]) -> bool:
@@ -65,19 +103,17 @@ def is_rebuild_candidate(record: Dict[str, Any]) -> bool:
 
 
 def pending_rebuild_records() -> List[Dict[str, Any]]:
-    """Legacy records to regenerate, oldest first.
+    """Legacy records to regenerate, newest first.
 
     Pure local scan of the record index (no server probe, no version
     negotiation): a record is legacy exactly when its data lacks the
     ``tts_chunked`` marker. Once the backlog is drained this costs
     milliseconds per tick."""
-    rows = [
+    return [
         row
         for row in records.list_all_records()
         if row.get("article_en") and is_rebuild_candidate(row)
     ]
-    rows.reverse()
-    return rows
 
 
 def pending_rebuild_count() -> int:
@@ -85,12 +121,7 @@ def pending_rebuild_count() -> int:
 
 
 def piggyback_rebuild_tick() -> int:
-    """Advance one strict-priority legacy rebuild step.
-
-    Returns the pending query count: 0 skips the lane entirely; otherwise
-    exactly one ready record is advanced. An existing queue job owns the lane
-    until it finishes; failed records back off without being dropped.
-    """
+    """Advance the bounded strict-priority legacy rebuild queue."""
     pending = pending_rebuild_records()
     if not pending:
         return 0
@@ -105,28 +136,34 @@ def piggyback_rebuild_tick() -> int:
         row for row in active
         if float(row.get("rebuild_not_before") or 0.0) <= current_time
     ]
-    if active and not ready_active:
-        return len(pending)
-    ready = [
+    fresh_ready = [
         row for row in pending
+        if not row.get("rebuild_audio_job")
         if float(row.get("rebuild_not_before") or 0.0) <= current_time
     ]
-    if not ready:
+    available_slots = max(0, _REBUILD_QUEUE_WINDOW - len(active))
+    selected = ready_active + fresh_ready[:available_slots]
+    if not selected:
         return len(pending)
-    record = ready_active[0] if ready_active else ready[0]
+    for record in selected:
+        _advance_rebuild_record(record, len(pending))
+    if pending_rebuild_count() == 0:
+        op = _rebuild_operation()
+        operation_service.complete(op.id, "All legacy audio is multi-sentence")
+    return len(pending)
+
+
+def _advance_rebuild_record(record: Dict[str, Any], pending_count: int) -> None:
+    """Advance and persist one record without affecting sibling queue jobs."""
     record_id = str(record.get("id") or "")
     current = records.get_record(record_id) or record
-    op = operation_service.create_or_get(
-        kind=_REBUILD_OP_KIND,
-        scope="agent_history",
-        initial_message="Rebuilding legacy article audio (sentence-concat upgrade)",
-    )
+    op = _rebuild_operation()
     operation_event_service.log_event(
         op.id,
         "info",
         "audio_rebuild.start",
         f"Piggyback audio rebuild {record_id} "
-        f"({len(pending)} pending, old-first): {str(record.get('title_en') or '')[:80]}",
+        f"({pending_count} pending, newest-first): {str(record.get('title_en') or '')[:80]}",
         None,
     )
     try:
@@ -142,7 +179,7 @@ def piggyback_rebuild_tick() -> int:
             None,
         )
         ColorPrint.yellow(f"[AgentHistoryRebuild] {record_id}: {exc}")
-        return len(pending)
+        return
 
     if result.get("status") == "waiting":
         records.mark_audio_rebuild_waiting(
@@ -157,10 +194,13 @@ def piggyback_rebuild_tick() -> int:
             f"Rebuild job {record_id}: status={str((result.get('job') or {}).get('status') or 'pending')} "
             f"running_ms={int((result.get('job') or {}).get('running_elapsed_ms') or 0)} "
             f"queue_pending={int((result.get('job') or {}).get('queue_pending') or 0)} "
+            f"queue_position={int((result.get('job') or {}).get('queue_position') or 0)} "
+            f"queue_running={int((result.get('job') or {}).get('queue_running') or 0)} "
+            f"{_runtime_log_fragment(result.get('job') or {})} "
             f"next_poll_s={float(result.get('poll_after_s') or 0.0):g}",
             None,
         )
-        return len(pending)
+        return
     if result.get("status") == "failed":
         records.mark_rebuild_failed(record_id)
         operation_event_service.log_event(
@@ -170,7 +210,7 @@ def piggyback_rebuild_tick() -> int:
             f"Audio rebuild failed for {record_id}: {result.get('error') or 'unknown error'}",
             None,
         )
-        return len(pending)
+        return
 
     delivery = "pending-upload-lane" if result.get("delivery_pending") else "delivered"
     operation_event_service.log_event(
@@ -182,9 +222,6 @@ def piggyback_rebuild_tick() -> int:
         f"bytes={result.get('bytes')} laravel={delivery}",
         None,
     )
-    if pending_rebuild_count() == 0:
-        operation_service.complete(op.id, "All legacy audio is multi-sentence")
-    return len(pending)
 
 
 def rebuild_record(record: Dict[str, Any]) -> Dict[str, Any]:
@@ -251,7 +288,7 @@ def _delivery_pending(record: Dict[str, Any]) -> bool:
     records owe an audio replacement (``rebuild_uploaded`` unset)."""
     if not bool(record.get("uploaded")):
         return True
-    return not bool(record.get("rebuild_uploaded"))
+    return not records.is_rebuild_upload_current(record)
 
 
 __all__ = [

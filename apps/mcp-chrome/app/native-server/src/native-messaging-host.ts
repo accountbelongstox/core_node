@@ -1,8 +1,8 @@
 import { stdin, stdout } from 'process';
-import { Server } from './server';
+import type { Server } from './server';
 import { v4 as uuidv4 } from 'uuid';
 import { NativeMessageType } from 'chrome-mcp-shared';
-import { TIMEOUTS } from './constant';
+import { ERROR_MESSAGES, TIMEOUTS } from './constant';
 import fileHandler from './file-handler';
 import { SingletonDetector } from './server/singleton';
 import { createLogger } from './util/logger';
@@ -15,24 +15,28 @@ interface PendingRequest {
   timeoutId: NodeJS.Timeout;
 }
 
-// How long an orphaned host (extension stdio link gone) may keep squatting the
-// port before it self-destructs to release it. While Chrome is open the
-// singleton handover normally evicts the orphan within ~30-60s; this backstop
-// covers the case where Chrome is fully closed (no Service Worker, no watchdog),
-// so the next browser launch binds a fresh, live-linked process immediately
-// instead of fighting a zombie.
-const ORPHAN_SELF_DESTRUCT_MS = 3 * 60 * 1000;
+const HOST_SHUTDOWN_TIMEOUT_MS = 2000;
+
+export class ExtensionConnectionError extends Error {
+  constructor(message: string = ERROR_MESSAGES.EXTENSION_NOT_CONNECTED) {
+    super(message);
+    this.name = 'ExtensionConnectionError';
+  }
+}
+
+export class ExtensionRequestTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Request to browser extension timed out after ${timeoutMs}ms.`);
+    this.name = 'ExtensionRequestTimeoutError';
+  }
+}
 
 export class NativeMessagingHost {
   private associatedServer: Server | null = null;
   private pendingRequests: Map<string, PendingRequest> = new Map();
-  private keepAliveTimer: NodeJS.Timeout | null = null;
-  private orphanExitTimer: NodeJS.Timeout | null = null;
-  // Whether the Chrome extension's stdio link to THIS process is still alive.
-  // Goes false when stdin ends (Service Worker disconnected / went idle). An
-  // orphaned process can no longer relay tool calls, so it must yield the port
-  // to a fresh instance that does have a live link.
   private extensionConnected = true;
+  private shutdownPromise: Promise<void> | null = null;
+  private shutdownExitCode = 0;
 
   public isExtensionConnected(): boolean {
     return this.extensionConnected;
@@ -50,7 +54,7 @@ export class NativeMessagingHost {
       log('INFO', 'Native Messaging Host started, waiting for messages from Chrome Extension');
     } catch (error: any) {
       log('ERROR', 'Failed to start Native Messaging Host', { error: error.message });
-      process.exit(1);
+      void this.shutdown('Native messaging host startup failed.', 1);
     }
   }
 
@@ -68,78 +72,39 @@ export class NativeMessagingHost {
           buffer = buffer.slice(4);
         }
 
-        if (expectedLength !== -1 && buffer.length >= expectedLength) {
+        while (expectedLength !== -1 && buffer.length >= expectedLength) {
           const messageBuffer = buffer.slice(0, expectedLength);
           buffer = buffer.slice(expectedLength);
 
           try {
             const message = JSON.parse(messageBuffer.toString());
-            this.handleMessage(message);
+            void this.handleMessage(message).catch((error) => {
+              log('ERROR', 'Native message handling failed', { error });
+              void this.shutdown('Native message handling failed.', 1);
+            });
           } catch (error: any) {
             this.sendError(`Failed to parse message: ${error.message}`);
           }
-          expectedLength = -1; // reset to get next data
+          expectedLength = -1;
+          if (buffer.length >= 4) {
+            expectedLength = buffer.readUInt32LE(0);
+            buffer = buffer.slice(4);
+          }
         }
       }
     });
 
     stdin.on('end', () => {
-      log('WARN', 'stdin ended - Chrome Extension Service Worker may have stopped');
-      log('INFO', 'Server will continue running - use STOP message to shut down');
-      // The extension link is gone; mark orphaned so a fresh instance can take
-      // over the port even while this one still has active MCP sessions.
-      this.extensionConnected = false;
-      // The stdout pipe to the extension is now dead, so any in-flight tool calls
-      // will never be answered. Reject them immediately instead of letting each
-      // one wait out its full timeout — the MCP client then gets a fast,
-      // actionable error and can retry once the handover completes.
-      if (this.pendingRequests.size > 0) {
-        log('WARN', `Rejecting ${this.pendingRequests.size} pending request(s) - extension link lost`);
-        this.pendingRequests.forEach((pending) => {
-          clearTimeout(pending.timeoutId);
-          pending.reject(
-            new Error('Extension link lost (Service Worker disconnected) before the request was answered.'),
-          );
-        });
-        this.pendingRequests.clear();
-      }
-      // Don't call cleanup() - let server continue running
-      // Service Worker in MV3 may stop after inactivity, but server should persist
-
-      // Keep process alive by setting up a persistent interval if server is running
-      if (!this.keepAliveTimer && this.associatedServer) {
-        this.keepAliveTimer = setInterval(() => {
-          // Heartbeat to keep process alive - do nothing
-        }, 30000); // 30 seconds
-        log('INFO', 'Keep-alive timer started to prevent process exit');
-      }
-
-      // Arm the orphan self-destruct backstop (see ORPHAN_SELF_DESTRUCT_MS). If
-      // the link is still dead when it fires, gracefully release the port.
-      if (!this.orphanExitTimer) {
-        this.orphanExitTimer = setTimeout(() => {
-          this.orphanExitTimer = null;
-          if (!this.extensionConnected) {
-            log(
-              'WARN',
-              'Extension link still dead past grace period; releasing port and exiting (orphan self-destruct)',
-            );
-            this.gracefulExit();
-          }
-        }, ORPHAN_SELF_DESTRUCT_MS);
-      }
+      void this.shutdown('Browser extension closed the native messaging port.');
     });
 
     stdin.on('error', (err) => {
       log('ERROR', 'stdin error occurred', { error: err });
-      // Don't call cleanup() automatically - only STOP message should shutdown
+      void this.shutdown('Native messaging input failed.');
     });
 
-    // The extension's stdout pipe can break (EPIPE / ERR_STREAM_WRITE_AFTER_END)
-    // once the Service Worker goes idle and the stdio link tears down. Without a
-    // listener Node treats the unhandled stream 'error' event as fatal and
-    // crashes the orphaned host mid-port-handover. Swallow broken-pipe errors
-    // (the message was undeliverable anyway) and log anything unexpected.
+    // Stream errors are lifecycle events: once stdout is broken this process can
+    // no longer own a usable MCP server.
     stdout.on('error', (err: NodeJS.ErrnoException) => {
       const code = err?.code;
       if (code === 'EPIPE' || code === 'ERR_STREAM_WRITE_AFTER_END') {
@@ -147,6 +112,7 @@ export class NativeMessagingHost {
       } else {
         log('ERROR', 'stdout error', { error: err?.message });
       }
+      void this.shutdown('Native messaging output failed.');
     });
   }
 
@@ -205,7 +171,14 @@ export class NativeMessagingHost {
           }
       }
     } catch (error: any) {
-      this.sendError(`Failed to handle directive message: ${error.message}`);
+      const errorMessage = `Failed to handle directive message: ${error.message}`;
+      try {
+        this.sendError(errorMessage);
+      } finally {
+        if (message.type === NativeMessageType.START) {
+          void this.shutdown(errorMessage);
+        }
+      }
     }
   }
 
@@ -260,21 +233,9 @@ export class NativeMessagingHost {
     timeoutMs: number = TIMEOUTS.DEFAULT_REQUEST_TIMEOUT,
   ): Promise<any> {
     return new Promise((resolve, reject) => {
-      // Fast-fail when the extension stdio link is dead. Writing the request to
-      // the broken stdout would silently go nowhere and hang for the full
-      // timeout (or crash the orphaned host via EPIPE). Centralizing this guard
-      // here protects EVERY caller - tool calls and the /ask-extension HTTP
-      // bridge alike - so a new call path can never reintroduce the hang/crash.
-      // It also closes the race between a caller's pre-check and the actual
-      // send. Callers that need a specific error shape (e.g. the HTTP route's
-      // 503) still pre-check; tool calls let their catch block turn this
-      // rejection into an MCP error result.
+      // This is the single connection gate for every relay call.
       if (!this.extensionConnected) {
-        reject(
-          new Error(
-            'Extension link is not connected (Service Worker disconnected). Please retry.',
-          ),
-        );
+        reject(new ExtensionConnectionError());
         return;
       }
 
@@ -282,18 +243,23 @@ export class NativeMessagingHost {
 
       const timeoutId = setTimeout(() => {
         this.pendingRequests.delete(requestId); // Remove from Map after timeout
-        reject(new Error(`Request timed out after ${timeoutMs}ms`));
+        reject(new ExtensionRequestTimeoutError(timeoutMs));
       }, timeoutMs);
 
       // Store request's resolve/reject functions and timeout ID
       this.pendingRequests.set(requestId, { resolve, reject, timeoutId });
 
-      // Send message with requestId to Chrome
-      this.sendMessage({
-        type: messageType, // Define a request type, e.g. 'request_data'
-        payload: messagePayload,
-        requestId: requestId, // <--- Key: include request ID
-      });
+      try {
+        this.sendMessage({
+          type: messageType,
+          payload: messagePayload,
+          requestId,
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        this.pendingRequests.delete(requestId);
+        reject(error);
+      }
     });
   }
 
@@ -306,15 +272,14 @@ export class NativeMessagingHost {
     if (!this.associatedServer) {
       const error = 'Server instance not set';
       log('ERROR', error);
-      this.sendError(`Internal error: ${error}`);
-      return;
+      throw new Error(error);
     }
 
     if (this.associatedServer.isRunning) {
-      log('WARN', 'Server is already running');
+      log('INFO', 'Server is already running for this native connection');
       this.sendMessage({
-        type: NativeMessageType.ERROR,
-        payload: { message: 'Server is already running' },
+        type: NativeMessageType.SERVER_STARTED,
+        payload: { port },
       });
       return;
     }
@@ -325,24 +290,10 @@ export class NativeMessagingHost {
     const detectionResult = await detector.detect();
 
     if (!detectionResult.canStart) {
-      if (detectionResult.isExisting) {
-        // A healthy server is already listening on this port and could not be
-        // shut down (e.g. it still has active MCP sessions). The extension only
-        // needs *a* server reachable on the port, so adopt the existing one and
-        // report success instead of surfacing a fatal error.
-        log(
-          'WARN',
-          `Existing server present on port ${port}; adopting it instead of failing: ${detectionResult.message}`,
-        );
-        this.sendMessage({
-          type: NativeMessageType.SERVER_STARTED,
-          payload: { port, adopted: true },
-        });
-        return;
-      }
       const errorMsg = `Cannot start server: ${detectionResult.message}`;
       log('ERROR', errorMsg);
       this.sendError(errorMsg);
+      void this.shutdown(errorMsg);
       return;
     }
 
@@ -351,7 +302,7 @@ export class NativeMessagingHost {
     }
 
     log('INFO', `Starting Fastify HTTP server on port ${port}...`);
-    await this.associatedServer.start(port, this);
+    await this.associatedServer.start(port);
     log('SUCCESS', `Fastify HTTP server started successfully on port ${port}`);
 
     log('INFO', 'Sending SERVER_STARTED message to Chrome Extension');
@@ -367,26 +318,24 @@ export class NativeMessagingHost {
    */
   private async stopServer(): Promise<void> {
     if (!this.associatedServer) {
-      this.sendError('Internal error: server instance not set');
-      return;
+      throw new Error('Server instance not set');
     }
 
-    if (!this.associatedServer.isRunning) {
-      this.sendMessage({
-        type: NativeMessageType.ERROR,
-        payload: { message: 'Server is not running' },
-      });
-      return;
+    if (this.associatedServer.isRunning) {
+      await this.associatedServer.stop();
     }
 
-    await this.associatedServer.stop();
     this.sendMessage({ type: NativeMessageType.SERVER_STOPPED });
+    void this.shutdown('Browser extension stopped the MCP server.');
   }
 
   /**
    * Send message to Chrome extension
    */
   public sendMessage(message: any): void {
+    if (!this.extensionConnected) {
+      throw new ExtensionConnectionError();
+    }
     const messageString = JSON.stringify(message);
     const messageBuffer = Buffer.from(messageString);
     const headerBuffer = Buffer.alloc(4);
@@ -404,55 +353,44 @@ export class NativeMessagingHost {
     });
   }
 
-
-
-  /**
-   * Gracefully release the port and exit. Closes the HTTP server first so any
-   * connected MCP client gets a clean stream end (and re-initializes against the
-   * next port owner) instead of a raw TCP reset. A hard-exit timer guarantees we
-   * still exit if the close hangs on a long-lived SSE stream.
-   */
-  private gracefulExit(): void {
-    const hardExit = setTimeout(() => process.exit(0), 2000);
-    const done = () => {
-      clearTimeout(hardExit);
-      process.exit(0);
-    };
-    if (this.associatedServer && this.associatedServer.isRunning) {
-      this.associatedServer.stop().then(done).catch(done);
-    } else {
-      done();
-    }
-  }
-
-  /**
-   * Clean up resources
-   */
-  private cleanup(): void {
-    // Clear keep-alive timer
-    if (this.keepAliveTimer) {
-      clearInterval(this.keepAliveTimer);
-      this.keepAliveTimer = null;
-    }
-
-    // Reject all pending requests
+  private rejectPendingRequests(reason: string): void {
     this.pendingRequests.forEach((pending) => {
       clearTimeout(pending.timeoutId);
-      pending.reject(new Error('Native host is shutting down or Chrome disconnected.'));
+      pending.reject(new ExtensionConnectionError(reason));
     });
     this.pendingRequests.clear();
+  }
 
-    if (this.associatedServer && this.associatedServer.isRunning) {
-      this.associatedServer
-        .stop()
-        .then(() => {
-          process.exit(0);
-        })
-        .catch(() => {
-          process.exit(1);
-        });
-    } else {
-      process.exit(0);
+  public shutdown(reason: string, exitCode: number = 0): Promise<void> {
+    if (exitCode !== 0) {
+      this.shutdownExitCode = exitCode;
+    }
+    if (this.shutdownPromise) {
+      return this.shutdownPromise;
+    }
+
+    this.extensionConnected = false;
+    this.rejectPendingRequests(reason);
+    this.shutdownPromise = this.stopServerAndExit(reason);
+    return this.shutdownPromise;
+  }
+
+  private async stopServerAndExit(reason: string): Promise<void> {
+    const hardExit = setTimeout(
+      () => process.exit(this.shutdownExitCode),
+      HOST_SHUTDOWN_TIMEOUT_MS,
+    );
+
+    log('INFO', 'Native messaging connection closed; stopping its MCP server', { reason });
+    try {
+      if (this.associatedServer?.isRunning) {
+        await this.associatedServer.stop();
+      }
+    } catch (error) {
+      log('ERROR', 'Failed to stop MCP server during native host shutdown', { error });
+    } finally {
+      clearTimeout(hardExit);
+      process.exit(this.shutdownExitCode);
     }
   }
 }

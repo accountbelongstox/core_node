@@ -30,6 +30,7 @@ export interface GeminiJob {
   prompt: string;
   status: GeminiJobStatus;
   deadline: number; // epoch ms
+  baselineImageKeys: string[];
   dataUrl: string | null;
   mime?: string | null;
   width?: number;
@@ -121,6 +122,13 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     await this.injectContentScript(tab.id, [HELPER]);
     await delay(350);
 
+    const snapshot = await this.sendMessageToTab(tab.id, {
+      action: 'geminiSnapshotImages',
+    }).catch(() => null);
+    if (!snapshot?.ok || !Array.isArray(snapshot.imageKeys)) {
+      return { ok: false, tabId: tab.id, error: 'Failed to snapshot existing Gemini images' };
+    }
+
     const submit = await this.sendMessageToTab(tab.id, { action: 'geminiSubmitPrompt', prompt }).catch(
       (e: any) => ({ found: false, error: String(e?.message || e) }),
     );
@@ -135,6 +143,7 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
       prompt,
       status: 'generating',
       deadline: Date.now() + Math.max(15000, timeoutMs),
+      baselineImageKeys: snapshot.imageKeys,
       dataUrl: null,
     });
     await this.jobStore.persist();
@@ -165,6 +174,9 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     let job = this.jobStore.get(jobId);
     if (!job) job = await this.jobStore.hydrate(jobId);
     if (!job) return { ok: false, status: 'unknown', error: 'Unknown jobId (expired or never started)' };
+    if (!Array.isArray(job.baselineImageKeys)) {
+      return { ok: false, status: 'failed', error: 'Image job predates result isolation; start it again' };
+    }
 
     if (job.status === 'done' && job.dataUrl) {
       return {
@@ -181,7 +193,10 @@ class GeminiImageTool extends BaseBrowserToolExecutor {
     try {
       // The image stays on the page, so this re-collects even after an SW restart.
       await this.injectContentScript(job.tabId, [HELPER]);
-      const r = await this.sendMessageToTab(job.tabId, { action: 'geminiCollectImage' });
+      const r = await this.sendMessageToTab(job.tabId, {
+        action: 'geminiCollectImage',
+        excludedImageKeys: job.baselineImageKeys,
+      });
       if (r && r.ready && r.dataUrl) {
         job.status = 'done';
         job.dataUrl = r.dataUrl;

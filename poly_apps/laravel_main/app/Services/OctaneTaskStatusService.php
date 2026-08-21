@@ -78,7 +78,10 @@ class OctaneTaskStatusService
      */
     private function countRunning(array $runtimeStatus): int
     {
-        return count($runtimeStatus);
+        return count(array_filter(
+            $runtimeStatus,
+            static fn (array $runtime): bool => ($runtime['enabled'] ?? true) === true
+        ));
     }
 
     /**
@@ -126,7 +129,7 @@ class OctaneTaskStatusService
 
             $merged[] = array_merge($task, [
                 'registered' => $isRegistered,
-                'running' => $isRegistered && $runtime !== null,
+                'running' => ($task['enabled'] ?? false) && $isRegistered && $runtime !== null,
                 'status' => $this->determineTaskStatus($task, $isRegistered, $runtime),
                 'runtime' => $runtime,
             ]);

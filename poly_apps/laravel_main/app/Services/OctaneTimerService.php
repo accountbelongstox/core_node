@@ -167,15 +167,22 @@ class OctaneTimerService
      * @param string $name Task name (unique identifier)
      * @param callable $callback Task callback function
      * @param int $interval Execution interval in seconds (0 = every tick)
+     * @param callable|null $enabled
      * @return void
      */
-    public static function register(string $name, callable $callback, int $interval = 0): void
+    public static function register(
+        string $name,
+        callable $callback,
+        int $interval = 0,
+        ?callable $enabled = null
+    ): void
     {
         $current = self::stateGet('timer_tasks', $name);
 
         self::$tasks[$name] = [
             'callback' => $callback,
             'interval' => $interval,
+            'enabled' => $enabled,
         ];
 
         self::stateSet('timer_tasks', $name, [
@@ -185,6 +192,7 @@ class OctaneTimerService
             'run_count' => (int) ($current['run_count'] ?? 0),
             'error_count' => (int) ($current['error_count'] ?? 0),
             'last_duration' => (float) ($current['last_duration'] ?? 0.0),
+            'last_error' => (string) ($current['last_error'] ?? ''),
         ]);
 
         Log::info("OctaneTimerService: Task registered", [
@@ -325,6 +333,10 @@ class OctaneTimerService
             return;
         }
 
+        if (!self::isTaskEnabled($name, $task)) {
+            return;
+        }
+
         $lock = Cache::store('file')->lock(
             'octane_timer:task:' . sha1($name),
             self::TASK_LEASE_SECONDS
@@ -344,6 +356,9 @@ class OctaneTimerService
             if ($task['interval'] > 0 && $timeSinceLastRun < $task['interval']) {
                 return;
             }
+            if (!self::isTaskEnabled($name, $task)) {
+                return;
+            }
 
             self::stateSet('timer_tasks', $name, [
                 'name' => $name,
@@ -352,6 +367,7 @@ class OctaneTimerService
                 'run_count' => $taskStats['run_count'],
                 'error_count' => $taskStats['error_count'],
                 'last_duration' => $taskStats['last_duration'],
+                'last_error' => (string) ($taskStats['last_error'] ?? ''),
             ]);
 
             $startTime = microtime(true);
@@ -365,6 +381,7 @@ class OctaneTimerService
                 'run_count' => $taskStats['run_count'] + 1,
                 'error_count' => $taskStats['error_count'],
                 'last_duration' => $duration,
+                'last_error' => '',
             ]);
 
             Log::debug("OctaneTimerService: Task executed", [
@@ -381,6 +398,7 @@ class OctaneTimerService
                 'run_count' => $taskStats['run_count'],
                 'error_count' => $taskStats['error_count'] + 1,
                 'last_duration' => $taskStats['last_duration'],
+                'last_error' => mb_substr($e->getMessage(), 0, 1024),
             ]);
 
             Log::error("OctaneTimerService: Task execution failed", [
@@ -390,6 +408,25 @@ class OctaneTimerService
             ]);
         } finally {
             $lock->release();
+        }
+    }
+
+    protected static function isTaskEnabled(string $name, array $task): bool
+    {
+        $enabled = $task['enabled'] ?? null;
+
+        if (!is_callable($enabled)) {
+            return true;
+        }
+
+        try {
+            return (bool) call_user_func($enabled);
+        } catch (\Throwable $e) {
+            Log::error('OctaneTimerService: Task enable check failed', [
+                'task' => $name,
+                'error' => $e->getMessage(),
+            ]);
+            return false;
         }
     }
 
@@ -439,13 +476,16 @@ class OctaneTimerService
 
             if ($taskData) {
                 $stats[$name] = [
+                    'enabled' => self::isTaskEnabled($name, self::$tasks[$name]),
                     'interval' => $taskData['interval'],
                     'run_count' => $taskData['run_count'],
                     'error_count' => $taskData['error_count'],
                     'last_run' => $taskData['last_run'],
                     'last_run_ago' => $taskData['last_run'] > 0 ? time() - $taskData['last_run'] : null,
                     'last_duration' => $taskData['last_duration'] > 0 ? $taskData['last_duration'] : null,
-                    'last_error' => null,
+                    'last_error' => ($taskData['last_error'] ?? '') !== ''
+                        ? $taskData['last_error']
+                        : null,
                 ];
             }
         }

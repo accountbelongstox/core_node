@@ -4,7 +4,6 @@ namespace App\Services\TimerTasks;
 
 use App\Models\GlobalTask;
 use App\Models\Worker;
-use App\Services\TaskManagerService;
 
 /**
  * Global Task System Maintenance
@@ -30,7 +29,7 @@ use App\Services\TaskManagerService;
  *      dictionary worker's processor type). Idempotent and index-backed; costs
  *      one UPDATE matching zero rows once the backlog is drained.
  */
-class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
+class GlobalTaskMaintenanceTask extends TaskManagerTimerTaskAbstract
 {
     // Retention policy: terminal tasks are transient bookkeeping (their real
     // output lives in the app tables, e.g. the dictionary rows), so they are
@@ -52,13 +51,6 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
     // deleting a dead row loses nothing but stale counters).
     private const RETAIN_OFFLINE_WORKER_DAYS = 7;
 
-    private $taskManager;
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-    }
-
     public function getInterval(): int
     {
         return 15;
@@ -69,7 +61,6 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         $released = $this->taskManager->releaseTimedOutTasks();
         $cleaned = $this->taskManager->cleanOfflineWorkers();
         $retagged = $this->retagLegacyDictionaryTasks();
-        $mediaRetagged = $this->retagLegacyWordMediaTasks();
         $expired = $this->expireStalePendingTasks();
         $purged = $this->purgeExpiredTerminalTasks();
         $workersPurged = $this->purgeStaleWorkers();
@@ -77,12 +68,11 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
         // interactive tier cannot indefinitely starve them (capped below FAST).
         $aged = app(\App\Services\PriorityAgeService::class)->ageTasksPriority();
 
-        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $mediaRetagged > 0 || $expired > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
+        if ($released > 0 || $cleaned > 0 || $retagged > 0 || $expired > 0 || $purged > 0 || $workersPurged > 0 || $aged > 0) {
             $this->logInfo('Maintenance cycle', [
                 'tasks_released' => $released,
                 'workers_marked_offline' => $cleaned,
                 'legacy_tasks_retagged' => $retagged,
-                'legacy_word_media_retagged' => $mediaRetagged,
                 'stale_pending_expired' => $expired,
                 'terminal_tasks_purged' => $purged,
                 'stale_workers_purged' => $workersPurged,
@@ -144,20 +134,6 @@ class GlobalTaskMaintenanceTask extends OctaneTimerTaskAbstract
             ['dictionary_explanation', 'dictionary_explanation_demo'],
             [GlobalTask::executionType('remote_translation')],
             GlobalTask::executionType('remote_client')
-        );
-    }
-
-    /** Move legacy word_media rows onto the image-capability fast lane. */
-    private function retagLegacyWordMediaTasks(): int
-    {
-        return GlobalTask::retagPendingTasks(
-            ['word_media'],
-            [
-                GlobalTask::executionType('remote_client'),
-                GlobalTask::executionType('remote_translation'),
-            ],
-            GlobalTask::executionType('remote_fast'),
-            GlobalTask::capability('image')
         );
     }
 

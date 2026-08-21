@@ -223,6 +223,11 @@ def get_third_package_curl_cffi_requests():
     return _lazy_import('curl_cffi', 'from curl_cffi import requests as curl_cffi')
 
 
+def get_third_package_curl_cffi_mime():
+    """Get curl_cffi's native multipart form builder."""
+    return _lazy_import('CurlMime', 'from curl_cffi import CurlMime')
+
+
 def get_third_package_urllib3():
     """Get urllib3 package (lazy load). Used by requests; also available for direct use."""
     return _lazy_import('urllib3', 'import urllib3')

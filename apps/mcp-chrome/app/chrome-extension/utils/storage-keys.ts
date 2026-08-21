@@ -37,7 +37,6 @@ export const STORAGE_KEYS = {
 
   // Task Center popup composable (useTaskCenter.ts).
   TASK_CENTER_CONFIG: 'task_center_config',
-  TASK_CENTER_ACTIVE: 'task_center_active',
 
   // Background run-intent — authoritative assist allowlist (run-intent.ts).
   TC_RUN_INTENT: 'tc_run_intent',

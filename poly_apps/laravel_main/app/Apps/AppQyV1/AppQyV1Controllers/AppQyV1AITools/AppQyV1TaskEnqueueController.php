@@ -45,8 +45,6 @@ use Illuminate\Validation\Rule;
  *                      dictionary row for `word`, so a prompt-only task generates
  *                      an image whose result is then dropped (no row to attach it
  *                      to) — prompt-only is a LANE TEST, not a real fill.
- *   - word_media    -> remote_fast + image (chrome). payload { words:[{word,md5}],
- *                      language, target_language? }.
  *   - gemini_chat   -> remote_gemini_text (chrome, dedicated lane). payload
  *                      { question|source_text, title? }. Text-only Gemini
  *                      completion — sibling of gemini_image, kept off its lane
@@ -214,7 +212,7 @@ class AppQyV1TaskEnqueueController extends Controller
 
         // word_* types: require at least a language; word identification is checked
         // loosely (words[] or word) so the operator can also stage a batch.
-        if (in_array($taskType, ['word_media', 'word_audio', 'word_translation'], true)) {
+        if (in_array($taskType, ['word_audio', 'word_translation'], true)) {
             if (!isset($payload['language']) || !is_string($payload['language']) || $payload['language'] === '') {
                 return $taskType . ' payload requires a language';
             }

@@ -12,6 +12,8 @@ export type {
 export type {
   LaravelRealtimeEventName,
   LaravelRealtimeEventPayloadMap,
+  LaravelArticleAudioReadyEvent,
+  LaravelArticlePublishedEvent,
   LaravelWorkerPresenceEvent,
 } from './LaravelRealtime';
 export { API_HEALTH_EVENT, apiManager } from './ApiManager';

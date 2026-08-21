@@ -35,7 +35,6 @@ class TerminalStateStore:
 
     @contextmanager
     def transaction(self) -> Generator[None, None, None]:
-        self._connection.execute("BEGIN IMMEDIATE")
         with self._connection:
             yield
 
@@ -51,23 +50,19 @@ class TerminalStateStore:
             return {str(key): str(value) for key, value in rows}
         size_patterns = tuple(f"%{suffix}" for suffix in size_only_key_suffixes)
         size_predicate = " OR ".join("key LIKE ?" for _suffix in size_patterns)
-        value_rows = self._connection.execute(
+        rows = self._connection.execute(
             f"""
-            SELECT key, value FROM {TERMINAL_STATE_TABLE}
-            WHERE NOT ({size_predicate})
+            SELECT key,
+                CASE
+                    WHEN {size_predicate}
+                    THEN length(CAST(value AS BLOB))
+                    ELSE value
+                END
+            FROM {TERMINAL_STATE_TABLE}
             """,
             size_patterns,
         ).fetchall()
-        size_rows = self._connection.execute(
-            f"""
-            SELECT key, length(CAST(value AS BLOB)) FROM {TERMINAL_STATE_TABLE}
-            WHERE {size_predicate}
-            """,
-            size_patterns,
-        ).fetchall()
-        values.update((str(key), str(value)) for key, value in value_rows)
-        values.update((str(key), str(size)) for key, size in size_rows)
-        return values
+        return {str(key): str(value) for key, value in rows}
 
     def read(self, key: str) -> Optional[str]:
         row = self._connection.execute(

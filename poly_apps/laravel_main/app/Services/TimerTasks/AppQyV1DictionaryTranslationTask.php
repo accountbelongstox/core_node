@@ -2,7 +2,6 @@
 
 namespace App\Services\TimerTasks;
 
-use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Support\QueueCenterContract;
@@ -55,7 +54,10 @@ class AppQyV1DictionaryTranslationTask extends DiffQueueFeederTaskAbstract
         }
 
         foreach ($languages as $langCode) {
-            $pendingCount = $this->countPendingForLanguage($langCode);
+            $pendingCount = $this->liveTaskCount(
+                ['dictionary_explanation', 'dictionary_explanation_demo'],
+                ['language' => $langCode]
+            );
             if ($pendingCount >= self::MAX_TASKS_PER_LANGUAGE) {
                 continue;
             }
@@ -93,21 +95,6 @@ class AppQyV1DictionaryTranslationTask extends DiffQueueFeederTaskAbstract
                 'total_tasks_created' => $totalCreated,
             ]);
         }
-    }
-
-    /**
-     * Count LIVE dictionary_explanation tasks for one language so the tick
-     * tops the queue up to the cap instead of growing it unboundedly.
-     * The task payload stores the normalized language code.
-     */
-    private function countPendingForLanguage(string $languageCode): int
-    {
-        return GlobalTask::liveTaskCount(
-            'AppQyV1',
-            ['dictionary_explanation', 'dictionary_explanation_demo'],
-            QueueCenterContract::taskStatuses('live'),
-            ['language' => $languageCode]
-        );
     }
 
     private function createTask(string $language, array $words): void

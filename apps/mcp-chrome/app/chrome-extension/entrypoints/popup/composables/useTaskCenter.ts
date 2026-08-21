@@ -128,7 +128,6 @@ export interface TaskCenterState {
 }
 
 export function useTaskCenter() {
-  const isActive = ref(false);
   const isStarting = ref(false);
   const { apiBaseUrl } = useApiEndpoint();
   const config = ref<TaskCenterConfig>({
@@ -163,22 +162,6 @@ export function useTaskCenter() {
   }, { immediate: true });
 
   const statsPolling = new IntervalController();
-
-  const toggleTaskCenter = async () => {
-    isActive.value = !isActive.value;
-    await chrome.storage.local.set({ [STORAGE_KEYS.TASK_CENTER_ACTIVE]: isActive.value });
-
-    if (isActive.value) {
-      await loadConfig();
-      await loadState();
-      startStatsPolling();
-    } else {
-      stopStatsPolling();
-      if (state.value.isRunning) {
-        await stopTaskCenter();
-      }
-    }
-  };
 
   const LOG = 'Task Center';
 
@@ -269,39 +252,6 @@ export function useTaskCenter() {
       error.value = err.message || getMessage('taskCenterStartFailed');
     } finally {
       if (requestVersion === startRequestVersion) isStarting.value = false;
-    }
-  };
-
-  // Live switch: flip a single capability on/off without a full restart. The
-  // background enables/disables the lane (and the validity runner) in place.
-  const setCapability = async (capability: CapabilityKey, enabled: boolean) => {
-    try {
-      error.value = '';
-      await loadRuntimeProcessorSettings();
-      const response = await chrome.runtime.sendMessage({
-        type: TASK_CENTER_MSG,
-        action: 'set_capability',
-        capability,
-        enabled,
-        config: {
-          ...config.value,
-          processors: { ...(config.value.processors || {}) },
-        },
-      });
-
-      if (response && response.success) {
-        logger.info(LOG, `Capability ${capability} -> ${enabled}`);
-        await loadState();
-        return true;
-      } else {
-        logger.error(LOG, 'Failed to set capability', response?.error);
-        error.value = response?.error || getMessage('capabilityUpdateFailed');
-        return false;
-      }
-    } catch (err: any) {
-      logger.error(LOG, 'Set capability error', err);
-      error.value = err.message || getMessage('capabilityUpdateFailed');
-      return false;
     }
   };
 
@@ -407,8 +357,6 @@ export function useTaskCenter() {
     // Always reconcile with the background so reopening the popup mid-run shows
     // the true state; resume the live poll whenever the center is running (the
     // background run-intent, not a popup flag, is the source of truth now).
-    const result = await chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_ACTIVE);
-    isActive.value = result[STORAGE_KEYS.TASK_CENTER_ACTIVE] === true;
     await loadConfig();
     if (apiBaseUrl.value) {
       config.value.apiUrl = apiBaseUrl.value;
@@ -432,16 +380,13 @@ export function useTaskCenter() {
   });
 
   return {
-    isActive,
     isStarting,
     config,
     state,
     error,
-    toggleTaskCenter,
     saveConfig,
     startTaskCenter,
     stopTaskCenter,
-    setCapability,
     formatTimestamp,
     initialize,
   };

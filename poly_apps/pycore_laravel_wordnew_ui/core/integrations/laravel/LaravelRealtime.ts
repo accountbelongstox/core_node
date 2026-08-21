@@ -40,11 +40,33 @@ export interface LaravelQueueChangedEvent {
   changed_at?: string | null;
 }
 
+export interface LaravelArticlePublishedEvent {
+  article_id: string;
+  source_key?: string | null;
+  title?: string | null;
+  language?: string | null;
+  article_type?: string | null;
+  source?: string | null;
+  audio_url?: string | null;
+  document_id?: string | number | null;
+}
+
+export interface LaravelArticleAudioReadyEvent {
+  article_id: string;
+  audio_url?: string | null;
+  tts_engine?: string | null;
+  tts_model?: string | null;
+  tts_chunked?: boolean;
+  audio_rebuilt_at?: string | null;
+}
+
 export const LARAVEL_REALTIME_EVENTS = {
   queueChanged: QUEUE_CENTER_REALTIME_EVENTS.queue_changed,
   wordAudioHead: QUEUE_CENTER_REALTIME_EVENTS.word_audio_head,
   sentenceAudioHead: QUEUE_CENTER_REALTIME_EVENTS.sentence_audio_head,
   workerPresence: QUEUE_CENTER_REALTIME_EVENTS.worker_presence,
+  articlePublished: 'article.published',
+  articleAudioReady: 'article.audio.ready',
 } as const;
 
 export type LaravelRealtimeEventName =
@@ -55,12 +77,14 @@ export type LaravelRealtimeEventPayloadMap = {
   [LARAVEL_REALTIME_EVENTS.wordAudioHead]: LaravelQueueHeadEvent;
   [LARAVEL_REALTIME_EVENTS.sentenceAudioHead]: LaravelQueueHeadEvent;
   [LARAVEL_REALTIME_EVENTS.workerPresence]: LaravelWorkerPresenceEvent;
+  [LARAVEL_REALTIME_EVENTS.articlePublished]: LaravelArticlePublishedEvent;
+  [LARAVEL_REALTIME_EVENTS.articleAudioReady]: LaravelArticleAudioReadyEvent;
 };
 
 type LaravelRealtimePayload = LaravelRealtimeEventPayloadMap[LaravelRealtimeEventName];
 type Handler = (payload: LaravelRealtimePayload) => void;
 
-interface QueueFrame {
+interface RealtimeFrame {
   event: LaravelRealtimeEventName;
   payload: Record<string, unknown>;
 }
@@ -79,7 +103,7 @@ class LaravelRealtime {
   private generation = 0;
   private replaying = false;
   private fallbackReplayActive = false;
-  private pendingFrames: QueueFrame[] = [];
+  private pendingFrames: RealtimeFrame[] = [];
   private handlers = new Map<string, Set<Handler>>();
 
   private handleBaseURLChanged = (): void => {
@@ -146,7 +170,7 @@ class LaravelRealtime {
     }
   }
 
-  private isQueueEvent(value: string): value is LaravelRealtimeEventName {
+  private isRealtimeEvent(value: string): value is LaravelRealtimeEventName {
     return Object.values(LARAVEL_REALTIME_EVENTS).includes(value as LaravelRealtimeEventName);
   }
 
@@ -162,7 +186,7 @@ class LaravelRealtime {
     }
   }
 
-  private dispatchFrame(frame: QueueFrame): void {
+  private dispatchFrame(frame: RealtimeFrame): void {
     const rawId = frame.payload._id;
     const id = typeof rawId === 'number' ? rawId : Number(rawId || 0);
     if (id > 0 && this.lastId !== null && id <= this.lastId) return;
@@ -177,7 +201,7 @@ class LaravelRealtime {
     while (hasMore) {
       const replay = await laravelApi.getQueueCenterEvents(this.lastId ?? 0);
       for (const item of replay.events) {
-        if (!this.isQueueEvent(item.event)) continue;
+        if (!this.isRealtimeEvent(item.event)) continue;
         this.dispatchFrame({ event: item.event, payload: item.data });
       }
       if (this.lastId === null || replay.cursor > this.lastId) this.lastId = replay.cursor;
@@ -198,14 +222,14 @@ class LaravelRealtime {
   }
 
   private handleMessage(event: string, value: unknown): void {
-    if (!this.isQueueEvent(event)) return;
+    if (!this.isRealtimeEvent(event)) return;
     const envelope = this.parseObject(value);
     if (!envelope) return;
     // Hub updates carry {event, data} envelopes; the SSE event type is the
     // canonical name - accept both shapes from one source of truth.
     const payload = this.parseObject(envelope.data) ?? envelope;
     if (!payload) return;
-    const eventName = (typeof envelope.event === 'string' && this.isQueueEvent(envelope.event))
+    const eventName = (typeof envelope.event === 'string' && this.isRealtimeEvent(envelope.event))
       ? envelope.event
       : event;
     const queueFrame = { event: eventName, payload };

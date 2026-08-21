@@ -236,7 +236,12 @@ def submit_queued_synthesis(
             "error": error or "queue submit failed",
             "client_job_id": stable_id,
         }
-    return {"ok": True, "client_job_id": stable_id, **job}
+    return {
+        "ok": True,
+        "client_job_id": stable_id,
+        **job,
+        **_queue_runtime_fields(job),
+    }
 
 
 def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
@@ -254,15 +259,73 @@ def poll_queued_synthesis(job_id: str, client_job_id: str) -> Dict[str, Any]:
             "client_job_id": client_job_id,
             "error": "queued synthesis job not found",
         }
-    counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
     return {
         "ok": True,
         "client_job_id": client_job_id,
-        "queue_pending": int(counts.get("pending") or 0),
-        "queue_running": int(counts.get("running") or 0),
+        **job,
+        **_queue_runtime_fields(snapshot),
+    }
+
+
+def _queue_runtime_fields(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    counts = snapshot.get("counts") if isinstance(snapshot.get("counts"), dict) else {}
+    gpu = snapshot.get("gpu") if isinstance(snapshot.get("gpu"), dict) else {}
+    synthesis = (
+        snapshot.get("synthesis_runtime")
+        if isinstance(snapshot.get("synthesis_runtime"), dict)
+        else {}
+    )
+    capacity = (
+        snapshot.get("capacity_plan")
+        if isinstance(snapshot.get("capacity_plan"), dict)
+        else {}
+    )
+    return {
+        "queue_pending": int(
+            counts.get("pending")
+            if counts.get("pending") is not None
+            else snapshot.get("queue_pending") or 0
+        ),
+        "queue_running": int(
+            counts.get("running")
+            if counts.get("running") is not None
+            else snapshot.get("queue_running") or 0
+        ),
         "average_elapsed_ms": int(snapshot.get("average_elapsed_ms") or 0),
         "task_timeout_s": float(snapshot.get("task_timeout_s") or 0.0),
-        **job,
+        "max_parallel": int(
+            snapshot.get("max_parallel") or capacity.get("batch_size") or 1
+        ),
+        "attention_implementation": str(
+            snapshot.get("attention_implementation") or ""
+        ),
+        "gpu_physical_index": int(
+            gpu.get("physical_index")
+            if gpu.get("physical_index") is not None
+            else gpu.get("index") or 0
+        ),
+        "gpu_name": str(gpu.get("name") or capacity.get("gpu_name") or ""),
+        "gpu_compute_capability": str(
+            gpu.get("compute_capability")
+            or capacity.get("compute_capability")
+            or ""
+        ),
+        "gpu_available": bool(gpu.get("available")),
+        "gpu_util_percent": float(gpu.get("util_percent") or 0.0),
+        "gpu_mem_used_mb": int(gpu.get("mem_used_mb") or 0),
+        "gpu_mem_total_mb": int(gpu.get("mem_total_mb") or 0),
+        "synthesis_phase": str(synthesis.get("phase") or "idle"),
+        "synthesis_work_kind": str(synthesis.get("work_kind") or ""),
+        "active_native_batch": int(
+            synthesis.get("active_native_batch") or 0
+        ),
+        "synthesis_chunks_total": int(synthesis.get("chunks_total") or 0),
+        "synthesis_chunks_completed": int(
+            synthesis.get("chunks_completed") or 0
+        ),
+        "synthesis_running_elapsed_ms": int(
+            synthesis.get("running_elapsed_ms") or 0
+        ),
     }
 
 

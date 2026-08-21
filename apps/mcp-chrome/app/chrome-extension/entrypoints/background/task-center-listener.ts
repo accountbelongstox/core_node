@@ -11,6 +11,7 @@ import {
   clearRunIntent,
 } from './services/task-center/run-intent';
 import {
+  CAPABILITIES,
   CAPABILITY_BY_KEY,
   capabilitiesForProcessors,
   processorsForCapabilities,
@@ -28,7 +29,7 @@ import { submitOutbox } from './services/outbox/submit-outbox';
 import { LANES } from '@/utils/task-center-lanes';
 import { runWordValidityClassification } from './services/word-validity/word-validity-web-runtime';
 import type { AiWebProvider } from './tools/browser/ai-web-common';
-import { STORAGE_KEYS } from '@/utils/storage-keys';
+import { STORAGE_KEYS, UI_STORAGE_PREFIX } from '@/utils/storage-keys';
 import { AsyncOperationController } from '@/utils/async';
 import { DEFAULT_API_BASE_URL } from '@/config/api-endpoints';
 
@@ -42,6 +43,12 @@ const TASK_CENTER_WATCHDOG_ALARM = STORAGE_KEYS.TASK_CENTER_WATCHDOG_ALARM;
 const BING_WATCHDOG_ALARM = STORAGE_KEYS.BING_WATCHDOG_ALARM;
 const WATCHDOG_PERIOD_MINUTES = 1;
 const runtimeRestore = new AsyncOperationController<void>();
+const CAPABILITY_BY_STORAGE_KEY = new Map<string, CapabilityKey>(
+  CAPABILITIES.map((capability) => [
+    `${UI_STORAGE_PREFIX}${capability.storageKey}`,
+    capability.key,
+  ]),
+);
 
 /**
  * Last successful start config, so a live `set_capability` toggle can start a
@@ -82,6 +89,9 @@ export function initTaskCenterListener() {
   chrome.runtime.onInstalled.addListener(() => {
     void restoreTaskCenterRuntime();
   });
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') void applyCapabilityStorageChanges(changes);
+  });
   console.log('[Task Center Listener] Initialized');
 }
 
@@ -95,9 +105,50 @@ async function buildFullStatus(): Promise<FullTaskCenterStatus> {
   const intent = await getRunIntent();
   return {
     ...status,
-    activeApiUrl: lastStartConfig?.apiUrl || null,
+    activeApiUrl: lastStartConfig?.apiUrl || intent.apiUrl || null,
     activeCapabilities: intent.activeCapabilities,
   };
+}
+
+async function persistCapabilitySelection(activeCapabilities: CapabilityKey[]): Promise<void> {
+  const active = new Set(activeCapabilities);
+  const values = Object.fromEntries(
+    CAPABILITIES.map((capability) => [
+      `${UI_STORAGE_PREFIX}${capability.storageKey}`,
+      active.has(capability.key),
+    ]),
+  );
+  try {
+    await chrome.storage.local.set(values);
+  } catch (error) {
+    console.error('[Task Center] Failed to persist capability selection:', error);
+  }
+}
+
+async function getPersistedCapabilitySelection(): Promise<CapabilityKey[]> {
+  const storageKeys = CAPABILITIES.map((capability) =>
+    `${UI_STORAGE_PREFIX}${capability.storageKey}`,
+  );
+  const values = await chrome.storage.local.get(storageKeys);
+
+  return CAPABILITIES
+    .filter((capability) => values[`${UI_STORAGE_PREFIX}${capability.storageKey}`] === true)
+    .map((capability) => capability.key);
+}
+
+async function applyCapabilityStorageChanges(
+  changes: Record<string, { newValue?: unknown; oldValue?: unknown }>,
+): Promise<void> {
+  for (const [storageKey, change] of Object.entries(changes)) {
+    const capability = CAPABILITY_BY_STORAGE_KEY.get(storageKey);
+    if (!capability || typeof change.newValue !== 'boolean') continue;
+    await runLifecycleAction(() => handleSetCapability(
+      capability,
+      change.newValue === true,
+      undefined,
+      () => undefined,
+    ));
+  }
 }
 
 async function persistTaskCenterRuntime(
@@ -105,8 +156,22 @@ async function persistTaskCenterRuntime(
   config: TaskCenterConfig | null,
 ): Promise<void> {
   const payload: PersistedTaskCenterRuntime = { running, config: running ? config : null };
+
+  if (running && config) {
+    try {
+      await chrome.storage.local.set({ [STORAGE_KEYS.TASK_CENTER_CONFIG]: config });
+    } catch (error) {
+      console.error('[Task Center] Failed to persist configuration:', error);
+    }
+  }
+
   try {
     await chrome.storage.session.set({ [TASK_CENTER_RUNTIME_KEY]: payload });
+  } catch (error) {
+    console.error('[Task Center] Failed to persist session runtime:', error);
+  }
+
+  try {
     if (running) {
       await chrome.alarms.create(TASK_CENTER_WATCHDOG_ALARM, {
         delayInMinutes: WATCHDOG_PERIOD_MINUTES,
@@ -116,16 +181,17 @@ async function persistTaskCenterRuntime(
       await chrome.alarms.clear(TASK_CENTER_WATCHDOG_ALARM);
     }
   } catch (error) {
-    console.error('[Task Center] Failed to persist runtime:', error);
+    console.error('[Task Center] Failed to reconcile watchdog:', error);
   }
 }
 
 async function performRuntimeRestore(): Promise<void> {
   const restoreEpoch = runtimeEpoch;
 
-  const [intent, stored] = await Promise.all([
+  const [intent, stored, localStored] = await Promise.all([
     getRunIntent(),
     chrome.storage.session.get(TASK_CENTER_RUNTIME_KEY),
+    chrome.storage.local.get(STORAGE_KEYS.TASK_CENTER_CONFIG),
   ]);
   if (restoreEpoch !== runtimeEpoch) return;
 
@@ -137,14 +203,21 @@ async function performRuntimeRestore(): Promise<void> {
   }
   const activeCapabilities = sanitizeCapabilities(intent.activeCapabilities);
   const enabledProcessors = processorsForCapabilities(activeCapabilities);
+  const localConfig = localStored[STORAGE_KEYS.TASK_CENTER_CONFIG] as TaskCenterConfig | undefined;
   const runtimeConfig: TaskCenterConfig = runtime?.running && runtime.config?.apiUrl
     ? runtime.config
-    : {
-        apiUrl: intent.apiUrl || DEFAULT_API_BASE_URL,
-        processors: {},
-        activeCapabilities,
-        enabledProcessors,
-      };
+    : localConfig?.apiUrl
+      ? {
+          ...localConfig,
+          apiUrl: intent.apiUrl || localConfig.apiUrl,
+          processors: { ...(localConfig.processors || {}) },
+        }
+      : {
+          apiUrl: intent.apiUrl || DEFAULT_API_BASE_URL,
+          processors: {},
+          activeCapabilities,
+          enabledProcessors,
+        };
 
   const processors = { ...(runtimeConfig.processors || {}) };
   if (enabledProcessors.includes(LANES.BING_DICTIONARY)) {
@@ -174,6 +247,7 @@ async function performRuntimeRestore(): Promise<void> {
     }
     lastStartConfig = config;
     await persistTaskCenterRuntime(true, config);
+    await persistCapabilitySelection(activeCapabilities);
     if (restoreEpoch !== runtimeEpoch) {
       if (centerStarted) taskCenter.stopAll();
       if (lastStartConfig === config) lastStartConfig = null;
@@ -461,6 +535,7 @@ async function handleStart(
   lastStartConfig = config;
   await setRunIntent({ running: true, activeCapabilities, apiUrl: config.apiUrl });
   await persistTaskCenterRuntime(true, config);
+  await persistCapabilitySelection(activeCapabilities);
 
   sendResponse({
     success: true,
@@ -529,7 +604,20 @@ async function handleSetCapability(
   const def = CAPABILITY_BY_KEY[capability];
   const intent = await getRunIntent();
   if (!intent.running) {
-    sendResponse({ success: false, error: 'Start Task Center before changing capabilities' });
+    const selectedCapabilities = await getPersistedCapabilitySelection();
+    const selectedSet = new Set(selectedCapabilities);
+    const wasSelected = selectedSet.has(capability);
+    if (wasSelected !== enabled) {
+      if (enabled) selectedSet.add(capability);
+      else selectedSet.delete(capability);
+      await persistCapabilitySelection(Array.from(selectedSet));
+    }
+    sendResponse({ success: true, status: await buildFullStatus() });
+    return;
+  }
+  const wasEnabled = intent.activeCapabilities.includes(capability);
+  if (wasEnabled === enabled) {
+    sendResponse({ success: true, status: await buildFullStatus() });
     return;
   }
   const capSet = new Set(intent.activeCapabilities);
@@ -606,6 +694,7 @@ async function handleSetCapability(
   lastStartConfig = nextConfig;
   await setRunIntent({ running: true, activeCapabilities, apiUrl: nextConfig.apiUrl });
   await persistTaskCenterRuntime(true, nextConfig);
+  await persistCapabilitySelection(activeCapabilities);
 
   sendResponse({ success: true, status: await buildFullStatus() });
 }

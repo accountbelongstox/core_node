@@ -9,6 +9,7 @@ import { laravelApi, pycoreApi, ttsConcurrencyAnnotation, ttsEngineUiState } fro
 import type { TtsEngine, TtsStatus } from '@/apps/pycore-manager/api';
 import { useQueueCenterHub } from '../hooks/useQueueCenterHub';
 import { PcWordAudioLog, type PcWordAudioLogRow } from './PcWordAudioLog';
+import { PcAudioDeliveryOutboxStatus } from './PcAudioDeliveryOutboxStatus';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 const LOG_LIMIT = 1000;
@@ -198,6 +199,13 @@ export function PcWordAudioPanel(): ReactElement {
               claimed {wordSection.worker.claimed ?? 0} · ok {wordSection.worker.ok ?? 0} · fail {wordSection.worker.fail ?? 0}
           </span>
         </div>
+
+          <PcAudioDeliveryOutboxStatus
+            lane="word"
+            running={worker?.delivery_outbox_running}
+            status={worker?.delivery_outbox}
+            onChanged={hub.refreshHub}
+          />
 
           <p className="rounded border border-sky-700/40 bg-sky-950/20 px-2 py-1 text-[10px] text-sky-300/90">
             One Pycore worker claims canonical missing-audio rows from Laravel. Engine priority and concurrency apply to

@@ -126,8 +126,9 @@ def tick_pipeline() -> None:
                     op_service.complete(op.id, "All items finished")
                 active_ops = []
 
-        # Legacy audio is a strict prerequisite. One small idempotent rebuild
-        # progression step runs per tick until every record is multi-sentence.
+        # Legacy audio is a strict prerequisite. A bounded set of independent
+        # rebuild steps feeds the shared Qwen queue so it can batch and run in
+        # parallel until every record is multi-sentence.
         if audio_rebuild.pending_rebuild_count() > 0:
             audio_rebuild.piggyback_rebuild_tick()
             return
@@ -253,7 +254,7 @@ def _fail_item(item, error: Exception, op_service: Any) -> None:
     )
 
 def _piggyback_upload_tick() -> None:
-    """Network-upload piggyback: drain EVERYTHING not yet on Laravel main.
+    """Advance one minimum step in each Laravel delivery lane.
 
     Two ordered halves, each record one independent idempotent step (one
     record's failure never affects the next):
@@ -266,9 +267,8 @@ def _piggyback_upload_tick() -> None:
          multi-sentence audio has not replaced the legacy bytes yet
          (``rebuild_uploaded`` unset). Stamps ``rebuild_uploaded``.
 
-    A short consecutive-failure circuit stops the lane for THIS tick when
-    the network is down (bounded timeouts); records stay pending and retry
-    on the next connected tick - nothing is marked failed here."""
+    Each failed record owns its retry counter and bounded backoff. A failure
+    therefore defers only that record and cannot block later audio forever."""
     if not laravel_endpoint_manager.resolve():
         return
     _drain_initial_uploads()
@@ -288,41 +288,39 @@ def _drain_initial_uploads() -> None:
         pending = records.pending_uploads()
     except Exception:  # noqa: BLE001 - lane must never break the tick
         return
-    consecutive_failures = 0
-    for record in pending:
-        record_id = str(record.get("id") or "")
-        if not record_id:
-            continue
-        try:
-            audio_bytes = records.read_audio(record_id)
-            audio: Dict[str, Any] = {}
-            if audio_bytes:
-                audio["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
-                audio["engine"] = record.get("tts_engine") or "local"
-                audio["model"] = record.get("tts_model")
-                audio["chunked"] = bool(record.get("tts_chunked"))
-            laravel_data = upload_to_laravel(
-                {
-                    "title_en": record.get("title_en"),
-                    "title_cn": record.get("title_cn"),
-                    "reference_cn": record.get("reference_cn"),
-                    "article_en": record.get("article_en"),
-                },
-                audio,
-                "",
-                record_id,
-            )
-            records.mark_uploaded(record_id, laravel_data)
-            consecutive_failures = 0
-            ColorPrint.green(
-                f"[AgentHistoryPipeline] deferred upload succeeded for record {record_id}: "
-                f"{laravel_data.get('article_id')}"
-            )
-        except Exception as exc:  # noqa: BLE001 - defer this record, keep the lane
-            consecutive_failures += 1
-            ColorPrint.gray(f"[AgentHistoryPipeline] upload retry deferred ({record_id}): {exc}")
-            if consecutive_failures >= 2:
-                return
+    record = pending[0] if pending else None
+    if not isinstance(record, dict):
+        return
+    record_id = str(record.get("id") or "")
+    if not record_id:
+        return
+    try:
+        audio_bytes = records.read_audio(record_id)
+        audio: Dict[str, Any] = {}
+        if audio_bytes:
+            audio["audio_base64"] = base64.b64encode(audio_bytes).decode("ascii")
+            audio["engine"] = record.get("tts_engine") or "local"
+            audio["model"] = record.get("tts_model")
+            audio["chunked"] = bool(record.get("tts_chunked"))
+        laravel_data = upload_to_laravel(
+            {
+                "title_en": record.get("title_en"),
+                "title_cn": record.get("title_cn"),
+                "reference_cn": record.get("reference_cn"),
+                "article_en": record.get("article_en"),
+            },
+            audio,
+            "",
+            record_id,
+        )
+        records.mark_uploaded(record_id, laravel_data)
+        ColorPrint.green(
+            f"[AgentHistoryPipeline] deferred upload succeeded for record {record_id}: "
+            f"{laravel_data.get('article_id')}"
+        )
+    except Exception as exc:  # noqa: BLE001 - defer only this record
+        records.mark_upload_failed(record_id, str(exc))
+        ColorPrint.gray(f"[AgentHistoryPipeline] upload retry deferred ({record_id}): {exc}")
 
 
 def _drain_rebuild_uploads() -> None:
@@ -330,40 +328,38 @@ def _drain_rebuild_uploads() -> None:
         pending = records.pending_rebuild_uploads()
     except Exception:  # noqa: BLE001 - lane must never break the tick
         return
-    consecutive_failures = 0
-    for record in pending:
-        record_id = str(record.get("id") or "")
-        if not record_id:
-            continue
-        try:
-            audio_bytes = records.read_audio(record_id) or b""
-            if not audio_bytes:
-                # The local multi-sentence file is gone - clear the marker so
-                # the rebuild lane regenerates the record instead of the
-                # upload lane retrying an impossible delivery forever.
-                records.clear_rebuild_marker(record_id)
-                consecutive_failures = 0
-                continue
-            laravel_data = replace_audio_on_laravel(
-                record,
-                {
-                    "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
-                    "engine": record.get("tts_engine") or "local",
-                    "model": record.get("tts_model"),
-                    "chunked": bool(record.get("tts_chunked")),
-                },
-            )
-            records.mark_rebuild_uploaded(record_id, laravel_data)
-            consecutive_failures = 0
-            ColorPrint.green(
-                f"[AgentHistoryPipeline] rebuilt audio replaced on Laravel for record {record_id}: "
-                f"{laravel_data.get('article_id')}"
-            )
-        except Exception as exc:  # noqa: BLE001 - defer this record, keep the lane
-            consecutive_failures += 1
-            ColorPrint.gray(f"[AgentHistoryPipeline] rebuild upload deferred ({record_id}): {exc}")
-            if consecutive_failures >= 2:
-                return
+    record = pending[0] if pending else None
+    if not isinstance(record, dict):
+        return
+    record_id = str(record.get("id") or "")
+    if not record_id:
+        return
+    try:
+        audio_bytes = records.read_audio(record_id) or b""
+        if not audio_bytes:
+            # The local multi-sentence file is gone - clear the marker so
+            # the rebuild lane regenerates the record instead of the
+            # upload lane retrying an impossible delivery forever.
+            records.clear_rebuild_marker(record_id)
+            return
+        laravel_data = replace_audio_on_laravel(
+            record,
+            {
+                "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+                "engine": record.get("tts_engine") or "local",
+                "model": record.get("tts_model"),
+                "chunked": bool(record.get("tts_chunked")),
+            },
+        )
+        records.mark_rebuild_uploaded(record_id, laravel_data)
+        ColorPrint.green(
+            f"[AgentHistoryPipeline] rebuilt audio replaced on Laravel for record {record_id}: "
+            f"{laravel_data.get('article_id')}"
+        )
+    except Exception as exc:  # noqa: BLE001 - defer only this record
+        records.mark_rebuild_upload_failed(record_id, str(exc))
+        ColorPrint.gray(f"[AgentHistoryPipeline] rebuild upload deferred ({record_id}): {exc}")
+
 
 def _is_item_terminal(item) -> bool:
     """Terminal = done/skipped/cancelled, or failed past the retry cap."""

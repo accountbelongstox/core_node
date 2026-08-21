@@ -171,6 +171,7 @@ return [
             'run_count' => 'int',
             'error_count' => 'int',
             'last_duration' => 'float',
+            'last_error' => 'string:1024',
         ],
     ],
 

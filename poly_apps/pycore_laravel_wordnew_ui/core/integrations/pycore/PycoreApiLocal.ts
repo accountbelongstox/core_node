@@ -278,12 +278,7 @@ export const pycoreApiLocal = {
     concurrency?: number;
     speaker?: string;
   }) => requestPycoreHttp(PYCORE_HTTP_ROUTES.sentenceAudioConfig, config),
-  /**
-   * UI-pump dispatch entry: hands ONE claimed task payload to pycore
-   * (in-memory only, never persisted by pycore). Pycore routes it by
-   * task_type/capability to the owning worker lane, processes it, and
-   * uploads the result straight to Laravel; the pump awaits this RPC.
-   */
+  /** Dispatch one claimed task to the owning durable Pycore worker lane. */
   acceptQueueCenterTask: (payload: { task: GlobalTaskWorkerRecord; laravel_endpoint?: string | null }) =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterAcceptTask, payload),
   getQueueCenterSnapshot: (refresh = false) =>
@@ -292,6 +287,8 @@ export const pycoreApiLocal = {
       data?: Record<string, unknown>;
       error?: string;
     }>,
+  retryAudioDelivery: (lane: 'all' | 'word' | 'sentence' = 'all') =>
+    requestPycoreHttp(PYCORE_HTTP_ROUTES.queueCenterRetryAudioDelivery, { lane }),
 
   getTaskCapabilityChains: () =>
     requestPycoreHttp(PYCORE_HTTP_ROUTES.taskSettingsChains, {}),

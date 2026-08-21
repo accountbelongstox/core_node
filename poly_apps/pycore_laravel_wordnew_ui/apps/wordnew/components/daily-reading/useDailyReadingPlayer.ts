@@ -364,7 +364,6 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
           'zh',
           currentSettings.newOnlyMaxReadCount,
           groupId,
-          { prioritizeImages: false },
         );
       } catch {
         table = [];
@@ -798,7 +797,6 @@ export function useDailyReadingPlayer(): DailyReadingPlayer {
         'zh',
         settingsRef.current.newOnlyMaxReadCount,
         groupId,
-        { prioritizeImages: false },
       ).then((freshRows) => {
         if (
           indexRef.current !== expectedIndex

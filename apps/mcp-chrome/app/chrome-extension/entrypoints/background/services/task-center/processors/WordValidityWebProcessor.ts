@@ -8,4 +8,5 @@ export const wordValidityWebProcessor = new WorkerServiceProcessorBase({
   workerName: 'MCP Chrome Word-Validity Web Worker',
   service: wordValidityWebWorkerService,
   processorTypes: [LANES.REMOTE_VALIDITY],
+  maxBatchSize: 1,
 });

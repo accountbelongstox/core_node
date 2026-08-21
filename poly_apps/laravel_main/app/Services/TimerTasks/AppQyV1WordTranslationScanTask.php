@@ -21,14 +21,14 @@ use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
  * The default target language is Chinese (zh); the source language is whatever
  * dictionary the words live in.
  */
-class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
+class AppQyV1WordTranslationScanTask extends QueueFeederTaskAbstract
 {
     // Background priority. Lower than FE-enqueued visible words (HIGH = 100).
     private const PRIORITY_LOW = 0;
 
     private const TARGET_LANGUAGE = 'zh';
     private const WORDS_PER_TASK = 40;
-    private const MAX_TASKS_PER_LANGUAGE = 2;
+    private const MAX_TASKS_PER_LANGUAGE = 1;
 
     public function getInterval(): int
     {
@@ -47,46 +47,35 @@ class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
         foreach ($languages as $langCode) {
             // Do not pile up: skip languages that already have plenty of pending
             // background word_translation tasks waiting.
-            $pendingCount = $this->countPendingForLanguage($langCode);
+            $pendingCount = $this->liveTaskCount('word_translation', [
+                'language' => AppQyV1DictionaryService::getLanguageCode($langCode),
+                'target_language' => AppQyV1DictionaryService::getLanguageCode(self::TARGET_LANGUAGE),
+            ]);
             if ($pendingCount >= self::MAX_TASKS_PER_LANGUAGE) {
                 continue;
             }
 
-            $model = AppQyV1LangDictionaryModel::forLanguage($langCode)->getModel();
-            $scope = 'word_translation:' . $langCode . ':' . $model->getTable();
-            $limit = self::WORDS_PER_TASK * (self::MAX_TASKS_PER_LANGUAGE - $pendingCount);
-            $page = $this->rowsForPendingPage(
-                $scope,
-                $model,
-                $limit,
-                static fn (array $ids): array => AppQyV1LangDictionaryModel::pendingTranslationRows(
-                    $langCode,
-                    $ids
-                )
-            );
-            $words = array_values(array_filter(
-                $page['rows'],
-                static fn (array $row): bool => $row['word'] !== ''
-            ));
-            if ($words === [] && ($page['page'] ?? 0) === 0) {
+            $words = AppQyV1LangDictionaryModel::untranslatedRows(
+                $langCode,
+                self::WORDS_PER_TASK
+            )
+                ->pluck('content')
+                ->map(static fn ($word): string => trim((string) $word))
+                ->filter(static fn (string $word): bool => $word !== '')
+                ->values()
+                ->all();
+            if ($words === []) {
                 continue;
             }
 
-            $pageFailed = false;
             try {
-                foreach (array_chunk(array_column($words, 'word'), self::WORDS_PER_TASK) as $chunk) {
-                    $this->createTask($langCode, $chunk);
-                    $totalCreated++;
-                }
+                $this->createTask($langCode, $words);
+                $totalCreated++;
             } catch (\Throwable $e) {
-                $pageFailed = true;
                 $this->logWarning('Background word_translation page failed', [
                     'language' => $langCode,
                     'error' => $e->getMessage(),
                 ]);
-            }
-            if (!$pageFailed) {
-                $this->consumePendingPage($scope, $page);
             }
         }
 
@@ -95,27 +84,6 @@ class AppQyV1WordTranslationScanTask extends DiffQueueFeederTaskAbstract
                 'total_tasks' => $totalCreated,
             ]);
         }
-    }
-
-    private function countPendingForLanguage(string $languageCode): int
-    {
-        $langCode = AppQyV1DictionaryService::getLanguageCode($languageCode);
-        $targetCode = AppQyV1DictionaryService::getLanguageCode(self::TARGET_LANGUAGE);
-
-        // Count at the DB by the normalized codes stored in the JSON payload,
-        // instead of loading every pending task's payload and counting in PHP
-        // once per language per 60s tick. The (app_name, task_type, status)
-        // predicate is index-backed; the JSON predicate runs on that subset.
-        return GlobalTask::liveTaskCount(
-            'AppQyV1',
-            ['word_translation'],
-            [
-                GlobalTask::status('pending'),
-                GlobalTask::status('assigned'),
-                GlobalTask::status('processing'),
-            ],
-            ['language' => $langCode, 'target_language' => $targetCode]
-        );
     }
 
     private function createTask(string $language, array $words): void

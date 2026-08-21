@@ -25,8 +25,8 @@ Contract enforced here:
     while being called, and is auto-stopped after `idle_shutdown_s` (default
     180s = 3 minutes; 0 disables) with no calls. Keys: TTS `server_idle_shutdown_s`,
     STT `model_idle_shutdown_s`.
-  - idempotent start on call: `ensure_running(name)` / `lease(name)` reuse a
-    running service instead of re-starting.
+  - idempotent start on call: `ensure_running(name)`, `lease(name)`, and
+    `retain_async(name, owner, ttl_s)` reuse a running service.
   - single-active applies to kind=="server" ONLY: starting one server stops the
     OTHER servers in the SAME category ("tts"/"stt") - EXCEPT any peer with an
     in-flight call (in-flight > 0 is never killed). Starting a class-B model
@@ -220,6 +220,7 @@ class ManagedServiceManager:
         self._last_activity: Dict[str, float] = {}
         # Busy tokens are mutated only by the serialized state owner.
         self._in_flight: Dict[str, set] = {}
+        self._async_holds: Dict[str, Dict[str, float]] = {}
         # server health cache (short TTL - status polls hit many at once)
         self._run_cache: Dict[str, Tuple[float, bool]] = {}
         self._active_server_by_category: Dict[str, str] = {}
@@ -531,7 +532,16 @@ class ManagedServiceManager:
     @serialized_method
     def in_flight(self, name: str) -> int:
         tokens = self._in_flight.get(name)
-        return len(tokens) if tokens else 0
+        holds = self._async_holds.get(name)
+        if holds:
+            now = time.monotonic()
+            expired = [owner for owner, deadline in holds.items() if deadline <= now]
+            for owner in expired:
+                holds.pop(owner, None)
+            if not holds:
+                self._async_holds.pop(name, None)
+                holds = None
+        return (len(tokens) if tokens else 0) + (len(holds) if holds else 0)
 
     # --- start / stop --------------------------------------------------- #
 
@@ -978,6 +988,9 @@ class ManagedServiceManager:
         if tokens is not None:
             tokens.discard(token)
         self._touch(name)
+        self._after_busy_release(name)
+
+    def _after_busy_release(self, name: str) -> None:
         spec = self._specs.get(name)
         if spec is None or self.in_flight(name) > 0:
             return
@@ -990,6 +1003,49 @@ class ManagedServiceManager:
         active_name = self._active_server_by_category.get(spec.category)
         if settings.get("single_active", True) and active_name and active_name != name:
             self.stop(name)
+
+    @serialized_method
+    def retain_async(
+        self,
+        name: str,
+        owner: str,
+        ttl_s: float,
+        *,
+        force: bool = False,
+    ) -> bool:
+        """Keep a queued server-side operation busy across short HTTP polls."""
+        owner_key = str(owner or "").strip()
+        if not owner_key:
+            raise ValueError("async service hold owner is required")
+        spec = self._specs.get(name)
+        if spec is None:
+            return True
+        try:
+            ready = self.ensure_running(name, force=force)
+        except Exception as exc:  # noqa: BLE001
+            raise ManagedServiceUnavailable(
+                f"managed service {name} failed to start"
+            ) from exc
+        if not ready:
+            raise ManagedServiceUnavailable(f"managed service {name} is unavailable")
+        holds = self._async_holds.setdefault(name, {})
+        is_new = owner_key not in holds
+        holds[owner_key] = time.monotonic() + max(_WATCHDOG_POLL_S * 2.0, float(ttl_s))
+        if is_new and spec.on_acquired is not None:
+            spec.on_acquired()
+        self._touch(name)
+        return True
+
+    @serialized_method
+    def release_async(self, name: str, owner: str) -> None:
+        owner_key = str(owner or "").strip()
+        holds = self._async_holds.get(name)
+        if holds is not None:
+            holds.pop(owner_key, None)
+            if not holds:
+                self._async_holds.pop(name, None)
+        self._touch(name)
+        self._after_busy_release(name)
 
     @contextmanager
     def lease(self, name: str, *, force: bool = False):

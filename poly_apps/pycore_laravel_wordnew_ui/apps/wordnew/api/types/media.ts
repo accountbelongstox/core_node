@@ -29,9 +29,15 @@ export interface WfNewAgentArticle {
   article_id?: string | null;
   article_type?: string | null;
   source?: string | null;
+  source_identity?: string | null;
   audio_url?: string | null;
   audio_ready?: boolean;
   audio_status?: string | null;
+  tts_engine?: string | null;
+  tts_model?: string | null;
+  tts_chunked?: boolean;
+  audio_generation_type?: 'multi_sentence' | 'legacy';
+  audio_rebuilt_at?: string | null;
   language?: string | null;
   tts_generated?: boolean;
   word_count?: number | null;
@@ -39,6 +45,21 @@ export interface WfNewAgentArticle {
   reading_date?: string | null;
   created_at?: string | null;
   document_id?: string | null;
+}
+
+export interface WfNewAgentArticlePage {
+  items: WfNewAgentArticle[];
+  total: number;
+  limit: number;
+  offset: number;
+  statistics?: {
+    total: number;
+    rawTotal: number;
+    historicalDuplicates: number;
+    multiSentence: number;
+    legacyAudio: number;
+    rebuilt: number;
+  };
 }
 
 export interface WfNewQueueCommandItem {

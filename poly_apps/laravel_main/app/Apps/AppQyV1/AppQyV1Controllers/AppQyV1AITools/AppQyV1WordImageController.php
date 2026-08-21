@@ -80,10 +80,8 @@ class AppQyV1WordImageController extends Controller
      *
      * Resolves the word's canonical dictionary row (matched by md5(word)) and,
      * FILE-FIRST, 302-redirects to the resolved md5 file's stable serve URL when
-     * an image is on disk. On a miss it enqueues the word + bumps a 'word_media'
-     * task to the front (via AppQyV1WordMediaService) and returns a tiny 1x1
-     * transparent PNG with HTTP 202 so an <img> tag degrades gracefully while the
-     * real image is produced.
+     * an image is on disk. A miss returns 404 because single words do not create
+     * image-generation work.
      *
      * The existing md5-path route GET /static/app_qy_v1/word_images/{path}
      * (serve() above) is unchanged and keeps winning the match for any path that
@@ -96,7 +94,7 @@ class AppQyV1WordImageController extends Controller
     {
         $word = trim(urldecode($word));
         if ($word === '' || str_contains($word, '..') || str_contains($word, '/') || str_contains($word, '\\')) {
-            return $this->pendingPixel();
+            abort(404);
         }
 
         $langCode = AppQyV1DictionaryService::getLanguageCode($lang);
@@ -112,27 +110,6 @@ class AppQyV1WordImageController extends Controller
             }
         }
 
-        // Miss: enqueue + bump the word to the front, then return a placeholder.
-        $service->bumpQueriedWord($row, $word, $langCode, null);
-
-        return $this->pendingPixel();
-    }
-
-    /**
-     * A 1x1 transparent PNG returned with HTTP 202 while the real image is being
-     * produced (so a hot <img src> degrades gracefully and is never cached long).
-     */
-    private function pendingPixel(): Response
-    {
-        // 1x1 transparent PNG.
-        $png = base64_decode(
-            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-        );
-
-        return response($png, 202, [
-            'Content-Type' => 'image/png',
-            'Cache-Control' => 'no-store, max-age=0',
-            'X-Word-Image-Status' => 'pending',
-        ]);
+        abort(404);
     }
 }

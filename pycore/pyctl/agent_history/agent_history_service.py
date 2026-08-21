@@ -44,11 +44,10 @@ from pycore.pyfoundations.serialized_worker import (
 )
 from pycore.pyutils.common.status_snapshot_cache import status_snapshot_cache
 
-PROMPTS_CAP = 8000
 MATERIALIZE_CAP = 100
 ID_PAGE_SIZE_CAP = 1000
 EXTRACT_PROBE_SOURCE_CAP = 25
-EXTRACTOR_SCHEMA_REVISION = "2026-08-20.2"
+EXTRACTOR_SCHEMA_REVISION = "2026-08-21.2"
 TOOL_SOURCE_REVISIONS_CACHE_KEY = "agent_history.tool_source_revisions"
 TOOL_STATISTICS_CACHE_PREFIX = "agent_history.tool_statistics."
 TOOL_EXTRACT_PROBE_CACHE_PREFIX = "agent_history.extract_probe."
@@ -318,9 +317,6 @@ class AgentHistoryService:
             prompts = [p for p in prompts if p.get("session_id") not in drop]
             prompts.extend(append_prompts)
             prompts.sort(key=lambda p: p.get("ts") or 0, reverse=True)
-            if len(prompts) > PROMPTS_CAP:
-                prompts = prompts[:PROMPTS_CAP]
-
             sessions = list(summaries.values())
             sessions.sort(key=lambda s: s.get("started_ts") or 0, reverse=True)
             tools = sorted({s.get("tool") for s in sessions if s.get("tool")})
@@ -677,6 +673,7 @@ class AgentHistoryService:
             "tool": key,
             "sessions": 0,
             "history_records": 0,
+            "content_records": 0,
             "processed": 0,
             "pending": 0,
             "prompts": 0,
@@ -839,7 +836,8 @@ class AgentHistoryService:
             result: Dict[str, Any] = {
                 "tool": tool,
                 "sessions": session_counts.get(tool, 0),
-                "history_records": counts["total"],
+                "history_records": counts["prompts"],
+                "content_records": counts["total"],
                 "processed": counts["processed"],
                 "pending": counts["pending"],
                 "prompts": counts["prompts"],
@@ -875,10 +873,11 @@ class AgentHistoryService:
         if extractor is None:
             return {"ok": False, "tool": key, "error": "unknown tool", "sources": 0}
 
-        sources: List[Dict[str, Any]] = []
+        sources_by_path: Dict[str, Dict[str, Any]] = {}
         for home, user in user_homes().items():
             for d in extractor.discover(home, user):
-                sources.append({**d, "user": user})
+                sources_by_path[str(d.get("path") or "")] = {**d, "user": user}
+        sources = list(sources_by_path.values())
         if not sources:
             return {"ok": False, "tool": key, "error": "no history source found", "sources": 0}
 

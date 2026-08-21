@@ -340,7 +340,7 @@
         "storage_key": "tkCapValidity",
         "label": "Word validity and translation",
         "hint": "Pull unchecked or untranslated words from the backend vocabulary library and process them with DeepSeek",
-        "processors": ["word_validity_web"]
+        "processors": ["bing_dictionary", "word_validity_web"]
       },
       "notebooklm": {
         "storage_key": "tkCapNotebooklm",

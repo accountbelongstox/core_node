@@ -15,8 +15,8 @@ use App\Http\Controllers\Controller;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1LangDictionaryModel;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1ExternalStorageManager;
 use App\Apps\AppQyV1\Utils\AppQyV1SystemInit\AppQyV1InitializationMarkerManager;
-use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1AITools\AppQyV1TranslationQueueController;
 use App\Apps\AppQyV1\AppQyV1Services\AppQyV1DictionaryService;
+use App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordTranslationQueueService;
 use App\Apps\AppQyV1\AppQyV1Controllers\AppQyV1Public\AppQyV1PersonalDictionaryQueryBasePublicController as PDQBasePublic;
 use App\Apps\AppQyV1\Utils\Dict\AppQyV1DictWrap as DictWrap;
 use Illuminate\Http\Request;
@@ -96,13 +96,9 @@ class AppQyV1WordQueryController extends Controller
      */
     private function bumpUntranslatedQuery($dictionary, string $word, string $langCode, ?string $targetLanguage): void
     {
-        // On-query media prioritization (P5): when the queried word lacks IMAGE
-        // OR AUDIO OR TRANSLATION, ensure a 'word_media' global task exists and
-        // bump it (plus the per-resource image/tts priority) to the FRONT. Cheap
-        // and non-blocking — the service swallows its own failures. This runs
-        // even with no target_language (image/audio are language-agnostic).
+        // Pronunciation and translation use their canonical queue components.
         app(\App\Apps\AppQyV1\AppQyV1Services\AppQyV1WordMediaService::class)
-            ->bumpQueriedWord($dictionary, $word, $langCode, $targetLanguage);
+            ->bumpQueriedWordAudio($dictionary, $word, $langCode);
 
         if ($targetLanguage === null || trim($targetLanguage) === '') {
             return;
@@ -122,7 +118,7 @@ class AppQyV1WordQueryController extends Controller
             }
         }
 
-        app(AppQyV1TranslationQueueController::class)->bumpQueriedWord($word, $langCode, $targetLanguage);
+        app(AppQyV1WordTranslationQueueService::class)->bumpQueriedWord($word, $langCode, $targetLanguage);
     }
 
     /**
@@ -586,7 +582,7 @@ class AppQyV1WordQueryController extends Controller
         $targetLanguage = $request->input('target_language');
 
         // Active search of an exact term: bump THAT term's media to the FRONT
-        // when it lacks image/audio/translation (single bump, not per-result, so
+        // when it lacks audio or translation (single bump, not per-result, so
         // a prefix search stays cheap). P5 on-query prioritization.
         $exactRow = AppQyV1LangDictionaryModel::findByContent($language, $query);
         $this->bumpUntranslatedQuery($exactRow, $query, $language, $targetLanguage);

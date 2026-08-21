@@ -183,7 +183,14 @@
    * inside a model response / generated-image container, large enough to be a
    * real picture (not an avatar/icon), and fully loaded. Shadow-DOM aware.
    */
-  function findLatestImage() {
+  function imageKey(img) {
+    const src = img.currentSrc || img.src || '';
+    const width = img.naturalWidth || img.width || 0;
+    const height = img.naturalHeight || img.height || 0;
+    return `${src}|${width}x${height}`;
+  }
+
+  function findUsableImages() {
     let candidates = deepQueryAll([
       'generated-image img',
       'single-image img',
@@ -205,12 +212,17 @@
       });
     }
     // Keep loaded, large images; the LAST one is the newest response.
-    const usable = candidates.filter((img) => {
+    return candidates.filter((img) => {
       const w = img.naturalWidth || img.width || 0;
       const h = img.naturalHeight || img.height || 0;
       const src = img.currentSrc || img.src || '';
       return w >= 200 && h >= 200 && !!src;
     });
+  }
+
+  function findLatestImage(excludedImageKeys) {
+    const excluded = new Set(Array.isArray(excludedImageKeys) ? excludedImageKeys : []);
+    const usable = findUsableImages().filter((img) => !excluded.has(imageKey(img)));
     return usable.length ? usable[usable.length - 1] : null;
   }
 
@@ -250,8 +262,8 @@
     });
   }
 
-  async function collectImage() {
-    const img = findLatestImage();
+  async function collectImage(excludedImageKeys) {
+    const img = findLatestImage(excludedImageKeys);
     if (!img) {
       return { ready: false, generating: isGenerating(), error: null };
     }
@@ -285,8 +297,12 @@
         .catch((e) => sendResponse({ found: false, error: String(e && e.message) }));
       return true;
     }
+    if (message.action === 'geminiSnapshotImages') {
+      sendResponse({ ok: true, imageKeys: findUsableImages().map(imageKey) });
+      return true;
+    }
     if (message.action === 'geminiCollectImage') {
-      collectImage()
+      collectImage(message.excludedImageKeys)
         .then((r) => sendResponse(r))
         .catch((e) => sendResponse({ ready: false, error: String(e && e.message) }));
       return true;

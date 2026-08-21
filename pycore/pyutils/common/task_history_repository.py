@@ -28,6 +28,14 @@ class TaskHistoryRepository:
         entries = list(section.get("entries") or [])
         row = dict(record)
         row.setdefault("at", int(time.time()))
+        record_id = str(row.get("record_id") or "").strip()
+        if record_id:
+            entries = [
+                entry
+                for entry in entries
+                if not isinstance(entry, dict)
+                or str(entry.get("record_id") or "").strip() != record_id
+            ]
         entries.insert(0, row)
         user_data_store.set_section(
             TASK_HISTORY_SECTION,

@@ -270,8 +270,28 @@ def _qwen3tts_start_command(staging: Path) -> Optional[Tuple[Path, List[str], Di
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
     }
-    device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip()
-    if device:
+    device = (os.environ.get("QWEN3TTS_DEVICE") or "").strip().lower()
+    runtime_model = str(runtime_engine_model(QWEN_ENGINE_NAME) or "")
+    installed_model = str(qwen_weights.sentinel_model_id() or runtime_model)
+    extra["QWEN3TTS_MODEL_VARIANT"] = (
+        "0.6B" if "0.6b" in installed_model.lower() else "1.7B"
+    )
+    gpu_tier = "1.7b" in runtime_model.lower()
+    if device == "cpu":
+        extra["QWEN3TTS_DEVICE"] = "cpu"
+    elif device.startswith("cuda") or gpu_tier:
+        configured_index = (os.environ.get("QWEN3TTS_GPU_INDEX") or "").strip()
+        device_suffix = device.rsplit(":", 1)[-1] if ":" in device else ""
+        physical_index = (
+            configured_index
+            if configured_index.isdigit()
+            else device_suffix if device_suffix.isdigit() else "0"
+        )
+        extra["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+        extra["CUDA_VISIBLE_DEVICES"] = physical_index
+        extra["QWEN3TTS_PHYSICAL_GPU_INDEX"] = physical_index
+        extra["QWEN3TTS_DEVICE"] = "cuda:0"
+    elif device:
         extra["QWEN3TTS_DEVICE"] = device
     return staging, [venv_python, str(api_server)], _isolated_env(extra)
 

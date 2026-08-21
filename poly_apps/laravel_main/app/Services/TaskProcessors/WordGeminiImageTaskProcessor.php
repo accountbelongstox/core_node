@@ -13,8 +13,7 @@ use Illuminate\Support\Facades\Log;
  * Write-back stage for the `gemini_image` task type (execution_type
  * 'remote_gemini' — its own dedicated lane, pulled by the chrome Task Center
  * Gemini-image worker which drives the chrome_gemini_image MCP tool). It is an
- * ALTERNATIVE image generator for words whose Bing sample images are missing —
- * a sibling of the `word_media` lane (which runs on remote_fast + image).
+ * Image generator for explicitly requested Gemini image tasks.
  *
  * Task contract (SHARED CONTRACT v3):
  *   payload : { prompt, size?, md5?, word?, language? }
@@ -53,8 +52,7 @@ class WordGeminiImageTaskProcessor extends AbstractTaskProcessor
         // Source/library language the dictionary row lives under (e.g. "en").
         $language = $payload['language'] ?? 'en';
 
-        // The word can come from payload.word, or be the first words[] entry
-        // (gemini_image enqueue may reuse the word_media payload shape).
+        // The word can come from payload.word, or be the first words[] entry.
         $word = $payload['word'] ?? null;
         if (($word === null || $word === '') && isset($payload['words']) && is_array($payload['words'])) {
             $first = $payload['words'][0] ?? null;

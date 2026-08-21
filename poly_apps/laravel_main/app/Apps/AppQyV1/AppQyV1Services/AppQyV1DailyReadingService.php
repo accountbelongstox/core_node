@@ -12,6 +12,7 @@ namespace App\Apps\AppQyV1\AppQyV1Services;
 
 use App\Apps\AppQyV1\AppQyV1DBTablesBrige\AppQyV1TableMaps;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1ArticleModel as AppQyV1Article;
+use App\Apps\AppQyV1\AppQyV1Models\AppQyV1TranslationEventModel;
 use App\Providers\PathMapper;
 use App\Utils\FileSystemManager;
 
@@ -84,6 +85,9 @@ class AppQyV1DailyReadingService
      */
     public function replaceAudio(AppQyV1Article $article, string $audioBase64, array $provenance = []): ?string
     {
+        $audioRebuiltAt = null;
+        $eventIdentity = '';
+        $article = AppQyV1Article::resolveCanonicalArticle($article);
         $artifact = $this->writeAudioArtifact(
             (string) $article->article_id,
             (string) $article->language,
@@ -95,10 +99,15 @@ class AppQyV1DailyReadingService
 
         AppQyV1Article::mutateMetadataByArticleId(
             (string) $article->article_id,
-            static function (array $metadata, AppQyV1Article $lockedArticle) use ($artifact, $provenance): array {
+            static function (array $metadata, AppQyV1Article $lockedArticle) use (
+                $artifact,
+                $provenance,
+                &$audioRebuiltAt
+            ): array {
                 $previousHash = (string) ($metadata['audio_sha256'] ?? '');
                 $audioChanged = $previousHash === '' || !hash_equals($previousHash, $artifact['sha256']);
                 $audioFiles = is_array($metadata['audio_files'] ?? null) ? $metadata['audio_files'] : [];
+                $isRebuild = ($provenance['audio_rebuild'] ?? false) === true;
 
                 $metadata['audio_url'] = $artifact['url'];
                 $metadata['audio_status'] = 'ready';
@@ -107,6 +116,11 @@ class AppQyV1DailyReadingService
                 $metadata['tts_model'] = $provenance['tts_model'] ?? ($metadata['tts_model'] ?? null);
                 $metadata['tts_chunked'] = (bool) ($provenance['tts_chunked'] ?? false);
                 $metadata['tts_accent'] = $provenance['tts_accent'] ?? ($metadata['tts_accent'] ?? null);
+                if (is_string($provenance['source_record_id'] ?? null)
+                    && trim($provenance['source_record_id']) !== '') {
+                    $metadata['source_record_id'] = trim($provenance['source_record_id']);
+                    $metadata['idempotency_key_hash'] = hash('sha256', $metadata['source_record_id']);
+                }
 
                 if ($audioChanged || !isset($audioFiles[0]) || !is_array($audioFiles[0])) {
                     $metadata['audio_replaced_at'] = now()->toIso8601String();
@@ -116,10 +130,32 @@ class AppQyV1DailyReadingService
                         'created_at' => now()->toIso8601String(),
                     ];
                 }
+                if ($isRebuild) {
+                    if ($audioChanged || trim((string) ($metadata['audio_rebuilt_at'] ?? '')) === '') {
+                        $metadata['audio_rebuilt_at'] = now()->toIso8601String();
+                    }
+                    $audioRebuiltAt = (string) $metadata['audio_rebuilt_at'];
+                }
                 $metadata['audio_files'] = array_values($audioFiles);
 
                 return $metadata;
             }
+        );
+
+        $eventIdentity = (string) $article->article_id
+            . ':' . $artifact['sha256']
+            . (($provenance['audio_rebuild'] ?? false) === true ? ':rebuild' : ':publish');
+        AppQyV1TranslationEventModel::emitOnce(
+            AppQyV1TranslationEventModel::EVENT_ARTICLE_AUDIO_READY,
+            $eventIdentity,
+            [
+                'article_id' => (string) $article->article_id,
+                'audio_url' => $artifact['url'],
+                'tts_engine' => $provenance['tts_engine'] ?? null,
+                'tts_model' => $provenance['tts_model'] ?? null,
+                'tts_chunked' => (bool) ($provenance['tts_chunked'] ?? false),
+                'audio_rebuilt_at' => $audioRebuiltAt,
+            ]
         );
 
         return $artifact['url'];

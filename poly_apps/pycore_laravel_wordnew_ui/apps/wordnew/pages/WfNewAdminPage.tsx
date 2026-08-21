@@ -7,7 +7,7 @@
  * probes wfNewAdminApi.probeStatus() and passes the result down; a deep-link
  * from a non-super origin renders the locked card instead of the console.
  *
- * Layout: a status banner (client IP + pinned backend base) + a persisted
+ * Layout: a status banner (client IP + page-associated backend base) + a persisted
  * sub-tab bar over five management panels:
  *   overview  — vocabulary statistics + per-language breakdown
  *   words     — dictionary word CRUD / batch actions / example sentences
@@ -88,7 +88,7 @@ export const WfNewAdminPage: React.FC<WfNewAdminPageProps> = ({
   return (
     <div className="space-y-5">
       {/* Super-mode status banner: who granted it (client IP) + where admin
-          calls go (pinned page-origin backend, NOT the failover pool). */}
+          calls go (page-associated backend, NOT the failover pool). */}
       <div className="p-4 sm:p-5 rounded-3xl border border-amber-500/25 bg-amber-500/[0.07] flex items-start gap-3">
         <div className="p-2 rounded-2xl bg-amber-500/15 border border-amber-500/20 shrink-0">
           <ShieldCheck className="w-5 h-5 text-amber-400" />

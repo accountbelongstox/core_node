@@ -23,6 +23,14 @@ use Illuminate\Support\Facades\Log;
  */
 class AppQyV1TranslationEventModel extends AppQyV1Model
 {
+    public const EVENT_ARTICLE_PUBLISHED = 'article.published';
+
+    public const EVENT_ARTICLE_AUDIO_READY = 'article.audio.ready';
+
+    private const APPLICATION_EVENTS = [
+        self::EVENT_ARTICLE_PUBLISHED,
+        self::EVENT_ARTICLE_AUDIO_READY,
+    ];
 
     // created_at only (append-only log); no updated_at column.
     public $timestamps = false;
@@ -51,43 +59,66 @@ class AppQyV1TranslationEventModel extends AppQyV1Model
 
     protected ?string $appTableSuffix = 'translation_events';
 
+    public static function applicationEvents(): array
+    {
+        return self::APPLICATION_EVENTS;
+    }
+
     /**
      * Append one committed event to the outbox. Mercure publication is owned
      * by RealtimeOutboxPublisher through the runtime's bounded publisher task.
      */
     public static function emit(string $event, array $data): void
     {
-        $connectionName = (new static())->getConnectionName();
-
-        OutboxCommitDispatcher::dispatch(static function () use ($event, $data): void {
-            try {
+        static::appendAfterCommit(
+            $event,
+            static function () use ($event, $data): void {
                 static::query()->create([
                     'event' => $event,
                     'data' => json_encode($data, JSON_UNESCAPED_UNICODE),
                     'created_at' => now(),
                     'publish_attempts' => 0,
                 ]);
-            } catch (\Throwable $exception) {
-                Log::warning('[AppQyV1TranslationEvent] outbox append failed', [
-                    'event' => $event,
-                    'error' => $exception->getMessage(),
-                ]);
             }
-        }, $connectionName);
+        );
     }
 
     public static function emitOnce(string $event, string $deduplicationKey, array $data): void
     {
-        static::query()->insertOrIgnore([[
-            'event' => $event,
-            'deduplication_key' => $deduplicationKey,
-            'data' => json_encode(
-                $data,
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
-            ),
-            'created_at' => now(),
-            'publish_attempts' => 0,
-        ]]);
+        static::appendAfterCommit(
+            $event,
+            static function () use ($event, $deduplicationKey, $data): void {
+                static::query()->insertOrIgnore([[
+                    'event' => $event,
+                    'deduplication_key' => $deduplicationKey,
+                    'data' => json_encode(
+                        $data,
+                        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
+                    ),
+                    'created_at' => now(),
+                    'publish_attempts' => 0,
+                ]]);
+            }
+        );
+    }
+
+    private static function appendAfterCommit(string $event, callable $append): void
+    {
+        $connectionName = (new static())->getConnectionName();
+
+        OutboxCommitDispatcher::dispatch(
+            static function () use ($event, $append): void {
+                try {
+                    $append();
+                } catch (\Throwable $exception) {
+                    Log::warning('[AppQyV1TranslationEvent] outbox append failed', [
+                        'event' => $event,
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+            },
+            $connectionName
+        );
     }
 
     public static function pendingForPublish(int $limit)

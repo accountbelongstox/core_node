@@ -192,8 +192,8 @@ class RelayService:
         self._registered_endpoint = ""
 
     def _endpoint(self) -> str:
-        stored = laravel_endpoint_manager.peek_stored_base_url()
-        return str(stored or "").rstrip("/")
+        active = laravel_endpoint_manager.get_active_base_url()
+        return str(active or "").rstrip("/")
 
     def _registry_loop(self) -> None:
         retry_seconds = RELAY_REGISTER_RETRY_MIN_SECONDS

@@ -460,7 +460,7 @@ class AppQyV1AssistController extends Controller
      *
      * Single rich aggregate snapshot consumed directly by Queue Center clients
      * (SHARED CONTRACT v2). Returns every assist category (word_translation,
-     * word_media, word_audio, sentence_audio, subtitle_lang, book_lang, cover,
+     * word_audio, sentence_audio, subtitle_lang, book_lang, cover,
      * poster) with pending/processing/leased/total + by_language + sample rows,
      * plus the online worker roster. Cache-backed (30s TTL); ?fresh=1 forces a
      * recompute. NO-AUTH, matching the other assist worker surfaces.

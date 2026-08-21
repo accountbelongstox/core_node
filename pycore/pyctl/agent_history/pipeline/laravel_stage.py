@@ -10,6 +10,7 @@ from pycore.pyctl.agent_history.pipeline.config import get_config
 _ARTICLE_TYPE = "daily"
 _ARTICLE_SOURCE = "agent_history"
 _ARTICLE_WORKER_API = "/api/app_qy_v1/ai_tools/article/worker"
+_ARTICLE_WORKER_TIMEOUT = 30.0
 
 
 def _parse_worker_response(resp: Any, action: str) -> Dict[str, Any]:
@@ -51,7 +52,6 @@ def upload_to_laravel(
     if not base:
         raise RuntimeError("No active Laravel endpoint available")
 
-    client = laravel_client
     fields = compose_worker_text_fields(article, raw_text)
 
     payload = {
@@ -71,10 +71,11 @@ def upload_to_laravel(
         "openrouter_model": article.get("model"),
     }
     
-    resp = client.post(
+    resp = laravel_client.post(
         f"{_ARTICLE_WORKER_API}/submit",
+        base_url=base,
         json=payload,
-        timeout=30,
+        timeout=_ARTICLE_WORKER_TIMEOUT,
     )
 
     data = _parse_worker_response(resp, "upload")
@@ -98,8 +99,8 @@ def replace_audio_on_laravel(
 
     Laravel stores article audio at the deterministic <article_id>.mp3 path,
     so the replacement keeps the public audio_url stable; only the bytes and
-    the provenance metadata move. Targets the Laravel record by
-    laravel_article_id, falling back to the record's reading date.
+    the provenance metadata move. Targets the Laravel record by its stored
+    Laravel id or the stable Pycore source-record identity.
     """
     base = laravel_endpoint_manager.resolve()
     if not base:
@@ -107,21 +108,22 @@ def replace_audio_on_laravel(
 
     payload = {
         "article_id": record.get("laravel_article_id"),
-        "reading_date": str(record.get("created_at") or "")[:10],
+        "source_record_id": record.get("id"),
         "audio_base64": audio.get("audio_base64"),
         "tts_engine": audio.get("engine"),
         "tts_model": audio.get("model"),
         "tts_chunked": bool(audio.get("chunked")),
     }
-    if not payload["article_id"] and not payload["reading_date"]:
-        raise RuntimeError("record has neither laravel_article_id nor a reading date")
+    if not payload["article_id"] and not payload["source_record_id"]:
+        raise RuntimeError("record has neither laravel_article_id nor source identity")
     if not payload["audio_base64"]:
         raise RuntimeError("empty replacement audio")
 
     resp = laravel_client.post(
         f"{_ARTICLE_WORKER_API}/replace-audio",
+        base_url=base,
         json=payload,
-        timeout=30,
+        timeout=_ARTICLE_WORKER_TIMEOUT,
     )
     data = _parse_worker_response(resp, "audio replace")
     return {

@@ -54,11 +54,13 @@ class QwenQueue:
         max_parallel: Callable[[], int],
         logger: Callable[[str], None],
         event_publisher: Optional[Callable[[str, Dict[str, Any]], None]] = None,
+        batchable: Optional[Callable[[Dict[str, Any]], bool]] = None,
     ) -> None:
         self._synthesize_batch = synthesize_batch
         self._max_parallel = max_parallel
         self._logger = logger
         self._event_publisher = event_publisher
+        self._batchable = batchable or (lambda _job: True)
         self._queue_max = _env_int("QWEN3TTS_QUEUE_MAX", DEFAULT_QUEUE_MAX)
         self._result_ttl_s = _env_float(
             "QWEN3TTS_QUEUE_RESULT_TTL_S", DEFAULT_RESULT_TTL_S
@@ -198,6 +200,7 @@ class QwenQueue:
         consumer_running = bool(
             self._consumer is not None and not self._consumer.done()
         )
+        runtime = self._runtime_metrics()
         return {
             "queue_max": self._queue_max,
             "task_timeout_s": self._task_timeout_s,
@@ -211,7 +214,7 @@ class QwenQueue:
                 or oldest_running_ms > round(self._task_timeout_s * 1000)
             ),
             "counts": counts,
-            "jobs": [self._public_job(job) for job in jobs],
+            "jobs": [self._public_job(job, runtime=runtime) for job in jobs],
             "synthesized_count": synthesized,
             "completed_count": self._completed_count,
             "failed_count": self._failed_count,
@@ -220,7 +223,7 @@ class QwenQueue:
 
     async def _consume(self) -> None:
         while not self._stopping:
-            limit = await asyncio.to_thread(self._max_parallel)
+            limit = self._max_parallel()
             batch = self._take_batch(limit)
             if not batch:
                 self._wake.clear()
@@ -253,6 +256,8 @@ class QwenQueue:
         limit = max(1, int(max_parallel or 1))
         language = first.get("language")
         batch = [first]
+        if not self._batchable(first):
+            return batch
         while self._queue and len(batch) < limit:
             job_id = self._queue[0]
             job = self._jobs.get(job_id)
@@ -260,6 +265,8 @@ class QwenQueue:
                 self._queue.popleft()
                 continue
             if job.get("language") != language:
+                break
+            if not self._batchable(job):
                 break
             self._queue.popleft()
             batch.append(job)
@@ -358,8 +365,13 @@ class QwenQueue:
                 self._logger(f"[queue] event publication failed: {exc}")
 
     def _public_job(
-        self, job: Dict[str, Any], include_summary: bool = True
+        self,
+        job: Dict[str, Any],
+        include_summary: bool = True,
+        runtime: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        queue_runtime = runtime or self._runtime_metrics()
+        positions = queue_runtime.get("positions") or {}
         result = job.get("result") if isinstance(job.get("result"), dict) else {}
         public = {
             "job_id": job.get("job_id"),
@@ -388,10 +400,40 @@ class QwenQueue:
             "error": job.get("error"),
             "result_url": result.get("result_url"),
             "result_bytes": result.get("bytes"),
+            "queue_pending": int(queue_runtime.get("queue_pending") or 0),
+            "queue_running": int(queue_runtime.get("queue_running") or 0),
+            "queue_position": int(positions.get(str(job.get("job_id") or "")) or 0),
+            "max_parallel": int(queue_runtime.get("max_parallel") or 1),
+            "average_elapsed_ms": int(
+                queue_runtime.get("average_elapsed_ms") or 0
+            ),
         }
         if include_summary:
             public["text_summary"] = str(job.get("text") or "")[:120]
         return public
+
+    def _runtime_metrics(self) -> Dict[str, Any]:
+        pending_ids = [
+            job_id
+            for job_id in self._queue
+            if self._jobs.get(job_id) is not None
+            and self._jobs[job_id].get("status") == "pending"
+        ]
+        synthesized = self._completed_count + self._failed_count
+        return {
+            "queue_pending": len(pending_ids),
+            "queue_running": sum(
+                1 for job in self._jobs.values() if job.get("status") == "running"
+            ),
+            "positions": {
+                str(job_id): index
+                for index, job_id in enumerate(pending_ids, start=1)
+            },
+            "max_parallel": max(1, int(self._max_parallel() or 1)),
+            "average_elapsed_ms": (
+                round(self._total_elapsed_ms / synthesized) if synthesized else 0
+            ),
+        }
 
     def _cleanup(self) -> None:
         now = time.monotonic()

@@ -8,6 +8,10 @@ from pycore.pyctl.queue_center.task_center_service import (
     get_local_task_detail,
     set_queue_center_control,
 )
+from pycore.pyctl.tts.laravel_audio_worker import (
+    laravel_sentence_audio_worker,
+    laravel_word_audio_worker,
+)
 
 
 def register_local_task_center_routes(server) -> None:
@@ -40,8 +44,21 @@ def register_local_task_center_routes(server) -> None:
             "data": get_queue_center_snapshot(bool(request.get("refresh"))),
         }
 
+    def retry_audio_delivery_handler(params, _request_id, _context):
+        request = params if isinstance(params, dict) else {}
+        lane = str(request.get("lane") or "all").strip().lower()
+        if lane not in ("all", "word", "sentence"):
+            return {"success": False, "error": "lane must be all, word, or sentence"}
+        result = {"success": True, "lanes": {}}
+        if lane in ("all", "word"):
+            result["lanes"]["word"] = laravel_word_audio_worker.retry_delivery_outbox()
+        if lane in ("all", "sentence"):
+            result["lanes"]["sentence"] = laravel_sentence_audio_worker.retry_delivery_outbox()
+        return result
+
     routes = (
         (route_names.UI_QUEUE_CENTER_SNAPSHOT, snapshot_handler),
+        (route_names.UI_QUEUE_CENTER_RETRY_AUDIO_DELIVERY, retry_audio_delivery_handler),
         (route_names.UI_TASK_CENTER_SET_QUEUE_CENTER_CONTROL, control_handler),
         (route_names.UI_TASK_CENTER_GET_LOCAL_TASK_DETAIL, local_detail_handler),
     )

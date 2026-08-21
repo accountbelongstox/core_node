@@ -314,29 +314,29 @@ def init_serialized_owner(
 
 def _invoke_serialized_method(
     method: Callable[..., Any],
-    owner: Any,
+    instance: Any,
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
 ) -> Any:
     """Invoke a bound state method on its owner thread."""
-    return method(owner, *args, **kwargs)
+    return method(instance, *args, **kwargs)
 
 
 def serialized_method(method: Callable[..., Any]) -> Callable[..., Any]:
     """Route a synchronous instance method through its state-owner queue."""
     @wraps(method)
-    def wrapper(owner: Any, *args: Any, **kwargs: Any) -> Any:
-        owner_thread = getattr(owner, "_serialized_worker", None)
+    def wrapper(instance: Any, *args: Any, **kwargs: Any) -> Any:
+        owner_thread = getattr(instance, "_serialized_worker", None)
         if threading.current_thread() is owner_thread:
-            return method(owner, *args, **kwargs)
+            return method(instance, *args, **kwargs)
         return call_serialized(
-            owner._serialized_queue_name,
+            instance._serialized_queue_name,
             _invoke_serialized_method,
             method,
-            owner,
+            instance,
             args,
             kwargs,
-            timeout=float(getattr(owner, "_serialized_timeout", DEFAULT_SERIALIZED_TIMEOUT)),
+            timeout=float(getattr(instance, "_serialized_timeout", DEFAULT_SERIALIZED_TIMEOUT)),
         )
     return wrapper
 

@@ -111,9 +111,7 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
     onSelect(tool);
   };
 
-  // Every stat number drills into that tool's filtered history: record /
-  // session counts open the sessions tab, fragment counts (processed,
-  // pending, prompts, replies) open the prompts tab.
+  // Every stat number drills into that tool's filtered prompt/output history.
   const openHistory = (tool: string, tab: 'sessions' | 'prompts') => {
     onSelect(tool);
     onOpenToolHistory?.(tool, tab);
@@ -195,15 +193,24 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                 </div>
                 {item && (
                   <>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
+                    <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <button
+                        type="button"
+                        onClick={() => openHistory(tool, 'prompts')}
+                        title={`${tk('promptCount')} · ${TOOL_LABELS[tool] || tool}`}
+                        className={`${statBtnCls} bg-slate-100 dark:bg-white/5`}
+                      >
+                        <div className="text-[10px] text-slate-500">{tk('promptCount')}</div>
+                        <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{item.prompts}</div>
+                      </button>
                       <button
                         type="button"
                         onClick={() => openHistory(tool, 'sessions')}
-                        title={`${tk('historyRecords')} · ${TOOL_LABELS[tool] || tool}`}
-                        className={`${statBtnCls} bg-slate-100 dark:bg-white/5`}
+                        title={`${tk('replyCount')} · ${TOOL_LABELS[tool] || tool}`}
+                        className={`${statBtnCls} bg-cyan-500/10`}
                       >
-                        <div className="text-[10px] text-slate-500">{tk('historyRecords')}</div>
-                        <div className="text-lg font-semibold text-slate-800 dark:text-slate-100">{item.history_records}</div>
+                        <div className="text-[10px] text-cyan-700 dark:text-cyan-300">{tk('replyCount')}</div>
+                        <div className="text-lg font-semibold text-cyan-700 dark:text-cyan-300">{item.replies}</div>
                       </button>
                       <button
                         type="button"
@@ -227,14 +234,6 @@ const PcAgentHistoryToolCheckboxes: React.FC<{
                     <div className="mt-2 text-[11px] text-slate-500 flex flex-wrap items-center gap-x-1">
                       <button type="button" onClick={() => openHistory(tool, 'sessions')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
                         {item.sessions} {tk('sessionCount')}
-                      </button>
-                      <span>·</span>
-                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
-                        {item.prompts} {tk('promptCount')}
-                      </button>
-                      <span>·</span>
-                      <button type="button" onClick={() => openHistory(tool, 'prompts')} className="font-mono hover:text-indigo-600 dark:hover:text-indigo-300">
-                        {item.replies} {tk('replyCount')}
                       </button>
                     </div>
                   </>

@@ -18,10 +18,8 @@ const MAX_CALL_TIMEOUT_MS = 600000;
 
 const handleToolCall = async (name: string, args: any): Promise<CallToolResult> => {
   try {
-    // A dead extension link is fast-failed inside sendRequestToExtensionAndWait
-    // (it rejects before touching the broken stdout); the catch below turns that
-    // rejection into an MCP error result so the client retries once the
-    // singleton handover moves the port to a live-linked process.
+    // A dead extension link is rejected at the shared relay boundary before a
+    // request can be written to an unusable native messaging stream.
     // Honor a tool's self-declared timeout (e.g. chrome_gemini_image: 120000,
     // chrome_notebooklm: 60000) so the bridge waits at least as long as the tool
     // itself will run, plus a 15s buffer for navigation/injection overhead.

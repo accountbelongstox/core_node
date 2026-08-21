@@ -45,63 +45,64 @@ final class RealtimeOutboxPublisher
 
     private function publishQueueCenter(): int
     {
-        $published = 0;
         $realtime = QueueCenterContract::realtime();
         $topic = (string) ($realtime['topic'] ?? 'queue-center');
         $rows = AppQyV1TranslationEventModel::pendingForPublish(self::BATCH_LIMIT);
 
-        foreach ($rows as $row) {
-            $payload = $row->payload();
-            $payload['_id'] = (int) $row->id;
-
-            try {
-                RelayHubPublisher::publish(
-                    $topic,
-                    json_encode(['event' => (string) $row->event, 'data' => $payload], JSON_UNESCAPED_SLASHES),
-                    false,
-                    (string) $row->event
-                );
-                $row->markPublished();
-                $published++;
-            } catch (\Throwable $exception) {
-                $row->markPublishFailed($exception->getMessage());
-                Log::warning('[RealtimeOutboxPublisher] Queue Center publish failed', [
-                    'event_id' => (int) $row->id,
-                    'event' => (string) $row->event,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
-        }
-
-        return $published;
+        return $this->publishRows(
+            $rows,
+            static fn (): string => $topic,
+            false,
+            'queue_center'
+        );
     }
 
     private function publishSocial(): int
     {
-        $published = 0;
         $rows = AppQyV1SocialEventModel::pendingForPublish(self::BATCH_LIMIT);
+
+        return $this->publishRows(
+            $rows,
+            static fn ($row): string => AppQyV1SocialEventModel::topic((int) $row->user_id),
+            true,
+            'social'
+        );
+    }
+
+    private function publishRows(iterable $rows, callable $topicResolver, bool $private, string $stream): int
+    {
+        $published = 0;
+        $updateId = null;
 
         foreach ($rows as $row) {
             $payload = $row->payload();
             $payload['_id'] = (int) $row->id;
 
             try {
-                RelayHubPublisher::publish(
-                    AppQyV1SocialEventModel::topic((int) $row->user_id),
+                $updateId = RelayHubPublisher::publish(
+                    $topicResolver($row),
                     json_encode(['event' => (string) $row->event, 'data' => $payload], JSON_UNESCAPED_SLASHES),
-                    true,
+                    $private,
                     (string) $row->event
                 );
+                if ($updateId === null) {
+                    throw new \RuntimeException("{$stream} realtime hub rejected the update");
+                }
                 $row->markPublished();
                 $published++;
             } catch (\Throwable $exception) {
                 $row->markPublishFailed($exception->getMessage());
-                Log::warning('[RealtimeOutboxPublisher] Social publish failed', [
+                $context = [
+                    'stream' => $stream,
                     'event_id' => (int) $row->id,
-                    'user_id' => (int) $row->user_id,
                     'event' => (string) $row->event,
                     'error' => $exception->getMessage(),
-                ]);
+                ];
+                if (isset($row->user_id)) {
+                    $context['user_id'] = (int) $row->user_id;
+                }
+                Log::warning('[RealtimeOutboxPublisher] Publish failed', $context);
+                break;
             }
         }
 

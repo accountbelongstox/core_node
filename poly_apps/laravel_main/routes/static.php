@@ -35,8 +35,7 @@ Route::get('/static/app_qy_v1/sentence_sounds/{language}/{filename}', [AppQyV1Se
 //   GET /static/app_qy_v1/word_images/{lang}/{word}
 // {word} is a single no-slash segment, so this 2-segment pattern never shadows
 // the 3-segment md5 path "{lang}/word/{md5}.{ext}" below. File-first: 302 to the
-// resolved md5 file when ready; on a miss it enqueues + bumps the word_media
-// task and returns a 1x1 transparent PNG (HTTP 202). Registered BEFORE the
+// resolved md5 file when ready and returns 404 on a miss. Registered BEFORE the
 // generic {path} responder so the by-word form wins for 2-segment requests.
 Route::get('/static/app_qy_v1/word_images/{lang}/{word}', [AppQyV1WordImageController::class, 'serveByWord'])
     ->where('lang', '[A-Za-z][A-Za-z0-9_-]*')

@@ -21,7 +21,6 @@ from pycore.pyctl.queue_center.control_service import get_control_intent
 from pycore.pyctl.queue_center.lane_registry import LANE_REGISTRY, lane_worker
 from pycore.pyctl.queue_center.task_center_sections import build_section_contracts
 from pycore.pyctl.tts.sentence_audio_auto import get_status as get_sentence_audio_status
-from pycore.pyctl.tts.status_service import status as get_tts_status
 from pycore.pyctl.tts.word_tts_auto import get_status as get_word_audio_status
 from pycore.pyctl.translation.worker.worker import translation_worker_service
 from pycore.pyutils.common.bounded_priority_rows import BoundedPriorityRows
@@ -44,6 +43,7 @@ from pycore.pyctl.relay import relay_service
 
 from pycore.pyutils.common.status_snapshot_cache import (
     STATUS_SNAPSHOT_QUEUE_CENTER_KEY,
+    STATUS_SNAPSHOT_TTS_KEY,
     status_snapshot_cache,
 )
 from pycore.pyutils.laravel.endpoint_manager import laravel_endpoint_manager
@@ -80,6 +80,19 @@ QUEUE_CENTER_STOP_SIGNAL = "queue_center.snapshot.stop"
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _cached_tts_status() -> Dict[str, Any]:
+    """Return TTS state immediately without initiating a cold engine scan."""
+    cached = status_snapshot_cache.peek(STATUS_SNAPSHOT_TTS_KEY)
+    if isinstance(cached, dict):
+        return cached
+    return {
+        "success": True,
+        "providers": [],
+        "engines": [],
+        "pending": True,
+    }
 
 
 def _response_data(response: Any) -> Dict[str, Any]:
@@ -173,7 +186,7 @@ class _QueueCenterRealtimeThread(threading.Thread):
     def _on_hub_state(self, endpoint: str, state: str, detail: str) -> None:
         if state == MERCURE_STATE_ONLINE:
             self._note_recovery(endpoint)
-            self._service.note_realtime_connected(endpoint)
+            self._service.note_realtime_connected(endpoint, detail)
             self._service.replay_realtime_events(endpoint)
         elif state == MERCURE_STATE_OFFLINE:
             self._service.note_realtime_disconnected(detail)
@@ -378,12 +391,13 @@ class _QueueCenterSnapshotService:
         # polling from legacy callers.
         pass
 
-    def note_realtime_connected(self, endpoint: str) -> None:
+    def note_realtime_connected(self, endpoint: str, detail: str = "") -> None:
         def updater(snapshot: Dict[str, Any]) -> Dict[str, Any]:
             snapshot["laravelReachable"] = True
             snapshot["laravelActiveEndpoint"] = endpoint
             cache = dict(snapshot.get("cache") or {})
             cache["realtime_connected"] = True
+            cache["realtime_detail"] = str(detail or "")[:500]
             snapshot["cache"] = cache
             return snapshot
 
@@ -604,7 +618,7 @@ class _QueueCenterSnapshotService:
         word_audio = get_word_audio_status()
         sentence_audio = get_sentence_audio_status()
         assist = assist_status(include_laravel=False)
-        tts = get_tts_status()
+        tts = _cached_tts_status()
         result["wordAudio"] = word_audio
         result["sentenceAudio"] = sentence_audio
         result["assist"] = assist

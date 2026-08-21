@@ -17,19 +17,22 @@ Parsing follows the SSE spec: ``event``/``data``/``id``/``retry`` fields,
 ``:`` comment lines (hub heartbeat), CRLF/LF/CR line endings, dispatch on
 blank lines, multi-line data joined with ``\\n``.
 
-Stdlib only, same ``http.client`` stack as ``http_client.py``; lifecycle is
-injected (``should_stop`` / ``sleep``) so any thread model can drive it.
+HTTPS subscriptions reuse the Pycore-to-Laravel libcurl transport and prefer
+HTTP/3. Lifecycle is injected (``should_stop`` / ``sleep``) so any thread model
+can drive it.
 """
 
 from __future__ import annotations
 
-import http.client
 import json as json_module
-import socket
-import ssl
 import time
 import urllib.parse
 from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from pycore.pyutils.laravel.transport import (
+    create_laravel_http_session,
+    response_http_version,
+)
 
 
 MERCURE_DEFAULT_EVENT_TYPE = "message"
@@ -131,14 +134,19 @@ class MercureSubscriber:
                 self._notify(MERCURE_STATE_CONNECTING, self.hub_url)
                 connection, url, headers = self._open_stream(initial_cursor)
                 initial_cursor = ""
-                self._notify(MERCURE_STATE_ONLINE, url)
+                transport = str(connection.get("transport") or "")
+                protocol = str(connection.get("http_version") or "")
+                self._notify(
+                    MERCURE_STATE_ONLINE,
+                    f"{url} transport={transport} protocol={protocol}",
+                )
                 reconnect_seconds = self.reconnect_min_seconds
                 reason = self._consume_stream(connection, should_stop)
             except _MercureAuthError as exc:
                 reason = "unauthorized"
                 self._notify(MERCURE_STATE_OFFLINE, f"hub rejected the token: {exc}")
                 reconnect_seconds = self.reconnect_min_seconds
-            except (http.client.HTTPException, OSError, ssl.SSLError) as exc:
+            except Exception as exc:  # noqa: BLE001 - reconnect owns transport failures
                 reason = "error"
                 self._notify(MERCURE_STATE_OFFLINE, str(exc) or exc.__class__.__name__)
             finally:
@@ -160,26 +168,42 @@ class MercureSubscriber:
     def _open_stream(
         self,
         initial_cursor: str,
-    ) -> Tuple[http.client.HTTPConnection, str, Dict[str, str]]:
+    ) -> Tuple[Dict[str, Any], str, Dict[str, str]]:
         token = self._token(force=False)
         redirects_left = self.max_redirects
         url = mercure_subscribe_url(self.hub_url, self.topics, initial_cursor)
         while True:
-            parsed = urllib.parse.urlsplit(url)
-            connection = self._new_connection(parsed)
             request_headers = self._request_headers(token, resume=not initial_cursor)
+            session, transport_options, transport = create_laravel_http_session(
+                url,
+                stream=True,
+            )
+            connection: Dict[str, Any] = {
+                "session": session,
+                "response": None,
+                "transport": transport,
+                "http_version": "",
+            }
             try:
-                connection.request("GET", self._request_target(parsed), headers=request_headers)
-                response = connection.getresponse()
-            except (http.client.HTTPException, OSError):
+                response = session.get(
+                    url,
+                    headers=request_headers,
+                    timeout=(self.connect_timeout, self.read_timeout),
+                    stream=True,
+                    allow_redirects=False,
+                    **transport_options,
+                )
+                connection["response"] = response
+                connection["http_version"] = response_http_version(response)
+            except Exception:
                 self._close(connection)
                 raise
-            status = response.status
+            status = int(response.status_code)
             if status in (301, 302, 303, 307, 308):
-                location = response.getheader("Location") or ""
+                location = response.headers.get("Location") or ""
                 self._close(connection)
                 if not location or redirects_left <= 0:
-                    raise http.client.HTTPException(f"hub redirect failed at {url}")
+                    raise RuntimeError(f"hub redirect failed at {url}")
                 redirects_left -= 1
                 url = urllib.parse.urljoin(url, location)
                 continue
@@ -191,32 +215,8 @@ class MercureSubscriber:
             if status != 200:
                 body = self._short_body(response)
                 self._close(connection)
-                raise http.client.HTTPException(f"hub returned HTTP {status} {body[:120]}")
-            # Keep the response object referenced by the connection wrapper:
-            # stream lines straight from it until the server closes.
-            connection.mercure_response = response  # type: ignore[attr-defined]
+                raise RuntimeError(f"hub returned HTTP {status} {body[:120]}")
             return connection, url, request_headers
-
-    def _new_connection(self, parsed: urllib.parse.SplitResult) -> http.client.HTTPConnection:
-        host = parsed.hostname or ""
-        if not host:
-            raise http.client.HTTPException("hub URL has no host")
-        port = parsed.port
-        if parsed.scheme == "https":
-            return http.client.HTTPSConnection(
-                host,
-                port=port or 443,
-                timeout=self.connect_timeout,
-                context=ssl.create_default_context(),
-            )
-        return http.client.HTTPConnection(host, port=port or 80, timeout=self.connect_timeout)
-
-    @staticmethod
-    def _request_target(parsed: urllib.parse.SplitResult) -> str:
-        path = parsed.path or "/"
-        if parsed.query:
-            return f"{path}?{parsed.query}"
-        return path
 
     def _request_headers(self, token: str, resume: bool) -> Dict[str, str]:
         headers = {
@@ -237,24 +237,22 @@ class MercureSubscriber:
 
     # ---------------------------------------------------------------- stream
 
-    def _consume_stream(self, connection: http.client.HTTPConnection, should_stop: StopCheck) -> str:
-        response = getattr(connection, "mercure_response", None)
+    def _consume_stream(self, connection: Dict[str, Any], should_stop: StopCheck) -> str:
+        response = connection.get("response")
         if response is None:
             return "closed"
-        if connection.sock is not None:
-            connection.sock.settimeout(self.read_timeout)
         event_type = MERCURE_DEFAULT_EVENT_TYPE
         data_lines: List[str] = []
         dispatchable = False
         try:
-            while not should_stop():
-                try:
-                    raw_line = response.readline()
-                except socket.timeout:
-                    return "closed"
-                if not raw_line:
-                    return "closed"
-                line = raw_line.decode("utf-8", errors="replace").rstrip("\r\n")
+            for raw_line in response.iter_lines():
+                if should_stop():
+                    return "stop"
+                line = (
+                    raw_line.decode("utf-8", errors="replace")
+                    if isinstance(raw_line, bytes)
+                    else str(raw_line)
+                ).rstrip("\r\n")
                 if line == "":
                     if dispatchable:
                         self._dispatch(event_type, data_lines)
@@ -277,9 +275,9 @@ class MercureSubscriber:
                         self.last_event_id = value
                 elif field == "retry":
                     self._apply_retry(value)
-            return "stop"
-        finally:
-            pass
+            return "closed"
+        except Exception:  # noqa: BLE001 - read timeout/close reconnects with cursor
+            return "closed"
 
     def _dispatch(self, event_type: str, data_lines: List[str]) -> None:
         if self.on_update is None:
@@ -313,18 +311,26 @@ class MercureSubscriber:
             pass
 
     @staticmethod
-    def _short_body(response: http.client.HTTPResponse) -> str:
+    def _short_body(response: Any) -> str:
         try:
-            return (response.read(2048) or b"").decode("utf-8", errors="replace")
+            return str(response.text or "")[:2048]
         except Exception:  # noqa: BLE001
             return ""
 
     @staticmethod
-    def _close(connection: Optional[http.client.HTTPConnection]) -> None:
+    def _close(connection: Optional[Dict[str, Any]]) -> None:
         if connection is None:
             return
         try:
-            connection.close()
+            response = connection.get("response")
+            if response is not None:
+                response.close()
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            session = connection.get("session")
+            if session is not None:
+                session.close()
         except Exception:  # noqa: BLE001
             pass
 

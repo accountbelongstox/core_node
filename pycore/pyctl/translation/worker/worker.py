@@ -85,7 +85,7 @@ class TranslationWorkerService(BaseLaravelWorkerService):
 
     DEFAULT_PROVIDER = "google"
 
-    def __init__(self, laravel_api_url: str = "http://127.0.0.1:9000"):
+    def __init__(self, laravel_api_url: str = LARAVEL_WORKER_API_URL):
         """
         Initialize the worker (idempotent - safe to call repeatedly).
 

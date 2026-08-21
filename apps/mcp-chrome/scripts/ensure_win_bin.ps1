@@ -56,5 +56,5 @@ if (Test-Path $ProbeFile) {
     Write-Host "  OK Windows .cmd shims now present" -ForegroundColor Green
 } else {
     Write-Host "  ERROR: .cmd shims still missing after reinstall — pnpm install may have failed." -ForegroundColor Red
-    exit 1
+    throw "Windows pnpm command shims are still missing after reinstall."
 }

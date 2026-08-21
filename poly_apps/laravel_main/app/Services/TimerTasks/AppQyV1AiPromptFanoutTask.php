@@ -6,7 +6,6 @@ use App\Models\GlobalTask;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptModel as AppQyV1AiPrompt;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestModel as AppQyV1AiPromptRequest;
 use App\Apps\AppQyV1\AppQyV1Models\AppQyV1AiPromptRequestTaskModel as AppQyV1AiPromptRequestTask;
-use App\Services\TaskManagerService;
 use App\Support\QueueCenterContract;
 
 /**
@@ -29,16 +28,9 @@ use App\Support\QueueCenterContract;
  * for that task_type in TaskManagerService::getProcessorRegistry() — no
  * changes needed here or to the inbox/ledger tables.
  */
-class AppQyV1AiPromptFanoutTask extends OctaneTimerTaskAbstract
+class AppQyV1AiPromptFanoutTask extends TaskManagerTimerTaskAbstract
 {
     private const REQUEST_BATCH_SIZE = 20;
-
-    private $taskManager;
-
-    public function __construct()
-    {
-        $this->taskManager = app(TaskManagerService::class);
-    }
 
     public function getName(): string
     {

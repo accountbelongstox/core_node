@@ -62,6 +62,7 @@ async function sendPrompt(provider: AiWebProvider, prompt: string): Promise<stri
       waitForCompletion: true,
       timeout: WORD_VALIDITY_CONFIG.request_timeout_ms,
       autoRetry: false,
+      newConversation: true,
     });
     return extractDeepSeekText(toolResult);
   }
