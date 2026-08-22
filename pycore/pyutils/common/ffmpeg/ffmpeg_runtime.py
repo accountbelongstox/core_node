@@ -37,14 +37,16 @@ class FFmpegRuntime:
         self,
         arguments: Iterable[str],
         output_path: str | Path,
+        dependencies: Iterable[str | Path] = (),
         expected_streams: tuple[str, ...] = (),
         output_validator: Optional[ProbeValidator] = None,
         progress_callback: Optional[ProgressCallback] = None,
         should_stop: Optional[StopCallback] = None,
     ) -> FFmpegCommandResult:
         argument_tuple = tuple(str(argument) for argument in arguments)
+        dependency_tuple = tuple(Path(dependency).expanduser() for dependency in dependencies)
         output = Path(output_path).expanduser().resolve()
-        operation_key = self._operation_key(argument_tuple)
+        operation_key = self._operation_key(argument_tuple, dependency_tuple)
         temporary = output.with_name(
             f"{output.stem}.partial.{operation_key[:12]}{output.suffix}")
         state = output.parent / ".ffmpeg_steps" / f"{output.name}.step"
@@ -92,21 +94,47 @@ class FFmpegRuntime:
         return FFmpegCommandResult(success=True, output_path=output, process=process)
 
     @staticmethod
-    def _operation_key(arguments: tuple[str, ...]) -> str:
+    def _operation_key(
+        arguments: tuple[str, ...],
+        dependencies: tuple[Path, ...] = (),
+    ) -> str:
         fingerprint_parts = list(arguments)
+        input_paths = []
         for index, argument in enumerate(arguments):
             if index == 0 or arguments[index - 1] != "-i":
                 continue
             input_path = Path(argument).expanduser()
-            if input_path.is_file():
-                input_stat = input_path.stat()
-                fingerprint_parts.extend((
-                    str(input_path.resolve()),
-                    str(input_stat.st_size),
-                    str(input_stat.st_mtime_ns),
-                ))
+            if input_path.exists():
+                input_paths.append(input_path)
+        input_paths.extend(dependencies)
+        for input_path in input_paths:
+            FFmpegRuntime._append_path_fingerprint(fingerprint_parts, input_path)
         payload = "\0".join(fingerprint_parts).encode("utf-8")
         return hashlib.sha256(payload).hexdigest()
+
+    @staticmethod
+    def _append_path_fingerprint(fingerprint_parts: list[str], input_path: Path) -> None:
+        path = input_path.resolve()
+        if path.is_file():
+            input_stat = path.stat()
+            fingerprint_parts.extend((
+                str(path),
+                str(input_stat.st_size),
+                str(input_stat.st_mtime_ns),
+            ))
+            return
+        if not path.is_dir():
+            fingerprint_parts.extend((str(path), "missing"))
+            return
+        directory_stat = path.stat()
+        fingerprint_parts.extend((str(path), str(directory_stat.st_mtime_ns)))
+        for child in sorted(item for item in path.rglob("*") if item.is_file()):
+            child_stat = child.stat()
+            fingerprint_parts.extend((
+                str(child.resolve()),
+                str(child_stat.st_size),
+                str(child_stat.st_mtime_ns),
+            ))
 
     @staticmethod
     def _state_matches(state: Path, operation_key: str) -> bool:

@@ -84,3 +84,41 @@ class MediaProbeResult:
 
     def first_stream(self, codec_type: str) -> Optional[MediaStreamInfo]:
         return next((stream for stream in self.streams if stream.codec_type == codec_type), None)
+
+
+@dataclass(frozen=True)
+class TimedTextStyle:
+    font_name: str = "Arial"
+    font_size: int = 64
+    primary_color: str = "#FFFFFF"
+    secondary_color: str = "#FFFFFF"
+    outline_color: str = "#000000"
+    back_color: str = "#00000080"
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    strikeout: bool = False
+    border_style: int = 1
+    outline: int = 3
+    shadow: int = 1
+    alignment: int = 2
+    margin_left: int = 80
+    margin_right: int = 80
+    margin_vertical: int = 160
+    position: Optional[Tuple[int, int]] = None
+
+
+@dataclass(frozen=True)
+class TimedTextCue:
+    start: float
+    end: float
+    text: str
+    style: TimedTextStyle = field(default_factory=TimedTextStyle)
+    layer: int = 0
+
+
+@dataclass(frozen=True)
+class SubtitleRenderSource:
+    path: Path
+    stream_index: int = 0
+    force_style: Optional[TimedTextStyle] = None

@@ -152,6 +152,25 @@ class FFmpegOutputValidator:
 
         return validate
 
+    @staticmethod
+    def audio_video(
+        codec_name: str,
+        resolution: tuple[int, int],
+        duration: float,
+    ) -> ProbeValidator:
+        def validate(probe: MediaProbeResult) -> bool:
+            video = probe.first_stream("video")
+            tolerance = max(1.0, duration * 0.02)
+            return (
+                video is not None
+                and probe.has_stream("audio")
+                and video.codec_name == codec_name
+                and (video.width, video.height) == resolution
+                and abs(probe.duration - duration) <= tolerance
+            )
+
+        return validate
+
 
 ffprobe_client = FFprobeClient()
 ffmpeg_output_validator = FFmpegOutputValidator()
