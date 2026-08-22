@@ -719,23 +719,21 @@ def get_app_data_dir() -> Path:
     return _ensure_dir(cache / "data")
 
 
-def get_local_data_dir() -> Path:
-    """Local data dir for pycore (models/staging/state) - mirrors
-    pycore.system_paths.get_local_data_dir(): <cache>/pycore.
-    Windows: D:\\www\\cache\\pycore; Linux: /var/_core_node/cache/pycore."""
+def get_codesync_cache_dir() -> Path:
+    """CodeSync runtime cache, isolated from the Pycore application cache."""
     env_val = os.environ.get('CORE_NODE_CACHE_DIR')
     if env_val:
-        return _ensure_dir(Path(env_val) / 'pycore')
+        return _ensure_dir(Path(env_val) / 'codesync')
     if sys.platform == 'win32':
-        return _ensure_dir(Path('D:/www/cache') / 'pycore')
+        return _ensure_dir(Path('D:/www/cache') / 'codesync')
     shared = Path('/var/_core_node/cache')
     try:
         _ensure_dir(shared)
     except Exception:
         pass
     if shared.is_dir() and os.access(shared, os.W_OK):
-        return _ensure_dir(shared / 'pycore')
-    return _ensure_dir(Path.home() / '.core_node' / 'cache' / 'pycore')
+        return _ensure_dir(shared / 'codesync')
+    return _ensure_dir(Path.home() / '.core_node' / 'cache' / 'codesync')
 
 
 # The committed peer list — the SHIPPED DEFAULT (baseline), read-only at runtime.
@@ -745,9 +743,9 @@ def get_peers_config_file() -> Path:
     return get_core_node_root() / "pycore" / "pyutils" / "codesync" / "code_sync_peers.json"
 
 
-# Per-machine override for the peer list. Gitignored (<cache>/pycore/codesync/...), so
+# Per-machine override for the peer list. Gitignored (<cache>/codesync/...), so
 # every machine keeps its own role/peers/edits here WITHOUT touching the committed
 # baseline. Loaded with priority over the baseline; this is the only file the
 # runtime writes to.
 def get_peers_override_file() -> Path:
-    return get_local_data_dir() / "codesync" / "code_sync_peers.json"
+    return get_codesync_cache_dir() / "code_sync_peers.json"

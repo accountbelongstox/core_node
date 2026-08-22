@@ -1,7 +1,9 @@
 /**
  * Book / CoreBook / queue response types for pycoreApi.
  */
-import type { QueueItem } from './pycoreTypes';
+import type {
+  QueueItem,
+} from './PycorePlatformTypes';
 import { rewritePycoreEndpoint } from './pycoreTarget';
 import type { BookChapter, BookSlot, BookTopWord } from '../../contracts/books';
 

@@ -16,11 +16,18 @@
 #     when running unprivileged and sudo exists. Replaces the former
 #     per-library copies (domain_setup_sudo / cert_selfheal_sudo / nm_sudo).
 #   - write_file_if_changed(): idempotent-replace writer (content compare ->
-#     timestamped backup -> symlink-aware directory ensure -> mode 777).
+#     timestamped backup -> symlink-aware directory ensure -> requested mode).
 #     Replaces the former fallback copies in domain_setup_common.sh,
 #     cert_selfheal_common.sh and common_functions.sh - one implementation.
 # Load-time side effect free and dependency free: safe to source from dd.sh
 # installers (gvar_common.sh loaded) and from plain app start scripts.
+
+WRITE_FILE_CHANGED=false
+WRITE_FILE_READY=false
+WRITE_FILE_TARGET=""
+WRITE_FILE_ACTUAL_MODE=""
+WRITE_FILE_ACTUAL_OWNER=""
+WRITE_FILE_ACTUAL_GROUP=""
 
 # Canonical lazy sudo resolution (see header).
 lazy_sudo() {
@@ -39,22 +46,41 @@ lazy_sudo() {
 # shared layer is loaded (a bare mkdir -p cannot repair a dangling symlink
 # parent). House policy: idempotent-replace writes end with chmod 777 on the
 # target (shared NTFS data disks ignore chmod; native fs stays writable for
-# every management end). The outcome is detectable by direct file inspection;
+# every management end). Secured system files pass an explicit mode. The outcome is detectable by direct file inspection;
 # the function never signals through unusual exit codes.
-# Usage: write_file_if_changed <target> [backup_dir] <<EOF ... EOF
+# Usage: write_file_if_changed <target> [backup_dir] [mode] [owner] [group] <<EOF ... EOF
 write_file_if_changed() {
     local target="$1"
     local backup_dir="${2:-}"
+    local target_mode="${3:-777}"
+    local target_owner="${4:-}"
+    local target_group="${5:-}"
     local sudo_cmd
     local tmp_content
+    WRITE_FILE_CHANGED=false
+    WRITE_FILE_READY=false
+    WRITE_FILE_TARGET="$target"
+    WRITE_FILE_ACTUAL_MODE=""
+    WRITE_FILE_ACTUAL_OWNER=""
+    WRITE_FILE_ACTUAL_GROUP=""
     sudo_cmd=$(lazy_sudo)
     tmp_content=$(mktemp)
     cat > "$tmp_content"
 
     if [ -f "$target" ] && cmp -s "$tmp_content" "$target"; then
+        $sudo_cmd chmod "$target_mode" "$target" 2>/dev/null || true
+        if [ -n "$target_owner" ] && [ -n "$target_group" ]; then
+            $sudo_cmd chown "$target_owner:$target_group" "$target" 2>/dev/null || true
+        fi
+        WRITE_FILE_ACTUAL_MODE="$(stat -c '%a' "$target" 2>/dev/null)"
+        WRITE_FILE_ACTUAL_OWNER="$(stat -c '%U' "$target" 2>/dev/null)"
+        WRITE_FILE_ACTUAL_GROUP="$(stat -c '%G' "$target" 2>/dev/null)"
         rm -f "$tmp_content"
+        if [ "$WRITE_FILE_ACTUAL_MODE" = "${target_mode#0}" ] && { [ -z "$target_owner" ] || [ "$WRITE_FILE_ACTUAL_OWNER" = "$target_owner" ]; } && { [ -z "$target_group" ] || [ "$WRITE_FILE_ACTUAL_GROUP" = "$target_group" ]; }; then
+            WRITE_FILE_READY=true
+        fi
         echo "[${SCRIPT_INDEX:-common}] [SKIP] $target already up to date"
-        return 0
+        return
     fi
 
     if [ -n "$backup_dir" ] && [ -f "$target" ]; then
@@ -67,8 +93,20 @@ write_file_if_changed() {
         $sudo_cmd mkdir -p "$(dirname "$target")"
     fi
     $sudo_cmd cp "$tmp_content" "$target"
+    $sudo_cmd chmod "$target_mode" "$target" 2>/dev/null || true
+    if [ -n "$target_owner" ] && [ -n "$target_group" ]; then
+        $sudo_cmd chown "$target_owner:$target_group" "$target" 2>/dev/null || true
+    fi
+    WRITE_FILE_ACTUAL_MODE="$(stat -c '%a' "$target" 2>/dev/null)"
+    WRITE_FILE_ACTUAL_OWNER="$(stat -c '%U' "$target" 2>/dev/null)"
+    WRITE_FILE_ACTUAL_GROUP="$(stat -c '%G' "$target" 2>/dev/null)"
+    if [ -f "$target" ] && cmp -s "$tmp_content" "$target" && [ "$WRITE_FILE_ACTUAL_MODE" = "${target_mode#0}" ] && { [ -z "$target_owner" ] || [ "$WRITE_FILE_ACTUAL_OWNER" = "$target_owner" ]; } && { [ -z "$target_group" ] || [ "$WRITE_FILE_ACTUAL_GROUP" = "$target_group" ]; }; then
+        WRITE_FILE_CHANGED=true
+        WRITE_FILE_READY=true
+        echo "[${SCRIPT_INDEX:-common}] [OK] $target written"
+    else
+        echo "[${SCRIPT_INDEX:-common}] [FAIL] $target was not written"
+    fi
     rm -f "$tmp_content"
-    $sudo_cmd chmod 777 "$target" 2>/dev/null || true
-    echo "[${SCRIPT_INDEX:-common}] [OK] $target written"
-    return 0
+    return
 }

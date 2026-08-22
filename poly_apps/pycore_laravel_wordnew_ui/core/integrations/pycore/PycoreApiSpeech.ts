@@ -2,9 +2,15 @@
  * OCR / TTS / STT / speech history / capabilities HTTP surface for pycoreApi.
  */
 import type {
-  OcrTestResponse, TtsTestResponse, SttTestResponse,
-  AiChatMessage, AiChatResponse, AiImageResponse,
-} from './pycoreTypes';
+  OcrTestResponse,
+  TtsTestResponse,
+  SttTestResponse,
+} from './PycoreSpeechTypes';
+import type {
+  AiChatMessage,
+  AiChatResponse,
+  AiImageResponse,
+} from './PycoreAiTypes';
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES, rewritePycoreEndpoint } from './PycoreApiTransport';
 
 /**

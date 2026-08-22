@@ -18,10 +18,11 @@ PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 source "$PARENT_DIR_LEVEL_2/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_2/common/common_functions.sh"
 source "$PARENT_DIR_LEVEL_2/common/app_paths.sh"
+source "$PARENT_DIR_LEVEL_2/common/runtime_service_policy.sh"
 
-SERVICE_NAME="pycore-module-caller"
+SERVICE_NAME="$CORE_RUNTIME_PYCORE_SERVICE"
 SERVICE_PORT=59000
-SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore_module_caller.py"
+SERVICE_SCRIPT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pyservice.sh"
 PYCORE_ROOT="${CORE_NODE_ROOT_FROM_SCRIPTS}/pycore"
 
 COLOR_RESET="\033[0m"
@@ -97,7 +98,11 @@ start_service() {
     show_header
     echo -e "${COLOR_BLUE}=== Starting Pycore HTTP Service ===${COLOR_RESET}"
 
-    if systemctl is-active --quiet $SERVICE_NAME; then
+    runtime_service_policy_classify_unit "$SERVICE_NAME"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_converge_pycore
+        echo -e "${COLOR_YELLOW}Pycore is disabled on headless servers.${COLOR_RESET}"
+    elif systemctl is-active --quiet $SERVICE_NAME; then
         echo -e "${COLOR_YELLOW}Pycore HTTP service is already running${COLOR_RESET}"
     else
         echo "Starting Pycore HTTP service..."
@@ -149,6 +154,16 @@ stop_service() {
 restart_service() {
     show_header
     echo -e "${COLOR_BLUE}=== Restarting Pycore HTTP Service ===${COLOR_RESET}"
+
+    runtime_service_policy_classify_unit "$SERVICE_NAME"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_converge_pycore
+        echo -e "${COLOR_YELLOW}Pycore is disabled on headless servers.${COLOR_RESET}"
+        echo ""
+        show_service_status
+        read -p "Press Enter to continue..."
+        return
+    fi
 
     echo "Restarting Pycore HTTP service..."
     $USE_SUDO systemctl restart $SERVICE_NAME

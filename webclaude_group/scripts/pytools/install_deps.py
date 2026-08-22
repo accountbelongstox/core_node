@@ -93,7 +93,7 @@ def install_node():
         warn(f"Node.js {version} too old, upgrading...")
 
     # Try core_node install script first
-    if run_install_script("17_install_node_24.sh"):
+    if run_install_script("17_install_node_toolchain_24.sh"):
         return True
 
     # Fallback: NodeSource

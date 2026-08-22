@@ -35,7 +35,8 @@
         "request_body_timeout": "20m"
     },
     "http": {
-        "ui_early_hints_link": "<https://fonts.googleapis.com>; rel=preconnect, <https://fonts.gstatic.com>; rel=preconnect; crossorigin"
+        "api_early_hints_link": "</debug-assets/css/tailwind.min.css>; rel=preload; as=style, </debug-assets/css/debug-interface.css>; rel=preload; as=style, </debug-assets/js/debug-interface.js>; rel=preload; as=script",
+        "ui_early_hints_link": "</ui_domain_config.json>; rel=preload; as=fetch; crossorigin"
     },
     "paths": {
         "core_node_data_dir_posix": "/var/_core_node",

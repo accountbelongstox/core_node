@@ -8,10 +8,12 @@
  * transport helpers in PycoreApiTransport; book types in PycoreApiBooksTypes.
  */
 import type {
-  VideoExtractMode, VideoExtractOptions,
+  VideoExtractMode,
+  VideoExtractOptions,
   VideoExtractOpenKind,
-  CodeSyncRole, SyncSettings,
-} from './pycoreTypes';
+  CodeSyncRole,
+  SyncSettings,
+} from './PycorePlatformTypes';
 
 import {
   requestPycoreHttp, requestPycoreStatus, PYCORE_HTTP_ROUTES,

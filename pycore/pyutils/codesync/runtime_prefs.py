@@ -19,7 +19,7 @@ from typing import Any, Dict, Optional
 from pycore.pyutils.common.user_data_store import user_data_store
 
 from pycore.pyutils.codesync.runtime import (
-    get_local_data_dir,
+    get_codesync_cache_dir,
     init_serialized_owner,
     log as ColorPrint,
     serialized_method,
@@ -30,7 +30,7 @@ _SECTION = "codesync_runtime"
 
 
 def get_runtime_prefs_file() -> Path:
-    return get_local_data_dir() / "codesync" / "runtime_prefs.json"
+    return get_codesync_cache_dir() / "runtime_prefs.json"
 
 
 class RuntimePrefs:

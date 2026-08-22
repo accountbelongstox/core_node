@@ -514,7 +514,7 @@ install_via_npm() {
 
     log_install "Installing $app_name via PNPM: $package_id"
 
-    # Prefer gvar absolute path (set by 17_install_node_24.sh / gvar_common.sh).
+    # Prefer gvar absolute path (set by 17_install_node_toolchain_24.sh / gvar_common.sh).
     if [ -n "${PNPM_BIN:-}" ] && [ -x "$PNPM_BIN" ]; then
         pnpm_bin="$PNPM_BIN"
     elif [ -n "${NODE_BIN_DIR:-}" ] && [ -x "$NODE_BIN_DIR/pnpm" ]; then
@@ -522,7 +522,7 @@ install_via_npm() {
     elif command -v pnpm >/dev/null 2>&1; then
         pnpm_bin="$(command -v pnpm)"
     else
-        log_error "pnpm not found. Run 17_install_node_24.sh first (installs pnpm next to node)."
+        log_error "pnpm not found. Run 17_install_node_toolchain_24.sh first (installs pnpm next to node)."
         return 1
     fi
     log_install "Using pnpm absolute path: $pnpm_bin"

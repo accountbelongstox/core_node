@@ -53,7 +53,7 @@ function createCurrentOriginEndpoint(
       id: `${CURRENT_URL_TYPE}:${apiHost}`,
       url: apiHost,
       protocol,
-      priority: 99,
+      priority: 0,
       isLocal: false,
       description: `Current URL - this site (${protocol}://${apiHost})`,
     };
@@ -64,7 +64,7 @@ function createCurrentOriginEndpoint(
     url: hostname,
     protocol,
     port: FIXED_API_PORT,
-    priority: 99,
+    priority: 0,
     isLocal,
     description: `Current URL — this site (${protocol}://${hostname}:${FIXED_API_PORT})`,
   };

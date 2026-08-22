@@ -124,6 +124,7 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
         $https = $httpsPort ?? ServiceContract::port('frankenphp_https');
         $admin = $adminPort ?? ServiceContract::port('frankenphp_admin');
         $backend = ServiceContract::port('laravel_api_backend');
+        $bindHost = ServiceContract::host('any');
 
         $mercureStanza = self::mercureStanza();
 
@@ -139,10 +140,11 @@ class ServerManagerV1FrankenPhpCaddyfileBuilder
             . "\tadmin localhost:{$admin}\n"
             . "\tauto_https disable_redirects\n"
             . "\tgrace_period 10s\n"
-            . "\tservers :{$backend} {\n"
+            . "\tdefault_bind {$bindHost}\n"
+            . "\tservers {$bindHost}:{$backend} {\n"
             . "\t\tprotocols h1\n"
             . "\t}\n"
-            . "\tservers :{$https} {\n"
+            . "\tservers {$bindHost}:{$https} {\n"
             . "\t\tprotocols h1 h2 h3\n"
             . "\t}\n"
             . "\n"

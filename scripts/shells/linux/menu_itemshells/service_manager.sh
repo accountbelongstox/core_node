@@ -28,6 +28,7 @@ LARAVEL_START_SCRIPT="$LARAVEL_DIR/scripts/start.sh"
 # Source global variables
 source "$PARENT_DIR_LEVEL_1/common/gvar_common.sh"
 source "$PARENT_DIR_LEVEL_1/common/common_functions.sh"
+source "$PARENT_DIR_LEVEL_1/common/runtime_service_policy.sh"
 
 # Color codes
 RED='\033[0;31m'
@@ -73,7 +74,7 @@ SERVICE_INSTALL_SCRIPT["ssh"]="23_setup_ssh_remote.sh"
 SERVICE_MANAGER_SCRIPT["ssh"]="$SERVER_MANAGER_DIR/ssh_manager.sh"
 
 SERVICE_NAME["pycore"]="Pycore HTTP"
-SERVICE_SYSTEMD["pycore"]="pycore-module-caller"
+SERVICE_SYSTEMD["pycore"]="$CORE_RUNTIME_PYCORE_SERVICE"
 SERVICE_INSTALL_SCRIPT["pycore"]="189_install_pycore_http_service.sh"
 SERVICE_MANAGER_SCRIPT["pycore"]="$SERVER_MANAGER_DIR/pycore_manager.sh"
 

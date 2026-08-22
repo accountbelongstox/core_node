@@ -9,7 +9,17 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
 import { pycoreApi } from '../../../core/integrations/pycore/PycoreApi';
 import { PYCORE_BROWSER_EVENTS } from '../../../core/integrations/pycore/PycoreNetwork';
-import type { AiGatewayStatus, CapabilityStatus, OcrStatus, TtsStatus, SttStatus } from '../../../core/integrations/pycore/pycoreTypes';
+import type {
+  AiGatewayStatus,
+} from '../../../core/integrations/pycore/PycoreAiTypes';
+import type {
+  CapabilityStatus,
+} from '../../../core/integrations/pycore/PycoreServiceTypes';
+import type {
+  OcrStatus,
+  TtsStatus,
+  SttStatus,
+} from '../../../core/integrations/pycore/PycoreSpeechTypes';
 
 export const PYCORE_CAPABILITY_EVENT = PYCORE_BROWSER_EVENTS.capabilityChanged;
 const CAPABILITY_CLIENT_TTL_MS = 30_000;

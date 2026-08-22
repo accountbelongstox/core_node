@@ -9,7 +9,10 @@
  * The cache key prefix is `pycore_` (was `desktop_manager_`) to avoid collisions
  * with the other ends sharing this shell's localStorage.
  */
-import type { PycoreAppSettings, QueueItem } from '../../../core/integrations/pycore/pycoreTypes';
+import type {
+  PycoreAppSettings,
+  QueueItem,
+} from '../../../core/integrations/pycore/PycorePlatformTypes';
 import { StorageManager } from '../../../core/persistence';
 import { PycoreManagerStorageKeys as StorageKeys } from '../persistence/PycoreManagerStorageKeys';
 
@@ -35,4 +38,3 @@ export function queueCacheAgeMs(): number | null {
   const timestamp = StorageManager.get<number | null>(StorageKeys.PYCORE_CACHE_QUEUE_TS, null);
   return timestamp ? Date.now() - timestamp : null;
 }
-

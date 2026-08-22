@@ -533,6 +533,8 @@ fm_embedded_php_eval() {
     local binary=""
     local php_code=""
     local probe_extension=""
+    local probe_file=""
+    local probe_output=""
 
     binary="$1"
     php_code="$2"
@@ -541,10 +543,15 @@ fm_embedded_php_eval() {
         echo ""
         return
     fi
-    printf '%s' "$php_code" \
-        | PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)" \
+    probe_file="$(mktemp "${TMPDIR:-/tmp}/frankenphp-php-probe.XXXXXX.php")"
+    printf '%s' "$php_code" > "$probe_file"
+    probe_output="$(
+        PHP_INI_SCAN_DIR="$(fm_php_ini_scan_path)" \
             FM_PROBE_EXTENSION="$probe_extension" \
-            "$binary" php-cli /dev/stdin 2>/dev/null
+            "$binary" php-cli "$probe_file" 2>/dev/null
+    )"
+    rm -f "$probe_file"
+    printf '%s' "$probe_output"
 }
 
 # Embedded PHP version ("8.5"); empty when the binary is absent. The
@@ -1263,9 +1270,11 @@ fm_caddyfile_render() {
     local import_stanza=""
     local internal_tls_host=""
     local octane_php_server_stanza=""
+    local bind_host=""
 
     caddyfile_dir="$(dirname "$caddyfile_path")"
     internal_tls_host="$(sc_require hosts.frankenphp_internal_tls)"
+    bind_host="$(sc_require hosts.any)"
     backend_port="$(sc_require ports.laravel_api_backend)"
     # One direct-backend hub owns the transport and native PHP publisher.
     fm_mercure_config
@@ -1293,10 +1302,11 @@ import ${routes_dir}/*.caddy"
 	admin localhost:${admin_port}
 	auto_https disable_redirects
 	grace_period 10s
-	servers :${backend_port} {
+	default_bind ${bind_host}
+	servers ${bind_host}:${backend_port} {
 		protocols h1
 	}
-	servers :${https_port} {
+	servers ${bind_host}:${https_port} {
 		protocols h1 h2 h3
 	}
 

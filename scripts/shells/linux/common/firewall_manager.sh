@@ -26,7 +26,9 @@ FIREWALLD_AVAILABLE=false
 IPTABLES_AVAILABLE=false
 
 # Check and set sudo
-if command -v sudo >/dev/null 2>&1; then
+if [ -n "${USE_SUDO+x}" ]; then
+    :
+elif [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     USE_SUDO="sudo"
 else
     USE_SUDO=""
