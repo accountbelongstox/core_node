@@ -29,11 +29,6 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
   const qwenGpu = qwen.gpu || {};
   const qwenQueue = qwen.queue || {};
   const capacityPlan = qwen.capacity_plan || {};
-<<<<<<< HEAD
-  const gpuIndex = Number(qwenGpu.physical_index ?? qwenGpu.index ?? capacityPlan.physical_gpu_index ?? 0);
-  const nativeBatch = Number(qwen.max_parallel || capacityPlan.batch_size || 1);
-  const gpuUtilization = Number(qwenGpu.util_percent || 0);
-=======
   const synthesisRuntime = qwen.synthesis_runtime || {};
   const gpuIndex = Number(qwenGpu.physical_index ?? qwenGpu.index ?? capacityPlan.physical_gpu_index ?? 0);
   const nativeBatch = Number(qwen.max_parallel || capacityPlan.batch_size || 1);
@@ -43,7 +38,6 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
     `queueCenter.agentHistoryQueue.phases.${synthesisPhase}`,
     { defaultValue: synthesisPhase },
   );
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
   const currentProgress = Math.max(0, Math.min(1, Number(currentItem.progress || 0)));
   const cards = [
     {
@@ -124,14 +118,11 @@ const PcAgentHistoryQueuePanel: React.FC<PcAgentHistoryQueuePanelProps> = ({
               used: Number(qwenGpu.mem_used_mb || 0),
               total: Number(qwenGpu.mem_total_mb || capacityPlan.memory_total_mb || 0),
               batch: nativeBatch,
-<<<<<<< HEAD
-=======
               active: Number(synthesisRuntime.active_native_batch || 0),
               attention: String(qwen.attention_implementation || '-'),
               phase: synthesisPhaseLabel,
               completed: Number(synthesisRuntime.chunks_completed || 0),
               chunks: Number(synthesisRuntime.chunks_total || 0),
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
               running: Number(qwenQueue.running || 0),
               pending: Number(qwenQueue.pending || 0),
             })

@@ -36,10 +36,7 @@ export class NativeMessagingHost {
   private pendingRequests: Map<string, PendingRequest> = new Map();
   private extensionConnected = true;
   private shutdownPromise: Promise<void> | null = null;
-<<<<<<< HEAD
-=======
   private shutdownExitCode = 0;
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
 
   public isExtensionConnected(): boolean {
     return this.extensionConnected;
@@ -324,16 +321,8 @@ export class NativeMessagingHost {
       throw new Error('Server instance not set');
     }
 
-<<<<<<< HEAD
-    if (!this.associatedServer.isRunning) {
-      this.sendMessage({
-        type: NativeMessageType.SERVER_STOPPED,
-      });
-      return;
-=======
     if (this.associatedServer.isRunning) {
       await this.associatedServer.stop();
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
     }
 
     this.sendMessage({ type: NativeMessageType.SERVER_STOPPED });
@@ -364,11 +353,6 @@ export class NativeMessagingHost {
     });
   }
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
   private rejectPendingRequests(reason: string): void {
     this.pendingRequests.forEach((pending) => {
       clearTimeout(pending.timeoutId);
@@ -377,14 +361,10 @@ export class NativeMessagingHost {
     this.pendingRequests.clear();
   }
 
-<<<<<<< HEAD
-  public shutdown(reason: string): Promise<void> {
-=======
   public shutdown(reason: string, exitCode: number = 0): Promise<void> {
     if (exitCode !== 0) {
       this.shutdownExitCode = exitCode;
     }
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
     if (this.shutdownPromise) {
       return this.shutdownPromise;
     }
@@ -396,14 +376,10 @@ export class NativeMessagingHost {
   }
 
   private async stopServerAndExit(reason: string): Promise<void> {
-<<<<<<< HEAD
-    const hardExit = setTimeout(() => process.exit(0), HOST_SHUTDOWN_TIMEOUT_MS);
-=======
     const hardExit = setTimeout(
       () => process.exit(this.shutdownExitCode),
       HOST_SHUTDOWN_TIMEOUT_MS,
     );
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
 
     log('INFO', 'Native messaging connection closed; stopping its MCP server', { reason });
     try {
@@ -414,11 +390,7 @@ export class NativeMessagingHost {
       log('ERROR', 'Failed to stop MCP server during native host shutdown', { error });
     } finally {
       clearTimeout(hardExit);
-<<<<<<< HEAD
-      process.exit(0);
-=======
       process.exit(this.shutdownExitCode);
->>>>>>> ef6e5bbfdfd067df323eb3e43c7e1daa829d6319
     }
   }
 }
