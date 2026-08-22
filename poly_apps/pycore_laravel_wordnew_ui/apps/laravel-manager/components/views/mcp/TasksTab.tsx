@@ -11,11 +11,6 @@ import { useToast } from '../../admin/Toast';
 import Portal from '@/shared/ui/Portal';
 import { OVERLAY_CONTAINER, OVERLAY_Z, OVERLAY_BACKDROP } from '@/shared/styles/overlay';
 
-/**
- * MCP Tasks tab — self-contained: task-category sidebar, queue stats, add/search/
- * edit/delete tasks, per-category prompt mapping, and the category-files modal.
- * Extracted from MCPManager (owns its own state/effects/handlers).
- */
 const TasksTab: React.FC<{ lang?: Language }> = ({ lang = 'en' }) => {
   const t = TRANSLATIONS[lang].mcp;
   const toast = useToast();

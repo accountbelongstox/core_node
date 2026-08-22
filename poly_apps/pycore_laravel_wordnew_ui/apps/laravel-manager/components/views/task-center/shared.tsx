@@ -351,6 +351,48 @@ export const formatResultPreview = (
   return text;
 };
 
+/** Pull a media URL of the given kind out of an arbitrary task result object. */
+export const extractMediaUrl = (result: any, kind: 'image' | 'audio'): string | null => {
+  if (!result || typeof result !== 'object') return null;
+  const direct =
+    kind === 'image'
+      ? result.image_url || result.imageUrl || result.cover_url || result.url
+      : result.audio_url || result.audioUrl || (result.audio && (result.audio.url || result.audio)) || result.url;
+  const candidate = typeof direct === 'string' ? direct : null;
+  if (!candidate) return null;
+  const lower = candidate.toLowerCase();
+  if (kind === 'image' && /\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(lower)) return candidate;
+  if (kind === 'audio' && /\.(mp3|wav|ogg|m4a|aac)(\?|$)/.test(lower)) return candidate;
+  // Field name was explicit (image_url/audio_url) → trust it even without an extension.
+  if (kind === 'image' && (result.image_url || result.imageUrl || result.cover_url)) return candidate;
+  if (kind === 'audio' && (result.audio_url || result.audioUrl || result.audio)) return candidate;
+  return null;
+};
+
+/** Inline media preview (image / audio) for a completed task result, when present. */
+export const renderResultMedia = (result: any, alt: string): React.ReactNode => {
+  const imageUrl = extractMediaUrl(result, 'image');
+  const audioUrl = extractMediaUrl(result, 'audio');
+  if (!imageUrl && !audioUrl) return null;
+  return (
+    <div className="mb-2 space-y-2">
+      {imageUrl && (
+        <img
+          src={imageUrl}
+          alt={alt}
+          className="max-h-48 rounded-lg border border-slate-200 dark:border-slate-700 object-contain"
+          loading="lazy"
+        />
+      )}
+      {audioUrl && (
+        <audio controls src={audioUrl} className="w-full">
+          <track kind="captions" />
+        </audio>
+      )}
+    </div>
+  );
+};
+
 // ==================== Shared snapshot shape for the queue/workers tabs ====================
 // Both QueuePanel and WorkersPanel run on the SAME persistent task key
 // ('laravel.global-tasks') so navigation between them stays warm — they must
