@@ -1,7 +1,16 @@
 from pathlib import Path
 from typing import Optional, Tuple
 
-from pycore.pyutils.common.ffmpeg.ffmpeg_constants import OPUS_SAMPLE_RATES
+from pycore.pyutils.common.ffmpeg.ffmpeg_constants import (
+    DEFAULT_PROGRESS_BAR_HEIGHT,
+    DEFAULT_PROGRESS_FILL_COLOR,
+    DEFAULT_PROGRESS_TRACK_COLOR,
+    DEFAULT_VIDEO_BACKGROUND_COLOR,
+    DEFAULT_VIDEO_FRAME_RATE,
+    OPUS_SAMPLE_RATES,
+)
+from pycore.pyutils.common.ffmpeg.ffmpeg_models import SubtitleRenderSource
+from pycore.pyutils.common.ffmpeg.ffmpeg_subtitle import ass_subtitle_writer
 
 
 class FFmpegCommandBuilder:
@@ -86,6 +95,73 @@ class FFmpegCommandBuilder:
             "-movflags", "+faststart",
         )
 
+    def compose_audio_canvas(
+        self,
+        audio_source: str | Path,
+        duration: float,
+        resolution: Tuple[int, int],
+        subtitle_sources: Tuple[SubtitleRenderSource, ...] = (),
+        fonts_directory: Optional[str | Path] = None,
+        show_progress: bool = False,
+        frame_rate: int = DEFAULT_VIDEO_FRAME_RATE,
+        background_color: str = DEFAULT_VIDEO_BACKGROUND_COLOR,
+        progress_track_color: str = DEFAULT_PROGRESS_TRACK_COLOR,
+        progress_fill_color: str = DEFAULT_PROGRESS_FILL_COLOR,
+        progress_bar_height: int = DEFAULT_PROGRESS_BAR_HEIGHT,
+        encoder: str = "libx264",
+        preset: str = "veryfast",
+        quality: int = 23,
+        audio_bitrate: str = "128k",
+    ) -> Tuple[str, ...]:
+        width, height = resolution
+        safe_duration = max(0.001, duration)
+        safe_frame_rate = max(1, frame_rate)
+        safe_bar_height = min(height, max(1, progress_bar_height))
+        filter_steps = []
+        if show_progress:
+            filter_steps.extend((
+                f"[0:v]drawbox=x=0:y=ih-{safe_bar_height}:w=iw:h={safe_bar_height}:color={self._video_color(progress_track_color)}:t=fill[canvas]",
+                f"color=c={self._video_color(progress_fill_color)}:s={width}x{safe_bar_height}:r={safe_frame_rate}:d={safe_duration:.6f}[progress_bar]",
+                f"[canvas][progress_bar]overlay=x='-overlay_w+overlay_w*min(t/{safe_duration:.6f},1)':y=main_h-overlay_h:shortest=1[progress]",
+            ))
+            current_label = "progress"
+        else:
+            filter_steps.append("[0:v]null[canvas]")
+            current_label = "canvas"
+        for index, subtitle_source in enumerate(subtitle_sources):
+            output_label = f"subtitle_{index}"
+            subtitle_filter = self._subtitle_filter(subtitle_source, fonts_directory)
+            filter_steps.append(f"[{current_label}]{subtitle_filter}[{output_label}]")
+            current_label = output_label
+        filter_steps.append(f"[{current_label}]format=yuv420p[video]")
+        arguments = [
+            "-y",
+            "-f", "lavfi",
+            "-i", (
+                f"color=c={self._video_color(background_color)}:"
+                f"s={width}x{height}:r={safe_frame_rate}:d={safe_duration:.6f}"
+            ),
+            "-i", str(audio_source),
+            "-filter_complex", ";".join(filter_steps),
+            "-map", "[video]",
+            "-map", "1:a:0",
+            "-c:v", encoder,
+            "-preset", preset,
+        ]
+        if "nvenc" in encoder:
+            arguments.extend(("-cq", str(quality), "-b:v", "0"))
+        else:
+            arguments.extend(("-crf", str(quality)))
+        arguments.extend((
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", audio_bitrate,
+            "-t", f"{safe_duration:.6f}",
+            "-shortest",
+            "-movflags", "+faststart",
+        ))
+        return tuple(arguments)
+
     @staticmethod
     def cut_video(
         source: str | Path,
@@ -124,6 +200,33 @@ class FFmpegCommandBuilder:
         else:
             arguments.extend(("-c:a", "libmp3lame", "-b:a", "32k"))
         return tuple(arguments)
+
+    @staticmethod
+    def _subtitle_filter(
+        subtitle_source: SubtitleRenderSource,
+        fonts_directory: Optional[str | Path],
+    ) -> str:
+        options = [
+            f"filename='{FFmpegCommandBuilder._filter_path(subtitle_source.path)}'",
+            f"si={max(0, subtitle_source.stream_index)}",
+        ]
+        if fonts_directory is not None:
+            options.append(
+                f"fontsdir='{FFmpegCommandBuilder._filter_path(fonts_directory)}'")
+        if subtitle_source.force_style is not None:
+            force_style = ass_subtitle_writer.force_style(subtitle_source.force_style)
+            options.append(f"force_style='{force_style.replace(chr(39), chr(92) + chr(39))}'")
+        return f"subtitles={':'.join(options)}"
+
+    @staticmethod
+    def _filter_path(path_value: str | Path) -> str:
+        path = Path(path_value).expanduser().resolve().as_posix()
+        return path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+
+    @staticmethod
+    def _video_color(value: str) -> str:
+        color = value.strip()
+        return f"0x{color[1:]}" if color.startswith("#") else color
 
 
 ffmpeg_command_builder = FFmpegCommandBuilder()
