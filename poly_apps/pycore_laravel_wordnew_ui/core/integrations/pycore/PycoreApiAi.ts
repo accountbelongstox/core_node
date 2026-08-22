@@ -2,8 +2,10 @@
  * AI provider / image / usage HTTP surface for pycoreApi.
  */
 import type {
-  AiChatMessage, AiUsageResponse, AiKeySetRequest,
-} from './pycoreTypes';
+  AiChatMessage,
+  AiUsageResponse,
+  AiKeySetRequest,
+} from './PycoreAiTypes';
 import { requestPycoreHttp, PYCORE_HTTP_ROUTES, rewritePycoreEndpoint } from './PycoreApiTransport';
 
 export const pycoreApiAi = {

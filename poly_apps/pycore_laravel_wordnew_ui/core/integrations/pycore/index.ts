@@ -89,6 +89,10 @@ export {
 } from './PycoreHealth';
 export type { PycoreHealthState } from './PycoreHealth';
 
-export * from './pycoreTypes';
+export type * from './PycorePlatformTypes';
+export type * from './PycoreAiTypes';
+export type * from './PycoreSpeechTypes';
+export type * from './PycoreServiceTypes';
+export type * from './PycoreQueueTypes';
 export * from '../../contracts/QueueCenterContract';
 export * from './ttsEngineState';

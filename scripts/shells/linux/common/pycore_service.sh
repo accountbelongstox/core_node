@@ -38,7 +38,6 @@
 # ============================================================================
 
 # --- Variable declarations (rule 5) -------------------------------------- #
-PYCORE_SERVICE_NAME="pycore"
 PYCORE_SERVICE_DESC="Pycore Module Caller (headless)"
 PYCORE_SVC_SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 # This file lives at scripts/shells/linux/common/, so repo root is 4 dirs up.
@@ -47,6 +46,7 @@ PYCORE_SVC_EXEC_START="/bin/bash $PYCORE_REPO_ROOT/pyservice.sh run --no-ui --no
 PYCORE_SVC_USER=""
 PYCORE_DEBIAN_MGR="$PYCORE_SVC_SCRIPT_DIR/systemd_service_manager.sh"
 PYCORE_GVAR_COMMON="$PYCORE_SVC_SCRIPT_DIR/gvar_common.sh"
+PYCORE_RUNTIME_SERVICE_POLICY="$PYCORE_SVC_SCRIPT_DIR/runtime_service_policy.sh"
 
 # --- Source reusable infrastructure -------------------------------------- #
 # gvar_common.sh provides detect_system_user() and USE_SUDO. Source it only if
@@ -66,6 +66,9 @@ if ! type create_systemd_service >/dev/null 2>&1; then
         source "$PYCORE_DEBIAN_MGR"
     fi
 fi
+
+source "$PYCORE_RUNTIME_SERVICE_POLICY"
+PYCORE_SERVICE_NAME="$CORE_RUNTIME_PYCORE_SERVICE"
 
 # USE_SUDO may not be set if gvar_common.sh was unavailable; default it safely.
 if [ -z "${USE_SUDO+x}" ]; then
@@ -118,44 +121,48 @@ pycore_print_unit() {
 # --- install: create + enable + start ------------------------------------ #
 pycore_service_install() {
     pycore_resolve_user >/dev/null
-    echo "[pycore-service] Installing systemd service '$PYCORE_SERVICE_NAME' ..."
-    pycore_print_unit
-
-    if ! command -v systemctl >/dev/null 2>&1; then
-        echo "[pycore-service] systemctl not found; cannot install a systemd service here."
-        echo "[pycore-service] (This is expected on non-Linux/non-systemd hosts.)"
-        return 1
-    fi
-
-    if type create_systemd_service >/dev/null 2>&1; then
-        # create_systemd_service(name, description, exec_command, working_dir, user, [restart])
-        create_systemd_service \
-            "$PYCORE_SERVICE_NAME" \
-            "$PYCORE_SERVICE_DESC" \
-            "$PYCORE_SVC_EXEC_START" \
-            "$PYCORE_REPO_ROOT" \
-            "$PYCORE_SVC_USER" \
-            "always"
+    if [ "$IS_HEADLESS_SERVER" = true ]; then
+        echo "[pycore-service] Headless server detected; pycore must remain stopped."
+        runtime_service_policy_converge_pycore
     else
-        echo "[pycore-service] create_systemd_service unavailable; cannot create unit." >&2
-        return 1
-    fi
+        echo "[pycore-service] Installing systemd service '$PYCORE_SERVICE_NAME' ..."
+        pycore_print_unit
 
-    echo "[pycore-service] Enabling and starting '$PYCORE_SERVICE_NAME' ..."
-    $USE_SUDO systemctl enable "$PYCORE_SERVICE_NAME" 2>/dev/null || true
-    $USE_SUDO systemctl start "$PYCORE_SERVICE_NAME"
-    pycore_service_status
+        if ! command -v systemctl >/dev/null 2>&1; then
+            echo "[pycore-service] systemctl not found; cannot install a systemd service here."
+            echo "[pycore-service] (This is expected on non-Linux/non-systemd hosts.)"
+        elif type create_systemd_service >/dev/null 2>&1; then
+            create_systemd_service \
+                "$PYCORE_SERVICE_NAME" \
+                "$PYCORE_SERVICE_DESC" \
+                "$PYCORE_SVC_EXEC_START" \
+                "$PYCORE_REPO_ROOT" \
+                "$PYCORE_SVC_USER" \
+                "always"
+            echo "[pycore-service] Enabling and starting '$PYCORE_SERVICE_NAME' ..."
+            $USE_SUDO systemctl enable "$PYCORE_SERVICE_NAME" 2>/dev/null || true
+            $USE_SUDO systemctl start "$PYCORE_SERVICE_NAME"
+            pycore_service_status
+        else
+            echo "[pycore-service] create_systemd_service unavailable; cannot create unit." >&2
+        fi
+    fi
 }
 
 # --- start / stop / restart ---------------------------------------------- #
 pycore_service_start() {
-    echo "[pycore-service] Starting '$PYCORE_SERVICE_NAME' ..."
-    if ! command -v systemctl >/dev/null 2>&1; then
-        echo "[pycore-service] systemctl not found; nothing to start here."
-        return 1
+    if [ "$IS_HEADLESS_SERVER" = true ]; then
+        echo "[pycore-service] Headless server detected; keeping pycore stopped."
+        runtime_service_policy_converge_pycore
+    else
+        echo "[pycore-service] Starting '$PYCORE_SERVICE_NAME' ..."
+        if command -v systemctl >/dev/null 2>&1; then
+            $USE_SUDO systemctl start "$PYCORE_SERVICE_NAME"
+            pycore_service_status
+        else
+            echo "[pycore-service] systemctl not found; nothing to start here."
+        fi
     fi
-    $USE_SUDO systemctl start "$PYCORE_SERVICE_NAME"
-    pycore_service_status
 }
 
 pycore_service_stop() {
@@ -169,13 +176,18 @@ pycore_service_stop() {
 }
 
 pycore_service_restart() {
-    echo "[pycore-service] Restarting '$PYCORE_SERVICE_NAME' ..."
-    if ! command -v systemctl >/dev/null 2>&1; then
-        echo "[pycore-service] systemctl not found; nothing to restart here."
-        return 1
+    if [ "$IS_HEADLESS_SERVER" = true ]; then
+        echo "[pycore-service] Headless server detected; keeping pycore stopped."
+        runtime_service_policy_converge_pycore
+    else
+        echo "[pycore-service] Restarting '$PYCORE_SERVICE_NAME' ..."
+        if command -v systemctl >/dev/null 2>&1; then
+            $USE_SUDO systemctl restart "$PYCORE_SERVICE_NAME"
+            pycore_service_status
+        else
+            echo "[pycore-service] systemctl not found; nothing to restart here."
+        fi
     fi
-    $USE_SUDO systemctl restart "$PYCORE_SERVICE_NAME"
-    pycore_service_status
 }
 
 # --- status -------------------------------------------------------------- #

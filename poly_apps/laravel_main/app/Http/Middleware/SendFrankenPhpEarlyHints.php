@@ -11,7 +11,7 @@ final class SendFrankenPhpEarlyHints
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $link = ServiceContract::string('http.ui_early_hints_link');
+        $link = ServiceContract::string('http.api_early_hints_link');
 
         if ($this->shouldSend($request, $link)) {
             header("Link: {$link}", false);

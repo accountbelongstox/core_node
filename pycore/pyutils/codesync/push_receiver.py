@@ -30,7 +30,7 @@ from pycore.pyutils.codesync.wire_codec import (
     _fmt_bytes,
     _fmt_diff,
 )
-from pycore.pyutils.codesync.runtime import get_local_data_dir, log as ColorPrint
+from pycore.pyutils.codesync.runtime import get_codesync_cache_dir, log as ColorPrint
 
 
 _PENDING_UPDATE_VERSION = 1
@@ -53,7 +53,7 @@ class PushReceiver:
 
     def __init__(self, manager):
         self.m = manager
-        self._pending_updates_dir = get_local_data_dir() / "codesync" / "pending_updates"
+        self._pending_updates_dir = get_codesync_cache_dir() / "pending_updates"
         self._pending_updates_path = self._pending_updates_dir / "index.json"
         self._pending_updates = self._load_pending_updates()
         self._pending_updates_lock = threading.Lock()
@@ -469,7 +469,7 @@ class PushReceiver:
 
     @staticmethod
     def _received_table_path() -> Path:
-        return get_local_data_dir() / "codesync" / "received_files.json"
+        return get_codesync_cache_dir() / "received_files.json"
 
     def _load_received(self) -> dict:
         """Load confirmed hashes and filesystem metadata from prior receives."""

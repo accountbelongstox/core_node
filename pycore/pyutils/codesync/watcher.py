@@ -28,7 +28,7 @@ from typing import Dict, List, Tuple
 
 from pycore.pyutils.codesync.runtime import (
     log as ColorPrint, is_shutdown_requested, register_shutdown_handler,
-    get_core_node_root, get_local_data_dir, THREAD_BUS, init_serialized_owner,
+    get_core_node_root, get_codesync_cache_dir, THREAD_BUS, init_serialized_owner,
     serialized_method, start_bus_task,
 )
 from pycore.pyutils.codesync.sync_settings import build_excluder, get_sync_settings
@@ -52,7 +52,7 @@ class WatchManager:
         }
         self._running = False
         self._thread = None
-        self._cache_path = get_local_data_dir() / "codesync" / "file_index.json"
+        self._cache_path = get_codesync_cache_dir() / "file_index.json"
         # Set once the FIRST scan has completed with a non-empty index. The push
         # sender gates on this so it never connects + sends an (empty) manifest
         # before the initial scan of a large tree finishes (which would just abort

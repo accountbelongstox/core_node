@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 from pycore.pyutils.common.user_data_store import user_data_store
 
 from pycore.pyutils.codesync.runtime import (
-    get_local_data_dir,
+    get_codesync_cache_dir,
     init_serialized_owner,
     log as ColorPrint,
     serialized_method,
@@ -145,7 +145,7 @@ _SECTION = "codesync_sync"
 
 def get_sync_settings_file() -> Path:
     """Per-machine override (gitignored)."""
-    return get_local_data_dir() / "codesync" / "sync_settings.json"
+    return get_codesync_cache_dir() / "sync_settings.json"
 
 
 def presets() -> Dict[str, Any]:

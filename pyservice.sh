@@ -92,6 +92,9 @@ export PYCORE_HTTP_EVENTS_ENABLED=1
 # Resolve this script's directory (repo root), following symlinks.
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")")" && pwd)"
 PY_SERVICE_COMMAND="${1:-}"
+RUNTIME_ENVIRONMENT_SCRIPT="$SCRIPT_DIR/scripts/shells/linux/common/runtime_environment.sh"
+
+source "$RUNTIME_ENVIRONMENT_SCRIPT"
 
 # Shared Python runtime env (user-base + PIP flags) is exported AFTER resolve_python picks
 # the interpreter, because the policy is VENV-AWARE (single source of truth:
@@ -378,6 +381,11 @@ while [[ $# -gt 0 ]]; do
         *) echo "[!] Unknown argument: $1" >&2; shift ;;
     esac
 done
+
+if [[ "$IS_HEADLESS_SERVER" == true ]]; then
+    echo "[i] Headless server detected; Pycore runtime is disabled by server policy."
+    exit 0
+fi
 
 echo "======================================================"
 echo " Pycore Service - entry point"

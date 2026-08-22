@@ -30,7 +30,13 @@
 # ---- variable declarations (rule 5) ----
 SHARED_CACHE_DATA_ROOT=""
 SHARED_CACHE_DIR=""
+SHARED_CACHE_ENV_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SHARED_CACHE_RUNTIME_ENV="$SHARED_CACHE_ENV_DIR/runtime_environment.sh"
 __scc_d=""
+
+if [ -z "${IS_HEADLESS_SERVER+x}" ]; then
+    source "$SHARED_CACHE_RUNTIME_ENV"
+fi
 
 # Resolve the shared data root (gvar_common.sh usually already sets CORE_NODE_DATA_DIR).
 : "${CORE_NODE_DATA_DIR:=/var/_core_node}"
@@ -41,8 +47,7 @@ SHARED_CACHE_DIR="$SHARED_CACHE_DATA_ROOT/cache"
 for __scc_d in "$SHARED_CACHE_DATA_ROOT" "$SHARED_CACHE_DIR" \
                "$SHARED_CACHE_DIR/huggingface/hub" "$SHARED_CACHE_DIR/torch" \
                "$SHARED_CACHE_DIR/pip" "$SHARED_CACHE_DIR/xdg" \
-               "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr" \
-               "$SHARED_CACHE_DIR/pycore"; do
+               "$SHARED_CACHE_DIR/stt" "$SHARED_CACHE_DIR/tts" "$SHARED_CACHE_DIR/ocr"; do
     [ -d "$__scc_d" ] && continue
     mkdir -p "$__scc_d" 2>/dev/null \
         || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$__scc_d" 2>/dev/null; } || true
@@ -68,7 +73,15 @@ if [ -w "$SHARED_CACHE_DIR" ]; then
     : "${TORCH_HOME:=$SHARED_CACHE_DIR/torch}";  export TORCH_HOME
     : "${PIP_CACHE_DIR:=$SHARED_CACHE_DIR/pip}"; export PIP_CACHE_DIR
     : "${XDG_CACHE_HOME:=$SHARED_CACHE_DIR/xdg}"; export XDG_CACHE_HOME
-    : "${PYCORE_LOCAL_DATA_DIR:=$SHARED_CACHE_DIR/pycore}"; export PYCORE_LOCAL_DATA_DIR
+    if [ "$IS_HEADLESS_SERVER" = true ]; then
+        unset PYCORE_LOCAL_DATA_DIR
+    else
+        if [ ! -d "$SHARED_CACHE_DIR/pycore" ]; then
+            mkdir -p "$SHARED_CACHE_DIR/pycore" 2>/dev/null \
+                || { command -v sudo >/dev/null 2>&1 && sudo -n mkdir -p "$SHARED_CACHE_DIR/pycore" 2>/dev/null; } || true
+        fi
+        : "${PYCORE_LOCAL_DATA_DIR:=$SHARED_CACHE_DIR/pycore}"; export PYCORE_LOCAL_DATA_DIR
+    fi
 fi
 
 unset __scc_d 2>/dev/null || true

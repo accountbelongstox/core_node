@@ -576,7 +576,7 @@ install_via_pnpm() {
 
     pnpm_bin="$(resolve_pnpm_binary_path)"
     if [ -z "$pnpm_bin" ]; then
-        log_message "pnpm not found. Run 17_install_node_24.sh first. Cannot install $app_name"
+        log_message "pnpm not found. Run 17_install_node_toolchain_24.sh first. Cannot install $app_name"
         return
     fi
 

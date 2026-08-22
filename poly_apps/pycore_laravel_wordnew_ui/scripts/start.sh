@@ -39,8 +39,10 @@ POLY_APPS_DIR="$(cd "${APP_ROOT}/.." && pwd)"
 REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 SELF="${SCRIPT_DIR}/start.sh"
 LARAVEL_START="${POLY_APPS_DIR}/laravel_main/scripts/start.sh"
-NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_24.sh"
+NODE_INSTALL_SCRIPT="${REPO_ROOT}/scripts/shells/linux/debian/install_shells/17_install_node_toolchain_24.sh"
 SERVICE_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/debian_service_manager.sh"
+FRANKENPHP_MANAGER="${REPO_ROOT}/scripts/shells/linux/common/frankenphp_manager.sh"
+CADDY_STATIC_SITE_COMMON="${REPO_ROOT}/scripts/shells/linux/common/caddy_static_site_common.sh"
 SERVICE_NAME="ncore-nexus-dash"
 SERVICE_DESC="Nexus Dash frontend (pycore_laravel_wordnew_ui)"
 # CPU cap (overridable). Memory is computed at registration: min(RAM/4, cap).
@@ -61,6 +63,7 @@ VITE_BIN="${APP_ROOT}/node_modules/vite/bin/vite.js"
 # (install, and the pre-run deps check inside `pnpm exec`) recreates node_modules instead of
 # aborting. pnpm still only purges when it genuinely must; a compatible tree updates in place.
 export npm_config_confirm_modules_purge=false
+export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 DIST_DIR="${APP_ROOT}/dist"
 DIST_INDEX="${APP_ROOT}/dist/index.html"
 # Fixed dashboard dev port (no env files). Single source:
@@ -70,6 +73,24 @@ source "${SCRIPT_DIR}/../../../scripts/shells/linux/common/service_contract_comm
 DEV_PORT="${PORT:-$(sc_get ports.nexus_dash_frontend)}"
 BIND_HOST="$(sc_get hosts.any)"
 DEV_URL="http://localhost:${DEV_PORT}"
+UI_DOMAIN_CONFIG_FILE="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var/$(sc_get files.ui_domain_config)"
+STATIC_CADDYFILE="${CORE_NODE_CACHE_DIR:-/var/_core_node/cache}/pycore/nexus-dash.Caddyfile"
+BUILD_INPUT_PATHS=(
+    "${APP_ROOT}/apps"
+    "${APP_ROOT}/core"
+    "${APP_ROOT}/flavors"
+    "${APP_ROOT}/public"
+    "${APP_ROOT}/resources"
+    "${APP_ROOT}/shared"
+    "${APP_ROOT}/shell"
+    "${APP_ROOT}/themes"
+    "${APP_ROOT}/index.html"
+    "${APP_ROOT}/index.tsx"
+    "${APP_ROOT}/package.json"
+    "${APP_ROOT}/pnpm-lock.yaml"
+    "${APP_ROOT}/tsconfig.json"
+    "${APP_ROOT}/vite.config.ts"
+)
 ACTION="orchestrate"
 APK_APP=""
 APK_BUILD_TYPE="ask"
@@ -87,6 +108,8 @@ RUN_BACKEND=1
 RUN_FRONTEND=1
 FORCE_INSTALL="${FORCE_INSTALL:-}"
 PNPM_BIN=""
+PNPM_VERSION=""
+PNPM_RESOLVE_READY="no"
 NEED_INSTALL=""
 NEED_BUILD=""
 SUDO=""
@@ -101,6 +124,14 @@ IP_LIST=""
 IP=""
 NON_INTERACTIVE=""
 SERVICE_EXISTS=""
+BUILD_INPUT_PATH=""
+BUILD_SOURCE_NEWER=""
+FRANKENPHP_BIN=""
+
+# shellcheck source=/dev/null
+source "$FRANKENPHP_MANAGER"
+# shellcheck source=/dev/null
+source "$CADDY_STATIC_SITE_COMMON"
 
 # Restore initial directory on any exit (normal, error, Ctrl+C)
 trap 'cd "$ORIGINAL_DIR" 2>/dev/null || true' EXIT
@@ -145,20 +176,38 @@ ask_default_no() {
 # Resolve pnpm into PNPM_BIN: PATH -> corepack -> node init-ensure installer.
 resolve_pnpm() {
     PNPM_BIN=""
+    PNPM_VERSION=""
+    PNPM_RESOLVE_READY="no"
     hash -r 2>/dev/null || true
-    if command -v pnpm >/dev/null 2>&1; then PNPM_BIN="$(command -v pnpm)"; return 0; fi
+    if command -v pnpm >/dev/null 2>&1; then
+        PNPM_BIN="$(command -v pnpm)"
+        PNPM_VERSION="$("$PNPM_BIN" --version 2>/dev/null)"
+        if [ -n "$PNPM_VERSION" ]; then
+            PNPM_RESOLVE_READY="yes"
+            return
+        fi
+    fi
     if command -v corepack >/dev/null 2>&1; then
         corepack enable >/dev/null 2>&1 || true
         corepack prepare pnpm@latest --activate >/dev/null 2>&1 || true
         hash -r 2>/dev/null || true
-        if command -v pnpm >/dev/null 2>&1; then PNPM_BIN="$(command -v pnpm)"; return 0; fi
+        if command -v pnpm >/dev/null 2>&1; then
+            PNPM_BIN="$(command -v pnpm)"
+            PNPM_VERSION="$("$PNPM_BIN" --version 2>/dev/null)"
+            if [ -n "$PNPM_VERSION" ]; then
+                PNPM_RESOLVE_READY="yes"
+            fi
+        fi
     fi
-    return 1
 }
 
 # Ensure node + pnpm are available (installs node via the canonical .sh if missing).
 ensure_node_pnpm() {
-    if resolve_pnpm; then log "Using pnpm: $PNPM_BIN"; return 0; fi
+    resolve_pnpm
+    if [ "$PNPM_RESOLVE_READY" = "yes" ]; then
+        log "Using pnpm ${PNPM_VERSION}: $PNPM_BIN"
+        return
+    fi
     if ! node --version >/dev/null 2>&1 && [ -f "$NODE_INSTALL_SCRIPT" ]; then
         if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1 && [ -z "$SUDO" ]; then SUDO="sudo"; fi
         GVDIR="${CORE_NODE_DATA_DIR:-/var/_core_node}/global_var"
@@ -168,9 +217,9 @@ ensure_node_pnpm() {
         log "  $NODE_INSTALL_SCRIPT"
         bash "$NODE_INSTALL_SCRIPT" || warn "node init-ensure installer reported failure (continuing)."
         hash -r 2>/dev/null || true
-        resolve_pnpm || true
+        resolve_pnpm
     fi
-    if [ -z "$PNPM_BIN" ]; then
+    if [ "$PNPM_RESOLVE_READY" != "yes" ]; then
         err "pnpm not found on PATH. Install: npm i -g pnpm  OR  corepack enable && corepack prepare pnpm@latest --activate"
         exit 1
     fi
@@ -195,18 +244,18 @@ ensure_deps() {
     if [ -n "$FORCE_INSTALL" ]; then
         log "Force reinstall requested: recreating node_modules from scratch..."
         # Explicit opt-in to the purge; run non-interactively so it does not block.
-        if ! pnpm install --config.confirm-modules-purge=false; then err "pnpm install failed."; exit 1; fi
+        if ! "$PNPM_BIN" install --config.confirm-modules-purge=false; then err "pnpm install failed."; exit 1; fi
         fresh_install=1
     elif [ ! -d "$NODE_MODULES" ] || [ -z "$(ls -A "$NODE_MODULES" 2>/dev/null)" ]; then
         log "node_modules missing -> installing dependencies..."
-        if ! pnpm install; then err "pnpm install failed."; exit 1; fi
+        if ! "$PNPM_BIN" install; then err "pnpm install failed."; exit 1; fi
         fresh_install=1
     else
         # node_modules EXISTS -> update in place. pnpm recreates it only if it deems the
         # on-disk format incompatible; confirm-modules-purge=false lets that happen
         # non-interactively here instead of aborting under systemd's no-TTY.
         log "node_modules present -> updating dependencies (in place when compatible)..."
-        if pnpm install --config.confirm-modules-purge=false; then
+        if "$PNPM_BIN" install --config.confirm-modules-purge=false; then
             log "Dependencies ready (updated in place, or recreated as pnpm required)."
         else
             warn "pnpm install did not complete cleanly; keeping existing node_modules."
@@ -226,17 +275,32 @@ ensure_deps() {
     cd "$ORIGINAL_DIR" || true
 }
 
-# Build the production dist once (only when missing or forced).
+# Converge the production dist independently from dependency installation.
+# Every source input is compared with the built entry, so a valid output does
+# not suppress later source changes and an unchanged tree does not rebuild.
 build_dist() {
     NEED_BUILD=""
-    if [ -n "$FORCE_INSTALL" ] || [ ! -f "$DIST_INDEX" ]; then NEED_BUILD=1; fi
+    BUILD_SOURCE_NEWER=""
+    if [ -n "$FORCE_INSTALL" ] || [ ! -f "$DIST_INDEX" ]; then
+        NEED_BUILD=1
+    else
+        for BUILD_INPUT_PATH in "${BUILD_INPUT_PATHS[@]}"; do
+            if [ -e "$BUILD_INPUT_PATH" ]; then
+                BUILD_SOURCE_NEWER="$(find "$BUILD_INPUT_PATH" -type f -newer "$DIST_INDEX" -print -quit 2>/dev/null)"
+            fi
+            if [ -n "$BUILD_SOURCE_NEWER" ]; then
+                NEED_BUILD=1
+                break
+            fi
+        done
+    fi
     if [ -n "$NEED_BUILD" ]; then
         log "Building production dist (pnpm run build -> vite build)..."
         cd "$APP_ROOT" || exit 1
-        if ! pnpm run build; then err "pnpm run build failed."; exit 1; fi
+        if ! "$PNPM_BIN" run build; then err "pnpm run build failed."; exit 1; fi
         cd "$ORIGINAL_DIR" || true
     else
-        log "dist/ present at ${DIST_DIR}; skipping build. Use --force-install to rebuild."
+        log "Production dist is current: ${DIST_DIR}"
     fi
     if [ ! -f "$DIST_INDEX" ]; then err "dist build missing index.html at: $DIST_INDEX"; exit 1; fi
 }
@@ -294,7 +358,8 @@ print_urls() {
     fi
 }
 
-# Foreground server (dev vite or built-dist preview). Frees the port first.
+# Foreground server. Development uses Vite; production uses the shared Caddy
+# static-site runtime with SPA fallback and immutable hashed assets.
 serve_dashboard() {
     # Fail loud on an unreadable service contract: an empty port/host would
     # silently drop vite to its defaults (5173) while nginx keeps proxying to
@@ -311,11 +376,21 @@ serve_dashboard() {
     print_urls
     cd "$APP_ROOT" || exit 1
     if [ "$RUN_MODE" = "dist" ]; then
-        log "Serving production dist (pnpm exec vite preview --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
-        pnpm exec vite preview --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+        css_caddyfile_ensure "$BIND_HOST" "$DEV_PORT" "$DIST_DIR" "$UI_DOMAIN_CONFIG_FILE" "$STATIC_CADDYFILE"
+        if [ "$CSS_CADDYFILE_READY" != "yes" ]; then
+            err "Production static server configuration could not be converged: ${STATIC_CADDYFILE}"
+            exit 1
+        fi
+        FRANKENPHP_BIN="$(fm_get_binary)"
+        if [ -z "$FRANKENPHP_BIN" ]; then
+            err "The selected FrankenPHP runtime is unavailable. Run 93_install_frankenphp.sh."
+            exit 1
+        fi
+        log "Serving production dist with Caddy on ${BIND_HOST}:${DEV_PORT}"
+        exec "$FRANKENPHP_BIN" run --config "$STATIC_CADDYFILE" --adapter caddyfile
     else
         log "Starting dev server (pnpm exec vite --port ${DEV_PORT} --strictPort --host ${BIND_HOST})"
-        pnpm exec vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
+        "$PNPM_BIN" exec vite --port "$DEV_PORT" --strictPort --host "$BIND_HOST"
     fi
 }
 
@@ -381,7 +456,7 @@ register_dashboard_service() {
             systemctl restart "$2"
             systemctl status "$2" --no-pager -l || true
         ' _ "$SERVICE_MANAGER" "$SERVICE_NAME" "$SERVICE_DESC" "$exec_cmd" "$APP_ROOT" "$SERVICE_CPU" "$SERVICE_MEM"
-        return $?
+        return
     fi
     err "Need root (or sudo) to register a systemd service. Re-run as root."
     return 1
@@ -418,6 +493,10 @@ while [ "$#" -gt 0 ]; do
     shift
 done
 
+if [ -z "$RUN_DIST" ] && [ "$AS_SERVICE" = "yes" ]; then
+    RUN_DIST="yes"
+fi
+
 if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     if [ -n "$NON_INTERACTIVE" ]; then SUDO="sudo -n"; else SUDO="sudo"; fi
 fi
@@ -432,22 +511,26 @@ log "Working directory:  $APP_ROOT"
 if [ "$ACTION" = "serve" ] || [ "$ACTION" = "prepare" ]; then
     if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
     log "Action: ${ACTION} | mode: ${RUN_MODE}"
-    ensure_node_pnpm
-    ensure_deps
-    [ "$RUN_MODE" = "dist" ] && build_dist
+    if [ "$ACTION" = "prepare" ] || [ "$RUN_MODE" = "dev" ]; then
+        ensure_node_pnpm
+        ensure_deps
+    fi
+    if [ "$ACTION" = "prepare" ] && [ "$RUN_MODE" = "dist" ]; then
+        build_dist
+    fi
     if [ "$ACTION" = "prepare" ]; then
         log "Prepare complete (${RUN_MODE} mode). Not starting a server."
         exit 0
     fi
     serve_dashboard
-    exit $?
+    exit
 fi
 
 if [ "$ACTION" = "build-apk" ]; then
     ensure_node_pnpm
     ensure_deps
     build_apk
-    exit $?
+    exit
 fi
 
 # =====================================================================
@@ -466,12 +549,11 @@ if [ -n "$RUN_FRONTEND" ]; then
     ensure_deps
 fi
 
-# 2) Run mode (dist/dev): default to the dev server with NO prompt (no parameters
-# required). Override only via the --dist/--dev flags or the RUN_DIST env var for
-# headless/production use.
+# 2) Run mode (dist/dev): interactive foreground use defaults to development;
+# an explicitly requested background service defaults to production dist.
 if [ -z "$RUN_DIST" ]; then RUN_DIST="no"; fi
 if [ "$RUN_DIST" = "yes" ]; then RUN_MODE="dist"; else RUN_MODE="dev"; fi
-log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (vite build -> vite preview)' || echo 'DEV server (vite, hot reload)' )"
+log "Frontend mode: $( [ "$RUN_MODE" = dist ] && echo 'PRODUCTION dist (Vite build -> Caddy static service)' || echo 'DEV server (Vite, hot reload)' )"
 
 # 3) Finish prerequisites: build the dist when chosen.
 if [ -n "$RUN_FRONTEND" ] && [ "$RUN_MODE" = "dist" ]; then

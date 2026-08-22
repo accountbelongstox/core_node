@@ -33,6 +33,9 @@ PARENT_DIR_LEVEL_1="$(dirname "$SCRIPT_CURRENT_DIR")"
 PARENT_DIR_LEVEL_2="$(dirname "$PARENT_DIR_LEVEL_1")"
 PARENT_DIR_LEVEL_3="$(dirname "$PARENT_DIR_LEVEL_2")"
 ROOT_DIR="$PARENT_DIR_LEVEL_3"
+RUNTIME_SERVICE_POLICY="$PARENT_DIR_LEVEL_1/common/runtime_service_policy.sh"
+
+source "$RUNTIME_SERVICE_POLICY"
 
 # Color codes
 RED='\033[0;31m'
@@ -154,7 +157,11 @@ start_service() {
     echo "Starting $service..."
     echo "================================================"
 
-    if systemctl is-active --quiet "$service"; then
+    runtime_service_policy_classify_unit "$service"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_disable_unit "$service"
+        echo -e "${YELLOW}$service is disabled by the headless server policy.${NC}"
+    elif systemctl is-active --quiet "$service"; then
         echo -e "${YELLOW}$service is already running${NC}"
         return 0
     fi
@@ -208,7 +215,11 @@ restart_service() {
     echo "Restarting $service..."
     echo "================================================"
 
-    if $USE_SUDO systemctl restart "$service"; then
+    runtime_service_policy_classify_unit "$service"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_disable_unit "$service"
+        echo -e "${YELLOW}$service is disabled by the headless server policy.${NC}"
+    elif $USE_SUDO systemctl restart "$service"; then
         echo -e "${GREEN}$service restarted successfully${NC}"
         echo ""
         echo "Service status:"
@@ -279,7 +290,11 @@ toggle_autostart() {
     echo "Toggle Auto-start for $service"
     echo "================================================"
 
-    if systemctl is-enabled --quiet "$service" 2>/dev/null; then
+    runtime_service_policy_classify_unit "$service"
+    if [ "$RUNTIME_SERVICE_POLICY_BLOCKED" = true ]; then
+        runtime_service_policy_disable_unit "$service"
+        echo -e "${YELLOW}$service auto-start is disabled by the headless server policy.${NC}"
+    elif systemctl is-enabled --quiet "$service" 2>/dev/null; then
         echo "Auto-start is currently: ENABLED"
         echo ""
         read -p "Do you want to DISABLE auto-start? (y/N): " confirm

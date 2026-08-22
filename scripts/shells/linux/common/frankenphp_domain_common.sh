@@ -48,6 +48,7 @@ FM_DOMAIN_CADDYFILE="${FM_DOMAIN_CADDY_DIR}/Caddyfile"
 FM_DOMAIN_ROUTES_DIR="${FM_DOMAIN_CADDY_DIR}/routes"
 FM_DOMAIN_BACKEND_URL="http://$(sc_require hosts.loopback):$(sc_require ports.laravel_api_backend)"
 FM_DOMAIN_UI_BACKEND_URL="$(domain_ui_backend_url)"
+FM_DOMAIN_API_EARLY_HINTS_LINK="$(sc_require http.api_early_hints_link)"
 FM_DOMAIN_UI_EARLY_HINTS_LINK="$(sc_require http.ui_early_hints_link)"
 FM_DOMAIN_HTTP_PORT="$(sc_get ports.frankenphp_http)"
 FM_DOMAIN_HTTPS_PORT="$(sc_get ports.frankenphp_https)"
@@ -129,7 +130,7 @@ fm_domain_render_route() {
     ui_addresses="${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${domain}:${FM_DOMAIN_HTTPS_PORT}, ${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}, www.${prefix}.${domain}:${FM_DOMAIN_HTTPS_PORT}"
     api_http_address="http://${api_host}:${FM_DOMAIN_HTTP_PORT}"
     ui_http_addresses="http://${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${domain}:${FM_DOMAIN_HTTP_PORT}, http://${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}, http://www.${prefix}.${domain}:${FM_DOMAIN_HTTP_PORT}"
-    api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL")"
+    api_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_BACKEND_URL" "$FM_DOMAIN_API_EARLY_HINTS_LINK")"
     ui_handlers="$(fm_caddy_reverse_proxy_handlers_render "$FM_DOMAIN_UI_BACKEND_URL" "$FM_DOMAIN_UI_EARLY_HINTS_LINK")"
     cat <<EOF
 # ${FM_DOMAIN_MARKER} domain=${domain} prefix=${prefix}

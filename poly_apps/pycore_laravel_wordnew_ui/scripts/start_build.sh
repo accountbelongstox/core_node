@@ -11,7 +11,7 @@
 # Capacitor native build entry (Linux/Debian; incl. WSL) for pycore_laravel_wordnew_ui.
 # This script IMPLEMENTS NO INSTALLATION: every prerequisite repair is delegated to
 # the idempotent installer steps referenced by FULL PATH (dd.sh install_shells menu):
-#   17_install_node_24.sh        - node + pnpm
+#   17_install_node_toolchain_24.sh - node + pnpm
 #   13_ensure_python.sh          - python
 #   92_install_java.sh           - JDK 21 (Temurin -> COMPILE_DIR/java + /etc/environment)
 #   187_install_android_sdk.sh   - cmdline-tools + licenses + platform-tools +
@@ -39,7 +39,7 @@ REPO_ROOT="$(cd "${POLY_APPS_DIR}/.." && pwd)"
 BUILD_APK_SCRIPT="${SCRIPT_DIR}/flavor/build_apk.py"
 # dd idempotent steps + central library (FULL PATHS from the dd directory layout)
 LINUX_SHELLS_DIR="${REPO_ROOT}/scripts/shells/linux"
-STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_24.sh"
+STEP_NODE="${LINUX_SHELLS_DIR}/debian/install_shells/17_install_node_toolchain_24.sh"
 STEP_PYTHON="${LINUX_SHELLS_DIR}/debian/install_shells/13_ensure_python.sh"
 STEP_JAVA="${LINUX_SHELLS_DIR}/debian/install_shells/92_install_java.sh"
 STEP_ANDROID_SDK="${LINUX_SHELLS_DIR}/debian/install_shells/187_install_android_sdk.sh"
@@ -178,7 +178,7 @@ if [ "$READY" -eq 1 ] && ! test_pnpm_ready; then
     invoke_step "$STEP_NODE"
     hash -r 2>/dev/null || true
     if ! test_pnpm_ready; then
-        err "pnpm still missing after 17_install_node_24.sh."
+        err "pnpm still missing after 17_install_node_toolchain_24.sh."
         READY=0
     fi
 fi

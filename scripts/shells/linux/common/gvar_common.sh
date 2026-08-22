@@ -15,15 +15,13 @@
 # Other project *.sh files must not export path/config constants; resolve them locally or source hubs like this one.
 
 # Detect environment type
-IS_WSL=false
-IS_PRODUCTION=false
-IS_DESKTOP_WITH_WINDOWS=false
-HAS_DESKTOP_ENVIRONMENT=false
-DESKTOP_ENVIRONMENT=""
 CURRENT_USER=""
 DESKTOP_WINDOWS_MOUNT_PATH=""
 DESKTOP_WINDOWS_DRIVES=""
-WSL_USERS_PATH="/mnt/c/Users"
+GVAR_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RUNTIME_ENVIRONMENT_SCRIPT="$GVAR_COMMON_DIR/runtime_environment.sh"
+
+source "$RUNTIME_ENVIRONMENT_SCRIPT"
 
 # Detected actual desktop user (when running as root)
 ACTUAL_DESKTOP_USER=""
@@ -194,49 +192,6 @@ check_and_install_sudo() {
 # Core Node project root directory
 CORE_NODE_PROJECT_ROOT=""
 
-# Function to detect desktop environment
-detect_desktop_environment() {
-    # Check for X11 session
-    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for Wayland session
-    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for common desktop environment variables
-    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
-    elif [ -n "${DESKTOP_SESSION:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
-    fi
-
-    # Check for running desktop processes
-    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-
-    # Check for desktop environment directories
-    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
-        # Additional check: see if we're in a graphical session
-        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-
-    # Check for WSL with desktop environment
-    if [ "$IS_WSL" = true ]; then
-        # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-}
-
 # Function to detect actual desktop user when running as root
 # This is useful for services that need to interact with the desktop user's session
 detect_actual_desktop_user() {
@@ -251,19 +206,8 @@ detect_actual_desktop_user() {
     return 0
 }
 
-# Detect desktop environment first
-detect_desktop_environment
-
 # Detect actual desktop user (if running as root)
 detect_actual_desktop_user
-
-# Check if running in WSL
-if [ -d "$WSL_USERS_PATH" ]; then
-    IS_WSL=true
-elif [ "$HAS_DESKTOP_ENVIRONMENT" = false ]; then
-    # Not WSL and no desktop environment = production server
-    IS_PRODUCTION=true
-fi
 
 # Return largest NTFS device and its size (bytes), output "size device"
 get_largest_ntfs_with_size() {
@@ -693,52 +637,6 @@ determine_largest_windows_drive() {
     fi
 }
 
-# Function to detect desktop environment
-detect_desktop_environment() {
-    # Check for X11 session
-    if [ -n "${DISPLAY:-}" ] && [ "${DISPLAY:-}" != ":0" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for Wayland session
-    if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for common desktop environment variables
-    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="${XDG_CURRENT_DESKTOP:-}"
-    elif [ -n "${DESKTOP_SESSION:-}" ]; then
-        HAS_DESKTOP_ENVIRONMENT=true
-        DESKTOP_ENVIRONMENT="${DESKTOP_SESSION:-}"
-    fi
-    
-    # Check for running desktop processes
-    if pgrep -x "gnome-session\|kde-session\|xfce4-session\|mate-session\|cinnamon-session\|lxde-session\|lxqt-session\|openbox\|fluxbox\|i3\|awesome\|dwm" >/dev/null 2>&1; then
-        HAS_DESKTOP_ENVIRONMENT=true
-    fi
-    
-    # Check for desktop environment directories
-    if [ -d "/usr/share/xsessions" ] || [ -d "/usr/share/wayland-sessions" ]; then
-        # Additional check: see if we're in a graphical session
-        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-    
-    # Check for WSL with desktop environment
-    if [ "$IS_WSL" = true ]; then
-        # In WSL, check if X11 forwarding is available or if WSLg is running
-        if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || pgrep -x "wslg" >/dev/null 2>&1; then
-            HAS_DESKTOP_ENVIRONMENT=true
-        fi
-    fi
-}
-
-# Detect desktop environment
-detect_desktop_environment
-
 # Detect desktop system with Windows drives
 detect_desktop_windows_drives
 
@@ -904,6 +802,7 @@ export IS_WSL
 export IS_PRODUCTION
 export IS_DESKTOP_WITH_WINDOWS
 export HAS_DESKTOP_ENVIRONMENT
+export IS_HEADLESS_SERVER
 export DESKTOP_ENVIRONMENT
 export CURRENT_USER
 export DESKTOP_WINDOWS_MOUNT_PATH
