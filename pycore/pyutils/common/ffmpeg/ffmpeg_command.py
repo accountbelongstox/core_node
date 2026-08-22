@@ -215,13 +215,18 @@ class FFmpegCommandBuilder:
                 f"fontsdir='{FFmpegCommandBuilder._filter_path(fonts_directory)}'")
         if subtitle_source.force_style is not None:
             force_style = ass_subtitle_writer.force_style(subtitle_source.force_style)
-            options.append(f"force_style='{force_style.replace(chr(39), chr(92) + chr(39))}'")
+            options.append(
+                f"force_style='{FFmpegCommandBuilder._filter_quote(force_style)}'")
         return f"subtitles={':'.join(options)}"
 
     @staticmethod
     def _filter_path(path_value: str | Path) -> str:
         path = Path(path_value).expanduser().resolve().as_posix()
         return path.replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+
+    @staticmethod
+    def _filter_quote(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("'", "\\'")
 
     @staticmethod
     def _video_color(value: str) -> str:
